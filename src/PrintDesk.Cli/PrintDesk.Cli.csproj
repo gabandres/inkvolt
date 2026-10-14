@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(WinTfm)</TargetFramework>
+    <AssemblyName>printdesk</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PrintDesk.Windows\PrintDesk.Windows.csproj" />
+  </ItemGroup>
+</Project>

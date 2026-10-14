@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  THIS DATA SUBJECT TO DISCLAIMER(S)INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<prdcfgcap2:ProductConfigCap xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:prdcfgcap="http://www.hp.com/schemas/imaging/con/ledm/productconfigcap/2007/11/05" xmlns:prdcfgcap2="http://www.hp.com/schemas/imaging/con/ledm/productconfigcap/2009/03/16" xmlns:prdcfgdyn="http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2007/11/05" xmlns:prdcfgdyn2="http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2009/03/16" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/productconfigcap/2007/11/05 ../schemas/ProductConfigCap.xsd                         http://www.hp.com/schemas/imaging/con/ledm/productconfigcap/2009/03/16 ../schemas/ledm2/ProductConfigCap.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.783</dd:Revision>
+	</dd:Version>
+	<prdcfgcap2:ProductInformationCap>
+		<prdcfgcap:PrintEnginePPM access="readOnly">30</prdcfgcap:PrintEnginePPM>
+		<prdcfgcap:MaxMonoPrintQuality access="readOnly">600x600x2dpi</prdcfgcap:MaxMonoPrintQuality>
+		<prdcfgcap:ControllerTypeSupport access="readOnly">
+			<dd:BoardTypeEnum>markingEngineControl</dd:BoardTypeEnum>
+			<dd:BoardTypeEnum>systemControl</dd:BoardTypeEnum>
+		</prdcfgcap:ControllerTypeSupport>
+		<prdcfgcap:ControllerModelNumber length="5" elementXPath="prdcfgdyn:ProductInformation/dd:BoardInfo[1]/dd:ModelNumber" typeof="dd:String" access="readOnly"></prdcfgcap:ControllerModelNumber>
+		<prdcfgcap:ControllerModelNumber length="12" elementXPath="prdcfgdyn:ProductInformation/dd:BoardInfo[2]/dd:ModelNumber" typeof="dd:String" access="readOnly"></prdcfgcap:ControllerModelNumber>
+		<prdcfgcap:Version length="11" elementXPath="prdcfgdyn:ProductInformation/dd:Version/dd:Date" typeof="dd:String" access="readOnly"></prdcfgcap:Version>
+		<prdcfgcap:MakeAndModel length="32" elementXPath="prdcfgdyn:ProductInformation/dd:MakeAndModel" typeof="dd:String" access="readOnly"></prdcfgcap:MakeAndModel>
+		<prdcfgcap:MakeAndModelBase length="32" elementXPath="prdcfgdyn:ProductInformation/dd:MakeAndModelBase" typeof="dd:String" access="readOnly"></prdcfgcap:MakeAndModelBase>
+		<prdcfgcap:MakeAndModelFamily length="32" elementXPath="prdcfgdyn:ProductInformation/dd:MakeAndModelFamily" typeof="dd:String" access="readOnly"></prdcfgcap:MakeAndModelFamily>
+		<prdcfgcap:MakeAndModelFirmwareDownload length="32" elementXPath="prdcfgdyn:ProductInformation/dd:MakeAndModelFirmwareDownload" typeof="dd:String" access="readOnly"></prdcfgcap:MakeAndModelFirmwareDownload>
+		<prdcfgcap:UUID length="37" elementXPath="prdcfgdyn:ProductInformation/dd:UUID" typeof="dd:String" access="readOnly"></prdcfgcap:UUID>
+		<prdcfgcap:SerialNumber length="11" elementXPath="prdcfgdyn:ProductInformation/dd:SerialNumber" typeof="dd:String" access="readOnly"></prdcfgcap:SerialNumber>
+		<prdcfgcap:ProductNumber length="7" elementXPath="prdcfgdyn:ProductInformation/dd:ProductNumber" typeof="dd:String" access="readOnly"></prdcfgcap:ProductNumber>
+		<prdcfgcap:ServiceID length="6" elementXPath="prdcfgdyn:ProductInformation/dd:ProductNumber" typeof="dd:String" access="readOnly"></prdcfgcap:ServiceID>
+		<prdcfgcap:AvailableLanguageSupport access="readOnly"></prdcfgcap:AvailableLanguageSupport>
+		<prdcfgcap2:PasswordStatusSupport access="readOnly">
+			<dd:PasswordStatus >notSet</dd:PasswordStatus>
+			<dd:PasswordStatus >set</dd:PasswordStatus>
+		</prdcfgcap2:PasswordStatusSupport>
+		<prdcfgcap2:PowerSaveSupport access="readOnly">
+			<dd:PowerSave >off</dd:PowerSave>
+			<dd:PowerSave >on</dd:PowerSave>
+		</prdcfgcap2:PowerSaveSupport>
+		<prdcfgcap:DuplexUnitSupport access="readOnly">
+			<dd:DuplexUnit>NotInstalled</dd:DuplexUnit>
+			<dd:DuplexUnit>Installed</dd:DuplexUnit>
+		</prdcfgcap:DuplexUnitSupport>
+		<prdcfgcap:ControlPanelSupport access="readOnly">
+			<prdcfgcap:DisplaySupport>
+				<prdcfgcap:DisplayType>LED</prdcfgcap:DisplayType>
+				<prdcfgcap:DisplayType>LEDIcon</prdcfgcap:DisplayType>
+			</prdcfgcap:DisplaySupport>
+			<prdcfgcap:DetachableSupport>
+				<dd:Boolean >false</dd:Boolean>
+			</prdcfgcap:DetachableSupport>
+		</prdcfgcap:ControlPanelSupport>
+		<prdcfgcap2:DigitalEcosystemType typeof="String" length="14" elementXPath="prdcfgdyn2:ProductConfigDyn/prdcfgdyn:ProductInformation/prdcfgdyn:DigitalEcosystemType" access="readOnly"></prdcfgcap2:DigitalEcosystemType>
+		<prdcfgcap2:MCID typeof="String" length="21" elementXPath="prdcfgdyn2:ProductConfigDyn/prdcfgdyn:ProductInformation/prdcfgdyn:MCID" access="readOnly"></prdcfgcap2:MCID>
+	</prdcfgcap2:ProductInformationCap>
+	<prdcfgcap2:ProductSettingsCap>
+		<prdcfgcap:FriendlyName length="32" elementXPath="prdcfgdyn2:ProductSettings/dd:FriendlyName" typeof="dd:String" access="readWrite"></prdcfgcap:FriendlyName>
+		<prdcfgcap:PowerSaveTimerSupport access="readWrite">
+			<dd:PowerSaveTimeout>1minute</dd:PowerSaveTimeout>
+			<dd:PowerSaveTimeout>5minutes</dd:PowerSaveTimeout>
+			<dd:PowerSaveTimeout>15minutes</dd:PowerSaveTimeout>
+			<dd:PowerSaveTimeout>30minutes</dd:PowerSaveTimeout>
+			<dd:PowerSaveTimeout>1hour</dd:PowerSaveTimeout>
+		</prdcfgcap:PowerSaveTimerSupport>
+		<prdcfgcap2:ShutDownDelaySupport access="readWrite">
+			<dd:AutoOffTime>never</dd:AutoOffTime>
+			<dd:AutoOffTime>15_minutes</dd:AutoOffTime>
+			<dd:AutoOffTime>2hours</dd:AutoOffTime>
+			<dd:AutoOffTime>4hours</dd:AutoOffTime>
+			<dd:AutoOffTime>8hours</dd:AutoOffTime>
+		</prdcfgcap2:ShutDownDelaySupport>
+		<prdcfgcap2:ShutDownDelayApplySupport access="readWrite">
+			<dd:Boolean >false</dd:Boolean>
+			<dd:Boolean >true</dd:Boolean>
+		</prdcfgcap2:ShutDownDelayApplySupport>
+		<prdcfgcap:DuplexBindingOptionSupport access="readWrite">
+			<dd:DuplexBindingOption>longEdge</dd:DuplexBindingOption>
+			<dd:DuplexBindingOption>shortEdge</dd:DuplexBindingOption>
+		</prdcfgcap:DuplexBindingOptionSupport>
+		<prdcfgcap:ProductLanguageSupport>
+			<prdcfgcap:DeviceLanguageSupport access="readWrite"></prdcfgcap:DeviceLanguageSupport>
+			<prdcfgcap:ColdResetLanguageSupport access="readOnly"></prdcfgcap:ColdResetLanguageSupport>
+			<prdcfgcap:ColdResetLanguageNoRebootSupport access="writeOnly"></prdcfgcap:ColdResetLanguageNoRebootSupport>
+			<prdcfgcap:ColdResetLanguageRebootSupport access="writeOnly"></prdcfgcap:ColdResetLanguageRebootSupport>
+		</prdcfgcap:ProductLanguageSupport>
+		<prdcfgcap:LanguageSupport>
+			<dd:Language>en</dd:Language>
+			<dd:Language>fr</dd:Language>
+			<dd:Language>de</dd:Language>
+			<dd:Language>it</dd:Language>
+			<dd:Language>es</dd:Language>
+			<dd:Language>pt</dd:Language>
+			<dd:Language>ru</dd:Language>
+			<dd:Language>zh-CN</dd:Language>
+		</prdcfgcap:LanguageSupport>
+		<prdcfgcap:CountryAndRegionName access="readWrite"></prdcfgcap:CountryAndRegionName>
+		<prdcfgcap:CountryAndRegionNameNoReboot access="writeOnly"></prdcfgcap:CountryAndRegionNameNoReboot>
+		<prdcfgcap:CountryAndRegionNameReboot access="writeOnly"></prdcfgcap:CountryAndRegionNameReboot>
+		<prdcfgcap:CountryAndRegionNameSupport>
+			<prdcfgdyn:CountryAndRegionName >argentina</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >australia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >austria</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >belarus</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >belgium</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >brazil</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >brunei</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >bulgaria</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >cambodia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >canada</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >chile</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >china</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >colombia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >croatia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >cyprus</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >czechRepublic</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >denmark</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >egypt</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >estonia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >finland</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >france</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >germany</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >greece</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >hongKongSAR</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >hungary</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >iceland</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >india</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >indonesia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >ireland</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >israel</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >italy</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >jordan</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >korea</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >latvia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >lebanon</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >liechtenstein</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >lithuania</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >luxembourg</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >malaysia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >malta</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >mexico</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >morocco</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >netherlandsThe</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >newZealand</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >northAfrica</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >norway</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >pakistan</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >philippines</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >peru</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >poland</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >portugal</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >romania</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >russia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >saudiArabia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >singapore</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >slovenia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >slovakia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >southAfrica</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >spain</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >sriLanka</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >sweden</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >switzerland</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >taiwan</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >thailand</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >tunisia</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >turkey</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >unitedArabEmirates</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >unitedKingdom</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >ukraine</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >unitedStates</prdcfgdyn:CountryAndRegionName>
+			<prdcfgdyn:CountryAndRegionName >vietnam</prdcfgdyn:CountryAndRegionName>
+		</prdcfgcap:CountryAndRegionNameSupport>
+		<prdcfgcap2:ManualFeedSupport access="readWrite">
+			<dd:ManualFeed >disabled</dd:ManualFeed>
+			<dd:ManualFeed >enabled</dd:ManualFeed>
+		</prdcfgcap2:ManualFeedSupport>
+		<prdcfgcap2:DuplexSupport access="readWrite">
+			<dd:Duplex >disabled</dd:Duplex>
+			<dd:Duplex >enabled</dd:Duplex>
+		</prdcfgcap2:DuplexSupport>
+		<prdcfgcap:DeviceInformationSupport>
+			<prdcfgcap:DeviceLocation length="64" elementXPath="prdcfgdyn2:ProductSettings/prdcfgdyn:DeviceInformation/dd:DeviceLocation" typeof="dd:String" access="readWrite"></prdcfgcap:DeviceLocation>
+		</prdcfgcap:DeviceInformationSupport>
+	</prdcfgcap2:ProductSettingsCap>
+</prdcfgcap2:ProductConfigCap>

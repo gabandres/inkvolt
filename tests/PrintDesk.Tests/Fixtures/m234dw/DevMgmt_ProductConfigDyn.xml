@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<prdcfgdyn2:ProductConfigDyn xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:prdcfgdyn2="http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2009/03/16" xmlns:prdcfgdyn="http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2007/11/05" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2009/03/16 ../schemas/ledm2/ProductConfigDyn.xsd                               http://www.hp.com/schemas/imaging/con/ledm/productconfigdyn/2007/11/05 ../schemas/ProductConfigDyn.xsd                               http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ ../schemas/dd/DataDictionaryMasterLEDM.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.783</dd:Revision>
+	</dd:Version>
+	<prdcfgdyn:ProductInformation>
+		<dd:BoardInfo>
+			<dd:BoardTypeEnum>markingEngineControl</dd:BoardTypeEnum>
+			<dd:ModelNumber>12500</dd:ModelNumber>
+		</dd:BoardInfo>
+		<dd:BoardInfo>
+			<dd:BoardTypeEnum>systemControl</dd:BoardTypeEnum>
+			<dd:ModelNumber>C8003WQ</dd:ModelNumber>
+		</dd:BoardInfo>
+		<dd:Version>
+			<dd:Date>2024-08-13</dd:Date>
+		</dd:Version>
+		<dd:MakeAndModel>HP LaserJet MFP M234dw</dd:MakeAndModel>
+		<dd:MakeAndModelBase>HP LaserJet MFP M234dw</dd:MakeAndModelBase>
+		<dd:MakeAndModelFamily>HP LaserJet MFP M232-M237</dd:MakeAndModelFamily>
+		<dd:MakeAndModelFirmwareDownload>HP LaserJet MFP M234dw</dd:MakeAndModelFirmwareDownload>
+		<dd:UUID>12345678-1234-4abc-8def-123456789abc</dd:UUID>
+		<dd:SerialNumber>CNB0A00000</dd:SerialNumber>
+		<dd:ProductNumber>6GW99A</dd:ProductNumber>
+		<dd:ServiceID>35269</dd:ServiceID>
+		<dd:AvailableLanguages>
+			<dd:Language>en</dd:Language>
+			<dd:Language>fr</dd:Language>
+			<dd:Language>de</dd:Language>
+			<dd:Language>it</dd:Language>
+			<dd:Language>es</dd:Language>
+			<dd:Language>pt</dd:Language>
+			<dd:Language>ru</dd:Language>
+			<dd:Language>zh-CN</dd:Language>
+		</dd:AvailableLanguages>
+		<dd:PasswordStatus >set</dd:PasswordStatus>
+		<dd:PowerSave >on</dd:PowerSave>
+		<dd:DuplexUnit>Installed</dd:DuplexUnit>
+		<dd:ControlPanel>
+			<dd:Display>LEDIcon</dd:Display>
+		</dd:ControlPanel>
+		<prdcfgdyn:DigitalEcosystemType>01.01.01.00.00</prdcfgdyn:DigitalEcosystemType>
+		<prdcfgdyn:MCID>MCT:MF;MCL:FL;MCV:4.0</prdcfgdyn:MCID>
+	</prdcfgdyn:ProductInformation>
+	<prdcfgdyn2:ProductSettings>
+		<dd:FriendlyName>HP LaserJet MFP M234dw</dd:FriendlyName>
+		<dd:PowerSaveTimeout>1minute</dd:PowerSaveTimeout>
+		<prdcfgdyn2:ShutDownDelay>15_minutes</prdcfgdyn2:ShutDownDelay>
+		<prdcfgdyn2:ShutDownDelayApply >true</prdcfgdyn2:ShutDownDelayApply>
+		<dd:DuplexBindingOption>longEdge</dd:DuplexBindingOption>
+		<prdcfgdyn:ProductLanguage>
+			<dd:DeviceLanguage>en</dd:DeviceLanguage>
+			<dd:ColdResetLanguage>en</dd:ColdResetLanguage>
+		</prdcfgdyn:ProductLanguage>
+		<prdcfgdyn:CountryAndRegionName >unitedStates</prdcfgdyn:CountryAndRegionName>
+		<dd:ManualFeed >disabled</dd:ManualFeed>
+		<dd:Duplex >disabled</dd:Duplex>
+		<prdcfgdyn:DeviceInformation>
+			<dd:DeviceLocation ></dd:DeviceLocation>
+		</prdcfgdyn:DeviceInformation>
+	</prdcfgdyn2:ProductSettings>
+</prdcfgdyn2:ProductConfigDyn>

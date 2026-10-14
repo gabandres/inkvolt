@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<prncfgdyn2:PrintConfigDyn xmlns:prncfgdyn="http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2007/11/02" xmlns:prncfgdyn2="http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2009/05/06" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:dd2="http://www.hp.com/schemas/imaging/con/dictionaries/2008/10/10" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ledm="http://www.hp.com/schemas/imaging/con/ledm/2007/09/21" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2007/11/02 ../schemas/PrintConfigDyn.xsd  http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2009/05/06 ../schemas/ledm2/PrintConfigDyn.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.371</dd:Revision>
+	</dd:Version>
+	<dd:DefaultPrintCopies>1</dd:DefaultPrintCopies>
+	<dd:AutoContinue>on</dd:AutoContinue>
+	<prncfgdyn2:PJLCommands>disabled</prncfgdyn2:PJLCommands>
+</prncfgdyn2:PrintConfigDyn>

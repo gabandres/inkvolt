@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN.-->
+<mhcap2:MediaHandlingCap xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ledm="http://www.hp.com/schemas/imaging/con/ledm/2007/09/21" xmlns:mhcap="http://www.hp.com/schemas/imaging/con/ledm/mediahandlingcap/2007/11/26" xmlns:mhcap2="http://www.hp.com/schemas/imaging/con/ledm/mediahandlingcap/2009/06/25" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/2007/09/21 LEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/mediahandlingcap/2007/11/26 MediaHandlingCap.xsd http://www.hp.com/schemas/imaging/con/ledm/mediahandlingcap/2009/06/25 ledm2/MediaHandlingCap.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.727</dd:Revision>
+	</dd:Version>
+	<mhcap:MediaHandlingInfoCap>
+		<mhcap:NumOfInputTrays access="readOnly" step="1" max="1" min="1" elementXPath="mhdyn:MediaHandlingInfo/dd:NumOfInputTrays" typeof="dd:Integer"></mhcap:NumOfInputTrays>
+		<mhcap:NumOfOutputBins access="readOnly" step="1" max="1" min="1" elementXPath="mhdyn:MediaHandlingInfo/dd:NumOfOutputBins" typeof="dd:Integer"></mhcap:NumOfOutputBins>
+		<mhcap:DefaultInputTraySupport access="readOnly">
+			<dd:DefaultInputTray>Tray1</dd:DefaultInputTray>
+		</mhcap:DefaultInputTraySupport>
+		<mhcap:DefaultOutputBinSupport access="readOnly">
+			<dd:DefaultOutputBin>OutputBin1</dd:DefaultOutputBin>
+		</mhcap:DefaultOutputBinSupport>
+		<mhcap:MediaOutTime access="readWrite" step="1" max="3600" min="-1" elementXPath="mhdyn:MediaHandlingInfo/dd:MediaOutTime" typeof="dd:Integer"></mhcap:MediaOutTime>
+		<mhcap:MediaOutActionTypeSupport access="readWrite">
+			<dd:MediaOutActionType>waitForPaperToBeLoaded</dd:MediaOutActionType>
+			<dd:MediaOutActionType>cancel</dd:MediaOutActionType>
+			<dd:MediaOutActionType>override</dd:MediaOutActionType>
+		</mhcap:MediaOutActionTypeSupport>
+	</mhcap:MediaHandlingInfoCap>
+	<mhcap2:InputTrayCap>
+		<mhcap2:InputBinSupport access="readOnly">
+			<dd:InputBin>Tray1</dd:InputBin>
+		</mhcap2:InputBinSupport>
+		<mhcap:MediaTypeSupport access="readWrite">
+			<dd:MediaType>auto</dd:MediaType>
+			<dd:MediaType>plain</dd:MediaType>
+			<dd:MediaType>light</dd:MediaType>
+			<dd:MediaType>heavy</dd:MediaType>
+			<dd:MediaType>extraHeavy</dd:MediaType>
+			<dd:MediaType>labels</dd:MediaType>
+			<dd:MediaType>envelope</dd:MediaType>
+			<dd:MediaType>stationery-preprinted</dd:MediaType>
+			<dd:MediaType>bond</dd:MediaType>
+		</mhcap:MediaTypeSupport>
+		<mhcap:MediaSizeNameSupport access="readWrite">
+			<dd:MediaSizeName>any</dd:MediaSizeName>
+			<dd:MediaSizeName>na_letter_8.5x11in</dd:MediaSizeName>
+			<dd:MediaSizeName>na_legal_8.5x14in</dd:MediaSizeName>
+			<dd:MediaSizeName>na_executive_7.25x10.5in</dd:MediaSizeName>
+			<dd:MediaSizeName>na_foolscap_8.5x13in</dd:MediaSizeName>
+			<dd:MediaSizeName>na_index-4x6_4x6in</dd:MediaSizeName>
+			<dd:MediaSizeName>na_5x7_5x7in</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_a4_210x297mm</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_a5_148x210mm</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_a6_105x148mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jis_b5_182x257mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jis_b6_128x182mm</dd:MediaSizeName>
+			<dd:MediaSizeName>om_small-photo_100x150mm</dd:MediaSizeName>
+			<dd:MediaSizeName>na_legal_216x340mm</dd:MediaSizeName>
+			<dd:MediaSizeName>prc_16k_195x270mm</dd:MediaSizeName>
+			<dd:MediaSizeName>prc_16k_184x260mm</dd:MediaSizeName>
+			<dd:MediaSizeName>prc_16k_197x273mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jpn_hagaki_100x148mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jpn_oufuku_148x200mm</dd:MediaSizeName>
+			<dd:MediaSizeName>na_number-10_4.125x9.5in</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_c5_162x229mm</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_c6_114x162mm</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_b5_176x250mm</dd:MediaSizeName>
+			<dd:MediaSizeName>iso_dl_110x220mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jpn_chou3_120x235mm</dd:MediaSizeName>
+			<dd:MediaSizeName>jpn_chou4_90x205mm</dd:MediaSizeName>
+			<dd:MediaSizeName>custom</dd:MediaSizeName>
+		</mhcap:MediaSizeNameSupport>
+	</mhcap2:InputTrayCap>
+	<mhcap:OutputBinCap>
+		<mhcap:HPOutputBinSupport access="readOnly">
+			<dd:HPOutputBin>OutputBin1</dd:HPOutputBin>
+		</mhcap:HPOutputBinSupport>
+		<mhcap:MediaHandlingDeviceFunctionTypeSupport access="readOnly">
+			<dd:MediaHandlingDeviceFunctionType>print</dd:MediaHandlingDeviceFunctionType>
+		</mhcap:MediaHandlingDeviceFunctionTypeSupport>
+	</mhcap:OutputBinCap>
+</mhcap2:MediaHandlingCap>
