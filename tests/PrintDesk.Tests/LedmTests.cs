@@ -25,7 +25,8 @@ public class LedmTests
         var s = LedmParsers.ParseStatus(Fixture.Xml("DevMgmt_ProductStatusDyn.xml"));
 
         Assert.Equal("inPowerSave", s.Code);
-        Assert.Equal("Ready (sleeping)", s.Message);
+        Assert.Equal("Ready", s.Message);
+        Assert.StartsWith("Sleeping to save power", s.Detail);
         Assert.Equal(Severity.Info, s.Severity);
         Assert.Empty(s.Alerts);
     }

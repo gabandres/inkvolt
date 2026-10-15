@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PrintDesk.Core.Model;
@@ -41,7 +43,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string Name { get; set; }
     [ObservableProperty] public partial string? Model { get; set; }
     [ObservableProperty] public partial string? Host { get; set; }
-    [ObservableProperty] public partial string? Details { get; set; }
+    [ObservableProperty] public partial BitmapSource? Image { get; set; }
+    [ObservableProperty] public partial string? StatusDetail { get; set; }
+
+    /// <summary>"About this printer" rows: model, address, serial, firmware…</summary>
+    public ObservableCollection<InfoRow> About { get; } = [];
+
+    /// <summary>Lifetime counters as big-number tiles.</summary>
+    public ObservableCollection<InfoRow> Stats { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusKind))]
@@ -60,7 +69,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>For the status dot: connecting, offline, ok, warning, error.</summary>
     public string StatusKind => !IsOnline ? (IsConnecting ? "connecting" : "offline")
         : StatusSeverity switch { Severity.Error => "error", Severity.Warning => "warning", _ => "ok" };
-    [ObservableProperty] public partial string? UsageText { get; set; }
 
     public ObservableCollection<PrinterAlert> Alerts { get; } = [];
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
@@ -88,7 +96,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Outcome line shown after the setup banner has gone away.</summary>
     public string? SetupResult => NeedsSetup ? null : SetupMessage;
 
-    [ObservableProperty] public partial ScanViewModel? Scan { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
+    public partial ScanViewModel? Scan { get; set; }
     [ObservableProperty] public partial SettingsViewModel? Settings { get; set; }
 
     /// <summary>Windows can see the printer but has no queue for it yet.</summary>
@@ -168,13 +178,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var p = conn.Probe;
         if (p.Product?.MakeAndModel is { } mm) Name = mm;
         Model = p.Model ?? Model;
-        Details = string.Join("  ·  ", new[]
+        Sync(About, new InfoRow?[]
         {
-            Host,
-            p.Product?.SerialNumber is { } sn ? $"S/N {sn}" : null,
-            p.Product?.FirmwareDate is { } fw ? $"Firmware {fw}" : null,
-            string.Join(" / ", p.Interfaces),
-        }.Where(s => !string.IsNullOrEmpty(s)));
+            new("Model", p.Model ?? Model ?? Name),
+            new("IP address", Host ?? "—"),
+            p.Product?.SerialNumber is { } sn ? new("Serial number", sn) : null,
+            p.Product?.ProductNumber is { } pn ? new("Product number", pn) : null,
+            p.Product?.FirmwareDate is { } fw ? new("Firmware", fw) : null,
+            new("Connected via", string.Join(", ", p.Interfaces)),
+        }.OfType<InfoRow>().ToList());
+        if (Image is null) _ = LoadImageAsync(conn);
 
         // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
         if (conn.Scanner is not null && p.Scanner is not null)
@@ -212,6 +225,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IsConnecting = false;
         IsOnline = true;
         StatusMessage = status.Message;
+        StatusDetail = status.Detail;
         StatusSeverity = status.Severity;
         Sync(Alerts, status.Alerts);
 
@@ -220,10 +234,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             var supplies = await suppliesTask;
             Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
             if (await usageTask is { } u)
-                UsageText = $"{u.TotalImpressions:N0} pages printed" +
-                            (u.DuplexSheets is > 0 ? $" ({u.DuplexSheets:N0} two-sided)" : "") +
-                            (u.ScanImages is > 0 ? $"  ·  {u.ScanImages:N0} scans" : "") +
-                            (u.JamEvents is > 0 ? $"  ·  {u.JamEvents} jams" : "");
+                Sync(Stats, new InfoRow?[]
+                {
+                    u.TotalImpressions is { } t ? new($"{t:N0}", "pages printed") : null,
+                    u.DuplexSheets is { } d ? new($"{d:N0}", "two-sided sheets") : null,
+                    u.ScanImages is { } sc ? new($"{sc:N0}", "pages scanned") : null,
+                    u.JamEvents is { } j ? new($"{j:N0}", "paper jams") : null,
+                }.OfType<InfoRow>().ToList());
         }
         catch (Exception ex) when (PrinterConnection.IsOffline(ex) || ex is PrintDesk.Core.Net.DeviceHttpException)
         {
@@ -235,9 +252,40 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         IsConnecting = false;
         IsOnline = false;
-        StatusMessage = "Offline";
+        StatusMessage = "Can't reach the printer";
+        StatusDetail = $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. PrintDesk keeps trying in the background.";
         StatusSeverity = Severity.Error;
         Alerts.Clear();
+    }
+
+    /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>
+    private async Task LoadImageAsync(PrinterConnection conn)
+    {
+        var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PrintDesk", "images", $"{Uuid}.png");
+        try
+        {
+            byte[]? bytes = File.Exists(cache) ? await File.ReadAllBytesAsync(cache) : null;
+            if (bytes is null)
+            {
+                foreach (var path in new[] { "/ipp/images/printer-large.png", "/ipp/images/printer.png" })
+                    if ((bytes = await conn.Http.GetBytesOrNullAsync(conn.Http.Http(path))) is not null) break;
+                if (bytes is null) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(cache)!);
+                await File.WriteAllBytesAsync(cache, bytes);
+            }
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.DecodePixelWidth = 256;
+            img.StreamSource = new MemoryStream(bytes);
+            img.EndInit();
+            img.Freeze();
+            Image = img;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[{Name}] no printer image: {ex.Message}"); // cosmetic only
+        }
     }
 
     private static void Sync<T>(ObservableCollection<T> target, IReadOnlyList<T> source)
@@ -295,6 +343,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Reconnect() => Restart();
 
+    /// <summary>0 Overview, 1 Scan, 2 Settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
+    public partial int SelectedSection { get; set; }
+
+    public bool ShowScanShortcut => Scan is not null && SelectedSection != 1;
+
+    [RelayCommand]
+    private void GoToScan() => SelectedSection = 1;
+
     public void Dispose()
     {
         _loop?.Cancel();
@@ -304,19 +362,30 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     }
 }
 
+public sealed record InfoRow(string Label, string Value);
+
 public sealed record SupplyViewModel(Consumable Supply)
 {
+    /// <summary>"About 100 pages left", or the state when no estimate is available.</summary>
+    public string Headline => Supply.State switch
+    {
+        "out" => "Empty — replace now",
+        _ when Supply.EstimatedPagesRemaining is { } pages => $"About {pages:N0} pages left",
+        _ when Supply.IsLow => "Running low",
+        _ => "OK",
+    };
+
+    public string? Cartridge => string.Join("  ·  ", new[]
+    {
+        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null,
+        Supply.ProductNumber,
+    }.Where(s => s is not null)) is { Length: > 0 } c ? $"Replacement: {c}" : null;
+
+    public string Level => Supply.State == "out" ? "empty" : IsLow ? "low" : "ok";
+
     public string Name => Supply.Name;
     public double Percent => Supply.PercentRemaining ?? 0;
     public string PercentText => Supply.PercentRemaining is { } p ? $"{p}%" : "—";
     public bool IsLow => Supply.IsLow;
     public string ColorCode => Supply.ColorCode ?? "K";
-
-    public string Detail => string.Join("  ·  ", new[]
-    {
-        Supply.EstimatedPagesRemaining is { } pages ? $"≈{pages:N0} pages left" : null,
-        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null,
-        Supply.ProductNumber,
-        Supply.State is "ok" or "unknown" ? null : PrintDesk.Core.Ledm.StatusText.Humanize(Supply.State),
-    }.Where(s => s is not null));
 }

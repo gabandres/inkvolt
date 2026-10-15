@@ -18,7 +18,7 @@ internal static class DevSnapshot
         await Task.Delay(TimeSpan.FromSeconds(5));
         if (tab is not null && FindTabs(window) is { } tabs)
         {
-            tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => string.Equals(t.Header as string, tab, StringComparison.OrdinalIgnoreCase));
+            tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
             await Task.Delay(TimeSpan.FromSeconds(3));
         }
         var content = (FrameworkElement)window.Content;

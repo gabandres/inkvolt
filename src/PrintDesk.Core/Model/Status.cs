@@ -5,7 +5,7 @@ public enum Severity { Info, Warning, Error }
 public sealed record PrinterAlert(string Id, Severity Severity, string Message);
 
 /// <summary>Device status in protocol-neutral form.</summary>
-public sealed record PrinterStatus(string Code, string Message, Severity Severity, IReadOnlyList<PrinterAlert> Alerts)
+public sealed record PrinterStatus(string Code, string Message, Severity Severity, IReadOnlyList<PrinterAlert> Alerts, string? Detail = null)
 {
     public static PrinterStatus Offline(string why) => new("offline", why, Severity.Error, []);
 }

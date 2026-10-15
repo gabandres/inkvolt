@@ -6,180 +6,276 @@
         xmlns:vm="clr-namespace:PrintDesk.App.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
-        Title="PrintDesk" Width="1120" Height="760" MinWidth="820" MinHeight="520"
+        Title="PrintDesk" Width="1180" Height="800" MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
-        <!-- ===================== Status tab ===================== -->
-        <DataTemplate x:Key="StatusTab" DataType="{x:Type vm:PrinterViewModel}">
+        <!-- ===================== Overview ===================== -->
+        <DataTemplate x:Key="OverviewSection" DataType="{x:Type vm:PrinterViewModel}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="0,12,8,12" MaxWidth="760" HorizontalAlignment="Left">
-                    <Border Style="{StaticResource Card}">
+                <WrapPanel Margin="0,0,0,16">
+                    <WrapPanel.Resources>
+                        <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                            <Setter Property="Width" Value="400" />
+                            <Setter Property="Margin" Value="0,0,16,16" />
+                            <Setter Property="VerticalAlignment" Value="Top" />
+                        </Style>
+                    </WrapPanel.Resources>
+
+                    <!-- Status -->
+                    <Border>
                         <DockPanel>
-                            <Ellipse DockPanel.Dock="Left" Width="14" Height="14" Margin="0,0,12,0" VerticalAlignment="Center"
-                                     Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                            <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,16,0" VerticalAlignment="Top">
+                                <Ellipse Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                <TextBlock Style="{StaticResource Icon}" HorizontalAlignment="Center" FontSize="18" Foreground="White"
+                                           Text="{Binding StatusKind, Converter={StaticResource StatusGlyph}}" />
+                            </Grid>
                             <StackPanel>
-                                <TextBlock Text="{Binding StatusMessage}" FontSize="20" FontWeight="SemiBold" />
-                                <ItemsControl ItemsSource="{Binding Alerts}" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding StatusMessage}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                           Visibility="{Binding StatusDetail, Converter={StaticResource VisibleWhen}}" />
+                                <ItemsControl ItemsSource="{Binding Alerts}" Margin="0,8,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Margin="0,2">
-                                                <Run Text="•" /> <Run Text="{Binding Message, Mode=OneWay}" />
-                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Button Content="Try again now" Command="{Binding ReconnectCommand}" Margin="0,12,0,0" HorizontalAlignment="Left"
+                                        Visibility="{Binding IsOnline, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                             </StackPanel>
                         </DockPanel>
                     </Border>
 
-                    <Border Style="{StaticResource Card}" Visibility="{Binding Supplies.Count, Converter={StaticResource VisibleWhen}}">
+                    <!-- Toner -->
+                    <Border Visibility="{Binding Supplies.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
-                            <TextBlock Text="Supplies" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Toner" Style="{StaticResource CardTitle}" />
                             <ItemsControl ItemsSource="{Binding Supplies}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:SupplyViewModel}">
-                                        <Grid Margin="0,4,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="140" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="56" />
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition />
-                                                <RowDefinition />
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                            <ProgressBar Grid.Column="1" Height="10" Minimum="0" Maximum="100" Value="{Binding Percent, Mode=OneWay}"
-                                                         Foreground="{Binding ColorCode, Converter={StaticResource SupplyBrush}}"
-                                                         AutomationProperties.Name="{Binding Name}" />
-                                            <TextBlock Grid.Column="2" Text="{Binding PercentText}" HorizontalAlignment="Right" FontWeight="SemiBold" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}"
-                                                       Style="{StaticResource Caption}" Margin="0,4,0,0" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource Card}" Visibility="{Binding UsageText, Converter={StaticResource VisibleWhen}}">
-                        <StackPanel>
-                            <TextBlock Text="Usage" Style="{StaticResource SectionTitle}" />
-                            <TextBlock Text="{Binding UsageText}" />
-                        </StackPanel>
-                    </Border>
-
-                    <WrapPanel>
-                        <Button Content="Open printer web page" Command="{Binding OpenWebPageCommand}" Margin="0,0,8,8" />
-                        <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Margin="0,0,8,8" />
-                        <Button Content="Reconnect" Command="{Binding ReconnectCommand}" Margin="0,0,8,8" />
-                    </WrapPanel>
-                </StackPanel>
-            </ScrollViewer>
-        </DataTemplate>
-
-        <!-- ===================== Scan tab ===================== -->
-        <DataTemplate DataType="{x:Type vm:ScanViewModel}">
-            <Grid Margin="0,12,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="260" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Margin="0,0,16,0">
-                    <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
-                    <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12"
-                              Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
-                    <TextBlock Text="Resolution" Margin="0,0,0,4" />
-                    <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" />
-                    <CheckBox Content="Color" IsChecked="{Binding IsColor}" Margin="0,0,0,8" />
-                    <CheckBox Content="Make text searchable (OCR)" IsChecked="{Binding UseOcr}" IsEnabled="{Binding OcrAvailable}" Margin="0,0,0,16" />
-
-                    <Button Content="Scan" Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}"
-                            HorizontalAlignment="Stretch" Padding="0,8" IsDefault="True" />
-                    <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                            Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,8,0,0"
-                                 Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-
-                    <UniformGrid Columns="2" Margin="0,16,0,0">
-                        <Button Content="Save…" Command="{Binding SaveCommand}" Margin="0,0,4,0" />
-                        <Button Content="Clear" Command="{Binding ClearCommand}" Margin="4,0,0,0" />
-                    </UniformGrid>
-
-                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,16,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
-                                Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
-                        <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
-                        <Button Content="Show in folder" Command="{Binding ShowSavedInFolderCommand}" Style="{StaticResource LinkButton}" />
-                    </StackPanel>
-                </StackPanel>
-
-                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0" Padding="8">
-                    <Grid>
-                        <TextBlock Text="Place a page on the scanner glass and press Scan."
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource Caption}"
-                                   Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl x:Name="PagesList" ItemsSource="{Binding Pages}" AlternationCount="10000">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:ScanPageViewModel}">
-                                        <StackPanel Margin="8" Width="190">
-                                            <Border BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
-                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxHeight="260" />
-                                            </Border>
-                                            <DockPanel Margin="0,4,0,0">
-                                                <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource LinkButton}"
-                                                        Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
-                                                <Button DockPanel.Dock="Right" Content="Move up" Style="{StaticResource LinkButton}" Margin="0,0,10,0"
-                                                        Command="{Binding DataContext.MovePageUpCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
-                                                <TextBlock>
-                                                    <Run Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource PageNumber}, Mode=OneWay}" />
-                                                </TextBlock>
+                                        <StackPanel Margin="0,0,0,8">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Headline}" Style="{StaticResource Caption}"
+                                                           VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                                                <TextBlock Text="{Binding PercentText}" FontSize="28" FontWeight="SemiBold" />
                                             </DockPanel>
+                                            <Grid Height="8" Margin="0,6,0,0">
+                                                <Border CornerRadius="4" Background="{DynamicResource ControlStrongFillColorDefaultBrush}" Opacity="0.25" />
+                                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Percent, Mode=OneWay}" Height="8"
+                                                             Background="Transparent" BorderThickness="0"
+                                                             Foreground="{Binding Level, Converter={StaticResource LevelBrush}}"
+                                                             AutomationProperties.Name="{Binding Name}" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                                            <TextBlock Text="{Binding Cartridge}" Style="{StaticResource Caption}"
+                                                       Visibility="{Binding Cartridge, Converter={StaticResource VisibleWhen}}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Usage -->
+                    <Border Visibility="{Binding Stats.Count, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <TextBlock Text="Usage" Style="{StaticResource CardTitle}" />
+                            <ItemsControl ItemsSource="{Binding Stats}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:InfoRow}">
+                                        <StackPanel Margin="0,0,0,12">
+                                            <TextBlock Text="{Binding Label}" FontSize="22" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Value}" Style="{StaticResource Caption}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- About -->
+                    <Border Visibility="{Binding About.Count, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <TextBlock Text="About this printer" Style="{StaticResource CardTitle}" />
+                            <ItemsControl ItemsSource="{Binding About}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:InfoRow}">
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" />
+                                            <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                                     Background="Transparent" Padding="0" MinHeight="0" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0" />
+                                <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
+        <!-- ===================== Scan ===================== -->
+        <DataTemplate DataType="{x:Type vm:ScanViewModel}">
+            <Grid Margin="0,0,16,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
+                        <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                        <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
+                                  Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="Quality" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
+                        <CheckBox Content="Color" IsChecked="{Binding IsColor}" Margin="0,0,0,4" />
+                        <CheckBox IsChecked="{Binding UseOcr}" IsEnabled="{Binding OcrAvailable}">
+                            <StackPanel>
+                                <TextBlock Text="Searchable text (OCR)" />
+                                <TextBlock Text="Find and copy text in saved PDFs" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch" Padding="0,10" Margin="0,20,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
+                                <TextBlock Text="Scan" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                    <DockPanel>
+                        <!-- Toolbar -->
+                        <DockPanel DockPanel.Dock="Top" Margin="20,14,14,10">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Clear" Command="{Binding ClearCommand}" Margin="0,0,8,0"
+                                        Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
+                                <Button Content="Save as images" Command="{Binding SaveCommand}" CommandParameter="jpg" Margin="0,0,8,0" />
+                                <Button Content="Save as PDF" Command="{Binding SaveCommand}" CommandParameter="pdf" Style="{DynamicResource AccentButtonStyle}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <!-- Status line -->
+                        <Border DockPanel.Dock="Bottom" Padding="20,10" BorderThickness="0,1,0,0"
+                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                            Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
+                                    <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="16,0,16,0" />
+                                    <Button Content="Show in folder" Command="{Binding ShowSavedInFolderCommand}" Style="{StaticResource LinkButton}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </Border>
+                        <ProgressBar DockPanel.Dock="Bottom" IsIndeterminate="True" Height="3" Margin="20,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+
+                        <Grid>
+                            <!-- Empty state -->
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320"
+                                        Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" FontSize="48" HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Put a page face down on the scanner glass, then press Scan."
+                                           Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,12,0,0" />
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,0,12,12">
+                                <ItemsControl x:Name="PagesList" ItemsSource="{Binding Pages}" AlternationCount="10000">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:ScanPageViewModel}">
+                                            <StackPanel Margin="8" Width="200">
+                                                <Border CornerRadius="4" BorderThickness="1" Background="White"
+                                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" Height="270" />
+                                                </Border>
+                                                <DockPanel Margin="2,6,2,0">
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Remove page"
+                                                            Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}">
+                                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
+                                                    </Button>
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Move earlier" Margin="0,0,14,0"
+                                                            Command="{Binding DataContext.MovePageUpCommand, ElementName=PagesList}" CommandParameter="{Binding}">
+                                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE76B;" />
+                                                    </Button>
+                                                    <TextBlock Style="{StaticResource Caption}"
+                                                               Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource PageNumber}}" />
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </DockPanel>
                 </Border>
             </Grid>
         </DataTemplate>
 
-        <!-- ===================== Settings tab ===================== -->
+        <!-- ===================== Settings ===================== -->
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
-            <DockPanel Margin="0,12,0,0">
-                <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Save changes" Command="{Binding ApplyCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,6" Margin="0,0,8,0" />
-                        <Button Content="Undo changes" Command="{Binding RevertCommand}" Padding="16,6" Margin="0,0,8,0"
-                                IsEnabled="{Binding HasChanges}" />
-                        <Button Content="Reload" Command="{Binding LoadCommand}" Padding="16,6" Margin="0,0,24,0" />
-                        <Button Content="Forget saved admin password" Command="{Binding ForgetPasswordCommand}"
-                                Style="{StaticResource LinkButton}" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding Message}" Margin="0,8,0,0" TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding MessageIsError}" Value="True">
-                                        <Setter Property="Foreground" Value="#D13438" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
+            <DockPanel Margin="0,0,16,16">
+                <!-- Sticky action bar -->
+                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Padding="16,12" Margin="0,12,0,0">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Undo" Command="{Binding RevertCommand}" IsEnabled="{Binding HasChanges}" Margin="0,0,8,0" Padding="16,6" />
+                            <Button Content="Save changes" Command="{Binding ApplyCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,6" />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Reload from printer" Command="{Binding LoadCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0" />
+                                <Button Content="Forget saved admin password" Command="{Binding ForgetPasswordCommand}" Style="{StaticResource LinkButton}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
 
                 <Grid>
-                    <ProgressBar IsIndeterminate="True" Height="4" VerticalAlignment="Top"
+                    <ProgressBar IsIndeterminate="True" Height="3" VerticalAlignment="Top"
                                  Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ScrollViewer.Resources>
@@ -189,35 +285,50 @@
                                 </CollectionViewSource.GroupDescriptions>
                             </CollectionViewSource>
                         </ScrollViewer.Resources>
-                        <ItemsControl ItemsSource="{Binding Source={StaticResource Grouped}}" MaxWidth="720" HorizontalAlignment="Left" Margin="0,0,8,0">
+                        <ItemsControl ItemsSource="{Binding Source={StaticResource Grouped}}" MaxWidth="820" HorizontalAlignment="Left">
                             <ItemsControl.GroupStyle>
                                 <GroupStyle>
-                                    <GroupStyle.HeaderTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" Style="{StaticResource SectionTitle}" Margin="0,16,0,6" />
-                                        </DataTemplate>
-                                    </GroupStyle.HeaderTemplate>
+                                    <GroupStyle.ContainerStyle>
+                                        <Style TargetType="GroupItem">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="GroupItem">
+                                                        <StackPanel Margin="0,0,0,16">
+                                                            <TextBlock Text="{Binding Name}" Style="{StaticResource CardTitle}" Margin="2,0,0,8" />
+                                                            <Border Style="{StaticResource Card}" Padding="16,6">
+                                                                <ItemsPresenter />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </GroupStyle.ContainerStyle>
                                 </GroupStyle>
                             </ItemsControl.GroupStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:SettingItemViewModel}">
-                                    <Grid Margin="0,4">
+                                    <Grid Margin="0,6">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" MinWidth="260" />
                                             <ColumnDefinition Width="300" />
-                                            <ColumnDefinition Width="320" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="28" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
-                                        <ComboBox Grid.Column="1" ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}"
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                                       Visibility="{Binding Error, Converter={StaticResource VisibleWhen}}" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}" HorizontalAlignment="Stretch"
                                                   Visibility="{Binding IsChoice, Converter={StaticResource VisibleWhen}}"
                                                   AutomationProperties.Name="{Binding Label}" />
                                         <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                                                  MaxLength="{Binding MaxLength}"
                                                  Visibility="{Binding IsText, Converter={StaticResource VisibleWhen}}"
                                                  AutomationProperties.Name="{Binding Label}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Error}" Foreground="#D13438" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                        <TextBlock Grid.Column="2" Text="●" ToolTip="Changed" VerticalAlignment="Center" Margin="8,0,0,0"
-                                                   Visibility="{Binding IsDirty, Converter={StaticResource VisibleWhen}}" />
+                                        <Ellipse Grid.Column="2" Width="8" Height="8" HorizontalAlignment="Center" ToolTip="Changed, not saved yet"
+                                                 Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                                 Visibility="{Binding IsDirty, Converter={StaticResource VisibleWhen}}" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -230,40 +341,73 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="290" />
+            <ColumnDefinition Width="272" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- ===================== Printer list ===================== -->
-        <DockPanel Margin="12">
-            <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8">
-                <TextBlock Text="Printers" FontSize="20" FontWeight="SemiBold" />
-            </DockPanel>
-            <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="3" Margin="4,0,4,8"
-                         Visibility="{Binding IsSearching, Converter={StaticResource VisibleWhen}}" ToolTip="Searching the network" />
+        <!-- ===================== Sidebar ===================== -->
+        <DockPanel Margin="12,12,12,12">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,0,20">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="18" Margin="0,0,10,0"
+                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <TextBlock Text="PrintDesk" FontSize="16" FontWeight="SemiBold" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Top" Text="Printers" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
-            <StackPanel DockPanel.Dock="Bottom" Margin="4,12,4,0">
-                <TextBlock Text="Not listed? Add by IP address or name:" Style="{StaticResource Caption}" Margin="0,0,0,4" />
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Add" Command="{Binding AddByAddressCommand}" Margin="6,0,0,0" />
-                    <TextBox Text="{Binding ManualAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Printer address">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Enter" Command="{Binding AddByAddressCommand}" />
-                        </TextBox.InputBindings>
-                    </TextBox>
-                </DockPanel>
-                <TextBlock Text="{Binding ManualError}" Foreground="#D13438" TextWrapping="Wrap" Margin="0,4,0,0"
-                           Visibility="{Binding ManualError, Converter={StaticResource VisibleWhen}}" />
+            <!-- Add a printer that discovery can't see -->
+            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                <Button Command="{Binding ToggleAddCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
+                        Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" Margin="0,0,10,0" />
+                        <TextBlock Text="Add a printer by address" />
+                    </StackPanel>
+                </Button>
+                <Border Style="{StaticResource Card}" Padding="12"
+                        Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}}">
+                    <StackPanel>
+                        <TextBlock Text="Printer IP address or name" Margin="0,0,0,6" />
+                        <TextBox Text="{Binding ManualAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Printer address">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding AddByAddressCommand}" />
+                                <KeyBinding Key="Escape" Command="{Binding ToggleAddCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <TextBlock Text="Print a network report from the printer to find its IP address." Style="{StaticResource Caption}"
+                                   FontSize="12" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding ManualError}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding ManualError, Converter={StaticResource VisibleWhen}}" />
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                     Visibility="{Binding IsAdding, Converter={StaticResource VisibleWhen}}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <Button Content="Cancel" Command="{Binding ToggleAddCommand}" Margin="0,0,8,0" />
+                            <Button Content="Add" Command="{Binding AddByAddressCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <Grid>
-                <TextBlock Text="Looking for printers on your network…" Style="{StaticResource Caption}" Margin="4"
-                           Visibility="{Binding IsEmpty, Converter={StaticResource VisibleWhen}}" />
-                <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Printers">
+                <!-- Empty states: only when the list is empty -->
+                <StackPanel Margin="8" Visibility="{Binding ShowSearching, Converter={StaticResource VisibleWhen}}">
+                    <TextBlock Text="Looking for printers on your network…" Style="{StaticResource Caption}" />
+                    <ProgressBar IsIndeterminate="True" Height="3" Margin="0,10,0,0" />
+                </StackPanel>
+                <StackPanel Margin="8" Visibility="{Binding ShowNoPrinters, Converter={StaticResource VisibleWhen}}">
+                    <TextBlock Text="No printers found" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,10"
+                               Text="Make sure the printer is on and connected to the same Wi-Fi or network as this PC." />
+                    <Button Content="Search again" Command="{Binding SearchAgainCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+
+                <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
+                         AutomationProperties.Name="Printers">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
-                            <DockPanel Margin="2,6">
+                            <DockPanel>
+                                <DockPanel.Tag>
+                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                </DockPanel.Tag>
                                 <DockPanel.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
@@ -272,14 +416,17 @@
                                                   CommandParameter="{Binding}" />
                                     </ContextMenu>
                                 </DockPanel.ContextMenu>
-                                <DockPanel.Tag>
-                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
-                                </DockPanel.Tag>
-                                <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,10,0" VerticalAlignment="Center"
-                                         Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
-                                <StackPanel>
+                                <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center"
+                                               Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                                    <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="White" StrokeThickness="1.5"
+                                             Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                </Grid>
+                                <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Caption}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                 </StackPanel>
                             </DockPanel>
                         </DataTemplate>
@@ -288,44 +435,82 @@
             </Grid>
         </DockPanel>
 
-        <!-- ===================== Selected printer ===================== -->
-        <ContentControl Grid.Column="1" Content="{Binding Selected}" Margin="8,12,16,12">
-            <ContentControl.ContentTemplate>
-                <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Top">
-                            <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,2,0,8" />
-                        </StackPanel>
+        <!-- ===================== Main pane ===================== -->
+        <Border Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}" CornerRadius="8,0,0,0"
+                BorderThickness="1,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <Grid>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="56" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Your printers will show up here" FontSize="16" Margin="0,12,0,0" HorizontalAlignment="Center" />
+                </StackPanel>
 
-                        <!-- One-click setup: shown only when Windows sees the printer but has no queue for it -->
-                        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="14,10"
-                                Background="{DynamicResource {x:Static SystemColors.InfoBrushKey}}"
-                                Visibility="{Binding NeedsSetup, Converter={StaticResource VisibleWhen}}">
+                <ContentControl Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False">
+                    <ContentControl.ContentTemplate>
+                        <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="Set up" Command="{Binding SetUpCommand}"
-                                        Style="{DynamicResource AccentButtonStyle}" Padding="20,6" VerticalAlignment="Center" />
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="This printer isn't set up in Windows yet." FontWeight="SemiBold"
-                                               Foreground="{DynamicResource {x:Static SystemColors.InfoTextBrushKey}}" />
-                                    <TextBlock Text="{Binding SetupMessage, TargetNullValue='Set it up to print from any app. No driver download or account needed.'}"
-                                               Foreground="{DynamicResource {x:Static SystemColors.InfoTextBrushKey}}" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding SetupResult}" Margin="0,0,0,8"
-                                   Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
+                                <!-- Hero -->
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,16,20">
+                                    <Grid DockPanel.Dock="Left" Width="88" Height="88" Margin="0,0,20,0">
+                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="48" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                                        <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </Grid>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Command="{Binding GoToScanCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8"
+                                                Visibility="{Binding ShowScanShortcut, Converter={StaticResource VisibleWhen}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
+                                                <TextBlock Text="Scan" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                     Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                            <TextBlock Text="{Binding StatusMessage}" />
+                                            <TextBlock Text="{Binding Host, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
 
-                        <TabControl x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged">
-                            <TabItem Header="Status" Content="{Binding}" ContentTemplate="{StaticResource StatusTab}" />
-                            <TabItem Header="Scan" Content="{Binding Scan}"
-                                     Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
-                            <TabItem Header="Settings" Content="{Binding Settings}" Tag="settings"
-                                     Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />
-                        </TabControl>
-                    </DockPanel>
-                </DataTemplate>
-            </ContentControl.ContentTemplate>
-        </ContentControl>
+                                <!-- One-click setup, only when Windows sees the printer but has no queue for it -->
+                                <Border DockPanel.Dock="Top" CornerRadius="8" Padding="16,12" Margin="0,0,16,20" BorderThickness="1"
+                                        Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        Visibility="{Binding NeedsSetup, Converter={StaticResource VisibleWhen}}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE946;" FontSize="18" Margin="0,2,14,0"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        <Button DockPanel.Dock="Right" Content="Set up" Command="{Binding SetUpCommand}"
+                                                Style="{DynamicResource AccentButtonStyle}" Padding="20,6" VerticalAlignment="Center" />
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Not set up in Windows yet" FontWeight="SemiBold" />
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="{Binding SetupMessage, TargetNullValue='One click lets every app print to it. No driver download or account needed.'}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding SetupResult}" Margin="0,0,16,16"
+                                           Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
+
+                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}"
+                                            SelectionChanged="Tabs_SelectionChanged">
+                                    <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
+                                    <TabItem Header="Scan" Content="{Binding Scan}"
+                                             Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
+                                    <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
+                                             Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />
+                                </TabControl>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                </ContentControl>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

@@ -88,6 +88,18 @@ public sealed class PrinterDiscovery : IDisposable
         }
     }
 
+    /// <summary>Drops everything seen so far and runs a fresh sweep.</summary>
+    public void Restart()
+    {
+        Dispose();
+        lock (_gate)
+        {
+            _services.Clear();
+            _endpoints.Clear();
+        }
+        Start();
+    }
+
     public IReadOnlyList<DiscoveredPrinter> Snapshot()
     {
         lock (_gate) return Merge();

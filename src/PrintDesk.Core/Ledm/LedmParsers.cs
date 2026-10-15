@@ -32,7 +32,8 @@ public static class LedmParsers
             .ToList();
 
         var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : StatusText.SeverityOf(code);
-        return new PrinterStatus(code, message, severity, alerts);
+        var detail = StatusText.Explain(alerts.FirstOrDefault(a => a.Severity == Severity.Error)?.Id ?? code);
+        return new PrinterStatus(code, message, severity, alerts, detail);
     }
 
     public static IReadOnlyList<Consumable> ParseConsumables(XDocument doc, XDocument? usage = null)

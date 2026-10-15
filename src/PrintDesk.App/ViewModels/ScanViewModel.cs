@@ -48,6 +48,12 @@ public sealed partial class ScanViewModel : ObservableObject
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
         IsColor = state.ScanColor;
         UseOcr = state.ScanOcr && OcrAvailable;
+        Pages.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasPages));
+            OnPropertyChanged(nameof(PageCountText));
+            SaveCommand.NotifyCanExecuteChanged();
+        };
     }
 
     public IReadOnlyList<Option<ScanSource>> Sources { get; }
@@ -70,6 +76,10 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial string? LastSavedPath { get; set; }
 
     public bool HasPages => Pages.Count > 0;
+    public string PageCountText => Pages.Count switch { 0 => "No pages yet", 1 => "1 page", var n => $"{n} pages" };
+
+    /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
+    [ObservableProperty] public partial bool IsScanning { get; set; }
 
     partial void OnIsColorChanged(bool value) { _state.ScanColor = value; _state.Save(); }
     partial void OnUseOcrChanged(bool value) { _state.ScanOcr = value; _state.Save(); }
@@ -83,13 +93,14 @@ public sealed partial class ScanViewModel : ObservableObject
     public void Rebind(EsclClient client) => _client = client;
 
     private bool NotBusy() => !IsBusy;
-    private bool CanSave() => !IsBusy && Pages.Count > 0;
+    private bool CanSave(string? format) => !IsBusy && Pages.Count > 0;
 
     /// <summary>Scans and appends pages, so multi-page documents from the glass are just "Scan" again.</summary>
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private async Task ScanAsync()
     {
         IsBusy = true;
+        IsScanning = true;
         LastSavedPath = null;
         _scanCts = new CancellationTokenSource();
         var dpi = Resolution?.Value ?? 300;
@@ -104,12 +115,13 @@ public sealed partial class ScanViewModel : ObservableObject
                 var page = new ScanPageViewModel(jpeg, dpi, UseOcr);
                 Pages.Add(page);
                 added++;
-                OnPropertyChanged(nameof(HasPages));
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
             Message = added == 0
                 ? "The scanner returned no pages."
-                : $"Scanned {added} page{(added == 1 ? "" : "s")} in {sw.Elapsed.TotalSeconds:0.0} s. Put the next page on the glass and scan again, or save.";
+                : request.Source == ScanSource.Platen
+                    ? "Done. To add another page, put it on the glass and press Scan again."
+                    : $"Done: {added} page{(added == 1 ? "" : "s")} from the feeder.";
         }
         catch (OperationCanceledException)
         {
@@ -128,7 +140,7 @@ public sealed partial class ScanViewModel : ObservableObject
             _scanCts.Dispose();
             _scanCts = null;
             IsBusy = false;
-            SaveCommand.NotifyCanExecuteChanged();
+            IsScanning = false;
         }
     }
 
@@ -140,8 +152,6 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (page is null || IsBusy) return;
         Pages.Remove(page);
-        OnPropertyChanged(nameof(HasPages));
-        SaveCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -157,20 +167,20 @@ public sealed partial class ScanViewModel : ObservableObject
         Pages.Clear();
         Message = null;
         LastSavedPath = null;
-        OnPropertyChanged(nameof(HasPages));
-        SaveCommand.NotifyCanExecuteChanged();
     }
 
+    /// <param name="format">"pdf" (default) or "jpg".</param>
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task SaveAsync()
+    private async Task SaveAsync(string? format)
     {
+        var jpg = format == "jpg";
         var folder = _state.ScanFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var dialog = new SaveFileDialog
         {
-            Title = "Save scan",
+            Title = jpg ? "Save scan as images" : "Save scan as PDF",
             InitialDirectory = folder,
             FileName = $"Scan {DateTime.Now:yyyy-MM-dd HHmm}",
-            Filter = "PDF document (*.pdf)|*.pdf|JPEG image (*.jpg)|*.jpg",
+            Filter = jpg ? "JPEG image (*.jpg)|*.jpg" : "PDF document (*.pdf)|*.pdf",
             AddExtension = true,
         };
         if (dialog.ShowDialog() != true) return;

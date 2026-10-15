@@ -30,8 +30,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial PrinterViewModel? Selected { get; set; }
 
+    /// <summary>
+    /// True until Windows finishes its first mDNS sweep (~30 s). Printers usually appear within 2 s, so this only
+    /// drives the empty-list state, never a spinner next to a list that already has printers.
+    /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSearching), nameof(ShowNoPrinters))]
     public partial bool IsSearching { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool IsAddOpen { get; set; }
+
+    public bool ShowSearching => IsEmpty && IsSearching;
+    public bool ShowNoPrinters => IsEmpty && !IsSearching;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddByAddressCommand))]
@@ -44,6 +55,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public partial bool IsAdding { get; set; }
 
     public bool IsEmpty => Printers.Count == 0;
+
+    private void NotifyEmpty()
+    {
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(ShowSearching));
+        OnPropertyChanged(nameof(ShowNoPrinters));
+    }
+
+    [RelayCommand]
+    private void ToggleAdd()
+    {
+        IsAddOpen = !IsAddOpen;
+        ManualError = null;
+    }
+
+    [RelayCommand]
+    private void SearchAgain()
+    {
+        IsSearching = true;
+        _discovery.Restart();
+    }
 
     partial void OnSelectedChanged(PrinterViewModel? value)
     {
@@ -63,7 +95,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 Printers.Add(vm);
                 vm.Start();
                 Selected ??= vm;
-                OnPropertyChanged(nameof(IsEmpty));
+                NotifyEmpty();
             }
             vm.ApplyDiscovery(d);
         }
@@ -103,11 +135,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Remember);
                 Printers.Add(vm);
                 vm.Start();
-                OnPropertyChanged(nameof(IsEmpty));
+                NotifyEmpty();
             }
             Remember(vm);
             Selected = vm;
             ManualAddress = "";
+            IsAddOpen = false;
         }
         catch (Exception ex) when (ex is ArgumentException or UriFormatException)
         {
@@ -128,7 +161,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         p.Dispose();
         Printers.Remove(p);
         if (Selected == p) Selected = Printers.FirstOrDefault();
-        OnPropertyChanged(nameof(IsEmpty));
+        NotifyEmpty();
     }
 
     public void Dispose()

@@ -76,3 +76,31 @@ public sealed class PlusOneConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is int i ? $"Page {i + 1}" : "";
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Status kind → Segoe Fluent Icons glyph.</summary>
+public sealed class StatusGlyphConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
+    {
+        "ok" => "",        // CheckMark
+        "warning" => "",   // Warning
+        "error" => "",     // Error
+        "offline" => "",   // Disconnected (falls back to a box on older fonts)
+        _ => "",           // Sync
+    };
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Supply level (ok/low/empty) → Fluent semantic brush resource.</summary>
+public sealed class LevelBrushConverter : IValueConverter
+{
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
+    {
+        "empty" => Application.Current.TryFindResource("SystemFillColorCriticalBrush"),
+        "low" => Application.Current.TryFindResource("SystemFillColorCautionBrush"),
+        _ => Application.Current.TryFindResource("AccentFillColorDefaultBrush"),
+    } ?? DependencyProperty.UnsetValue;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}

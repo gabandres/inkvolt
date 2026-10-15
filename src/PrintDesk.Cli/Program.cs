@@ -68,9 +68,9 @@ async Task Discover()
     var done = new TaskCompletionSource();
     var sw = Stopwatch.StartNew();
     d.Changed += list => Console.WriteLine($"[{sw.ElapsedMilliseconds,5} ms] {list.Count} printer(s)");
-    d.InitialSweepCompleted += () => done.TrySetResult();
+    d.InitialSweepCompleted += () => { Console.WriteLine($"[{sw.ElapsedMilliseconds,5} ms] initial sweep complete"); done.TrySetResult(); };
     d.Start();
-    await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(8), ct));
+    await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(Opt("--wait") is { } w ? int.Parse(w) : 8), ct));
     await Task.Delay(1500, ct); // let late mDNS answers land
     foreach (var p in d.Snapshot())
         Console.WriteLine($"""

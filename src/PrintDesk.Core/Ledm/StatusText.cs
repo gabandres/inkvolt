@@ -9,7 +9,7 @@ public static class StatusText
     private static readonly Dictionary<string, (string Text, Severity Sev)> Known = new(StringComparer.Ordinal)
     {
         ["ready"] = ("Ready", Severity.Info),
-        ["inPowerSave"] = ("Ready (sleeping)", Severity.Info),
+        ["inPowerSave"] = ("Ready", Severity.Info),
         ["initializing"] = ("Starting up", Severity.Info),
         ["processing"] = ("Printing", Severity.Info),
         ["copying"] = ("Copying", Severity.Info),
@@ -49,7 +49,24 @@ public static class StatusText
         ["waitingForSupplyAssessment"] = ("Checking supplies", Severity.Info),
     };
 
+    private static readonly Dictionary<string, string> Details = new(StringComparer.Ordinal)
+    {
+        ["inPowerSave"] = "Sleeping to save power. It wakes up by itself when you print or scan.",
+        ["ready"] = "Waiting for something to print or scan.",
+        ["trayEmptyOrOpen"] = "Load paper into the tray and push it all the way in.",
+        ["mediaPrompt"] = "Load paper, then press OK on the printer if it asks.",
+        ["closeDoorOrCover"] = "A door or cover is open. Close it to continue.",
+        ["jamInPrinter"] = "Open the front door, gently pull out the jammed paper, and close the door.",
+        ["replaceCartridgeOut"] = "The toner cartridge is empty. Replace it to keep printing.",
+        ["cartridgeMissing"] = "Insert the toner cartridge and close the front door.",
+        ["tonerSealInPlace"] = "Pull the orange tab off the new toner cartridge.",
+        ["manualDuplex"] = "Take the printed pages, turn them over, and put them back in the tray.",
+    };
+
     public static bool IsKnown(string id) => Known.ContainsKey(id);
+
+    /// <summary>One plain sentence on what the state means or what to do; null when the title says it all.</summary>
+    public static string? Explain(string id) => Details.GetValueOrDefault(id);
 
     public static string Describe(string id) => Known.TryGetValue(id, out var k) ? k.Text : Humanize(id);
 
