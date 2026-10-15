@@ -31,6 +31,13 @@ dotnet run --project src/PrintDesk.App
 dotnet run --project src/PrintDesk.Cli -- status 192.0.2.10
 ```
 
+Standalone executable (self-contained, no .NET install needed, ~65 MB):
+
+```
+dotnet publish src/PrintDesk.App -p:PublishProfile=win-arm64   # or win-x64
+# → publish/win-arm64/PrintDesk.exe
+```
+
 Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits.
 
 ## Design notes (vs. HP Smart's problems)
