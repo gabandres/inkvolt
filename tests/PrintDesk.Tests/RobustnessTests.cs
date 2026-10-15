@@ -89,6 +89,51 @@ public class RobustnessTests
         Assert.True(http.CertificateChanged);
     }
 
+    [Fact]
+    public void Pinned_printer_refuses_a_different_certificate_even_if_it_is_CA_valid()
+    {
+        var pin = new MemoryPin();
+        using var http = new DeviceHttp("printer.test", pin: pin);
+        using var first = SelfSigned("CN=printer");
+        using var other = SelfSigned("CN=printer");
+        Assert.True(http.ValidateCertificate(first, SslPolicyErrors.RemoteCertificateChainErrors));
+
+        Assert.False(http.ValidateCertificate(other, SslPolicyErrors.None));
+    }
+
+    [Fact]
+    public void Racing_first_handshakes_are_both_checked_against_the_pin_that_won()
+    {
+        var pin = new MemoryPin();
+        using var http = new DeviceHttp("printer.test", pin: pin);
+        using var winner = SelfSigned("CN=printer");
+        using var loser = SelfSigned("CN=printer");
+        pin.SetIfAbsent(Convert.ToHexString(SHA256.HashData(winner.GetRawCertData()))); // the other handshake stored first
+
+        Assert.False(http.ValidateCertificate(loser, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.True(http.ValidateCertificate(winner, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Theory]
+    [InlineData("12345678-1234-4abc-8def-123456789abc")]
+    [InlineData("urn:uuid:12345678-1234-4ABC-8DEF-123456789ABC")]
+    [InlineData("{12345678-1234-4abc-8def-123456789abc}")]
+    public void Printer_ids_are_normalised_guids(string raw) =>
+        Assert.Equal("12345678-1234-4abc-8def-123456789abc", PrinterId.Normalize(raw, "10.0.0.5"));
+
+    [Theory]
+    [InlineData(@"..\..\evil")]
+    [InlineData(@"C:\Windows\x")]
+    [InlineData(null)]
+    public void Untrusted_ids_become_a_stable_guid_from_the_host(string? raw)
+    {
+        var id = PrinterId.Normalize(raw, "10.0.0.5");
+        Assert.True(Guid.TryParse(id, out _));
+        Assert.Equal(id, PrinterId.Normalize(raw, "10.0.0.5"));
+        Assert.DoesNotContain('\\', PrinterId.FileName(id));
+        Assert.DoesNotContain('.', PrinterId.FileName(@"..\..\evil"));
+    }
+
     private static X509Certificate2 SelfSigned(string subject)
     {
         using var key = ECDsa.Create();
@@ -100,6 +145,6 @@ public class RobustnessTests
     {
         public string? Value;
         public string? Get() => Value;
-        public void Set(string sha256Hex) => Value = sha256Hex;
+        public string SetIfAbsent(string sha256Hex) => Value ??= sha256Hex;
     }
 }

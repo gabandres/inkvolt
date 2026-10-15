@@ -16,6 +16,11 @@ public static class Log
 
     public static void Write(string message)
     {
+        // Printer-supplied text (names, errors) must not be able to forge extra log lines.
+        message = string.Create(message.Length, message, (span, m) =>
+        {
+            for (var i = 0; i < m.Length; i++) span[i] = char.IsControl(m[i]) && m[i] is not ('\n' or '\r' or '\t') ? ' ' : m[i];
+        }).Replace("\r\n", "\n").Replace("\n", "\n    ");
         Trace.WriteLine(message);
         try
         {

@@ -41,7 +41,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         EsclRoot = esclRoot;
         _state = state;
         _remember = remember;
-        Print = new PrintViewModel(uuid, state);
+        Print = new PrintViewModel(FindQueueAsync, state);
     }
 
     /// <summary>Print a PDF. Works through the Windows queue, so it doesn't need the device connection.</summary>
@@ -89,7 +89,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult))]
+    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult), nameof(SetupNeedsAdmin))]
     [NotifyCanExecuteChangedFor(nameof(SetUpCommand))]
     public partial string? PrintEndpointId { get; set; }
 
@@ -172,12 +172,23 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Looks for an installed Windows queue whose device container is this printer.</summary>
+    /// <summary>
+    /// This printer's Windows queue: the one whose device container is the printer (discovered/paired queues), or
+    /// the queue PrintDesk created by address (Windows doesn't promise those share the printer's container id).
+    /// </summary>
+    public async Task<string?> FindQueueAsync()
+    {
+        if (await QueueFinder.FindQueueNameAsync(Uuid) is { } byContainer) return byContainer;
+        if (_state.GetQueueName(Uuid) is not { } created) return null;
+        return (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)) ? created : null;
+    }
+
+    /// <summary>Looks for an installed Windows queue for this printer.</summary>
     public async Task RefreshQueueAsync()
     {
         try
         {
-            _windowsQueue = await QueueFinder.FindQueueNameAsync(Uuid) is not null;
+            _windowsQueue = await FindQueueAsync() is not null;
         }
         catch (Exception ex)
         {
@@ -257,7 +268,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state);
             else Settings.Rebind(conn);
         }
-        if (CredentialStore.Get(Uuid) is { } pw) conn.Http.SetCredentials("admin", pw);
+        if (CredentialStore.Get(Uuid) is { } pw)
+        {
+            if (_state.GetCertificatePin(Uuid) is not null) conn.Http.SetCredentials("admin", pw);
+            else CredentialStore.Delete(Uuid); // never send a saved password to an unpinned certificate
+        }
 
         if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
             Log.Write($"[{Name}] UUID changed {Uuid} → {p.Uuid}");
@@ -332,7 +347,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>
     private async Task LoadImageAsync(PrinterConnection conn)
     {
-        var cache = Path.Combine(AppState.DataDirectory, "images", $"{Uuid}.png");
+        var cache = Path.Combine(AppState.DataDirectory, "images", $"{PrinterId.FileName(Uuid)}.png");
         try
         {
             byte[]? bytes = File.Exists(cache) ? await File.ReadAllBytesAsync(cache) : null;
@@ -389,8 +404,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var queueName = $"{Name} ({Host})";
+                var queueName = IppQueueInstaller.SafeQueueName($"{Name} ({Host})");
                 print = await IppQueueInstaller.InstallAsync(queueName, new UriBuilder("http", Host!, 631, "ipp/print").Uri);
+                if (print.Outcome is InstallOutcome.Installed) _state.SetQueueName(Uuid, queueName);
             }
 
             if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
@@ -422,16 +438,25 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public async Task<string?> ReinstallQueueAsync()
     {
         if (PrintEndpointId is not { } endpoint) return "not discovered on the network, so it can't be set up again automatically";
+        // Removing the queue only to fail re-adding it would leave every app unable to print: only start when the
+        // printer is awake and answering, and nothing is printing through PrintDesk.
+        if (!IsOnline) return "the printer isn't reachable right now. Turn it on, then use Set up";
+        if (Print.IsBusy) return "a print job is being sent. Try again when it's done";
         IsInstalling = true;
         try
         {
             if (!await QueueInstaller.UninstallAsync(endpoint)) return "Windows didn't remove the old printer";
-            await Task.Delay(TimeSpan.FromSeconds(3)); // let the spooler finish deleting the queue
-            var result = await QueueInstaller.InstallAsync(endpoint);
+            InstallResult result = new(InstallOutcome.Failed, "not attempted");
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3 + attempt * 5)); // let the spooler finish; give a sleeping printer time
+                result = await QueueInstaller.InstallAsync(endpoint);
+                if (result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled) break;
+            }
             _windowsQueue = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
             QueueInstalled = _discoveredQueue || _windowsQueue;
             Print.QueueChanged();
-            return _windowsQueue ? null : result.Message;
+            return _windowsQueue ? null : $"{result.Message} Use Set up on this printer to add it again.";
         }
         catch (Exception ex)
         {
@@ -481,7 +506,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private sealed class PinStore(AppState state, string uuid) : ICertificatePin
     {
         public string? Get() => state.GetCertificatePin(uuid);
-        public void Set(string sha256Hex) => state.SetCertificatePin(uuid, sha256Hex);
+        public string SetIfAbsent(string sha256Hex) => state.SetCertificatePinIfAbsent(uuid, sha256Hex);
     }
 }
 

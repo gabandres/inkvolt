@@ -16,7 +16,7 @@ namespace PrintDesk.App.ViewModels;
 /// Print a PDF: open it (button, drag-and-drop or "Open with"), see how many pages it has with
 /// thumbnails, pick pages / copies / two-sided, and send it to this printer's Windows queue.
 /// </summary>
-public sealed partial class PrintViewModel(string printerUuid, AppState state) : ObservableObject
+public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppState state) : ObservableObject
 {
     private const int MaxThumbnails = 60;
 
@@ -131,7 +131,11 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
     /// <summary>Loads a PDF: page count immediately, thumbnails stream in after.</summary>
     public async Task OpenAsync(string path)
     {
-        if (IsBusy) return;
+        if (IsBusy)
+        {
+            SetMessage($"Still sending the current job. Open \"{Path.GetFileName(path)}\" again when it's done.", error: true);
+            return;
+        }
         var generation = ++_openGeneration;
         SetMessage(null);
         Thumbnails.Clear();
@@ -209,17 +213,27 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         if (_twoSidedChecked) return;
         try
         {
-            var queue = await QueueFinder.FindQueueNameAsync(printerUuid);
-            CanTwoSided = queue is not null && await Task.Run(() =>
+            var queue = await findQueue();
+            if (queue is null)
             {
-                using var q = QueuePrinter.Open(queue);
-                return QueuePrinter.SupportsTwoSided(q);
-            });
-            _twoSidedChecked = queue is not null;
+                CanTwoSided = false;
+            }
+            else
+            {
+                // Asking the driver can take several seconds (it queries the printer): show the last known answer now.
+                if (state.GetTwoSided(queue) is { } known) CanTwoSided = known;
+                CanTwoSided = await Task.Run(() =>
+                {
+                    using var q = QueuePrinter.Open(queue);
+                    return QueuePrinter.SupportsTwoSided(q);
+                });
+                state.SetTwoSided(queue, CanTwoSided);
+                _twoSidedChecked = true;
+            }
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"Two-sided check failed: {ex.Message}");
+            Log.Write($"Two-sided check failed: {ex}");
             CanTwoSided = false;
         }
         if (!CanTwoSided) TwoSided = false;
@@ -236,7 +250,7 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         var sw = Stopwatch.StartNew();
         try
         {
-            var queueName = await QueueFinder.FindQueueNameAsync(printerUuid);
+            var queueName = await findQueue();
             if (queueName is null)
             {
                 SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.", error: true);

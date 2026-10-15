@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PrintDesk.Core.Model;
 using PrintDesk.Core.Probe;
 using PrintDesk.Windows.Cleanup;
 using PrintDesk.Windows.Discovery;
@@ -25,6 +26,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public MainViewModel(AppState state)
     {
         _state = state;
+        // Older state files may hold non-GUID ids (printers added by address): normalise once.
+        state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
+            .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
             Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember));
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
@@ -136,8 +140,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var removesPrintApp = HpApps.Any(a => a.IsPrintSupportApp);
         if (!Prompt.Ask($"Remove {HpAppNames}?\n\nPrintDesk does what they did for this printer, and printing keeps working " +
                         "through Windows' own driver. HP's apps can be reinstalled from the Microsoft Store at any time." +
-                        "\n\nWindows will ask for administrator permission once, to remove HP's background services and to stop " +
-                        "Windows from re-installing HP's print app." +
+                        "\n\nWindows will ask for administrator permission once, to remove HP's background services and to turn off " +
+                        "Windows' \"automatically download manufacturers' apps and custom icons\" for this PC (it's what re-installs " +
+                        "HP's print app; it applies to all devices). To turn it back on: Control Panel › Devices and Printers › " +
+                        "right-click this PC › Device installation settings." +
                         (removesPrintApp ? "\n\nYour HP printers are then set up again in Windows (about 30 seconds each), so printing keeps working." : ""),
                 "Remove")) return;
         IsRemovingHp = true;
@@ -216,6 +222,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         foreach (var d in found)
         {
+            if (!PrinterId.IsValid(d.Uuid)) continue; // mDNS TXT is untrusted text: only real UUIDs become printers
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, d.Uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)
             {
@@ -262,7 +269,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 ManualError = $"No printer answered at {host}. Check the address and that the printer is on.";
                 return;
             }
-            var uuid = probe.Uuid ?? host;
+            var uuid = PrinterId.Normalize(probe.Uuid, host);
             _state.ForgottenUuids.RemoveAll(f => string.Equals(f, uuid, StringComparison.OrdinalIgnoreCase));
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)

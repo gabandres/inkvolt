@@ -51,6 +51,7 @@ public sealed class PrinterDiscovery : IDisposable
 
     /// <summary>Bumped on every Start; events from older watchers (still stopping) are ignored.</summary>
     private int _generation;
+    private bool _started;
 
     /// <summary>
     /// Raised with the full current list whenever anything changes. Invoked while an internal lock is held so
@@ -66,7 +67,8 @@ public sealed class PrinterDiscovery : IDisposable
         int gen;
         lock (_gate)
         {
-            if (_watchers.Count > 0) return;
+            if (_started) return; // claimed atomically: two concurrent Start calls can't both create watchers
+            _started = true;
             gen = ++_generation;
         }
         var services = DeviceInformation.CreateWatcher(
@@ -205,6 +207,7 @@ public sealed class PrinterDiscovery : IDisposable
         {
             old = [.. _watchers];
             _watchers.Clear();
+            _started = false;
             _generation++; // ignore anything the stopping watchers still deliver
         }
         foreach (var w in old)

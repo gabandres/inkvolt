@@ -32,16 +32,53 @@ public sealed class AppState
     /// <summary>Printer UUID → SHA-256 of its TLS certificate (trust on first use).</summary>
     public Dictionary<string, string> CertificatePins { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Printer UUID → queue name PrintDesk created with Add-Printer -IppURL (printers added by address).</summary>
+    public Dictionary<string, string> QueueNames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Queue name → whether its driver reports two-sided printing (cached: the query is slow).</summary>
+    public Dictionary<string, bool> TwoSidedQueues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool? GetTwoSided(string queue)
+    {
+        lock (_gate) return TwoSidedQueues.TryGetValue(queue, out var v) ? v : null;
+    }
+
+    public void SetTwoSided(string queue, bool value)
+    {
+        lock (_gate)
+        {
+            if (TwoSidedQueues.TryGetValue(queue, out var old) && old == value) return;
+            TwoSidedQueues[queue] = value;
+        }
+        Save();
+    }
+
+    public string? GetQueueName(string uuid)
+    {
+        lock (_gate) return QueueNames.GetValueOrDefault(uuid);
+    }
+
+    public void SetQueueName(string uuid, string name)
+    {
+        lock (_gate) QueueNames[uuid] = name;
+        Save();
+    }
+
     public string? GetCertificatePin(string uuid)
     {
         lock (_gate) return CertificatePins.GetValueOrDefault(uuid);
     }
 
-    /// <summary>Called from the TLS handshake (thread pool), hence the lock.</summary>
-    public void SetCertificatePin(string uuid, string sha256Hex)
+    /// <summary>Called from the TLS handshake (thread pool), hence the lock. Never overwrites an existing pin.</summary>
+    public string SetCertificatePinIfAbsent(string uuid, string sha256Hex)
     {
-        lock (_gate) CertificatePins[uuid] = sha256Hex;
+        string stored;
+        lock (_gate)
+        {
+            if (!CertificatePins.TryGetValue(uuid, out stored!)) CertificatePins[uuid] = stored = sha256Hex;
+        }
         Save();
+        return stored;
     }
 
     public void ClearCertificatePin(string uuid)
@@ -55,11 +92,17 @@ public sealed class AppState
         try
         {
             var state = File.Exists(FilePath) ? JsonSerializer.Deserialize<AppState>(File.ReadAllText(FilePath), Json) ?? new() : new();
-            state.CertificatePins = new(state.CertificatePins, StringComparer.OrdinalIgnoreCase);
+            // Hand-edited or older files can hold nulls; never let that stop the app from starting.
+            state.Printers ??= [];
+            state.ForgottenUuids ??= [];
+            state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
+            state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
+            state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
             return state;
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
         {
+            Log.Write($"State file unreadable, starting fresh: {ex.Message}");
             return new();
         }
     }
@@ -78,9 +121,10 @@ public sealed class AppState
                 File.Move(tmp, FilePath, overwrite: true);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            // Non-fatal: state is a cache.
+            // Non-fatal (state is a cache) and may run on a TLS callback thread while the UI edits lists: never throw.
+            Log.Write($"State not saved: {ex.Message}");
         }
     }
 }

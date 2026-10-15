@@ -109,7 +109,20 @@
         <Style x:Key="NavItem" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Margin" Value="0,0,0,2" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <!-- WPF shows FocusVisualStyle only for keyboard focus, never on mouse clicks -->
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style>
+                        <Setter Property="Control.Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource FocusStrokeColorOuterBrush}" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
@@ -127,10 +140,6 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                                 <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
-                            </Trigger>
-                            <!-- Visible keyboard focus (Tab/arrow navigation) -->
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource FocusStrokeColorOuterBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

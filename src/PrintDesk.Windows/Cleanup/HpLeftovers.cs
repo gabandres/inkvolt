@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using Microsoft.Win32;
 using System.Text;
 using PrintDesk.Windows.Printing;
@@ -44,7 +42,6 @@ public static class HpLeftovers
         return new Found(services, queue, Directory.Exists(Folder));
     }
 
-    /// <summary>Returns null on success, otherwise what went wrong.</summary>
     private const string MetadataKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata";
 
     /// <summary>Windows won't fetch manufacturers' apps (HP's Print Support App) for newly set-up devices.</summary>
@@ -54,52 +51,41 @@ public static class HpLeftovers
         return key?.GetValue("PreventDeviceMetadataFromNetwork") is int v && v == 1;
     }
 
+    // Exit-code bits from the elevated script (no temp files shared with the user's session).
+    private const int FailSetting = 1, FailService = 2, FailQueue = 4, FailFiles = 8, SkippedLinkedFolder = 16;
+
+    /// <summary>Returns null on success, otherwise what went wrong.</summary>
     public static async Task<string?> RemoveAsync(CancellationToken ct = default)
     {
-        var log = Path.Combine(Path.GetTempPath(), $"printdesk-hpcleanup-{Guid.NewGuid():N}.txt");
-        var script = new StringBuilder("$ErrorActionPreference='Continue'; $out=@();");
-        script.Append($"try {{ New-Item -Path 'HKLM:\\{MetadataKey}' -Force | Out-Null; " +
-                      $"Set-ItemProperty -Path 'HKLM:\\{MetadataKey}' -Name PreventDeviceMetadataFromNetwork -Type DWord -Value 1 -EA Stop }} " +
-                      "catch { $out += 'auto-install setting: ' + $_.Exception.Message };");
-        foreach (var s in Services)
-            script.Append($"if (Get-Service '{s}' -EA SilentlyContinue) {{ Stop-Service '{s}' -Force -EA SilentlyContinue; " +
-                          $"sc.exe delete '{s}' | Out-Null; if ($LASTEXITCODE -ne 0) {{ $out += 'service {s}: sc delete failed' }} }};");
-        script.Append($"if (Get-Printer -Name '{Queue}' -EA SilentlyContinue) {{ try {{ Remove-Printer -Name '{Queue}' -EA Stop }} catch {{ $out += 'queue: ' + $_.Exception.Message }} }};");
-        // Services take a moment to release their executables after stopping.
-        script.Append($"Start-Sleep 2; if (Test-Path '{Folder}') {{ try {{ Remove-Item '{Folder}' -Recurse -Force -EA Stop }} catch {{ $out += 'files: ' + $_.Exception.Message }} }};");
-        script.Append($"$out -join \"`n\" | Out-File -Encoding utf8 '{log}'");
+        // Every name/path is a constant here; still passed as $v0.. so the script text never embeds a value.
+        var script = new StringBuilder("$ErrorActionPreference='Continue'; $rc=0;");
+        // Setting only: never recreate the key (New-Item -Force on an existing registry key wipes its values).
+        script.Append("try { if (-not (Test-Path $v0)) { New-Item -Path $v0 | Out-Null }; " +
+                      "Set-ItemProperty -Path $v0 -Name PreventDeviceMetadataFromNetwork -Type DWord -Value 1 -EA Stop } catch { $rc = $rc -bor 1 };");
+        script.Append("foreach ($s in @($v1, $v2)) { if (Get-Service -Name $s -EA SilentlyContinue) { Stop-Service -Name $s -Force -EA SilentlyContinue; " +
+                      "& sc.exe delete $s | Out-Null; if ($LASTEXITCODE -ne 0) { $rc = $rc -bor 2 } } };");
+        script.Append("if (Get-Printer -Name $v3 -EA SilentlyContinue) { try { Remove-Printer -Name $v3 -EA Stop } catch { $rc = $rc -bor 4 } };");
+        // Services take a moment to release their executables. Refuse to recurse through links (junctions could
+        // point anywhere); only plain files and folders are deleted.
+        script.Append("Start-Sleep 2; if (Test-Path -LiteralPath $v4) { " +
+                      "$links = @(Get-Item -LiteralPath $v4 -Force) + @(Get-ChildItem -LiteralPath $v4 -Recurse -Force -EA SilentlyContinue) | " +
+                      "Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }; " +
+                      "if ($links) { $rc = $rc -bor 16 } else { try { Remove-Item -LiteralPath $v4 -Recurse -Force -EA Stop } catch { $rc = $rc -bor 8 } } };");
+        script.Append("exit $rc");
 
-        var psi = new ProcessStartInfo("powershell.exe",
-            $"-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand {Convert.ToBase64String(Encoding.Unicode.GetBytes(script.ToString()))}")
-        {
-            UseShellExecute = true,
-            Verb = "runas",
-            WindowStyle = ProcessWindowStyle.Hidden,
-        };
-        try
-        {
-            using var p = Process.Start(psi) ?? throw new InvalidOperationException("PowerShell did not start");
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromMinutes(2));
-            await p.WaitForExitAsync(cts.Token);
-        }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            return "Cancelled: Windows needs administrator permission to remove HP's background services.";
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return "Windows did not finish removing HP's services in time.";
-        }
+        var code = await Elevated.RunAsync(script.ToString(),
+            [$@"HKLM:\{MetadataKey}", Services[0], Services[1], Queue, Folder], TimeSpan.FromMinutes(2), ct);
+        if (code == Elevated.Cancelled) return "Cancelled: Windows needs administrator permission to remove HP's background services.";
+        if (code == Elevated.TimedOut) return "Windows did not finish removing HP's services in time.";
 
-        string? problems = null;
-        if (File.Exists(log))
-        {
-            problems = (await File.ReadAllTextAsync(log, ct)).Trim();
-            File.Delete(log);
-        }
+        var problems = new List<string>();
+        if ((code & FailSetting) != 0) problems.Add("couldn't stop Windows from re-installing HP's print app");
+        if ((code & FailService) != 0) problems.Add("a service couldn't be removed");
+        if ((code & FailQueue) != 0) problems.Add("the \"HP Smart Printing\" printer couldn't be removed");
+        if ((code & FailFiles) != 0) problems.Add("some files couldn't be deleted");
+        if ((code & SkippedLinkedFolder) != 0) problems.Add($"{Folder} contains links, so it was left in place");
         var still = await FindAsync();
-        if (still.Any) return $"Some HP components are still present ({still}).{(string.IsNullOrEmpty(problems) ? "" : " " + problems)}";
-        return string.IsNullOrEmpty(problems) ? null : problems;
+        if (still.Any) problems.Insert(0, $"still present: {still}");
+        return problems.Count == 0 ? null : char.ToUpperInvariant(problems[0][0]) + string.Join("; ", problems)[1..] + ".";
     }
 }

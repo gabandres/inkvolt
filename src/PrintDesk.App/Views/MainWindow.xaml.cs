@@ -28,6 +28,21 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
+    /// <summary>
+    /// The printer menu is one shared instance; point it at the item it was opened on, so "Remove" can never act on
+    /// a different printer than the one right-clicked (or focused, for Shift+F10).
+    /// </summary>
+    private void Printers_ContextMenuOpening(object sender, System.Windows.Controls.ContextMenuEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source
+            && System.Windows.Controls.ItemsControl.ContainerFromElement((System.Windows.Controls.ItemsControl)sender, source)
+                is System.Windows.Controls.ListBoxItem { ContextMenu: { } menu } item)
+        {
+            menu.DataContext = item.DataContext;
+            menu.PlacementTarget = item;
+        }
+    }
+
     private static string? DroppedPdf(DragEventArgs e) =>
         e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files
         && files[0].EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? files[0] : null;

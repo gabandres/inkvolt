@@ -150,8 +150,12 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     private void TrustNewCertificate()
     {
         state.ClearCertificatePin(uuid);
+        // The saved password must not ride along on the first handshake with the new certificate unattended.
+        CredentialStore.Delete(uuid);
+        _connection.Http.ClearCredentials();
+        _connection.Http.ResetCertificateChanged();
         CertificateChanged = false;
-        Message = "OK. The printer's current certificate will be trusted when you save again.";
+        Message = "OK. Save again to trust the printer's current certificate; you'll be asked for the admin password.";
         MessageIsError = false;
     }
 

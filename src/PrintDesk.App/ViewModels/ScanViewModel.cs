@@ -30,11 +30,21 @@ public sealed partial class ScanViewModel : ObservableObject
     private EsclClient _client;
     private CancellationTokenSource? _scanCts;
     private bool _dirty;
+    private readonly ScannerCapabilities _caps;
+
+    private static readonly Option<ScanArea>[] AllPageSizes =
+    [
+        new(new("letter", 2550, 3300), "Letter (8.5 × 11 in)"),
+        new(new("a4", 2480, 3508), "A4 (210 × 297 mm)"),
+        new(new("legal", 2550, 4200), "Legal (8.5 × 14 in)"),
+        new(new("full", null, null), "Whole scanning area"),
+    ];
 
     public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state)
     {
         _client = client;
         _state = state;
+        _caps = caps;
         Sources = caps.Sources.Select(s => new Option<ScanSource>(s, s switch
         {
             ScanSource.Platen => "Scanner glass",
@@ -52,16 +62,7 @@ public sealed partial class ScanViewModel : ObservableObject
         })).ToList();
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
 
-        // Only offer sizes the glass can actually scan (within a few pixels of tolerance).
-        PageSizes = new[]
-        {
-            new Option<ScanArea>(new("letter", 2550, 3300), "Letter (8.5 × 11 in)"),
-            new Option<ScanArea>(new("a4", 2480, 3508), "A4 (210 × 297 mm)"),
-            new Option<ScanArea>(new("legal", 2550, 4200), "Legal (8.5 × 14 in)"),
-            new Option<ScanArea>(new("full", null, null), "Whole scanner glass"),
-        }.Where(o => o.Value.Width is null || (o.Value.Width <= input.MaxWidth + 5 && o.Value.Height <= input.MaxHeight + 5)).ToList();
-        var defaultKey = state.ScanPageSize ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter");
-        PageSize = PageSizes.FirstOrDefault(p => p.Value.Key == defaultKey) ?? PageSizes[0];
+        RefreshPageSizes(state.ScanPageSize ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
 
         IsColor = state.ScanColor;
         UseOcr = state.ScanOcr && OcrAvailable;
@@ -77,7 +78,20 @@ public sealed partial class ScanViewModel : ObservableObject
 
     public IReadOnlyList<Option<ScanSource>> Sources { get; }
     public IReadOnlyList<Option<int>> Resolutions { get; }
-    public IReadOnlyList<Option<ScanArea>> PageSizes { get; }
+    [ObservableProperty] public partial IReadOnlyList<Option<ScanArea>> PageSizes { get; set; } = [];
+
+    /// <summary>Only sizes the current source can scan (a few pixels of tolerance); keeps the choice when still valid.</summary>
+    private void RefreshPageSizes(string? preferredKey)
+    {
+        if (_caps.For(Source?.Value ?? ScanSource.Platen) is not { } input) return;
+        PageSizes = AllPageSizes.Where(o => o.Value.Width is null || (o.Value.Width <= input.MaxWidth + 5 && o.Value.Height <= input.MaxHeight + 5)).ToList();
+        PageSize = PageSizes.FirstOrDefault(p => p.Value.Key == preferredKey) ?? PageSizes[0];
+    }
+
+    partial void OnSourceChanged(Option<ScanSource>? value)
+    {
+        if (_caps is not null) RefreshPageSizes(PageSize?.Value.Key ?? _state.ScanPageSize);
+    }
     public bool HasSourceChoice => Sources.Count > 1;
     public bool OcrAvailable { get; } = WindowsOcr.IsAvailable;
 

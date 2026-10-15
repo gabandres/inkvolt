@@ -91,7 +91,8 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
             await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
             var location = resp.Headers.Location ?? throw new ScanException("Scanner did not return a job location.");
             // Resolve only the path against our base: Location often names the host by its .local name or another port.
-            var path = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString;
+            // AbsolutePath of the resolved URI: a relative "//other-host/x" can't move the job to another host.
+            var path = (location.IsAbsoluteUri ? location : new Uri(Root, location)).AbsolutePath;
             return new Uri(Root, path.TrimEnd('/') + "/");
         }
     }
@@ -121,14 +122,15 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
         try
         {
             var status = await GetStatusAsync().ConfigureAwait(false);
-            foreach (var job in status.Jobs.Where(j => j.State is "Pending" or "Processing" && j.AgeSeconds is null or < 60))
+            // Only jobs the scanner says are seconds old: never a scan another computer started earlier.
+            foreach (var job in status.Jobs.Where(j => j.State is "Pending" or "Processing" && j.AgeSeconds is < 60))
             {
                 var path = Uri.TryCreate(job.Uri, UriKind.Absolute, out var abs) ? abs.AbsolutePath : job.Uri;
                 await TryDeleteAsync(new Uri(Root, path)).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or InvalidOperationException
-                                       or System.Xml.XmlException)
+                                       or System.Xml.XmlException or UriFormatException)
         {
             // Best effort.
         }

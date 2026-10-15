@@ -71,6 +71,19 @@ public partial class App : Application
     private void HandleForwarded(string[] args)
     {
         if (MainWindow is not { } w) return;
+        if (w.OwnedWindows.Count > 0)
+        {
+            // A dialog (password, confirmation) is open: opening a PDF now would stack dialogs. Try again shortly.
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            timer.Tick += (_, _) =>
+            {
+                if (w.OwnedWindows.Count > 0) return;
+                timer.Stop();
+                HandleForwarded(args);
+            };
+            timer.Start();
+            return;
+        }
         if (w.WindowState == WindowState.Minimized) w.WindowState = WindowState.Normal;
         w.Show();
         w.Activate();
@@ -84,7 +97,16 @@ public partial class App : Application
     {
         Log.Write($"Unhandled UI exception: {e.Exception}");
         e.Handled = true;
-        MessageBox.Show(MainWindow,
+        if (MainWindow is not { IsLoaded: true, IsVisible: true } owner)
+        {
+            // Failed before the window was up: a windowless process would keep the single-instance lock and
+            // silently swallow every later launch. Say so and exit instead.
+            MessageBox.Show($"PrintDesk couldn't start.\n\n{e.Exception.Message}\n\nDetails were saved to {Log.FilePath}",
+                "PrintDesk", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+        MessageBox.Show(owner,
             $"Something went wrong, but PrintDesk is still running and nothing you were working on was lost.\n\n{e.Exception.Message}\n\nDetails were saved to {Log.FilePath}",
             "PrintDesk", MessageBoxButton.OK, MessageBoxImage.Warning);
     }

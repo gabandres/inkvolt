@@ -95,15 +95,14 @@ public sealed class DeviceHttp : IDisposable
     /// </summary>
     internal bool ValidateCertificate(X509Certificate? cert, SslPolicyErrors errors)
     {
-        if (errors == SslPolicyErrors.None) return true;
         if (cert is null) return false;
         if (_pin is null) return true; // unpinned probe: never carries credentials
         var thumb = Convert.ToHexString(SHA256.HashData(cert.GetRawCertData()));
         var known = _pin.Get();
         if (known is null)
         {
-            _pin.Set(thumb);
-            return true;
+            // Two first handshakes can race: whichever pin is stored first wins, and both are checked against it.
+            known = _pin.SetIfAbsent(thumb);
         }
         if (string.Equals(known, thumb, StringComparison.OrdinalIgnoreCase)) return true;
         CertificateChanged = true;
@@ -112,6 +111,9 @@ public sealed class DeviceHttp : IDisposable
 
     /// <summary>True after a connection was refused because the printer's certificate no longer matches the pin.</summary>
     public bool CertificateChanged { get; private set; }
+
+    /// <summary>Call after the pin was cleared on purpose (the user chose to trust the new certificate).</summary>
+    public void ResetCertificateChanged() => CertificateChanged = false;
 
     private static SocketsHttpHandler CreateHandler(string host, Func<X509Certificate?, SslPolicyErrors, bool> validate) => new()
     {
@@ -137,7 +139,9 @@ public sealed class DeviceHttp : IDisposable
 public interface ICertificatePin
 {
     string? Get();
-    void Set(string sha256Hex);
+
+    /// <summary>Stores the fingerprint unless one is already stored; returns the stored value.</summary>
+    string SetIfAbsent(string sha256Hex);
 }
 
 public sealed class DeviceHttpException(HttpStatusCode status, HttpMethod? method, Uri? uri, string? body)

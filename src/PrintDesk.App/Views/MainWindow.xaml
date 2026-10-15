@@ -553,7 +553,7 @@
                 </StackPanel>
 
                 <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
-                         AutomationProperties.Name="Printers">
+                         AutomationProperties.Name="Printers" ContextMenuOpening="Printers_ContextMenuOpening">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
                             <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}" />
