@@ -19,6 +19,8 @@ public partial class App : Application
         if (e.Args.FirstOrDefault(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(a)) is { } pdf
             && _vm.Selected is { } printer)
             _ = printer.OpenPdfAsync(pdf);
+        if (Array.IndexOf(e.Args, "--autoprint") is var ap and >= 0 && ap + 1 < e.Args.Length)
+            _ = DevAutoPrint.RunAsync(_vm, e.Args[ap + 1]);
         if (Array.IndexOf(e.Args, "--snapshot") is var i and >= 0 && i + 1 < e.Args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault());
     }

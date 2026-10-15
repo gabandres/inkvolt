@@ -49,3 +49,30 @@ internal static class DevSnapshot
         return null;
     }
 }
+
+/// <summary>
+/// Developer aid: <c>PrintDesk.exe file.pdf --autoprint result.txt</c> waits for the PDF to load, presses Print
+/// in the selected printer's Print section, writes the outcome to <c>result.txt</c> and exits.
+/// </summary>
+internal static class DevAutoPrint
+{
+    public static async Task RunAsync(ViewModels.MainViewModel vm, string resultPath)
+    {
+        System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.TextWriterTraceListener(resultPath + ".log"));
+        System.Diagnostics.Trace.AutoFlush = true;
+        var print = vm.Selected?.Print;
+        System.Diagnostics.Trace.WriteLine($"autoprint: printer={vm.Selected?.Name}");
+        string result;
+        if (print is null) result = "no printer selected";
+        else
+        {
+            for (var i = 0; i < 40 && !print.PrintCommand.CanExecute(null); i++) await Task.Delay(250);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            System.Diagnostics.Trace.WriteLine($"autoprint: canExecute={print.PrintCommand.CanExecute(null)} pages={print.PageCount}");
+            await print.PrintCommand.ExecuteAsync(null);
+            result = $"{sw.ElapsedMilliseconds} ms: {print.Message} (error={print.MessageIsError})";
+        }
+        await File.WriteAllTextAsync(resultPath, result);
+        Application.Current.Shutdown();
+    }
+}

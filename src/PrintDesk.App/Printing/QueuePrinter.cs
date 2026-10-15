@@ -28,10 +28,14 @@ public static class QueuePrinter
         catch (PrintQueueException) { return false; }
     }
 
-    /// <summary>Renders the selected pages, then spools them as one job. Must be called on the UI thread.</summary>
-    public static async Task PrintAsync(PrintQueue queue, PdfSource pdf, PrintOptions options, IProgress<string> progress, CancellationToken ct)
+    /// <summary>
+    /// Renders the selected pages, then spools them as one job. The XPS write runs synchronously on its own
+    /// STA thread with its own queue objects: the async XpsDocumentWriter path can stall the spooler with
+    /// an empty job, and a synchronous write on the UI thread would freeze the window.
+    /// </summary>
+    public static async Task PrintAsync(string queueName, PdfSource pdf, PrintOptions options, IProgress<string> progress, CancellationToken ct)
     {
-        // 1. Render (async, off the spooler): JPEG at 300 dpi is ~0.3–1 MB a page.
+        // 1. Render: JPEG at 300 dpi is ~0.3-1 MB a page.
         var pages = new List<RenderedPage>(options.Pages.Count);
         for (var i = 0; i < options.Pages.Count; i++)
         {
@@ -39,28 +43,39 @@ public static class QueuePrinter
             progress.Report($"Preparing page {i + 1} of {options.Pages.Count}…");
             pages.Add(await pdf.RenderAsync(options.Pages[i], RenderDpi, ct: ct));
         }
+        ct.ThrowIfCancellationRequested();
+        progress.Report($"Sending {(pages.Count == 1 ? "the page" : $"{pages.Count} pages")} to the printer…");
 
-        // 2. Ticket: copies, sides; let the driver validate against what the printer supports.
-        var ticket = queue.DefaultPrintTicket.Clone();
-        ticket.CopyCount = options.Copies;
-        ticket.Collation = Collation.Collated;
-        ticket.Duplexing = options.TwoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
-        ticket.PageOrientation = PageOrientation.Portrait;
-        ticket = queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
-        var paper = new Size(ticket.PageMediaSize?.Width ?? 816, ticket.PageMediaSize?.Height ?? 1056); // DIPs; Letter fallback
-
-        // 3. Spool.
-        var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-        var done = new TaskCompletionSource();
-        writer.WritingProgressChanged += (_, e) => progress.Report($"Sending page {Math.Min(e.Number, pages.Count)} of {pages.Count} to the printer…");
-        writer.WritingCompleted += (_, e) =>
+        // 2. Ticket + spool on a dedicated STA thread.
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
         {
-            if (e.Cancelled) done.TrySetCanceled();
-            else if (e.Error is not null) done.TrySetException(e.Error);
-            else done.TrySetResult();
-        };
-        using var reg = ct.Register(() => writer.CancelAsync());
-        writer.WriteAsync(new RenderedPaginator(pages, paper), ticket);
+            try
+            {
+                using var server = new LocalPrintServer();
+                using var queue = new PrintQueue(server, queueName);
+                var ticket = queue.DefaultPrintTicket.Clone();
+                ticket.CopyCount = options.Copies;
+                ticket.Collation = Collation.Collated;
+                ticket.Duplexing = options.TwoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
+                ticket.PageOrientation = PageOrientation.Portrait;
+                ticket = queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
+                var paper = new Size(ticket.PageMediaSize?.Width ?? 816, ticket.PageMediaSize?.Height ?? 1056); // DIPs; Letter fallback
+
+                queue.CurrentJobSettings.Description = options.JobName;
+                var writer = PrintQueue.CreateXpsDocumentWriter(queue);
+                writer.Write(new RenderedPaginator(pages, paper), ticket);
+                done.SetResult();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"spool: FAILED {ex}");
+                done.SetException(ex);
+            }
+        })
+        { IsBackground = true, Name = "PrintDesk spool" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
         await done.Task;
     }
 
@@ -99,9 +114,10 @@ public static class QueuePrinter
                 Height = rotate ? w : h,
                 LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
             };
-            var page = new FixedPage { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
-            FixedPage.SetLeft(image, (paper.Width - w) / 2);
-            FixedPage.SetTop(image, (paper.Height - h) / 2);
+            // A Canvas, not a FixedPage: the XPS serializer wraps each page visual in its own FixedPage.
+            var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
+            Canvas.SetLeft(image, (paper.Width - w) / 2);
+            Canvas.SetTop(image, (paper.Height - h) / 2);
             page.Children.Add(image);
             page.Measure(paper);
             page.Arrange(new Rect(paper));

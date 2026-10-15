@@ -206,9 +206,8 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         var sw = Stopwatch.StartNew();
         try
         {
-            using var queue = QueuePrinter.Open(queueName);
             var progress = new Progress<string>(m => SetMessage(m));
-            await QueuePrinter.PrintAsync(queue, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"), progress, _cts.Token);
+            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"), progress, _cts.Token);
             SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
                        $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");
         }
@@ -216,8 +215,10 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         {
             SetMessage("Printing cancelled.");
         }
-        catch (Exception ex) when (ex is PrintQueueException or PrintSystemException or InvalidOperationException or IOException)
+        catch (Exception ex)
         {
+            // Spooler/driver/serializer errors come in many types; never let one escape the command.
+            Trace.WriteLine($"Print failed: {ex}");
             SetMessage($"Could not print: {ex.Message}", error: true);
         }
         finally
