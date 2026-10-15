@@ -27,6 +27,13 @@ public static class CredentialStore
         new PasswordVault().Add(new PasswordCredential(Resource, printerUuid, password));
     }
 
+    public static void Rename(string oldId, string newId)
+    {
+        if (Get(oldId) is not { } pw) return;
+        Save(newId, pw);
+        Delete(oldId);
+    }
+
     public static void Delete(string printerUuid)
     {
         var vault = new PasswordVault();

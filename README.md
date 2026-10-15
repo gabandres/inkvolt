@@ -54,7 +54,8 @@ Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a P
 
 - One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
 - Unhandled errors are logged to `%LOCALAPPDATA%\PrintDesk\logs\printdesk.log` and shown; the app keeps running. Closing with unsaved scans asks first.
-- TLS: printer certificates are pinned on first use (per printer UUID); a changed certificate blocks password-bearing writes until the user trusts it.
+- TLS: printer certificates are pinned on first use (per printer UUID); a changed certificate blocks password-bearing writes until the user trusts it (which also forgets the saved password). Inherent to trust-on-first-use: the very first encrypted connection is trusted as-is, so set the admin password up on a network you trust; the password dialog shows the pinned fingerprint.
+- Elevated actions (add printer by IP, HP clean-up) run a constant PowerShell script; every value is passed Base64-encoded and results return as exit codes (no temp files).
 - Printers added by IP get a Windows queue via `Add-Printer -IppURL` (Windows requires admin: one UAC prompt).
 
 ## Not done / known limits

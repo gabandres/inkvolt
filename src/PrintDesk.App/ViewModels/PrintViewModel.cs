@@ -239,7 +239,12 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
         if (!CanTwoSided) TwoSided = false;
     }
 
-    private bool CanPrint() => !IsBusy && _pdf is not null && (AllPages || PageRange.TryParse(RangeText, PageCount, out _, out _));
+    /// <summary>The printer's Windows queue is being re-created (HP clean-up): hold printing until it's back.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand))]
+    public partial bool QueueBusy { get; set; }
+
+    private bool CanPrint() => !IsBusy && !QueueBusy && _pdf is not null && (AllPages || PageRange.TryParse(RangeText, PageCount, out _, out _));
 
     [RelayCommand(CanExecute = nameof(CanPrint))]
     private async Task PrintAsync()

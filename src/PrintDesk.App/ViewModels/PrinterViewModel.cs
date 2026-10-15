@@ -268,11 +268,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state);
             else Settings.Rebind(conn);
         }
-        if (CredentialStore.Get(Uuid) is { } pw)
-        {
-            if (_state.GetCertificatePin(Uuid) is not null) conn.Http.SetCredentials("admin", pw);
-            else CredentialStore.Delete(Uuid); // never send a saved password to an unpinned certificate
-        }
+        // A saved password is only attached once this printer's certificate is pinned. Without a pin (older
+        // version, reset state) the first save asks for it instead, and that handshake pins the certificate.
+        if (CredentialStore.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
+            conn.Http.SetCredentials("admin", pw);
 
         if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
             Log.Write($"[{Name}] UUID changed {Uuid} → {p.Uuid}");
@@ -406,7 +405,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             {
                 var queueName = IppQueueInstaller.SafeQueueName($"{Name} ({Host})");
                 print = await IppQueueInstaller.InstallAsync(queueName, new UriBuilder("http", Host!, 631, "ipp/print").Uri);
-                if (print.Outcome is InstallOutcome.Installed) _state.SetQueueName(Uuid, queueName);
+                if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
+                    _state.SetQueueName(Uuid, IppQueueInstaller.SafeQueueName(queueName));
             }
 
             if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
@@ -443,6 +443,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (!IsOnline) return "the printer isn't reachable right now. Turn it on, then use Set up";
         if (Print.IsBusy) return "a print job is being sent. Try again when it's done";
         IsInstalling = true;
+        Print.QueueBusy = true; // no new jobs while the queue is being re-created
         try
         {
             if (!await QueueInstaller.UninstallAsync(endpoint)) return "Windows didn't remove the old printer";
@@ -466,6 +467,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         finally
         {
             IsInstalling = false;
+            Print.QueueBusy = false;
         }
     }
 

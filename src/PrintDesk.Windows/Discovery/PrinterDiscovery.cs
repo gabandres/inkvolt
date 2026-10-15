@@ -71,6 +71,19 @@ public sealed class PrinterDiscovery : IDisposable
             _started = true;
             gen = ++_generation;
         }
+        try
+        {
+            StartWatchers(gen);
+        }
+        catch
+        {
+            lock (_gate) _started = false; // let a later Start/Restart try again
+            throw;
+        }
+    }
+
+    private void StartWatchers(int gen)
+    {
         var services = DeviceInformation.CreateWatcher(
             $"System.Devices.AepService.ProtocolId:=\"{DnssdProtocol}\" AND System.Devices.Dnssd.Domain:=\"local\" AND " +
             "(System.Devices.Dnssd.ServiceName:=\"_ipp._tcp\" OR System.Devices.Dnssd.ServiceName:=\"_ipps._tcp\" OR " +

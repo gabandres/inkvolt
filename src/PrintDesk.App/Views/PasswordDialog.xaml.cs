@@ -7,10 +7,14 @@ public partial class PasswordDialog : Window
     private PasswordDialog() => InitializeComponent();
 
     /// <summary>The printer's web-page (EWS) admin password, needed to change settings.</summary>
-    public static (string Password, bool Remember)? AskAdmin(Window? owner, string printer, bool rejected)
+    public static (string Password, bool Remember)? AskAdmin(Window? owner, string printer, bool rejected, string? fingerprint)
     {
+        // Trust on first use: the first encrypted connection decides which certificate this PC accepts from now on.
+        var cert = fingerprint is { Length: >= 16 }
+            ? $" The printer's security certificate ({Format(fingerprint)}) is remembered by this PC; if it ever changes, PrintDesk warns you."
+            : "";
         var dlg = Create(owner, "Printer password", $"Enter the admin password for {printer}",
-            "It's the password for the printer's web page (user name \"admin\"). It's only sent to the printer, over an encrypted connection.",
+            "It's the password for the printer's web page (user name \"admin\"). It's only sent to the printer, over an encrypted connection." + cert,
             rejected, showRemember: true);
         return dlg.ShowDialog() == true ? (dlg.Password.Password, dlg.Remember.IsChecked == true) : null;
     }
@@ -34,6 +38,8 @@ public partial class PasswordDialog : Window
         dlg.Loaded += (_, _) => dlg.Password.Focus();
         return dlg;
     }
+
+    private static string Format(string hex) => string.Join(" ", Enumerable.Range(0, 4).Select(i => hex.Substring(i * 4, 4))) + " …";
 
     private void Password_Changed(object sender, RoutedEventArgs e) => Ok.IsEnabled = Password.Password.Length > 0;
 

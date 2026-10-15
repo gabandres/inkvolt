@@ -65,25 +65,28 @@ public static class HpLeftovers
         script.Append("foreach ($s in @($v1, $v2)) { if (Get-Service -Name $s -EA SilentlyContinue) { Stop-Service -Name $s -Force -EA SilentlyContinue; " +
                       "& sc.exe delete $s | Out-Null; if ($LASTEXITCODE -ne 0) { $rc = $rc -bor 2 } } };");
         script.Append("if (Get-Printer -Name $v3 -EA SilentlyContinue) { try { Remove-Printer -Name $v3 -EA Stop } catch { $rc = $rc -bor 4 } };");
-        // Services take a moment to release their executables. Refuse to recurse through links (junctions could
-        // point anywhere); only plain files and folders are deleted.
+        // Services take a moment to release their executables. The folder itself must be a real folder; inside it,
+        // cmd's rmdir /s removes junctions and symlinks as links and never follows them (PowerShell 5.1's
+        // Remove-Item -Recurse can), so nothing outside the folder can be reached, even if a link appears mid-delete.
         script.Append("Start-Sleep 2; if (Test-Path -LiteralPath $v4) { " +
-                      "$links = @(Get-Item -LiteralPath $v4 -Force) + @(Get-ChildItem -LiteralPath $v4 -Recurse -Force -EA SilentlyContinue) | " +
-                      "Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }; " +
-                      "if ($links) { $rc = $rc -bor 16 } else { try { Remove-Item -LiteralPath $v4 -Recurse -Force -EA Stop } catch { $rc = $rc -bor 8 } } };");
+                      "if ((Get-Item -LiteralPath $v4 -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { $rc = $rc -bor 16 } " +
+                      "else { & cmd.exe /d /c rmdir /s /q $v4 2>$null; if (Test-Path -LiteralPath $v4) { $rc = $rc -bor 8 } } };");
         script.Append("exit $rc");
 
-        var code = await Elevated.RunAsync(script.ToString(),
+        // Anything unexpected (parse error, unhandled throw) exits 64, so it can't be mistaken for one of the bits.
+        var wrapped = "try { " + script + " } catch { exit 64 }";
+        var code = await Elevated.RunAsync(wrapped,
             [$@"HKLM:\{MetadataKey}", Services[0], Services[1], Queue, Folder], TimeSpan.FromMinutes(2), ct);
         if (code == Elevated.Cancelled) return "Cancelled: Windows needs administrator permission to remove HP's background services.";
         if (code == Elevated.TimedOut) return "Windows did not finish removing HP's services in time.";
 
+        if (code == 64) return "Windows couldn't run the clean-up. Nothing may have been removed; try again.";
         var problems = new List<string>();
         if ((code & FailSetting) != 0) problems.Add("couldn't stop Windows from re-installing HP's print app");
         if ((code & FailService) != 0) problems.Add("a service couldn't be removed");
         if ((code & FailQueue) != 0) problems.Add("the \"HP Smart Printing\" printer couldn't be removed");
         if ((code & FailFiles) != 0) problems.Add("some files couldn't be deleted");
-        if ((code & SkippedLinkedFolder) != 0) problems.Add($"{Folder} contains links, so it was left in place");
+        if ((code & SkippedLinkedFolder) != 0) problems.Add($"{Folder} is a link, so it was left in place");
         var still = await FindAsync();
         if (still.Any) problems.Insert(0, $"still present: {still}");
         return problems.Count == 0 ? null : char.ToUpperInvariant(problems[0][0]) + string.Join("; ", problems)[1..] + ".";

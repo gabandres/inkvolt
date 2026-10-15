@@ -43,7 +43,7 @@ public partial class App : Application
         base.OnStartup(e);
         Log.Write($"PrintDesk started ({Environment.ProcessPath})");
 
-        SettingsViewModel.AskPassword = (printer, rejected) => PasswordDialog.AskAdmin(MainWindow, printer, rejected);
+        SettingsViewModel.AskPassword = (printer, rejected, fingerprint) => PasswordDialog.AskAdmin(MainWindow, printer, rejected, fingerprint);
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
 
@@ -71,13 +71,15 @@ public partial class App : Application
     private void HandleForwarded(string[] args)
     {
         if (MainWindow is not { } w) return;
-        if (w.OwnedWindows.Count > 0)
+        // Owned WPF dialogs, and Win32 Open/Save dialogs (which register as thread-modal), must close first.
+        static bool DialogOpen(Window w) => w.OwnedWindows.Count > 0 || System.Windows.Interop.ComponentDispatcher.IsThreadModal;
+        if (DialogOpen(w))
         {
             // A dialog (password, confirmation) is open: opening a PDF now would stack dialogs. Try again shortly.
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             timer.Tick += (_, _) =>
             {
-                if (w.OwnedWindows.Count > 0) return;
+                if (DialogOpen(w)) return;
                 timer.Stop();
                 HandleForwarded(args);
             };

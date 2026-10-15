@@ -27,6 +27,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _state = state;
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
+        foreach (var k in state.Printers.ToList())
+        {
+            var id = PrinterId.Normalize(k.Uuid, k.Host);
+            if (string.Equals(id, k.Uuid, StringComparison.OrdinalIgnoreCase)) continue;
+            state.RenamePrinterId(k.Uuid, id);
+            PrintDesk.Windows.Security.CredentialStore.Rename(k.Uuid, id);
+        }
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
@@ -315,7 +322,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyList<PrinterViewModel> PrintersWithUnsavedScans => Printers.Where(p => p.Scan?.HasUnsavedPages == true).ToList();
 
     /// <summary>A PDF handed to PrintDesk from outside (Open with, a second launch, drag-and-drop).</summary>
-    public Task OpenPdfAsync(string path) => Selected is { } p ? p.OpenPdfAsync(path) : Task.CompletedTask;
+    public Task OpenPdfAsync(string path)
+    {
+        if (Selected is { } p) return p.OpenPdfAsync(path);
+        Prompt.Ask($"PrintDesk hasn't found a printer yet, so \"{System.IO.Path.GetFileName(path)}\" can't be printed. " +
+                   "Wait for your printer to appear (or add it by address), then open the file again.", "OK");
+        return Task.CompletedTask;
+    }
 
     public void Dispose()
     {

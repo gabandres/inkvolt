@@ -22,8 +22,11 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     private PrinterConnection _connection = connection;
     private readonly Dictionary<string, XDocument> _dyn = new();
 
-    /// <summary>Set by the view: asks for the admin password. Args: printer name, previous attempt rejected.</summary>
-    public static Func<string, bool, (string Password, bool Remember)?>? AskPassword { get; set; }
+    /// <summary>
+    /// Set by the view: asks for the admin password. Args: printer name, previous attempt rejected, and the
+    /// fingerprint of the certificate this PC pinned for the printer (shown so a first-use trust is visible).
+    /// </summary>
+    public static Func<string, bool, string?, (string Password, bool Remember)?>? AskPassword { get; set; }
 
     public ObservableCollection<SettingItemViewModel> Items { get; } = [];
 
@@ -140,7 +143,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             catch (LedmAuthRequiredException ex)
             {
                 if (ex.CredentialsWereSent) CredentialStore.Delete(uuid);
-                entered = AskPassword?.Invoke(printerName, ex.CredentialsWereSent) ?? throw new OperationCanceledException();
+                entered = AskPassword?.Invoke(printerName, ex.CredentialsWereSent, state.GetCertificatePin(uuid)) ?? throw new OperationCanceledException();
                 _connection.Http.SetCredentials("admin", entered.Value.Password);
             }
         }

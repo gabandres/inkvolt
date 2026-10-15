@@ -10,7 +10,7 @@ namespace PrintDesk.Windows.Queues;
 /// </summary>
 public static partial class IppQueueInstaller
 {
-    private const int ExitOk = 0, ExitFailed = 1, ExitAlreadyExists = 2;
+    private const int ExitOk = 0, ExitFailed = 1;
 
     public static async Task<InstallResult> InstallAsync(string queueName, Uri ippUrl, CancellationToken ct = default)
     {
@@ -18,14 +18,16 @@ public static partial class IppQueueInstaller
         var url = ippUrl.Scheme switch
         {
             "ipp" => new UriBuilder(ippUrl) { Scheme = "http", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri,
-            "ipps" => new UriBuilder(ippUrl) { Scheme = "https", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 443 : ippUrl.Port }.Uri,
+            "ipps" => new UriBuilder(ippUrl) { Scheme = "https", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri, // RFC 7472
             _ => ippUrl,
         };
         var name = SafeQueueName(queueName);
 
-        const string script =
-            "try { Add-Printer -Name $v0 -IppURL $v1; exit 0 } " +
-            "catch { if ($_.Exception.Message -match 'already exists') { exit 2 } else { exit 1 } }";
+        // Decide "already there" by looking, not by parsing (localised) PowerShell error text, and before elevating.
+        if ((await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase)))
+            return new(InstallOutcome.AlreadyInstalled, "Already installed in Windows.");
+
+        const string script = "try { Add-Printer -Name $v0 -IppURL $v1; exit 0 } catch { exit 1 }";
         var code = await Elevated.RunAsync(script, [name, url.AbsoluteUri], TimeSpan.FromMinutes(2), ct);
 
         switch (code)
@@ -34,12 +36,10 @@ public static partial class IppQueueInstaller
                 return new(InstallOutcome.Failed, "Setup was cancelled. Windows needs administrator permission to add a printer by address.");
             case Elevated.TimedOut:
                 return new(InstallOutcome.Failed, "Windows did not finish adding the printer in time.");
-            case ExitAlreadyExists:
-                return new(InstallOutcome.AlreadyInstalled, "Already installed in Windows.");
         }
         // Trust the outcome, not just the exit code.
         var queues = await QueueFinder.ListAsync();
-        if (queues.Any(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase)))
+        if (code == ExitOk && queues.Any(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase)))
             return new(InstallOutcome.Installed, "Installed.");
         return new(InstallOutcome.Failed, code is ExitFailed or ExitOk
             ? "Windows could not add the printer at that address. Check that it's on and that the address is right."

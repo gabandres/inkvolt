@@ -53,6 +53,20 @@ public sealed class AppState
         Save();
     }
 
+    /// <summary>Moves everything stored under an old (non-GUID) printer id to its normalised id.</summary>
+    public void RenamePrinterId(string oldId, string newId)
+    {
+        if (string.Equals(oldId, newId, StringComparison.OrdinalIgnoreCase)) return;
+        lock (_gate)
+        {
+            if (CertificatePins.Remove(oldId, out var pin)) CertificatePins.TryAdd(newId, pin);
+            if (QueueNames.Remove(oldId, out var queue)) QueueNames.TryAdd(newId, queue);
+            for (var i = 0; i < ForgottenUuids.Count; i++)
+                if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
+            if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
+        }
+    }
+
     public string? GetQueueName(string uuid)
     {
         lock (_gate) return QueueNames.GetValueOrDefault(uuid);
@@ -93,7 +107,7 @@ public sealed class AppState
         {
             var state = File.Exists(FilePath) ? JsonSerializer.Deserialize<AppState>(File.ReadAllText(FilePath), Json) ?? new() : new();
             // Hand-edited or older files can hold nulls; never let that stop the app from starting.
-            state.Printers ??= [];
+            state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);

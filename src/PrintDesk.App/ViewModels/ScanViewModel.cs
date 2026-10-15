@@ -85,12 +85,16 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (_caps.For(Source?.Value ?? ScanSource.Platen) is not { } input) return;
         PageSizes = AllPageSizes.Where(o => o.Value.Width is null || (o.Value.Width <= input.MaxWidth + 5 && o.Value.Height <= input.MaxHeight + 5)).ToList();
-        PageSize = PageSizes.FirstOrDefault(p => p.Value.Key == preferredKey) ?? PageSizes[0];
+        _adjustingPageSize = true; // a forced fallback (size not available on this source) isn't the user's choice
+        try { PageSize = PageSizes.FirstOrDefault(p => p.Value.Key == preferredKey) ?? PageSizes[0]; }
+        finally { _adjustingPageSize = false; }
     }
+
+    private bool _adjustingPageSize;
 
     partial void OnSourceChanged(Option<ScanSource>? value)
     {
-        if (_caps is not null) RefreshPageSizes(PageSize?.Value.Key ?? _state.ScanPageSize);
+        if (_caps is not null) RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key);
     }
     public bool HasSourceChoice => Sources.Count > 1;
     public bool OcrAvailable { get; } = WindowsOcr.IsAvailable;
@@ -136,7 +140,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     partial void OnPageSizeChanged(Option<ScanArea>? value)
     {
-        if (value is null) return;
+        if (value is null || _adjustingPageSize) return;
         _state.ScanPageSize = value.Value.Key;
         _state.Save();
     }
