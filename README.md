@@ -10,6 +10,8 @@ no background services, no driver download.
 | Status, toner, usage | HP LEDM (`/DevMgmt/*.xml`, URIs from `DiscoveryTree.xml`), IPP `Get-Printer-Attributes` as fallback for non-LEDM printers. |
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
+| Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
+| HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
 ## Layout
@@ -31,7 +33,7 @@ dotnet run --project src/PrintDesk.App
 dotnet run --project src/PrintDesk.Cli -- status 192.0.2.10
 ```
 
-Standalone executable (self-contained, no .NET install needed, ~65 MB):
+Standalone executable (self-contained, no .NET install needed, ~170 MB; uncompressed on purpose: compression costs ~80 MB of RAM):
 
 ```
 dotnet publish src/PrintDesk.App -p:PublishProfile=win-arm64   # or win-x64
@@ -47,6 +49,13 @@ Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a P
 - Self-signed printer certificates are accepted only for that printer's host, never process-wide.
 - Admin credentials are only ever sent over HTTPS.
 - No sync-over-async, no busy-wait polling, no custom multicast sockets.
+
+## Robustness
+
+- One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
+- Unhandled errors are logged to `%LOCALAPPDATA%\PrintDesk\logs\printdesk.log` and shown; the app keeps running. Closing with unsaved scans asks first.
+- TLS: printer certificates are pinned on first use (per printer UUID); a changed certificate blocks password-bearing writes until the user trusts it.
+- Printers added by IP get a Windows queue via `Add-Printer -IppURL` (Windows requires admin: one UAC prompt).
 
 ## Not done / known limits
 

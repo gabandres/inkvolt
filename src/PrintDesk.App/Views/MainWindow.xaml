@@ -11,6 +11,14 @@
         AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop">
 
     <Window.Resources>
+        <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
+        <ContextMenu x:Key="PrinterMenu" x:Shared="False">
+            <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
+            <MenuItem Header="Remove from PrintDesk…"
+                      Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                      CommandParameter="{Binding}" />
+        </ContextMenu>
+
         <!-- ===================== Overview ===================== -->
         <DataTemplate x:Key="OverviewSection" DataType="{x:Type vm:PrinterViewModel}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -28,7 +36,8 @@
                         <DockPanel>
                             <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,16,0" VerticalAlignment="Top">
                                 <Ellipse Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
-                                <TextBlock Style="{StaticResource Icon}" HorizontalAlignment="Center" FontSize="18" Foreground="White"
+                                <TextBlock Style="{StaticResource Icon}" HorizontalAlignment="Center" FontSize="18"
+                                           Foreground="{Binding StatusKind, Converter={StaticResource StatusGlyphBrush}}"
                                            Text="{Binding StatusKind, Converter={StaticResource StatusGlyph}}" />
                             </Grid>
                             <StackPanel>
@@ -55,7 +64,9 @@
                     <!-- Toner -->
                     <Border Visibility="{Binding Supplies.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
-                            <TextBlock Text="Toner" Style="{StaticResource CardTitle}" />
+                            <TextBlock Style="{StaticResource CardTitle}">
+                                <Run Text="Toner" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </TextBlock>
                             <ItemsControl ItemsSource="{Binding Supplies}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:SupplyViewModel}">
@@ -85,7 +96,9 @@
                     <!-- Usage -->
                     <Border Visibility="{Binding Stats.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
-                            <TextBlock Text="Usage" Style="{StaticResource CardTitle}" />
+                            <TextBlock Style="{StaticResource CardTitle}">
+                                <Run Text="Usage" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </TextBlock>
                             <ItemsControl ItemsSource="{Binding Stats}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -147,6 +160,9 @@
                         <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
                         <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="Page size" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding PageSizes}" SelectedItem="{Binding PageSize}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
+                                  AutomationProperties.Name="Page size" />
                         <TextBlock Text="Quality" Margin="0,0,0,4" />
                         <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
                         <CheckBox Content="Color" IsChecked="{Binding IsColor}" Margin="0,0,0,4" />
@@ -204,7 +220,7 @@
                                         Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" FontSize="48" HorizontalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="Put a page face down on the scanner glass, then press Scan."
+                                <TextBlock Text="{Binding EmptyHint}"
                                            Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,12,0,0" />
                             </StackPanel>
 
@@ -223,11 +239,11 @@
                                                     <Image Source="{Binding Thumbnail}" Stretch="Uniform" Height="270" />
                                                 </Border>
                                                 <DockPanel Margin="2,6,2,0">
-                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Remove page"
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Remove page" AutomationProperties.Name="Remove page"
                                                             Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}">
                                                         <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
                                                     </Button>
-                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Move earlier" Margin="0,0,14,0"
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Move earlier" AutomationProperties.Name="Move page earlier" Margin="0,0,14,0"
                                                             Command="{Binding DataContext.MovePageUpCommand, ElementName=PagesList}" CommandParameter="{Binding}">
                                                         <TextBlock Style="{StaticResource Icon}" Text="&#xE76B;" />
                                                     </Button>
@@ -294,12 +310,12 @@
 
                             <TextBlock Text="Copies" Margin="0,20,0,6" FontWeight="SemiBold" />
                             <StackPanel Orientation="Horizontal">
-                                <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="Fewer copies">
+                                <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="Fewer copies" AutomationProperties.Name="Fewer copies">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" />
                                 </Button>
                                 <TextBox Text="{Binding Copies, UpdateSourceTrigger=PropertyChanged}" Width="56" Margin="6,0"
                                          TextAlignment="Center" AutomationProperties.Name="Copies" />
-                                <Button Command="{Binding MoreCopiesCommand}" Width="36" ToolTip="More copies">
+                                <Button Command="{Binding MoreCopiesCommand}" Width="36" ToolTip="More copies" AutomationProperties.Name="More copies">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
                                 </Button>
                             </StackPanel>
@@ -317,7 +333,7 @@
                                 </StackPanel>
                             </Button>
                             <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                    Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                                    Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}" />
                         </StackPanel>
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
@@ -403,6 +419,8 @@
                             </TextBlock>
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="Reload from printer" Command="{Binding LoadCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0" />
+                                <Button Content="Trust the new certificate" Command="{Binding TrustNewCertificateCommand}" Style="{StaticResource LinkButton}"
+                                        Margin="0,0,20,0" Visibility="{Binding CertificateChanged, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Forget saved admin password" Command="{Binding ForgetPasswordCommand}" Style="{StaticResource LinkButton}" />
                             </StackPanel>
                         </StackPanel>
@@ -536,25 +554,21 @@
 
                 <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
                          AutomationProperties.Name="Printers">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
+                            <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                            <Setter Property="ContextMenu" Value="{StaticResource PrinterMenu}" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>
-                                <DockPanel.Tag>
-                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ListBox}" />
-                                </DockPanel.Tag>
-                                <DockPanel.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
-                                        <MenuItem Header="Forget this printer"
-                                                  Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                  CommandParameter="{Binding}" />
-                                    </ContextMenu>
-                                </DockPanel.ContextMenu>
                                 <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center"
                                                Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                     <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
-                                    <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="White" StrokeThickness="1.5"
+                                    <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="{DynamicResource SolidBackgroundFillColorBaseBrush}" StrokeThickness="1.5"
                                              Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
                                 </Grid>
                                 <StackPanel VerticalAlignment="Center">
@@ -572,6 +586,30 @@
         <!-- ===================== Main pane ===================== -->
         <Border Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}" CornerRadius="8,0,0,0"
                 BorderThickness="1,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <DockPanel>
+            <!-- HP software still installed: HP Smart, and HP's print app that handles every print job -->
+            <Border DockPanel.Dock="Top" CornerRadius="8" Padding="16,12" Margin="32,20,32,0" BorderThickness="1"
+                    Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    Visibility="{Binding ShowHpBanner, Converter={StaticResource VisibleWhen}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="18" Margin="0,2,14,0"
+                               VerticalAlignment="Top" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Not now" Command="{Binding DismissHpBannerCommand}" Margin="0,0,8,0" />
+                        <Button Content="Remove HP software" Command="{Binding RemoveHpSoftwareCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                Visibility="{Binding HasHpSoftware, Converter={StaticResource VisibleWhen}}" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"
+                                   Visibility="{Binding HasHpSoftware, Converter={StaticResource VisibleWhen}}">
+                            <Run Text="{Binding HpAppNames, Mode=OneWay}" /><Run Text=" still installed" />
+                        </TextBlock>
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="{Binding HpMessage, TargetNullValue='HP\'s print app runs on every job you print to this printer. PrintDesk doesn\'t need either one.'}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Grid>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
@@ -633,14 +671,16 @@
                                             <TextBlock Text="Not set up in Windows yet" FontWeight="SemiBold" />
                                             <TextBlock TextWrapping="Wrap"
                                                        Text="{Binding SetupMessage, TargetNullValue='One click lets every app print to it. No driver download or account needed.'}" />
+                                            <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0"
+                                                       Text="Windows will ask for administrator permission, because this printer was added by address."
+                                                       Visibility="{Binding SetupNeedsAdmin, Converter={StaticResource VisibleWhen}}" />
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding SetupResult}" Margin="0,0,16,16"
                                            Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
 
-                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}"
-                                            SelectionChanged="Tabs_SelectionChanged">
+                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}">
                                     <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
                                     <TabItem Header="Print" Content="{Binding Print}" />
                                     <TabItem Header="Scan" Content="{Binding Scan}"
@@ -653,6 +693,7 @@
                     </ContentControl.ContentTemplate>
                 </ContentControl>
             </Grid>
+            </DockPanel>
         </Border>
     </Grid>
 </Window>

@@ -10,7 +10,7 @@ using PrintDesk.Windows.Security;
 namespace PrintDesk.App.ViewModels;
 
 /// <summary>Device settings over LEDM: read Dyn + Cap, edit, PUT only what changed.</summary>
-public sealed partial class SettingsViewModel(PrinterConnection connection, string uuid, string printerName) : ObservableObject
+public sealed partial class SettingsViewModel(PrinterConnection connection, string uuid, string printerName, AppState state) : ObservableObject
 {
     private static readonly (string Dyn, string Cap)[] Resources =
     [
@@ -35,6 +35,9 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     [ObservableProperty] public partial string? Message { get; set; }
     [ObservableProperty] public partial bool MessageIsError { get; set; }
 
+    /// <summary>The printer presented a different TLS certificate than the one first seen; writes are blocked.</summary>
+    [ObservableProperty] public partial bool CertificateChanged { get; set; }
+
     public bool HasChanges => Items.Any(i => i.IsDirty);
 
     public void Rebind(PrinterConnection connection) => _connection = connection;
@@ -49,6 +52,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         if (ledm is null) return;
         IsBusy = true;
         Message = null;
+        MessageIsError = false;
         try
         {
             var items = new List<SettingItemViewModel>();
@@ -66,8 +70,9 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             IsLoaded = true;
             OnItemChanged();
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or System.Xml.XmlException)
+        catch (Exception ex)
         {
+            Log.Write($"Settings load failed: {ex}");
             Fail($"Could not read settings: {ex.Message}");
         }
         finally
@@ -93,7 +98,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             }
             IsBusy = false;
             await LoadAsync(); // read back what the printer actually stored
-            Message = "Saved.";
+            if (!MessageIsError) Message = "Saved.";
         }
         catch (OperationCanceledException)
         {
@@ -103,8 +108,15 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         {
             Fail(ex.Message);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or InvalidOperationException)
+        catch (HttpRequestException) when (_connection.Http.CertificateChanged)
         {
+            CertificateChanged = true;
+            Fail("Not saved: the printer's security certificate changed since PrintDesk first connected. If you reset or " +
+                 "updated the printer, choose \"Trust the new certificate\". Otherwise another device may be impersonating it.");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Settings save failed: {ex}");
             Fail($"The printer did not accept the change: {ex.Message}");
         }
         finally
@@ -132,6 +144,15 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
                 _connection.Http.SetCredentials("admin", entered.Value.Password);
             }
         }
+    }
+
+    [RelayCommand]
+    private void TrustNewCertificate()
+    {
+        state.ClearCertificatePin(uuid);
+        CertificateChanged = false;
+        Message = "OK. The printer's current certificate will be trusted when you save again.";
+        MessageIsError = false;
     }
 
     [RelayCommand]

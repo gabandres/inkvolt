@@ -62,6 +62,10 @@ public sealed class PdfSource
         var wIn = page.Size.Width / 96.0;
         var hIn = page.Size.Height / 96.0;
         var scale = maxWidthPx is { } max ? max / page.Size.Width : dpi / 96.0;
+        // Cap at ~50 MP (about A2 at 300 dpi): larger pages are rendered at lower resolution instead of failing.
+        const double MaxPixels = 50_000_000;
+        var pixels = page.Size.Width * scale * page.Size.Height * scale;
+        if (pixels > MaxPixels) scale *= Math.Sqrt(MaxPixels / pixels);
         var options = new PdfPageRenderOptions
         {
             DestinationWidth = (uint)Math.Max(1, Math.Round(page.Size.Width * scale)),

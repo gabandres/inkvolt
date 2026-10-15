@@ -59,7 +59,15 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand))]
+    [NotifyPropertyChangedFor(nameof(CanCancel))]
     public partial bool IsBusy { get; set; }
+
+    /// <summary>The job is being handed to Windows; it can no longer be cancelled from here (use the Windows queue).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancel))]
+    public partial bool IsSpooling { get; set; }
+
+    public bool CanCancel => IsBusy && !IsSpooling;
 
     [ObservableProperty] public partial string? Message { get; set; }
     [ObservableProperty] public partial bool MessageIsError { get; set; }
@@ -117,6 +125,9 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         if (dialog.ShowDialog() == true) await OpenAsync(dialog.FileName);
     }
 
+    /// <summary>Set by the view: asks for a PDF's password. Args: file name, previous attempt was wrong.</summary>
+    public static Func<string, bool, string?>? AskPdfPassword { get; set; }
+
     /// <summary>Loads a PDF: page count immediately, thumbnails stream in after.</summary>
     public async Task OpenAsync(string path)
     {
@@ -126,7 +137,20 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         Thumbnails.Clear();
         try
         {
-            var pdf = await PdfSource.OpenAsync(path);
+            PdfSource? pdf = null;
+            string? password = null;
+            for (var attempt = 0; pdf is null; attempt++)
+            {
+                try
+                {
+                    pdf = await PdfSource.OpenAsync(path, password);
+                }
+                catch (PdfOpenException ex) when (ex.IsPasswordProtected)
+                {
+                    password = AskPdfPassword?.Invoke(Path.GetFileName(path), attempt > 0);
+                    if (password is null) throw;
+                }
+            }
             if (generation != _openGeneration) return;
             _pdf = pdf;
             state.PrintFolder = Path.GetDirectoryName(path);
@@ -145,8 +169,21 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         catch (PdfOpenException ex)
         {
             Clear();
-            SetMessage(ex.IsPasswordProtected ? "This PDF is password protected. Open it in a PDF reader to print it." : ex.Message, error: true);
+            SetMessage(ex.IsPasswordProtected ? "This PDF is password protected and no password was entered." : ex.Message, error: true);
         }
+        catch (Exception ex)
+        {
+            Log.Write($"Open PDF failed: {ex}");
+            Clear();
+            SetMessage($"Could not open the PDF: {ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>The printer's Windows queue was just created or removed: re-check what it can do.</summary>
+    public void QueueChanged()
+    {
+        _twoSidedChecked = false;
+        if (_pdf is not null) _ = RefreshTwoSidedAsync();
     }
 
     private async Task LoadThumbnailsAsync(PdfSource pdf, int generation)
@@ -194,20 +231,20 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
     private async Task PrintAsync()
     {
         if (_pdf is null || !TrySelectedPages(out var pages)) return;
-        var queueName = await QueueFinder.FindQueueNameAsync(printerUuid);
-        if (queueName is null)
-        {
-            SetMessage("This printer isn't set up in Windows yet. Use Set up at the top, then print again.", error: true);
-            return;
-        }
-
         IsBusy = true;
         _cts = new CancellationTokenSource();
         var sw = Stopwatch.StartNew();
         try
         {
+            var queueName = await QueueFinder.FindQueueNameAsync(printerUuid);
+            if (queueName is null)
+            {
+                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.", error: true);
+                return;
+            }
             var progress = new Progress<string>(m => SetMessage(m));
-            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"), progress, _cts.Token);
+            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"),
+                progress, _cts.Token, onSpooling: () => IsSpooling = true);
             SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
                        $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");
         }
@@ -218,7 +255,7 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
         catch (Exception ex)
         {
             // Spooler/driver/serializer errors come in many types; never let one escape the command.
-            Trace.WriteLine($"Print failed: {ex}");
+            Log.Write($"Print failed: {ex}");
             SetMessage($"Could not print: {ex.Message}", error: true);
         }
         finally
@@ -226,6 +263,7 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
             _cts.Dispose();
             _cts = null;
             IsBusy = false;
+            IsSpooling = false;
         }
     }
 
@@ -248,7 +286,7 @@ public sealed partial class PrintViewModel(string printerUuid, AppState state) :
     [RelayCommand]
     private void OpenPrintQueue()
     {
-        Process.Start(new ProcessStartInfo("ms-settings:printers") { UseShellExecute = true });
+        Shell.Open("ms-settings:printers");
     }
 
     private bool TrySelectedPages(out IReadOnlyList<int> pages)

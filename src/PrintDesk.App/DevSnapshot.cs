@@ -28,7 +28,8 @@ internal static class DevSnapshot
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            dc.DrawRectangle(window.Background ?? Brushes.White, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
+            var bg = window.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? window.Background ?? Brushes.White;
+            dc.DrawRectangle(bg, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
             dc.DrawRectangle(new VisualBrush(content), null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
         }
         bmp.Render(visual);
@@ -56,7 +57,7 @@ internal static class DevSnapshot
 /// </summary>
 internal static class DevAutoPrint
 {
-    public static async Task RunAsync(ViewModels.MainViewModel vm, string resultPath)
+    public static async Task RunAsync(ViewModels.MainViewModel vm, string resultPath, int copies = 1, bool twoSided = false)
     {
         System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.TextWriterTraceListener(resultPath + ".log"));
         System.Diagnostics.Trace.AutoFlush = true;
@@ -67,10 +68,14 @@ internal static class DevAutoPrint
         else
         {
             for (var i = 0; i < 40 && !print.PrintCommand.CanExecute(null); i++) await Task.Delay(250);
+            print.Copies = copies;
+            for (var i = 0; i < 40 && twoSided && !print.CanTwoSided; i++) await Task.Delay(250);
+            print.TwoSided = twoSided && print.CanTwoSided;
+            System.Diagnostics.Trace.WriteLine($"autoprint: copies={print.Copies} twoSided={print.TwoSided} summary={print.Summary}");
             var sw = System.Diagnostics.Stopwatch.StartNew();
             System.Diagnostics.Trace.WriteLine($"autoprint: canExecute={print.PrintCommand.CanExecute(null)} pages={print.PageCount}");
             await print.PrintCommand.ExecuteAsync(null);
-            result = $"{sw.ElapsedMilliseconds} ms: {print.Message} (error={print.MessageIsError})";
+            result = $"{sw.ElapsedMilliseconds} ms: {print.Message} (error={print.MessageIsError}; {print.Summary})";
         }
         await File.WriteAllTextAsync(resultPath, result);
         Application.Current.Shutdown();

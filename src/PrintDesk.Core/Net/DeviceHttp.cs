@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Security;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace PrintDesk.Core.Net;
@@ -14,14 +16,16 @@ public sealed class DeviceHttp : IDisposable
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
     private readonly HttpClient _client;
+    private readonly ICertificatePin? _pin;
     private string? _basicAuth;
 
-    public DeviceHttp(string host, HttpMessageHandler? handler = null)
+    public DeviceHttp(string host, HttpMessageHandler? handler = null, ICertificatePin? pin = null)
     {
         Host = host;
+        _pin = pin;
         HttpBase = new UriBuilder(Uri.UriSchemeHttp, host).Uri;
         HttpsBase = new UriBuilder(Uri.UriSchemeHttps, host).Uri;
-        _client = new HttpClient(handler ?? CreateHandler(host), disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+        _client = new HttpClient(handler ?? CreateHandler(host, ValidateCertificate), disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
         _client.DefaultRequestHeaders.ExpectContinue = false;
     }
 
@@ -84,7 +88,32 @@ public sealed class DeviceHttp : IDisposable
         catch { return null; }
     }
 
-    private static SocketsHttpHandler CreateHandler(string host) => new()
+    /// <summary>
+    /// Printers use self-signed certificates, so CA validation is meaningless. Instead the first certificate seen
+    /// for a printer is remembered (trust on first use) and any later different certificate is refused, so a
+    /// machine impersonating the printer on the LAN can't collect the admin password.
+    /// </summary>
+    internal bool ValidateCertificate(X509Certificate? cert, SslPolicyErrors errors)
+    {
+        if (errors == SslPolicyErrors.None) return true;
+        if (cert is null) return false;
+        if (_pin is null) return true; // unpinned probe: never carries credentials
+        var thumb = Convert.ToHexString(SHA256.HashData(cert.GetRawCertData()));
+        var known = _pin.Get();
+        if (known is null)
+        {
+            _pin.Set(thumb);
+            return true;
+        }
+        if (string.Equals(known, thumb, StringComparison.OrdinalIgnoreCase)) return true;
+        CertificateChanged = true;
+        return false;
+    }
+
+    /// <summary>True after a connection was refused because the printer's certificate no longer matches the pin.</summary>
+    public bool CertificateChanged { get; private set; }
+
+    private static SocketsHttpHandler CreateHandler(string host, Func<X509Certificate?, SslPolicyErrors, bool> validate) => new()
     {
         ConnectTimeout = TimeSpan.FromSeconds(3),
         PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
@@ -94,15 +123,21 @@ public sealed class DeviceHttp : IDisposable
         AutomaticDecompression = DecompressionMethods.None,
         SslOptions = new SslClientAuthenticationOptions
         {
-            // Printers ship self-signed certs. Accept them for this printer only.
-            RemoteCertificateValidationCallback = (sender, _, _, errors) =>
-                errors == SslPolicyErrors.None || string.Equals(TargetHost(sender), host, StringComparison.OrdinalIgnoreCase),
+            RemoteCertificateValidationCallback = (sender, cert, _, errors) =>
+                string.Equals(TargetHost(sender), host, StringComparison.OrdinalIgnoreCase) && validate(cert, errors),
         },
     };
 
     private static string? TargetHost(object sender) => sender is SslStream s ? s.TargetHostName : null;
 
     public void Dispose() => _client.Dispose();
+}
+
+/// <summary>Remembered certificate fingerprint for one printer.</summary>
+public interface ICertificatePin
+{
+    string? Get();
+    void Set(string sha256Hex);
 }
 
 public sealed class DeviceHttpException(HttpStatusCode status, HttpMethod? method, Uri? uri, string? body)

@@ -52,6 +52,29 @@ switch (cmd)
             Console.WriteLine($"page2 300dpi bytes={full.Image.Length} {full.WidthInches}x{full.HeightInches}");
         }
         break;
+    case "pdfbench" when host is not null:
+        {
+            var sw = Stopwatch.StartNew();
+            var pdf = await PrintDesk.Windows.Printing.PdfSource.OpenAsync(host);
+            long total = 0;
+            for (var n = 1; n <= pdf.PageCount; n++) total += (await pdf.RenderAsync(n, 300)).Image.Length;
+            Console.WriteLine($"{pdf.PageCount} pages rendered at 300 dpi in {sw.ElapsedMilliseconds} ms, {total / 1024 / 1024} MB of JPEG held in memory");
+        }
+        break;
+    case "hp":
+        foreach (var a in PrintDesk.Windows.Cleanup.HpSoftware.Find())
+        {
+            Console.WriteLine($"{a.DisplayName} | {a.FullName}");
+            if (host == "remove") Console.WriteLine($"  remove: {await PrintDesk.Windows.Cleanup.HpSoftware.RemoveAsync(a) ?? "OK"}");
+        }
+        var left = await PrintDesk.Windows.Cleanup.HpLeftovers.FindAsync();
+        Console.WriteLine($"leftovers: {(left.Any ? left.ToString() : "none")}");
+        if (host == "remove" && left.Any) Console.WriteLine($"  remove leftovers: {await PrintDesk.Windows.Cleanup.HpLeftovers.RemoveAsync() ?? "OK"}");
+        break;
+    case "addipp" when host is not null && args.Length >= 3:
+        Console.WriteLine(await PrintDesk.Windows.Queues.IppQueueInstaller.InstallAsync(args[2], new Uri(host)));
+        foreach (var q in await PrintDesk.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"  {q.Name} | container={q.ContainerId}");
+        break;
     case "queues":
         foreach (var q in await PrintDesk.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"{q.Name} | container={q.ContainerId}");
         break;

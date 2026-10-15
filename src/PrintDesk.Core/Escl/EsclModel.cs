@@ -58,13 +58,22 @@ public sealed record ScannerCapabilities(
     }
 }
 
-public sealed record ScannerStatus(string State, string? AdfState)
+public sealed record ScanJobInfo(string Uri, string State, int? AgeSeconds);
+
+public sealed record ScannerStatus(string State, string? AdfState, IReadOnlyList<ScanJobInfo> Jobs)
 {
     public bool IsIdle => State == "Idle";
     public bool AdfLoaded => AdfState is "ScannerAdfLoaded";
 
-    public static ScannerStatus Parse(XDocument doc) =>
-        new(doc.Root!.KidValue("State") ?? "Unknown", doc.Root!.KidValue("AdfState"));
+    public static ScannerStatus Parse(XDocument doc)
+    {
+        var root = doc.Root!;
+        var jobs = root.Kid("Jobs")?.Kids("JobInfo")
+            .Select(j => new ScanJobInfo(j.KidValue("JobUri") ?? "", j.KidValue("JobState") ?? "", j.KidValue("Age").ToInt()))
+            .Where(j => j.Uri.Length > 0)
+            .ToList() ?? [];
+        return new(root.KidValue("State") ?? "Unknown", root.KidValue("AdfState"), jobs);
+    }
 }
 
 public enum ScanColor { Color, Grayscale }

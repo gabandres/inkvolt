@@ -3,9 +3,19 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PrintDesk.Core.Probe;
+using PrintDesk.Windows.Cleanup;
 using PrintDesk.Windows.Discovery;
 
 namespace PrintDesk.App.ViewModels;
+
+/// <summary>Yes/no questions the view models ask; wired to a real dialog by the app.</summary>
+public static class Prompt
+{
+    /// <summary>Args: message, confirm-button wording. Returns true to go ahead. Unset (tests): always yes.</summary>
+    public static Func<string, string, bool>? Confirm { get; set; }
+
+    public static bool Ask(string message, string confirm) => Confirm?.Invoke(message, confirm) ?? true;
+}
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -23,6 +33,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _discovery.Changed += list => Application.Current?.Dispatcher.InvokeAsync(() => Merge(list));
         _discovery.InitialSweepCompleted += () => Application.Current?.Dispatcher.InvokeAsync(() => IsSearching = false);
         _discovery.Start();
+        _ = CheckHpSoftwareAsync();
     }
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
@@ -52,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public partial string? ManualError { get; set; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddByAddressCommand))]
     public partial bool IsAdding { get; set; }
 
     public bool IsEmpty => Printers.Count == 0;
@@ -62,6 +74,122 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShowSearching));
         OnPropertyChanged(nameof(ShowNoPrinters));
     }
+
+    // ---------------------------------------------------------------- HP software clean-up
+
+    /// <summary>HP Store apps still installed (HP Smart, HP's Print Support App). Empty when clean or dismissed.</summary>
+    public ObservableCollection<InstalledApp> HpApps { get; } = [];
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveHpSoftwareCommand))]
+    public partial bool IsRemovingHp { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHpBanner))]
+    public partial string? HpMessage { get; set; }
+
+    /// <summary>HP services / virtual queue left outside the Store packages (need admin to remove).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHpBanner), nameof(HpAppNames), nameof(HasHpSoftware))]
+    public partial HpLeftovers.Found? HpLeftoversFound { get; set; }
+
+    public bool HasHpSoftware => HpApps.Count > 0 || HpLeftoversFound?.Any == true;
+    public bool ShowHpBanner => HasHpSoftware || HpMessage is not null;
+
+    public string HpAppNames => string.Join(" and ", HpApps.Select(a => a.DisplayName)
+        .Concat(HpLeftoversFound?.Any == true ? ["HP's background services"] : []));
+
+    private async Task CheckHpSoftwareAsync()
+    {
+        try
+        {
+            var apps = await Task.Run(HpSoftware.Find);
+            var leftovers = await HpLeftovers.FindAsync();
+            // Dismissal sticks until a different set of HP software appears (e.g. Windows re-installs it).
+            var fingerprint = Fingerprint(apps, leftovers);
+            HpApps.Clear();
+            HpLeftoversFound = null;
+            if ((apps.Count > 0 || leftovers.Any) && fingerprint != _state.DismissedHpApps)
+            {
+                foreach (var a in apps) HpApps.Add(a);
+                HpLeftoversFound = leftovers;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"HP software check failed: {ex}");
+        }
+        OnPropertyChanged(nameof(ShowHpBanner));
+        OnPropertyChanged(nameof(HpAppNames));
+        OnPropertyChanged(nameof(HasHpSoftware));
+    }
+
+    private static string Fingerprint(IEnumerable<InstalledApp> apps, HpLeftovers.Found leftovers) =>
+        string.Join("|", apps.Select(a => a.FullName).Order().Concat(leftovers.Any ? [leftovers.ToString()] : []));
+
+    private bool CanRemoveHp() => !IsRemovingHp;
+
+    [RelayCommand(CanExecute = nameof(CanRemoveHp))]
+    private async Task RemoveHpSoftwareAsync()
+    {
+        if (!HasHpSoftware) return;
+        var removesPrintApp = HpApps.Any(a => a.IsPrintSupportApp);
+        if (!Prompt.Ask($"Remove {HpAppNames}?\n\nPrintDesk does what they did for this printer, and printing keeps working " +
+                        "through Windows' own driver. HP's apps can be reinstalled from the Microsoft Store at any time." +
+                        "\n\nWindows will ask for administrator permission once, to remove HP's background services and to stop " +
+                        "Windows from re-installing HP's print app." +
+                        (removesPrintApp ? "\n\nYour HP printers are then set up again in Windows (about 30 seconds each), so printing keeps working." : ""),
+                "Remove")) return;
+        IsRemovingHp = true;
+        var failures = new List<string>();
+        try
+        {
+            foreach (var app in HpApps.ToList())
+            {
+                HpMessage = $"Removing {app.DisplayName}…";
+                if (await HpSoftware.RemoveAsync(app) is { } error) failures.Add($"{app.DisplayName}: {error}");
+            }
+            // HP's print app leaves services and a virtual queue behind, and Windows would re-install it on the next
+            // printer setup. One elevated step handles both.
+            if ((await HpLeftovers.FindAsync()).Any || (removesPrintApp && !HpLeftovers.ManufacturerAppsBlocked()))
+            {
+                HpMessage = "Removing HP's background services… approve the Windows permission prompt.";
+                if (await HpLeftovers.RemoveAsync() is { } error) failures.Add(error);
+            }
+            // Queues created while HP's print app was attached keep handing every job to it; with the app gone,
+            // Windows cancels each job a few seconds in. Recreating the queue clears that association.
+            if (removesPrintApp)
+                foreach (var p in Printers.Where(p => p.QueueInstalled && p.PrintEndpointId is not null).ToList())
+                {
+                    HpMessage = $"Setting up {p.Name} again in Windows…";
+                    if (await p.ReinstallQueueAsync() is { } error) failures.Add($"{p.Name}: {error}");
+                }
+        }
+        finally
+        {
+            IsRemovingHp = false;
+        }
+        await CheckHpSoftwareAsync();
+        HpMessage = failures.Count == 0
+            ? "HP software removed. If Windows adds HP's print app again, PrintDesk will tell you."
+            : $"Some HP software could not be removed. {string.Join(" ", failures)}";
+    }
+
+    [RelayCommand]
+    private void DismissHpBanner()
+    {
+        if (HasHpSoftware)
+        {
+            _state.DismissedHpApps = Fingerprint(HpApps, HpLeftoversFound ?? new HpLeftovers.Found([], false, false));
+            _state.Save();
+        }
+        HpApps.Clear();
+        HpLeftoversFound = null;
+        HpMessage = null;
+        OnPropertyChanged(nameof(ShowHpBanner));
+    }
+
+    // ---------------------------------------------------------------- printers
 
     [RelayCommand]
     private void ToggleAdd()
@@ -81,6 +209,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _state.SelectedUuid = value?.Uuid;
         _state.Save();
+        value?.EnsureSectionLoaded();
     }
 
     private void Merge(IReadOnlyList<DiscoveredPrinter> found)
@@ -90,7 +219,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, d.Uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)
             {
-                if (d.Host is null) continue;
+                if (d.Host is null || _state.ForgottenUuids.Contains(d.Uuid, StringComparer.OrdinalIgnoreCase)) continue;
                 vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Remember);
                 Printers.Add(vm);
                 vm.Start();
@@ -103,7 +232,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void Remember(PrinterViewModel p)
     {
-        if (p.Host is null) return;
+        if (p.Host is null || !Printers.Contains(p)) return;
         _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
         _state.Printers.Add(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri));
         _state.Save();
@@ -118,6 +247,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var host = ManualAddress.Trim();
         if (Uri.TryCreate(host, UriKind.Absolute, out var u)) host = u.Host;
         ManualError = null;
+        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
+        {
+            ManualError = $"\"{host}\" is not a valid address.";
+            return;
+        }
         IsAdding = true;
         try
         {
@@ -125,10 +259,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var probe = await PrinterConnection.ProbeAsync(http);
             if (!probe.Reachable)
             {
-                ManualError = $"No printer answered at {host}.";
+                ManualError = $"No printer answered at {host}. Check the address and that the printer is on.";
                 return;
             }
             var uuid = probe.Uuid ?? host;
+            _state.ForgottenUuids.RemoveAll(f => string.Equals(f, uuid, StringComparison.OrdinalIgnoreCase));
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)
             {
@@ -142,9 +277,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ManualAddress = "";
             IsAddOpen = false;
         }
-        catch (Exception ex) when (ex is ArgumentException or UriFormatException)
+        catch (Exception ex)
         {
-            ManualError = $"\"{host}\" is not a valid address.";
+            Log.Write($"Add by address failed: {ex}");
+            ManualError = $"Could not add {host}: {ex.Message}";
         }
         finally
         {
@@ -156,13 +292,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void Forget(PrinterViewModel? p)
     {
         if (p is null) return;
-        _state.Printers.RemoveAll(k => k.Uuid == p.Uuid);
+        var warning = p.Scan?.HasUnsavedPages == true ? $"\n\nYou'll lose {p.Scan.PageCountText.ToLowerInvariant()} you scanned and haven't saved." : "";
+        if (!Prompt.Ask($"Remove {p.Name} from PrintDesk?{warning}\n\nThis doesn't remove it from Windows. To see it again, add it by address.", "Remove"))
+            return;
+        _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
+        if (!_state.ForgottenUuids.Contains(p.Uuid, StringComparer.OrdinalIgnoreCase)) _state.ForgottenUuids.Add(p.Uuid);
         _state.Save();
         p.Dispose();
         Printers.Remove(p);
         if (Selected == p) Selected = Printers.FirstOrDefault();
         NotifyEmpty();
     }
+
+    /// <summary>Printers holding scanned pages that haven't been saved (checked before the window closes).</summary>
+    public IReadOnlyList<PrinterViewModel> PrintersWithUnsavedScans => Printers.Where(p => p.Scan?.HasUnsavedPages == true).ToList();
+
+    /// <summary>A PDF handed to PrintDesk from outside (Open with, a second launch, drag-and-drop).</summary>
+    public Task OpenPdfAsync(string path) => Selected is { } p ? p.OpenPdfAsync(path) : Task.CompletedTask;
 
     public void Dispose()
     {

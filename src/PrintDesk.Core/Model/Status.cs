@@ -8,6 +8,11 @@ public sealed record PrinterAlert(string Id, Severity Severity, string Message);
 public sealed record PrinterStatus(string Code, string Message, Severity Severity, IReadOnlyList<PrinterAlert> Alerts, string? Detail = null)
 {
     public static PrinterStatus Offline(string why) => new("offline", why, Severity.Error, []);
+
+    /// <summary>The printer answered but the reply was unusable (waking up, busy, malformed). Keep showing the last status.</summary>
+    public static PrinterStatus Unavailable(string why) => new("unavailable", why, Severity.Info, []);
+
+    public bool IsUnavailable => Code == "unavailable";
 }
 
 public sealed record Consumable(

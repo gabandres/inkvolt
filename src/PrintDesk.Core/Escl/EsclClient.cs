@@ -70,7 +70,18 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
             {
                 Content = new StringContent(body, Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
             };
-            using var resp = await http.SendAsync(req, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
+            HttpResponseMessage resp;
+            try
+            {
+                resp = await http.SendAsync(req, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                // The scanner may have created the job without answering; delete it so the next scan isn't "busy".
+                await DeleteRecentActiveJobsAsync().ConfigureAwait(false);
+                throw new ScanException("The scanner didn't answer in time. Try again.");
+            }
+            using var _ = resp;
             if (resp.StatusCode == HttpStatusCode.ServiceUnavailable && attempt < 10)
             {
                 await Task.Delay(1000, ct).ConfigureAwait(false); // warming up / busy
@@ -101,6 +112,25 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
             }
             await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
             return await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Deletes jobs the scanner reports as just-created and still active (our orphan after a timeout).</summary>
+    private async Task DeleteRecentActiveJobsAsync()
+    {
+        try
+        {
+            var status = await GetStatusAsync().ConfigureAwait(false);
+            foreach (var job in status.Jobs.Where(j => j.State is "Pending" or "Processing" && j.AgeSeconds is null or < 60))
+            {
+                var path = Uri.TryCreate(job.Uri, UriKind.Absolute, out var abs) ? abs.AbsolutePath : job.Uri;
+                await TryDeleteAsync(new Uri(Root, path)).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or InvalidOperationException
+                                       or System.Xml.XmlException)
+        {
+            // Best effort.
         }
     }
 

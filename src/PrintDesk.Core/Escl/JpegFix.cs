@@ -34,7 +34,7 @@ public static class JpegFix
             var len = BinaryPrimitives.ReadUInt16BigEndian(j[(i + 2)..]);
             // SOF0..SOF15 except DHT (C4), JPG (C8), DAC (CC)
             if (marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC)
-                return i + 5 <= j.Length - 2 ? i + 5 : -1;
+                return i + 9 < j.Length ? i + 5 : -1; // height(2) width(2) components(1) must all be present
             if (marker == 0xDA) return -1; // start of scan before any SOF
             i += 2 + len;
         }

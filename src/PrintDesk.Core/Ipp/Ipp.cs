@@ -51,9 +51,13 @@ public static class IppCodec
             var tag = b[i++];
             if (tag == EndTag) break;
             if (tag < 0x10) { group = tag; last = null; continue; }
+            // A truncated or corrupt reply must surface as FormatException, never IndexOutOfRange.
+            if (i + 2 > b.Length) throw new FormatException("IPP response truncated");
             var nameLen = BinaryPrimitives.ReadUInt16BigEndian(b[i..]); i += 2;
+            if (i + nameLen + 2 > b.Length) throw new FormatException("IPP response truncated");
             var name = Encoding.UTF8.GetString(b.Slice(i, nameLen)); i += nameLen;
             var valLen = BinaryPrimitives.ReadUInt16BigEndian(b[i..]); i += 2;
+            if (i + valLen > b.Length) throw new FormatException("IPP response truncated");
             var val = b.Slice(i, valLen); i += valLen;
             if (nameLen > 0) last = name;
             if (last is null || group != PrinterTag) continue;
@@ -122,7 +126,7 @@ public sealed class IppClient(DeviceHttp http, string resourcePath = "ipp/print"
             var sev = x.EndsWith("-error", StringComparison.Ordinal) ? Severity.Error
                 : x.EndsWith("-warning", StringComparison.Ordinal) ? Severity.Warning
                 : x.EndsWith("-report", StringComparison.Ordinal) ? Severity.Info
-                : Severity.Warning;
+                : Severity.Error; // RFC 8011 §5.4.12: a reason with no suffix is an error
             var id = x.EndsWith("-error") || x.EndsWith("-warning") || x.EndsWith("-report") ? x[..x.LastIndexOf('-')] : x;
             return new PrinterAlert(id, sev, Ledm.StatusText.Humanize(id));
         }).ToList();

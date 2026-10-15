@@ -33,7 +33,8 @@ public static class QueuePrinter
     /// STA thread with its own queue objects: the async XpsDocumentWriter path can stall the spooler with
     /// an empty job, and a synchronous write on the UI thread would freeze the window.
     /// </summary>
-    public static async Task PrintAsync(string queueName, PdfSource pdf, PrintOptions options, IProgress<string> progress, CancellationToken ct)
+    public static async Task PrintAsync(string queueName, PdfSource pdf, PrintOptions options, IProgress<string> progress, CancellationToken ct,
+        Action? onSpooling = null)
     {
         // 1. Render: JPEG at 300 dpi is ~0.3-1 MB a page.
         var pages = new List<RenderedPage>(options.Pages.Count);
@@ -44,6 +45,8 @@ public static class QueuePrinter
             pages.Add(await pdf.RenderAsync(options.Pages[i], RenderDpi, ct: ct));
         }
         ct.ThrowIfCancellationRequested();
+        // From here the job belongs to the spooler: aborting a half-written XPS job leaves it stuck in the queue.
+        onSpooling?.Invoke();
         progress.Report($"Sending {(pages.Count == 1 ? "the page" : $"{pages.Count} pages")} to the printer…");
 
         // 2. Ticket + spool on a dedicated STA thread.

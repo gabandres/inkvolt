@@ -110,3 +110,12 @@ public sealed class NotConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
 }
+
+/// <summary>Glyph colour on the status disc: dark on the amber warning disc (white fails contrast), white elsewhere.</summary>
+public sealed class StatusGlyphBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is "warning" ? Brushes.Black : Brushes.White;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}

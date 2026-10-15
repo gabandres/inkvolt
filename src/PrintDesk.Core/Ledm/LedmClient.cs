@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -18,7 +19,7 @@ public sealed class LedmClient(DeviceHttp http)
     public static readonly TimeSpan EventWait = TimeSpan.FromSeconds(60);
 
     private DiscoveryTree? _tree;
-    private readonly Dictionary<string, XDocument> _capCache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, XDocument> _capCache = new(StringComparer.Ordinal);
 
     public DeviceHttp Http => http;
 
@@ -79,13 +80,16 @@ public sealed class LedmClient(DeviceHttp http)
         {
             IReadOnlyList<LedmEvent>? events = null;
             var failed = false;
+            var started = DateTime.UtcNow;
+            var notModified = false;
             try
             {
                 var uri = etag is null ? http.Http(path) : http.Http($"{path}?timeout={wait}");
                 using var req = new HttpRequestMessage(HttpMethod.Get, uri);
                 if (etag is not null) req.Headers.TryAddWithoutValidation("If-None-Match", etag);
                 using var resp = await http.SendAsync(req, EventWait + TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
-                if (resp.StatusCode != HttpStatusCode.NotModified)
+                notModified = resp.StatusCode == HttpStatusCode.NotModified;
+                if (!notModified)
                 {
                     await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
                     // HP sends unquoted ETags ("34-2"), which the typed header parser rejects.
@@ -95,7 +99,7 @@ public sealed class LedmClient(DeviceHttp http)
                 backoff = TimeSpan.FromSeconds(2);
                 if (wasFailing) { wasFailing = false; etag = null; }
             }
-            catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException)
+            catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or System.Xml.XmlException)
             {
                 failed = true;
             }
@@ -108,6 +112,11 @@ public sealed class LedmClient(DeviceHttp http)
                 wasFailing = true;
                 await Task.Delay(backoff, ct).ConfigureAwait(false);
                 backoff = TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, TimeSpan.FromSeconds(30).Ticks));
+            }
+            else if (notModified && DateTime.UtcNow - started < TimeSpan.FromSeconds(1))
+            {
+                // Firmware that ignores ?timeout= answers 304 at once; don't spin.
+                await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
             }
             else if (etag is null)
             {

@@ -5,8 +5,10 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PrintDesk.Core.Model;
+using PrintDesk.Core.Net;
 using PrintDesk.Core.Probe;
 using PrintDesk.Windows.Discovery;
+using PrintDesk.Windows.Printing;
 using PrintDesk.Windows.Queues;
 using PrintDesk.Windows.Security;
 
@@ -21,10 +23,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan FallbackRefresh = TimeSpan.FromSeconds(30);
 
+    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, SettingsSection = 3;
+
     private readonly AppState _state;
     private readonly Action<PrinterViewModel> _remember;
     private CancellationTokenSource? _loop;
     private PrinterConnection? _connection;
+    private bool _discoveredQueue;
+    private bool _windowsQueue;
 
     public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, Action<PrinterViewModel> remember)
     {
@@ -61,7 +67,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public partial bool IsConnecting { get; set; } = true;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusKind))]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(IsStale), nameof(StaleSuffix))]
     public partial bool IsOnline { get; set; }
 
     [ObservableProperty] public partial string StatusMessage { get; set; } = "Connecting…";
@@ -74,6 +80,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public string StatusKind => !IsOnline ? (IsConnecting ? "connecting" : "offline")
         : StatusSeverity switch { Severity.Error => "error", Severity.Warning => "warning", _ => "ok" };
 
+    /// <summary>Toner and usage figures on screen are from before the printer went offline.</summary>
+    public bool IsStale => !IsOnline && (Supplies.Count > 0 || Stats.Count > 0);
+
+    public string StaleSuffix => IsStale ? "  ·  last known" : "";
+
     public ObservableCollection<PrinterAlert> Alerts { get; } = [];
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
 
@@ -82,6 +93,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SetUpCommand))]
     public partial string? PrintEndpointId { get; set; }
 
+    /// <summary>A Windows print queue exists for this printer (seen by discovery or found among installed queues).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult))]
     public partial bool QueueInstalled { get; set; } = true;
@@ -100,25 +112,50 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Outcome line shown after the setup banner has gone away.</summary>
     public string? SetupResult => NeedsSetup ? null : SetupMessage;
 
+    /// <summary>No Windows queue yet. Discovered printers pair; printers added by address get an IPP queue (one UAC prompt).</summary>
+    public bool NeedsSetup => !QueueInstalled && (PrintEndpointId is not null || Host is not null);
+
+    /// <summary>True when setup will need administrator permission (printer added by address).</summary>
+    public bool SetupNeedsAdmin => PrintEndpointId is null;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
     public partial ScanViewModel? Scan { get; set; }
+
     [ObservableProperty] public partial SettingsViewModel? Settings { get; set; }
 
-    /// <summary>Windows can see the printer but has no queue for it yet.</summary>
-    public bool NeedsSetup => PrintEndpointId is not null && !QueueInstalled;
+    /// <summary>Index of the visible section tab (see the *Section constants).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowScanShortcut), nameof(ShowPrintShortcut))]
+    public partial int SelectedSection { get; set; }
+
+    public bool ShowScanShortcut => Scan is not null && SelectedSection != ScanSection;
+    public bool ShowPrintShortcut => SelectedSection != PrintSection;
+
+    partial void OnSelectedSectionChanged(int value) => EnsureSectionLoaded();
+
+    partial void OnSettingsChanged(SettingsViewModel? value) => EnsureSectionLoaded();
+
+    /// <summary>Settings are read from the printer only when their section is shown (also after switching printers).</summary>
+    public void EnsureSectionLoaded()
+    {
+        if (SelectedSection == SettingsSection && Settings is { IsLoaded: false } s && s.LoadCommand.CanExecute(null))
+            s.LoadCommand.Execute(null);
+    }
 
     public void Start()
     {
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
         _ = RunAsync(_loop.Token);
+        _ = RefreshQueueAsync();
     }
 
     public void ApplyDiscovery(DiscoveredPrinter d)
     {
         PrintEndpointId = d.PrintEndpointId;
-        QueueInstalled = d.QueueInstalled;
+        _discoveredQueue = d.QueueInstalled;
+        QueueInstalled = _discoveredQueue || _windowsQueue;
         ScanEndpointId = d.ScanEndpointId;
         ScannerInstalled = d.ScannerInstalled;
         Model ??= d.Model;
@@ -135,6 +172,22 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Looks for an installed Windows queue whose device container is this printer.</summary>
+    public async Task RefreshQueueAsync()
+    {
+        try
+        {
+            _windowsQueue = await QueueFinder.FindQueueNameAsync(Uuid) is not null;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[{Name}] queue lookup failed: {ex.Message}");
+            return;
+        }
+        QueueInstalled = _discoveredQueue || _windowsQueue;
+        OnPropertyChanged(nameof(SetupNeedsAdmin));
+    }
+
     private void Restart()
     {
         _loop?.Cancel();
@@ -149,7 +202,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             try
             {
                 IsConnecting = true;
-                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct);
+                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid));
                 if (!conn.Probe.Reachable)
                 {
                     conn.Dispose();
@@ -167,7 +220,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"[{Name}] {ex}");
+                Log.Write($"[{Name}] connection loop: {ex}");
                 SetOffline();
                 try { await Task.Delay(RetryDelay, ct); }
                 catch (OperationCanceledException) { return; }
@@ -201,13 +254,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         if (conn.Ledm is not null)
         {
-            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name);
+            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state);
             else Settings.Rebind(conn);
         }
         if (CredentialStore.Get(Uuid) is { } pw) conn.Http.SetCredentials("admin", pw);
 
         if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
-            Trace.WriteLine($"[{Name}] UUID changed {Uuid} → {p.Uuid}");
+            Log.Write($"[{Name}] UUID changed {Uuid} → {p.Uuid}");
         _remember(this);
         old?.Dispose();
     }
@@ -224,14 +277,19 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (status.Code == "offline")
         {
             SetOffline();
+            ObserveQuietly(suppliesTask, usageTask);
             return;
         }
         IsConnecting = false;
         IsOnline = true;
-        StatusMessage = status.Message;
-        StatusDetail = status.Detail;
-        StatusSeverity = status.Severity;
-        Sync(Alerts, status.Alerts);
+        if (!status.IsUnavailable)
+        {
+            // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.
+            StatusMessage = status.Message;
+            StatusDetail = status.Detail;
+            StatusSeverity = status.Severity;
+            Sync(Alerts, status.Alerts);
+        }
 
         try
         {
@@ -246,10 +304,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                     u.JamEvents is { } j ? new($"{j:N0}", "paper jams") : null,
                 }.OfType<InfoRow>().ToList());
         }
-        catch (Exception ex) when (PrinterConnection.IsOffline(ex) || ex is PrintDesk.Core.Net.DeviceHttpException)
+        catch (Exception ex) when (PrinterConnection.IsOffline(ex) || PrinterConnection.IsTransient(ex))
         {
             // Status is what matters; supplies refresh on the next event.
         }
+        OnPropertyChanged(nameof(IsStale));
+        OnPropertyChanged(nameof(StaleSuffix));
+    }
+
+    private static void ObserveQuietly(params Task[] tasks)
+    {
+        foreach (var t in tasks) _ = t.ContinueWith(x => _ = x.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private void SetOffline()
@@ -260,12 +325,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         StatusDetail = $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. PrintDesk keeps trying in the background.";
         StatusSeverity = Severity.Error;
         Alerts.Clear();
+        OnPropertyChanged(nameof(IsStale));
+        OnPropertyChanged(nameof(StaleSuffix));
     }
 
     /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>
     private async Task LoadImageAsync(PrinterConnection conn)
     {
-        var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PrintDesk", "images", $"{Uuid}.png");
+        var cache = Path.Combine(AppState.DataDirectory, "images", $"{Uuid}.png");
         try
         {
             byte[]? bytes = File.Exists(cache) ? await File.ReadAllBytesAsync(cache) : null;
@@ -299,24 +366,39 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         foreach (var s in source) target.Add(s);
     }
 
-    private bool CanSetUp() => PrintEndpointId is not null && !IsInstalling;
+    private bool CanSetUp() => !IsInstalling && (PrintEndpointId is not null || Host is not null);
 
     /// <summary>
-    /// One click: installs the Windows print queue (IPP Class Driver). The Windows scanner device is then added
-    /// in the background — it's only for other apps; PrintDesk scans over eSCL without it.
+    /// One click. Discovered printers: pairs the IPP endpoint (no prompt), then adds the Windows scanner in the
+    /// background (only other apps need it; PrintDesk scans over eSCL). Printers added by address: creates an
+    /// IPP Class Driver queue from the printer's IPP URL, which Windows only allows with one UAC prompt.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanSetUp))]
     private async Task SetUpAsync()
     {
         IsInstalling = true;
-        SetupMessage = "Setting up… Windows is adding the printer (about 30 seconds).";
+        SetupMessage = SetupNeedsAdmin
+            ? "Setting up… approve the Windows permission prompt to add the printer."
+            : "Setting up… Windows is adding the printer (about 30 seconds).";
         try
         {
-            var print = await QueueInstaller.InstallAsync(PrintEndpointId!);
+            InstallResult print;
+            if (PrintEndpointId is { } endpoint)
+            {
+                print = await QueueInstaller.InstallAsync(endpoint);
+            }
+            else
+            {
+                var queueName = $"{Name} ({Host})";
+                print = await IppQueueInstaller.InstallAsync(queueName, new UriBuilder("http", Host!, 631, "ipp/print").Uri);
+            }
+
             if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
             {
+                _windowsQueue = true;
                 QueueInstalled = true;
                 SetupMessage = "Ready to print from any app.";
+                Print.QueueChanged();
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
             }
@@ -327,7 +409,34 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            Log.Write($"[{Name}] setup failed: {ex}");
             SetupMessage = $"Setup failed: {ex.Message}";
+        }
+        finally
+        {
+            IsInstalling = false;
+        }
+    }
+
+    /// <summary>Removes and re-creates this printer's Windows queue (pairing). Returns null on success.</summary>
+    public async Task<string?> ReinstallQueueAsync()
+    {
+        if (PrintEndpointId is not { } endpoint) return "not discovered on the network, so it can't be set up again automatically";
+        IsInstalling = true;
+        try
+        {
+            if (!await QueueInstaller.UninstallAsync(endpoint)) return "Windows didn't remove the old printer";
+            await Task.Delay(TimeSpan.FromSeconds(3)); // let the spooler finish deleting the queue
+            var result = await QueueInstaller.InstallAsync(endpoint);
+            _windowsQueue = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
+            QueueInstalled = _discoveredQueue || _windowsQueue;
+            Print.QueueChanged();
+            return _windowsQueue ? null : result.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"[{Name}] reinstall failed: {ex}");
+            return ex.Message;
         }
         finally
         {
@@ -338,24 +447,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null) Process.Start(new ProcessStartInfo($"https://{Host}/") { UseShellExecute = true });
+        if (Host is not null) Shell.Open($"https://{Host}/");
     }
 
     [RelayCommand]
-    private void OpenPrintQueue() => Process.Start(new ProcessStartInfo("ms-settings:printers") { UseShellExecute = true });
+    private void OpenPrintQueue() => Shell.Open("ms-settings:printers");
 
     [RelayCommand]
     private void Reconnect() => Restart();
-
-    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, SettingsSection = 3;
-
-    /// <summary>Index of the visible section tab (see the *Section constants).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowScanShortcut), nameof(ShowPrintShortcut))]
-    public partial int SelectedSection { get; set; }
-
-    public bool ShowScanShortcut => Scan is not null && SelectedSection != ScanSection;
-    public bool ShowPrintShortcut => SelectedSection != PrintSection;
 
     [RelayCommand]
     private void GoToScan() => SelectedSection = ScanSection;
@@ -376,6 +475,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _loop = null;
         _connection?.Dispose();
         _connection = null;
+    }
+
+    /// <summary>Certificate fingerprint remembered per printer UUID in the app state.</summary>
+    private sealed class PinStore(AppState state, string uuid) : ICertificatePin
+    {
+        public string? Get() => state.GetCertificatePin(uuid);
+        public void Set(string sha256Hex) => state.SetCertificatePin(uuid, sha256Hex);
     }
 }
 

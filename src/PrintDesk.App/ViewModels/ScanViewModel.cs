@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using PrintDesk.Core.Escl;
-using PrintDesk.Core.Net;
 using PrintDesk.Core.Pdf;
 using PrintDesk.Windows.Ocr;
 
@@ -17,6 +17,9 @@ public sealed record Option<T>(T Value, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>Scan area in 1/300 inch (eSCL units). Null size = the whole glass.</summary>
+public sealed record ScanArea(string Key, int? Width, int? Height);
+
 /// <summary>
 /// Scan straight from the device over eSCL. Each page lands as a JPEG (no re-encode), OCR runs in the
 /// background while the next page scans, and Save assembles a searchable PDF locally.
@@ -26,6 +29,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private readonly AppState _state;
     private EsclClient _client;
     private CancellationTokenSource? _scanCts;
+    private bool _dirty;
 
     public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state)
     {
@@ -38,7 +42,8 @@ public sealed partial class ScanViewModel : ObservableObject
             _ => "Document feeder (both sides)",
         })).ToList();
         Source = Sources.FirstOrDefault();
-        Resolutions = (caps.Platen ?? caps.Adf)!.Resolutions.Select(r => new Option<int>(r, r switch
+        var input = (caps.Platen ?? caps.Adf)!;
+        Resolutions = input.Resolutions.Select(r => new Option<int>(r, r switch
         {
             <= 150 => $"{r} dpi (draft)",
             <= 200 => $"{r} dpi (screen)",
@@ -46,25 +51,44 @@ public sealed partial class ScanViewModel : ObservableObject
             _ => $"{r} dpi (photos, slower)",
         })).ToList();
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
+
+        // Only offer sizes the glass can actually scan (within a few pixels of tolerance).
+        PageSizes = new[]
+        {
+            new Option<ScanArea>(new("letter", 2550, 3300), "Letter (8.5 × 11 in)"),
+            new Option<ScanArea>(new("a4", 2480, 3508), "A4 (210 × 297 mm)"),
+            new Option<ScanArea>(new("legal", 2550, 4200), "Legal (8.5 × 14 in)"),
+            new Option<ScanArea>(new("full", null, null), "Whole scanner glass"),
+        }.Where(o => o.Value.Width is null || (o.Value.Width <= input.MaxWidth + 5 && o.Value.Height <= input.MaxHeight + 5)).ToList();
+        var defaultKey = state.ScanPageSize ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter");
+        PageSize = PageSizes.FirstOrDefault(p => p.Value.Key == defaultKey) ?? PageSizes[0];
+
         IsColor = state.ScanColor;
         UseOcr = state.ScanOcr && OcrAvailable;
         Pages.CollectionChanged += (_, _) =>
         {
+            _dirty = Pages.Count > 0;
             OnPropertyChanged(nameof(HasPages));
             OnPropertyChanged(nameof(PageCountText));
+            OnPropertyChanged(nameof(HasUnsavedPages));
             SaveCommand.NotifyCanExecuteChanged();
         };
     }
 
     public IReadOnlyList<Option<ScanSource>> Sources { get; }
     public IReadOnlyList<Option<int>> Resolutions { get; }
+    public IReadOnlyList<Option<ScanArea>> PageSizes { get; }
     public bool HasSourceChoice => Sources.Count > 1;
     public bool OcrAvailable { get; } = WindowsOcr.IsAvailable;
 
     public ObservableCollection<ScanPageViewModel> Pages { get; } = [];
 
-    [ObservableProperty] public partial Option<ScanSource>? Source { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EmptyHint))]
+    public partial Option<ScanSource>? Source { get; set; }
+
     [ObservableProperty] public partial Option<int>? Resolution { get; set; }
+    [ObservableProperty] public partial Option<ScanArea>? PageSize { get; set; }
     [ObservableProperty] public partial bool IsColor { get; set; }
     [ObservableProperty] public partial bool UseOcr { get; set; }
 
@@ -72,21 +96,34 @@ public sealed partial class ScanViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand))]
     public partial bool IsBusy { get; set; }
 
+    /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
+    [ObservableProperty] public partial bool IsScanning { get; set; }
+
     [ObservableProperty] public partial string? Message { get; set; }
     [ObservableProperty] public partial string? LastSavedPath { get; set; }
 
     public bool HasPages => Pages.Count > 0;
+    public bool HasUnsavedPages => _dirty && Pages.Count > 0;
     public string PageCountText => Pages.Count switch { 0 => "No pages yet", 1 => "1 page", var n => $"{n} pages" };
 
-    /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
-    [ObservableProperty] public partial bool IsScanning { get; set; }
+    public string EmptyHint => Source?.Value == ScanSource.Platen || Source is null
+        ? "Put a page face down on the scanner glass, then press Scan."
+        : "Put the pages face up in the document feeder, then press Scan.";
 
     partial void OnIsColorChanged(bool value) { _state.ScanColor = value; _state.Save(); }
     partial void OnUseOcrChanged(bool value) { _state.ScanOcr = value; _state.Save(); }
+
     partial void OnResolutionChanged(Option<int>? value)
     {
         if (value is null) return;
         _state.ScanResolution = value.Value;
+        _state.Save();
+    }
+
+    partial void OnPageSizeChanged(Option<ScanArea>? value)
+    {
+        if (value is null) return;
+        _state.ScanPageSize = value.Value.Key;
         _state.Save();
     }
 
@@ -104,16 +141,16 @@ public sealed partial class ScanViewModel : ObservableObject
         LastSavedPath = null;
         _scanCts = new CancellationTokenSource();
         var dpi = Resolution?.Value ?? 300;
-        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, dpi);
-        var sw = Stopwatch.StartNew();
+        var area = PageSize?.Value;
+        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, dpi,
+            Width: area?.Width, Height: area?.Height);
         var added = 0;
         try
         {
-            Message = "Scanning…";
+            Message = "Scanning… (the first page takes longer if the printer was asleep)";
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
-                var page = new ScanPageViewModel(jpeg, dpi, UseOcr);
-                Pages.Add(page);
+                Pages.Add(new ScanPageViewModel(jpeg, dpi, UseOcr));
                 added++;
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
@@ -131,8 +168,9 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             Message = ex.Message;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException)
+        catch (Exception ex)
         {
+            Log.Write($"Scan failed: {ex}");
             Message = $"Scan failed: {ex.Message}";
         }
         finally
@@ -157,13 +195,14 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void MovePageUp(ScanPageViewModel? page)
     {
-        var i = page is null ? -1 : Pages.IndexOf(page);
+        var i = page is null || IsBusy ? -1 : Pages.IndexOf(page);
         if (i > 0) Pages.Move(i, i - 1);
     }
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private void Clear()
     {
+        if (HasUnsavedPages && !Prompt.Ask($"Discard {PageCountText.ToLowerInvariant()} you haven't saved?", "Discard")) return;
         Pages.Clear();
         Message = null;
         LastSavedPath = null;
@@ -187,12 +226,18 @@ public sealed partial class ScanViewModel : ObservableObject
         _state.ScanFolder = Path.GetDirectoryName(dialog.FileName);
         _state.Save();
 
+        var targets = jpg ? ImagePaths(dialog.FileName) : [dialog.FileName];
+        // The dialog already asked about the name typed; multi-page image saves write numbered siblings it never saw.
+        if (jpg && Pages.Count > 1 && targets.Where(File.Exists).ToList() is { Count: > 0 } clobbered &&
+            !Prompt.Ask($"{clobbered.Count} file{(clobbered.Count == 1 ? "" : "s")} like \"{Path.GetFileName(clobbered[0])}\" already exist. Replace them?", "Replace"))
+            return;
+
         IsBusy = true;
         try
         {
-            if (dialog.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+            if (jpg)
             {
-                LastSavedPath = await SaveJpegsAsync(dialog.FileName);
+                for (var i = 0; i < Pages.Count; i++) await File.WriteAllBytesAsync(targets[i], Pages[i].Jpeg);
             }
             else
             {
@@ -200,17 +245,22 @@ public sealed partial class ScanViewModel : ObservableObject
                 var pages = new List<PdfPage>();
                 foreach (var p in Pages) pages.Add(new PdfPage(p.Jpeg, p.Dpi, await p.Ocr));
                 var title = Path.GetFileNameWithoutExtension(dialog.FileName);
+                var target = dialog.FileName;
                 await Task.Run(() =>
                 {
-                    using var fs = File.Create(dialog.FileName);
-                    PdfWriter.Write(fs, pages, title);
+                    var tmp = target + ".partial";
+                    using (var fs = File.Create(tmp)) PdfWriter.Write(fs, pages, title);
+                    File.Move(tmp, target, overwrite: true); // never leave a half-written PDF behind
                 });
-                LastSavedPath = dialog.FileName;
             }
-            Message = $"Saved {Path.GetFileName(LastSavedPath)}.";
+            LastSavedPath = targets[0];
+            _dirty = false;
+            OnPropertyChanged(nameof(HasUnsavedPages));
+            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(jpg && Pages.Count > 1 ? $" and {Pages.Count - 1} more" : "")}.";
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
+            Log.Write($"Save failed: {ex}");
             Message = $"Could not save: {ex.Message}";
         }
         finally
@@ -219,30 +269,24 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     }
 
-    private async Task<string> SaveJpegsAsync(string path)
+    private List<string> ImagePaths(string chosen)
     {
-        if (Pages.Count == 1)
-        {
-            await File.WriteAllBytesAsync(path, Pages[0].Jpeg);
-            return path;
-        }
-        var dir = Path.GetDirectoryName(path)!;
-        var stem = Path.GetFileNameWithoutExtension(path);
-        for (var i = 0; i < Pages.Count; i++)
-            await File.WriteAllBytesAsync(Path.Combine(dir, $"{stem} ({i + 1}).jpg"), Pages[i].Jpeg);
-        return Path.Combine(dir, $"{stem} (1).jpg");
+        if (Pages.Count == 1) return [chosen];
+        var dir = Path.GetDirectoryName(chosen)!;
+        var stem = Path.GetFileNameWithoutExtension(chosen);
+        return Enumerable.Range(1, Pages.Count).Select(i => Path.Combine(dir, $"{stem} ({i}).jpg")).ToList();
     }
 
     [RelayCommand]
     private void OpenSaved()
     {
-        if (LastSavedPath is not null) Process.Start(new ProcessStartInfo(LastSavedPath) { UseShellExecute = true });
+        if (LastSavedPath is not null) Shell.Open(LastSavedPath);
     }
 
     [RelayCommand]
     private void ShowSavedInFolder()
     {
-        if (LastSavedPath is not null) Process.Start("explorer.exe", $"/select,\"{LastSavedPath}\"");
+        if (LastSavedPath is not null) Shell.ShowInFolder(LastSavedPath);
     }
 }
 
@@ -260,7 +304,6 @@ public sealed class ScanPageViewModel
     public int Dpi { get; }
     public BitmapSource Thumbnail { get; }
     public Task<IReadOnlyList<OcrWord>?> Ocr { get; }
-    public string SizeText => $"{Jpeg.Length / 1024:N0} KB";
 
     private static async Task<IReadOnlyList<OcrWord>?> RunOcrAsync(byte[] jpeg, int dpi)
     {

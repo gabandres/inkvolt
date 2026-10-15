@@ -57,9 +57,10 @@ public sealed class PrinterConnection : IDisposable
     public IppClient? Ipp { get; }
 
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
-    public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default)
+    public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
+        ICertificatePin? pin = null)
     {
-        var http = new DeviceHttp(host);
+        var http = new DeviceHttp(host, pin: pin);
         try
         {
             return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct).ConfigureAwait(false));
@@ -96,18 +97,34 @@ public sealed class PrinterConnection : IDisposable
         return new ProbeResult(http.Host, tree, product, scanner, esclRoot, ipp.Result is { Ok: true } r ? r : null);
     }
 
+    /// <summary>
+    /// LEDM first, IPP as fallback. Network failures mean offline; a printer that answers with an error or
+    /// garbage (common while it wakes up) is reported as <see cref="PrinterStatus.Unavailable"/>, not offline.
+    /// </summary>
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default)
     {
-        try
+        Exception? transient = null;
+        if (Ledm is not null)
         {
-            if (Ledm is not null && await Ledm.GetStatusAsync(ct).ConfigureAwait(false) is { } s) return s;
-            if (Ipp is not null) return IppClient.ToStatus(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
-            return new PrinterStatus("unknown", "Status not available", Severity.Info, []);
+            try
+            {
+                if (await Ledm.GetStatusAsync(ct).ConfigureAwait(false) is { } s) return s;
+            }
+            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
+            catch (Exception ex) when (IsTransient(ex)) { transient = ex; }
         }
-        catch (Exception ex) when (IsOffline(ex))
+        if (Ipp is not null)
         {
-            return PrinterStatus.Offline("Printer is not responding");
+            try
+            {
+                return IppClient.ToStatus(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
+            }
+            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
+            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
         }
+        return transient is not null
+            ? PrinterStatus.Unavailable("The printer is busy; status will update shortly")
+            : new PrinterStatus("unknown", "Status not available", Severity.Info, []);
     }
 
     public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default)
@@ -136,10 +153,13 @@ public sealed class PrinterConnection : IDisposable
 
     public static bool IsOffline(Exception ex) => ex is HttpRequestException or TimeoutException;
 
+    /// <summary>The printer answered, but with an error status or an unreadable body.</summary>
+    public static bool IsTransient(Exception ex) => ex is DeviceHttpException or System.Xml.XmlException or FormatException;
+
     private static async Task<T?> Try<T>(Func<Task<T>> f)
     {
         try { return await f().ConfigureAwait(false); }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or System.Xml.XmlException or FormatException)
+        catch (Exception ex) when (IsOffline(ex) || IsTransient(ex))
         {
             return default;
         }

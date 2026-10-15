@@ -80,6 +80,7 @@ public static class PdfWriter
         var h = BinaryPrimitives.ReadUInt16BigEndian(jpeg[off..]);
         var wpx = BinaryPrimitives.ReadUInt16BigEndian(jpeg[(off + 2)..]);
         var comps = jpeg[off + 4];
+        if (h == 0 || wpx == 0) throw new FormatException("JPEG has no height (unterminated ADF page)");
         return (wpx, h, comps);
     }
 

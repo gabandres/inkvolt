@@ -48,17 +48,27 @@ public sealed class PrinterDiscovery : IDisposable
     private readonly Dictionary<string, Svc> _services = new();      // DeviceInformation.Id -> service
     private readonly Dictionary<string, Aep> _endpoints = new();     // DeviceInformation.Id -> endpoint
     private readonly List<DeviceWatcher> _watchers = [];
-    private int _pendingEnumerations;
 
-    /// <summary>Raised (on a thread-pool thread) with the full current list whenever anything changes.</summary>
+    /// <summary>Bumped on every Start; events from older watchers (still stopping) are ignored.</summary>
+    private int _generation;
+
+    /// <summary>
+    /// Raised with the full current list whenever anything changes. Invoked while an internal lock is held so
+    /// lists always arrive in order; handlers must only hand the list off (e.g. Dispatcher.InvokeAsync).
+    /// </summary>
     public event Action<IReadOnlyList<DiscoveredPrinter>>? Changed;
 
-    /// <summary>Raised once both watchers finished their initial sweep.</summary>
+    /// <summary>Raised once both watchers finished (or gave up on) their initial sweep.</summary>
     public event Action? InitialSweepCompleted;
 
     public void Start()
     {
-        if (_watchers.Count > 0) return;
+        int gen;
+        lock (_gate)
+        {
+            if (_watchers.Count > 0) return;
+            gen = ++_generation;
+        }
         var services = DeviceInformation.CreateWatcher(
             $"System.Devices.AepService.ProtocolId:=\"{DnssdProtocol}\" AND System.Devices.Dnssd.Domain:=\"local\" AND " +
             "(System.Devices.Dnssd.ServiceName:=\"_ipp._tcp\" OR System.Devices.Dnssd.ServiceName:=\"_ipps._tcp\" OR " +
@@ -69,21 +79,29 @@ public sealed class PrinterDiscovery : IDisposable
             $"System.Devices.Aep.ProtocolId:=\"{WsdProtocol}\"",
             AepProps, DeviceInformationKind.AssociationEndpoint);
 
-        services.Added += (_, d) => Upsert(_services, d.Id, Svc.From(d.Properties));
-        services.Updated += (_, u) => Patch(_services, u, Svc.From);
-        services.Removed += (_, u) => Remove(_services, u.Id);
-        endpoints.Added += (_, d) => Upsert(_endpoints, d.Id, Aep.From(d.Id, d.Name, d.Properties));
-        endpoints.Updated += (_, u) => Patch(_endpoints, u, p => Aep.From(u.Id, null, p));
-        endpoints.Removed += (_, u) => Remove(_endpoints, u.Id);
+        services.Added += (_, d) => Mutate(gen, () => _services[d.Id] = Svc.From(d.Properties));
+        services.Updated += (_, u) => Mutate(gen, () => Patch(_services, u, Svc.From));
+        services.Removed += (_, u) => Mutate(gen, () => _services.Remove(u.Id));
+        endpoints.Added += (_, d) => Mutate(gen, () => _endpoints[d.Id] = Aep.From(d.Id, d.Name, d.Properties));
+        endpoints.Updated += (_, u) => Mutate(gen, () => Patch(_endpoints, u, p => Aep.From(u.Id, null, p)));
+        endpoints.Removed += (_, u) => Mutate(gen, () => _endpoints.Remove(u.Id));
 
-        _pendingEnumerations = 2;
+        var pending = 2;
+        void SweepDone()
+        {
+            lock (_gate)
+            {
+                if (gen != _generation || --pending != 0) return;
+            }
+            InitialSweepCompleted?.Invoke();
+        }
         foreach (var w in new[] { services, endpoints })
         {
-            w.EnumerationCompleted += (_, _) =>
-            {
-                if (Interlocked.Decrement(ref _pendingEnumerations) == 0) InitialSweepCompleted?.Invoke();
-            };
-            _watchers.Add(w);
+            var finished = 0;
+            void Once() { if (Interlocked.Exchange(ref finished, 1) == 0) SweepDone(); }
+            w.EnumerationCompleted += (_, _) => Once();
+            w.Stopped += (_, _) => Once(); // aborted before finishing its sweep: don't leave callers waiting forever
+            lock (_gate) _watchers.Add(w);
             w.Start();
         }
     }
@@ -96,6 +114,7 @@ public sealed class PrinterDiscovery : IDisposable
         {
             _services.Clear();
             _endpoints.Clear();
+            Changed?.Invoke(Merge());
         }
         Start();
     }
@@ -105,34 +124,21 @@ public sealed class PrinterDiscovery : IDisposable
         lock (_gate) return Merge();
     }
 
-    private void Upsert<T>(Dictionary<string, T> map, string id, T value)
-    {
-        lock (_gate) map[id] = value;
-        Raise();
-    }
-
-    private void Patch<T>(Dictionary<string, T> map, DeviceInformationUpdate u, Func<IReadOnlyDictionary<string, object>, T> make)
-        where T : IMergeable<T>
+    private void Mutate(int gen, Action change)
     {
         lock (_gate)
         {
-            var update = make(u.Properties);
-            map[u.Id] = map.TryGetValue(u.Id, out var old) ? old.With(update) : update;
+            if (gen != _generation) return; // late event from a watcher being torn down
+            change();
+            Changed?.Invoke(Merge());
         }
-        Raise();
     }
 
-    private void Remove<T>(Dictionary<string, T> map, string id)
+    private static void Patch<T>(Dictionary<string, T> map, DeviceInformationUpdate u, Func<IReadOnlyDictionary<string, object>, T> make)
+        where T : IMergeable<T>
     {
-        lock (_gate) map.Remove(id);
-        Raise();
-    }
-
-    private void Raise()
-    {
-        IReadOnlyList<DiscoveredPrinter> list;
-        lock (_gate) list = Merge();
-        Changed?.Invoke(list);
+        var update = make(u.Properties);
+        map[u.Id] = map.TryGetValue(u.Id, out var old) ? old.With(update) : update;
     }
 
     private List<DiscoveredPrinter> Merge()
@@ -194,9 +200,15 @@ public sealed class PrinterDiscovery : IDisposable
 
     public void Dispose()
     {
-        foreach (var w in _watchers)
+        DeviceWatcher[] old;
+        lock (_gate)
+        {
+            old = [.. _watchers];
+            _watchers.Clear();
+            _generation++; // ignore anything the stopping watchers still deliver
+        }
+        foreach (var w in old)
             if (w.Status is DeviceWatcherStatus.Started or DeviceWatcherStatus.EnumerationCompleted) w.Stop();
-        _watchers.Clear();
     }
 
     private interface IMergeable<T> { T With(T update); }

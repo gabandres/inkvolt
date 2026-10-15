@@ -7,6 +7,7 @@
     <Application.Resources>
         <local:StatusBrushConverter x:Key="StatusBrush" />
         <local:StatusGlyphConverter x:Key="StatusGlyph" />
+        <local:StatusGlyphBrushConverter x:Key="StatusGlyphBrush" />
         <local:SupplyBrushConverter x:Key="SupplyBrush" />
         <local:LevelBrushConverter x:Key="LevelBrush" />
         <local:VisibleWhenConverter x:Key="VisibleWhen" />
@@ -61,6 +62,8 @@
 
         <!-- Section navigation: text tabs with an accent underline, like Windows Settings -->
         <Style x:Key="SectionTabs" TargetType="TabControl">
+            <!-- Custom templates drop Fluent's theme text colour; restore it so content reads in dark mode -->
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabControl">
@@ -103,39 +106,42 @@
         </Style>
 
         <!-- Sidebar printer list: soft selection with an accent pill, like Windows Settings navigation -->
+        <Style x:Key="NavItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="10,8" BorderThickness="2" BorderBrush="Transparent">
+                            <Grid>
+                                <Border x:Name="Pill" Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left" Margin="-10,0,0,0"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Hidden" />
+                                <ContentPresenter />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <!-- Visible keyboard focus (Tab/arrow navigation) -->
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource FocusStrokeColorOuterBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="NavList" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="ItemContainerStyle">
-                <Setter.Value>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="Margin" Value="0,0,0,2" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ListBoxItem">
-                                    <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="10,8">
-                                        <Grid>
-                                            <Border x:Name="Pill" Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left" Margin="-10,0,0,0"
-                                                    Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Hidden" />
-                                            <ContentPresenter />
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                            <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource NavItem}" />
         </Style>
     </Application.Resources>
 </Application>
