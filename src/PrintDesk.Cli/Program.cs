@@ -42,6 +42,19 @@ switch (cmd)
     case "unpair" when host is not null:
         Console.WriteLine($"unpaired: {await PrintDesk.Windows.Queues.QueueInstaller.UninstallAsync(host, ct)}");
         break;
+    case "pdf" when host is not null:
+        {
+            var pdf = await PrintDesk.Windows.Printing.PdfSource.OpenAsync(host);
+            Console.WriteLine($"pages={pdf.PageCount} size1={pdf.PageSizeInches(1)}");
+            var thumb = await pdf.RenderAsync(1, dpi: 0, maxWidthPx: 220);
+            Console.WriteLine($"thumb bytes={thumb.Image.Length}");
+            var full = await pdf.RenderAsync(2, dpi: 300);
+            Console.WriteLine($"page2 300dpi bytes={full.Image.Length} {full.WidthInches}x{full.HeightInches}");
+        }
+        break;
+    case "queues":
+        foreach (var q in await PrintDesk.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"{q.Name} | container={q.ContainerId}");
+        break;
     case "ocr" when host is not null && args.Length >= 3:
         await Ocr(host, args[2], int.TryParse(Opt("--dpi"), out var odpi) ? odpi : 300);
         break;

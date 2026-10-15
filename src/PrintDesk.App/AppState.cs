@@ -18,6 +18,7 @@ public sealed class AppState
     public bool ScanColor { get; set; } = true;
     public bool ScanOcr { get; set; } = true;
     public string? ScanFolder { get; set; }
+    public string? PrintFolder { get; set; }
 
     public static AppState Load()
     {

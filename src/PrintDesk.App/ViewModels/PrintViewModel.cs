@@ -1,0 +1,286 @@
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Printing;
+using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
+using PrintDesk.App.Printing;
+using PrintDesk.Core.Printing;
+using PrintDesk.Windows.Printing;
+
+namespace PrintDesk.App.ViewModels;
+
+/// <summary>
+/// Print a PDF: open it (button, drag-and-drop or "Open with"), see how many pages it has with
+/// thumbnails, pick pages / copies / two-sided, and send it to this printer's Windows queue.
+/// </summary>
+public sealed partial class PrintViewModel(string printerUuid, AppState state) : ObservableObject
+{
+    private const int MaxThumbnails = 60;
+
+    private PdfSource? _pdf;
+    private CancellationTokenSource? _cts;
+    private int _openGeneration;
+    private bool _twoSidedChecked;
+
+    public ObservableCollection<PdfThumbnail> Thumbnails { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDocument))]
+    public partial string? FileName { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageCountText), nameof(AllPagesText), nameof(Summary), nameof(MoreThumbnailsText))]
+    public partial int PageCount { get; set; }
+
+    [ObservableProperty] public partial string? PaperText { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand))]
+    public partial bool AllPages { get; set; } = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand))]
+    public partial string RangeText { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    public partial int Copies { get; set; } = 1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    public partial bool TwoSided { get; set; }
+
+    [ObservableProperty] public partial bool CanTwoSided { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand))]
+    public partial bool IsBusy { get; set; }
+
+    [ObservableProperty] public partial string? Message { get; set; }
+    [ObservableProperty] public partial bool MessageIsError { get; set; }
+
+    public bool HasDocument => FileName is not null;
+    public string PageCountText => PageCount == 1 ? "1 page" : $"{PageCount} pages";
+    public string AllPagesText => PageCount == 1 ? "The page" : $"All {PageCount} pages";
+    public string? MoreThumbnailsText => PageCount > MaxThumbnails ? $"+ {PageCount - MaxThumbnails} more pages" : null;
+
+    /// <summary>Error for the page-range box, or null.</summary>
+    public string? RangeError => AllPages || PageCount == 0 || PageRange.TryParse(RangeText, PageCount, out _, out var e) ? null : e;
+
+    /// <summary>"Prints 3 pages × 2 copies on 6 sheets of paper."</summary>
+    public string Summary
+    {
+        get
+        {
+            if (PageCount == 0 || !TrySelectedPages(out var pages)) return "";
+            var perCopy = TwoSided ? (pages.Count + 1) / 2 : pages.Count;
+            var sheets = perCopy * Copies;
+            var what = pages.Count == 1 ? "1 page" : $"{pages.Count} pages";
+            if (Copies > 1) what += $" × {Copies} copies";
+            return $"Prints {what} on {sheets} sheet{(sheets == 1 ? "" : "s")} of paper{(TwoSided ? ", both sides" : "")}.";
+        }
+    }
+
+    partial void OnRangeTextChanged(string value)
+    {
+        if (value.Length > 0) AllPages = false;
+        OnPropertyChanged(nameof(RangeError));
+    }
+
+    partial void OnAllPagesChanged(bool value) => OnPropertyChanged(nameof(RangeError));
+
+    partial void OnCopiesChanged(int value)
+    {
+        if (value < 1) Copies = 1;
+        else if (value > 99) Copies = 99;
+    }
+
+    [RelayCommand] private void MoreCopies() => Copies++;
+    [RelayCommand] private void FewerCopies() => Copies--;
+
+    private bool NotBusy() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private async Task BrowseAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Choose a PDF to print",
+            Filter = "PDF documents (*.pdf)|*.pdf",
+            InitialDirectory = state.PrintFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+        if (dialog.ShowDialog() == true) await OpenAsync(dialog.FileName);
+    }
+
+    /// <summary>Loads a PDF: page count immediately, thumbnails stream in after.</summary>
+    public async Task OpenAsync(string path)
+    {
+        if (IsBusy) return;
+        var generation = ++_openGeneration;
+        SetMessage(null);
+        Thumbnails.Clear();
+        try
+        {
+            var pdf = await PdfSource.OpenAsync(path);
+            if (generation != _openGeneration) return;
+            _pdf = pdf;
+            state.PrintFolder = Path.GetDirectoryName(path);
+            state.Save();
+            FileName = Path.GetFileName(path);
+            RangeText = "";
+            AllPages = true;
+            PageCount = pdf.PageCount;
+            var (w, h) = pdf.PageSizeInches(1);
+            PaperText = PaperName(w, h);
+            OnPropertyChanged(nameof(Summary));
+            PrintCommand.NotifyCanExecuteChanged();
+            _ = RefreshTwoSidedAsync();
+            await LoadThumbnailsAsync(pdf, generation);
+        }
+        catch (PdfOpenException ex)
+        {
+            Clear();
+            SetMessage(ex.IsPasswordProtected ? "This PDF is password protected. Open it in a PDF reader to print it." : ex.Message, error: true);
+        }
+    }
+
+    private async Task LoadThumbnailsAsync(PdfSource pdf, int generation)
+    {
+        try
+        {
+            for (var n = 1; n <= Math.Min(pdf.PageCount, MaxThumbnails); n++)
+            {
+                var page = await pdf.RenderAsync(n, dpi: 0, maxWidthPx: 220);
+                if (generation != _openGeneration) return;
+                Thumbnails.Add(new PdfThumbnail(n, Decode(page.Image)));
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Thumbnail failed: {ex.Message}"); // preview only; printing renders again
+        }
+    }
+
+    /// <summary>Asks the Windows queue once whether the printer can do two-sided (off the UI thread).</summary>
+    private async Task RefreshTwoSidedAsync()
+    {
+        if (_twoSidedChecked) return;
+        try
+        {
+            var queue = await QueueFinder.FindQueueNameAsync(printerUuid);
+            CanTwoSided = queue is not null && await Task.Run(() =>
+            {
+                using var q = QueuePrinter.Open(queue);
+                return QueuePrinter.SupportsTwoSided(q);
+            });
+            _twoSidedChecked = queue is not null;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Two-sided check failed: {ex.Message}");
+            CanTwoSided = false;
+        }
+        if (!CanTwoSided) TwoSided = false;
+    }
+
+    private bool CanPrint() => !IsBusy && _pdf is not null && (AllPages || PageRange.TryParse(RangeText, PageCount, out _, out _));
+
+    [RelayCommand(CanExecute = nameof(CanPrint))]
+    private async Task PrintAsync()
+    {
+        if (_pdf is null || !TrySelectedPages(out var pages)) return;
+        var queueName = await QueueFinder.FindQueueNameAsync(printerUuid);
+        if (queueName is null)
+        {
+            SetMessage("This printer isn't set up in Windows yet. Use Set up at the top, then print again.", error: true);
+            return;
+        }
+
+        IsBusy = true;
+        _cts = new CancellationTokenSource();
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var queue = QueuePrinter.Open(queueName);
+            var progress = new Progress<string>(m => SetMessage(m));
+            await QueuePrinter.PrintAsync(queue, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"), progress, _cts.Token);
+            SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
+                       $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage("Printing cancelled.");
+        }
+        catch (Exception ex) when (ex is PrintQueueException or PrintSystemException or InvalidOperationException or IOException)
+        {
+            SetMessage($"Could not print: {ex.Message}", error: true);
+        }
+        finally
+        {
+            _cts.Dispose();
+            _cts = null;
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void Cancel() => _cts?.Cancel();
+
+    [RelayCommand]
+    private void Clear()
+    {
+        _openGeneration++;
+        _pdf = null;
+        FileName = null;
+        PageCount = 0;
+        PaperText = null;
+        Thumbnails.Clear();
+        SetMessage(null);
+        PrintCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    private void OpenPrintQueue()
+    {
+        Process.Start(new ProcessStartInfo("ms-settings:printers") { UseShellExecute = true });
+    }
+
+    private bool TrySelectedPages(out IReadOnlyList<int> pages)
+    {
+        if (AllPages) return PageRange.TryParse(null, PageCount, out pages, out _);
+        return PageRange.TryParse(RangeText, PageCount, out pages, out _);
+    }
+
+    private void SetMessage(string? text, bool error = false)
+    {
+        Message = text;
+        MessageIsError = error;
+    }
+
+    private static string PaperName(double w, double h)
+    {
+        var (a, b) = (Math.Min(w, h), Math.Max(w, h));
+        bool Near(double x, double y) => Math.Abs(a - x) < 0.08 && Math.Abs(b - y) < 0.08;
+        var name = Near(8.5, 11) ? "Letter" : Near(8.5, 14) ? "Legal" : Near(8.27, 11.69) ? "A4" : Near(5.83, 8.27) ? "A5" : null;
+        var orient = w > h ? ", landscape" : "";
+        return name is not null ? $"{name}{orient}" : $"{w:0.#} × {h:0.#} in";
+    }
+
+    private static BitmapSource Decode(byte[] jpeg)
+    {
+        var img = new BitmapImage();
+        img.BeginInit();
+        img.CacheOption = BitmapCacheOption.OnLoad;
+        img.StreamSource = new MemoryStream(jpeg);
+        img.EndInit();
+        img.Freeze();
+        return img;
+    }
+}
+
+public sealed record PdfThumbnail(int Number, BitmapSource Image);

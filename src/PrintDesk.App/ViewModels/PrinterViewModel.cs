@@ -35,7 +35,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         EsclRoot = esclRoot;
         _state = state;
         _remember = remember;
+        Print = new PrintViewModel(uuid, state);
     }
+
+    /// <summary>Print a PDF. Works through the Windows queue, so it doesn't need the device connection.</summary>
+    public PrintViewModel Print { get; }
 
     public string Uuid { get; }
     public Uri? EsclRoot { get; private set; }
@@ -343,15 +347,28 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Reconnect() => Restart();
 
-    /// <summary>0 Overview, 1 Scan, 2 Settings.</summary>
+    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, SettingsSection = 3;
+
+    /// <summary>Index of the visible section tab (see the *Section constants).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
+    [NotifyPropertyChangedFor(nameof(ShowScanShortcut), nameof(ShowPrintShortcut))]
     public partial int SelectedSection { get; set; }
 
-    public bool ShowScanShortcut => Scan is not null && SelectedSection != 1;
+    public bool ShowScanShortcut => Scan is not null && SelectedSection != ScanSection;
+    public bool ShowPrintShortcut => SelectedSection != PrintSection;
 
     [RelayCommand]
-    private void GoToScan() => SelectedSection = 1;
+    private void GoToScan() => SelectedSection = ScanSection;
+
+    [RelayCommand]
+    private void GoToPrint() => SelectedSection = PrintSection;
+
+    /// <summary>Drag-and-drop / "Open with": jump to Print and load the file.</summary>
+    public Task OpenPdfAsync(string path)
+    {
+        SelectedSection = PrintSection;
+        return Print.OpenAsync(path);
+    }
 
     public void Dispose()
     {

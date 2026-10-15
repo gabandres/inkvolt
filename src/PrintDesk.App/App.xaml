@@ -11,6 +11,7 @@
         <local:LevelBrushConverter x:Key="LevelBrush" />
         <local:VisibleWhenConverter x:Key="VisibleWhen" />
         <local:PlusOneConverter x:Key="PageNumber" />
+        <local:NotConverter x:Key="Not" />
 
         <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 

@@ -6,8 +6,9 @@
         xmlns:vm="clr-namespace:PrintDesk.App.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
-        Title="PrintDesk" Width="1180" Height="800" MinWidth="860" MinHeight="560"
-        WindowStartupLocation="CenterScreen">
+        Title="PrintDesk" Icon="/PrintDesk.ico" Width="1180" Height="800" MinWidth="860" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop">
 
     <Window.Resources>
         <!-- ===================== Overview ===================== -->
@@ -244,6 +245,140 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ===================== Print ===================== -->
+        <DataTemplate DataType="{x:Type vm:PrintViewModel}">
+            <Grid Margin="0,0,16,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Options -->
+                <Border Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Document" Style="{StaticResource CardTitle}" />
+                        <Button Command="{Binding BrowseCommand}" HorizontalAlignment="Stretch" Padding="0,8"
+                                Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8E5;" Margin="0,0,8,0" />
+                                <TextBlock Text="Choose a PDF…" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA90;" FontSize="22" Margin="0,0,10,0"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" VerticalAlignment="Top" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding FileName}" />
+                                    <TextBlock Style="{StaticResource Caption}">
+                                        <Run Text="{Binding PageCountText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding PaperText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal" Margin="32,6,0,0">
+                                <Button Content="Choose another" Command="{Binding BrowseCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
+                                <Button Content="Remove" Command="{Binding ClearCommand}" Style="{StaticResource LinkButton}" />
+                            </StackPanel>
+
+                            <TextBlock Text="Pages" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <RadioButton Content="{Binding AllPagesText}" IsChecked="{Binding AllPages}" GroupName="pages" />
+                            <DockPanel Margin="0,6,0,0">
+                                <RadioButton DockPanel.Dock="Left" Content="Only" IsChecked="{Binding AllPages, Converter={StaticResource Not}}"
+                                             GroupName="pages" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBox Text="{Binding RangeText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Page range"
+                                         ToolTip="For example 1-3, 5" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding RangeError}" FontSize="12" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Visibility="{Binding RangeError, Converter={StaticResource VisibleWhen}}" />
+
+                            <TextBlock Text="Copies" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="Fewer copies">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" />
+                                </Button>
+                                <TextBox Text="{Binding Copies, UpdateSourceTrigger=PropertyChanged}" Width="56" Margin="6,0"
+                                         TextAlignment="Center" AutomationProperties.Name="Copies" />
+                                <Button Command="{Binding MoreCopiesCommand}" Width="36" ToolTip="More copies">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
+                                </Button>
+                            </StackPanel>
+
+                            <CheckBox Content="Print on both sides" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
+                                      Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
+
+                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
+
+                            <Button Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                    HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
+                                    <TextBlock Text="Print" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                            <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                    Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                        </StackPanel>
+
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                   Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Preview -->
+                <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="340"
+                                    Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE8B5;" FontSize="48" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Drop a PDF here" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,4" />
+                            <TextBlock Text="or choose one. You'll see every page and how many there are before anything prints."
+                                       Style="{StaticResource Caption}" TextAlignment="Center" />
+                            <Button Content="Choose a PDF…" Command="{Binding BrowseCommand}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12"
+                                      Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Thumbnails}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:PdfThumbnail}">
+                                            <StackPanel Margin="8" Width="150">
+                                                <Border BorderThickness="1" CornerRadius="3" Background="White"
+                                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                                    <Image Source="{Binding Image}" Stretch="Uniform" Height="195" />
+                                                </Border>
+                                                <TextBlock Text="{Binding Number}" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding MoreThumbnailsText}" Style="{StaticResource Caption}" Margin="8"
+                                           Visibility="{Binding MoreThumbnailsText, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
         <!-- ===================== Settings ===================== -->
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <DockPanel Margin="0,0,16,16">
@@ -348,9 +483,8 @@
         <!-- ===================== Sidebar ===================== -->
         <DockPanel Margin="12,12,12,12">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,0,20">
-                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="18" Margin="0,0,10,0"
-                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                <TextBlock Text="PrintDesk" FontSize="16" FontWeight="SemiBold" />
+                <Image Source="/PrintDesk.ico" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Text="PrintDesk" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
             <TextBlock DockPanel.Dock="Top" Text="Printers" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
@@ -459,7 +593,14 @@
                                         <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Grid>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Command="{Binding GoToScanCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8"
+                                        <Button Command="{Binding GoToPrintCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8" Margin="0,0,8,0"
+                                                Visibility="{Binding ShowPrintShortcut, Converter={StaticResource VisibleWhen}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
+                                                <TextBlock Text="Print a PDF" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Command="{Binding GoToScanCommand}" Padding="16,8"
                                                 Visibility="{Binding ShowScanShortcut, Converter={StaticResource VisibleWhen}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
@@ -501,6 +642,7 @@
                                 <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}"
                                             SelectionChanged="Tabs_SelectionChanged">
                                     <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
+                                    <TabItem Header="Print" Content="{Binding Print}" />
                                     <TabItem Header="Scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
