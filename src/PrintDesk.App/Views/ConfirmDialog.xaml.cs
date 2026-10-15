@@ -16,5 +16,18 @@ public partial class ConfirmDialog : Window
         return dlg.ShowDialog() == true;
     }
 
+    /// <summary>Information-only variant: a single OK button.</summary>
+    public static void Tell(Window? owner, string message)
+    {
+        var dlg = new ConfirmDialog { Owner = owner is { IsLoaded: true } ? owner : null };
+        if (dlg.Owner is null) dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        dlg.Message.Text = message;
+        dlg.Confirm.Content = "OK";
+        dlg.Confirm.IsDefault = true;
+        dlg.Cancel.IsDefault = false;
+        dlg.Cancel.Visibility = Visibility.Collapsed; // Esc still closes it (IsCancel)
+        dlg.ShowDialog();
+    }
+
     private void Confirm_Click(object sender, RoutedEventArgs e) => DialogResult = true;
 }

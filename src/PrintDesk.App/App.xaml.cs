@@ -46,6 +46,7 @@ public partial class App : Application
         SettingsViewModel.AskPassword = (printer, rejected, fingerprint) => PasswordDialog.AskAdmin(MainWindow, printer, rejected, fingerprint);
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
+        Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
 
         _vm = new MainViewModel(AppState.Load());
         MainWindow = new MainWindow { DataContext = _vm };

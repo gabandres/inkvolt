@@ -27,11 +27,19 @@ public static class CredentialStore
         new PasswordVault().Add(new PasswordCredential(Resource, printerUuid, password));
     }
 
+    /// <summary>Moves a saved password to a new id; never overwrites a password already saved there. Never throws.</summary>
     public static void Rename(string oldId, string newId)
     {
-        if (Get(oldId) is not { } pw) return;
-        Save(newId, pw);
-        Delete(oldId);
+        try
+        {
+            if (Get(oldId) is not { } pw) return;
+            if (Get(newId) is null) Save(newId, pw);
+            Delete(oldId);
+        }
+        catch (Exception)
+        {
+            // Credential Manager unavailable: the user will simply be asked for the password again.
+        }
     }
 
     public static void Delete(string printerUuid)

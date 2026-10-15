@@ -65,6 +65,7 @@ public sealed class AppState
                 if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
             if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
         }
+        Save();
     }
 
     public string? GetQueueName(string uuid)

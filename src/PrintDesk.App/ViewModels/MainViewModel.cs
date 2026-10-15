@@ -16,6 +16,11 @@ public static class Prompt
     public static Func<string, string, bool>? Confirm { get; set; }
 
     public static bool Ask(string message, string confirm) => Confirm?.Invoke(message, confirm) ?? true;
+
+    /// <summary>Information only: one OK button. Unset (tests): no-op.</summary>
+    public static Action<string>? Inform { get; set; }
+
+    public static void Tell(string message) => Inform?.Invoke(message);
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -31,8 +36,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var id = PrinterId.Normalize(k.Uuid, k.Host);
             if (string.Equals(id, k.Uuid, StringComparison.OrdinalIgnoreCase)) continue;
-            state.RenamePrinterId(k.Uuid, id);
-            PrintDesk.Windows.Security.CredentialStore.Rename(k.Uuid, id);
+            // Only migrate into an id no other remembered printer already owns.
+            if (state.Printers.Any(o => !ReferenceEquals(o, k) && string.Equals(o.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
+            try
+            {
+                state.RenamePrinterId(k.Uuid, id);
+                PrintDesk.Windows.Security.CredentialStore.Rename(k.Uuid, id);
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Id migration skipped for one printer: {ex.Message}");
+            }
         }
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
@@ -325,8 +339,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public Task OpenPdfAsync(string path)
     {
         if (Selected is { } p) return p.OpenPdfAsync(path);
-        Prompt.Ask($"PrintDesk hasn't found a printer yet, so \"{System.IO.Path.GetFileName(path)}\" can't be printed. " +
-                   "Wait for your printer to appear (or add it by address), then open the file again.", "OK");
+        Prompt.Tell($"PrintDesk hasn't found a printer yet, so \"{System.IO.Path.GetFileName(path)}\" can't be printed. " +
+                    "Wait for your printer to appear (or add it by address), then open the file again.");
         return Task.CompletedTask;
     }
 

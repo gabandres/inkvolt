@@ -77,7 +77,7 @@ public sealed class PrinterDiscovery : IDisposable
         }
         catch
         {
-            lock (_gate) _started = false; // let a later Start/Restart try again
+            Dispose(); // stop a watcher that did start, and reset so a later Start/Restart can try again
             throw;
         }
     }
