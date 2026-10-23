@@ -12,8 +12,8 @@
 		</scan:Certification>
 	</scan:Certifications>
 	<scan:UUID>12345678-1234-4abc-8def-123456789abc</scan:UUID>
-	<scan:AdminURI>https://NPI95BE5B.local.</scan:AdminURI>
-	<scan:IconURI>https://NPI95BE5B.local./ipp/images/printer.png</scan:IconURI>
+	<scan:AdminURI>https://NPIABCDEF.local.</scan:AdminURI>
+	<scan:IconURI>https://NPIABCDEF.local./ipp/images/printer.png</scan:IconURI>
 	<scan:Platen>
 		<scan:PlatenInputCaps>
 			<scan:MinWidth>300</scan:MinWidth>

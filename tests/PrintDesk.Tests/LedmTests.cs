@@ -64,7 +64,7 @@ public class LedmTests
         Assert.Equal("W1340A", c.ProductNumber);
         Assert.Equal("134A", c.SelectibilityNumber);
         Assert.Equal(100, c.EstimatedPagesRemaining);
-        Assert.Equal(new DateOnly(2025, 9, 29), c.Installed);
+        Assert.Equal(new DateOnly(2025, 1, 15), c.Installed);
         Assert.False(c.IsLow);
     }
 

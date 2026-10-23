@@ -89,7 +89,7 @@ public class SuiteTests
     public void MatchesQueueByContainerId()
     {
         var other = Hp with { Uuid = Guid.NewGuid().ToString(), Host = "10.0.0.9", EsclRoot = null };
-        var q = new QueueInfo("Some queue", "WSD-5bc6701e-7a29-48c2-874d-d5ddf442db28", "{12345678-1234-4ABC-8DEF-123456789ABC}");
+        var q = new QueueInfo("Some queue", "WSD-00000000-0000-4000-8000-000000000001", "{12345678-1234-4ABC-8DEF-123456789ABC}");
         Assert.Same(Hp, QueueMatch.Match(q, Known(other, Hp)));
     }
 
@@ -97,8 +97,8 @@ public class SuiteTests
     public void StoredAssociationWinsOverEverythingElse()
     {
         var other = new DeskPrinter(Guid.NewGuid().ToString(), "Other", null, "10.0.0.9", null);
-        var known = new DeskPrinters([Hp, other], new Dictionary<string, string> { [other.Uuid] = "HP LaserJet MFP M234dw (95BE5B)" });
-        Assert.Same(other, QueueMatch.Match(new QueueInfo("HP LaserJet MFP M234dw (95BE5B)", "192.0.2.10", Uuid), known));
+        var known = new DeskPrinters([Hp, other], new Dictionary<string, string> { [other.Uuid] = "HP LaserJet MFP M234dw (ABCDEF)" });
+        Assert.Same(other, QueueMatch.Match(new QueueInfo("HP LaserJet MFP M234dw (ABCDEF)", "192.0.2.10", Uuid), known));
     }
 
     [Theory]
@@ -111,23 +111,23 @@ public class SuiteTests
         Assert.Same(Hp, QueueMatch.Match(new QueueInfo("Office", port), Known(Hp)));
 
     [Theory]
-    [InlineData("IP_192.168.50.13")]
+    [InlineData("IP_198.51.100.13")]
     [InlineData("IP_192.0.2.100")]
-    [InlineData("WSD-5bc6701e-7a29-48c2-874d-d5ddf442db28")]
+    [InlineData("WSD-00000000-0000-4000-8000-000000000001")]
     [InlineData("PORTPROMPT:")]
     public void OtherPortsDontMatch(string port) => Assert.Null(QueueMatch.Match(new QueueInfo("Office", port), Known(Hp)));
 
     [Fact]
     public void MatchesByHostNameFromTheEsclRoot()
     {
-        var p = Hp with { Host = "192.168.1.7", EsclRoot = new Uri("https://npi95be5b.local/eSCL/") };
-        Assert.Same(p, QueueMatch.Match(new QueueInfo("Office", "http://NPI95BE5B.local:631/ipp/print"), Known(p)));
+        var p = Hp with { Host = "192.168.1.7", EsclRoot = new Uri("https://npiabcdef.local/eSCL/") };
+        Assert.Same(p, QueueMatch.Match(new QueueInfo("Office", "http://NPIABCDEF.local:631/ipp/print"), Known(p)));
     }
 
     [Fact]
     public void QueueNameMatchesOnlyWhenUnambiguous()
     {
-        var q = new QueueInfo("HP LaserJet MFP M234dw (95BE5B)", "WSD-1");
+        var q = new QueueInfo("HP LaserJet MFP M234dw (ABCDEF)", "WSD-1");
         Assert.Same(Hp, QueueMatch.Match(q, Known(Hp)));
         var twin = Hp with { Uuid = Guid.NewGuid().ToString(), Host = "10.0.0.3" };
         Assert.Null(QueueMatch.Match(q, Known(Hp, twin)));

@@ -15,7 +15,9 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        var devRun = e.Args.Any(a => a is "--snapshot" or "--autoprint");
+        // --demo: one made-up printer, no network (Demo.cs). Like the dev aids, it runs beside a normal copy.
+        var demo = e.Args.Contains("--demo");
+        var devRun = demo || e.Args.Any(a => a is "--snapshot" or "--autoprint");
         if (!devRun)
         {
             _instance = SingleInstance.TryAcquire(e.Args);
@@ -48,8 +50,13 @@ public partial class App : Application
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
 
-        _vm = new MainViewModel(AppState.Load());
+        _vm = demo ? new MainViewModel(Demo.CreateState(), Demo.CreateTransport) : new MainViewModel(AppState.Load());
         MainWindow = new MainWindow { DataContext = _vm };
+        if (DevSnapshot.Size(e.Args) is var (width, height))
+        {
+            MainWindow.Width = width;
+            MainWindow.Height = height;
+        }
         MainWindow.Show();
 
         _instance?.Listen(args => Dispatcher.InvokeAsync(() => HandleForwarded(args)));
@@ -62,7 +69,8 @@ public partial class App : Application
                 copies: int.TryParse(e.Args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
                 twoSided: e.Args.Contains("--two-sided"));
         if (Array.IndexOf(e.Args, "--snapshot") is var i and >= 0 && i + 1 < e.Args.Length)
-            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault());
+            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
+                scan: e.Args.Contains("--scan"));
     }
 
     private static string? FirstPdf(IEnumerable<string> args) =>

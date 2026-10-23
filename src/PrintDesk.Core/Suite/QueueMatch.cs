@@ -11,7 +11,7 @@ public static partial class QueueMatch
     /// <summary>
     /// In order of certainty: the queue PrintDesk created for a printer (its stored association); the queue's PnP container
     /// (Windows uses the printer UUID for IPP/WSD queues); the printer's address in the port name (IP ports, IPP URLs);
-    /// finally the queue name when exactly one remembered printer's name or model starts it ("HP LaserJet MFP M234dw (95BE5B)").
+    /// finally the queue name when exactly one remembered printer's name or model starts it ("HP LaserJet MFP M234dw (ABCDEF)").
     /// Null when nothing matches or the name is ambiguous.
     /// </summary>
     public static DeskPrinter? Match(QueueInfo queue, DeskPrinters known)

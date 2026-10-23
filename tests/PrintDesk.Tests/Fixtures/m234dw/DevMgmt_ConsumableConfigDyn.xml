@@ -18,7 +18,7 @@
 		<dd:CartridgeModelInformation>6200</dd:CartridgeModelInformation>
 		<dd:CartridgeModelLife>0046</dd:CartridgeModelLife>
 		<dd:ConsumableLabelCode>K</dd:ConsumableLabelCode>
-		<dd:ConsumableLastUsedDate>2026-10-04</dd:ConsumableLastUsedDate>
+		<dd:ConsumableLastUsedDate>2026-01-15</dd:ConsumableLastUsedDate>
 		<dd:ConsumableLifeState>
 			<dd:ConsumableState>ok</dd:ConsumableState>
 			<dd:MeasuredQuantityState>ok</dd:MeasuredQuantityState>
@@ -30,11 +30,11 @@
 		<dd:ConsumableStation>0</dd:ConsumableStation>
 		<dd:ConsumableTypeEnum>toner</dd:ConsumableTypeEnum>
 		<dd:Installation>
-			<dd:Date>2025-09-29</dd:Date>
+			<dd:Date>2025-01-15</dd:Date>
 		</dd:Installation>
 		<dd:Manufacturer>
 			<dd:Name>HP    </dd:Name>
-			<dd:Date>2025-05-07</dd:Date>
+			<dd:Date>2025-01-01</dd:Date>
 		</dd:Manufacturer>
 		<dd:ProductNumber>W1340A</dd:ProductNumber>
 		<dd:SerialNumber>10000001</dd:SerialNumber>
@@ -46,7 +46,7 @@
 			<dd:ProductNumber>W1340A</dd:ProductNumber>
 			<dd:Manufacturer>
 				<dd:Name>HP    </dd:Name>
-				<dd:Date>2022-06-01</dd:Date>
+				<dd:Date>2022-01-01</dd:Date>
 			</dd:Manufacturer>
 			<dd:SerialNumber>10000002</dd:SerialNumber>
 			<ccdyn:DrumLifeAtVeryLow>127</ccdyn:DrumLifeAtVeryLow>

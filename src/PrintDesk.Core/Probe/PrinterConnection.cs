@@ -57,10 +57,11 @@ public sealed class PrinterConnection : IDisposable
     public IppClient? Ipp { get; }
 
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
+    /// <param name="transport">Replaces the network (e.g. <see cref="FixtureHandler"/> for demo mode); null: real HTTP.</param>
     public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
-        ICertificatePin? pin = null)
+        ICertificatePin? pin = null, HttpMessageHandler? transport = null)
     {
-        var http = new DeviceHttp(host, pin: pin);
+        var http = new DeviceHttp(host, transport, pin);
         try
         {
             return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct).ConfigureAwait(false));

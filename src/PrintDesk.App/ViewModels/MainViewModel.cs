@@ -26,11 +26,15 @@ public static class Prompt
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly AppState _state;
-    private readonly PrinterDiscovery _discovery = new();
+    private readonly PrinterDiscovery? _discovery;
+    private readonly Func<HttpMessageHandler>? _transport;
 
-    public MainViewModel(AppState state)
+    /// <param name="transport">Demo mode (<c>--demo</c>): every printer talks to this instead of the network, and
+    /// discovery, adding by address and the HP software check are off.</param>
+    public MainViewModel(AppState state, Func<HttpMessageHandler>? transport = null)
     {
         _state = state;
+        _transport = transport;
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
         {
@@ -51,10 +55,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
-            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember));
+            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember, transport));
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
         foreach (var p in Printers) p.Start();
 
+        if (transport is not null)
+        {
+            IsSearching = false;
+            return;
+        }
+        _discovery = new PrinterDiscovery();
         _discovery.Changed += list => Application.Current?.Dispatcher.InvokeAsync(() => Merge(list));
         _discovery.InitialSweepCompleted += () => Application.Current?.Dispatcher.InvokeAsync(() => IsSearching = false);
         _discovery.Start();
@@ -228,6 +238,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SearchAgain()
     {
+        if (_discovery is null) return;
         IsSearching = true;
         _discovery.Restart();
     }
@@ -278,6 +289,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
         {
             ManualError = $"\"{host}\" is not a valid address.";
+            return;
+        }
+        if (_transport is not null)
+        {
+            ManualError = "Adding printers is turned off in demo mode.";
             return;
         }
         IsAdding = true;
@@ -346,7 +362,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        _discovery.Dispose();
+        _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
     }
 }

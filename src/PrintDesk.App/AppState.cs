@@ -14,6 +14,10 @@ public sealed class AppState
     private static readonly Lock FileGate = new();
     private readonly Lock _gate = new();
 
+    /// <summary>Demo mode: never written to disk.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsInMemory { get; init; }
+
     public List<KnownPrinter> Printers { get; set; } = [];
     public string? SelectedUuid { get; set; }
     public int ScanResolution { get; set; } = 300;
@@ -127,6 +131,7 @@ public sealed class AppState
 
     public void Save()
     {
+        if (IsInMemory) return;
         try
         {
             string json;

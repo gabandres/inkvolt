@@ -62,7 +62,13 @@ dotnet publish src/PrintDesk.App -p:PublishProfile=win-arm64   # or win-x64
 # → publish/win-arm64/PrintDesk.exe
 ```
 
-Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits.
+Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
+(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first).
+
+Demo mode: `PrintDesk.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
+(embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
+the remembered-printers state is neither read nor written; scanning returns a generated page. Screenshots:
+`PrintDesk.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
 `.msixupload`; no Windows SDK install needed. Partner Center values, elevation notes, Store policy, listing text and

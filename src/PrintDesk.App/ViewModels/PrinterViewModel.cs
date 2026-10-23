@@ -27,12 +27,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     private readonly AppState _state;
     private readonly Action<PrinterViewModel> _remember;
+    private readonly Func<HttpMessageHandler>? _transport;
     private CancellationTokenSource? _loop;
     private PrinterConnection? _connection;
     private bool _discoveredQueue;
     private bool _windowsQueue;
 
-    public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, Action<PrinterViewModel> remember)
+    /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
+    public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, Action<PrinterViewModel> remember,
+        Func<HttpMessageHandler>? transport = null)
     {
         Uuid = uuid;
         Name = name;
@@ -41,6 +44,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         EsclRoot = esclRoot;
         _state = state;
         _remember = remember;
+        _transport = transport;
         Print = new PrintViewModel(FindQueueAsync, state);
     }
 
@@ -48,6 +52,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public PrintViewModel Print { get; }
 
     public string Uuid { get; }
+    public bool IsDemo => _transport is not null;
     public Uri? EsclRoot { get; private set; }
 
     [ObservableProperty] public partial string Name { get; set; }
@@ -148,7 +153,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
         _ = RunAsync(_loop.Token);
-        _ = RefreshQueueAsync();
+        if (!IsDemo) _ = RefreshQueueAsync();
     }
 
     public void ApplyDiscovery(DiscoveredPrinter d)
@@ -178,6 +183,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task<string?> FindQueueAsync()
     {
+        if (IsDemo) return null; // never print to a real queue
         if (await QueueFinder.FindQueueNameAsync(Uuid) is { } byContainer) return byContainer;
         if (_state.GetQueueName(Uuid) is not { } created) return null;
         return (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)) ? created : null;
@@ -213,7 +219,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             try
             {
                 IsConnecting = true;
-                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid));
+                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke());
                 if (!conn.Probe.Reachable)
                 {
                     conn.Dispose();
@@ -255,7 +261,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Product?.FirmwareDate is { } fw ? new("Firmware", fw) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
-        if (Image is null) _ = LoadImageAsync(conn);
+        if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
 
         // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
         if (conn.Scanner is not null && p.Scanner is not null)
@@ -270,7 +276,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         // A saved password is only attached once this printer's certificate is pinned. Without a pin (older
         // version, reset state) the first save asks for it instead, and that handshake pins the certificate.
-        if (CredentialStore.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
+        if (!IsDemo && CredentialStore.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
             conn.Http.SetCredentials("admin", pw);
 
         if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
@@ -474,7 +480,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null) Shell.Open($"https://{Host}/");
+        if (Host is not null && !IsDemo) Shell.Open($"https://{Host}/");
     }
 
     [RelayCommand]

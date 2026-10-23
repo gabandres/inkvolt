@@ -8,18 +8,31 @@ using PrintDesk.App.Views;
 namespace PrintDesk.App;
 
 /// <summary>
-/// Developer aid: <c>PrintDesk.exe --snapshot out.png [--tab Scan]</c> waits for the printer to connect,
-/// renders the window to a PNG and exits. Used to verify the UI without screen capture.
+/// Developer aid: <c>PrintDesk.exe --snapshot out.png [--tab Scan] [--size 1366 860] [--theme Dark] [--demo]</c> waits
+/// for the printer to connect, renders the window to a PNG and exits. Used to verify the UI without screen capture;
+/// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
+/// <c>--scan</c> runs one scan first (with <c>--demo</c>: a generated page).
 /// </summary>
 internal static class DevSnapshot
 {
-    public static async Task RunAsync(MainWindow window, string path, string? tab)
+    public static (double Width, double Height)? Size(string[] args) =>
+        Array.IndexOf(args, "--size") is var i and >= 0 && i + 2 < args.Length
+        && double.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var w)
+        && double.TryParse(args[i + 2], System.Globalization.CultureInfo.InvariantCulture, out var h) && w > 0 && h > 0
+            ? (w, h) : null;
+
+    public static async Task RunAsync(MainWindow window, string path, string? tab, bool scan = false)
     {
         await Task.Delay(TimeSpan.FromSeconds(5));
         if (tab is not null && FindTabs(window) is { } tabs)
         {
             tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
             await Task.Delay(TimeSpan.FromSeconds(3));
+        }
+        if (scan && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
+        {
+            await scanner.ScanCommand.ExecuteAsync(null);
+            await Task.Delay(TimeSpan.FromSeconds(2));
         }
         var content = (FrameworkElement)window.Content;
         var dpi = VisualTreeHelper.GetDpi(window);
@@ -30,7 +43,9 @@ internal static class DevSnapshot
         {
             var bg = window.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? window.Background ?? Brushes.White;
             dc.DrawRectangle(bg, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
-            dc.DrawRectangle(new VisualBrush(content), null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
+            // Map the content 1:1: by default a VisualBrush stretches the visual's bounds (which can overhang) to fit.
+            var area = new Rect(0, 0, content.ActualWidth, content.ActualHeight);
+            dc.DrawRectangle(new VisualBrush(content) { Viewbox = area, ViewboxUnits = BrushMappingMode.Absolute }, null, area);
         }
         bmp.Render(visual);
         var enc = new PngBitmapEncoder();
