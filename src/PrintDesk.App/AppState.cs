@@ -23,6 +23,9 @@ public sealed class AppState
     public string? ScanPageSize { get; set; }
     public string? PrintFolder { get; set; }
 
+    /// <summary>Open each scan saved as PDF in PdfDesk (Desk suite) right away.</summary>
+    public bool OpenScansInPdfDesk { get; set; }
+
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }
 

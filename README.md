@@ -14,11 +14,30 @@ no background services, no driver download.
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
+## Desk suite (with PdfDesk)
+
+PrintDesk and PdfDesk (`Z:\PdfDesk`, the PDF viewer/organizer) are separate apps that share code and install together.
+PrintDesk stays lean (software rendering, no PDF engine); PdfDesk references `PrintDesk.Core` and `PrintDesk.Windows`
+by project reference for scanning (File › Scan…, Insert from Scanner…) and printer status before printing.
+
+- **Open in PdfDesk**: after a scan is saved as PDF, the status line offers "Open in PdfDesk"; the Scan settings have
+  "Open scans in PdfDesk" (open every saved PDF there automatically). Both show only when PdfDesk is installed.
+  A running PdfDesk receives the file through its own single-instance pipe.
+- PdfDesk's File › "Printer Settings (PrintDesk)" opens PrintDesk when it is installed.
+- Each app finds the other via App Paths (`HKCU\…\App Paths\PdfDesk.exe` / `PrintDesk.exe`), else the default install
+  folders (`%LOCALAPPDATA%\Programs\Desk\<app>`, `%LOCALAPPDATA%\Programs\<app>`): `PrintDesk.Windows/Suite/DeskApps.cs`.
+- Shared, UI-free pieces in `PrintDesk.Core/Suite`: `DeskPrinters` (read-only view of `state.json`'s remembered
+  printers and queue associations), `QueueMatch` (Windows queue → printer: stored association, device container, address
+  in the port, unambiguous name), `PrinterHealth` (ready/sleeping/error/offline, toner, paper problems), `ScanChoices`
+  (sources, colors, resolutions, page sizes → `ScanRequest`; PrintDesk's Scan tab uses its page sizes).
+- One installer for both: `install-suite.ps1` in the PdfDesk repo (`%LOCALAPPDATA%\Programs\Desk\PdfDesk` and
+  `\PrintDesk`, Start Menu folder "Desk", App Paths; `-Uninstall` removes only what it added).
+
 ## Layout
 
 ```
-src/PrintDesk.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer
-src/PrintDesk.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store
+src/PrintDesk.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Suite (shared with PdfDesk)
+src/PrintDesk.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Suite/DeskApps
 src/PrintDesk.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
 src/PrintDesk.Cli       developer CLI over the same code (printdesk discover|probe|status|watch|settings|scan)
 tests/PrintDesk.Tests   parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw

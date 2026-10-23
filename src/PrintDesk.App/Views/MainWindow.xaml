@@ -172,6 +172,13 @@
                                 <TextBlock Text="Find and copy text in saved PDFs" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
+                        <CheckBox IsChecked="{Binding OpenInPdfDesk}" Margin="0,4,0,0"
+                                  Visibility="{Binding PdfDeskInstalled, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel>
+                                <TextBlock Text="Open scans in PdfDesk" />
+                                <TextBlock Text="Each PDF you save opens there automatically" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
 
                         <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}"
                                 HorizontalAlignment="Stretch" Padding="0,10" Margin="0,20,0,0">
@@ -206,6 +213,8 @@
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                                             Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
                                     <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="16,0,16,0" />
+                                    <Button Content="Open in PdfDesk" Command="{Binding OpenSavedInPdfDeskCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
+                                            Visibility="{Binding CanOpenSavedInPdfDesk, Converter={StaticResource VisibleWhen}}" />
                                     <Button Content="Show in folder" Command="{Binding ShowSavedInFolderCommand}" Style="{StaticResource LinkButton}" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />

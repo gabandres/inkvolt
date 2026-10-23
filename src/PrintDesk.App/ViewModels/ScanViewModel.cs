@@ -8,7 +8,9 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using PrintDesk.Core.Escl;
 using PrintDesk.Core.Pdf;
+using PrintDesk.Core.Suite;
 using PrintDesk.Windows.Ocr;
+using PrintDesk.Windows.Suite;
 
 namespace PrintDesk.App.ViewModels;
 
@@ -33,24 +35,14 @@ public sealed partial class ScanViewModel : ObservableObject
     private readonly ScannerCapabilities _caps;
 
     private static readonly Option<ScanArea>[] AllPageSizes =
-    [
-        new(new("letter", 2550, 3300), "Letter (8.5 × 11 in)"),
-        new(new("a4", 2480, 3508), "A4 (210 × 297 mm)"),
-        new(new("legal", 2550, 4200), "Legal (8.5 × 14 in)"),
-        new(new("full", null, null), "Whole scanning area"),
-    ];
+        [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
     public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state)
     {
         _client = client;
         _state = state;
         _caps = caps;
-        Sources = caps.Sources.Select(s => new Option<ScanSource>(s, s switch
-        {
-            ScanSource.Platen => "Scanner glass",
-            ScanSource.Adf => "Document feeder",
-            _ => "Document feeder (both sides)",
-        })).ToList();
+        Sources = caps.Sources.Select(s => new Option<ScanSource>(s, ScanChoices.SourceLabel(s))).ToList();
         Source = Sources.FirstOrDefault();
         var input = (caps.Platen ?? caps.Adf)!;
         Resolutions = input.Resolutions.Select(r => new Option<int>(r, r switch
@@ -66,6 +58,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
         IsColor = state.ScanColor;
         UseOcr = state.ScanOcr && OcrAvailable;
+        OpenInPdfDesk = state.OpenScansInPdfDesk;
         Pages.CollectionChanged += (_, _) =>
         {
             _dirty = Pages.Count > 0;
@@ -98,6 +91,18 @@ public sealed partial class ScanViewModel : ObservableObject
     }
     public bool HasSourceChoice => Sources.Count > 1;
     public bool OcrAvailable { get; } = WindowsOcr.IsAvailable;
+
+    /// <summary>PdfDesk (the Desk suite's PDF app) is installed: offer to open saved PDFs in it.</summary>
+    public bool PdfDeskInstalled { get; } = DeskApps.Find(DeskApps.PdfDesk) is not null;
+
+    /// <summary>Open each scan saved as PDF in PdfDesk right away (a setting, remembered).</summary>
+    [ObservableProperty] public partial bool OpenInPdfDesk { get; set; }
+
+    partial void OnOpenInPdfDeskChanged(bool value) { _state.OpenScansInPdfDesk = value; _state.Save(); }
+
+    public bool CanOpenSavedInPdfDesk => PdfDeskInstalled && LastSavedPath?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) == true;
+
+    partial void OnLastSavedPathChanged(string? value) => OnPropertyChanged(nameof(CanOpenSavedInPdfDesk));
 
     public ObservableCollection<ScanPageViewModel> Pages { get; } = [];
 
@@ -275,6 +280,7 @@ public sealed partial class ScanViewModel : ObservableObject
             _dirty = false;
             OnPropertyChanged(nameof(HasUnsavedPages));
             Message = $"Saved {Path.GetFileName(LastSavedPath)}{(jpg && Pages.Count > 1 ? $" and {Pages.Count - 1} more" : "")}.";
+            if (!jpg && OpenInPdfDesk && PdfDeskInstalled) OpenSavedInPdfDesk();
         }
         catch (Exception ex)
         {
@@ -299,6 +305,14 @@ public sealed partial class ScanViewModel : ObservableObject
     private void OpenSaved()
     {
         if (LastSavedPath is not null) Shell.Open(LastSavedPath);
+    }
+
+    /// <summary>Hands the saved PDF to PdfDesk (a running PdfDesk opens it in a new tab).</summary>
+    [RelayCommand]
+    private void OpenSavedInPdfDesk()
+    {
+        if (LastSavedPath is null) return;
+        if (!DeskApps.Launch(DeskApps.PdfDesk, LastSavedPath)) Message = "PdfDesk couldn't be started.";
     }
 
     [RelayCommand]
