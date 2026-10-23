@@ -83,3 +83,13 @@ Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a P
 - CDM-only printers (newer HP models with no LEDM) get IPP status/supplies but no settings page yet.
 - OCR text layer uses WinAnsi; non-Latin scripts degrade to `?` in the hidden text.
 - USB-only printers: not handled (Windows' USB class driver + WIA covers them).
+
+## License
+
+Copyright (c) 2026 [Bermudez Systems LLC](https://bermudezsystems.com). MIT License, see [LICENSE](LICENSE).
+
+PrintDesk is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are
+trademarks of HP Inc., used here only to describe the printers PrintDesk works with.
+
+Part of the Desk suite with [PdfDesk](https://github.com/gabandres/PdfDesk) (AGPL-3.0), which uses PrintDesk's
+libraries for scanning and printer status.
