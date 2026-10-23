@@ -193,6 +193,8 @@ publish/
 # Note: Comment the next line if you want to checkin your web deploy settings,
 # but database connection strings (with potential passwords) will be unencrypted
 *.pubxml
+# but keep the app's publish profiles (win-x64, win-arm64: no secrets in them)
+!**/Properties/PublishProfiles/*.pubxml
 *.publishproj
 
 # Microsoft Azure Web App publish settings. Comment the next line if you want to
@@ -230,6 +232,8 @@ _pkginfo.txt
 *.appx
 *.appxbundle
 *.appxupload
+*.msixbundle
+*.msixupload
 
 # Visual Studio cache files
 # files ending in .cache can be ignored

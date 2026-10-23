@@ -27,12 +27,17 @@ public sealed class DeskPrinters
     /// <summary>Printer UUID → Windows queue name PrintDesk created for it (printers added by address).</summary>
     public IReadOnlyDictionary<string, string> QueueNames { get; }
 
+    /// <summary>
+    /// Reads <paramref name="path"/>, or by default PrintDesk's current state file wherever it is installed: unpackaged
+    /// (<see cref="DefaultPath"/>) or packaged, whose writes Windows keeps in the package's folder
+    /// (<see cref="DeskPaths.CurrentStateFile"/>).
+    /// </summary>
     public static DeskPrinters Load(string? path = null)
     {
         try
         {
-            var file = path ?? DefaultPath;
-            return File.Exists(file) ? Parse(File.ReadAllText(file)) : Empty;
+            var file = path ?? DeskPaths.CurrentStateFile(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            return file is not null && File.Exists(file) ? Parse(File.ReadAllText(file)) : Empty;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

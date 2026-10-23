@@ -1,8 +1,13 @@
-"""Generates assets/PrintDesk.ico (16-256 px) and a 512 px preview PNG.
+"""Generates assets/PrintDesk.ico (16-256 px), a 512 px preview PNG, and the MSIX images.
 
 Design: Fluent-style rounded tile in Windows blue; a white printer with a document feeding in on top;
 a green status light (the same "ready" dot the app uses). Tiny sizes drop detail to stay legible.
 Every size is drawn at 8x and downsampled, so edges are clean at each size rather than one image scaled.
+
+packaging/Assets/*.png: MSIX images (tiles, Start/taskbar icons per target size, store logo, splash screen), named with
+MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri indexes into resources.pri
+(packaging/pack-msix.ps1). Same set as PdfDesk's, minus its PDF file-type logo (PrintDesk's "Open with" entry for PDFs
+uses the app icon).
 
 Run:  python -I assets/make-icon.py   (needs Pillow)
 """
@@ -86,6 +91,49 @@ def draw(size):
     return img.resize((size, size), Image.LANCZOS)
 
 
+# MSIX images. Base sizes are the scale-100 sizes; each is written at these scales.
+SCALES = [100, 125, 150, 200, 400]
+TARGET_SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
+# name: (width, height, icon size as a fraction of the shorter side)
+TILES = {
+    "Square44x44Logo": (44, 44, 1.0),
+    "Square71x71Logo": (71, 71, 0.7),
+    "Square150x150Logo": (150, 150, 0.6),
+    "Wide310x150Logo": (310, 150, 0.6),
+    "Square310x310Logo": (310, 310, 0.5),
+    "StoreLogo": (50, 50, 1.0),
+    "SplashScreen": (620, 300, 0.5),
+}
+
+
+def centered(w, h, frac):
+    """The icon drawn at frac of the shorter side, centered on a transparent w x h canvas."""
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    icon = draw(max(16, round(min(w, h) * frac)))
+    img.paste(icon, ((w - icon.width) // 2, (h - icon.height) // 2), icon)
+    return img
+
+
+def save_msix(folder):
+    os.makedirs(folder, exist_ok=True)
+    for old in os.listdir(folder):
+        if old.lower().endswith(".png"):
+            os.remove(os.path.join(folder, old))
+    count = 0
+    for name, (w, h, frac) in TILES.items():
+        for scale in SCALES:
+            centered(round(w * scale / 100), round(h * scale / 100), frac).save(os.path.join(folder, f"{name}.scale-{scale}.png"))
+            count += 1
+    # Taskbar, Start list and title bar pick an exact pixel size; the tile has its own background, so plated and
+    # unplated (light and dark taskbar) look the same.
+    for size in TARGET_SIZES:
+        app = draw(size)
+        for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
+            app.save(os.path.join(folder, f"Square44x44Logo.targetsize-{size}{suffix}.png"))
+            count += 1
+    return count
+
+
 def main():
     frames = [draw(s) for s in SIZES]
     ico = os.path.join(HERE, "PrintDesk.ico")
@@ -100,7 +148,8 @@ def main():
         sheet.alpha_composite(f, (x, 2 * 256 + 24 - f.height))
         x += f.width + 12
     sheet.save(os.path.join(HERE, "icon-sheet.png"))
-    print("wrote", ico)
+    n = save_msix(os.path.join(HERE, "..", "packaging", "Assets"))
+    print("wrote", ico, f"and {n} MSIX images in packaging/Assets")
 
 
 if __name__ == "__main__":

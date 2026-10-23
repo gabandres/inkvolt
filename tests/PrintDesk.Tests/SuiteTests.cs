@@ -41,6 +41,47 @@ public class SuiteTests
     public void BadStateReadsEmpty(string json) => Assert.Empty(DeskPrinters.Parse(json).Printers);
 
     [Fact]
+    public void AppCandidatesStartWithThePackagedAlias()
+    {
+        var local = Path.Combine("C:", "Users", "u", "AppData", "Local");
+        var (alias, folders) = DeskPaths.AppCandidates("PdfDesk.exe", local);
+        Assert.Equal(Path.Combine(local, "Microsoft", "WindowsApps", "pdfdesk.exe"), alias);
+        Assert.Equal([Path.Combine(local, "Programs", "Desk", "PdfDesk", "PdfDesk.exe"), Path.Combine(local, "Programs", "PdfDesk", "PdfDesk.exe")], folders);
+    }
+
+    [Fact]
+    public void StateFilesIncludeThePackagedCopyAndTheNewestWins()
+    {
+        var local = Path.Combine(Path.GetTempPath(), "pd-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Assert.Empty(DeskPaths.StateFiles(local));
+            Assert.Null(DeskPaths.CurrentStateFile(local));
+
+            var plain = Path.Combine(local, "PrintDesk", "state.json");
+            var packaged = Path.Combine(local, "Packages", "12345Example.PrintDesk_abcdefghjkmnp", "LocalCache", "Local", "PrintDesk", "state.json");
+            var unrelated = Path.Combine(local, "Packages", "Other.App_abcdefghjkmnp", "LocalCache", "Local", "PrintDesk", "state.json");
+            foreach (var f in new[] { plain, packaged, unrelated })
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(f)!);
+                File.WriteAllText(f, "{}");
+            }
+            File.SetLastWriteTimeUtc(plain, DateTime.UtcNow.AddHours(-1));
+            File.SetLastWriteTimeUtc(packaged, DateTime.UtcNow);
+
+            Assert.Equal([plain, packaged], DeskPaths.StateFiles(local));
+            Assert.Equal(packaged, DeskPaths.CurrentStateFile(local));
+
+            File.SetLastWriteTimeUtc(plain, DateTime.UtcNow.AddHours(1));
+            Assert.Equal(plain, DeskPaths.CurrentStateFile(local));
+        }
+        finally
+        {
+            Directory.Delete(local, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MissingStateFileReadsEmpty() =>
         Assert.Empty(DeskPrinters.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "state.json")).Printers);
 

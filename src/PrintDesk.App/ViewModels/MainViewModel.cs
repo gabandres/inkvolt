@@ -58,7 +58,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _discovery.Changed += list => Application.Current?.Dispatcher.InvokeAsync(() => Merge(list));
         _discovery.InitialSweepCompleted += () => Application.Current?.Dispatcher.InvokeAsync(() => IsSearching = false);
         _discovery.Start();
-        _ = CheckHpSoftwareAsync();
+        if (Features.HpCleanup) _ = CheckHpSoftwareAsync();
     }
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
@@ -157,7 +157,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanRemoveHp))]
     private async Task RemoveHpSoftwareAsync()
     {
-        if (!HasHpSoftware) return;
+        if (!HasHpSoftware || !Features.HpCleanup) return;
         var removesPrintApp = HpApps.Any(a => a.IsPrintSupportApp);
         if (!Prompt.Ask($"Remove {HpAppNames}?\n\nPrintDesk does what they did for this printer, and printing keeps working " +
                         "through Windows' own driver. HP's apps can be reinstalled from the Microsoft Store at any time." +

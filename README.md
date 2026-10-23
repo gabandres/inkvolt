@@ -11,7 +11,7 @@ no background services, no driver download.
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
-| HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). |
+| HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
 ## Desk suite (with PdfDesk)
@@ -24,8 +24,11 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
   "Open scans in PdfDesk" (open every saved PDF there automatically). Both show only when PdfDesk is installed.
   A running PdfDesk receives the file through its own single-instance pipe.
 - PdfDesk's File › "Printer Settings (PrintDesk)" opens PrintDesk when it is installed.
-- Each app finds the other via App Paths (`HKCU\…\App Paths\PdfDesk.exe` / `PrintDesk.exe`), else the default install
-  folders (`%LOCALAPPDATA%\Programs\Desk\<app>`, `%LOCALAPPDATA%\Programs\<app>`): `PrintDesk.Windows/Suite/DeskApps.cs`.
+- Each app finds the other via its MSIX app execution alias (`%LOCALAPPDATA%\Microsoft\WindowsApps\pdfdesk.exe` /
+  `printdesk.exe`), App Paths (`HKCU\…\App Paths\PdfDesk.exe` / `PrintDesk.exe`), else the default install folders
+  (`%LOCALAPPDATA%\Programs\Desk\<app>`, `%LOCALAPPDATA%\Programs\<app>`): `PrintDesk.Windows/Suite/DeskApps.cs`,
+  paths in `PrintDesk.Core/Suite/DeskPaths.cs`. A packaged PrintDesk's `state.json` lives in its package folder;
+  `DeskPrinters.Load` reads whichever copy was written last.
 - Shared, UI-free pieces in `PrintDesk.Core/Suite`: `DeskPrinters` (read-only view of `state.json`'s remembered
   printers and queue associations), `QueueMatch` (Windows queue → printer: stored association, device container, address
   in the port, unambiguous name), `PrinterHealth` (ready/sleeping/error/offline, toner, paper problems), `ScanChoices`
@@ -61,6 +64,10 @@ dotnet publish src/PrintDesk.App -p:PublishProfile=win-arm64   # or win-x64
 
 Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits.
 
+Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
+`.msixupload`; no Windows SDK install needed. Partner Center values, elevation notes, Store policy, listing text and
+trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX images: `python -I assets/make-icon.py`.
+
 ## Design notes (vs. HP Smart's problems)
 
 - One `HttpClient` per printer, per-request timeouts (5 s default; scan pages 3 min). No shared mutable port/scheme/timeout.
@@ -87,6 +94,8 @@ Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a P
 ## License
 
 Copyright (c) 2026 [Bermudez Systems LLC](https://bermudezsystems.com). MIT License, see [LICENSE](LICENSE).
+Third-party components: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). "About PrintDesk" (bottom of the sidebar)
+shows the version, both texts and the source code link.
 
 PrintDesk is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are
 trademarks of HP Inc., used here only to describe the printers PrintDesk works with.

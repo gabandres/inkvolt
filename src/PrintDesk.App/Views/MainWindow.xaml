@@ -546,6 +546,8 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                <Button Style="{StaticResource LinkButton}" Content="About PrintDesk" Click="About_Click" HorizontalAlignment="Left"
+                        Margin="10,12,0,0" FontSize="12" />
             </StackPanel>
 
             <Grid>

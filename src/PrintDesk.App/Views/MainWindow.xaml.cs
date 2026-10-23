@@ -11,6 +11,8 @@ public partial class MainWindow : Window
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
+    private void About_Click(object sender, RoutedEventArgs e) => AboutDialog.Open(this);
+
     /// <summary>Scanned pages live only in memory until saved: don't let a stray click on X throw them away.</summary>
     protected override void OnClosing(CancelEventArgs e)
     {

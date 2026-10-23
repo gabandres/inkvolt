@@ -4,7 +4,8 @@ namespace PrintDesk.App;
 
 /// <summary>
 /// Adds PrintDesk to Explorer's "Open with" menu for PDFs (per user, HKCU only). It never takes over the default
-/// PDF app; the user chooses. Re-registered on start so the path stays right if the exe moves.
+/// PDF app; the user chooses. Re-registered on start so the path stays right if the exe moves. Packaged copies (MSIX)
+/// skip this: their "Open with" entry comes from the package manifest and goes away with the package.
 /// </summary>
 public static class ShellIntegration
 {
@@ -12,6 +13,7 @@ public static class ShellIntegration
 
     public static void RegisterOpenWith()
     {
+        if (PrintDesk.Windows.AppPackage.IsPackaged) return;
         var exe = Environment.ProcessPath;
         // Dev builds run from bin\: don't point Explorer at a build folder.
         if (exe is null || exe.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase)) return;
