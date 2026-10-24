@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  THIS DATA SUBJECT TO DISCLAIMER(S)INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<fwudyn:FirmwareUpdateDyn xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/firmwareupdatedyn/2010/12/12 ../../schemas/FirmwareUpdateDyn.xsd" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:fwudyn="http://www.hp.com/schemas/imaging/con/ledm/firmwareupdatedyn/2010/12/12" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<fwudyn:FirmwareUpdate>
+		<fwudyn:Class>WebFWUpdate</fwudyn:Class>
+		<fwudyn:Config>
+			<fwudyn:AutomaticCheck>disabled</fwudyn:AutomaticCheck>
+			<fwudyn:AutomaticUpdate>disabled</fwudyn:AutomaticUpdate>
+		</fwudyn:Config>
+		<fwudyn:State>
+			<fwudyn:Status>idle</fwudyn:Status>
+		</fwudyn:State>
+	</fwudyn:FirmwareUpdate>
+</fwudyn:FirmwareUpdateDyn>
+

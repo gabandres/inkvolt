@@ -126,11 +126,37 @@ public sealed class LedmClient(DeviceHttp http)
         }
     }
 
+    /// <summary>
+    /// Web firmware update settings, via the FirmwareUpdate manifest the DiscoveryTree points to. Null when the
+    /// printer doesn't expose them (then only its firmware version is known).
+    /// </summary>
+    public async Task<FirmwareUpdateSettings?> GetFirmwareUpdateAsync(CancellationToken ct = default)
+    {
+        var tree = await GetTreeAsync(ct).ConfigureAwait(false);
+        if (tree?.ManifestFor(LedmResource.FirmwareUpdateManifest) is not { } manifestPath
+            || await GetPathAsync(manifestPath, ct).ConfigureAwait(false) is not { } manifest) return null;
+        var map = LedmManifest.Parse(manifest);
+        if (!map.TryGetValue("FirmwareUpdateDyn", out var dynPath) || await GetPathAsync(dynPath, ct).ConfigureAwait(false) is not { } dyn)
+            return null;
+        var cap = map.TryGetValue("FirmwareUpdateCap", out var capPath) ? await GetPathAsync(capPath, ct).ConfigureAwait(false) : null;
+        return FirmwareUpdateSettings.Parse(dyn, cap, map.GetValueOrDefault("FirmwareUpdateConfig"));
+    }
+
+    /// <summary>GET an LEDM document by path (manifest resources aren't in the DiscoveryTree). Null on 404.</summary>
+    public async Task<XDocument?> GetPathAsync(string path, CancellationToken ct = default) =>
+        await http.GetBytesOrNullAsync(http.Http(path), ct: ct).ConfigureAwait(false) is { } bytes ? Load(bytes) : null;
+
     /// <summary>PUT a partial LEDM document. Throws <see cref="LedmAuthRequiredException"/> on 401/403.</summary>
     public async Task PutAsync(string resourceType, XDocument body, CancellationToken ct = default)
     {
         var tree = await GetTreeAsync(ct).ConfigureAwait(false);
         var path = tree?.UriFor(resourceType) ?? throw new InvalidOperationException($"Printer does not expose {resourceType}");
+        await PutPathAsync(path, body, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>PUT an LEDM document to a path, over HTTPS. Throws <see cref="LedmAuthRequiredException"/> on 401/403.</summary>
+    public async Task PutPathAsync(string path, XDocument body, CancellationToken ct = default)
+    {
         var xml = body.Declaration is null ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + body.ToString(SaveOptions.DisableFormatting) : body.ToString(SaveOptions.DisableFormatting);
         using var req = new HttpRequestMessage(HttpMethod.Put, http.Https(path))
         {

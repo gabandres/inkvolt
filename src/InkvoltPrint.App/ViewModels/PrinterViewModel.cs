@@ -305,7 +305,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             new("IP address", Host ?? "—"),
             p.Product?.SerialNumber is { } sn ? new("Serial number", sn) : null,
             p.Product?.ProductNumber is { } pn ? new("Product number", pn) : null,
-            p.Product?.FirmwareDate is { } fw ? new("Firmware", fw) : null,
+            p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
         if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
@@ -318,7 +318,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         if (conn.Ledm is not null)
         {
-            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state);
+            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, IsDemo ? null : OpenWebPage);
             else Settings.Rebind(conn);
         }
         // A saved password is only attached once this printer's certificate is pinned. Without a pin (older

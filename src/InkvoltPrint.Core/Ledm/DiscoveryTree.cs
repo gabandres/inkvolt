@@ -25,6 +25,9 @@ public sealed class DiscoveryTree
 
     public string? UriFor(string resourceType) => _resources.GetValueOrDefault(resourceType);
 
+    /// <summary>Manifest URI of an interface the tree lists as <c>SupportedIfc</c> (its resources are in the manifest, not the tree).</summary>
+    public string? ManifestFor(string interfaceType) => _interfaces.GetValueOrDefault(interfaceType);
+
     public static DiscoveryTree Parse(XDocument doc)
     {
         var res = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -59,4 +62,34 @@ public static class LedmResource
     public const string MediaHandlingDyn = "ledm:hpLedmMediaHandlingDyn";
     public const string MediaHandlingCap = "ledm:hpLedmMediaHandlingCap";
     public const string EventTable = "ledm:hpLedmEventTable";
+    public const string FirmwareUpdateManifest = "ledm:hpLedmFirmwareUpdateManifest";
+}
+
+/// <summary>
+/// An LEDM interface manifest's resource map: element type (e.g. <c>FirmwareUpdateDyn</c>) → absolute path. Paths nest:
+/// the map's root link is the base (<c>/FirmwareUpdate</c>), each node's link is relative to its parent
+/// (<c>/WebFWUpdate</c> → <c>/Config</c> is <c>/FirmwareUpdate/WebFWUpdate/Config</c>).
+/// </summary>
+public static class LedmManifest
+{
+    public static IReadOnlyDictionary<string, string> Parse(XDocument doc)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (doc.Root?.Kid("ResourceMap") is not { } root) return map;
+        var basePath = root.Kid("ResourceLink")?.KidValue("ResourceURI") ?? "";
+        Walk(root, basePath, map);
+        return map;
+    }
+
+    private static void Walk(XElement resourceMap, string basePath, Dictionary<string, string> map)
+    {
+        foreach (var node in resourceMap.Kids("ResourceNode"))
+        {
+            if (node.Kid("ResourceLink")?.KidValue("ResourceURI") is not { } link) continue;
+            var path = basePath.TrimEnd('/') + "/" + link.TrimStart('/');
+            // The type is the text of whichever element sits in ResourceType (its name varies per interface).
+            if (node.Kid("ResourceType")?.Elements().FirstOrDefault()?.Value.Trim() is { Length: > 0 } type) map.TryAdd(type, path);
+            if (node.Kid("ResourceMap") is { } nested) Walk(nested, path, map);
+        }
+    }
 }

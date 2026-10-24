@@ -11,6 +11,7 @@ no background services, no driver download.
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
+| Firmware | Version from LEDM `ProductConfigDyn` (an HP LaserJet's version is its release date) or IPP `printer-firmware-string-version`. Automatic updates (install automatically / check only / off) from LEDM's FirmwareUpdate interface (manifest in `DiscoveryTree.xml` → `FirmwareUpdateDyn`/`Cap`, PUT to `/FirmwareUpdate/WebFWUpdate/Config`), saved like the other device settings; explains HP's "dynamic security" cartridge blocking. Printers that don't expose it show the version and a link to their web page. |
 | Print queue | Overview card: this printer's Windows queue jobs (System.Printing `GetPrintJobInfoCollection`: name, pages, status, time, owner), re-read every 3 s only while the card is on screen. Cancel your own jobs, or all of them (confirmed); others' jobs need an administrator and say so. No elevation. |
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
@@ -64,7 +65,7 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first).
+(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first, `--scroll-end` scrolls the tab to its end).
 
 Demo mode: `InkvoltPrint.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
 (embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
@@ -97,6 +98,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 - Printing itself goes through the Windows queue (any app's Print dialog). The M234dw's IPP formats are PCLm / PWG raster / URF (no PDF), so a direct-IPP "print file" feature would need a rasteriser.
 - CDM-only printers (newer HP models with no LEDM) get IPP status/supplies but no settings page yet.
 - OCR text layer uses WinAnsi; non-Latin scripts degrade to `?` in the hidden text.
+- Firmware: the app doesn't start an update check or install (the printer's web page does). The IPP firmware attributes are untested on a real printer (the M234dw reports its firmware over LEDM).
 - USB-only printers: not handled (Windows' USB class driver + WIA covers them).
 
 ## License

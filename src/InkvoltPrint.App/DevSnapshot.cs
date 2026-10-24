@@ -11,7 +11,7 @@ namespace InkvoltPrint.App;
 /// Developer aid: <c>InkvoltPrint.exe --snapshot out.png [--tab Scan] [--size 1366 860] [--theme Dark] [--demo]</c> waits
 /// for the printer to connect, renders the window to a PNG and exits. Used to verify the UI without screen capture;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
-/// <c>--scan</c> runs one scan first (with <c>--demo</c>: a generated page).
+/// <c>--scan</c> runs one scan first (with <c>--demo</c>: a generated page); <c>--scroll-end</c> scrolls the tab to its end.
 /// </summary>
 internal static class DevSnapshot
 {
@@ -21,7 +21,7 @@ internal static class DevSnapshot
         && double.TryParse(args[i + 2], System.Globalization.CultureInfo.InvariantCulture, out var h) && w > 0 && h > 0
             ? (w, h) : null;
 
-    public static async Task RunAsync(MainWindow window, string path, string? tab, bool scan = false)
+    public static async Task RunAsync(MainWindow window, string path, string? tab, bool scan = false, bool scrollToEnd = false)
     {
         await Task.Delay(TimeSpan.FromSeconds(5));
         if (tab is not null && FindTabs(window) is { } tabs)
@@ -33,6 +33,11 @@ internal static class DevSnapshot
         {
             await scanner.ScanCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+        if (scrollToEnd && FindTabs(window) is { } shown)
+        {
+            foreach (var sv in Descendants<ScrollViewer>(shown)) sv.ScrollToEnd();
+            await Task.Delay(TimeSpan.FromSeconds(1));
         }
         var content = (FrameworkElement)window.Content;
         var dpi = VisualTreeHelper.GetDpi(window);
@@ -52,6 +57,16 @@ internal static class DevSnapshot
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
         Application.Current.Shutdown();
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) yield return t;
+            foreach (var d in Descendants<T>(child)) yield return d;
+        }
     }
 
     private static TabControl? FindTabs(DependencyObject root)

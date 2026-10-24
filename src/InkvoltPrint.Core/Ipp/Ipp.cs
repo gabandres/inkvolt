@@ -100,7 +100,7 @@ public sealed class IppClient(DeviceHttp http, string resourcePath = "ipp/print"
     [
         "printer-state", "printer-state-reasons", "printer-state-message", "printer-make-and-model", "printer-uuid",
         "printer-info", "marker-names", "marker-levels", "marker-low-levels", "marker-types", "marker-colors",
-        "document-format-supported",
+        "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
     ];
 
     public Uri Endpoint { get; } = new UriBuilder(Uri.UriSchemeHttp, http.Host, port, resourcePath).Uri;

@@ -23,6 +23,8 @@ public sealed record ProbeResult(
 
     public string? Model => Product?.MakeAndModel ?? Scanner?.MakeAndModel ?? Ipp?.Str("printer-make-and-model");
 
+    public FirmwareInfo? Firmware => FirmwareInfo.From(Product, Ipp);
+
     public IEnumerable<string> Interfaces
     {
         get

@@ -71,7 +71,8 @@ public static class LedmParsers
             ProductNumber: info.KidValue("ProductNumber"),
             Uuid: info.KidValue("UUID"),
             FirmwareDate: info.Kid("Version")?.KidValue("Date"),
-            AdminPasswordSet: info.KidValue("PasswordStatus") switch { "set" => true, "notSet" => false, _ => null });
+            AdminPasswordSet: info.KidValue("PasswordStatus") switch { "set" => true, "notSet" => false, _ => null },
+            FirmwareRevision: info.Kid("Version")?.KidValue("Revision"));
     }
 
     public static UsageCounters ParseUsage(XDocument doc)

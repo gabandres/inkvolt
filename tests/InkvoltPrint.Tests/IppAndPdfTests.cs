@@ -47,6 +47,21 @@ public class IppTests
         Assert.False(r.Attributes.ContainsKey("attributes-charset")); // operation group ignored
     }
 
+    [Fact]
+    public void Firmware_version_from_ipp_prefers_the_main_firmware_entry()
+    {
+        var resp = new Builder()
+            .Group(0x04)
+            .Str(0x42, "printer-firmware-name", "boot").Str(0x42, "", "system-firmware")
+            .Str(0x41, "printer-firmware-string-version", "1.0.2").Str(0x41, "", "2.6.1")
+            .End();
+
+        var fw = FirmwareInfo.From(null, IppCodec.Decode(resp))!;
+
+        Assert.Equal("2.6.1", fw.Display);
+        Assert.Contains("printer-firmware-string-version", IppClient.StatusAttributes);
+    }
+
     private static int CountOf(string s, string sub) => (s.Length - s.Replace(sub, "").Length) / sub.Length;
 
     private sealed class Builder

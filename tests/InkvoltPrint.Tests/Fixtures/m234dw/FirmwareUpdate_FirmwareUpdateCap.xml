@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  THIS DATA SUBJECT TO DISCLAIMER(S)INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<fwucap:FirmwareUpdateCap xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/firmwareupdatecap/2010/12/12 ../../schemas/FirmwareUpdateCap.xsd" xmlns:fwucap="http://www.hp.com/schemas/imaging/con/ledm/firmwareupdatecap/2010/12/12" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<fwucap:FirmwareUpdateSupport>
+		<fwucap:FirmwareUpdate>
+			<fwucap:Class>WebFWUpdate</fwucap:Class>
+			<fwucap:ConfigSupport>
+				<fwucap:AutomaticCheckSupport access="readWrite">
+					<fwucap:AutomaticCheck>enabled</fwucap:AutomaticCheck>
+					<fwucap:AutomaticCheck>disabled</fwucap:AutomaticCheck>
+				</fwucap:AutomaticCheckSupport>
+				<fwucap:AutomaticUpdateSupport access="readWrite">
+					<fwucap:AutomaticUpdate>enabled</fwucap:AutomaticUpdate>
+					<fwucap:AutomaticUpdate>disabled</fwucap:AutomaticUpdate>
+				</fwucap:AutomaticUpdateSupport>
+			</fwucap:ConfigSupport>
+			<fwucap:StateSupport>
+				<fwucap:StatusSupport access="readOnly">
+					<fwucap:Status>available</fwucap:Status>
+					<fwucap:Status>checkFailed</fwucap:Status>
+					<fwucap:Status>notAvailable</fwucap:Status>
+					<fwucap:Status>idle</fwucap:Status>
+					<fwucap:Status>cancelling</fwucap:Status>
+					<fwucap:Status>checking</fwucap:Status>
+					<fwucap:Status>downloadPreparation</fwucap:Status>
+					<fwucap:Status>downloading</fwucap:Status>
+					<fwucap:Status>installing</fwucap:Status>
+				</fwucap:StatusSupport>
+				<fwucap:TypeSupport access="readOnly">
+					<fwucap:Type>mandatory</fwucap:Type>
+					<fwucap:Type>optional</fwucap:Type>
+					<fwucap:Type>recommended</fwucap:Type>
+				</fwucap:TypeSupport>
+				<fwucap:UpdateActionSupport access="writeOnly">
+					<fwucap:UpdateAction>check</fwucap:UpdateAction>
+					<fwucap:UpdateAction>reset</fwucap:UpdateAction>
+					<fwucap:UpdateAction>start</fwucap:UpdateAction>
+				</fwucap:UpdateActionSupport>
+			</fwucap:StateSupport>
+		</fwucap:FirmwareUpdate>
+	</fwucap:FirmwareUpdateSupport>
+</fwucap:FirmwareUpdateCap>
+
