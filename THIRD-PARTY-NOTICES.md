@@ -40,6 +40,12 @@ MuPDFWrapper.dll statically links MuPDF and its third-party libraries. Those fou
 
 The complete list and license texts are in the MuPDF 1.25.2 source distribution (`thirdparty/` and `COPYING`).
 
+## Used only to build and test (not shipped)
+
+| Component | Version | License | Copyright | Source |
+|---|---|---|---|---|
+| DocumentFormat.OpenXml (Open XML SDK; the tests open and validate exported .docx / .xlsx files) | 3.1.1 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/Open-XML-SDK |
+
 ## MuPDF and the AGPL
 
 MuPDF is licensed under the GNU Affero General Public License v3.0 (https://www.gnu.org/licenses/agpl-3.0.html).

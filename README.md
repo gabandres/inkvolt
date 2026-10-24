@@ -152,6 +152,18 @@ Manager. The installers don't remove an install made under the old names: uninst
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
 - **Recognize Text (OCR)** (Review menu): scanned pages get an invisible text layer, so they can be searched, selected
   and copied; runs on the PC with Windows' own OCR, one undo step.
+- **Export to Word, Excel or text** (File › Export, command palette): a page range, "recognize text on scanned pages",
+  "open the file when done", progress with Cancel (nothing is written until the end). **Word (.docx)**: the pages are
+  rebuilt as editable text: paragraphs (wrapped lines joined, hyphenated words rejoined), fonts, sizes, bold, italic and
+  colors; headings (Heading 1-6, from type larger than the body text, so they show in Word's navigation pane);
+  bulleted items as Word bullets, numbered ones keep their numbers; tables from ruled grids (merged cells, icons in
+  cells) or from text lined up in columns; pictures inline (a picture used again is stored once); two-column pages
+  in reading order; lines and logos repeated at the top or bottom of the pages become the header and footer, page
+  numbers Word's own; each page its own section with its size and orientation. **Excel (.xlsx)**: every table found,
+  one sheet per table named after its page, plain numbers as numbers, merged cells merged. **Plain text (.txt)**: the
+  text in reading order, a paragraph per line, table rows tab-separated. Scanned pages without text are recognized
+  with Windows' OCR first (on the PC); without an OCR language they are kept as pictures in Word. XPS, EPUB and the
+  other formats Inkvolt PDF opens export too.
 - **Reload** (F5) and an info bar when another program changes the open file. **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page; high-contrast aware.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit.
@@ -231,8 +243,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view) |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`) |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -251,6 +263,9 @@ scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page w
 `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
+Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`; `check0` is OCR,
+`check1` "open when done"); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+scanned copy, `export-scan.pdf`.
 
 ## License
 
@@ -304,6 +319,21 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   aligning them, so two separate scans of the same paper, or a page shifted by a few points, look different all over.
   The annotated copy lists text changes only (visual differences aren't in it), and needs the permissions password of a
   protected changed file. PDFs only (not XPS or EPUB).
+- Export to Word rebuilds the layout from what the pages draw, so it is a starting point for editing, not a copy:
+  text flows in one column (multi-column pages become their columns one after another, not Word columns); text boxes,
+  callouts and text over pictures become ordinary paragraphs where they fall; a paragraph split across pages or
+  columns stays split; line spacing and paragraph spacing are Word's defaults, not the PDF's; fonts are named as the
+  PDF names them (a font not installed on the PC is substituted by Word); headings are found by size only (bold
+  body-size headings stay body text); bullets drawn as shapes rather than characters aren't recognized, and numbered
+  lists keep their numbers as typed text; tables without lines need three or more rows lined up in columns, a cell
+  wrapped over several lines can become extra rows, cells merged down a column are split, and two-column text with
+  short lines can be taken for a table; vector drawings (charts, diagrams, shapes) are left out, only their text is
+  kept; several pictures side by side are stacked, and a picture covering the whole page behind text (a scan under
+  its OCR text, a background) is left out; form fields export as their shown values; right-to-left text keeps
+  MuPDF's order and isn't marked right-to-left. Running headers and footers need to repeat on at least half the pages
+  (two at least) in the top or bottom tenth. On scanned pages only the recognized text is kept (the pictures on
+  them are not cut out), sizes are estimated and fonts are Word's default. Excel gets only the tables; numbers with
+  currency signs, percents or thousands separators other than "," stay text.
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
 
@@ -311,6 +341,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
   custom script) and submit buttons; detect comb boxes and table rows as one field each.
+- Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
+  over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering,
+  PowerPoint export.
 - Compare: find moved paragraphs, line up shifted or skewed scans before overlaying them, put visual differences in the
   annotated copy, and report formatting changes (font, size, color) as well as wording.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).

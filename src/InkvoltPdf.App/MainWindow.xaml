@@ -105,7 +105,13 @@
                                     <MenuItem Command="app:Cmd.PrintWithOptions" Header="Print with _Options…" />
                                     <MenuItem Command="app:Cmd.Scan" />
                                     <MenuItem x:Name="InkvoltPrintMenu" Header="Printer Settings (In_kvolt Print)" Click="OnOpenInkvoltPrint" Visibility="Collapsed" />
-                                    <MenuItem Command="app:Cmd.ExportImages" />
+                                    <MenuItem Header="_Export">
+                                        <MenuItem Command="app:Cmd.ExportWord" Header="_Word Document (.docx)…" />
+                                        <MenuItem Command="app:Cmd.ExportExcel" Header="_Excel Workbook (.xlsx): Tables…" />
+                                        <MenuItem Command="app:Cmd.ExportText" Header="Plain _Text (.txt)…" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.ExportImages" Header="Pages as _Images…" />
+                                    </MenuItem>
                                     <MenuItem Command="app:Cmd.Properties" />
                                     <MenuItem Command="app:Cmd.ProtectPassword" />
                                     <MenuItem Command="app:Cmd.RemoveProtection" />

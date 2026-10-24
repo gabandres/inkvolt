@@ -447,6 +447,111 @@ public sealed class PdfEngine : IDisposable
         return new PageText(lines, directions);
     }
 
+    /// <summary>Most vector paths a page may draw for its thin lines to be read as table rules (maps and charts draw thousands).</summary>
+    private const int MaxRulePaths = 4000;
+
+    /// <summary>Pictures larger than this many pixels are exported as JPEG (scans, photos), smaller ones as PNG.</summary>
+    private const long JpegAbovePixels = 1_500_000;
+
+    /// <summary>
+    /// What Export to Word / Excel / text reads from a page: text lines with their fonts, sizes and colors, the pictures
+    /// (encoded, when <paramref name="images"/>) and the thin lines and box outlines the page draws. Not cached.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default)
+    {
+        cancel.ThrowIfCancellationRequested();
+        EnterText(cancel);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var g = _pages[page];
+            var flags = StructuredTextFlags.CollectVectors | (images ? StructuredTextFlags.PreserveImages : StructuredTextFlags.None);
+            using var st = TextDoc(page).GetStructuredTextPage(page, includeAnnotations: true, flags);
+            var lines = new List<ExportLine>();
+            var pictures = new List<ExportImage>();
+            var paths = new List<(RectD Box, bool Stroked)>();
+            RectD Box(Rectangle r) => RectD.FromEdges(r.X0 - g.OriginX, r.Y0 - g.OriginY, r.X1 - g.OriginX, r.Y1 - g.OriginY);
+            foreach (var block in st)
+            {
+                cancel.ThrowIfCancellationRequested();
+                switch (block)
+                {
+                    case MuPDFTextStructuredTextBlock tb:
+                        foreach (var line in tb)
+                            if (ReadLine(line, g) is { } l) lines.Add(l);
+                        break;
+                    case MuPDFImageStructuredTextBlock ib when images && ib.Image is { Width: > 0, Height: > 0 } img:
+                    {
+                        var box = Box(ib.BoundingBox).Intersect(new RectD(0, 0, g.Width, g.Height));
+                        if (box.Width < 2 || box.Height < 2) break; // clipped away or a hairline
+                        using var ms = new MemoryStream();
+                        var jpeg = (long)img.Width * img.Height > JpegAbovePixels;
+                        try
+                        {
+                            if (jpeg) img.WriteAsJPEG(ms, 85);
+                            else img.Write(ms, RasterOutputFileTypes.PNG);
+                        }
+                        catch (Exception ex) when (ex is MuPDFException or ArgumentException or NotSupportedException)
+                        {
+                            break; // an image MuPDF can't convert (unusual color space): leave it out
+                        }
+                        pictures.Add(new ExportImage(ms.ToArray(), jpeg ? "jpeg" : "png", img.Width, img.Height, box));
+                        break;
+                    }
+                    case MuPDFVectorStructuredTextBlock vb:
+                        if (paths.Count <= MaxRulePaths) paths.Add((Box(vb.BoundingBox), vb.Stroked));
+                        break;
+                }
+            }
+            return new ExportPage(g.Width, g.Height, lines, pictures, paths.Count > MaxRulePaths ? [] : DocLayout.RulesFromPaths(paths));
+        }
+        finally
+        {
+            _textGate.Exit();
+        }
+    }
+
+    /// <summary>A structured-text line as spans of one look each (null when it holds no characters).</summary>
+    private static ExportLine? ReadLine(MuPDFStructuredTextLine line, PageGeometry g)
+    {
+        var spans = new List<ExportSpan>();
+        var text = new System.Text.StringBuilder();
+        ExportSpan? look = null;
+        RectD box = default;
+        void Flush()
+        {
+            if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
+            text.Clear();
+            look = null;
+        }
+        foreach (var ch in line)
+        {
+            var q = ch.BoundingQuad;
+            var l = Math.Min(Math.Min(q.UpperLeft.X, q.LowerLeft.X), Math.Min(q.UpperRight.X, q.LowerRight.X));
+            var r = Math.Max(Math.Max(q.UpperLeft.X, q.LowerLeft.X), Math.Max(q.UpperRight.X, q.LowerRight.X));
+            var t = Math.Min(Math.Min(q.UpperLeft.Y, q.LowerLeft.Y), Math.Min(q.UpperRight.Y, q.LowerRight.Y));
+            var b = Math.Max(Math.Max(q.UpperLeft.Y, q.LowerLeft.Y), Math.Max(q.UpperRight.Y, q.LowerRight.Y));
+            var rect = RectD.FromEdges(l - g.OriginX, t - g.OriginY, r - g.OriginX, b - g.OriginY);
+            var font = ch.Font;
+            var name = font?.Name ?? "";
+            var c = new ExportSpan("", name, ch.Size, (font?.IsBold ?? false) || FontNames.LooksBold(name),
+                (font?.IsItalic ?? false) || FontNames.LooksItalic(name), ch.Color & 0xFFFFFF, rect);
+            if (look is null || !look.SameLook(c))
+            {
+                Flush();
+                look = c;
+                box = rect;
+            }
+            else box = box.Union(rect);
+            text.Append(ch.Character);
+        }
+        Flush();
+        if (spans.Count == 0) return null;
+        var sideways = Math.Abs(line.Direction.Y) > 0.1 || line.Direction.X <= 0;
+        return ExportLine.Of(spans, sideways);
+    }
+
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the links were read.</exception>
     public IReadOnlyList<PageLink> GetLinks(int page, CancellationToken cancel = default)
     {

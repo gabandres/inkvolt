@@ -367,6 +367,9 @@ public sealed class AppSettings
     public int ScanResolution { get; set; } = 300;
     public string ScanPageSize { get; set; } = "";
     public bool ScanOcr { get; set; } = true;
+    /// <summary>Export to Word / Excel / text: recognize scanned pages, open the file when done.</summary>
+    public bool ExportOcr { get; set; } = true;
+    public bool ExportOpen { get; set; } = true;
     /// <summary>Print: page sizing &amp; handling last chosen (<see cref="Core.PrintHandling"/> and its options).</summary>
     public string PrintHandling { get; set; } = "Fit";
     public bool PrintFitToPaper { get; set; }
