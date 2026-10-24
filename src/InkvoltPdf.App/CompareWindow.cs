@@ -313,7 +313,14 @@ internal sealed class CompareWindow : Window
                     throw;
                 }
             }, cancel);
-            if (cancel.IsCancellationRequested) return; // closed meanwhile (Closed couldn't dispose what wasn't assigned yet)
+            if (cancel.IsCancellationRequested)
+            {
+                // Closed while they opened: Closed found nothing to dispose yet.
+                _oldEngine.Dispose();
+                _newEngine.Dispose();
+                _oldEngine = _newEngine = null;
+                return;
+            }
 
             var total = _oldEngine.PageCount + _newEngine.PageCount;
             var done = 0;
@@ -632,6 +639,34 @@ internal sealed class CompareWindow : Window
         return (first, last);
     }
 
+    /// <summary>All rows' bitmaps together stay under this, the rows in view excepted (farthest freed first).</summary>
+    private const long BitmapBudget = 256L << 20;
+
+    /// <summary>
+    /// Largest whole-page render, in pixels: twice the area on screen, at least 4 MP. Beyond it (high zoom) a page is
+    /// rendered whole at this size and the part in view gets a sharp tile, as in the page view.
+    /// </summary>
+    private long MaxFullPixels
+    {
+        get
+        {
+            var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var view = Math.Max(1, _scroll.ViewportWidth) * Math.Max(1, _scroll.ViewportHeight) * dpi * dpi;
+            return Math.Max(4_000_000, (long)(2 * view));
+        }
+    }
+
+    private static double FullScale(double px, (double Width, double Height) size, long maxFull)
+    {
+        var area = Math.Max(1, size.Width * size.Height);
+        return area * px * px > maxFull ? Math.Sqrt(maxFull / area) : px;
+    }
+
+    private static bool Off(double had, double want) => Math.Abs(had - want) > want * 0.15;
+
+    /// <summary>A render to make: a part's whole page (Region null) or a tile of it.</summary>
+    private sealed record Job(CompareRowView View, CompareRowView.Part Part, double Scale, RectD? Region);
+
     /// <summary>Renders what the visible rows need, one at a time off the UI thread, nearest first; frees far ones.</summary>
     private async void Pump()
     {
@@ -643,13 +678,10 @@ internal sealed class CompareWindow : Window
             while (!_cts.IsCancellationRequested)
             {
                 var (first, last) = VisibleRows();
-                for (var i = 0; i < _rows.Count; i++)
-                    if (i < first - KeepRendered || i > last + KeepRendered) _rows[i].Release();
-                var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
-                var job = Enumerable.Range(Math.Max(0, first - 1), Math.Max(0, Math.Min(_rows.Count - 1, last + 1) - Math.Max(0, first - 1) + 1))
-                    .Select(i => _rows[i]).FirstOrDefault(r => r.NeedsRender(dpi));
+                Trim(first, last);
+                var job = NextJob(first, last, VisualTreeHelper.GetDpi(this).DpiScaleX, MaxFullPixels);
                 if (job is null) break;
-                await RenderAsync(job, dpi);
+                await RenderAsync(job);
             }
         }
         finally
@@ -658,31 +690,103 @@ internal sealed class CompareWindow : Window
         }
     }
 
-    private async Task RenderAsync(CompareRowView view, double dpi)
+    /// <summary>Frees tiles out of view, and whole renders far from view or past the memory budget (farthest first).</summary>
+    private void Trim(int first, int last)
+    {
+        int Distance(int i) => i < first ? first - i : i > last ? i - last : 0;
+        var total = 0L;
+        foreach (var i in Enumerable.Range(0, _rows.Count).OrderBy(Distance))
+        {
+            var d = Distance(i);
+            if (d > 0) _rows[i].ReleaseTiles();
+            total += _rows[i].Bytes;
+            if (d > KeepRendered || (d > 0 && total > BitmapBudget))
+            {
+                total -= _rows[i].Bytes;
+                _rows[i].Release();
+            }
+        }
+    }
+
+    /// <summary>Whole pages first (the rows in view and one either side), then sharp tiles of what's in view at high zoom.</summary>
+    private Job? NextJob(int first, int last, double dpi, long maxFull)
+    {
+        if (last < first) return null;
+        for (var i = Math.Max(0, first - 1); i <= Math.Min(_rows.Count - 1, last + 1); i++)
+        {
+            var view = _rows[i];
+            if (view.HasError) continue;
+            foreach (var part in view.Parts)
+            {
+                var want = FullScale(view.Scale * dpi, view.SizeOf(part), maxFull);
+                if (view.Full(part) is not { } have || Off(have.Scale, want)) return new Job(view, part, want, null);
+            }
+        }
+        for (var i = first; i <= last; i++)
+        {
+            var view = _rows[i];
+            if (view.HasError) continue;
+            var px = view.Scale * dpi;
+            foreach (var part in view.Parts)
+            {
+                if (FullScale(px, view.SizeOf(part), maxFull) >= px * 0.999 || TileRegion(i, part) is not { } want) continue;
+                var tile = view.Tile(part);
+                var covers = tile is not null && Math.Abs(tile.Scale - px) <= px * 0.01
+                             && tile.Region.Inflate(0.5).Contains(want.Visible.X, want.Visible.Y) && tile.Region.Inflate(0.5).Contains(want.Visible.Right, want.Visible.Bottom);
+                if (!covers) return new Job(view, part, px, want.Region);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The part of a row's page in view (page points), and the area to render: that plus a quarter view around it.</summary>
+    private (RectD Region, RectD Visible)? TileRegion(int row, CompareRowView.Part part)
+    {
+        var view = _rows[row];
+        var box = view.BoxOf(part);
+        if (box.IsEmpty) return null;
+        var vp = new Rect(_scroll.HorizontalOffset, _scroll.VerticalOffset - _tops[row], _scroll.ViewportWidth, _scroll.ViewportHeight);
+        var visible = Rect.Intersect(vp, box);
+        if (visible.IsEmpty) return null;
+        var margin = vp;
+        margin.Inflate(vp.Width / 4, vp.Height / 4);
+        var area = Rect.Intersect(margin, box);
+        RectD ToPoints(Rect r) => new((r.X - box.X) / view.Scale, (r.Y - box.Y) / view.Scale, r.Width / view.Scale, r.Height / view.Scale);
+        return (ToPoints(area), ToPoints(visible));
+    }
+
+    private async Task RenderAsync(Job job)
     {
         var cancel = _cts.Token;
-        var scale = view.Scale * dpi; // pixels per point
-        var visual = view.Visual;
         var oldEngine = _oldEngine!;
         var newEngine = _newEngine!;
-        int? o = view.Row.OldPage, n = view.Row.NewPage;
+        var view = job.View;
+        var (scale, region) = (job.Scale, job.Region);
+        var size = view.SizeOf(job.Part);
         try
         {
-            if (visual && o is { } op && n is { } np)
+            BitmapSource bmp;
+            List<RectD>? regions = null;
+            if (job.Part == CompareRowView.Part.Overlay)
             {
-                var (bmp, regions) = await Task.Run(() =>
+                int op = view.Row.OldPage!.Value, np = view.Row.NewPage!.Value;
+                (bmp, regions) = await Task.Run(() =>
                 {
-                    var diff = VisualCompare.Overlay(oldEngine.Render(op, scale, null, cancel), newEngine.Render(np, scale, null, cancel), cancel: cancel);
-                    return (PageViewer.ToBitmap(diff.Image), diff.Regions.Select(r => new RectD(r.X / scale, r.Y / scale, r.Width / scale, r.Height / scale)).ToList());
+                    var diff = VisualCompare.Overlay(Crop(oldEngine, op, scale, region, cancel), Crop(newEngine, np, scale, region, cancel), cancel: cancel);
+                    // Areas come from the whole page only; a tile just draws sharper.
+                    return (PageViewer.ToBitmap(diff.Image),
+                        region is null ? diff.Regions.Select(r => new RectD(r.X / scale, r.Y / scale, r.Width / scale, r.Height / scale)).ToList() : null);
                 }, cancel);
-                view.SetOverlay(bmp, scale, regions);
             }
             else
             {
-                var oldBmp = o is { } oo && view.WantsOld(scale) ? await Task.Run(() => PageViewer.ToBitmap(oldEngine.Render(oo, scale, null, cancel)), cancel) : null;
-                var newBmp = n is { } nn && view.WantsNew(scale) ? await Task.Run(() => PageViewer.ToBitmap(newEngine.Render(nn, scale, null, cancel)), cancel) : null;
-                view.SetPages(oldBmp, newBmp, scale);
+                var page = (job.Part == CompareRowView.Part.Old ? view.Row.OldPage : view.Row.NewPage)!.Value;
+                var engine = job.Part == CompareRowView.Part.Old ? oldEngine : newEngine;
+                bmp = await Task.Run(() => PageViewer.ToBitmap(Crop(engine, page, scale, region, cancel)), cancel);
             }
+            var render = new CompareRowView.Render(bmp, scale, region ?? new RectD(0, 0, size.Width, size.Height));
+            if (region is null) view.SetFull(job.Part, render, regions);
+            else view.SetTile(job.Part, render);
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
         {
@@ -691,6 +795,15 @@ internal sealed class CompareWindow : Window
         {
             view.Failed(ex.Message);
         }
+    }
+
+    /// <summary>A page, or the part of it inside <paramref name="region"/> (white where the page doesn't reach).</summary>
+    private static RenderedImage Crop(PdfEngine engine, int page, double scale, RectD? region, CancellationToken cancel)
+    {
+        if (region is not { } r) return engine.Render(page, scale, null, cancel);
+        var g = engine.GetPage(page);
+        var inside = r.Intersect(new RectD(0, 0, g.Width, g.Height));
+        return inside.IsEmpty ? new RenderedImage(1, 1, [255, 255, 255]) : engine.Render(page, scale, inside, cancel);
     }
 
     // ───────────────────────────── Navigating ─────────────────────────────
@@ -858,9 +971,18 @@ internal sealed class CompareRowView : FrameworkElement
     public double Scale { get; private set; } = 1;
     public bool Visual { get; private set; }
 
+    /// <summary>What a row shows: the original's page, the changed page, or their overlay.</summary>
+    public enum Part { Old, New, Overlay }
+
+    /// <summary>A render of a page (Region: the whole page, or the part a detail tile covers; page points) at Scale pixels per point.</summary>
+    public sealed record Render(BitmapSource Bitmap, double Scale, RectD Region)
+    {
+        public long Bytes => (long)Bitmap.PixelWidth * Bitmap.PixelHeight * 3;
+    }
+
     private Rect _oldBox, _newBox, _overlayBox;
-    private BitmapSource? _oldBmp, _newBmp, _overlay;
-    private double _pagesScale, _overlayScale; // pixels per point they were rendered at
+    private readonly Render?[] _full = new Render?[3];
+    private readonly Render?[] _tile = new Render?[3];
     private List<RectD> _regions = [];
     private string? _error;
     private int _selected = -1;
@@ -909,38 +1031,56 @@ internal sealed class CompareRowView : FrameworkElement
             _newBox = NewSize is null ? Rect.Empty : new Rect(Side + col + Gap + (col - nw * s) / 2, HeaderHeight, nw * s, nh * s);
             Height = HeaderHeight + Math.Max(oh, nh) * s + Bottom;
         }
+        if (Math.Abs(s - Scale) > 1e-9) _error = null; // a page refused at one zoom may render at another
         Scale = s;
         Width = width;
         InvalidateVisual();
     }
 
-    /// <summary>True when what's shown needs (re)rendering at this screen's scale.</summary>
-    public bool NeedsRender(double dpi)
+    /// <summary>The parts this row shows in its current layout.</summary>
+    public IEnumerable<Part> Parts
     {
-        if (_error is not null) return false;
-        var px = Scale * dpi;
-        if (Visual) return _overlay is null || Off(_overlayScale, px);
-        return WantsOld(px) || WantsNew(px);
+        get
+        {
+            if (Visual)
+            {
+                yield return Part.Overlay;
+                yield break;
+            }
+            if (Row.OldPage is not null) yield return Part.Old;
+            if (Row.NewPage is not null) yield return Part.New;
+        }
     }
 
-    public bool WantsOld(double px) => Row.OldPage is not null && (_oldBmp is null || Off(_pagesScale, px));
-    public bool WantsNew(double px) => Row.NewPage is not null && (_newBmp is null || Off(_pagesScale, px));
+    public bool HasError => _error is not null;
 
-    private static bool Off(double had, double want) => Math.Abs(had - want) > want * 0.15;
-
-    public void SetPages(BitmapSource? oldBmp, BitmapSource? newBmp, double scale)
+    /// <summary>A part's page size in points (the overlay: as large as the larger page).</summary>
+    public (double Width, double Height) SizeOf(Part part) => part switch
     {
-        if (oldBmp is not null) _oldBmp = oldBmp;
-        if (newBmp is not null) _newBmp = newBmp;
-        _pagesScale = scale;
+        Part.Old => (OldSize?.Width ?? 0, OldSize?.Height ?? 0),
+        Part.New => (NewSize?.Width ?? 0, NewSize?.Height ?? 0),
+        _ => (Math.Max(OldSize?.Width ?? 0, NewSize?.Width ?? 0), Math.Max(OldSize?.Height ?? 0, NewSize?.Height ?? 0)),
+    };
+
+    /// <summary>Where a part is drawn (DIPs, relative to the row).</summary>
+    public Rect BoxOf(Part part) => part switch { Part.Old => _oldBox, Part.New => _newBox, _ => _overlayBox };
+
+    public Render? Full(Part part) => _full[(int)part];
+    public Render? Tile(Part part) => _tile[(int)part];
+
+    /// <summary>Memory held by this row's bitmaps.</summary>
+    public long Bytes => _full.Sum(r => r?.Bytes ?? 0) + _tile.Sum(r => r?.Bytes ?? 0);
+
+    public void SetFull(Part part, Render render, List<RectD>? regions = null)
+    {
+        _full[(int)part] = render;
+        if (regions is not null) _regions = regions;
         InvalidateVisual();
     }
 
-    public void SetOverlay(BitmapSource overlay, double scale, List<RectD> regions)
+    public void SetTile(Part part, Render render)
     {
-        _overlay = overlay;
-        _overlayScale = scale;
-        _regions = regions;
+        _tile[(int)part] = render;
         InvalidateVisual();
     }
 
@@ -950,11 +1090,20 @@ internal sealed class CompareRowView : FrameworkElement
         InvalidateVisual();
     }
 
-    /// <summary>Frees the bitmaps (the row is far from view).</summary>
+    /// <summary>Frees the bitmaps (the row is far from view, or over the memory budget).</summary>
     public void Release()
     {
-        if (_oldBmp is null && _newBmp is null && _overlay is null) return;
-        _oldBmp = _newBmp = _overlay = null;
+        if (Bytes == 0) return;
+        Array.Clear(_full);
+        Array.Clear(_tile);
+        InvalidateVisual();
+    }
+
+    /// <summary>Frees the detail tiles (the row scrolled out of view).</summary>
+    public void ReleaseTiles()
+    {
+        if (_tile.All(t => t is null)) return;
+        Array.Clear(_tile);
         InvalidateVisual();
     }
 
@@ -971,6 +1120,8 @@ internal sealed class CompareRowView : FrameworkElement
     /// <summary>Where a change is drawn in this row (DIPs, relative to the row), for scrolling to it.</summary>
     public Rect? SpotOf(int change)
     {
+        // Overlaid: a "looks different" entry goes to the first area that differs (once the overlay is rendered).
+        if (Visual) return change < 0 && _regions.Count > 0 ? ToView(_regions[0], _overlayBox) : null;
         if (change < 0 || change == PageChangeIndex) return null;
         Rect? spot = null;
         void Add(IEnumerable<Mark> marks, Rect box)
@@ -981,7 +1132,6 @@ internal sealed class CompareRowView : FrameworkElement
                 spot = spot is { } s ? Rect.Union(s, r) : r;
             }
         }
-        if (Visual) return null;
         Add(OldMarks.Concat(OldCarets), _oldBox);
         Add(NewMarks.Concat(NewCarets), _newBox);
         return spot;
@@ -1055,7 +1205,7 @@ internal sealed class CompareRowView : FrameworkElement
         var edge = new Pen(stroke, 1);
         if (Visual)
         {
-            DrawPage(dc, _overlay, _overlayBox, edge, muted, face, dpi);
+            DrawPage(dc, Part.Overlay, _overlayBox, edge, face, dpi);
             foreach (var r in _regions)
             {
                 var v = ToView(r, _overlayBox);
@@ -1065,8 +1215,8 @@ internal sealed class CompareRowView : FrameworkElement
         }
         else
         {
-            DrawSide(dc, _oldBmp, _oldBox, OldMarks, OldCarets, edge, muted, face, dpi, accent);
-            DrawSide(dc, _newBmp, _newBox, NewMarks, NewCarets, edge, muted, face, dpi, accent);
+            DrawSide(dc, Part.Old, _oldBox, OldMarks, OldCarets, edge, face, dpi, accent);
+            DrawSide(dc, Part.New, _newBox, NewMarks, NewCarets, edge, face, dpi, accent);
             if (_sideBySide && Row.NewPage is null) Missing(dc, "Not in the changed file", 1, muted, face, dpi);
             else if (_sideBySide && Row.OldPage is null) Missing(dc, "Not in the original", 0, muted, face, dpi);
         }
@@ -1103,10 +1253,10 @@ internal sealed class CompareRowView : FrameworkElement
         dc.DrawText(t, new Point(box.X + (col - t.Width) / 2, box.Y + 24));
     }
 
-    private void DrawSide(DrawingContext dc, BitmapSource? bmp, Rect box, List<Mark> marks, List<Mark> carets, Pen edge, Brush muted, Typeface face, double dpi, Brush accent)
+    private void DrawSide(DrawingContext dc, Part part, Rect box, List<Mark> marks, List<Mark> carets, Pen edge, Typeface face, double dpi, Brush accent)
     {
         if (box.IsEmpty) return;
-        DrawPage(dc, bmp, box, edge, muted, face, dpi);
+        DrawPage(dc, part, box, edge, face, dpi);
         foreach (var m in marks)
         {
             var r = ToView(m.Rect, box);
@@ -1132,10 +1282,19 @@ internal sealed class CompareRowView : FrameworkElement
         }
     }
 
-    private static void DrawPage(DrawingContext dc, BitmapSource? bmp, Rect box, Pen edge, Brush muted, Typeface face, double dpi)
+    /// <summary>The page's whole render (capped in size), then the sharp tile of the part in view on top.</summary>
+    private void DrawPage(DrawingContext dc, Part part, Rect box, Pen edge, Typeface face, double dpi)
     {
         dc.DrawRectangle(Brushes.White, edge, box);
-        if (bmp is not null) dc.DrawImage(bmp, box);
+        var full = Full(part);
+        if (full is not null)
+        {
+            dc.PushClip(new RectangleGeometry(box));
+            foreach (var r in Tile(part) is { } tile ? [full, tile] : new[] { full })
+                dc.DrawImage(r.Bitmap, new Rect(box.X + r.Region.X * Scale, box.Y + r.Region.Y * Scale,
+                    r.Bitmap.PixelWidth / r.Scale * Scale, r.Bitmap.PixelHeight / r.Scale * Scale));
+            dc.Pop();
+        }
         else
         {
             var t = new FormattedText("Rendering…", CultureInfo.CurrentCulture, FlowDirection.LeftToRight, face, 12, Brushes.Gray, dpi);

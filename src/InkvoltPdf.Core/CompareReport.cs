@@ -24,10 +24,13 @@ public static class CompareReport
     public static byte[] Annotate(byte[] newData, string? password, CompareResult result, IReadOnlyList<PageText> newPages, string oldName, string summary)
     {
         using var doc = Annotations.OpenForEdit(newData, password);
-        var margin = new int[doc.PageCount]; // notes stacked down the top-left corner of each page
+        // Notes without a place in the text (the summary, removed and inserted pages, removals with no anchor) are
+        // gathered into one note per page, in its top-left corner, so any number of them stays on the page.
+        var margin = new SortedDictionary<int, List<(string Text, AnnotColor Color)>>();
         void MarginNote(int page, string text, AnnotColor color)
         {
-            Annotations.AddNoteIn(doc, page, 6, 6 + 24 * margin[page]++, text, Author, color);
+            if (!margin.TryGetValue(page, out var notes)) margin[page] = notes = [];
+            notes.Add((text, color));
         }
 
         if (doc.PageCount > 0) MarginNote(0, summary, AnnotColor.Yellow);
@@ -69,6 +72,8 @@ public static class CompareReport
                 }
             }
         }
+        foreach (var (page, notes) in margin)
+            Annotations.AddNoteIn(doc, page, 6, 6, string.Join("\n\n", notes.Select(n => n.Text)), Author, notes[0].Color);
         return PdfObj.Save(doc);
     }
 

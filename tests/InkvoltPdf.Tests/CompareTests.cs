@@ -374,6 +374,21 @@ public class CompareTests
         Assert.Contains(annots, a => a.Kind == AnnotationKind.Text && a.PageIndex == 1 && a.Contents.StartsWith("Removed page: page 2 of old.pdf was here: “a page that goes”"));
     }
 
+    [Fact]
+    public void ManyPageNotesBecomeOneNoteSoNoneFallOffThePage()
+    {
+        var oldText = Pages([.. new[] { "keep this page" }.Concat(Enumerable.Range(0, 40).Select(i => $"gone page number{i}"))]);
+        var newText = Pages("keep this page");
+        var r = DocumentCompare.Run(oldText, newText);
+        Assert.Equal(40, r.PagesRemoved);
+        var notes = Annotations.Read(CompareReport.Annotate(TestPdf.Make(1), null, r, newText, "old.pdf", r.Summary()), null)
+            .Where(a => a.Kind == AnnotationKind.Text).ToList();
+        var note = Assert.Single(notes);
+        Assert.StartsWith("No text changes; 40 pages removed", note.Contents);
+        Assert.Contains("page 41 of old.pdf was here: “gone page number39”", note.Contents);
+        Assert.True(note.Rect.Y < 40, "in the top-left corner");
+    }
+
     /// <summary>
     /// A two-version contract for the compare samples: wording edits, a removed and an inserted page, and a drawing
     /// with no text that changed. With INKVOLTPDF_SAMPLES set they are written there (compare-old.pdf, compare-new.pdf).

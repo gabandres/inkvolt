@@ -7,7 +7,7 @@ public partial class MainWindow
     {
         BindAlways(Cmd.NewFromImages, () => _ = FileTools.NewFromImages(this));
         BindAlways(Cmd.NewFromClipboard, () => _ = FileTools.NewFromClipboard(this));
-        BindAlways(Cmd.Compare, () => Comparing.Start(this));
+        BindAlways(Cmd.Compare, () => _ = Comparing.Start(this));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
         BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.Engine.IsEncrypted);
         BindEdit(Cmd.ReduceSize, t => FileTools.ReduceSize(this, t));

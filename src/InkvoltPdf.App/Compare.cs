@@ -17,7 +17,7 @@ internal static class Comparing
         public override string ToString() => Label;
     }
 
-    public static void Start(MainWindow host)
+    public static async Task Start(MainWindow host)
     {
         var choices = new List<Choice>();
         var active = host.ActiveTab;
@@ -66,6 +66,10 @@ internal static class Comparing
             return original.SelectedItem == changed.SelectedItem ? "Choose two different documents." : null;
         });
         if (!dlg.ShowModal()) return;
+
+        // An open document's latest change (a field being typed, a drawing being written) goes in first, as for Save.
+        foreach (var c in new[] { (Choice)original.SelectedItem!, (Choice)changed.SelectedItem! })
+            if (c.Tab is { IsDisposed: false } t && !c.Saved) await t.FlushPendingEditsAsync();
 
         if (Load(host, (Choice)original.SelectedItem!) is not { } oldSide || Load(host, (Choice)changed.SelectedItem!) is not { } newSide) return;
         CompareWindow.Open(host, oldSide, newSide);
