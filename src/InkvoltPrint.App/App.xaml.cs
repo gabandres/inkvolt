@@ -16,7 +16,9 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         // --demo: one made-up printer, no network (Demo.cs). Like the dev aids, it runs beside a normal copy.
-        var demo = e.Args.Contains("--demo");
+        // --try: the same, labelled as a demo (the "Try a demo printer" link on the no-printers screen).
+        var tryDemo = e.Args.Contains("--try");
+        var demo = tryDemo || e.Args.Contains("--demo");
         var devRun = demo || e.Args.Any(a => a is "--snapshot" or "--autoprint");
         if (!devRun)
         {
@@ -53,6 +55,11 @@ public partial class App : Application
 
         _vm = demo ? new MainViewModel(Demo.CreateState(), Demo.CreateTransport) : new MainViewModel(AppState.Load());
         MainWindow = new MainWindow { DataContext = _vm };
+        if (tryDemo)
+        {
+            MainWindow.Title = "Inkvolt Print (demo printer)";
+            ((MainWindow)MainWindow).AppName.Text = "Inkvolt Print · Demo";
+        }
         if (DevSnapshot.Size(e.Args) is var (width, height))
         {
             MainWindow.Width = width;

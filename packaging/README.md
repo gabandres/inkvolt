@@ -186,7 +186,8 @@ Partner Center asks for a privacy policy URL; publish a short page saying:
 - [ ] Age rating questionnaire; pricing and availability.
 - [ ] `runFullTrust` justification.
 - [ ] Notes for certification: "Needs an HP network printer (LEDM/eSCL/IPP, e.g. LaserJet MFP M234dw) on the same
-      network for status, scanning and printing; without one the app shows 'No printers found'. No sign-in."
+      network for status, scanning and printing. Without one, the 'No printers found' screen has "No printer here? Try a
+      demo printer", which opens a second window with a made-up printer (no network). No sign-in."
 
 ## Local test install (optional)
 

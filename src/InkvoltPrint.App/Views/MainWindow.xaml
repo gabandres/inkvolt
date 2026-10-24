@@ -511,7 +511,7 @@
         <DockPanel Margin="12,12,12,12">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,0,20">
                 <Image Source="/InkvoltPrint.ico" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                <TextBlock Text="Inkvolt Print" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock x:Name="AppName" Text="Inkvolt Print" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
             <TextBlock DockPanel.Dock="Top" Text="Printers" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
@@ -561,6 +561,9 @@
                     <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,10"
                                Text="Make sure the printer is on and connected to the same Wi-Fi or network as this PC." />
                     <Button Content="Search again" Command="{Binding SearchAgainCommand}" HorizontalAlignment="Left" />
+                    <Button Style="{StaticResource LinkButton}" Content="No printer here? Try a demo printer" Command="{Binding TryDemoCommand}"
+                            HorizontalAlignment="Left" Margin="0,10,0,0"
+                            ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />
                 </StackPanel>
 
                 <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"

@@ -235,6 +235,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ManualError = null;
     }
 
+    /// <summary>A second window with the made-up demo printer (App: --try), for anyone without a supported printer at hand.</summary>
+    [RelayCommand]
+    private static void TryDemo()
+    {
+        if (Environment.ProcessPath is not { } exe) return;
+        try { System.Diagnostics.Process.Start(exe, "--try")?.Dispose(); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { Log.Write($"Demo didn't start: {ex.Message}"); }
+    }
+
     [RelayCommand]
     private void SearchAgain()
     {
