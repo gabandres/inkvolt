@@ -13,7 +13,8 @@ namespace InkvoltPrint.App;
 /// for the printer to connect, renders the window to a PNG and exits. Used to verify the UI without screen capture;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
 /// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);
-/// <c>--crop n</c> then opens the crop view on page n; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
+/// <c>--crop n</c> then opens the crop view on page n; <c>--source glass|feeder|duplex</c>, <c>--split none|patch|blank|either</c> and
+/// <c>--keep-separators</c> set the tab before scanning (with <c>--preset</c>, demo only: the preset scans a feeder batch and splits it); <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
@@ -50,6 +51,17 @@ internal static class DevSnapshot
         }
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
+            // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.
+            if (Value(args, "--source") is { } source
+                && scanner.Sources.FirstOrDefault(s => s.Value == source switch { "feeder" => Core.Escl.ScanSource.Adf, "duplex" => Core.Escl.ScanSource.AdfDuplex, _ => Core.Escl.ScanSource.Platen }) is { } chosen)
+                scanner.Source = chosen;
+            if (Value(args, "--split") is { } split)
+                scanner.SplitMode = scanner.SplitChoices.FirstOrDefault(c => c.Value == split switch
+                {
+                    "patch" => Core.Imaging.SplitAt.PatchCode, "blank" => Core.Imaging.SplitAt.BlankPage,
+                    "either" => Core.Imaging.SplitAt.PatchCodeOrBlankPage, _ => Core.Imaging.SplitAt.None,
+                });
+            if (args.Contains("--keep-separators")) scanner.KeepSeparators = true;
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
             await Task.Delay(TimeSpan.FromSeconds(2));
@@ -60,6 +72,13 @@ internal static class DevSnapshot
             if (then is not null && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } chosen
                 && Enum.TryParse<Core.Presets.PresetAfter>(then switch { "pdf" => "OpenInInkvoltPdf", var t => t }, ignoreCase: true, out var after))
                 presetMain.Presets.Update(chosen with { After = after });
+            // --split patch|blank|either: the preset scans a batch from the feeder and splits it (demo only).
+            if (Value(args, "--split") is { } presetSplit && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } splitting)
+                presetMain.Presets.Update(splitting with
+                {
+                    Source = Core.Presets.PresetSource.Feeder, KeepSeparators = args.Contains("--keep-separators"),
+                    SplitAt = presetSplit switch { "blank" => Core.Imaging.SplitAt.BlankPage, "either" => Core.Imaging.SplitAt.PatchCodeOrBlankPage, _ => Core.Imaging.SplitAt.PatchCode },
+                });
             var ask = ViewModels.Prompt.Confirm;
             ViewModels.Prompt.Confirm = (_, _) => true; // "discard the pages scanned above?"
             try { await presetMain.RunPresetWhenReadyAsync(preset); }

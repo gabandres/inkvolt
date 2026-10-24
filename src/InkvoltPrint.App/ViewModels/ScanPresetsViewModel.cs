@@ -4,6 +4,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
+using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Suite;
 
@@ -79,6 +80,8 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
 
     public static IReadOnlyList<Option<string?>> PageSizes { get; } =
         [new(null, "Letter or A4 (by region)"), .. ScanChoices.PageSizes.Select(p => new Option<string?>(p.Key, p.Label))];
+
+    public static IReadOnlyList<Option<SplitAt>> Splits { get; } = [.. Enum.GetValues<SplitAt>().Select(s => new Option<SplitAt>(s, Separators.Label(s)))];
 
     public static IReadOnlyList<Option<PresetAfter>> Afters { get; } =
     [
@@ -202,6 +205,8 @@ public sealed partial class PresetItem : ObservableObject
         Review = preset.Review;
         SkipBlank = preset.SkipBlank;
         Straighten = preset.Straighten;
+        SplitAt = ScanPresetsViewModel.Splits.First(o => o.Value == preset.SplitAt);
+        KeepSeparators = preset.KeepSeparators;
         Folder = owner.ChoiceFor(preset.Folder, preset.FolderPath);
         Subfolder = preset.Subfolder;
         FileName = preset.FileName;
@@ -228,6 +233,14 @@ public sealed partial class PresetItem : ObservableObject
     [ObservableProperty] public partial bool Review { get; set; }
     [ObservableProperty] public partial bool SkipBlank { get; set; }
     [ObservableProperty] public partial bool Straighten { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Splits), nameof(Example))]
+    public partial Option<SplitAt> SplitAt { get; set; }
+
+    [ObservableProperty] public partial bool KeepSeparators { get; set; }
+
+    public bool Splits => SplitAt.Value != Core.Imaging.SplitAt.None;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Example))]
@@ -276,7 +289,7 @@ public sealed partial class PresetItem : ObservableObject
             var sub = FileNameTemplate.Subfolder(Subfolder, ctx);
             var name = FileNameTemplate.FileName(FileName, ctx);
             var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : $"{name}.pdf";
-            return Path.Combine(folder, sub, file);
+            return Path.Combine(folder, sub, file) + (Splits ? "  (one per file, each with its own {n})" : "");
         }
     }
 
@@ -306,6 +319,8 @@ public sealed partial class PresetItem : ObservableObject
         Review = Review,
         SkipBlank = SkipBlank,
         Straighten = Straighten,
+        SplitAt = SplitAt.Value,
+        KeepSeparators = KeepSeparators,
         Folder = Folder.IsBrowse ? _original.Folder : Folder.Kind,
         FolderPath = Folder.Kind == PresetFolder.Custom && !Folder.IsBrowse ? Folder.Path : null,
         Subfolder = Subfolder ?? "",

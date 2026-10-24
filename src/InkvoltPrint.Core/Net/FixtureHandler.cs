@@ -16,7 +16,9 @@ namespace InkvoltPrint.Core.Net;
 /// <param name="document">Document name → bytes, or null when there is none.</param>
 /// <param name="scanPage">JPEG returned for each eSCL scan job (one page); null: scanning fails with 404.</param>
 /// <param name="scanArea">Instead of <paramref name="scanPage"/>: the JPEG for the job's scan region (width, height in 1/300 in).</param>
-public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>? scanPage = null, Func<int, int, byte[]>? scanArea = null)
+/// <param name="feederBatch">For a feeder job: the pages the feeder holds (several, served in turn), or null for one page as usual.</param>
+public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>? scanPage = null, Func<int, int, byte[]>? scanArea = null,
+    Func<IReadOnlyList<byte[]>?>? feederBatch = null)
     : HttpMessageHandler
 {
     /// <summary>Address shown for the demo printer: RFC 5737 documentation range, never a real device.</summary>
@@ -25,6 +27,7 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
     private const string JobPath = "/eSCL/ScanJobs/demo-1";
     private int _pagesLeft;
     private (int Width, int Height) _area = (2550, 3300);
+    private readonly Queue<byte[]> _batch = new();
 
     private bool CanScan => scanPage is not null || scanArea is not null;
 
@@ -53,14 +56,25 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
 
         if (request.Method == HttpMethod.Post && path.EndsWith("/ScanJobs", StringComparison.Ordinal) && CanScan)
         {
-            if (request.Content is not null) _area = Region(await request.Content.ReadAsStringAsync(ct).ConfigureAwait(false), _area);
-            Interlocked.Exchange(ref _pagesLeft, 1);
+            var settings = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (settings.Length > 0) _area = Region(settings, _area);
+            var pages = settings.Contains(">Feeder<", StringComparison.Ordinal) ? feederBatch?.Invoke() : null;
+            bool batch;
+            lock (_batch)
+            {
+                _batch.Clear();
+                foreach (var page in pages ?? []) _batch.Enqueue(page);
+                batch = _batch.Count > 0;
+            }
+            Interlocked.Exchange(ref _pagesLeft, batch ? 0 : 1);
             var created = Reply(request, HttpStatusCode.Created);
             created.Headers.Location = new Uri(JobPath, UriKind.Relative);
             return created;
         }
         if (request.Method == HttpMethod.Get && path == JobPath + "/NextDocument")
         {
+            lock (_batch)
+                if (_batch.Count > 0) return Reply(request, HttpStatusCode.OK, _batch.Dequeue(), "image/jpeg");
             return CanScan && Interlocked.Exchange(ref _pagesLeft, 0) == 1
                 ? Reply(request, HttpStatusCode.OK, scanArea?.Invoke(_area.Width, _area.Height) ?? scanPage!(), "image/jpeg")
                 : Reply(request, HttpStatusCode.NotFound);

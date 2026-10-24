@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.Core.Presets;
@@ -40,6 +41,12 @@ public sealed record ScanPreset
     public bool Review { get; init; }
     public bool SkipBlank { get; init; } = true;
     public bool Straighten { get; init; } = true;
+
+    /// <summary>Batch scanning: one feeder run saved as several files, a new one at each separator sheet.</summary>
+    public SplitAt SplitAt { get; init; }
+
+    /// <summary>Separator sheets stay in (as the first page of the file they start) instead of being left out.</summary>
+    public bool KeepSeparators { get; init; }
     public PresetFolder Folder { get; init; }
 
     /// <summary>The folder for <see cref="PresetFolder.Custom"/>.</summary>
@@ -124,6 +131,7 @@ public static partial class ScanPresets
                 Source = Enum.IsDefined(raw.Source) ? raw.Source : PresetSource.Auto,
                 FileType = Enum.IsDefined(raw.FileType) ? raw.FileType : PresetFileType.Pdf,
                 After = Enum.IsDefined(raw.After) ? raw.After : PresetAfter.None,
+                SplitAt = Enum.IsDefined(raw.SplitAt) ? raw.SplitAt : SplitAt.None,
                 Folder = Enum.IsDefined(raw.Folder) && !(raw.Folder == PresetFolder.Custom && string.IsNullOrWhiteSpace(raw.FolderPath))
                     ? raw.Folder : PresetFolder.Documents,
                 Resolution = Math.Clamp(raw.Resolution, MinResolution, MaxResolution),
@@ -251,6 +259,14 @@ public static class ScanPresetText
         return string.IsNullOrWhiteSpace(p.Subfolder) ? root : $"{root}\\{p.Subfolder.Trim('\\', '/', ' ')}";
     }
 
+    /// <summary>"patch code sheet", "blank page", "patch code sheet or blank page".</summary>
+    public static string SplitText(SplitAt s) => s switch
+    {
+        SplitAt.BlankPage => "blank page",
+        SplitAt.PatchCodeOrBlankPage => "patch code sheet or blank page",
+        _ => "patch code sheet",
+    };
+
     /// <summary>"Searchable PDF · feeder or glass · grey, 300 dpi · Documents\Scans", plus the review step and what happens after saving.</summary>
     public static string Summary(ScanPreset p)
     {
@@ -261,6 +277,7 @@ public static class ScanPresetText
             $"{(p.Color ? "color" : "grey")}, {p.Resolution} dpi",
             Folder(p),
         };
+        if (p.SplitAt != SplitAt.None) parts.Add($"a new file at each {SplitText(p.SplitAt)}");
         if (p.Review) parts.Add("review first");
         if (p.After != PresetAfter.None) parts.Add($"then {After(p.After)}");
         return string.Join(" · ", parts);

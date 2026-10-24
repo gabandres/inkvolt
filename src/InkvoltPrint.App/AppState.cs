@@ -48,6 +48,10 @@ public sealed class AppState
 
     /// <summary>Scan review: straighten pages scanned a little crooked.</summary>
     public bool ScanStraighten { get; set; } = true;
+
+    /// <summary>Batch scanning: what starts a new file (Core.Imaging.SplitAt, as a number), and whether separator sheets are kept.</summary>
+    public int ScanSplitAt { get; set; }
+    public bool ScanKeepSeparators { get; set; }
     public string? PrintFolder { get; set; }
 
     /// <summary>Photos tab: the folder pictures were last added from, and the last layout (PhotosViewModel's layout keys).</summary>

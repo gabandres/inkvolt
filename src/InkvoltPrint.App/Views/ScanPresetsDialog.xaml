@@ -125,6 +125,26 @@
                             </StackPanel>
                         </CheckBox>
                     </WrapPanel>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Split into files at" Style="{StaticResource Label}" />
+                            <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.Splits}" SelectedItem="{Binding SplitAt}" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Split into files at"
+                                      AutomationProperties.HelpText="Saves one feeder run as several files, a new one after each separator sheet" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="2" IsChecked="{Binding KeepSeparators}" VerticalAlignment="Bottom"
+                                  Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel>
+                                <TextBlock Text="Keep separator sheets" />
+                                <TextBlock Text="As the first page of the next file" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                    </Grid>
 
                     <TextBlock Text="Save" Style="{StaticResource CardTitle}" Margin="0,20,0,8" />
                     <TextBlock Text="Save to" Style="{StaticResource Label}" />

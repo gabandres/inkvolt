@@ -84,10 +84,13 @@ public sealed partial class ScanViewModel : ObservableObject
         OpenInInkvoltPdf = state.OpenScansInInkvoltPdf;
         SkipBlank = state.ScanSkipBlank;
         Straighten = state.ScanStraighten;
+        SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
+        KeepSeparators = _batchKeep = state.ScanKeepSeparators;
         Pages.CollectionChanged += (_, _) =>
         {
             for (var i = 0; i < Pages.Count; i++) Pages[i].Number = i + 1;
             _dirty = Pages.Count > 0;
+            RefreshFiles();
             PagesChanged();
         };
     }
@@ -104,8 +107,10 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>A page was edited, skipped or kept: there is something new to save.</summary>
     private void PageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not (nameof(ScanPageViewModel.Edits) or nameof(ScanPageViewModel.IsSkipped))) return;
+        if (e.PropertyName is not (nameof(ScanPageViewModel.Edits) or nameof(ScanPageViewModel.IsSkipped)
+                or nameof(ScanPageViewModel.Separator) or nameof(ScanPageViewModel.StartsFile))) return;
         _dirty = true;
+        if (e.PropertyName != nameof(ScanPageViewModel.Edits)) RefreshFiles();
         PagesChanged();
     }
 
@@ -174,16 +179,43 @@ public sealed partial class ScanViewModel : ObservableObject
     public bool HasPages => Pages.Count > 0;
     public bool HasUnsavedPages => _dirty && Pages.Count > 0;
 
-    /// <summary>The pages that will be saved, in order.</summary>
-    private List<ScanPageViewModel> Kept => Pages.Where(p => !p.IsSkipped).ToList();
+    /// <summary>
+    /// The files the pages are saved as: one, or with separator sheets (or splits set by hand) several, each its pages in
+    /// order (<see cref="BatchSplit"/>). Skipped pages and dropped separators are in none.
+    /// </summary>
+    private List<List<ScanPageViewModel>> Files()
+    {
+        var pages = Pages.ToList();
+        return [.. BatchSplit.Parts([.. pages.Select(p => p.AsBatchPage)], _batchKeep).Select(part => part.Select(i => pages[i]).ToList())];
+    }
+
+    /// <summary>Whether this batch keeps its separator sheets: the preset's or the tab's setting when it was scanned.</summary>
+    private bool _batchKeep;
+
+    /// <summary>Marks the first page of each file on the thumbnails (only when there is more than one).</summary>
+    private void RefreshFiles()
+    {
+        var starts = BatchSplit.FileStarts([.. Pages.Select(p => p.AsBatchPage)], _batchKeep);
+        var count = starts.Length == 0 ? 0 : starts.Max();
+        for (var i = 0; i < Pages.Count; i++)
+        {
+            Pages[i].FileStart = count > 1 ? starts[i] : 0;
+            Pages[i].SeparatorKept = _batchKeep;
+        }
+        OnPropertyChanged(nameof(PageCountText));
+    }
 
     public string PageCountText
     {
         get
         {
-            var kept = Kept.Count;
+            var files = Files();
+            var kept = files.Sum(f => f.Count);
             var text = kept switch { 0 => Pages.Count == 0 ? "No pages yet" : "No pages to save", 1 => "1 page", var n => $"{n} pages" };
-            var skipped = Pages.Count - kept;
+            if (files.Count > 1) text += $" in {files.Count} files";
+            var skipped = Pages.Count(p => p.IsSkipped && !p.IsSeparator);
+            var separators = _batchKeep ? 0 : Pages.Count(p => p.IsSeparator);
+            if (separators > 0) text += $"  ·  {separators} separator{(separators == 1 ? "" : "s")} left out";
             return skipped == 0 ? text : $"{text}  ·  {skipped} blank left out";
         }
     }
@@ -198,6 +230,95 @@ public sealed partial class ScanViewModel : ObservableObject
     partial void OnUseOcrChanged(bool value) { _state.ScanOcr = value; _state.Save(); }
     partial void OnSkipBlankChanged(bool value) { _state.ScanSkipBlank = value; _state.Save(); }
     partial void OnStraightenChanged(bool value) { _state.ScanStraighten = value; _state.Save(); }
+
+    // ---- Batch scanning: one feeder run split into several files at separator sheets ----
+
+    public IReadOnlyList<Option<SplitAt>> SplitChoices { get; } = [.. Enum.GetValues<SplitAt>().Select(s => new Option<SplitAt>(s, Separators.Label(s)))];
+
+    /// <summary>What starts a new file: nothing, patch code sheets, blank pages, or either.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Splits))]
+    public partial Option<SplitAt>? SplitMode { get; set; }
+
+    public bool Splits => SplitMode?.Value is { } s && s != SplitAt.None;
+
+    /// <summary>Separator sheets stay in, as the first page of the file they start.</summary>
+    [ObservableProperty] public partial bool KeepSeparators { get; set; }
+
+    partial void OnSplitModeChanged(Option<SplitAt>? value)
+    {
+        if (value is null) return;
+        _state.ScanSplitAt = (int)value.Value;
+        _state.Save();
+    }
+
+    partial void OnKeepSeparatorsChanged(bool value)
+    {
+        _state.ScanKeepSeparators = value;
+        _state.Save();
+        if (ActivePreset is not null) return; // a preset's batch keeps the preset's choice
+        _batchKeep = value;
+        RefreshFiles();
+        PagesChanged();
+    }
+
+    /// <summary>A new file starts at this page (or no longer does): moves a split point, together with <see cref="NotSeparator"/>.</summary>
+    [RelayCommand]
+    private void ToggleFileStart(ScanPageViewModel? page)
+    {
+        if (page is null || IsBusy || page.IsSeparator) return;
+        page.StartsFile = !page.StartsFile;
+        Prompt.Announce(page.FileStart > 0 ? $"Page {page.Number} starts file {page.FileStart}" : $"Page {page.Number} is in the same file as the page before it");
+    }
+
+    /// <summary>A page taken for a separator sheet is an ordinary page again (the files on either side join).</summary>
+    [RelayCommand]
+    private void NotSeparator(ScanPageViewModel? page)
+    {
+        if (page is null || IsBusy || !page.IsSeparator) return;
+        page.Separator = SeparatorFound.None;
+        _ = page.OcrAsync();
+        Prompt.Announce($"Page {page.Number} is a page again, not a separator");
+    }
+
+    /// <summary>Any page as a separator sheet: a new file starts after it.</summary>
+    [RelayCommand]
+    private void MarkSeparator(ScanPageViewModel? page)
+    {
+        if (page is null || IsBusy || page.IsSeparator) return;
+        page.StartsFile = false;
+        page.IsSkipped = false;
+        page.Separator = new SeparatorFound(SeparatorKind.ByHand);
+        Prompt.Announce($"Page {page.Number} is a separator sheet");
+    }
+
+    /// <summary>Saves a separator sheet (Patch T; Letter, or A4 by region) as a PDF and opens it, to print at actual size.</summary>
+    [RelayCommand]
+    private void PrintSeparatorSheet()
+    {
+        var metric = RegionInfo.CurrentRegion.IsMetric;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save a separator sheet to print",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            FileName = "Separator sheet (Patch T)",
+            Filter = "PDF document (*.pdf)|*.pdf",
+            AddExtension = true,
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            using (var fs = File.Create(dialog.FileName))
+                SeparatorSheet.Write(fs, PatchCode.PatchT, metric ? 210 / 25.4 : 8.5, metric ? 297 / 25.4 : 11);
+            Message = $"Saved {Path.GetFileName(dialog.FileName)}. Print it at actual size (100%) and put a copy in front of each document in the feeder.";
+            Shell.Open(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Separator sheet failed: {ex}");
+            Message = $"Could not save the separator sheet: {ex.Message}";
+        }
+    }
 
     partial void OnResolutionChanged(Option<int>? value)
     {
@@ -216,17 +337,18 @@ public sealed partial class ScanViewModel : ObservableObject
     public void Rebind(EsclClient client) => _client = client;
 
     private bool NotBusy() => !IsBusy;
-    private bool CanSave(string? format) => !IsBusy && Pages.Any(p => !p.IsSkipped);
+    private bool CanSave(string? format) => !IsBusy && Pages.Any(p => !p.IsSkipped && !p.IsSeparator);
 
     /// <summary>What one scan uses: the tab's settings, or a preset's matched to this scanner.</summary>
-    private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes);
+    private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes,
+        SplitAt Split = SplitAt.None, bool KeepSeparators = false);
 
     private ScanJob TabJob()
     {
         var area = PageSize?.Value;
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
-        return new(request, UseOcr, SkipBlank, Straighten, []);
+        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators);
     }
 
     /// <summary>
@@ -256,22 +378,32 @@ public sealed partial class ScanViewModel : ObservableObject
             var job = await makeJob();
             var request = job.Request;
             var dpi = request.Resolution;
+            _batchKeep = job.KeepSeparators;
+            if (_presets.IsDemo) Demo.FeederBatch = job.Split != SplitAt.None; // the made-up feeder then holds a batch with separator sheets
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
                 var page = new ScanPageViewModel(jpeg, dpi, job.Ocr);
                 page.PropertyChanged += PageChanged;
                 Pages.Add(page);
                 added.Add(page);
-                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten)); // while the next page scans
+                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split)); // while the next page scans
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
             await Task.WhenAll(checks);
+            if (request.Source == ScanSource.AdfDuplex) SeparatorBacks(added);
+            RefreshFiles();
             var blank = added.Count(p => p.IsSkipped);
             var straightened = added.Count(p => p.Edits.Deskew != 0);
+            var separators = added.Count(p => p.IsSeparator);
+            var files = Files().Count;
             var notes = string.Join(" ", new List<string>
             {
+                separators == 0 ? job.Split == SplitAt.None ? "" : "No separator sheets were found: it's one file."
+                    : $"{(separators == 1 ? "1 separator sheet" : $"{separators} separator sheets")} found: {(files == 1 ? "1 file" : $"{files} files")}.",
                 blank == 0 ? "" : blank == 1 ? "1 blank page is left out (Keep puts it back)." : $"{blank} blank pages are left out (Keep puts them back).",
                 straightened == 0 ? "" : straightened == 1 ? "1 page was straightened." : $"{straightened} pages were straightened.",
+                request.Source == ScanSource.AdfDuplex && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
+                    ? "Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better." : "",
             }.Concat(job.Notes).Where(n => n.Length > 0));
             Message = added.Count == 0
                 ? "The scanner returned no pages."
@@ -301,6 +433,24 @@ public sealed partial class ScanViewModel : ObservableObject
             IsScanning = false;
         }
         return -1;
+    }
+
+    /// <summary>
+    /// Two-sided scans: the other side of a patch code sheet (pages come front, back, front…) is part of the sheet when it's
+    /// blank, so it neither starts the next file nor ends up in it.
+    /// </summary>
+    private static void SeparatorBacks(List<ScanPageViewModel> added)
+    {
+        for (var i = 0; i < added.Count; i++)
+        {
+            if (added[i].Separator.Kind != SeparatorKind.PatchCode) continue;
+            var other = i % 2 == 0 ? i + 1 : i - 1;
+            if (other < added.Count && added[other] is { IsSeparator: false, LooksBlank: true } back)
+            {
+                back.IsSkipped = false;
+                back.Separator = new SeparatorFound(SeparatorKind.BlankPage);
+            }
+        }
     }
 
     [RelayCommand]
@@ -427,9 +577,10 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         var jpg = format == "jpg";
         var folder = _state.ScanFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var files = Files();
         var dialog = new SaveFileDialog
         {
-            Title = jpg ? "Save scan as images" : "Save scan as PDF",
+            Title = files.Count > 1 ? $"Save scan as {files.Count} {(jpg ? "sets of images" : "PDFs")} (numbered)" : jpg ? "Save scan as images" : "Save scan as PDF",
             InitialDirectory = folder,
             FileName = $"Scan {DateTime.Now:yyyy-MM-dd HHmm}",
             Filter = jpg ? "JPEG image (*.jpg)|*.jpg" : "PDF document (*.pdf)|*.pdf",
@@ -439,10 +590,10 @@ public sealed partial class ScanViewModel : ObservableObject
         _state.ScanFolder = Path.GetDirectoryName(dialog.FileName);
         _state.Save();
 
-        var kept = Kept;
-        var targets = jpg ? ImagePaths(dialog.FileName, kept.Count) : [dialog.FileName];
-        // The dialog already asked about the name typed; multi-page image saves write numbered siblings it never saw.
-        if (jpg && kept.Count > 1 && targets.Where(File.Exists).ToList() is { Count: > 0 } clobbered &&
+        var targets = Targets(dialog.FileName, files, jpg);
+        var all = targets.SelectMany(t => t).ToList();
+        // The dialog already asked about the name typed; numbered files (images, several PDFs) are siblings it never saw.
+        if (all.Count > 1 && all.Where(t => t != dialog.FileName && File.Exists(t)).ToList() is { Count: > 0 } clobbered &&
             !Prompt.Ask($"{clobbered.Count} file{(clobbered.Count == 1 ? "" : "s")} like \"{Path.GetFileName(clobbered[0])}\" already exist. Replace them?", "Replace"))
             return;
 
@@ -450,15 +601,16 @@ public sealed partial class ScanViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            if (jpg)
+            for (var n = 0; n < files.Count; n++)
             {
-                for (var i = 0; i < kept.Count; i++) await File.WriteAllBytesAsync(targets[i], await kept[i].JpegAsync());
-            }
-            else
-            {
-                var pages = await PdfPagesAsync(kept);
-                var title = Path.GetFileNameWithoutExtension(dialog.FileName);
-                var target = dialog.FileName;
+                if (jpg)
+                {
+                    for (var i = 0; i < files[n].Count; i++) await File.WriteAllBytesAsync(targets[n][i], await files[n][i].JpegAsync());
+                    continue;
+                }
+                var pages = await PdfPagesAsync(files[n]);
+                var target = targets[n][0];
+                var title = Path.GetFileNameWithoutExtension(target);
                 await Task.Run(() =>
                 {
                     var tmp = target + ".partial";
@@ -466,10 +618,11 @@ public sealed partial class ScanViewModel : ObservableObject
                     File.Move(tmp, target, overwrite: true); // never leave a half-written PDF behind
                 });
             }
-            LastSavedPath = targets[0];
+            LastSavedPath = all[0];
+            _savedPdfs = jpg ? [] : all;
             _dirty = false;
             OnPropertyChanged(nameof(HasUnsavedPages));
-            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(jpg && kept.Count > 1 ? $" and {kept.Count - 1} more" : "")}.";
+            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}.";
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
         catch (Exception ex)
@@ -499,6 +652,23 @@ public sealed partial class ScanViewModel : ObservableObject
         return Enumerable.Range(1, count).Select(i => Path.Combine(dir, $"{stem} ({i}).jpg")).ToList();
     }
 
+    /// <summary>
+    /// Where each file's pages go: one file is saved as chosen (images numbered "(1)", "(2)"…); several are numbered after the
+    /// chosen name, "Scan (1).pdf", "Scan (2).pdf", or for images "Scan (2-1).jpg", "Scan (2-2).jpg"…
+    /// </summary>
+    private static List<List<string>> Targets(string chosen, List<List<ScanPageViewModel>> files, bool jpg)
+    {
+        if (files.Count == 1) return [jpg ? ImagePaths(chosen, files[0].Count) : [chosen]];
+        var dir = Path.GetDirectoryName(chosen)!;
+        var stem = Path.GetFileNameWithoutExtension(chosen);
+        return [.. files.Select((file, f) => jpg
+            ? file.Count == 1 ? [Path.Combine(dir, $"{stem} ({f + 1}).jpg")] : file.Select((_, i) => Path.Combine(dir, $"{stem} ({f + 1}-{i + 1}).jpg")).ToList()
+            : new List<string> { Path.Combine(dir, $"{stem} ({f + 1}).pdf") })];
+    }
+
+    /// <summary>Every PDF the last save wrote (a batch: one per file), for Open in Inkvolt PDF.</summary>
+    private List<string> _savedPdfs = [];
+
     [RelayCommand]
     private void OpenSaved()
     {
@@ -510,7 +680,13 @@ public sealed partial class ScanViewModel : ObservableObject
     private void OpenSavedInInkvoltPdf()
     {
         if (LastSavedPath is null) return;
-        if (!InkvoltApps.Launch(InkvoltApps.InkvoltPdf, LastSavedPath)) Message = "Inkvolt PDF couldn't be started.";
+        // A batch saved as several PDFs opens them all (Inkvolt PDF puts each in a tab of the window already open).
+        foreach (var pdf in _savedPdfs.Contains(LastSavedPath) ? _savedPdfs : [LastSavedPath])
+            if (!InkvoltApps.Launch(InkvoltApps.InkvoltPdf, pdf))
+            {
+                Message = "Inkvolt PDF couldn't be started.";
+                return;
+            }
     }
 
     [RelayCommand]
@@ -562,7 +738,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var r = plan.Request;
         Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}");
         _presetNotes = plan.Notes;
-        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes);
+        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators);
     }
 
     /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
@@ -591,10 +767,13 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (ActivePreset is not { } active) return;
         var preset = _presets.FindById(active.Id) ?? active; // edited meanwhile, or deleted (then saved as it was)
-        var kept = Kept;
+        var files = Files();
+        var kept = files.SelectMany(f => f).ToList();
         if (kept.Count == 0)
         {
-            Message = "No pages to save: every page was left out as blank. Keep puts a page back.";
+            Message = Pages.Any(p => p.IsSeparator)
+                ? "No pages to save: every page was left out as blank or as a separator sheet."
+                : "No pages to save: every page was left out as blank. Keep puts a page back.";
             return;
         }
         if (_presets.Folder(preset, out var problem) is not { } root)
@@ -604,30 +783,41 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         CancelCrop();
         IsBusy = true;
-        List<string> saved;
+        var saved = new List<string>();
         var jpg = preset.FileType == PresetFileType.Jpeg;
         try
         {
-            // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too.
-            var number = _presets.IncrementCounter(preset.Id) ?? preset.NextNumber;
-            var ctx = new NameContext(DateTime.Now, preset.Name, _printerName, number, kept.Count);
-            var folder = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
-            Directory.CreateDirectory(folder);
-            var stem = FileNameTemplate.FileName(preset.FileName, ctx);
-            saved = jpg ? await WriteImagesAsync(kept, folder, stem) : [await WritePdfAsync(await PdfPagesAsync(kept), folder, stem)];
+            string? folder = null;
+            var now = DateTime.Now;
+            foreach (var file in files)
+            {
+                // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too;
+                // a batch takes one per file, and {pages} is each file's own.
+                var number = _presets.IncrementCounter(preset.Id) ?? preset.NextNumber;
+                var ctx = new NameContext(now, preset.Name, _printerName, number, file.Count);
+                var into = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
+                folder ??= into;
+                Directory.CreateDirectory(into);
+                var stem = FileNameTemplate.FileName(preset.FileName, ctx);
+                saved.AddRange(jpg ? await WriteImagesAsync(file, into, stem) : [await WritePdfAsync(await PdfPagesAsync(file), into, stem)]);
+            }
 
             ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
+            _savedPdfs = jpg ? [] : saved;
             _dirty = false;
             OnPropertyChanged(nameof(HasUnsavedPages));
-            Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")} in {folder}."
+            Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")}"
+                + $"{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")} in {folder}."
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
         }
         catch (Exception ex)
         {
             Log.Write($"Preset save failed: {ex}");
-            Message = $"Could not save: {ex.Message}";
+            Message = saved.Count == 0 ? $"Could not save: {ex.Message}"
+                : $"Saved {saved.Count} file{(saved.Count == 1 ? "" : "s")} ({Path.GetFileName(saved[0])}…), then could not save the rest: {ex.Message}";
+            if (saved.Count > 0) LastSavedPath = saved[0];
             return;
         }
         finally
@@ -801,13 +991,58 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <summary>The checks after scanning (blank, crooked) are done.</summary>
     [ObservableProperty] public partial bool IsAnalysed { get; set; }
 
+    /// <summary>A separator sheet (batch scanning): a new file starts after it; left out unless the batch keeps separators.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSeparator), nameof(SeparatorText), nameof(Label), nameof(Note))]
+    public partial SeparatorFound Separator { get; set; } = SeparatorFound.None;
+
+    public bool IsSeparator => Separator.IsSeparator;
+
+    /// <summary>A new file starts with this page (set in the review).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Label), nameof(FileStartMenuText))]
+    public partial bool StartsFile { get; set; }
+
+    /// <summary>The file (1-based) this page is the first of when the pages are saved as several; 0 otherwise. Set by the list.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Label), nameof(ShowsFileStart), nameof(FileStartText))]
+    public partial int FileStart { get; set; }
+
+    /// <summary>The batch keeps its separator sheets (set by the list).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SeparatorStatus), nameof(Label), nameof(Note))]
+    public partial bool SeparatorKept { get; set; }
+
+    /// <summary>Found blank by the checks (whether or not it's left out).</summary>
+    public bool LooksBlank { get; private set; }
+
+    public bool ShowsFileStart => FileStart > 0;
+    public string FileStartText => $"File {FileStart}";
+    public string FileStartMenuText => StartsFile ? "Don't start a new file here" : "Start a new file here";
+
+    /// <summary>"Separator: Patch T sheet" over the thumbnail.</summary>
+    public string SeparatorText => IsSeparator ? $"Separator: {Separator.Description}" : "";
+
+    public string SeparatorStatus => SeparatorKept ? "Kept: first page of the next file" : "Won't be saved";
+
+    public BatchPage AsBatchPage => new(IsSeparator, StartsFile, IsSkipped);
+
     public bool IsEdited => !Edits.IsEmpty;
 
-    /// <summary>Screen reader name: "Page 2", "Page 3, straightened", "Page 4, blank, not saved".</summary>
-    public string Label => Note.Length == 0 ? $"Page {Number}" : $"Page {Number}, {Note.ToLowerInvariant()}";
+    /// <summary>Screen reader name: "Page 2", "Page 3, straightened", "Page 4, blank, not saved", "Page 5, starts file 2".</summary>
+    public string Label
+    {
+        get
+        {
+            var label = IsSeparator ? $"Page {Number}, separator: {Separator.Description}, {(SeparatorKept ? "kept" : "not saved")}"
+                : Note.Length == 0 ? $"Page {Number}" : $"Page {Number}, {Note.ToLowerInvariant()}";
+            return FileStart > 0 ? $"{label}, starts file {FileStart}" : label;
+        }
+    }
 
     /// <summary>What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", or nothing.</summary>
-    public string Note => IsSkipped ? "Blank, not saved" : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
+    public string Note => IsSeparator ? (SeparatorKept ? "Separator, kept" : "Separator, not saved")
+        : IsSkipped ? "Blank, not saved" : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
 
     partial void OnEditsChanged(PageEdits value) => _ = RefreshThumbnailAsync(value);
 
@@ -833,19 +1068,27 @@ public sealed partial class ScanPageViewModel : ObservableObject
         return task;
     }
 
-    /// <summary>Blank and skew checks, then OCR in the background (on the straightened page when it was straightened).</summary>
-    public async Task AnalyseAsync(bool skipBlank, bool straighten)
+    /// <summary>
+    /// Separator, blank and skew checks, then OCR in the background (on the straightened page when it was straightened).
+    /// A separator sheet is neither skipped nor straightened.
+    /// </summary>
+    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None)
     {
         try
         {
-            if (skipBlank || straighten)
+            if (skipBlank || straighten || split != SplitAt.None)
             {
-                var (blank, angle) = await Task.Run(() =>
+                var (blank, angle, separator, looksBlank) = await Task.Run(() =>
                 {
                     var image = ScanImaging.Analysis(Original);
-                    var isBlank = skipBlank && BlankPage.IsBlank(image);
-                    return (isBlank, straighten && !isBlank ? Deskew.Angle(image) : 0);
+                    var ppi = image.Width * (double)Dpi / PdfWriter.JpegInfo(Original).Width;
+                    var separator = Separators.Detect(image, ppi, split);
+                    var looksBlank = separator.Kind == SeparatorKind.BlankPage || BlankPage.IsBlank(image);
+                    var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
+                    return (isBlank, straighten && !isBlank && !separator.IsSeparator ? Deskew.Angle(image) : 0, separator, looksBlank);
                 });
+                LooksBlank = looksBlank;
+                Separator = separator;
                 IsSkipped = blank;
                 if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
             }
@@ -855,7 +1098,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
             Trace.WriteLine($"Page check failed: {ex.Message}"); // the page stays as scanned
         }
         IsAnalysed = true;
-        if (!IsSkipped) _ = OcrAsync();
+        if (!IsSkipped && !IsSeparator) _ = OcrAsync();
     }
 
     private async Task RefreshThumbnailAsync(PageEdits edits)

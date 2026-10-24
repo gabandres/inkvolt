@@ -90,6 +90,11 @@ public partial class ScanPages : UserControl
             Select(page);
             e.Handled = true;
         }
+        else if (key == Key.S && Keyboard.Modifiers == ModifierKeys.None && !page.IsSeparator)
+        {
+            vm.ToggleFileStartCommand.Execute(page); // announces where the file now starts
+            e.Handled = true;
+        }
         else if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
         {
             var index = vm.Pages.IndexOf(page);

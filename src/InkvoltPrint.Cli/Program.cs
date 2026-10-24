@@ -87,6 +87,13 @@ switch (cmd)
     case "ocr" when host is not null && args.Length >= 3:
         await Ocr(host, args[2], int.TryParse(Opt("--dpi"), out var odpi) ? odpi : 300);
         break;
+    case "separator-sheet" when host is not null:
+        // Offline: the batch scanning separator sheet as a PDF ("host" is the output file here).
+        using (var fs = File.Create(host))
+            SeparatorSheet.Write(fs, Enum.TryParse<InkvoltPrint.Core.Imaging.PatchCode>(Opt("--patch") is { } p ? "Patch" + p : "PatchT", true, out var patch)
+                ? patch : InkvoltPrint.Core.Imaging.PatchCode.PatchT, args.Contains("--a4") ? 210 / 25.4 : 8.5, args.Contains("--a4") ? 297 / 25.4 : 11);
+        Console.WriteLine($"Wrote {host}");
+        break;
     default:
         Console.WriteLine("""
             inkvoltprint discover
@@ -100,6 +107,7 @@ switch (cmd)
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
+            inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)
             """);
         break;
 }

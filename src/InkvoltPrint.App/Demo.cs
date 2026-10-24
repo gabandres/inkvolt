@@ -17,7 +17,8 @@ namespace InkvoltPrint.App;
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
 /// (the remembered-printers file is neither read nor written). Scanning returns generated pages in turn: a straight page,
 /// the same page fed a little crooked, a blank sheet (for the scan review's Straighten and Skip blank pages); a made-up
-/// ID card for card-sized regions; the print queue card shows <see cref="DemoPrintJobs"/> (one made-up queue for both
+/// ID card for card-sized regions; a batch with a Patch T separator sheet and a blank page from the feeder when the scan
+/// splits into files (<see cref="FeederBatch"/>); the print queue card shows <see cref="DemoPrintJobs"/> (one made-up queue for both
 /// printers), where copies also "print". A third printer, the "Demo office laser", shows the offline fixer: it's remembered
 /// at <see cref="OfficeOldHost"/>, where nothing answers, while the made-up network (<see cref="OfflinePc"/>) finds it at
 /// <see cref="OfficeNewHost"/> and its made-up Windows queue still prints to the old address with "Use Printer Offline" on.
@@ -50,7 +51,7 @@ internal static class Demo
     public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>
     {
         [FixtureHandler.DemoHost] = new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan),
-        [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan),
+        [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
         // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
         [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),
     });
@@ -70,6 +71,41 @@ internal static class Demo
             new(() => Application.Current.Dispatcher.Invoke(BlankSheet))];
 
     private static int _cardSide, _page = -1;
+
+    /// <summary>The next feeder scan splits into files: the made-up feeder then holds <see cref="Batch"/> (set by the Scan tab).</summary>
+    public static bool FeederBatch { get; set; }
+
+    /// <summary>
+    /// Two documents and a one-page third: a straight page and a crooked one, a Patch T separator sheet, a page, a blank sheet,
+    /// a page. Split at patch codes, that's two files (the blank page skipped); at patch codes or blank pages, three.
+    /// </summary>
+    private static readonly Lazy<IReadOnlyList<byte[]>> Batch = new(() => Application.Current.Dispatcher.Invoke(() =>
+        (IReadOnlyList<byte[]>)[Pages[0].Value, Pages[1].Value, SeparatorSheetPage(), ScanPage(0), Pages[2].Value, ScanPage(-1.5)]));
+
+    /// <summary>The printable separator sheet (<see cref="Core.Pdf.SeparatorSheet"/>'s own layout) as scanned at 300 dpi.</summary>
+    private static byte[] SeparatorSheetPage()
+    {
+        const int w = 1275, h = 1650; // 150 per inch, rendered at 300 dpi
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
+            var ink = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            foreach (var r in Core.Pdf.SeparatorSheet.Layout(Core.Imaging.PatchCode.PatchT, 8.5, 11))
+                dc.DrawRectangle(ink, null, new Rect(r.X * 150, r.Y * 150, r.Width * 150, r.Height * 150));
+            var face = new Typeface("Segoe UI");
+            void Line(string text, double size, double y)
+            {
+                var ft = new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, size, ink, 1);
+                dc.DrawText(ft, new Point((w - ft.Width) / 2, y));
+            }
+            Line("Separator sheet", 54, 120);
+            Line("Patch T", 38, 200);
+            Line("Inkvolt Print starts a new file at this sheet.", 22, 300);
+        }
+        return Jpeg(visual, w * 2, h * 2);
+    }
 
     /// <summary>A page for page-sized regions; for a small region (ID card copy), a made-up card, front and back in turn.</summary>
     private static byte[] Scan(int width, int height) =>

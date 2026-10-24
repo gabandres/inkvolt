@@ -72,6 +72,24 @@ public static class PdfWriter
         w.Finish(rootId: 1, infoId: infoId);
     }
 
+    /// <summary>
+    /// One page of vector drawing (a printable sheet): <paramref name="content"/> is the page's content stream, in points from
+    /// the bottom-left, with Helvetica (WinAnsi) as /F1.
+    /// </summary>
+    internal static void WriteDrawing(Stream output, double widthPt, double heightPt, string content, string title)
+    {
+        var w = new ObjWriter(output);
+        w.Raw("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+        var bytes = Latin1.GetBytes(content);
+        w.Obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        w.Obj(2, "<< /Type /Pages /Count 1 /Kids [5 0 R] >>");
+        w.Obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+        w.Obj(4, $"<< /Producer (Inkvolt Print) /Title ({Escape(title)}) /CreationDate (D:{DateTime.UtcNow:yyyyMMddHHmmss}Z) >>");
+        w.Obj(5, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(widthPt)} {F(heightPt)}] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>");
+        w.Stream(6, $"<< /Length {bytes.Length} >>", bytes);
+        w.Finish(rootId: 1, infoId: 4);
+    }
+
     /// <summary>Pixel size and component count from the JPEG SOF header.</summary>
     public static (int Width, int Height, int Components) JpegInfo(ReadOnlySpan<byte> jpeg)
     {
@@ -84,9 +102,9 @@ public static class PdfWriter
         return (wpx, h, comps);
     }
 
-    private static string F(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
+    internal static string F(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private static string Escape(string s)
+    internal static string Escape(string s)
     {
         var sb = new StringBuilder(s.Length);
         foreach (var c in s)

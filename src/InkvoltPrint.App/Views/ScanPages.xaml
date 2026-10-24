@@ -19,6 +19,14 @@
             <MenuItem Header="Move later" InputGestureText="Alt+Shift+Right"
                       Command="{Binding PlacementTarget.Tag.MovePageLaterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <Separator />
+            <MenuItem Header="{Binding FileStartMenuText}" InputGestureText="S"
+                      Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
+                      Command="{Binding PlacementTarget.Tag.ToggleFileStartCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Use as a separator sheet"
+                      Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
+                      Command="{Binding PlacementTarget.Tag.MarkSeparatorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Not a separator (keep as a page)" Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}}"
+                      Command="{Binding PlacementTarget.Tag.NotSeparatorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <MenuItem Header="Keep this page" Visibility="{Binding IsSkipped, Converter={StaticResource VisibleWhen}}"
                       Command="{Binding PlacementTarget.Tag.KeepPageCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <MenuItem Header="Delete" InputGestureText="Del"
@@ -40,7 +48,7 @@
                  Background="Transparent" BorderThickness="0" Padding="12,0,12,12"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                  AutomationProperties.Name="Scanned pages"
-                 AutomationProperties.HelpText="Alt+Shift+arrow keys move the selected page. Delete removes it. Shift+F10 for more."
+                 AutomationProperties.HelpText="Alt+Shift+arrow keys move the selected page. Delete removes it. S starts a new file at it. Shift+F10 for more."
                  Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}"
                  PreviewMouseLeftButtonDown="Pages_PreviewMouseLeftButtonDown" PreviewMouseMove="Pages_PreviewMouseMove"
                  DragOver="Pages_DragOver" Drop="Pages_Drop" PreviewKeyDown="Pages_PreviewKeyDown">
@@ -72,6 +80,13 @@
                                                 <DataTrigger Binding="{Binding IsSkipped}" Value="True">
                                                     <Setter Property="Opacity" Value="0.35" />
                                                 </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsSeparator}" Value="True" />
+                                                        <Condition Binding="{Binding SeparatorKept}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Image.Style>
@@ -88,11 +103,35 @@
                                             Command="{Binding DataContext.KeepPageCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
                                 </StackPanel>
                             </Border>
+                            <!-- Saved as several files: where each one starts -->
+                            <Border CornerRadius="4" Padding="8,2" Margin="-4,-4,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    Visibility="{Binding ShowsFileStart, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{Binding FileStartText}" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Border>
+                            <!-- A separator sheet: the next file starts after it -->
+                            <Border CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="1"
+                                    Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SeparatorText}" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+                                    <TextBlock Text="{Binding SeparatorStatus}" Style="{StaticResource Caption}" FontSize="12" HorizontalAlignment="Center" />
+                                    <Button Content="Not a separator" Style="{StaticResource LinkButton}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                            Command="{Binding DataContext.NotSeparatorCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
                         </Grid>
                         <DockPanel Margin="2,6,2,0">
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Delete page (Del)" AutomationProperties.Name="Delete page"
                                     Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding FileStartMenuText}" AutomationProperties.Name="{Binding FileStartMenuText}"
+                                    Command="{Binding DataContext.ToggleFileStartCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0"
+                                    Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" />
                             </Button>
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Crop" AutomationProperties.Name="Crop page"
                                     Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">

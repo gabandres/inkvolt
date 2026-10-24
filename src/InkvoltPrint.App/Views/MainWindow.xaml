@@ -514,6 +514,21 @@
                                 <TextBlock Text="Fixes pages scanned a little crooked" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
+                        <!-- Batch scanning: one feeder run, several files -->
+                        <TextBlock Text="Split into files at" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding SplitChoices}" SelectedItem="{Binding SplitMode}" HorizontalAlignment="Stretch"
+                                  AutomationProperties.Name="Split into files at"
+                                  AutomationProperties.HelpText="Saves one feeder run as several files, a new one after each separator sheet" />
+                        <CheckBox IsChecked="{Binding KeepSeparators}" Margin="0,8,0,0" Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel>
+                                <TextBlock Text="Keep separator sheets" />
+                                <TextBlock Text="As the first page of the next file" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <Button Content="Print a separator sheet…" Command="{Binding PrintSeparatorSheetCommand}" Style="{StaticResource LinkButton}"
+                                HorizontalAlignment="Left" Margin="0,6,0,4"
+                                ToolTip="Saves a Patch T sheet as a PDF to print at actual size"
+                                Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}" />
                         <CheckBox IsChecked="{Binding OpenInInkvoltPdf}" Margin="0,4,0,0"
                                   Visibility="{Binding InkvoltPdfInstalled, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
@@ -553,7 +568,7 @@
                                         Visibility="{Binding HasActivePreset, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Text="Drag pages to reorder. Right-click a page for more." Style="{StaticResource Caption}" FontSize="12"
                                            Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
