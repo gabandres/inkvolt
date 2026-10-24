@@ -6,16 +6,17 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using InkvoltPrint.Core.Printing;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.App.Printing;
 
-public sealed record PrintOptions(IReadOnlyList<int> Pages, int Copies, bool TwoSided, string JobName);
+public sealed record PrintOptions(IReadOnlyList<int> Pages, int Copies, bool TwoSided, string JobName, PageSizing Sizing = PageSizing.ActualSize);
 
 /// <summary>
 /// Prints rendered PDF pages to a Windows print queue (for IPP printers: the Microsoft IPP Class Driver,
 /// which converts to whatever the printer speaks — PCLm/PWG raster for the M234dw). Each page is
-/// auto-rotated to match the paper's orientation and scaled to fit, keeping its proportions.
+/// auto-rotated to match the paper's orientation and sized per <see cref="PageSizing"/>, keeping its proportions.
 /// </summary>
 public static class QueuePrinter
 {
@@ -94,7 +95,7 @@ public static class QueuePrinter
 
                 queue.CurrentJobSettings.Description = options.JobName;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-                writer.Write(new RenderedPaginator(pages, paper), ticket);
+                writer.Write(new RenderedPaginator(pages, paper, options.Sizing), ticket);
                 done.SetResult();
             }
             catch (Exception ex)
@@ -109,7 +110,7 @@ public static class QueuePrinter
         await done.Task;
     }
 
-    private sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper) : DocumentPaginator
+    private sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => pages.Count;
@@ -131,8 +132,7 @@ public static class QueuePrinter
             var rotate = landscapePage != (paper.Width > paper.Height);
             var pageW = (rotate ? src.HeightInches : src.WidthInches) * 96;
             var pageH = (rotate ? src.WidthInches : src.HeightInches) * 96;
-            var scale = Math.Min(paper.Width / pageW, paper.Height / pageH);
-            if (scale > 1 && scale < 1.03) scale = 1; // same paper size: print at actual size
+            var scale = PageFit.Scale(pageW, pageH, paper.Width, paper.Height, sizing);
             var w = pageW * scale;
             var h = pageH * scale;
 

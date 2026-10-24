@@ -57,6 +57,9 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
 
     [ObservableProperty] public partial bool CanTwoSided { get; set; }
 
+    /// <summary>Enlarge small pages (labels, receipts) to fill the paper; off prints them at their own size.</summary>
+    [ObservableProperty] public partial bool FitToPaper { get; set; }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand))]
     [NotifyPropertyChangedFor(nameof(CanCancel))]
@@ -262,7 +265,8 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
                 return;
             }
             var progress = new Progress<string>(m => SetMessage(m));
-            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF"),
+            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
+                    FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize),
                 progress, _cts.Token, onSpooling: () => IsSpooling = true);
             SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
                        $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");

@@ -329,6 +329,12 @@
                                 </Button>
                             </StackPanel>
 
+                            <TextBlock Text="Size" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <RadioButton Content="Actual size" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="size"
+                                         ToolTip="Prints each page at its own size, like a 4 × 6 in label. Pages larger than the paper shrink to fit." />
+                            <RadioButton Content="Fit to paper" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
+                                         ToolTip="Enlarges or shrinks each page to fill the paper" />
+
                             <CheckBox Content="Print on both sides" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
                                       Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
 
