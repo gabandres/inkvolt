@@ -51,7 +51,6 @@ public sealed class TrayController : IDisposable
         };
         _savedShown = ShownText();
         _alertsOn = _settings.Enabled && _settings.Alerts;
-        foreach (var p in vm.Printers) Watch(p);
         vm.Printers.CollectionChanged += OnPrintersChanged;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _timer.Tick += (_, _) =>
@@ -60,6 +59,7 @@ public sealed class TrayController : IDisposable
             catch (Exception ex) { Log.Write($"Tray timer: {ex}"); }
         };
         Apply();
+        foreach (var p in vm.Printers) Watch(p); // after Apply: the icon exists to show what was read already
     }
 
     public bool IsDemo { get; }
@@ -164,7 +164,10 @@ public sealed class TrayController : IDisposable
 
     private void Watch(PrinterViewModel p)
     {
-        if (_watched.Add(p)) p.Observed += OnObserved;
+        if (!_watched.Add(p)) return;
+        p.Observed += OnObserved;
+        // Read before the tray was set up (demo printers answer at once, while the window is still being built).
+        if (p.LastSnapshot is { } snap && _settings.Enabled) Show(_tracker.Observe(snap, DateTimeOffset.Now));
     }
 
     private void OnObserved(PrinterSnapshot snap)

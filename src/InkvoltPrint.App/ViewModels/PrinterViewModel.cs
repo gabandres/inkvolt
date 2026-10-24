@@ -299,6 +299,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
     public event Action<PrinterSnapshot>? Observed;
 
+    /// <summary>The last of those reads, for a listener that comes later.</summary>
+    public PrinterSnapshot? LastSnapshot { get; private set; }
+
+    private void Observe(PrinterSnapshot snap)
+    {
+        LastSnapshot = snap;
+        Observed?.Invoke(snap);
+    }
+
     private bool _suspended, _reprobe;
 
     /// <summary>
@@ -586,7 +595,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observed?.Invoke(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, read));
+        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, read));
     }
 
     private static void ObserveQuietly(params Task[] tasks)
@@ -605,7 +614,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Maintenance.Update(false, null);
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observed?.Invoke(new PrinterSnapshot(Uuid, Name, false, null, null));
+        Observe(new PrinterSnapshot(Uuid, Name, false, null, null));
     }
 
     /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>

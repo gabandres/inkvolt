@@ -11,7 +11,8 @@ MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri indexes in
 uses the app icon).
 
 assets/tray/InkvoltPrint-{warning,error,offline}.ico: the notification-area icon with a status badge (amber "!", red "x",
-grey "-"), one frame per small-icon size (16-64 px: 100-400% scale), so the tray icon is drawn 1:1 at every DPI. The OK
+grey "-"), one frame per small-icon size (16-64 px: 100-400% scale), each drawn at that size so the tray icon is 1:1 at every
+DPI, and a 256 px frame drawn at 256 for the notification's icon (which Windows scales down). The OK
 state is InkvoltPrint.ico itself. `make-icon.py --tray` writes only these (and assets/tray/tray-sheet.png for review).
 
 Run:  python -I assets/make-icon.py [--tray]   (needs Pillow)
@@ -83,8 +84,9 @@ def draw(size):
     return c.out()
 
 
-# Notification-area icons: the small-icon size at 100, 125, 150, 200, 250, 300 and 400% scale.
-TRAY_SIZES = [16, 20, 24, 32, 40, 48, 64]
+# Notification-area icons: the small-icon size at 100, 125, 150, 200, 250, 300 and 400% scale, plus 256 for the
+# notification's icon (Windows 11 draws it in a 40 px box at 100%, 80 at 200%, and scales a 256 px frame down cleanly).
+TRAY_SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
 # state: (badge color, glyph color, glyph)
 BADGES = {"warning": ("#FFB900", "#1B1B1B", "!"), "error": ("#E5202E", "#FFFFFF", "x"), "offline": ("#767676", "#FFFFFF", "-")}
 
@@ -128,16 +130,17 @@ def tray(size, state):
 def save_tray():
     folder = os.path.join(HERE, "tray")
     os.makedirs(folder, exist_ok=True)
-    sheet = Image.new("RGBA", (len(BADGES) * (sum(TRAY_SIZES) + 8 * len(TRAY_SIZES)) + 24, 2 * 64 + 36), (255, 255, 255, 255))
-    ImageDraw.Draw(sheet).rectangle([0, 64 + 18, sheet.width, sheet.height], fill=(32, 32, 32, 255))
+    top = max(TRAY_SIZES)
+    sheet = Image.new("RGBA", (len(BADGES) * (sum(TRAY_SIZES) + 8 * len(TRAY_SIZES)) + 24, 2 * top + 36), (255, 255, 255, 255))
+    ImageDraw.Draw(sheet).rectangle([0, top + 18, sheet.width, sheet.height], fill=(32, 32, 32, 255))
     x = 12
     for state in BADGES:
         frames = [tray(s, state) for s in TRAY_SIZES]
         frames[-1].save(os.path.join(folder, f"InkvoltPrint-{state}.ico"), format="ICO", sizes=[(s, s) for s in TRAY_SIZES],
                         append_images=frames[:-1])
         for f in frames:
-            sheet.alpha_composite(f, (x, 64 - f.height + 6))
-            sheet.alpha_composite(f, (x, 2 * 64 + 24 - f.height))
+            sheet.alpha_composite(f, (x, top - f.height + 6))
+            sheet.alpha_composite(f, (x, 2 * top + 24 - f.height))
             x += f.width + 8
     sheet.save(os.path.join(folder, "tray-sheet.png"))
     return folder

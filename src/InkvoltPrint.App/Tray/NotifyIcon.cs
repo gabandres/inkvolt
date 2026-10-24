@@ -87,7 +87,7 @@ public sealed class NotifyIcon : IDisposable
     public void Notify(string title, string text, string iconResource)
     {
         if (!_added) return;
-        Replace(ref _balloonIcon, TrayIcons.Load(iconResource, TrayIcons.LargeIconSize()));
+        Replace(ref _balloonIcon, TrayIcons.Load(iconResource, TrayIcons.NotificationIconSize, atFrameSize: true));
         var data = Data(NifInfo);
         data.szInfoTitle = Cut(title, 63);
         data.szInfo = Cut(text, 255);
@@ -265,7 +265,13 @@ internal static class TrayIcons
 
     public static int SmallIconSize() => Metric(49); // SM_CXSMICON
 
-    public static int LargeIconSize() => Metric(11); // SM_CXICON
+    /// <summary>
+    /// The notification's icon. Windows 11 draws a balloon's large icon in a 40 px box at 100% scale (measured on screen: 60 at
+    /// 150%, 80 at 200%), bigger than SM_CXICON (32 px at 100%), so the SM_CXICON frame came out upscaled and blurry. Windows
+    /// scales a 256 px frame down cleanly (on screen it matched a 40 px frame drawn 1:1), whatever the display's scale and
+    /// whichever display shows the notification, so the 256 px frame is handed over as it is.
+    /// </summary>
+    public const int NotificationIconSize = 256;
 
     private static int Metric(int index)
     {
@@ -281,7 +287,8 @@ internal static class TrayIcons
     }
 
     /// <summary>The smallest frame at least <paramref name="size"/> pixels wide (else the largest), as an HICON the caller destroys.</summary>
-    public static IntPtr Load(string resource, int size)
+    /// <param name="atFrameSize">Keep the frame's own size (Windows scales it when drawing) instead of resizing it to <paramref name="size"/>.</param>
+    public static IntPtr Load(string resource, int size, bool atFrameSize = false)
     {
         var info = Application.GetResourceStream(new Uri($"pack://application:,,,{resource}")) ?? throw new IOException($"{resource} is missing.");
         byte[] ico;
@@ -293,7 +300,8 @@ internal static class TrayIcons
         }
         var (offset, length, width) = PickFrame(ico, size);
         var frame = ico.AsSpan(offset, length).ToArray();
-        var handle = CreateIconFromResourceEx(frame, frame.Length, true, 0x00030000, size, size, 0);
+        var px = atFrameSize ? width : size;
+        var handle = CreateIconFromResourceEx(frame, frame.Length, true, 0x00030000, px, px, 0);
         return handle != IntPtr.Zero ? handle : throw new IOException($"{resource}: Windows couldn't load its {width} px frame.");
     }
 
