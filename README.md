@@ -10,6 +10,7 @@ no background services, no driver download.
 | Status, toner, usage | HP LEDM (`/DevMgmt/*.xml`, URIs from `DiscoveryTree.xml`), IPP `Get-Printer-Attributes` as fallback for non-LEDM printers. |
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
+| Scan review | Large thumbnails before saving: turn, crop (drag a box on an enlarged page), delete, reorder by dragging or Alt+Shift+arrows (announced to screen readers), scan more onto the end. **Skip blank pages** (on by default): ink coverage inside a margin against the page's own paper level, specks ignored, conservative (a short word isn't blank); skipped pages stay listed, dimmed, with Keep. **Straighten pages** (on by default): projection-profile skew detection on a ~100 dpi greyscale copy, ±10°, only when the text lines give a clear answer (`InkvoltPrint.Core/Imaging`). Unedited pages keep the scanner's JPEG; edited ones are encoded once and OCR'd again. |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
 | Firmware | Version from LEDM `ProductConfigDyn` (an HP LaserJet's version is its release date) or IPP `printer-firmware-string-version`. Automatic updates (install automatically / check only / off) from LEDM's FirmwareUpdate interface (manifest in `DiscoveryTree.xml` → `FirmwareUpdateDyn`/`Cap`, PUT to `/FirmwareUpdate/WebFWUpdate/Config`), saved like the other device settings; explains HP's "dynamic security" cartridge blocking. Printers that don't expose it show the version and a link to their web page. |
 | Copy | Scan (eSCL) and print (Windows queue) in one step: copies, color or grey scan, glass or feeder, two-sided output when the queue can; actual size. **ID card copy**: scans the front from the glass's corner (4.5 × 3 in), asks to turn the card over, scans the back, prints both on one sheet (top and bottom halves, actual size; `CopyLayout`). Disabled, with the reason, when the printer has no scanner or no Windows queue. |
@@ -66,12 +67,12 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first).
+(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first).
 
 Demo mode: `InkvoltPrint.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
 (embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
-the remembered-printers state is neither read nor written; scanning returns a generated page (a made-up ID card for
-card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Screenshots:
+the remembered-printers state is neither read nor written; scanning returns generated pages in turn (straight, crooked,
+blank, for the scan review; a made-up ID card for card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the

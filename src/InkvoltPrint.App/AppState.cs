@@ -39,6 +39,12 @@ public sealed class AppState
     public bool ScanOcr { get; set; } = true;
     public string? ScanFolder { get; set; }
     public string? ScanPageSize { get; set; }
+
+    /// <summary>Scan review: leave near-blank pages out of what's saved (they stay listed, dimmed, with Keep).</summary>
+    public bool ScanSkipBlank { get; set; } = true;
+
+    /// <summary>Scan review: straighten pages scanned a little crooked.</summary>
+    public bool ScanStraighten { get; set; } = true;
     public string? PrintFolder { get; set; }
 
     /// <summary>Open each scan saved as PDF in Inkvolt PDF (Inkvolt suite) right away.</summary>

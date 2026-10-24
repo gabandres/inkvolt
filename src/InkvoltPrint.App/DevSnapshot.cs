@@ -11,7 +11,8 @@ namespace InkvoltPrint.App;
 /// Developer aid: <c>InkvoltPrint.exe --snapshot out.png [--tab Scan] [--size 1366 860] [--theme Dark] [--demo]</c> waits
 /// for the printer to connect, renders the window to a PNG and exits. Used to verify the UI without screen capture;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
-/// <c>--scan</c> runs one scan first (with <c>--demo</c>: a generated page); <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
+/// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);
+/// <c>--crop n</c> then opens the crop view on page n; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue).
 /// </summary>
 internal static class DevSnapshot
@@ -22,8 +23,8 @@ internal static class DevSnapshot
         && double.TryParse(args[i + 2], System.Globalization.CultureInfo.InvariantCulture, out var h) && w > 0 && h > 0
             ? (w, h) : null;
 
-    public static async Task RunAsync(MainWindow window, string path, string? tab, bool scan = false, bool scrollToEnd = false,
-        string? copy = null)
+    public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
+        string? copy = null, int crop = 0)
     {
         await Task.Delay(TimeSpan.FromSeconds(5));
         if (tab is not null && FindTabs(window) is { } tabs)
@@ -31,9 +32,10 @@ internal static class DevSnapshot
             tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
             await Task.Delay(TimeSpan.FromSeconds(3));
         }
-        if (scan && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
+        if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
-            await scanner.ScanCommand.ExecuteAsync(null);
+            for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
+            if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (copy is not null && window.DataContext is ViewModels.MainViewModel { Selected.Copy: { } copier })

@@ -13,8 +13,9 @@ namespace InkvoltPrint.App;
 /// server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
 /// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>. Demo mode makes no network
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
-/// (the remembered-printers file is neither read nor written). Scanning returns a generated blank-ish page (a made-up
-/// ID card for card-sized regions); the print queue card shows <see cref="DemoPrintJobs"/>, where copies also "print".
+/// (the remembered-printers file is neither read nor written). Scanning returns generated pages in turn: a straight page,
+/// the same page fed a little crooked, a blank sheet (for the scan review's Straighten and Skip blank pages); a made-up
+/// ID card for card-sized regions; the print queue card shows <see cref="DemoPrintJobs"/>, where copies also "print".
 /// </summary>
 internal static class Demo
 {
@@ -31,15 +32,17 @@ internal static class Demo
     public static HttpMessageHandler CreateTransport() => new FixtureHandler(Document, scanArea: Scan);
 
     // WPF drawing needs the UI thread; the handler runs wherever the scan's awaits continue.
-    private static readonly Lazy<byte[]> Page = new(() => Application.Current.Dispatcher.Invoke(ScanPage));
+    private static readonly Lazy<byte[]>[] Pages =
+        [new(() => Application.Current.Dispatcher.Invoke(() => ScanPage(0))), new(() => Application.Current.Dispatcher.Invoke(() => ScanPage(2.5))),
+            new(() => Application.Current.Dispatcher.Invoke(BlankSheet))];
 
-    private static int _cardSide;
+    private static int _cardSide, _page = -1;
 
     /// <summary>A page for page-sized regions; for a small region (ID card copy), a made-up card, front and back in turn.</summary>
     private static byte[] Scan(int width, int height) =>
         width <= 1800 && height <= 1500
             ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
-            : Page.Value;
+            : Pages[Interlocked.Increment(ref _page) % Pages.Length].Value;
 
     private static byte[]? Document(string name)
     {
@@ -53,8 +56,11 @@ internal static class Demo
     /// <summary>The demo printer's made-up Windows queue (one demo printer, so one queue).</summary>
     public static DemoPrintJobs PrintJobs { get; } = new();
 
-    /// <summary>A synthetic letter-size page at 300 dpi: a heading, grey text bars and a picture box. Never a real scan.</summary>
-    private static byte[] ScanPage()
+    /// <summary>
+    /// A synthetic letter-size page at 300 dpi: a heading, grey text bars and a picture box, turned <paramref name="skew"/>
+    /// degrees clockwise as if fed crooked. Never a real scan.
+    /// </summary>
+    private static byte[] ScanPage(double skew)
     {
         const int w = 1275, h = 1650; // drawn at 150 dpi, rendered at 300
         var visual = new DrawingVisual();
@@ -62,6 +68,7 @@ internal static class Demo
         {
             dc.PushTransform(new ScaleTransform(2, 2));
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
+            dc.PushTransform(new RotateTransform(skew, w / 2.0, h / 2.0));
             var ink = new SolidColorBrush(Color.FromRgb(0x30, 0x34, 0x3A));
             var grey = new SolidColorBrush(Color.FromRgb(0xC4, 0xC8, 0xCE));
             dc.DrawRoundedRectangle(ink, null, new Rect(150, 160, 620, 46), 6, 6);
@@ -73,6 +80,22 @@ internal static class Demo
                 var len = i % 7 == 6 ? 520 : 975 - (i * 37 % 90);
                 dc.DrawRoundedRectangle(grey, null, new Rect(150, y, len, 18), 4, 4);
             }
+        }
+        return Jpeg(visual, w * 2, h * 2);
+    }
+
+    /// <summary>The back of a one-sided sheet: white paper, a few specks of dust and a grey feeder edge.</summary>
+    private static byte[] BlankSheet()
+    {
+        const int w = 1275, h = 1650;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xF6, 0xF5, 0xF2)), null, new Rect(0, 0, w, h));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xB8, 0xB8, 0xB8)), null, new Rect(0, 0, w, 6));
+            foreach (var (x, y) in new[] { (310.0, 420.0), (880, 1210), (640, 760) })
+                dc.DrawEllipse(Brushes.Gray, null, new Point(x, y), 0.6, 0.6);
         }
         return Jpeg(visual, w * 2, h * 2);
     }
