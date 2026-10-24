@@ -210,6 +210,23 @@ public class AlertTests
         Assert.Empty(t.Observe(Seen(jam), T0.AddHours(1)));
     }
 
+    [Fact]
+    public void A_pending_problem_the_printer_stops_showing_is_dropped()
+    {
+        // A jam within its hold, then the printer is switched off: nothing is pending in the past (no endless re-checks).
+        var t = Tracker();
+        t.Observe(Seen(With(("media-jam", Severity.Error, "Paper jam"))), T0);
+        t.Observe(Unreachable(), T0.AddMinutes(5));
+        Assert.Equal(T0.AddMinutes(5) + new AlertRules().OfflineHold, t.PendingUntil(Laser));
+        Assert.Empty(t.Observe(Unreachable(), T0.AddMinutes(10)));
+        Assert.True(t.NextCheck > T0.AddMinutes(10));
+        // An unusable reply drops it too.
+        var u = Tracker();
+        u.Observe(Seen(With(("media-jam", Severity.Error, "Paper jam"))), T0);
+        u.Observe(Seen(null), T0.AddMinutes(5));
+        Assert.Null(u.PendingUntil(Laser));
+    }
+
     // ---------------------------------------------------------------- offline
 
     [Fact]

@@ -36,8 +36,11 @@ public sealed class NotifyIcon : IDisposable
     /// <summary>Left click, or Enter / Space on the focused icon.</summary>
     public event Action? Activated;
 
-    /// <summary>Right click, Shift+F10 or the menu key: screen point in pixels, and whether a keyboard opened it.</summary>
+    /// <summary>Right click, Shift+F10 or the menu key: where to open it (DIPs, from the shell's anchor point scaled by that
+    /// display's DPI), and whether a keyboard opened it.</summary>
     public event Action<Point, bool>? MenuRequested;
+
+    private bool _rightButton;
 
     public event Action? BalloonClicked;
 
@@ -56,20 +59,20 @@ public sealed class NotifyIcon : IDisposable
             Replace(ref _icon, TrayIcons.Load(resource, TrayIcons.SmallIconSize()));
         }
         var data = Data(NifMessage | NifIcon | NifTip | NifShowTip);
+        if (!_added || !ShellNotifyIcon(NimModify, ref data)) Add(ref data); // new, or Explorer lost it
+    }
+
+    /// <summary>NIM_ADD, then NOTIFYICON_VERSION_4 every time: without it the callbacks below arrive in the old format.</summary>
+    private void Add(ref NotifyIconData data)
+    {
+        _added = ShellNotifyIcon(NimAdd, ref data);
         if (!_added)
         {
-            _added = ShellNotifyIcon(NimAdd, ref data);
-            if (!_added) Log.Write("Notification-area icon not added (Explorer not running yet?); added when the taskbar starts");
-            if (_added)
-            {
-                data.uTimeoutOrVersion = 4; // NOTIFYICON_VERSION_4
-                ShellNotifyIcon(NimSetVersion, ref data);
-            }
+            Log.Write("Notification-area icon not added (Explorer not running yet?); added when the taskbar starts");
+            return;
         }
-        else if (!ShellNotifyIcon(NimModify, ref data))
-        {
-            _added = ShellNotifyIcon(NimAdd, ref data); // Explorer lost it
-        }
+        data.uTimeoutOrVersion = 4;
+        if (!ShellNotifyIcon(NimSetVersion, ref data)) Log.Write("Notification-area icon: version 4 refused");
     }
 
     public void Hide()
@@ -137,8 +140,13 @@ public sealed class NotifyIcon : IDisposable
                 case NinSelect or NinKeySelect:
                     Activated?.Invoke();
                     break;
+                case WmRButtonUp:
+                    _rightButton = true; // version 4: a right click sends WM_RBUTTONUP, then WM_CONTEXTMENU
+                    break;
                 case WmContextMenu:
-                    MenuRequested?.Invoke(new Point(x, y), (GetKeyState(0x02) & 0x8000) == 0); // VK_RBUTTON up: a key opened it
+                    var byKeyboard = !_rightButton;
+                    _rightButton = false;
+                    MenuRequested?.Invoke(ToDips(x, y), byKeyboard);
                     break;
                 case NinBalloonUserClick:
                     BalloonClicked?.Invoke();
@@ -148,7 +156,7 @@ public sealed class NotifyIcon : IDisposable
         }
         else if (msg == _taskbarCreated && _taskbarCreated != 0)
         {
-            _added = false; // Explorer restarted: add the icon again
+            _added = false; // Explorer restarted: add the icon again (Show adds it and sets version 4)
             Refresh();
             if (_iconResource.Length > 0) Show(_iconResource, _tip);
         }
@@ -157,6 +165,19 @@ public sealed class NotifyIcon : IDisposable
             Refresh();
         }
         return IntPtr.Zero;
+    }
+
+    /// <summary>A screen point in pixels as WPF's popup placement wants it: divided by the scale of the display it's on.</summary>
+    private static Point ToDips(int x, int y)
+    {
+        double dpi = 96;
+        try
+        {
+            var monitor = MonitorFromPoint(new NativePoint { X = x, Y = y }, 2); // MONITOR_DEFAULTTONEAREST
+            if (GetDpiForMonitor(monitor, 0, out var dpiX, out _) == 0 && dpiX > 0) dpi = dpiX; // MDT_EFFECTIVE_DPI
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException) { }
+        return new Point(x * 96.0 / dpi, y * 96.0 / dpi);
     }
 
     public void Dispose()
@@ -173,6 +194,7 @@ public sealed class NotifyIcon : IDisposable
     private const int NimAdd = 0, NimModify = 1, NimDelete = 2, NimSetVersion = 4;
     private const int NifMessage = 0x1, NifIcon = 0x2, NifTip = 0x4, NifInfo = 0x10, NifShowTip = 0x80;
     private const int NiifUser = 0x4, NiifLargeIcon = 0x20;
+    private const int WmRButtonUp = 0x205;
     private const int WmContextMenu = 0x7B, WmDisplayChange = 0x7E, WmSettingChange = 0x1A, WmDpiChanged = 0x2E0;
     private const int NinSelect = 0x400, NinKeySelect = 0x401, NinBalloonUserClick = 0x405;
 
@@ -203,8 +225,17 @@ public sealed class NotifyIcon : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int RegisterWindowMessage(string name);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X, Y;
+    }
+
     [DllImport("user32.dll")]
-    private static extern short GetKeyState(int key);
+    private static extern IntPtr MonitorFromPoint(NativePoint point, int flags);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

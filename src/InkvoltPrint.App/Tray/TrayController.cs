@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
@@ -28,14 +29,14 @@ public sealed class TrayController : IDisposable
     private readonly MainViewModel _vm;
     private readonly AppState _state;
     private readonly TraySettings _settings;
-    private readonly AlertTracker _tracker;
+    private AlertTracker _tracker;
     private readonly DispatcherTimer _timer;
     private readonly HashSet<PrinterViewModel> _watched = [];
-    private readonly Dictionary<string, (DateTimeOffset Due, int Failures)> _schedule = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (DateTimeOffset Due, int Failures, DateTimeOffset Checked)> _schedule = new(StringComparer.OrdinalIgnoreCase);
     private NotifyIcon? _icon;
     private CancellationTokenSource? _poll, _wake;
     private string? _noticeUuid, _savedShown;
-    private bool _hidden, _powerEvents;
+    private bool _hidden, _powerEvents, _alertsOn;
 
     public TrayController(Application app, MainViewModel vm, AppState state, bool demo)
     {
@@ -49,6 +50,7 @@ public sealed class TrayController : IDisposable
             PausedUntil = _settings.PausedUntil,
         };
         _savedShown = ShownText();
+        _alertsOn = _settings.Enabled && _settings.Alerts;
         foreach (var p in vm.Printers) Watch(p);
         vm.Printers.CollectionChanged += OnPrintersChanged;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -89,6 +91,11 @@ public sealed class TrayController : IDisposable
     public void Apply()
     {
         _tracker.Rules = Rules();
+        // Alerts (or the icon) just turned on: start from scratch, so a problem that's already there (a low toner noticed
+        // silently while they were off) is told now instead of counting as shown.
+        var alertsOn = _settings.Enabled && _settings.Alerts;
+        if (alertsOn && !_alertsOn) ResetTracker();
+        _alertsOn = alertsOn;
         if (_settings.Enabled)
         {
             if (_icon is null)
@@ -115,6 +122,21 @@ public sealed class TrayController : IDisposable
         }
         _state.Save();
         Changed?.Invoke();
+    }
+
+    private void ResetTracker()
+    {
+        _tracker = new AlertTracker(Rules()) { PausedUntil = _settings.PausedUntil };
+        _settings.Shown.Clear();
+        _savedShown = ShownText();
+    }
+
+    /// <summary>An unexpected error while the window is in the notification area: said there (details in the log).</summary>
+    public void ShowError(string message)
+    {
+        if (_icon is null) return;
+        _noticeUuid = null;
+        _icon.Notify("Something went wrong", $"Inkvolt Print is still running. {message} Details were saved to {Log.FilePath}", TrayIcons.Error);
     }
 
     // ---------------------------------------------------------------- printers and alerts
@@ -147,6 +169,7 @@ public sealed class TrayController : IDisposable
 
     private void OnObserved(PrinterSnapshot snap)
     {
+        if (!_settings.Enabled) return; // icon off: nothing is tracked, nothing saved
         try
         {
             Show(_tracker.Observe(snap, DateTimeOffset.Now));
@@ -318,13 +341,15 @@ public sealed class TrayController : IDisposable
         _schedule.Clear();
         var now = DateTimeOffset.Now;
         foreach (var p in _vm.Printers)
-            _schedule[p.Uuid] = (now + (first ?? AlertPolling.Interval(PowerInfo.OnBattery(), PowerInfo.Metered(), 0)), 0);
+            _schedule[p.Uuid] = (now + (first ?? AlertPolling.Interval(PowerInfo.OnBattery(), PowerInfo.Metered(), 0)), 0, now);
         _poll = new CancellationTokenSource();
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkChanged;
         _ = PollAsync(_poll.Token);
     }
 
     private void StopPolling()
     {
+        if (_poll is not null) NetworkChange.NetworkAvailabilityChanged -= OnNetworkChanged;
         _poll?.Cancel();
         _poll = null;
     }
@@ -339,18 +364,24 @@ public sealed class TrayController : IDisposable
                 var battery = PowerInfo.OnBattery();
                 var metered = PowerInfo.Metered();
                 var printers = _vm.Printers.ToList();
-                if (IsDemo || PowerInfo.NetworkUp())
+                var online = IsDemo || PowerInfo.NetworkUp();
+                if (online)
                     foreach (var p in printers)
                     {
-                        if (!_schedule.TryGetValue(p.Uuid, out var s)) _schedule[p.Uuid] = s = (now + AlertPolling.Interval(battery, metered, 0), 0);
-                        if (s.Due > now && !(_tracker.PendingUntil(p.Uuid) <= now)) continue;
+                        if (!_schedule.TryGetValue(p.Uuid, out var s)) _schedule[p.Uuid] = s = (now + AlertPolling.Interval(battery, metered, 0), 0, now);
+                        if (s.Due > now && !PendingDue(p.Uuid, s.Checked, now)) continue;
                         var ok = await p.CheckOnceAsync(ct);
                         var failures = ok ? 0 : s.Failures + 1;
-                        _schedule[p.Uuid] = (DateTimeOffset.Now + AlertPolling.Interval(battery, metered, failures), failures);
+                        var checkedAt = DateTimeOffset.Now;
+                        _schedule[p.Uuid] = (checkedAt + AlertPolling.Interval(battery, metered, failures), failures, checkedAt);
                     }
-                // Nothing remembered: no timer at all until a printer appears (OnPrintersChanged wakes this up).
+                // Nothing remembered: no timer at all until a printer appears (OnPrintersChanged wakes this up). No network:
+                // wait for it to come back (NetworkAvailabilityChanged wakes this up), at most an hour.
                 var next = printers.Count == 0 ? (DateTimeOffset?)null
-                    : printers.Select(p => Earliest(_schedule.TryGetValue(p.Uuid, out var s) ? s.Due : now + AlertPolling.Normal, _tracker.PendingUntil(p.Uuid))).Min();
+                    : !online ? now + AlertPolling.Longest
+                    : printers.Select(p => _schedule.TryGetValue(p.Uuid, out var s)
+                        ? Earliest(s.Due, _tracker.PendingUntil(p.Uuid) is { } pending && pending > s.Checked ? pending : null)
+                        : now + AlertPolling.Normal).Min();
                 var wait = next is { } n ? n - DateTimeOffset.Now : Timeout.InfiniteTimeSpan;
                 if (wait != Timeout.InfiniteTimeSpan && wait < TimeSpan.FromSeconds(5)) wait = TimeSpan.FromSeconds(5);
                 using var wake = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -373,6 +404,15 @@ public sealed class TrayController : IDisposable
         foreach (var p in _vm.Printers.ToList()) await p.CheckOnceAsync(CancellationToken.None);
     }
 
+    /// <summary>A problem seen at the last check is due to be confirmed: check once more (only once per check, never in a loop).</summary>
+    private bool PendingDue(string uuid, DateTimeOffset lastChecked, DateTimeOffset now) =>
+        _tracker.PendingUntil(uuid) is { } pending && pending <= now && pending > lastChecked;
+
+    private void OnNetworkChanged(object? sender, NetworkAvailabilityEventArgs e)
+    {
+        if (e.IsAvailable) _app.Dispatcher.InvokeAsync(() => _wake?.Cancel());
+    }
+
     private static DateTimeOffset Earliest(DateTimeOffset a, DateTimeOffset? b) => b is { } x && x < a ? x : a;
 
     /// <summary>The PC woke up: the time asleep doesn't count toward "offline for 15 minutes"; check again in a minute (network back).</summary>
@@ -383,7 +423,7 @@ public sealed class TrayController : IDisposable
         {
             _tracker.ResetPending();
             var soon = DateTimeOffset.Now + TimeSpan.FromMinutes(1);
-            foreach (var key in _schedule.Keys.ToList()) _schedule[key] = (soon, _schedule[key].Failures);
+            foreach (var key in _schedule.Keys.ToList()) _schedule[key] = _schedule[key] with { Due = soon };
             _wake?.Cancel();
         });
     }
@@ -460,24 +500,17 @@ public sealed class TrayController : IDisposable
 
     private ContextMenu? _menu;
 
-    private void OpenMenu(Point pixels, bool byKeyboard)
+    /// <param name="point">Where the shell anchors the menu (the click, or the icon for the keyboard), in DIPs.</param>
+    private void OpenMenu(Point point, bool byKeyboard)
     {
         if (_icon is null) return;
         if (_menu is { IsOpen: true }) _menu.IsOpen = false;
         _menu = BuildMenu();
         SetForegroundWindow(_icon.Handle); // else the menu wouldn't close when clicking elsewhere
-        if (byKeyboard)
-        {
-            var scale = VisualTreeHelper.GetDpi(_app.MainWindow ?? new Window()).DpiScaleX;
-            _menu.Placement = PlacementMode.AbsolutePoint;
-            _menu.HorizontalOffset = pixels.X / scale;
-            _menu.VerticalOffset = pixels.Y / scale;
-        }
-        else
-        {
-            _menu.Placement = PlacementMode.MousePoint;
-        }
-        _menu.Opened += (_, _) => (_menu.Items[0] as MenuItem)?.Focus();
+        _menu.Placement = PlacementMode.AbsolutePoint;
+        _menu.HorizontalOffset = point.X;
+        _menu.VerticalOffset = point.Y;
+        if (byKeyboard) _menu.Opened += (_, _) => (_menu.Items[0] as MenuItem)?.Focus();
         _menu.IsOpen = true;
     }
 
@@ -489,10 +522,10 @@ public sealed class TrayController : IDisposable
         if (_powerEvents) SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         StopPolling();
         _timer.Stop();
-        _vm.Printers.CollectionChanged -= OnPrintersChanged;
-        foreach (var p in _watched) p.Observed -= OnObserved;
         _icon?.Dispose();
         _icon = null;
+        _vm.Printers.CollectionChanged -= OnPrintersChanged;
+        foreach (var p in _watched) p.Observed -= OnObserved;
     }
 
     [DllImport("user32.dll")]

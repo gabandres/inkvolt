@@ -118,7 +118,14 @@ public sealed class AlertTracker
         }
         foreach (var (key, t) in printer.Tracks.ToList())
         {
-            if (found.Any(c => c.Key == key) || !Observable(t.Kind, snap)) continue;
+            if (found.Any(c => c.Key == key)) continue;
+            if (!Observable(t.Kind, snap))
+            {
+                // Can't be seen now (printer off, unusable reply): a problem still within its hold is dropped, since its
+                // hold can't run out unseen (and must not keep asking for a check); a confirmed one stands as known.
+                if (!t.Confirmed) printer.Tracks.Remove(key);
+                continue;
+            }
             if (!t.Seen && !t.Notified) { printer.Tracks.Remove(key); continue; }
             t.AbsentSince ??= now;
             if (now - t.AbsentSince >= Rules.ClearHold || !t.Confirmed) printer.Tracks.Remove(key);

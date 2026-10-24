@@ -21,6 +21,9 @@ public partial class App : Application
     /// <summary>Quit from the tray menu or Windows signing out: the window really closes instead of going to the tray.</summary>
     public bool Quitting { get; private set; }
 
+    /// <summary>OnStartup got to its end: later errors keep the app running (even with the window in the tray).</summary>
+    private bool _started;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // --demo: one made-up printer, no network (Demo.cs). Like the dev aids, it runs beside a normal copy.
@@ -127,6 +130,7 @@ public partial class App : Application
                 then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
                 editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
                 tray: e.Args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: e.Args.Contains("--simulate-alerts"));
+        _started = true;
     }
 
     private static string? PresetArg(string[] args) =>
@@ -184,13 +188,20 @@ public partial class App : Application
     {
         Log.Write($"Unhandled UI exception: {e.Exception}");
         e.Handled = true;
-        if (MainWindow is not { IsLoaded: true, IsVisible: true } owner)
+        if (!_started)
         {
             // Failed before the window was up: a windowless process would keep the single-instance lock and
             // silently swallow every later launch. Say so and exit instead.
             MessageBox.Show($"Inkvolt Print couldn't start.\n\n{e.Exception.Message}\n\nDetails were saved to {Log.FilePath}",
                 "Inkvolt Print", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
+            return;
+        }
+        var owner = MainWindow is { IsLoaded: true, IsVisible: true } w ? w : null;
+        if (owner is null)
+        {
+            // In the notification area: no window to show it over; the log has it.
+            Tray?.ShowError(e.Exception.Message);
             return;
         }
         MessageBox.Show(owner,
