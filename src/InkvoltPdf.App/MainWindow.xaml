@@ -92,6 +92,7 @@
                                     <MenuItem Command="app:Cmd.Open" />
                                     <MenuItem x:Name="RecentMenu" Header="Open _Recent" />
                                     <MenuItem Command="app:Cmd.Combine" />
+                                    <MenuItem Command="app:Cmd.Compare" />
                                     <MenuItem Command="app:Cmd.NewFromImages" />
                                     <MenuItem Command="app:Cmd.NewFromClipboard" />
                                     <Separator />
@@ -343,7 +344,7 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <UniformGrid Columns="2" Margin="0,28,0,0">
+                            <UniformGrid Columns="3" Margin="0,28,0,0">
                                 <Button x:Name="OpenCard" Command="app:Cmd.Open" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="28" Margin="0,0,16,0"
@@ -354,13 +355,23 @@
                                         </StackPanel>
                                     </DockPanel>
                                 </Button>
-                                <Button Command="app:Cmd.Combine" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch">
+                                <Button Command="app:Cmd.Combine" Margin="8,0,8,0" Padding="20" HorizontalContentAlignment="Stretch">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8F1;" FontSize="28" Margin="0,0,16,0"
                                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                                         <StackPanel>
                                             <TextBlock Text="Combine files" FontSize="15" FontWeight="SemiBold" />
                                             <TextBlock Text="Merge several PDFs into one, in the order you choose" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Button>
+                                <Button Command="app:Cmd.Compare" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7C4;" FontSize="28" Margin="0,0,16,0"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        <StackPanel>
+                                            <TextBlock Text="Compare files" FontSize="15" FontWeight="SemiBold" />
+                                            <TextBlock Text="See what changed between two versions, side by side" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
                                 </Button>

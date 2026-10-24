@@ -160,6 +160,9 @@ public static class ShortcutsWindow
             ("Links", "Add a link (Links tool)", "Drag a box over the text"),
             ("Links", "Change where the selected link leads", "Double-click or Enter"),
             ("Links", "Delete the selected link", "Del, or right-click › Delete Link"),
+            ("Compare Files", "Next / previous change", "F8 / Shift+F8, or Alt+Down / Alt+Up"),
+            ("Compare Files", "Text side by side / visual overlay", "Ctrl+1 / Ctrl+2"),
+            ("Compare Files", "Zoom in / out / fit", "Ctrl+= / Ctrl+- / Ctrl+0, or Ctrl+mouse wheel"),
             ("Anywhere", "Search all commands", Cmd.GestureText(Cmd.CommandPalette) ?? ""),
         ]);
 

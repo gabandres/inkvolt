@@ -24,7 +24,8 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found).
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Compare: <c>compare old.pdf new.pdf ·
+/// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
@@ -572,6 +573,35 @@ internal static class DevScript
                 await Task.Delay(1200);
                 break;
             }
+            // Compare: compare old.pdf new.pdf (opens the compare window off-screen, waits for the result) · compareshot out.png ·
+            // comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport
+            case "compare":
+            {
+                var a = arg.Split(' ', 2);
+                var cw = CompareWindow.Open(window, new CompareSide(Path.GetFileName(a[0]), await File.ReadAllBytesAsync(a[0]), null),
+                    new CompareSide(Path.GetFileName(a[1]), await File.ReadAllBytesAsync(a[1]), null), offScreen: true);
+                await CompareIdle(cw);
+                log.Add(cw.DevDescribe());
+                break;
+            }
+            case "compareshot":
+            {
+                var cw = Application.Current.Windows.OfType<CompareWindow>().Last();
+                await CompareIdle(cw);
+                Shot(cw, arg);
+                break;
+            }
+            case "comparemode": Application.Current.Windows.OfType<CompareWindow>().Last().DevMode(arg == "visual"); break;
+            case "comparenext":
+                for (var i = 0; i < (int.TryParse(arg, out var steps) ? steps : 1); i++) Application.Current.Windows.OfType<CompareWindow>().Last().Step(1);
+                break;
+            case "compareselect": Application.Current.Windows.OfType<CompareWindow>().Last().DevSelect(int.Parse(arg)); break;
+            case "comparezoom": Application.Current.Windows.OfType<CompareWindow>().Last().DevZoom(arg == "fit" ? 0 : double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) / 100); break;
+            case "comparestate": log.Add(Application.Current.Windows.OfType<CompareWindow>().Last().DevDescribe()); break;
+            case "comparereport":
+                await Application.Current.Windows.OfType<CompareWindow>().Last().DevReportAsync();
+                log.Add($"tabs: {window.TabCount}, active '{window.ActiveTab?.Session.DisplayName}' {Annotations(window.ActiveTab!)}");
+                break;
             case "later":
             {
                 // later <ms> <step>: run <step> after <ms> even while the next step is blocked (e.g. inside a
@@ -982,6 +1012,14 @@ internal static class DevScript
         enc.Frames.Add(BitmapFrame.Create(bmp));
         using var fs = File.Create(path);
         enc.Save(fs);
+    }
+
+    /// <summary>Waits (up to 30 s) until the compare window has its result and has rendered what's in view.</summary>
+    private static async Task CompareIdle(CompareWindow cw)
+    {
+        for (var i = 0; i < 300 && !cw.DevIdle; i++) await Task.Delay(100);
+        await Task.Delay(400);
+        for (var i = 0; i < 100 && !cw.DevIdle; i++) await Task.Delay(100);
     }
 
     private static void Shot(Window window, string path)

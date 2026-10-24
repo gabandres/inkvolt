@@ -122,6 +122,14 @@ public static partial class Annotations
     {
         if (lineRects.Count == 0 || lineRects.All(r => r.IsEmpty)) throw new ArgumentException("No text to mark.", nameof(lineRects));
         using var doc = OpenForEdit(data, password);
+        AddTextMarkupIn(doc, pageIndex, kind, lineRects, color, note, author, id);
+        return PdfObj.Save(doc);
+    }
+
+    /// <summary><see cref="AddTextMarkup"/> on a document already open for editing (several marks, one save).</summary>
+    internal static void AddTextMarkupIn(PdfDocument doc, int pageIndex, TextMarkupKind kind, IReadOnlyList<RectD> lineRects,
+        AnnotColor color, string? note, string author, string? id = null)
+    {
         var page = doc.Pages[pageIndex];
 
         // Quad corners in PDF space, in the reading orientation of the displayed page: upper-left, upper-right, lower-left, lower-right.
@@ -184,7 +192,6 @@ public static partial class Annotations
         foreach (var (ul, ur, ll, lr) in quads) qp.AddRange([ul.X, ul.Y, ur.X, ur.Y, ll.X, ll.Y, lr.X, lr.Y]);
         annot.Elements["/QuadPoints"] = PdfObj.Reals(doc, [.. qp]);
         SetAppearance(doc, annot, ap);
-        return PdfObj.Save(doc);
 
         static string P((double X, double Y) p) => $"{PdfObj.F(p.X)} {PdfObj.F(p.Y)}";
     }
@@ -194,6 +201,14 @@ public static partial class Annotations
         AnnotColor? color = null, string? id = null)
     {
         using var doc = OpenForEdit(data, password);
+        AddNoteIn(doc, pageIndex, x, y, text, author, color, id);
+        return PdfObj.Save(doc);
+    }
+
+    /// <summary><see cref="AddNote"/> on a document already open for editing.</summary>
+    internal static void AddNoteIn(PdfDocument doc, int pageIndex, double x, double y, string text, string author,
+        AnnotColor? color = null, string? id = null)
+    {
         var page = doc.Pages[pageIndex];
         const double size = 20;
         var (x1, y1, x2, y2) = TextStamps.FromPageSpace(page, new RectD(x, y, size, size));
@@ -207,7 +222,6 @@ public static partial class Annotations
         annot.Elements["/Name"] = new PdfName("/Comment");
         annot.Elements["/Open"] = new PdfBoolean(false);
         SetAppearance(doc, annot, ap);
-        return PdfObj.Save(doc);
     }
 
     /// <summary>Changes a comment's text. A FreeText box (other than a Fill &amp; Sign stamp) shows the new text: its appearance is rebuilt.</summary>
@@ -335,6 +349,6 @@ public static partial class Annotations
         _ => null,
     };
 
-    private static PdfDocument OpenForEdit(byte[] data, string? password) =>
+    internal static PdfDocument OpenForEdit(byte[] data, string? password) =>
         PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
 }

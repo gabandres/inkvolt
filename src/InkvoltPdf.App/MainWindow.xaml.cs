@@ -188,6 +188,9 @@ public partial class MainWindow : Window
     public int TabCount => _tabs.Count;
     private IEnumerable<DocumentTab> Tabs => _tabs.Select(t => t.Tab);
 
+    /// <summary>The open documents, in tab order.</summary>
+    public IReadOnlyList<DocumentTab> OpenTabs => [.. Tabs];
+
     private static TabModel? ItemUnder(object source)
     {
         for (var d = source as DependencyObject; d is not null; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))

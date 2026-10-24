@@ -146,6 +146,20 @@ Manager. The installers don't remove an install made under the old names: uninst
   default shortcut, since it changes the file), delete, insert from file or blank,
   extract (new tab, one file, or a file per page), split (by count, ranges, or bookmarks), move, duplicate, reverse,
   crop/uncrop, combine files. Drag thumbnails onto another tab to copy pages; drop PDFs onto thumbnails to insert them.
+- **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
+  the saved file behind a tab with unsaved changes, recent files or any PDF; Swap). The text of both is compared word by
+  word over the whole document, so text that flows onto the next page isn't a change, and pages are lined up by the
+  words they share: an inserted or removed page is one change (not a wall of words), a page rewritten in place is
+  "changed". Rows of lined-up pages side by side with one scroll bar (both documents always scroll together);
+  inserted words green, removed red, changed amber on both sides, with a marker where words went missing on the other
+  side. A list of changes (click one, or a highlight on the page; F8 / Shift+F8 or Alt+Down / Alt+Up step through
+  them) and a summary count. **Visual** (Ctrl+2) overlays the pages: ink only in the original red, only in the changed
+  file blue, shared grey, with boxes around each area that differs: for drawings and scans. Pages without text (scans)
+  say so instead of counting every word as changed; they are checked visually in the background and listed when they
+  look different. Zoom with Ctrl+wheel, Ctrl+= / Ctrl+- / Ctrl+0 (fit). **Annotated Copy** opens a copy of the
+  changed file with every text change as a comment (highlights quoting the old wording, notes where words or pages were
+  removed, a summary note on page 1) in a new tab, to save and share; a signed file gets the comments appended, a
+  protected one keeps its protection.
 - **Command palette** (Ctrl+K): every command (with its icon), recent files, or a page number. **Shortcuts**: F1;
   tooltips show each button's shortcut. Error messages stay until dismissed; other notices fade.
 - **Password protection** (File › Protect with Password…): an open password (with a strength hint) and/or a
@@ -199,8 +213,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view) |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -214,7 +228,9 @@ Dev check without touching the screen: `InkvoltPdf.exe file.pdf --script steps.t
 writes snapshots (see `DevScript.cs`). Set `INKVOLTPDF_DATA` to a temp folder so the run saves settings there instead of
 leaving your own settings untouched and unsaved. Sample files for the review features: run the tests with
 `INKVOLTPDF_SAMPLES` set to a temp folder (`ReviewSampleTests`). Inkvolt suite steps: `scandialog` (the open Scan dialog's
-scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`.
+scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
+`compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
+`comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 
 ## License
 
@@ -255,11 +271,19 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   stamps and fields.
 - No editing of existing page text. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
   restyled), each pen stroke is its own annotation, and pen pressure is ignored.
+- Compare: text is matched in the order the pages store it (multi-column layouts can show reordered text as changes),
+  a paragraph moved elsewhere shows as removed in one place and inserted in another, and Thai, Lao or Khmer text (no
+  spaces between words) is compared in long runs. Visual compare overlays pages at their top-left corners without
+  aligning them, so two separate scans of the same paper, or a page shifted by a few points, look different all over.
+  The annotated copy lists text changes only (visual differences aren't in it), and needs the permissions password of a
+  protected changed file. PDFs only (not XPS or EPUB).
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
 
 ## Backlog
 
+- Compare: find moved paragraphs, line up shifted or skewed scans before overlaying them, put visual differences in the
+  annotated copy, and report formatting changes (font, size, color) as well as wording.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).
   Both apps stay free.
 - Distribution outside the Store (signed GitHub releases, winget community manifests) needs a paid code-signing
