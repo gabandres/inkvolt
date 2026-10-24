@@ -41,6 +41,9 @@ public sealed record OptimizeOptions
 public sealed record OptimizeResult(byte[] Data, long SizeBefore, long SizeAfter, int StreamsCompressed, int DuplicatesRemoved, int ImagesDownsampled)
 {
     public long Saved => SizeBefore - SizeAfter;
+
+    /// <summary>At least 1% (and 1 KB) smaller: savings under that (or a bigger file) aren't worth a rewrite.</summary>
+    public bool IsWorthIt => Saved >= Math.Max(1024, SizeBefore / 100);
 }
 
 /// <summary>
@@ -361,7 +364,7 @@ public static class Optimizer
         MuPDFDocument? mu = null;
         try
         {
-            mu = new MuPDFDocument(ctx, pdf, InputFileTypes.PDF);
+            mu = PdfEngine.NewDocument(ctx, () => new MuPDFDocument(ctx, pdf, InputFileTypes.PDF));
             if (quality is null) return mu.Render(0, 1, PixelFormats.RGB, includeAnnotations: false);
             using var ms = new MemoryStream();
             mu.WriteImageAsJPEG(0, 1, ms, quality.Value, includeAnnotations: false);

@@ -1,6 +1,6 @@
 namespace InkvoltPdf.App;
 
-/// <summary>Commands for new-from-images, comparing files, password protection, reducing size, flattening, sanitizing, headers and footers, watermarks, bookmarks and Read Aloud.</summary>
+/// <summary>Commands for new-from-images, comparing files, batches, password protection, reducing size, flattening, sanitizing, headers and footers, watermarks, bookmarks and Read Aloud.</summary>
 public partial class MainWindow
 {
     private void BindToolCommands()
@@ -8,6 +8,7 @@ public partial class MainWindow
         BindAlways(Cmd.NewFromImages, () => _ = FileTools.NewFromImages(this));
         BindAlways(Cmd.NewFromClipboard, () => _ = FileTools.NewFromClipboard(this));
         BindAlways(Cmd.Compare, () => _ = Comparing.Start(this));
+        BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
         BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.Engine.IsEncrypted);
         BindEdit(Cmd.ReduceSize, t => FileTools.ReduceSize(this, t));

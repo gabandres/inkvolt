@@ -11,7 +11,7 @@ namespace InkvoltPdf.App;
 /// </summary>
 public static class SanitizeActions
 {
-    private static readonly (SanitizeItem Item, string Label, string? Group)[] Kinds =
+    internal static readonly (SanitizeItem Item, string Label, string? Group)[] Kinds =
     [
         (SanitizeItem.Metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Metadata"),
         (SanitizeItem.HiddenLayers, "Hidden layers, with what they draw", "Hidden data"),

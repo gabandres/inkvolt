@@ -24,7 +24,7 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -790,11 +790,65 @@ internal static class DevScript
                 }
                 else log.Add("dialogfill: no dialog open");
                 break;
+            // Batch: batch [path;path] (opens the window, modeless) · batchadd path;path · batchstep optimize|protect open [owner]|unprotect|
+            // sanitize|watermark text|footer text|bates PREFIX [continue]|rotate 90|flatten|ocr|export word|excel|text|png|jpeg ·
+            // batchout folder [template] · batchoption signed=edit passwords=skip overwrite=on subfolders=off recursive=off images=a4 ·
+            // batchpw password|skip (answers the next password prompt) · batchrun (waits for the result) · batchshot out.png · batchstate · batchclose
+            case "batch":
+                BatchWindow.Open(window, arg.Length > 0 ? arg.Split(';') : null, modal: false);
+                await Task.Delay(500);
+                break;
+            case "batchadd": OpenBatch().AddPaths(arg.Split(';')); break;
+            case "batchstep": OpenBatch().DevAddStep(arg); break;
+            case "batchout":
+            {
+                var a = arg.Split(' ', 2);
+                OpenBatch().DevOutput(a[0], a.Length > 1 ? a[1] : null);
+                break;
+            }
+            case "batchoption":
+                foreach (var kv in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2)))
+                    OpenBatch().DevOption(kv[0], kv.ElementAtOrDefault(1) ?? "");
+                break;
+            case "batchpw":
+                lock (BatchPasswords) BatchPasswords.Enqueue(arg == "skip" ? null : arg);
+                break;
+            case "batchrun":
+                await OpenBatch().StartAsync();
+                log.Add(OpenBatch().DevState());
+                break;
+            case "batchshot": await Task.Delay(300); Shot(OpenBatch(), arg); break;
+            case "batchstate": log.Add(OpenBatch().DevState()); break;
+            case "batchask":
+            {
+                // batchask kind png: an action's settings dialog, snapshotted and cancelled.
+                var a = arg.Split(' ', 2);
+                var batchWindow = OpenBatch();
+                var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    if (Application.Current.Windows.OfType<FormDialog>().LastOrDefault(w => w.IsVisible) is not { } dlg)
+                    {
+                        log.Add($"batchask {a[0]}: no dialog appeared");
+                        return;
+                    }
+                    Shot(dlg, a[1]);
+                    log.Add($"batchask {a[0]}: '{dlg.Title}' {dlg.ActualWidth:0}x{dlg.ActualHeight:0}");
+                    dlg.Close();
+                };
+                timer.Start();
+                batchWindow.DevAsk(a[0]);
+                break;
+            }
+            case "batchclose": OpenBatch().Close(); break;
             case "dropimages": log.Add($"dropimages handled: {FileTools.HandleWindowDrop(window, arg.Split(';'))}"); break; // as if dropped on the window
             case "exit": break;
             default: log.Add($"unknown step: {line}"); break;
         }
     }
+
+    private static BatchWindow OpenBatch() => Application.Current.Windows.OfType<BatchWindow>().LastOrDefault() ?? throw new InvalidOperationException("no Batch window open (step: batch)");
 
     private static string Trunc(string s) => (s.Length > 120 ? s[..120] + "…" : s).Replace("\r\n", " ⏎ ");
 
@@ -878,6 +932,14 @@ internal static class DevScript
     /// false when nothing is queued (show the real dialog).
     /// </summary>
     internal static bool TakeSavePath(out string? path) => SavePaths.TryDequeue(out path);
+
+    private static readonly Queue<string?> BatchPasswords = new();
+
+    /// <summary>The scripted answer to the next batch password prompt (<c>batchpw</c>), if any (null = skip the file).</summary>
+    internal static bool TakeBatchPassword(out string? answer)
+    {
+        lock (BatchPasswords) return BatchPasswords.TryDequeue(out answer);
+    }
 
     private static readonly Queue<OpenPasswordAnswer?> OpenPasswords = new();
 

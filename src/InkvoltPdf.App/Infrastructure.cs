@@ -371,6 +371,12 @@ public sealed class AppSettings
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;
     /// <summary>Print: page sizing &amp; handling last chosen (<see cref="Core.PrintHandling"/> and its options).</summary>
+    public string BatchFolder { get; set; } = "";
+    public string BatchTemplate { get; set; } = "";
+    public bool BatchNeverOverwrite { get; set; } = true;
+    public bool BatchKeepSubfolders { get; set; } = true;
+    public bool BatchRecursive { get; set; } = true;
+
     public string PrintHandling { get; set; } = "Fit";
     public bool PrintFitToPaper { get; set; }
     public int PrintPagesPerSheet { get; set; } = 2;

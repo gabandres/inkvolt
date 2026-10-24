@@ -65,12 +65,34 @@ public static class SecurityActions
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
         var current = Read(tab.Session);
         var encrypted = current?.IsEncrypted == true;
-        var perms = encrypted ? current!.Permissions : PdfPermissions.All;
+        var choice = AskProtection(owner, encrypted ? "Change Password Protection" : "Protect with Password", "Protect", current,
+            encrypted
+                ? "Set new passwords and permissions. The old passwords stop working once you save."
+                : "Encrypts the document. Keep the passwords somewhere safe: a forgotten open password can't be recovered.");
+        if (choice is null) return;
+        var (user, ownerPw, permissions, encryption) = choice;
+        // Without a permissions password the open password doubles as one (nothing is restricted then).
+        var sessionPassword = ownerPw ?? user;
+        if (await tab.RunEdit(encrypted ? "Change password protection" : "Protect with password",
+                (d, pw) => PdfSecurity.Protect(d, pw, user, ownerPw, permissions, encryption), quiet: true,
+                newPasswords: (sessionPassword, user)))
+            tab.ShowNotice(user is not null
+                ? "Protected: the saved file needs its password to open. Save to keep it."
+                : "Restrictions set. Save to keep them.");
+    }
 
-        var dlg = new FormDialog(owner, encrypted ? "Change Password Protection" : "Protect with Password", "Protect", 500);
-        dlg.AddNote(encrypted
-            ? "Set new passwords and permissions. The old passwords stop working once you save."
-            : "Encrypts the document. Keep the passwords somewhere safe: a forgotten open password can't be recovered.");
+    /// <summary>Passwords and permissions chosen in <see cref="AskProtection"/> (null passwords: not set).</summary>
+    internal sealed record ProtectionChoice(string? UserPassword, string? OwnerPassword, PdfPermissions Permissions, EncryptionMethod Method)
+    {
+        public override string ToString() => "Protection"; // never the passwords
+    }
+
+    /// <summary>The Protect with Password dialog (also File › Batch): open password, restrictions, encryption. Null when cancelled.</summary>
+    internal static ProtectionChoice? AskProtection(Window owner, string title, string okText, SecurityInfo? current, string note)
+    {
+        var perms = current?.IsEncrypted == true ? current.Permissions : PdfPermissions.All;
+        var dlg = new FormDialog(owner, title, okText, 500);
+        dlg.AddNote(note);
 
         // Open (user) password
         var needOpen = dlg.Add("Opening", new CheckBox { Content = "Require a password to open the document", IsChecked = current?.RequiresOpenPassword == true });
@@ -141,7 +163,7 @@ public static class SecurityActions
             }
             return null;
         });
-        if (!dlg.ShowModal()) return;
+        if (!dlg.ShowModal()) return null;
 
         var user = needOpen.IsChecked == true ? openBox.Password : null;
         var ownerPw = restrict.IsChecked == true ? ownerBox.Password : null;
@@ -151,14 +173,7 @@ public static class SecurityActions
                 copy.IsChecked == true, edit.IsChecked == true, comment.IsChecked == true, fill.IsChecked == true, assemble.IsChecked == true)
             : PdfPermissions.All;
         var encryption = method.SelectedIndex == 1 ? EncryptionMethod.Aes128 : EncryptionMethod.Aes256;
-        // Without a permissions password the open password doubles as one (nothing is restricted then).
-        var sessionPassword = ownerPw ?? user;
-        if (await tab.RunEdit(encrypted ? "Change password protection" : "Protect with password",
-                (d, pw) => PdfSecurity.Protect(d, pw, user, ownerPw, permissions, encryption), quiet: true,
-                newPasswords: (sessionPassword, user)))
-            tab.ShowNotice(user is not null
-                ? "Protected: the saved file needs its password to open. Save to keep it."
-                : "Restrictions set. Save to keep them.");
+        return new ProtectionChoice(user, ownerPw, permissions, encryption);
     }
 
     public static async Task RemoveProtection(Window owner, DocumentTab tab)

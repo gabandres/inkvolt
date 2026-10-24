@@ -300,7 +300,7 @@ public static class FileActions
         var engine = tab.ViewEngine; // what is shown (chosen layers included)
 
         // Clamp the resolution of very large pages so one image can't exhaust memory.
-        var dpiFor = pages.Distinct().ToDictionary(p => p, p => ClampDpi(engine.GetPage(p), res));
+        var dpiFor = pages.Distinct().ToDictionary(p => p, p => PageImages.ClampDpi(engine.GetPage(p), res));
         var clamped = dpiFor.Values.Where(d => d < res).ToList();
         // Busy from here (also while asking about large pages), so nothing replaces the engine this export reads.
         using var busy = tab.BeginBusy($"Exporting {Pages(pages.Length)}…");
@@ -309,7 +309,7 @@ public static class FileActions
             var lowest = clamped.Min();
             var many = clamped.Count > 1;
             if (!Prompt.Confirm(owner, "Some pages are very large",
-                    $"{(many ? $"{clamped.Count} pages are" : "1 page is")} too large to export at {res} dpi, so {(many ? "they are" : "it is")} exported at a lower resolution (down to {lowest:0} dpi) to stay under {MaxExportPixels / 1e6:0} megapixels per image.",
+                    $"{(many ? $"{clamped.Count} pages are" : "1 page is")} too large to export at {res} dpi, so {(many ? "they are" : "it is")} exported at a lower resolution (down to {lowest:0} dpi) to stay under {PageImages.MaxPixels / 1e6:0} megapixels per image.",
                     "Export")) return;
             Log.Write($"Export: {clamped.Count} page(s) clamped below {res} dpi (lowest {lowest:0})");
         }
@@ -363,16 +363,6 @@ public static class FileActions
             Log.Write($"Export failed after {done} image(s): {ex}");
             Prompt.Error(owner, $"Export stopped after {done} page(s)", ex.Message);
         }
-    }
-
-    /// <summary>Largest image Export writes, in pixels: A0 at 600 dpi would be ~560 MP (about 1.6 GB while rendering).</summary>
-    private const double MaxExportPixels = 64_000_000;
-
-    /// <summary>The requested dpi, lowered if the page would exceed <see cref="MaxExportPixels"/> at that resolution.</summary>
-    private static double ClampDpi(PageGeometry g, double dpi)
-    {
-        var squareInches = Math.Max(1e-6, g.Width / 72 * (g.Height / 72));
-        return Math.Min(dpi, Math.Floor(Math.Sqrt(MaxExportPixels / squareInches)));
     }
 
     public static async Task ShowProperties(Window owner, DocumentTab tab)

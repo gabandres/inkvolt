@@ -164,7 +164,7 @@ public static class FileTools
 
     // ───────────────────────────── Reduce file size ─────────────────────────────
 
-    private static readonly (string Name, double? Dpi, int Quality)[] Qualities =
+    internal static readonly (string Name, double? Dpi, int Quality)[] Qualities =
     [
         ("High: images up to 200 dpi", 200, 85),
         ("Medium: images up to 150 dpi (good for screens)", 150, 75),
@@ -202,7 +202,7 @@ public static class FileTools
             var r = Optimizer.Optimize(d, pw, options);
             result = r;
             // Savings under 1% (or a bigger file) aren't worth a rewrite: keep the original.
-            return IsWorthIt(r) ? r.Data : d;
+            return r.IsWorthIt ? r.Data : d;
         }, quiet: true);
         if (result is not { } res) return;
         if (outcome == EditOutcome.NoChange)
@@ -216,9 +216,6 @@ public static class FileTools
             tab.ShowNotice($"Reduced from {FileActions.FormatSize(res.SizeBefore)} to {FileActions.FormatSize(res.SizeAfter)} " +
                            $"({100.0 * res.Saved / Math.Max(1, res.SizeBefore):0}% smaller). Save to keep it.", undo: true);
     }
-
-    /// <summary>True when the optimized file is at least 1% (and 1 KB) smaller.</summary>
-    public static bool IsWorthIt(OptimizeResult r) => r.Saved >= Math.Max(1024, r.SizeBefore / 100);
 
     // ───────────────────────────── Flatten ─────────────────────────────
 

@@ -39,9 +39,27 @@ public static class PageMarkActions
     public static async Task AddHeaderFooter(Window owner, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        var last = _lastHeaderFooter;
-        var dlg = new FormDialog(owner, "Add Header & Footer", "Apply", 860);
-        dlg.AddNote("Written into the pages, so it prints and shows in every viewer. Applying again replaces the header and footer on those pages; Organize › Remove Header & Footer takes them off.");
+        if (AskHeaderFooter(owner, tab) is not { } choice || !await tab.SettleAsync()) return;
+        var options = choice.Options with { Date = DateTime.Now };
+        var targets = choice.Pages.Where(p => p < tab.PageView.PageCount).ToArray();
+        if (targets.Length == 0) return;
+        await tab.RunEdit($"Add header & footer to {Pages(targets.Length)}", (d, pw) => HeaderFooter.Apply(d, pw, targets, options));
+    }
+
+    /// <param name="ContinueBates">Batch: Bates numbers run on from file to file.</param>
+    internal sealed record HeaderFooterChoice(HeaderFooterOptions Options, int[] Pages, bool ContinueBates);
+
+    /// <summary>
+    /// The header and footer dialog. With a tab: the pages to mark and a preview. Without one (File › Batch): every page
+    /// of each file, no preview, and the choice to run Bates numbers on from one file to the next.
+    /// </summary>
+    internal static HeaderFooterChoice? AskHeaderFooter(Window owner, DocumentTab? tab, HeaderFooterOptions? initial = null, bool continueBates = false)
+    {
+        var last = initial ?? _lastHeaderFooter;
+        var dlg = new FormDialog(owner, tab is null ? "Header, Footer & Bates Numbers" : "Add Header & Footer", tab is null ? "OK" : "Apply", tab is null ? 600 : 860);
+        dlg.AddNote(tab is null
+            ? "Written into every page of each file, so it prints and shows in every viewer. <<file>> is each file's own name."
+            : "Written into the pages, so it prints and shows in every viewer. Applying again replaces the header and footer on those pages; Organize › Remove Header & Footer takes them off.");
 
         // Six boxes: header and footer, left / center / right.
         var slots = new Grid { Margin = new Thickness(0, 4, 0, 0) };
@@ -85,7 +103,7 @@ public static class PageMarkActions
         // Look: size, color, margins (inches from the page's edges).
         var look = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         var size = Field(look, "Font size (pt)", last.FontSize.ToString("0.#"), 0, 0);
-        var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = _lastHeaderFooterColor, Margin = new Thickness(0, 3, 0, 3) };
+        var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = ColorIndex(initial?.Color, _lastHeaderFooterColor), Margin = new Thickness(0, 3, 0, 3) };
         AutomationProperties.SetName(color, "Text color");
         Labeled(look, "Color", color, 0, 2);
         var top = Field(look, "Top margin (in)", Inches(last.MarginTop), 1, 0);
@@ -94,14 +112,24 @@ public static class PageMarkActions
         var right = Field(look, "Right margin (in)", Inches(last.MarginRight), 2, 2);
 
         // Bates numbering: <<bates>> becomes prefix + running number + suffix.
-        var bates = new CheckBox { Content = "Bates numbering (<<bates>>: a running number for legal documents)", IsChecked = _lastBatesOn, Margin = new Thickness(0, 10, 0, 0) };
+        var bates = new CheckBox { Content = "Bates numbering (<<bates>>: a running number for legal documents)", IsChecked = initial is null ? _lastBatesOn : initial.Bates is not null, Margin = new Thickness(0, 10, 0, 0) };
         var batesGrid = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         var lastBates = last.Bates ?? new BatesFormat();
         var prefix = Field(batesGrid, "Prefix", lastBates.Prefix, 0, 0);
         var start = Field(batesGrid, "Start at", lastBates.Start.ToString(), 0, 2);
         var digits = Field(batesGrid, "Digits", lastBates.Digits.ToString(), 1, 0);
         var suffix = Field(batesGrid, "Suffix", lastBates.Suffix, 1, 2);
-        void BatesShown() => batesGrid.IsEnabled = bates.IsChecked == true;
+        var carry = tab is not null ? null : new CheckBox
+        {
+            Content = new TextBlock { Text = "Continue the numbers from file to file (the files are then done one at a time, in list order)", TextWrapping = TextWrapping.Wrap },
+            IsChecked = continueBates,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        void BatesShown()
+        {
+            batesGrid.IsEnabled = bates.IsChecked == true;
+            if (carry is not null) carry.IsEnabled = bates.IsChecked == true;
+        }
         BatesShown();
         bates.Click += (_, _) =>
         {
@@ -111,7 +139,7 @@ public static class PageMarkActions
                 boxes[HeaderFooterSlot.FooterRight].Text = (boxes[HeaderFooterSlot.FooterRight].Text + " <<bates>>").Trim();
         };
 
-        var range = new PageRangePicker(tab, preferSelection: false);
+        var range = tab is null ? null : new PageRangePicker(tab, preferSelection: false);
 
         var form = new StackPanel();
         form.Children.Add(slots);
@@ -120,17 +148,22 @@ public static class PageMarkActions
         form.Children.Add(look);
         form.Children.Add(bates);
         form.Children.Add(batesGrid);
-        form.Children.Add(Heading("Pages"));
-        form.Children.Add(range);
+        if (carry is not null) form.Children.Add(carry);
+        if (range is not null)
+        {
+            form.Children.Add(Heading("Pages"));
+            form.Children.Add(range);
+        }
 
-        var preview = new PagePreview(tab);
-        dlg.Add(null, SideBySide(form, preview));
+        var preview = tab is null ? null : new PagePreview(tab);
+        dlg.Add<UIElement>(null, preview is null ? form : SideBySide(form, preview));
 
         bool TryRead(out HeaderFooterOptions options, out int[] pages, out string? error)
         {
             options = last;
             pages = [];
-            if (!range.TryGet(out pages, out error)) return false;
+            error = null;
+            if (range is not null && !range.TryGet(out pages, out error)) return false;
             if (!FormDialog.TryNumber(size.Text, 4, 72, out var fontSize)) return Fail("The font size must be from 4 to 72 points.", out error);
             var m = new double[4];
             var boxesM = new[] { top, bottom, left, right };
@@ -161,16 +194,17 @@ public static class PageMarkActions
                 MarginLeft = m[2] * 72,
                 MarginRight = m[3] * 72,
                 Bates = b,
-                FileName = tab.Session.DisplayName,
+                FileName = tab?.Session.DisplayName ?? "",
                 Date = DateTime.Now,
             };
             if (options.IsEmpty) return Fail("Type the text of a header or a footer.", out error);
             return true;
         }
 
-        var pageCount = tab.PageView.PageCount;
+        var pageCount = tab?.PageView.PageCount ?? 0;
         void Refresh()
         {
+            if (preview is null) return;
             if (!TryRead(out var o, out var pages, out var error))
             {
                 preview.Show(error ?? "");
@@ -185,14 +219,11 @@ public static class PageMarkActions
         HeaderFooterOptions chosen = last;
         int[] chosenPages = [];
         dlg.Validate(() => TryRead(out chosen, out chosenPages, out var error) ? null : error);
-        if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
+        if (!dlg.ShowModal()) return null;
         _lastHeaderFooter = chosen;
         _lastHeaderFooterColor = Math.Max(0, color.SelectedIndex);
         _lastBatesOn = chosen.Bates is not null;
-        var options = chosen with { Date = DateTime.Now };
-        var targets = chosenPages.Where(p => p < tab.PageView.PageCount).ToArray();
-        if (targets.Length == 0) return;
-        await tab.RunEdit($"Add header & footer to {Pages(targets.Length)}", (d, pw) => HeaderFooter.Apply(d, pw, targets, options));
+        return new HeaderFooterChoice(chosen, chosenPages, chosen.Bates is not null && carry?.IsChecked == true);
     }
 
     public static async Task RemoveHeaderFooter(DocumentTab tab)
@@ -214,9 +245,20 @@ public static class PageMarkActions
     public static async Task AddWatermark(Window owner, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        var last = _lastWatermark;
-        var dlg = new FormDialog(owner, "Add Watermark", "Apply", 820);
-        dlg.AddNote("Written into the pages, so it prints and shows in every viewer. Applying again replaces the watermark on those pages; Organize › Remove Watermark takes it off.");
+        if (AskWatermark(owner, tab) is not { } choice || !await tab.SettleAsync()) return;
+        var targets = choice.Pages.Where(p => p < tab.PageView.PageCount).ToArray();
+        if (targets.Length == 0) return;
+        await tab.RunEdit($"Add watermark to {Pages(targets.Length)}", (d, pw) => Watermarks.Apply(d, pw, targets, choice.Options));
+    }
+
+    /// <summary>The watermark dialog. With a tab: the pages to mark and a preview; without one (File › Batch): every page, no preview.</summary>
+    internal static (WatermarkOptions Options, int[] Pages)? AskWatermark(Window owner, DocumentTab? tab, WatermarkOptions? initial = null)
+    {
+        var last = initial ?? _lastWatermark;
+        var dlg = new FormDialog(owner, tab is null ? "Watermark" : "Add Watermark", tab is null ? "OK" : "Apply", tab is null ? 540 : 820);
+        dlg.AddNote(tab is null
+            ? "Written into every page of each file, so it prints and shows in every viewer."
+            : "Written into the pages, so it prints and shows in every viewer. Applying again replaces the watermark on those pages; Organize › Remove Watermark takes it off.");
 
         var group = $"wm{dlg.GetHashCode()}";
         var useText = new RadioButton { Content = "Text", GroupName = group, IsChecked = last.Image is null, Margin = new Thickness(0, 4, 0, 4) };
@@ -226,7 +268,7 @@ public static class PageMarkActions
         AutomationProperties.SetName(text, "Watermark text");
         var textLook = new Grid { Margin = new Thickness(24, 4, 0, 0) };
         var size = Field(textLook, "Font size (pt)", last.FontSize.ToString("0.#"), 0, 0);
-        var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = _lastWatermarkColor, Margin = new Thickness(0, 3, 0, 3) };
+        var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = ColorIndex(initial?.Color, _lastWatermarkColor), Margin = new Thickness(0, 3, 0, 3) };
         AutomationProperties.SetName(color, "Text color");
         Labeled(textLook, "Color", color, 0, 2);
 
@@ -268,7 +310,7 @@ public static class PageMarkActions
             ToolTip = "Behind: opaque parts of the page (a scanned page, a filled background) hide it",
         }, 1, 2);
 
-        var range = new PageRangePicker(tab, preferSelection: false);
+        var range = tab is null ? null : new PageRangePicker(tab, preferSelection: false);
         var form = new StackPanel();
         form.Children.Add(useText);
         form.Children.Add(text);
@@ -278,10 +320,13 @@ public static class PageMarkActions
         form.Children.Add(imageLook);
         form.Children.Add(Heading("Look"));
         form.Children.Add(common);
-        form.Children.Add(Heading("Pages"));
-        form.Children.Add(range);
-        var preview = new PagePreview(tab);
-        dlg.Add(null, SideBySide(form, preview));
+        if (range is not null)
+        {
+            form.Children.Add(Heading("Pages"));
+            form.Children.Add(range);
+        }
+        var preview = tab is null ? null : new PagePreview(tab);
+        dlg.Add<UIElement>(null, preview is null ? form : SideBySide(form, preview));
         text.TextChanged += (_, _) => useText.IsChecked = true;
         path.TextChanged += (_, _) => useImage.IsChecked = true;
 
@@ -310,7 +355,9 @@ public static class PageMarkActions
         bool TryRead(out WatermarkOptions options, out int[] pages, out string? error)
         {
             options = last;
-            if (!range.TryGet(out pages, out error)) return false;
+            pages = [];
+            error = null;
+            if (range is not null && !range.TryGet(out pages, out error)) return false;
             if (!FormDialog.TryNumber(angle.Text, -360, 360, out var degrees)) return Fail("The angle must be a number of degrees from -360 to 360.", out error);
             options = new WatermarkOptions
             {
@@ -336,6 +383,7 @@ public static class PageMarkActions
         {
             textLook.IsEnabled = useText.IsChecked == true;
             imageLook.IsEnabled = useImage.IsChecked == true;
+            if (preview is null) return;
             if (!TryRead(out var o, out var pages, out var error))
             {
                 preview.Show(error ?? "");
@@ -349,13 +397,11 @@ public static class PageMarkActions
         WatermarkOptions chosen = last;
         int[] chosenPages = [];
         dlg.Validate(() => TryRead(out chosen, out chosenPages, out var error) ? null : error);
-        if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
+        if (!dlg.ShowModal()) return null;
         _lastWatermark = chosen;
         _lastWatermarkColor = Math.Max(0, color.SelectedIndex);
         if (chosen.Image is not null) _lastWatermarkImage = path.Text.Trim().Trim('"');
-        var targets = chosenPages.Where(p => p < tab.PageView.PageCount).ToArray();
-        if (targets.Length == 0) return;
-        await tab.RunEdit($"Add watermark to {Pages(targets.Length)}", (d, pw) => Watermarks.Apply(d, pw, targets, chosen));
+        return (chosen, chosenPages);
     }
 
     public static async Task RemoveWatermark(DocumentTab tab)
@@ -367,6 +413,10 @@ public static class PageMarkActions
 
 
     // ───────────────────────────── Dialog helpers ─────────────────────────────
+
+    /// <summary>The <see cref="Colors"/> entry of <paramref name="color"/>, else <paramref name="fallback"/>.</summary>
+    private static int ColorIndex(AnnotColor? color, int fallback) =>
+        color is { } c && Array.FindIndex(Colors, x => x.Color == c) is >= 0 and var i ? i : fallback;
 
     private static Style Caption => (Style)Application.Current.FindResource("Caption");
 

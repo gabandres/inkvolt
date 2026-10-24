@@ -129,14 +129,14 @@ public sealed class PdfEngine : IDisposable
         MuPDFDocument? doc = null;
         try
         {
-            doc = new MuPDFDocument(ctx, data, type);
+            doc = NewDocument(ctx, () => new MuPDFDocument(ctx, data, type));
             var encrypted = doc.EncryptionState != EncryptionState.Unencrypted;
             if (doc.EncryptionState == EncryptionState.Encrypted)
             {
                 if (string.IsNullOrEmpty(password)) throw new PasswordRequiredException(false);
                 if (!Unlock(doc, password)) throw new PasswordRequiredException(true);
             }
-            return new PdfEngine(ctx, doc, encrypted, c => new MuPDFDocument(c, data, type), password);
+            return new PdfEngine(ctx, doc, encrypted, c => NewDocument(c, () => new MuPDFDocument(c, data, type)), password);
         }
         catch
         {
@@ -153,14 +153,14 @@ public sealed class PdfEngine : IDisposable
         MuPDFDocument? doc = null;
         try
         {
-            doc = new MuPDFDocument(ctx, path);
+            doc = NewDocument(ctx, () => new MuPDFDocument(ctx, path));
             if (doc.EncryptionState == EncryptionState.Encrypted)
             {
                 DisposeDocument(doc);
                 ctx.Dispose();
                 return null;
             }
-            return new PdfEngine(ctx, doc, false, c => new MuPDFDocument(c, path), null);
+            return new PdfEngine(ctx, doc, false, c => NewDocument(c, () => new MuPDFDocument(c, path)), null);
         }
         catch
         {
@@ -828,6 +828,26 @@ public sealed class PdfEngine : IDisposable
     /// MuPDFCore throws from a finalizer (crashing the process) if a page outlives its context, so pages must be
     /// disposed explicitly, before the document and the context.
     /// </summary>
+    /// <summary>
+    /// Makes a MuPDF document. MuPDFCore's constructor can throw after the object exists (a file MuPDF can't repair);
+    /// that object's finalizer throws, ending the process, if it runs after its context was disposed. So on failure it
+    /// is finalized here, while <paramref name="ctx"/> is still alive. Every MuPDFDocument is made through this.
+    /// </summary>
+    internal static MuPDFDocument NewDocument(MuPDFContext ctx, Func<MuPDFDocument> create)
+    {
+        try
+        {
+            return create();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.KeepAlive(ctx);
+            throw;
+        }
+    }
+
     internal static void DisposeDocument(MuPDFDocument doc)
     {
         doc.Pages.Dispose();

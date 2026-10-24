@@ -218,7 +218,7 @@ public static class ImageImport
         MuPDFDocument mu;
         try
         {
-            mu = new MuPDFDocument(ctx, bytes, type);
+            mu = PdfEngine.NewDocument(ctx, () => new MuPDFDocument(ctx, bytes, type));
         }
         catch (Exception ex) when (ex is MuPDFException or ArgumentException)
         {

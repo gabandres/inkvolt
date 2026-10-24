@@ -42,6 +42,7 @@ public static class Cmd
     public static readonly RoutedUICommand Open = Make("_Open…", nameof(Open), K(Key.O, ModifierKeys.Control));
     public static readonly RoutedUICommand Combine = Make("_Combine Files into PDF…", nameof(Combine));
     public static readonly RoutedUICommand Compare = Make("Co_mpare Files…", nameof(Compare));
+    public static readonly RoutedUICommand Batch = Make("_Batch: Actions on Many Files…", nameof(Batch));
     public static readonly RoutedUICommand Save = Make("_Save", nameof(Save), K(Key.S, ModifierKeys.Control));
     public static readonly RoutedUICommand SaveAs = Make("Save _As…", nameof(SaveAs), K(Key.S, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand CloseDoc = Make("_Close", nameof(CloseDoc), K(Key.W, ModifierKeys.Control), K(Key.F4, ModifierKeys.Control));

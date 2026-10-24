@@ -93,6 +93,7 @@
                                     <MenuItem x:Name="RecentMenu" Header="Open _Recent" />
                                     <MenuItem Command="app:Cmd.Combine" />
                                     <MenuItem Command="app:Cmd.Compare" />
+                                    <MenuItem Command="app:Cmd.Batch" />
                                     <MenuItem Command="app:Cmd.NewFromImages" />
                                     <MenuItem Command="app:Cmd.NewFromClipboard" />
                                     <Separator />

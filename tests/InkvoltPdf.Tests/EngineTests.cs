@@ -6,6 +6,20 @@ namespace InkvoltPdf.Tests;
 public class EngineTests
 {
     [Fact]
+    public void AFileMuPdfCantOpenDoesntCrashTheProcessLater()
+    {
+        // MuPDFCore's document constructor throws after the object exists; its finalizer used to throw (and end the
+        // process) once the context was gone. Every opener now lets it finalize while the context still lives.
+        var junk = "%PDF-1.7\nthis is not a pdf at all"u8.ToArray();
+        Assert.ThrowsAny<Exception>(() => PdfEngine.Open(junk, InputFileTypes.PDF, null).Dispose());
+        Assert.False(PdfSecurity.NeedsOpenPassword(junk));
+        Assert.Throws<InvalidOperationException>(() => ImageImport.ImagesToPdf([(junk, "x.png")]));
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    [Fact]
     public void RendersPageAtScale()
     {
         using var engine = PdfEngine.Open(TestPdf.Make(2), InputFileTypes.PDF, null);
