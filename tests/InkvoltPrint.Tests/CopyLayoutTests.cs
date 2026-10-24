@@ -44,12 +44,22 @@ public class CopyLayoutTests
     [Fact]
     public void Copied_page_is_centred_at_actual_size_and_only_shrinks()
     {
-        Assert.Equal(new Placement(0, 0, LetterW, LetterH), CopyLayout.Page(LetterW, LetterH, LetterW, LetterH));
-        Assert.Equal(new Placement(204, 336, 408, 384), CopyLayout.Page(408, 384, LetterW, LetterH)); // small page: not enlarged
+        Assert.Equal(new PagePlacement(new Placement(0, 0, LetterW, LetterH), false), CopyLayout.Page(LetterW, LetterH, LetterW, LetterH));
+        Assert.Equal(new PagePlacement(new Placement(216, 336, 384, 384), false), CopyLayout.Page(384, 384, LetterW, LetterH)); // small page: not enlarged
 
-        var a4OnLetter = CopyLayout.Page(793.7, 1122.5, LetterW, LetterH);
+        var a4OnLetter = CopyLayout.Page(793.7, 1122.5, LetterW, LetterH).At;
         Assert.Equal(LetterH, a4OnLetter.Height, 6);
         Assert.Equal(0, a4OnLetter.Y, 6);
+    }
+
+    [Fact]
+    public void Landscape_copy_is_turned_like_it_prints()
+    {
+        // A 6 × 4 in photo on portrait Letter: turned a quarter (as the print path does), not shrunk.
+        var p = CopyLayout.Page(576, 384, LetterW, LetterH);
+
+        Assert.True(p.Rotated);
+        Assert.Equal(new Placement((LetterW - 384) / 2, (LetterH - 576) / 2, 384, 576), p.At);
     }
 
     [Fact]

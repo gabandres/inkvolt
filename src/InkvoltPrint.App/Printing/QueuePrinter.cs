@@ -137,27 +137,21 @@ public static class QueuePrinter
             var src = pages[pageNumber];
             var bitmap = Decode(src.Image);
 
-            // Landscape page on portrait paper: rotate rather than shrink it.
-            var landscapePage = src.WidthInches > src.HeightInches;
-            var rotate = landscapePage != (paper.Width > paper.Height);
-            var pageW = (rotate ? src.HeightInches : src.WidthInches) * 96;
-            var pageH = (rotate ? src.WidthInches : src.HeightInches) * 96;
-            var scale = PageFit.Scale(pageW, pageH, paper.Width, paper.Height, sizing);
-            var w = pageW * scale;
-            var h = pageH * scale;
+            // Landscape page on portrait paper: rotate rather than shrink it (the copy preview places it the same way).
+            var (at, rotate) = PageFit.Place(src.WidthInches * 96, src.HeightInches * 96, paper.Width, paper.Height, sizing);
 
             var image = new Image
             {
                 Source = bitmap,
                 Stretch = Stretch.Fill,
-                Width = rotate ? h : w,
-                Height = rotate ? w : h,
+                Width = rotate ? at.Height : at.Width,
+                Height = rotate ? at.Width : at.Height,
                 LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
             };
             // A Canvas, not a FixedPage: the XPS serializer wraps each page visual in its own FixedPage.
             var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
-            Canvas.SetLeft(image, (paper.Width - w) / 2);
-            Canvas.SetTop(image, (paper.Height - h) / 2);
+            Canvas.SetLeft(image, at.X);
+            Canvas.SetTop(image, at.Y);
             page.Children.Add(image);
             return Finish(page, paper);
         }

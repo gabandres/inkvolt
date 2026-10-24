@@ -30,6 +30,9 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     private RenderedPage? _front;
     private bool _twoSidedChecked;
 
+    /// <summary>The last copy that didn't reach the queue, kept (scans included) so it can be sent again without rescanning.</summary>
+    private Func<Task>? _printAgain;
+
     /// <summary>Paper for the preview: Letter or A4 by region (the queue decides the real paper when printing).</summary>
     private static readonly (double W, double H) PreviewPaper = RegionInfo.CurrentRegion.IsMetric ? (793.7, 1122.5) : (816, 1056);
 
@@ -89,7 +92,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     public bool ShowTwoSided => CanTwoSided && !IdCard;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(ScanBackCommand), nameof(StartOverCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(ScanBackCommand), nameof(StartOverCommand), nameof(PrintAgainCommand))]
     public partial bool IsBusy { get; set; }
 
     /// <summary>Pages are coming off the scanner (Cancel is possible); false while the copy is handed to Windows.</summary>
@@ -102,6 +105,11 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
 
     [ObservableProperty] public partial string? Message { get; set; }
     [ObservableProperty] public partial bool MessageIsError { get; set; }
+
+    /// <summary>The last copy failed to print (spooler or driver error, no queue yet); its scans are kept for Print again.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PrintAgainCommand))]
+    public partial bool CanPrintAgain { get; set; }
 
     public string CopyButtonText => IdCard ? "Copy ID card" : "Copy";
 
@@ -213,12 +221,25 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     private void StartOver()
     {
         _front = null;
+        ForgetPrintAgain();
         AwaitingBack = false;
         Sheets.Clear();
         SetMessage(null);
     }
 
     private bool NotBusy() => !IsBusy;
+
+    private bool CanRetryPrint() => CanPrintAgain && !IsBusy;
+
+    /// <summary>Sends the copy that failed to print again, from the scans already made.</summary>
+    [RelayCommand(CanExecute = nameof(CanRetryPrint))]
+    private Task PrintAgainAsync() => _printAgain?.Invoke() ?? Task.CompletedTask;
+
+    private void ForgetPrintAgain()
+    {
+        _printAgain = null;
+        CanPrintAgain = false;
+    }
 
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
@@ -227,6 +248,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     private async Task<List<RenderedPage>?> ScanAsync(ScanRequest request, int dpi, Action<RenderedPage>? added)
     {
         if (_client is null) return null;
+        ForgetPrintAgain(); // a new scan replaces whatever didn't print
         IsBusy = true;
         IsScanning = true;
         _cts = new CancellationTokenSource();
@@ -272,6 +294,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     /// <summary>Hands the scanned copy to the printer's Windows queue (the demo printer's made-up queue in demo mode).</summary>
     private async Task PrintAsync(string jobName, int sheets, Func<string, Task> print, string what)
     {
+        ForgetPrintAgain();
         IsBusy = true;
         try
         {
@@ -283,7 +306,8 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
             }
             if (await findQueue() is not { } queue)
             {
-                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then copy again.", error: true);
+                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then Print again.", error: true);
+                KeepForPrintAgain();
                 return;
             }
             SetMessage("Sending the copy to the printer…");
@@ -295,10 +319,17 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
             // Spooler/driver/serializer errors come in many types; never let one escape the command.
             Log.Write($"Copy print failed: {ex}");
             SetMessage($"Could not print the copy: {ex.Message}", error: true);
+            KeepForPrintAgain();
         }
         finally
         {
             IsBusy = false;
+        }
+
+        void KeepForPrintAgain()
+        {
+            _printAgain = () => PrintAsync(jobName, sheets, print, what);
+            CanPrintAgain = true;
         }
     }
 
@@ -348,8 +379,9 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         ]));
     }
 
-    private static CopySheet Sheet(Placement at, byte[] jpeg) =>
-        new(PreviewPaper.W, PreviewPaper.H, PreviewHeight * PreviewPaper.W / PreviewPaper.H, PreviewHeight, [new CopyImage(Thumbnail(jpeg), at, null)]);
+    private static CopySheet Sheet(PagePlacement at, byte[] jpeg) =>
+        new(PreviewPaper.W, PreviewPaper.H, PreviewHeight * PreviewPaper.W / PreviewPaper.H, PreviewHeight,
+            [new CopyImage(Thumbnail(jpeg), at.At, null, at.Rotated)]);
 
     private static BitmapSource? Thumbnail(byte[] jpeg)
     {
@@ -371,9 +403,13 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
 /// <summary>A sheet in the copy preview, in DIPs: the paper and what goes on it.</summary>
 public sealed record CopySheet(double PaperWidth, double PaperHeight, double PreviewWidth, double PreviewHeight, IReadOnlyList<CopyImage> Images);
 
-/// <summary>A scanned image on a preview sheet; no <see cref="Image"/> yet: a dashed placeholder labelled <see cref="Label"/>.</summary>
-public sealed record CopyImage(BitmapSource? Image, Placement At, string? Label)
+/// <summary>
+/// A scanned image on a preview sheet; no <see cref="Image"/> yet: a dashed placeholder labelled <see cref="Label"/>.
+/// <see cref="Rotated"/>: turned a quarter clockwise to the paper's orientation, as it prints (<see cref="PageFit.Place"/>).
+/// </summary>
+public sealed record CopyImage(BitmapSource? Image, Placement At, string? Label, bool Rotated = false)
 {
+    public double Angle => Rotated ? 90 : 0;
     public double X => At.X;
     public double Y => At.Y;
     public double Width => At.Width;

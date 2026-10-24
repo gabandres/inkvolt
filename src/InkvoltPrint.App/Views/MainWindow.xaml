@@ -573,6 +573,8 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <Button Content="Print again" Command="{Binding PrintAgainCommand}" HorizontalAlignment="Stretch" Margin="0,12,0,0"
+                                Visibility="{Binding CanPrintAgain, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
                 </Border>
                 </ScrollViewer>
@@ -614,7 +616,11 @@
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate DataType="{x:Type vm:CopyImage}">
                                                             <Grid Width="{Binding Width}" Height="{Binding Height}">
-                                                                <Image Source="{Binding Image}" Stretch="Fill" />
+                                                                <Image Source="{Binding Image}" Stretch="Fill">
+                                                                    <Image.LayoutTransform>
+                                                                        <RotateTransform Angle="{Binding Angle}" />
+                                                                    </Image.LayoutTransform>
+                                                                </Image>
                                                                 <Rectangle Stroke="#FF8A8A8A" StrokeThickness="3" StrokeDashArray="4 3" RadiusX="12" RadiusY="12"
                                                                            Visibility="{Binding IsPlaceholder, Converter={StaticResource VisibleWhen}}" />
                                                                 <TextBlock Text="{Binding Label}" Foreground="#FF6A6A6A" FontSize="34" TextWrapping="Wrap"

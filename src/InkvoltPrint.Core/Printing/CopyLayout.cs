@@ -28,13 +28,12 @@ public static class CopyLayout
     public static ScanRequest IdCardRequest(ScanColor color, int dpi) =>
         new(ScanSource.Platen, color, dpi, Width: IdCardScanWidth, Height: IdCardScanHeight);
 
-    /// <summary>A copied page centred on the paper at its own size; only pages larger than the paper shrink to fit.</summary>
-    public static Placement Page(double pageW, double pageH, double paperW, double paperH)
-    {
-        var scale = PageFit.Scale(pageW, pageH, paperW, paperH, PageSizing.ActualSize);
-        var (w, h) = (pageW * scale, pageH * scale);
-        return new Placement((paperW - w) / 2, (paperH - h) / 2, w, h);
-    }
+    /// <summary>
+    /// A copied page centred on the paper at its own size, turned to the paper's orientation as it prints; only pages
+    /// larger than the paper shrink to fit.
+    /// </summary>
+    public static PagePlacement Page(double pageW, double pageH, double paperW, double paperH) =>
+        PageFit.Place(pageW, pageH, paperW, paperH, PageSizing.ActualSize);
 
     /// <summary>
     /// ID card copy: <paramref name="front"/> centred in the top half, <paramref name="back"/> in the bottom half, both at
