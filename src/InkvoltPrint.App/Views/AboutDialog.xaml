@@ -1,0 +1,29 @@
+<Window x:Class="InkvoltPrint.App.Views.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About Inkvolt Print" Icon="/InkvoltPrint.ico" SizeToContent="Height" Width="480" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="24">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <Image Source="/InkvoltPrint.ico" Width="48" Height="48" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality" />
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Inkvolt Print" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="VersionText" Style="{StaticResource Caption}" />
+            </StackPanel>
+        </StackPanel>
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                   Text="Status, scanning and printing for HP network printers. No account, no cloud, no telemetry." />
+        <TextBlock TextWrapping="Wrap" Text="Copyright (c) 2026 Bermudez Systems LLC. Free software under the MIT License." />
+        <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" FontSize="12"
+                   Text="Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are trademarks of HP Inc., used only to describe the printers Inkvolt Print works with." />
+        <TextBlock x:Name="PackagedNote" Style="{StaticResource Caption}" Margin="0,8,0,0" FontSize="12" Visibility="Collapsed"
+                   Text="Installed as an app package; Windows keeps it up to date." />
+        <WrapPanel Margin="0,20,0,0">
+            <Button Content="Source code (GitHub)" Click="Source_Click" Margin="0,0,8,8" />
+            <Button Content="License" Click="License_Click" Margin="0,0,8,8" />
+            <Button Content="Third-party notices" Click="Notices_Click" Margin="0,0,8,8" />
+        </WrapPanel>
+        <Button Content="Close" IsCancel="True" IsDefault="True" MinWidth="96" HorizontalAlignment="Right" Margin="0,12,0,0"
+                Style="{DynamicResource AccentButtonStyle}" />
+    </StackPanel>
+</Window>

@@ -1,4 +1,4 @@
-"""Generates assets/PrintDesk.ico (16-256 px), a 512 px preview PNG, and the MSIX images.
+"""Generates assets/InkvoltPrint.ico (16-256 px), a 512 px preview PNG, and the MSIX images.
 
 Design: Fluent-style rounded tile in Windows blue; a white printer with a document feeding in on top;
 a green status light (the same "ready" dot the app uses). Tiny sizes drop detail to stay legible.
@@ -6,7 +6,7 @@ Every size is drawn at 8x and downsampled, so edges are clean at each size rathe
 
 packaging/Assets/*.png: MSIX images (tiles, Start/taskbar icons per target size, store logo, splash screen), named with
 MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri indexes into resources.pri
-(packaging/pack-msix.ps1). Same set as PdfDesk's, minus its PDF file-type logo (PrintDesk's "Open with" entry for PDFs
+(packaging/pack-msix.ps1). Same set as Inkvolt PDF's, minus its PDF file-type logo (Inkvolt Print's "Open with" entry for PDFs
 uses the app icon).
 
 Run:  python -I assets/make-icon.py   (needs Pillow)
@@ -136,9 +136,9 @@ def save_msix(folder):
 
 def main():
     frames = [draw(s) for s in SIZES]
-    ico = os.path.join(HERE, "PrintDesk.ico")
+    ico = os.path.join(HERE, "InkvoltPrint.ico")
     frames[-1].save(ico, format="ICO", sizes=[(s, s) for s in SIZES], append_images=frames[:-1])
-    draw(512).save(os.path.join(HERE, "PrintDesk-512.png"))
+    draw(512).save(os.path.join(HERE, "InkvoltPrint-512.png"))
     # Contact sheet for review: every size on white and on dark.
     sheet = Image.new("RGBA", (sum(SIZES) + 12 * len(SIZES) + 12, 2 * 256 + 36), (255, 255, 255, 255))
     ImageDraw.Draw(sheet).rectangle([0, 256 + 18, sheet.width, sheet.height], fill=(32, 32, 32, 255))

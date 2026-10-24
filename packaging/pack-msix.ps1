@@ -1,25 +1,26 @@
-# Builds PrintDesk as MSIX packages (x64 + ARM64) and a bundle for the Microsoft Store. No Windows SDK install needed:
+# Builds Inkvolt Print as MSIX packages (x64 + ARM64) and a bundle for the Microsoft Store. No Windows SDK install needed:
 # makeappx/makepri/signtool come from the Microsoft.Windows.SDK.BuildTools NuGet package (packaging/tools).
 #
-#   pwsh -File packaging/pack-msix.ps1                              placeholder identity, unsigned (Store signs uploads)
-#   pwsh -File packaging/pack-msix.ps1 -IdentityName 12345Me.PrintDesk -Publisher 'CN=...' -PublisherDisplayName 'Me' -Version 1.2.0.0
+#   pwsh -File packaging/pack-msix.ps1                              Partner Center identity (Store ID 9PNR76HJ62SK), unsigned
+#                                                                   (Store signs uploads)
+#   pwsh -File packaging/pack-msix.ps1 -Version 1.2.0.0
 #   pwsh -File packaging/pack-msix.ps1 -SignWithTestCert            also signs with a self-signed test certificate (.pfx in
 #                                                                   the output folder; installed nowhere) for sideloading
 #   pwsh -File packaging/pack-msix.ps1 -IncludeHpCleanup            keeps the HP clean-up in the package (sideloading only;
 #                                                                   Store builds leave it out, see packaging/README.md)
 #
-# Output (publish\msix): PrintDesk_<ver>_x64.msix, PrintDesk_<ver>_arm64.msix, PrintDesk_<ver>.msixbundle, PrintDesk_<ver>.msixupload.
+# Output (publish\msix): InkvoltPrint_<ver>_x64.msix, InkvoltPrint_<ver>_arm64.msix, InkvoltPrint_<ver>.msixbundle, InkvoltPrint_<ver>.msixupload.
 # See packaging/README.md.
 [CmdletBinding()]
 param(
     # Partner Center > Product identity > Package/Identity/Name
-    [string]$IdentityName = 'PrintDesk.Placeholder',
+    [string]$IdentityName = 'BermudezSystems.InkvoltPrint',
     # Partner Center > Product identity > Package/Identity/Publisher (the full "CN=..." string)
-    [string]$Publisher = 'CN=PrintDesk Placeholder Publisher',
+    [string]$Publisher = 'CN=1CC7D6EF-8A48-4BDE-AF19-4FEC30D5613B',
     # Partner Center > Product identity > Package/Properties/PublisherDisplayName
-    [string]$PublisherDisplayName = 'PrintDesk (placeholder publisher)',
+    [string]$PublisherDisplayName = 'Bermudez Systems',
     # Package/Properties/DisplayName: must be a name reserved in Partner Center
-    [string]$DisplayName = 'PrintDesk',
+    [string]$DisplayName = 'Inkvolt Print',
     # Four parts; the Store needs the last one to be 0
     [string]$Version = '1.0.0.0',
     [ValidateSet('x64', 'arm64')]
@@ -44,7 +45,6 @@ if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$' -or ($Version.Split('.') | Where-O
 if (-not $Version.EndsWith('.0')) { Write-Warning "The Store rejects packages whose last version number isn't 0 ($Version)." }
 if ($IdentityName -notmatch '^[A-Za-z0-9.\-]{3,50}$') { throw "IdentityName: 3-50 letters, digits, '.' or '-': $IdentityName" }
 if ($Publisher -notmatch '^CN=') { throw "Publisher must be a distinguished name starting with CN= (copy it from Partner Center): $Publisher" }
-if ($IdentityName -eq 'PrintDesk.Placeholder') { Write-Warning 'Placeholder identity: fine for a local test, not for Store upload (see packaging/README.md).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }
 
@@ -111,12 +111,12 @@ foreach ($arch in $Architectures) {
     if (-not $NoBuild) {
         Remove-Item $pub -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Publishing $rid..."
-        dotnet publish (Join-Path $root 'src\PrintDesk.App') -c Release -r $rid --self-contained true -nologo -v q `
+        dotnet publish (Join-Path $root 'src\InkvoltPrint.App') -c Release -r $rid --self-contained true -nologo -v q `
             -p:PublishSingleFile=false -p:Version=$Version -p:CopyOutputSymbolsToPublishDirectory=false `
             -p:HpCleanupInPackage=$(if ($IncludeHpCleanup) { 'true' } else { 'false' }) -o $pub | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Publish failed for $rid." }
     }
-    if (-not (Test-Path (Join-Path $pub 'PrintDesk.exe'))) { throw "Not found: $pub\PrintDesk.exe (run without -NoBuild)" }
+    if (-not (Test-Path (Join-Path $pub 'InkvoltPrint.exe'))) { throw "Not found: $pub\InkvoltPrint.exe (run without -NoBuild)" }
     foreach ($dll in 'Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll') {
         if (-not (Test-Path (Join-Path $pub $dll))) { throw "$rid publish lacks $dll" }
     }
@@ -130,19 +130,19 @@ foreach ($arch in $Architectures) {
     Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md'), (Join-Path $root 'LICENSE') $layout
     Set-Content (Join-Path $layout 'AppxManifest.xml') (New-Manifest $arch) -Encoding utf8
 
-    $file = Join-Path $packagesDir "PrintDesk_${Version}_$arch.msix"
+    $file = Join-Path $packagesDir "InkvoltPrint_${Version}_$arch.msix"
     Write-Host "Packing $([IO.Path]::GetFileName($file))..."
     Invoke-Tool $makeappx @('pack', '/d', $layout, '/p', $file, '/o')
     $msix[$arch] = $file
 }
 
 # ───── Bundle + Store upload file ─────
-$bundle = Join-Path $OutDir "PrintDesk_$Version.msixbundle"
+$bundle = Join-Path $OutDir "InkvoltPrint_$Version.msixbundle"
 Write-Host "Bundling $([IO.Path]::GetFileName($bundle))..."
 Invoke-Tool $makeappx @('bundle', '/d', $packagesDir, '/p', $bundle, '/bv', $Version, '/o')
 
 # .msixupload = a zip holding the bundle (symbol .appxsym files would go beside it; Release builds have no PDBs).
-$upload = Join-Path $OutDir "PrintDesk_$Version.msixupload"
+$upload = Join-Path $OutDir "InkvoltPrint_$Version.msixupload"
 $zip = "$upload.zip"
 Remove-Item $upload, $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $bundle -DestinationPath $zip -CompressionLevel NoCompression
@@ -153,8 +153,8 @@ foreach ($f in $msix.Values) { Copy-Item $f $OutDir -Force }
 
 # ───── Optional: test signature for sideloading ─────
 if ($SignWithTestCert) {
-    $pfx = Join-Path $OutDir 'PrintDesk-TestSigning.pfx'
-    $cer = Join-Path $OutDir 'PrintDesk-TestSigning.cer'
+    $pfx = Join-Path $OutDir 'InkvoltPrint-TestSigning.pfx'
+    $cer = Join-Path $OutDir 'InkvoltPrint-TestSigning.cer'
     $cert = $null
     if (Test-Path $pfx) {
         $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, [string]$null, 'Exportable')
@@ -178,7 +178,7 @@ if ($SignWithTestCert) {
         [IO.File]::WriteAllBytes($cer, $cert.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
         Write-Host "Created test certificate $([IO.Path]::GetFileName($pfx)) ($Publisher, thumbprint $($cert.Thumbprint))"
     }
-    $signed = @($bundle) + @($msix.Keys | ForEach-Object { Join-Path $OutDir "PrintDesk_${Version}_$_.msix" })
+    $signed = @($bundle) + @($msix.Keys | ForEach-Object { Join-Path $OutDir "InkvoltPrint_${Version}_$_.msix" })
     foreach ($f in $signed) { Invoke-Tool $signtool @('sign', '/q', '/fd', 'SHA256', '/f', $pfx, $f) }
     Write-Host 'Signed with the test certificate. To sideload, trust it yourself first (see packaging/README.md, "Local test install").'
 }

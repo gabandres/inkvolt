@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InkvoltPrint.App/InkvoltPrint.App.csproj" />
+    <Project Path="src/InkvoltPrint.Cli/InkvoltPrint.Cli.csproj" />
+    <Project Path="src/InkvoltPrint.Core/InkvoltPrint.Core.csproj" />
+    <Project Path="src/InkvoltPrint.Windows/InkvoltPrint.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InkvoltPrint.Tests/InkvoltPrint.Tests.csproj" />
+  </Folder>
+</Solution>

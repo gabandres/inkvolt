@@ -1,6 +1,6 @@
-# PrintDesk
+# Inkvolt Print
 
-A lean Windows app for HP network printers, replacing HP Smart. No HP account, no cloud, no telemetry,
+Inkvolt Print (formerly PrintDesk) is a lean Windows app for HP network printers, replacing HP Smart. No HP account, no cloud, no telemetry,
 no background services, no driver download.
 
 | Feature | How |
@@ -14,36 +14,36 @@ no background services, no driver download.
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
-## Desk suite (with PdfDesk)
+## Inkvolt suite (with Inkvolt PDF)
 
-PrintDesk and PdfDesk (`Z:\PdfDesk`, the PDF viewer/organizer) are separate apps that share code and install together.
-PrintDesk stays lean (software rendering, no PDF engine); PdfDesk references `PrintDesk.Core` and `PrintDesk.Windows`
+Inkvolt Print and Inkvolt PDF (the PDF viewer/organizer, in its own repo) are separate apps that share code and install together.
+Inkvolt Print stays lean (software rendering, no PDF engine); Inkvolt PDF references `InkvoltPrint.Core` and `InkvoltPrint.Windows`
 by project reference for scanning (File › Scan…, Insert from Scanner…) and printer status before printing.
 
-- **Open in PdfDesk**: after a scan is saved as PDF, the status line offers "Open in PdfDesk"; the Scan settings have
-  "Open scans in PdfDesk" (open every saved PDF there automatically). Both show only when PdfDesk is installed.
-  A running PdfDesk receives the file through its own single-instance pipe.
-- PdfDesk's File › "Printer Settings (PrintDesk)" opens PrintDesk when it is installed.
-- Each app finds the other via its MSIX app execution alias (`%LOCALAPPDATA%\Microsoft\WindowsApps\pdfdesk.exe` /
-  `printdesk.exe`), App Paths (`HKCU\…\App Paths\PdfDesk.exe` / `PrintDesk.exe`), else the default install folders
-  (`%LOCALAPPDATA%\Programs\Desk\<app>`, `%LOCALAPPDATA%\Programs\<app>`): `PrintDesk.Windows/Suite/DeskApps.cs`,
-  paths in `PrintDesk.Core/Suite/DeskPaths.cs`. A packaged PrintDesk's `state.json` lives in its package folder;
-  `DeskPrinters.Load` reads whichever copy was written last.
-- Shared, UI-free pieces in `PrintDesk.Core/Suite`: `DeskPrinters` (read-only view of `state.json`'s remembered
+- **Open in Inkvolt PDF**: after a scan is saved as PDF, the status line offers "Open in Inkvolt PDF"; the Scan settings have
+  "Open scans in Inkvolt PDF" (open every saved PDF there automatically). Both show only when Inkvolt PDF is installed.
+  A running Inkvolt PDF receives the file through its own single-instance pipe.
+- Inkvolt PDF's File › "Printer Settings (Inkvolt Print)" opens Inkvolt Print when it is installed.
+- Each app finds the other via its MSIX app execution alias (`%LOCALAPPDATA%\Microsoft\WindowsApps\inkvoltpdf.exe` /
+  `inkvoltprint.exe`), App Paths (`HKCU\…\App Paths\InkvoltPdf.exe` / `InkvoltPrint.exe`), else the default install folders
+  (`%LOCALAPPDATA%\Programs\Inkvolt\<app>`, `%LOCALAPPDATA%\Programs\<app>`): `InkvoltPrint.Windows/Suite/InkvoltApps.cs`,
+  paths in `InkvoltPrint.Core/Suite/InkvoltPaths.cs`. A packaged Inkvolt Print's `state.json` lives in its package folder;
+  `InkvoltPrinters.Load` reads whichever copy was written last.
+- Shared, UI-free pieces in `InkvoltPrint.Core/Suite`: `InkvoltPrinters` (read-only view of `state.json`'s remembered
   printers and queue associations), `QueueMatch` (Windows queue → printer: stored association, device container, address
   in the port, unambiguous name), `PrinterHealth` (ready/sleeping/error/offline, toner, paper problems), `ScanChoices`
-  (sources, colors, resolutions, page sizes → `ScanRequest`; PrintDesk's Scan tab uses its page sizes).
-- One installer for both: `install-suite.ps1` in the PdfDesk repo (`%LOCALAPPDATA%\Programs\Desk\PdfDesk` and
-  `\PrintDesk`, Start Menu folder "Desk", App Paths; `-Uninstall` removes only what it added).
+  (sources, colors, resolutions, page sizes → `ScanRequest`; Inkvolt Print's Scan tab uses its page sizes).
+- One installer for both: `install-suite.ps1` in the Inkvolt PDF repo (`%LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf` and
+  `\InkvoltPrint`, Start Menu folder "Inkvolt", App Paths; `-Uninstall` removes only what it added).
 
 ## Layout
 
 ```
-src/PrintDesk.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Suite (shared with PdfDesk)
-src/PrintDesk.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Suite/DeskApps
-src/PrintDesk.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
-src/PrintDesk.Cli       developer CLI over the same code (printdesk discover|probe|status|watch|settings|scan)
-tests/PrintDesk.Tests   parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw
+src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Suite (shared with Inkvolt PDF)
+src/InkvoltPrint.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Suite/InkvoltApps
+src/InkvoltPrint.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
+src/InkvoltPrint.Cli       developer CLI over the same code (inkvoltprint discover|probe|status|watch|settings|scan)
+tests/InkvoltPrint.Tests   parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw
 ```
 
 ## Build / run
@@ -51,24 +51,24 @@ tests/PrintDesk.Tests   parser/encoder tests against fixtures captured from an H
 ```
 dotnet build
 dotnet test
-dotnet run --project src/PrintDesk.App
-dotnet run --project src/PrintDesk.Cli -- status 192.0.2.10
+dotnet run --project src/InkvoltPrint.App
+dotnet run --project src/InkvoltPrint.Cli -- status 192.0.2.10
 ```
 
 Standalone executable (self-contained, no .NET install needed, ~170 MB; uncompressed on purpose: compression costs ~80 MB of RAM):
 
 ```
-dotnet publish src/PrintDesk.App -p:PublishProfile=win-arm64   # or win-x64
-# → publish/win-arm64/PrintDesk.exe
+dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
+# → publish/win-arm64/InkvoltPrint.exe
 ```
 
-Dev aid: `PrintDesk.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
+Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
 (`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first).
 
-Demo mode: `PrintDesk.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
+Demo mode: `InkvoltPrint.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
 (embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
 the remembered-printers state is neither read nor written; scanning returns a generated page. Screenshots:
-`PrintDesk.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
+`InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
 `.msixupload`; no Windows SDK install needed. Partner Center values, elevation notes, Store policy, listing text and
@@ -85,7 +85,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 ## Robustness
 
 - One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
-- Unhandled errors are logged to `%LOCALAPPDATA%\PrintDesk\logs\printdesk.log` and shown; the app keeps running. Closing with unsaved scans asks first.
+- Unhandled errors are logged to `%LOCALAPPDATA%\InkvoltPrint\logs\inkvoltprint.log` and shown; the app keeps running. Closing with unsaved scans asks first.
 - TLS: printer certificates are pinned on first use (per printer UUID); a changed certificate blocks password-bearing writes until the user trusts it (which also forgets the saved password). Inherent to trust-on-first-use: the very first encrypted connection is trusted as-is, so set the admin password up on a network you trust; the password dialog shows the pinned fingerprint.
 - Elevated actions (add printer by IP, HP clean-up) run a constant PowerShell script; every value is passed Base64-encoded and results return as exit codes (no temp files).
 - Printers added by IP get a Windows queue via `Add-Printer -IppURL` (Windows requires admin: one UAC prompt).
@@ -100,11 +100,11 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 ## License
 
 Copyright (c) 2026 [Bermudez Systems LLC](https://bermudezsystems.com). MIT License, see [LICENSE](LICENSE).
-Third-party components: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). "About PrintDesk" (bottom of the sidebar)
+Third-party components: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). "About Inkvolt Print" (bottom of the sidebar)
 shows the version, both texts and the source code link.
 
-PrintDesk is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are
-trademarks of HP Inc., used here only to describe the printers PrintDesk works with.
+Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are
+trademarks of HP Inc., used here only to describe the printers Inkvolt Print works with.
 
-Part of the Desk suite with [PdfDesk](https://github.com/gabandres/PdfDesk) (AGPL-3.0), which uses PrintDesk's
+Part of the Inkvolt suite with [Inkvolt PDF](https://github.com/gabandres/inkvolt-pdf) (AGPL-3.0), which uses Inkvolt Print's
 libraries for scanning and printer status.

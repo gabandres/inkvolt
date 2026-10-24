@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(WinTfm)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>InkvoltPrint</AssemblyName>
+    <ApplicationIcon>..\..\assets\InkvoltPrint.ico</ApplicationIcon>
+    <!-- ThemeMode (Fluent) is marked experimental in WPF -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- packaging/pack-msix.ps1 -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->
+    <DefineConstants Condition="'$(HpCleanupInPackage)' == 'true'">$(DefineConstants);HP_CLEANUP_IN_PACKAGE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\InkvoltPrint.ico" Link="InkvoltPrint.ico" />
+    <!-- Shown by "About Inkvolt Print" -->
+    <Resource Include="..\..\LICENSE" Link="LICENSE" />
+    <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\m234dw\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
+                      Link="Demo\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
