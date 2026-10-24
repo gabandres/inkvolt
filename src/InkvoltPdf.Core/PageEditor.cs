@@ -1142,12 +1142,13 @@ internal static class Xmp
     /// The file PDFsharp just saved into <paramref name="saved"/>, with its XMP packet replaced; as saved if it can't be.
     /// Read straight from the stream's buffer, so the file is copied once.
     /// </summary>
-    public static byte[] Patch(MemoryStream saved, PdfDocumentInformation info, XDocument? original)
+    /// <param name="bare">Only the Info-backed properties, without dates or document IDs (see <see cref="PdfObj.Save"/>).</param>
+    public static byte[] Patch(MemoryStream saved, PdfDocumentInformation info, XDocument? original, bool bare = false)
     {
         byte[] packet;
         try
         {
-            packet = Build(info, original);
+            packet = Build(info, original, bare);
         }
         catch (Exception ex) when (ex is XmlException or ArgumentException or InvalidOperationException)
         {
@@ -1156,7 +1157,7 @@ internal static class Xmp
         return Replace(saved.GetBuffer().AsSpan(0, (int)saved.Length), packet) ?? saved.ToArray();
     }
 
-    internal static byte[] Build(PdfDocumentInformation info, XDocument? original)
+    internal static byte[] Build(PdfDocumentInformation info, XDocument? original, bool bare = false)
     {
         var xmp = original is null
             ? new XDocument(new XElement(Meta + "xmpmeta", new XAttribute(XNamespace.Xmlns + "x", Meta),
@@ -1172,20 +1173,25 @@ internal static class Xmp
         Set(rdf, Pdf + "Keywords", info.Keywords);
         Set(rdf, Pdf + "Producer", info.Producer);
         Set(rdf, XmpNs + "CreatorTool", info.Creator);
+        if (bare) return Packet(xmp);
         if (created is { } c && !Has(rdf, XmpNs + "CreateDate")) Set(rdf, XmpNs + "CreateDate", Format(c));
         Set(rdf, XmpNs + "ModifyDate", Format(modified));
         Set(rdf, XmpNs + "MetadataDate", Format(modified));
         if (!Has(rdf, XmpMM + "DocumentID"))
             Set(rdf, XmpMM + "DocumentID", $"uuid:{Guid.NewGuid()}");
         Set(rdf, XmpMM + "InstanceID", $"uuid:{Guid.NewGuid()}");
-
-        var text = "<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" +
-                   xmp.Root!.ToString(SaveOptions.DisableFormatting) + "\n<?xpacket end=\"w\"?>";
-        return new UTF8Encoding(false).GetBytes(text);
+        return Packet(xmp);
 
         static XElement Alt(string v) =>
             new(Rdf + "Alt", new XElement(Rdf + "li", new XAttribute(XNamespace.Xml + "lang", "x-default"), v));
         static string Format(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:sszzz", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static byte[] Packet(XDocument xmp)
+    {
+        var text = "<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" +
+                   xmp.Root!.ToString(SaveOptions.DisableFormatting) + "\n<?xpacket end=\"w\"?>";
+        return new UTF8Encoding(false).GetBytes(text);
     }
 
     private static bool Has(XElement rdf, XName name) =>

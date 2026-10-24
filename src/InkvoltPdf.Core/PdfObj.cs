@@ -114,15 +114,17 @@ internal static class PdfObj
     /// signatures valid (see <see cref="Incremental"/>), unless <paramref name="rewrite"/> asks for a full rewrite
     /// (redaction, which must not leave the removed content in the file).
     /// </summary>
+    /// <param name="bareXmp">Write an XMP packet with just the producer (no dates, no document IDs): for a document whose
+    /// metadata was removed (Sanitize).</param>
     /// <exception cref="SignaturesWouldBreakException">A signed document whose edit can't be appended (see <see cref="SignedEdits"/>).</exception>
-    public static byte[] Save(PdfDocument doc, bool rewrite = false)
+    public static byte[] Save(PdfDocument doc, bool rewrite = false, bool bareXmp = false)
     {
         var xmp = Xmp.Read(doc);
         if (!rewrite && Incremental.Save(doc, xmp) is { } appended) return appended;
         KeptProtection.Reapply(doc);
         using var ms = new MemoryStream();
         doc.Save(ms, false);
-        return Xmp.Patch(ms, doc.Info, xmp);
+        return Xmp.Patch(ms, doc.Info, xmp, bareXmp);
     }
 
     /// <summary>Adds an indirect stream object (a form XObject when <paramref name="bbox"/> is given).</summary>

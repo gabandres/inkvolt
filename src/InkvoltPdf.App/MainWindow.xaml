@@ -246,6 +246,7 @@
                                     <MenuItem x:Name="RedactTextMenu" Header="Mark Selected _Text for Redaction" Click="OnRedactText" />
                                     <MenuItem x:Name="RedactHitsMenu" Header="Mark Search _Matches for Redaction" Click="OnRedactHits" />
                                     <MenuItem x:Name="ApplyRedactMenu" Header="_Apply Redactions…" Click="OnApplyRedactions" />
+                                    <MenuItem Command="app:Cmd.Sanitize" />
                                 </MenuItem>
                                 <MenuItem Header="_Help">
                                     <MenuItem Command="app:Cmd.Shortcuts" />

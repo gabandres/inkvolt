@@ -163,6 +163,16 @@ Manager. The installers don't remove an install made under the old names: uninst
   SHA-384/512 for EC P-384/P-521). The signature is appended as an incremental update, so earlier signatures stay valid,
   then saved as a new file (name-signed.pdf) and verified.
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
+- **Sanitize Document** (Review menu, command palette): removes what a document carries besides its pages. The dialog
+  counts what it found, one check box per kind (all on): metadata (document properties, XMP of the document, pages,
+  images and fonts, other apps' private data); hidden layers with what they draw (cut out of the content, not just
+  switched off), hidden comments and fields, comments, form field values, bookmarks, thumbnails; JavaScript (document
+  scripts, open and additional actions of the document, pages, comments and fields, script actions of links, fields and
+  bookmarks), Launch, Submit and Import actions, multimedia and XFA forms; links to web pages and other files; attached
+  files (also associated files and portfolios); on a signed file, its signatures. The file is rewritten as a single
+  version, so earlier versions kept by incremental saves and unused objects are gone too. Afterwards it says what was
+  removed (the result is read back and scanned again; anything left is listed). A signed file's signatures no longer
+  verify afterwards (the dialog says so); a protected file keeps its protection. One undo step.
 - **Recognize Text (OCR)** (Review menu): scanned pages get an invisible text layer, so they can be searched, selected
   and copied; runs on the PC with Windows' own OCR, one undo step.
 - **Export to Word, Excel or text** (File › Export, command palette): a page range, "recognize text on scanned pages",
@@ -256,8 +266,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`) |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -279,7 +289,8 @@ Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i
 Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
 `key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
-from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
+everything it removes); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`.
 
 ## License
@@ -355,6 +366,13 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   (two at least) in the top or bottom tenth. On scanned pages only the recognized text is kept (the pictures on
   them are not cut out), sizes are estimated and fonts are Word's default. Excel gets only the tables; numbers with
   currency signs, percents or thousands separators other than "," stay text.
+- Sanitize doesn't look for text drawn in white, under other content or outside the page (it can't be told reliably
+  from text that shows), nor for hidden text in the structure tree's alternate text. Hidden-layer content that can't
+  be cut out safely (a content stream that can't be decoded, or hidden text whose width the visible text right after it
+  depends on) is kept with its layer, still hidden, and the report says so; so is a hidden layer named in a layer
+  visibility expression (its content goes). An XFA-only form is kept (removing it would leave a placeholder page). Page
+  labels, the structure tree (tags, alternate text) and the document's language stay. The result's XMP packet only
+  names the program that wrote it.
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
 
@@ -364,6 +382,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   lacks a character, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
+- Sanitize: find text hidden in white, under images or outside the page; remove alternate text and a structure
+  tree's hidden content; save a report of what was removed.
 - Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
   custom script) and submit buttons; detect comb boxes and table rows as one field each.
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
