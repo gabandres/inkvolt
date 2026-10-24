@@ -31,6 +31,7 @@
             <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
             <MenuItem Header="Print photos…" Command="{Binding GoToPhotosCommand}" />
             <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}" />
+            <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}" />
             <MenuItem Header="Remove from InkvoltPrint…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />
@@ -329,6 +330,56 @@
                                         Command="{Binding DataContext.OpenFixerCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
                                         Visibility="{Binding ShowFixLink, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Open Windows queue" Command="{Binding OpenWindowsQueueCommand}" Style="{StaticResource LinkButton}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Maintenance: only what the printer advertises (HP internal pages and alignment, IPP Identify-Printer), each confirmed first -->
+                    <Border DataContext="{Binding Maintenance}" Visibility="{Binding IsLoaded, Converter={StaticResource VisibleWhen}}"
+                            Loaded="MaintenanceCard_Loaded" Unloaded="MaintenanceCard_Unloaded">
+                        <StackPanel>
+                            <TextBlock Text="Maintenance" Style="{StaticResource CardTitle}" />
+                            <ItemsControl ItemsSource="{Binding Items}" Focusable="False" AutomationProperties.Name="Maintenance actions">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:MaintenanceItemViewModel}">
+                                        <StackPanel Margin="0,0,0,6">
+                                            <Button Command="{Binding RunCommand}" Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                    AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding AccessibleText}">
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="18"
+                                                               Margin="0,2,12,0" VerticalAlignment="Top" />
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Button>
+                                            <!-- Outside the button, so the reason isn't greyed out with it -->
+                                            <TextBlock Text="{Binding Reason}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="4,4,0,0"
+                                                       Visibility="{Binding Reason, Converter={StaticResource VisibleWhen}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button Content="Maintenance page" Command="{Binding OpenSupplyPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
+                                        AutomationProperties.HelpText="The printer's own page for supplies, alignment and test pages"
+                                        Visibility="{Binding HasSupplyPage, Converter={StaticResource VisibleWhen}}" />
+                                <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>

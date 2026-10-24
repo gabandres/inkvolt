@@ -20,7 +20,8 @@ namespace InkvoltPrint.App;
 /// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
-/// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
+/// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -74,6 +75,8 @@ internal static class DevSnapshot
         }
         if (args.Contains("--photos") && window.DataContext is ViewModels.MainViewModel { Selected: { } photoPrinter })
             await PhotosAsync(photoPrinter, args);
+        if (args.Contains("--maintenance") && window.DataContext is ViewModels.MainViewModel { Selected: { } maintained })
+            await MaintenanceAsync(maintained, args);
         if (fix is not null && window.DataContext is ViewModels.MainViewModel { Selected: { } fixing })
         {
             await fixing.OpenFixerCommand.ExecuteAsync(null);
@@ -147,6 +150,24 @@ internal static class DevSnapshot
 
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary>
+    /// <c>--maintenance [n]</c>: scrolls to the Maintenance card ("Printer maintenance…") and, with <c>--demo</c> only, runs
+    /// its n-th action, answering yes to the question (demo printers accept and forget it: nothing is sent anywhere).
+    /// </summary>
+    private static async Task MaintenanceAsync(ViewModels.PrinterViewModel printer, string[] args)
+    {
+        for (var i = 0; i < 20 && !printer.Maintenance.IsLoaded; i++) await Task.Delay(250);
+        printer.ShowMaintenanceCommand.Execute(null);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (!printer.IsDemo || !int.TryParse(Value(args, "--maintenance"), out var n) || n < 1 || n > printer.Maintenance.Items.Count) return;
+        var ask = ViewModels.Prompt.Confirm;
+        ViewModels.Prompt.Confirm = (_, _) => true;
+        try { await printer.Maintenance.Items[n - 1].RunCommand.ExecuteAsync(null); }
+        finally { ViewModels.Prompt.Confirm = ask; }
+        printer.ShowMaintenanceCommand.Execute(null); // the result line made the card taller
+        await Task.Delay(TimeSpan.FromSeconds(1));
+    }
 
     /// <summary>
     /// <c>--photos [layout]</c>: the Photos tab with the demo's generated sample pictures (Demo.SamplePhotos), in a layout

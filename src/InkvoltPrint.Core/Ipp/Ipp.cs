@@ -3,14 +3,17 @@ using System.Text;
 
 namespace InkvoltPrint.Core.Ipp;
 
-/// <summary>Minimal IPP/1.1 encoding (RFC 8010): enough for Get-Printer-Attributes.</summary>
+/// <summary>Minimal IPP encoding (RFC 8010): enough for Get-Printer-Attributes and Identify-Printer.</summary>
 public static class IppCodec
 {
     public const ushort GetPrinterAttributes = 0x000B;
 
+    /// <summary>PWG 5100.13 §4.1 (IPP Job and Printer Extensions, Set 3): the printer shows where it is (lights, sound, panel).</summary>
+    public const ushort IdentifyPrinter = 0x003C;
+
     private const byte OperationTag = 0x01, PrinterTag = 0x04, EndTag = 0x03;
     internal const byte Integer = 0x21, Boolean = 0x22, Enum = 0x23, OctetString = 0x30;
-    internal const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44;
+    internal const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44, Name = 0x42;
 
     public static byte[] EncodeGetPrinterAttributes(string printerUri, IEnumerable<string> requested, int requestId = 1)
     {
@@ -28,6 +31,34 @@ public static class IppCodec
         foreach (var r in requested)
         {
             WriteAttr(ms, Keyword, first ? "requested-attributes" : "", r);
+            first = false;
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// An Identify-Printer request (PWG 5100.13 §4.1.1): the operation attributes in the order the spec lists them,
+    /// <c>requesting-user-name</c> when given (SHOULD) and <c>identify-actions</c> when any are chosen (the printer's
+    /// <c>identify-actions-default</c> otherwise). Sent as IPP/2.0: JPS3 extends IPP/2.0, which IPP Everywhere printers support.
+    /// </summary>
+    public static byte[] EncodeIdentifyPrinter(string printerUri, string? userName, IEnumerable<string> actions, int requestId = 1)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = 2; head[1] = 0;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], IdentifyPrinter);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        WriteAttr(ms, Uri, "printer-uri", printerUri);
+        if (!string.IsNullOrEmpty(userName)) WriteAttr(ms, Name, "requesting-user-name", userName);
+        var first = true;
+        foreach (var a in actions)
+        {
+            WriteAttr(ms, Keyword, first ? "identify-actions" : "", a);
             first = false;
         }
         ms.WriteByte(EndTag);

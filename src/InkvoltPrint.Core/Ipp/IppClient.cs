@@ -30,16 +30,27 @@ public sealed class IppClient
 
     public Uri Endpoint { get; }
 
-    public async Task<IppResponse> GetPrinterAttributesAsync(IEnumerable<string>? requested = null, CancellationToken ct = default)
+    /// <summary>The <c>printer-uri</c> operation attribute: <c>ipp://</c> (or <c>ipps://</c>) for the endpoint's host, port and path.</summary>
+    public string PrinterUri =>
+        new UriBuilder(Endpoint.Scheme == Uri.UriSchemeHttps ? "ipps" : "ipp", Endpoint.Host, Endpoint.Port, Endpoint.AbsolutePath).Uri.AbsoluteUri;
+
+    public Task<IppResponse> GetPrinterAttributesAsync(IEnumerable<string>? requested = null, CancellationToken ct = default) =>
+        PostAsync(IppCodec.EncodeGetPrinterAttributes(PrinterUri, requested ?? StatusAttributes), TimeSpan.FromSeconds(5), ct);
+
+    /// <summary>
+    /// PWG 5100.13 Identify-Printer: the printer flashes, beeps or shows a message so it can be found. Sent once, never
+    /// retried; the caller reads the IPP status (a printer may want a signed-in user for it, §4.1).
+    /// </summary>
+    public Task<IppResponse> IdentifyPrinterAsync(IReadOnlyList<string> actions, string? userName, CancellationToken ct = default) =>
+        PostAsync(IppCodec.EncodeIdentifyPrinter(PrinterUri, userName, actions), TimeSpan.FromSeconds(10), ct);
+
+    private async Task<IppResponse> PostAsync(byte[] body, TimeSpan timeout, CancellationToken ct)
     {
-        var scheme = Endpoint.Scheme == Uri.UriSchemeHttps ? "ipps" : "ipp";
-        var printerUri = new UriBuilder(scheme, Endpoint.Host, Endpoint.Port, Endpoint.AbsolutePath).Uri.AbsoluteUri;
-        var body = IppCodec.EncodeGetPrinterAttributes(printerUri, requested ?? StatusAttributes);
         using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
         {
             Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
         };
-        using var resp = await _http.SendAsync(req, TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+        using var resp = await _http.SendAsync(req, timeout, ct).ConfigureAwait(false);
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
         return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
     }

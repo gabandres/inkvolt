@@ -1,6 +1,6 @@
 # Get-Printer-Attributes response of a made-up inkjet multifunction printer (Inkvolt Print's demo inkjet).
 # Written by hand from the public specs, never captured from a device: RFC 8011 (printer-state, printer-state-reasons),
-# PWG 5100.13 (marker-*, printer-firmware-*), PWG 5100.9 (printer-alert, printer-alert-description) and PWG 5100.14
+# PWG 5100.13 (marker-*, printer-firmware-*, Identify-Printer, identify-actions-*, printer-supply-info-uri), PWG 5100.9 (printer-alert, printer-alert-description) and PWG 5100.14
 # IPP Everywhere (ipp/print resource, printer-uuid). Address from RFC 5737's documentation range; example names only.
 # Format (IppText): <attribute> <syntax> <value>; the same attribute on the next line adds another value (1setOf).
 printer-uri-supported uri ipp://192.0.2.11:631/ipp/print
@@ -9,6 +9,7 @@ printer-make-and-model text EPSON ET-0000 Series
 printer-info text EPSON ET-0000 Series
 printer-location text Office, second floor
 printer-more-info uri http://192.0.2.11:80/PRESENTATION/BONJOUR
+printer-supply-info-uri uri http://192.0.2.11:80/PRESENTATION/BONJOUR/SUPPLIES
 printer-uuid uri urn:uuid:2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b
 printer-state enum 3
 printer-state-reasons keyword marker-supply-low-warning
@@ -54,3 +55,18 @@ document-format-supported mimeMediaType application/octet-stream
 document-format-supported mimeMediaType image/pwg-raster
 document-format-supported mimeMediaType image/urf
 document-format-supported mimeMediaType image/jpeg
+# operations-supported (RFC 8011 enum values): Print-Job, Validate-Job, Create-Job, Send-Document, Cancel-Job,
+# Get-Job-Attributes, Get-Jobs, Get-Printer-Attributes, Close-Job (PWG 5100.13) and Identify-Printer (0x003C = 60).
+operations-supported enum 2
+operations-supported enum 4
+operations-supported enum 5
+operations-supported enum 6
+operations-supported enum 8
+operations-supported enum 9
+operations-supported enum 10
+operations-supported enum 11
+operations-supported enum 59
+operations-supported enum 60
+identify-actions-default keyword flash
+identify-actions-supported keyword flash
+identify-actions-supported keyword sound

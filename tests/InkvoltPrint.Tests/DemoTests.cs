@@ -58,6 +58,20 @@ public class DemoTests
     }
 
     [Fact]
+    public async Task DemoLaserOffersItsMadeUpMaintenancePagesWithTonerWording()
+    {
+        var handler = new FixtureHandler(name => new[] { "m234dw", "hp-demo" }
+            .Select(folder => Path.Combine(AppContext.BaseDirectory, "Fixtures", folder, name)).Where(File.Exists).Select(File.ReadAllBytes).FirstOrDefault());
+        using var conn = await PrinterConnection.OpenAsync(FixtureHandler.DemoHost, transport: handler);
+
+        var options = await new InkvoltPrint.Core.Maintenance.MaintenanceClient(conn).DetectAsync();
+
+        Assert.Equal(["configurationPage", "pqDiagnosticsPage", "networkSummary", "cleaningPage"], options.Actions.Select(a => a.JobType));
+        Assert.Equal("Print cleaning page (HP)", options.Actions[^1].Label);
+        Assert.True((await new InkvoltPrint.Core.Maintenance.MaintenanceClient(conn).RunAsync(options.Actions[0])).Ok);
+    }
+
+    [Fact]
     public async Task EventLongPollIsHeldNotSpun()
     {
         using var http = new DeviceHttp(FixtureHandler.DemoHost, Transport());

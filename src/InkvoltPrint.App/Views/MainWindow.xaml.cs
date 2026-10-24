@@ -60,6 +60,36 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>"Printer maintenance…" (printer menu): scroll the Maintenance card into view and focus its first action.</summary>
+    private void MaintenanceCard_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: null } card) return;
+        // The template is reused across printers: the card checks its own view model each time.
+        Action<PrinterViewModel> show = _ => FocusMaintenance(card);
+        PrinterViewModel.MaintenanceRequested += show;
+        card.Tag = show;
+        FocusMaintenance(card);
+    }
+
+    private void FocusMaintenance(FrameworkElement card)
+    {
+        if (card.DataContext is not MaintenanceViewModel { FocusRequested: true } maintenance) return;
+        maintenance.FocusRequested = false;
+        // Focus first (which scrolls just far enough for the button), then the whole card once layout has settled.
+        Dispatcher.BeginInvoke(() => card.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First)),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => card.BringIntoView(), System.Windows.Threading.DispatcherPriority.ContextIdle);
+    }
+
+    private void MaintenanceCard_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Action<PrinterViewModel> show } card)
+        {
+            PrinterViewModel.MaintenanceRequested -= show;
+            card.Tag = null;
+        }
+    }
+
     private static string[] Dropped(DragEventArgs e) => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
 
     private static string? DroppedPdf(string[] files) =>

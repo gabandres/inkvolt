@@ -34,6 +34,9 @@
     <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->
     <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\m234dw\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
                       Link="Demo\%(Filename)%(Extension)" />
+    <!-- Demo-only additions to the HP laser (maintenance pages the real M234dw doesn't list), written by hand -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\hp-demo\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
+                      Link="Demo\%(Filename)%(Extension)" />
     <!-- The demo inkjet (not HP): IPP and eSCL documents written from the public specs -->
     <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\inkjet-demo\*" LogicalName="DemoInkjet.%(Filename)%(Extension)"
                       Link="DemoInkjet\%(Filename)%(Extension)" />

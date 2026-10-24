@@ -63,6 +63,21 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             IsDemo ? Demo.OfflinePc : new WindowsOfflineProbes(),
             new FixerRepairs(IsDemo ? Demo.OfflinePc : new WindowsOfflineRepairs(), this),
             AdoptAddress, canElevate: Features.ElevatedRepairs); // the demo PC's "elevation" is made up too
+        Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, IsDemo);
+    }
+
+    /// <summary>The Overview's Maintenance card: configuration page, cleaning, alignment, Identify, where the printer offers them.</summary>
+    public MaintenanceViewModel Maintenance { get; }
+
+    /// <summary>"Printer maintenance…" in the printer's menu: the view showing this printer's card scrolls to it and focuses it.</summary>
+    public static event Action<PrinterViewModel>? MaintenanceRequested;
+
+    [RelayCommand]
+    private void ShowMaintenance()
+    {
+        SelectedSection = OverviewSection;
+        Maintenance.FocusRequested = true; // the card takes it when it's (re)loaded, or right away below
+        MaintenanceRequested?.Invoke(this);
     }
 
     /// <summary>"Printer offline? Fix it": the troubleshooter panel on the Overview.</summary>
@@ -495,6 +510,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
         if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
+        _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         // A scanner offering neither glass nor feeder (only a camera, say) has nothing Inkvolt Print can scan from.
         var scanner = conn.Scanner is not null && p.Scanner?.Sources.Any() == true ? conn.Scanner : null;
@@ -547,6 +563,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             StatusSeverity = status.Severity;
             Sync(Alerts, status.Alerts);
         }
+        Maintenance.Update(true, status);
 
         try
         {
@@ -585,6 +602,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         StatusDetail = $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. Inkvolt Print keeps trying in the background.";
         StatusSeverity = Severity.Error;
         Alerts.Clear();
+        Maintenance.Update(false, null);
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
         Observed?.Invoke(new PrinterSnapshot(Uuid, Name, false, null, null));

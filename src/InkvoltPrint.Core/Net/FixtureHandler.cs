@@ -9,8 +9,9 @@ namespace InkvoltPrint.Core.Net;
 /// printer) and by tests. A request path maps to a document name by replacing <c>/</c> with <c>_</c> and adding
 /// <c>.xml</c> when there is no extension: <c>/DevMgmt/ProductStatusDyn.xml</c> → <c>DevMgmt_ProductStatusDyn.xml</c>,
 /// <c>/eSCL/ScannerCapabilities</c> → <c>eSCL_ScannerCapabilities.xml</c>. An IPP Get-Printer-Attributes request to
-/// <c>/ipp/print</c> is answered from <c>ipp_print.ipp.txt</c> (<see cref="Ipp.IppText"/>). Anything without a document is
-/// 404 (so IPP and product images are simply "not supported").
+/// <c>/ipp/print</c> is answered from <c>ipp_print.ipp.txt</c> (<see cref="Ipp.IppText"/>), and so is Identify-Printer when
+/// that document lists it. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a document is 404 (so IPP
+/// and product images are simply "not supported").
 /// </summary>
 /// <param name="document">Document name → bytes, or null when there is none.</param>
 /// <param name="scanPage">JPEG returned for each eSCL scan job (one page); null: scanning fails with 404.</param>
@@ -68,12 +69,20 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
         {
             if (document(IppDocumentName(path)) is not { } text) return Reply(request, HttpStatusCode.NotFound);
             var (operation, id) = Ipp.IppCodec.ReadRequestHeader(await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
-            // Only Get-Printer-Attributes is answered; anything else gets server-error-operation-not-supported.
-            var body = operation == Ipp.IppCodec.GetPrinterAttributes
-                ? Ipp.IppCodec.EncodeResponse(0, id, Ipp.IppText.Parse(System.Text.Encoding.UTF8.GetString(text)))
+            var attributes = Ipp.IppText.Parse(System.Text.Encoding.UTF8.GetString(text));
+            // Get-Printer-Attributes is answered from the document, and Identify-Printer (a no-op here) when the document's
+            // operations-supported lists it; anything else gets server-error-operation-not-supported.
+            var identify = operation == Ipp.IppCodec.IdentifyPrinter
+                           && attributes.Any(a => a.Name == "operations-supported" && a.Value == ((int)Ipp.IppCodec.IdentifyPrinter).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            var body = operation == Ipp.IppCodec.GetPrinterAttributes ? Ipp.IppCodec.EncodeResponse(0, id, attributes)
+                : identify ? Ipp.IppCodec.EncodeResponse(0, id, [])
                 : Ipp.IppCodec.EncodeResponse(0x0501, id, []);
             return Reply(request, HttpStatusCode.OK, body, "application/ipp");
         }
+        // LEDM maintenance (internal print jobs, alignment): accepted and forgotten, like settings writes. Nothing prints.
+        if (request.Method == HttpMethod.Post && request.Content?.Headers.ContentType?.MediaType == "text/xml"
+                                              && !path.EndsWith("/ScanJobs", StringComparison.Ordinal))
+            return Reply(request, HttpStatusCode.Created);
         if (request.Method == HttpMethod.Delete) return Reply(request, HttpStatusCode.OK);
         // Settings writes are accepted and forgotten: the demo printer always reads back its captured settings.
         if (request.Method == HttpMethod.Put) return Reply(request, HttpStatusCode.OK);
