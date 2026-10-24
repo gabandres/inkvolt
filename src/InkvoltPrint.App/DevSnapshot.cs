@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using InkvoltPrint.App.Views;
@@ -19,6 +20,10 @@ namespace InkvoltPrint.App;
 /// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
+/// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
+/// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
+/// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
+/// Without <c>--snapshot</c>, <c>--demo --tray --simulate-alerts</c> shows the real notification after the printers connect.
 /// </summary>
 internal static class DevSnapshot
 {
@@ -29,7 +34,8 @@ internal static class DevSnapshot
             ? (w, h) : null;
 
     public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
-        string? copy = null, int crop = 0, int printer = 0, string? fix = null, string? preset = null, int editPresets = 0, string? then = null)
+        string? copy = null, int crop = 0, int printer = 0, string? fix = null, string? preset = null, int editPresets = 0, string? then = null,
+        string? tray = null, bool simulateAlerts = false)
     {
         if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
             main.Selected = main.Printers[printer - 1];
@@ -92,6 +98,13 @@ internal static class DevSnapshot
             foreach (var sv in Descendants<ScrollViewer>(shown)) sv.ScrollToEnd();
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
+        var trayController = (Application.Current as App)?.Tray;
+        if (simulateAlerts && trayController is not null)
+        {
+            trayController.Simulate();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
         {
@@ -126,6 +139,113 @@ internal static class DevSnapshot
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
         Application.Current.Shutdown();
+    }
+
+    /// <summary><c>--demo --tray --simulate-alerts</c> without a snapshot: the real notification, once the demo printers are read.</summary>
+    public static async Task SimulateAlertsAsync(Tray.TrayController? tray)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        tray?.Simulate();
+    }
+
+    /// <summary>The tray's menu, alert or settings rendered to <paramref name="path"/>; false for an unknown name.</summary>
+    private static async Task<bool> TrayShotAsync(Tray.TrayController tray, string what, string path)
+    {
+        FrameworkElement content;
+        Window? host = null;
+        System.Windows.Controls.ContextMenu? menu = null;
+        switch (what)
+        {
+            case "hidden" or "menu":
+                if (what == "hidden")
+                {
+                    // Closed to the tray: live connections stop, then one low-frequency check of each printer, then the menu.
+                    tray.HideWindow();
+                    await tray.CheckNowAsync();
+                }
+                menu = tray.BuildMenu();
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.AbsolutePoint;
+                menu.HorizontalOffset = menu.VerticalOffset = 100;
+                menu.IsOpen = true;
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                content = menu;
+                break;
+            case "alert":
+                content = AlertPreview(tray);
+                content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                content.Arrange(new Rect(content.DesiredSize));
+                content.UpdateLayout();
+                break;
+            case "settings":
+                host = Views.AlertSettingsDialog.Create(tray);
+                host.Owner = Application.Current.MainWindow;
+                host.Show();
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                content = (FrameworkElement)VisualTreeHelper.GetChild(host, 0);
+                break;
+            default:
+                return false;
+        }
+        var dpi = VisualTreeHelper.GetDpi(Application.Current.MainWindow);
+        var bmp = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(content.ActualHeight * dpi.DpiScaleY),
+            dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            var area = new Rect(0, 0, content.ActualWidth, content.ActualHeight);
+            var bg = Application.Current.MainWindow.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? Brushes.White;
+            dc.DrawRectangle(bg, null, area);
+            dc.DrawRectangle(new VisualBrush(content) { Viewbox = area, ViewboxUnits = BrushMappingMode.Absolute }, null, area);
+        }
+        bmp.Render(visual);
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(bmp));
+        await using (var fs = File.Create(path)) enc.Save(fs);
+        if (menu is not null) menu.IsOpen = false;
+        host?.Close();
+        Application.Current.Shutdown();
+        return true;
+    }
+
+    /// <summary>
+    /// The last alert laid out like a Windows notification (app name, badge icon, title, text). Windows draws the real one,
+    /// which a window snapshot can't capture; this shows what it will say.
+    /// </summary>
+    private static FrameworkElement AlertPreview(Tray.TrayController tray)
+    {
+        var (title, text) = tray.LastNotices.Count > 0 ? Tray.TrayController.NoticeText(tray.LastNotices) : ("(no alert yet)", "Run with --simulate-alerts.");
+        var level = tray.LastNotices.Count > 0 ? tray.LastNotices.Max(n => n.Level) : Core.Alerts.AlertLevel.Ok;
+        var badge = level switch
+        {
+            Core.Alerts.AlertLevel.Error => "error", Core.Alerts.AlertLevel.Warning => "warning", Core.Alerts.AlertLevel.Offline => "offline", _ => null,
+        };
+        var icon = BitmapDecoder.Create(new Uri(badge is null ? "pack://application:,,,/InkvoltPrint.ico" : $"pack://application:,,,/Tray/InkvoltPrint-{badge}.ico"),
+            BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames.OrderBy(f => f.PixelWidth).First(f => f.PixelWidth >= 48);
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        header.Children.Add(new Image { Width = 16, Height = 16, Source = AppIcon.Frame(16 * VisualTreeHelper.GetDpi(Application.Current.MainWindow).DpiScaleX), Margin = new Thickness(0, 0, 8, 0) });
+        header.Children.Add(new TextBlock { Text = "Inkvolt Print", FontSize = 12 });
+        var body = new StackPanel();
+        body.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        var row = new DockPanel();
+        var image = new Image { Width = 48, Height = 48, Source = icon, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Top };
+        DockPanel.SetDock(image, Dock.Left);
+        row.Children.Add(image);
+        row.Children.Add(body);
+        var stack = new StackPanel();
+        stack.Children.Add(header);
+        stack.Children.Add(row);
+        var card = new Border
+        {
+            Width = 364, Padding = new Thickness(16), CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Child = stack,
+            Margin = new Thickness(12),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        card.SetResourceReference(TextElement.ForegroundProperty, "TextFillColorPrimaryBrush");
+        var outer = new Border { Child = card };
+        outer.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        return outer;
     }
 
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject

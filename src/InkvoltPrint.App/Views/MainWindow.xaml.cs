@@ -13,9 +13,24 @@ public partial class MainWindow : Window
 
     private void About_Click(object sender, RoutedEventArgs e) => AboutDialog.Open(this);
 
-    /// <summary>Scanned pages live only in memory until saved: don't let a stray click on X throw them away.</summary>
+    private void Alerts_Click(object sender, RoutedEventArgs e)
+    {
+        if (Application.Current is App { Tray: { } tray }) AlertSettingsDialog.Open(this, tray);
+    }
+
+    /// <summary>
+    /// With the notification-area icon on, closing goes to the tray (scanned pages stay in memory). Otherwise scanned pages
+    /// live only in memory until saved: don't let a stray click on X throw them away.
+    /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
+        if (Application.Current is App { Quitting: false, Tray.KeepsRunning: true } app)
+        {
+            e.Cancel = true;
+            app.Tray!.HideWindow();
+            base.OnClosing(e);
+            return;
+        }
         if (Vm?.PrintersWithUnsavedScans is { Count: > 0 } printers)
         {
             var pages = printers.Sum(p => p.Scan!.Pages.Count);

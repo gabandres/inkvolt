@@ -64,6 +64,9 @@ public sealed class AppState
     /// <summary>Scan presets (versioned; null in files from before presets, which then get the built-ins). See Presets/ScanPresetLibrary.</summary>
     public ScanPresetSettings? Presets { get; set; }
 
+    /// <summary>Notification-area icon and alerts (null in older files: off).</summary>
+    public TraySettings? Tray { get; set; }
+
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }
 
@@ -159,6 +162,7 @@ public sealed class AppState
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
+            state.Tray?.Repair();
             return state;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
@@ -188,5 +192,43 @@ public sealed class AppState
             // Non-fatal (state is a cache) and may run on a TLS callback thread while the UI edits lists: never throw.
             Log.Write($"State not saved: {ex.Message}");
         }
+    }
+}
+
+/// <summary>
+/// The notification-area icon and its alerts (Tray/TrayController). Off by default: Inkvolt Print then runs only while its window
+/// is open, as before. "Start with Windows" lives in the registry (Tray/StartWithWindows), not here.
+/// </summary>
+public sealed class TraySettings
+{
+    /// <summary>Show the icon, and keep running there when the window is closed.</summary>
+    public bool Enabled { get; set; }
+
+    public bool Alerts { get; set; } = true;
+    public int LowPercent { get; set; } = 15;
+    public bool OfflineAlerts { get; set; } = true;
+    public bool QuietHours { get; set; }
+
+    /// <summary>Quiet hours, whole hours of the local clock (22 → 7).</summary>
+    public int QuietFrom { get; set; } = 22;
+    public int QuietTo { get; set; } = 7;
+
+    public DateTimeOffset? PausedUntil { get; set; }
+
+    /// <summary>"Still running in the notification area" was said once.</summary>
+    public bool HintShown { get; set; }
+
+    /// <summary>Printer UUID → keys of alerts shown that were still going on (Core.Alerts.AlertTracker.Shown).</summary>
+    public Dictionary<string, List<string>> Shown { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public static readonly int[] LowChoices = [5, 10, 15, 20, 25, 30, 40, 50];
+
+    /// <summary>Hand-edited or older files: values back in range.</summary>
+    public void Repair()
+    {
+        if (!LowChoices.Contains(LowPercent)) LowPercent = 15;
+        if (QuietFrom is < 0 or > 23) QuietFrom = 22;
+        if (QuietTo is < 0 or > 23) QuietTo = 7;
+        Shown = new((Shown ?? []).Where(kv => kv.Key is not null && kv.Value is not null), StringComparer.OrdinalIgnoreCase);
     }
 }

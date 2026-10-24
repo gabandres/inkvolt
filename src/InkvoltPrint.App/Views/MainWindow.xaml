@@ -1037,8 +1037,11 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                <Button Style="{StaticResource LinkButton}" Content="Notification area and alerts" Click="Alerts_Click" HorizontalAlignment="Left"
+                        Margin="10,12,0,0" FontSize="12" x:Name="AlertsLink"
+                        ToolTip="Keep Inkvolt Print in the notification area and get told about low supplies and printer problems" />
                 <Button Style="{StaticResource LinkButton}" Content="About Inkvolt Print" Click="About_Click" HorizontalAlignment="Left"
-                        Margin="10,12,0,0" FontSize="12" />
+                        Margin="10,8,0,0" FontSize="12" />
             </StackPanel>
 
             <Grid>

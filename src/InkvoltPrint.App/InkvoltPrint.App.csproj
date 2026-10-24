@@ -4,6 +4,9 @@
     <TargetFramework>$(WinTfm)</TargetFramework>
     <UseWPF>true</UseWPF>
     <AssemblyName>InkvoltPrint</AssemblyName>
+    <!-- File description and product name: what Windows shows as the sender of the notification-area alerts and in Task Manager -->
+    <AssemblyTitle>Inkvolt Print</AssemblyTitle>
+    <Product>Inkvolt Print</Product>
     <ApplicationIcon>..\..\assets\InkvoltPrint.ico</ApplicationIcon>
     <!-- ThemeMode (Fluent) is marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
@@ -21,6 +24,8 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="..\..\assets\InkvoltPrint.ico" Link="InkvoltPrint.ico" />
+    <!-- Notification-area icon with a status badge (assets/make-icon.py, tray option) -->
+    <Resource Include="..\..\assets\tray\*.ico" Link="Tray\%(Filename)%(Extension)" />
     <!-- Shown by "About Inkvolt Print" -->
     <Resource Include="..\..\LICENSE" Link="LICENSE" />
     <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />

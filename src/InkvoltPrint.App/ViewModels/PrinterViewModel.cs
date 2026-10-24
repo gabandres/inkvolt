@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
+using InkvoltPrint.Core.Alerts;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
@@ -269,10 +270,72 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     public void Start()
     {
-        if (_loop is not null) return;
+        if (_loop is not null || _suspended) return;
         _loop = new CancellationTokenSource();
         _ = RunAsync(_loop.Token);
         if (!IsDemo) _ = RefreshQueueAsync();
+    }
+
+    /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
+    public event Action<PrinterSnapshot>? Observed;
+
+    private bool _suspended, _reprobe;
+
+    /// <summary>
+    /// The window went to the notification area: stop the live connection loop (LEDM event feed, IPP refresh every 30 s,
+    /// retries every 20 s). The tray then reads this printer now and then with <see cref="CheckOnceAsync"/>. The connection
+    /// object stays (no request is made on it while idle), so unsaved scans and a scan in progress keep theirs.
+    /// </summary>
+    public void Suspend()
+    {
+        _suspended = true;
+        _loop?.Cancel();
+        _loop = null;
+        Jobs.SetVisible(false);
+    }
+
+    /// <summary>The window is back: the live loop again, on the same connection unless it was lost or the address changed.</summary>
+    public void Resume()
+    {
+        if (!_suspended) return;
+        _suspended = false;
+        if (_loop is not null) return;
+        _loop = new CancellationTokenSource();
+        _ = RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
+        _reprobe = false;
+        UpdateJobsVisibility();
+    }
+
+    /// <summary>One read while suspended (the tray's low-frequency check): connects first when needed. True when it answered.</summary>
+    public async Task<bool> CheckOnceAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (_connection is null || !IsOnline || _reprobe)
+            {
+                _reprobe = false;
+                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
+                if (!conn.Probe.Reachable)
+                {
+                    conn.Dispose();
+                    SetOffline();
+                    return false;
+                }
+                Attach(conn);
+            }
+            await RefreshAsync(ct);
+            return IsOnline;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"[{Name}] check failed: {ex.Message}");
+            SetOffline();
+            return false;
+        }
     }
 
     public void ApplyDiscovery(DiscoveredPrinter d)
@@ -355,27 +418,38 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     private void Restart()
     {
+        if (_suspended)
+        {
+            _reprobe = true; // the next check (or Resume) connects again, at the new address
+            return;
+        }
         _loop?.Cancel();
         _loop = null;
         Start();
     }
 
-    private async Task RunAsync(CancellationToken ct)
+    /// <param name="reuse">A connection still good from before <see cref="Suspend"/>: watched again without probing.</param>
+    private async Task RunAsync(CancellationToken ct, PrinterConnection? reuse = null)
     {
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                IsConnecting = true;
-                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
-                if (!conn.Probe.Reachable)
+                var conn = reuse;
+                reuse = null;
+                if (conn is null)
                 {
-                    conn.Dispose();
-                    SetOffline();
-                    await Task.Delay(RetryDelay, ct);
-                    continue;
+                    IsConnecting = true;
+                    conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
+                    if (!conn.Probe.Reachable)
+                    {
+                        conn.Dispose();
+                        SetOffline();
+                        await Task.Delay(RetryDelay, ct);
+                        continue;
+                    }
+                    Attach(conn);
                 }
-                Attach(conn);
                 await foreach (var _ in conn.WatchAsync(FallbackRefresh, ct))
                     await RefreshAsync(ct);
             }
@@ -456,6 +530,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             ObserveQuietly(suppliesTask, usageTask);
             return;
         }
+        IReadOnlyList<Consumable>? read = null;
         IsConnecting = false;
         IsOnline = true;
         if (!status.IsUnavailable)
@@ -470,6 +545,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         try
         {
             var supplies = await suppliesTask;
+            read = supplies;
             Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
             OnPropertyChanged(nameof(SuppliesTitle));
             if (await usageTask is { } u)
@@ -487,6 +563,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
+        Observed?.Invoke(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, read));
     }
 
     private static void ObserveQuietly(params Task[] tasks)
@@ -504,6 +581,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Alerts.Clear();
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
+        Observed?.Invoke(new PrinterSnapshot(Uuid, Name, false, null, null));
     }
 
     /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>

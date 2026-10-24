@@ -86,6 +86,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
 
+    /// <summary>Remembered printers and preferences (the tray's settings live there too).</summary>
+    public AppState State => _state;
+
     /// <summary>Scan presets, shared by every printer (Scan tab, Overview scan card, Ctrl+1…9, jump list).</summary>
     public ScanPresetLibrary Presets { get; }
 

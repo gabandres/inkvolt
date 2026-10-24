@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using InkvoltPrint.App.Presets;
+using InkvoltPrint.App.Tray;
 using InkvoltPrint.App.ViewModels;
 using InkvoltPrint.App.Views;
 
@@ -13,6 +14,12 @@ public partial class App : Application
 {
     private MainViewModel? _vm;
     private SingleInstance? _instance;
+
+    /// <summary>The notification-area icon and alerts: normal runs, and demo runs given <c>--tray</c> (never the <c>--try</c> window).</summary>
+    public TrayController? Tray { get; private set; }
+
+    /// <summary>Quit from the tray menu or Windows signing out: the window really closes instead of going to the tray.</summary>
+    public bool Quitting { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -74,7 +81,20 @@ public partial class App : Application
             MainWindow.Width = width;
             MainWindow.Height = height;
         }
-        MainWindow.Show();
+        if (!tryDemo && (!devRun || e.Args.Contains("--tray")))
+        {
+            if (demo) (_vm.State.Tray ??= new TraySettings()).Enabled = true; // demo state is in memory only
+            Tray = new TrayController(this, _vm, _vm.State, demo);
+            SessionEnding += (_, _) => Quitting = true; // never hold up signing out by hiding instead of closing
+            if (!demo) StartWithWindows.KeepCurrent();
+        }
+        else
+        {
+            ((MainWindow)MainWindow).AlertsLink.Visibility = Visibility.Collapsed; // the --try window and dev runs have no tray
+        }
+        // Started with Windows (--background): straight to the notification area, when it's still turned on.
+        if (Tray is { KeepsRunning: true } && e.Args.Contains(StartWithWindows.Argument)) Tray.HideWindow(atStartup: true);
+        else MainWindow.Show();
 
         _instance?.Listen(args => Dispatcher.InvokeAsync(() => HandleForwarded(args)));
         if (!devRun)
@@ -93,6 +113,8 @@ public partial class App : Application
             _ = DevAutoPrint.RunAsync(_vm, e.Args[ap + 1],
                 copies: int.TryParse(e.Args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
                 twoSided: e.Args.Contains("--two-sided"));
+        if (e.Args.Contains("--simulate-alerts") && demo && !e.Args.Contains("--snapshot"))
+            _ = DevSnapshot.SimulateAlertsAsync(Tray);
         if (Array.IndexOf(e.Args, "--snapshot") is var i and >= 0 && i + 1 < e.Args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
                 scans: !e.Args.Contains("--scan") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
@@ -103,7 +125,8 @@ public partial class App : Application
                 fix: !e.Args.Contains("--fix") ? null : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() == "all" ? "all" : "check",
                 preset: PresetArg(e.Args),
                 then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
-                editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1);
+                editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
+                tray: e.Args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: e.Args.Contains("--simulate-alerts"));
     }
 
     private static string? PresetArg(string[] args) =>
@@ -112,10 +135,22 @@ public partial class App : Application
     private static string? FirstPdf(IEnumerable<string> args) =>
         args.FirstOrDefault(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(a));
 
+    /// <summary>Quit (tray menu): closes the window for real; unsaved scans are asked about first, with the window shown.</summary>
+    public void Quit()
+    {
+        if (MainWindow is not { } w) return;
+        Quitting = true;
+        if (_vm?.PrintersWithUnsavedScans.Count > 0 && !w.IsVisible) Tray?.ShowWindow();
+        w.Close();
+        if (w.IsLoaded && w.IsVisible) Quitting = false; // they chose to keep the scans
+    }
+
     /// <summary>Another launch handed us its arguments: bring the window forward and open its PDF, if any.</summary>
     private void HandleForwarded(string[] args)
     {
         if (MainWindow is not { } w) return;
+        // A copy started at sign-in while this one already runs: stay where we are.
+        if (args is [StartWithWindows.Argument]) return;
         // Owned WPF dialogs, and Win32 Open/Save dialogs (which register as thread-modal), must close first.
         static bool DialogOpen(Window w) => w.OwnedWindows.Count > 0 || System.Windows.Interop.ComponentDispatcher.IsThreadModal;
         if (DialogOpen(w))
@@ -131,11 +166,15 @@ public partial class App : Application
             timer.Start();
             return;
         }
-        if (w.WindowState == WindowState.Minimized) w.WindowState = WindowState.Normal;
-        w.Show();
-        w.Activate();
-        w.Topmost = true; // Windows won't let a background process steal focus; flash to the top instead
-        w.Topmost = false;
+        if (Tray is not null) Tray.ShowWindow();
+        else
+        {
+            if (w.WindowState == WindowState.Minimized) w.WindowState = WindowState.Normal;
+            w.Show();
+            w.Activate();
+            w.Topmost = true; // Windows won't let a background process steal focus; flash to the top instead
+            w.Topmost = false;
+        }
         if (FirstPdf(args) is { } pdf && _vm is not null) _ = _vm.OpenPdfAsync(pdf);
         if (PresetArg(args) is { } preset && _vm is not null) _ = _vm.RunPresetWhenReadyAsync(preset);
     }
@@ -161,6 +200,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Tray?.Dispose();
         _vm?.Dispose();
         _instance?.Dispose();
         base.OnExit(e);
