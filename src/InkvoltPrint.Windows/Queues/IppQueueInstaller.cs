@@ -15,12 +15,7 @@ public static partial class IppQueueInstaller
     public static async Task<InstallResult> InstallAsync(string queueName, Uri ippUrl, CancellationToken ct = default)
     {
         if (ippUrl.Scheme is not ("http" or "https" or "ipp" or "ipps")) throw new ArgumentException("Not an IPP URL", nameof(ippUrl));
-        var url = ippUrl.Scheme switch
-        {
-            "ipp" => new UriBuilder(ippUrl) { Scheme = "http", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri,
-            "ipps" => new UriBuilder(ippUrl) { Scheme = "https", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri, // RFC 7472
-            _ => ippUrl,
-        };
+        var url = HttpForm(ippUrl);
         var name = SafeQueueName(queueName);
 
         // Decide "already there" by looking, not by parsing (localised) PowerShell error text, and before elevating.
@@ -45,6 +40,14 @@ public static partial class IppQueueInstaller
             ? "Windows could not add the printer at that address. Check that it's on and that the address is right."
             : $"Windows could not add the printer (code {code}).");
     }
+
+    /// <summary>The http(s) form Windows' <c>Add-Printer -IppURL</c> takes: ipp → http, ipps → https, on 631 unless another port is given.</summary>
+    public static Uri HttpForm(Uri ippUrl) => ippUrl.Scheme switch
+    {
+        "ipp" => new UriBuilder(ippUrl) { Scheme = "http", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri,
+        "ipps" => new UriBuilder(ippUrl) { Scheme = "https", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri, // RFC 7472
+        _ => ippUrl,
+    };
 
     /// <summary>Queue names come partly from what the printer reports: keep letters, digits and simple punctuation.</summary>
     public static string SafeQueueName(string name)

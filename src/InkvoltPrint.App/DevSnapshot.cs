@@ -14,7 +14,9 @@ namespace InkvoltPrint.App;
 /// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);
 /// <c>--crop n</c> then opens the crop view on page n; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
-/// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces).
+/// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
+/// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
+/// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC).
 /// </summary>
 internal static class DevSnapshot
 {
@@ -25,7 +27,7 @@ internal static class DevSnapshot
             ? (w, h) : null;
 
     public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
-        string? copy = null, int crop = 0, int printer = 0)
+        string? copy = null, int crop = 0, int printer = 0, string? fix = null)
     {
         if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
             main.Selected = main.Printers[printer - 1];
@@ -46,6 +48,29 @@ internal static class DevSnapshot
             copier.IdCard = copy.StartsWith("idcard", StringComparison.Ordinal);
             await copier.CopyCommand.ExecuteAsync(null);
             if (copy == "idcard") await copier.ScanBackCommand.ExecuteAsync(null);
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+        if (fix is not null && window.DataContext is ViewModels.MainViewModel { Selected: { } fixing })
+        {
+            await fixing.OpenFixerCommand.ExecuteAsync(null);
+            if (fix == "all" && fixing.IsDemo)
+            {
+                var ask = ViewModels.Prompt.Confirm;
+                ViewModels.Prompt.Confirm = (_, _) => true;
+                try
+                {
+                    for (var i = 0; i < 10; i++)
+                    {
+                        var next = fixing.Fixer.Repairs.FirstOrDefault(r => !r.IsAlternative && !r.Repair.ManualOnly && r.Message is null);
+                        if (next is null) break;
+                        await next.FixCommand.ExecuteAsync(null);
+                    }
+                }
+                finally
+                {
+                    ViewModels.Prompt.Confirm = ask;
+                }
+            }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (scrollToEnd && FindTabs(window) is { } shown)

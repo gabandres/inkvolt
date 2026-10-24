@@ -21,6 +21,11 @@ public static class Prompt
     public static Action<string>? Inform { get; set; }
 
     public static void Tell(string message) => Inform?.Invoke(message);
+
+    /// <summary>Screen-reader announcement (UI Automation notification). Unset (tests): no-op.</summary>
+    public static Action<string>? Announcer { get; set; }
+
+    public static void Announce(string message) => Announcer?.Invoke(message);
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable

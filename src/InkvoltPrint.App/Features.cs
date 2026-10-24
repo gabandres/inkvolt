@@ -24,4 +24,12 @@ public static class Features
     /// printer's address and open Windows Settings, where the user adds it with Windows' own "Add manually".
     /// </summary>
     public static bool ElevatedQueueSetup { get; } = !AppPackage.IsPackaged;
+
+    /// <summary>
+    /// "Printer offline" fixer: repairs Windows only allows administrators (pointing a queue's port at a new address,
+    /// restarting the Print Spooler, other people's jobs) ask for one UAC prompt each in unpackaged copies. Packaged
+    /// copies never elevate: they do what the signed-in user may (resume the queues they set up, turn off Use Printer
+    /// Offline, cancel their own jobs) and show the steps for the rest.
+    /// </summary>
+    public static bool ElevatedRepairs { get; } = !AppPackage.IsPackaged;
 }

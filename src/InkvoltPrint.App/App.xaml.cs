@@ -52,6 +52,13 @@ public partial class App : Application
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
+        Prompt.Announcer = message =>
+        {
+            if (MainWindow is { } w && (System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(w)
+                                        ?? System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(w)) is { } peer)
+                peer.RaiseNotificationEvent(System.Windows.Automation.AutomationNotificationKind.Other,
+                    System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
+        };
 
         _vm = demo ? new MainViewModel(Demo.CreateState(), Demo.CreateTransport) : new MainViewModel(AppState.Load());
         MainWindow = new MainWindow { DataContext = _vm };
@@ -82,7 +89,8 @@ public partial class App : Application
                 scrollToEnd: e.Args.Contains("--scroll-end"),
                 copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
                 crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
-                printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0);
+                printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
+                fix: !e.Args.Contains("--fix") ? null : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() == "all" ? "all" : "check");
     }
 
     private static string? FirstPdf(IEnumerable<string> args) =>

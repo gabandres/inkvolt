@@ -6,8 +6,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
+using InkvoltPrint.Core.Offline;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Windows.Discovery;
+using InkvoltPrint.Windows.Offline;
 using InkvoltPrint.Windows.Printing;
 using InkvoltPrint.Windows.Queues;
 using InkvoltPrint.Windows.Security;
@@ -33,6 +35,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private PrinterConnection? _connection;
     private bool _discoveredQueue;
     private bool _windowsQueue;
+    private readonly List<string> _previousHosts = [];
 
     /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
     public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, Action<PrinterViewModel> remember,
@@ -49,6 +52,53 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Print = new PrintViewModel(FindQueueAsync, state);
         Jobs = new PrintJobsViewModel(IsDemo ? Demo.PrintJobs : new Printing.WindowsPrintJobs(FindQueueAsync));
         Copy = new CopyViewModel(FindQueueAsync, state, IsDemo ? Demo.PrintJobs.Add : null) { HasQueue = QueueInstalled };
+        // Demo printers get a made-up PC (Demo.OfflinePc): the fixer never reads or touches this PC's queues for them.
+        Fixer = new OfflineFixerViewModel(FixerDevice,
+            IsDemo ? Demo.OfflinePc : new WindowsOfflineProbes(),
+            new FixerRepairs(IsDemo ? Demo.OfflinePc : new WindowsOfflineRepairs(), this),
+            AdoptAddress, canElevate: Features.ElevatedRepairs); // the demo PC's "elevation" is made up too
+    }
+
+    /// <summary>"Printer offline? Fix it": the troubleshooter panel on the Overview.</summary>
+    public OfflineFixerViewModel Fixer { get; }
+
+    /// <summary>The printer as the fixer sees it: addresses it had, the queue Inkvolt Print knows, whether Windows can pair it.</summary>
+    private OfflineDevice FixerDevice() => new(Uuid, Name, Model, Host)
+    {
+        PreviousHosts = _previousHosts.ToList(),
+        StoredQueueName = IsDemo ? null : _state.GetQueueName(Uuid),
+        CanPair = PrintEndpointId is not null || IsDemo,
+    };
+
+    /// <summary>The fixer found the printer at a new address (mDNS by UUID): reconnect there and remember it.</summary>
+    private void AdoptAddress(string host)
+    {
+        if (string.Equals(host, Host, StringComparison.OrdinalIgnoreCase)) return;
+        if (Host is { } old && !_previousHosts.Contains(old, StringComparer.OrdinalIgnoreCase)) _previousHosts.Add(old);
+        Host = host;
+        Restart();
+        _remember(this);
+    }
+
+    [RelayCommand]
+    private async Task OpenFixerAsync()
+    {
+        SelectedSection = OverviewSection;
+        await Fixer.OpenAsync();
+    }
+
+    /// <summary>Setting a discovered queue up again is pairing, which this view model does; everything else is the PC's.</summary>
+    private sealed class FixerRepairs(IOfflineRepairs inner, PrinterViewModel printer) : IOfflineRepairs
+    {
+        public async Task<Attempt> AsUserAsync(Repair repair, CancellationToken ct)
+        {
+            if (repair.Kind != RepairKind.SetUpAgain || printer.IsDemo) return await inner.AsUserAsync(repair, ct);
+            return await printer.ReinstallQueueAsync() is { } error
+                ? new Attempt(AttemptResult.Failed, char.ToUpperInvariant(error[0]) + error[1..] + (error.EndsWith('.') ? "" : "."))
+                : Attempt.Done;
+        }
+
+        public Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct) => inner.ElevatedAsync(repair, ct);
     }
 
     /// <summary>Copy and ID card copy: scan here, print through the Windows queue.</summary>
@@ -233,7 +283,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (d.IppUri is not null) IppUri = d.IppUri;
         if (d.Host is not null && d.Host != Host)
         {
-            // DHCP moved it: reconnect at the new address.
+            // DHCP moved it: reconnect at the new address (the old one still identifies its Windows queue's port).
+            if (Host is { } old && !_previousHosts.Contains(old, StringComparer.OrdinalIgnoreCase)) _previousHosts.Add(old);
             Host = d.Host;
             Restart();
         }
@@ -630,6 +681,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _loop = null;
         _watch?.Cancel();
         _watch = null;
+        Fixer.CloseCommand.Execute(null);
         _connection?.Dispose();
         _connection = null;
     }

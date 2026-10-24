@@ -32,8 +32,16 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
 
     /// <summary>The queue couldn't be read several times in a row (the Print Spooler service stopped, say); still retrying.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NoQueue))]
+    [NotifyPropertyChangedFor(nameof(NoQueue), nameof(ShowFixLink))]
     public partial string? LoadError { get; set; }
+
+    /// <summary>A job is stuck (error, offline, out of paper…): the card offers the offline fixer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowFixLink))]
+    public partial bool HasProblem { get; set; }
+
+    /// <summary>"Fix printing problems…" on the card: a stuck job, or a queue that can't be read (spooler stopped).</summary>
+    public bool ShowFixLink => HasProblem || LoadError is not null;
 
     [ObservableProperty] public partial string Summary { get; set; } = "";
     [ObservableProperty] public partial string? Message { get; set; }
@@ -96,6 +104,7 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
                 HasQueue = false;
                 Jobs.Clear();
                 CanCancelAll = false;
+                HasProblem = false;
                 Summary = "";
             }
             return;
@@ -126,6 +135,7 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         }
         Summary = QueueJobText.Summary(jobs);
         CanCancelAll = Jobs.Any(j => j.IsMine && !j.IsCancelling);
+        HasProblem = Jobs.Any(j => j.IsProblem);
         OnPropertyChanged(nameof(IsEmpty));
     }
 

@@ -17,6 +17,7 @@ printing). No account, no cloud, no telemetry, no background services, no driver
 | Firmware | Version from LEDM `ProductConfigDyn` (an HP LaserJet's version is its release date) or IPP `printer-firmware-string-version`. Automatic updates (install automatically / check only / off) from LEDM's FirmwareUpdate interface (manifest in `DiscoveryTree.xml` → `FirmwareUpdateDyn`/`Cap`, PUT to `/FirmwareUpdate/WebFWUpdate/Config`), saved like the other device settings; explains HP's "dynamic security" cartridge blocking. Printers that don't expose it show the version and a link to their web page. |
 | Copy | Scan (eSCL) and print (Windows queue) in one step: copies, color or grey scan, glass or feeder, two-sided output when the queue can; actual size. **ID card copy**: scans the front from the glass's corner (4.5 × 3 in), asks to turn the card over, scans the back, prints both on one sheet (top and bottom halves, actual size; `CopyLayout`). Disabled, with the reason, when the printer has no scanner or no Windows queue. |
 | Print queue | Overview card: this printer's Windows queue jobs (System.Printing `GetPrintJobInfoCollection`: name, pages, status, time, owner), re-read every 3 s only while the card is on screen. Cancel your own jobs, or all of them (confirmed); others' jobs need an administrator and say so. No elevation. |
+| Printer offline fixer | **Fix it…** on an unreachable printer's status card (also the printer's right-click menu and the print queue card when a job is stuck or the queue can't be read). Checks step by step, each result shown as it comes in: the Print Spooler service; the printer on the network by a fresh mDNS look-up of its UUID (DHCP often hands it a new address; Inkvolt Print switches to it); whether it answers there (ping, and TCP 631 / 9100 / 80 / 443, connect only); which Windows queues print to it (PnP container = UUID, the stored queue, a port pointing at its current, new or earlier address, else a TCP/IP or IPP-URL queue named after its model, unless something else answers at that queue's address) and what each port is (Standard TCP/IP host, WSD/IPP by device ID, IPP URL); whether those queues are paused, set to "Use Printer Offline" or hold stuck jobs. Repairs, one button each: resume, turn off Use Printer Offline, point a TCP/IP queue at the new address (or the printer's `.local` name, which follows it), add an IPP-URL queue again at the new URL under the same name, set a discovered queue up again (pairing), cancel or reprint stuck jobs, start or restart the Print Spooler (asks first when it cancels or interrupts anything); SNMP status that marks a reachable printer offline gets the steps to turn it off. First as the signed-in user (spooler API: the person who set a printer up may pause, resume and take it offline; anyone may cancel their own jobs), then one UAC prompt per repair in unpackaged copies; the Microsoft Store version never elevates and shows the steps in Windows instead. Logic in `Core/Offline` (probes and repairs behind interfaces, tested with fakes); Windows parts in `Windows/Offline`. |
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
@@ -45,10 +46,10 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
 ## Layout
 
 ```
-src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Suite (shared with Inkvolt PDF)
-src/InkvoltPrint.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Suite/InkvoltApps
+src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Offline (fixer), Suite (shared with Inkvolt PDF)
+src/InkvoltPrint.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Offline (spooler probes, repairs), Suite/InkvoltApps
 src/InkvoltPrint.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
-src/InkvoltPrint.Cli       developer CLI over the same code (inkvoltprint discover|probe|status|watch|settings|scan)
+src/InkvoltPrint.Cli       developer CLI over the same code (inkvoltprint discover|probe|status|watch|settings|scan|spooler|offline)
 tests/InkvoltPrint.Tests   parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw (Fixtures/m234dw) and
                            a made-up inkjet written from the IPP and eSCL specs (Fixtures/inkjet-demo; IPP in IppText form)
 ```
@@ -70,13 +71,16 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer).
+(`--size 1366 860` window size in DIPs, `--fix` opens the offline fixer, `--fix all` also applies its repairs (demo printers only), `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer).
 
-Demo mode: `InkvoltPrint.exe --demo` shows two made-up printers: the HP laser at 192.0.2.10 served from the scrubbed test
-fixtures, and an Epson-style inkjet at 192.0.2.11 (IPP and eSCL only, no HP interfaces; low yellow ink, maintenance box,
+Demo mode: `InkvoltPrint.exe --demo` shows three made-up printers: the HP laser at 192.0.2.10 served from the scrubbed test
+fixtures, an Epson-style inkjet at 192.0.2.11 (IPP and eSCL only, no HP interfaces; low yellow ink, maintenance box,
 two-sided feeder) written from the public specs (both embedded in the exe; `FixtureHandler` per printer behind a
 `HostRouter` replaces the network; `FixtureHandler` answers IPP Get-Printer-Attributes from `*.ipp.txt`). Snapshot the
-inkjet with `--printer 2`. No network access, no discovery, no Windows queue, and
+inkjet with `--printer 2`. The third, "Demo office laser", is remembered at 192.0.2.12, where nothing answers: its offline
+fixer runs against a made-up PC (`DemoOfflinePc`: a Windows queue whose TCP/IP port still points at .12, "Use Printer Offline"
+on, a stuck job) and finds the printer at 192.0.2.23, so the whole flow works without touching this PC's queues
+(`--demo --printer 3 --fix all --snapshot fixed.png`). No network access, no discovery, no Windows queue, and
 the remembered-printers state is neither read nor written; scanning returns generated pages in turn (straight, crooked,
 blank, for the scan review; a made-up ID card for card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
@@ -116,6 +120,15 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 - OCR text layer uses WinAnsi; non-Latin scripts degrade to `?` in the hidden text.
 - Copy uses the PC: the printer's own copy function (LEDM `CopyConfig`) isn't driven, so a copy needs a Windows queue. ID card copy expects the card in the glass's reference corner.
 - Firmware: the app doesn't start an update check or install (the printer's web page does). The IPP firmware attributes are untested on a real printer (the M234dw reports its firmware over LEDM).
+- Printer offline fixer: built and tested against fakes (the diagnosis and repair order in Core tests, the whole flow in
+  demo mode); the Windows side was only run read-only (`inkvoltprint spooler`, `inkvoltprint offline <uuid>`). Never run
+  on real queues during development, so these need a try on real hardware: pointing a TCP/IP queue at a new address
+  (`Add-PrinterPort` + `Set-Printer`), re-adding an IPP-URL queue (`Add-Printer -IppURL`, then remove and rename), resume
+  and Use Printer Offline as the user (winspool) and elevated (CIM `Win32_Printer` Resume / `WorkOffline`), cancelling and
+  restarting jobs (winspool, then `Remove-PrintJob` / `Restart-PrintJob`), starting and restarting the Print Spooler, and
+  Set up again from the fixer. The SNMP check reads the port's `SNMP Enabled` registry value. Network-name ports rely on
+  Windows resolving `.local` names for the spooler. LPR ports and the SNMP switch are steps only. Queues on a print
+  server (connections) aren't looked at.
 - USB-only printers: not handled (Windows' USB class driver + WIA covers them).
 
 ## License

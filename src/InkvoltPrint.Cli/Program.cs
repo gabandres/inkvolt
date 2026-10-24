@@ -36,6 +36,12 @@ switch (cmd)
     case "set" when host is not null && args.Length >= 4:
         await Set(host, args[2], args[3]);
         break;
+    case "spooler":
+        await SpoolerQueues();
+        break;
+    case "offline" when host is not null:
+        await Offline(host, args.ElementAtOrDefault(2));
+        break;
     case "pair" when host is not null:
         Console.WriteLine(await InkvoltPrint.Windows.Queues.QueueInstaller.InstallAsync(host, ct));
         break;
@@ -88,6 +94,8 @@ switch (cmd)
             inkvoltprint status <host>
             inkvoltprint watch <host>                      (LEDM event long-poll; Ctrl+C to stop)
             inkvoltprint settings <host>                   (read-only)
+            inkvoltprint spooler                           (read-only: spooler, Windows queues, ports, jobs)
+            inkvoltprint offline <uuid> [last-host]        (read-only: the offline fixer's diagnosis and repairs it would offer)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
@@ -232,4 +240,26 @@ async Task Set(string h, string key, string value)
     var after = LedmSettingCatalog.Read([def], (await c.Ledm.GetAsync(def.DynResource, ct))!, null).SingleOrDefault()?.Value
         ?? (await c.Ledm.GetAsync(def.DynResource, ct))!.Descendants().First(e => e.Name.LocalName == def.Path[^1]).Value;
     Console.WriteLine($"{def.Label}: \"{before.Value}\" -> \"{after}\"");
+}
+
+// Read-only: the offline fixer's view of this PC's spooler and queues (no repairs from the CLI).
+async Task SpoolerQueues()
+{
+    var probes = new InkvoltPrint.Windows.Offline.WindowsOfflineProbes();
+    Console.WriteLine($"spooler: {await probes.SpoolerAsync(ct)}");
+    foreach (var q in await probes.QueuesAsync(ct))
+        Console.WriteLine($"{q.Name}: {q.Port.Kind} port={q.Port.Name} host={q.Port.Host} raw={q.Port.PortNumber} lpr={q.Port.Lpr} snmp={q.Port.Snmp} " +
+                          $"container={(q.ContainerId is null ? "-" : "yes")} paused={q.Paused} workOffline={q.WorkOffline} offline={q.ReportsOffline} " +
+                          $"error={q.ReportsError} jobs={q.Jobs.Count}");
+}
+
+// Read-only: runs the offline fixer's diagnosis for a printer UUID (and its last known address) and lists the repairs it would offer.
+async Task Offline(string uuid, string? lastHost)
+{
+    var device = new InkvoltPrint.Core.Offline.OfflineDevice(uuid, "printer", null, lastHost);
+    var report = await InkvoltPrint.Core.Offline.OfflineDiagnosis.RunAsync(device, new InkvoltPrint.Windows.Offline.WindowsOfflineProbes(),
+        new Progress<InkvoltPrint.Core.Offline.CheckResult>(r => Console.WriteLine($"  {r.Kind}: {r.State}")), ct: ct);
+    foreach (var c in report.Checks) Console.WriteLine($"{c.Title}: {c.State}\n    {c.Detail.Replace("\n", "\n    ")}");
+    Console.WriteLine($"{report.Headline}. {report.Advice}");
+    foreach (var r in report.Repairs) Console.WriteLine($"  repair: {r.Title}{(r.AdminOnly ? " (admin)" : "")}{(r.ManualOnly ? " (steps only)" : "")}");
 }

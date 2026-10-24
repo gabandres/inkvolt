@@ -50,11 +50,11 @@ sizes, store logo, splash screen; the same set as Inkvolt PDF's minus its PDF fi
   (`src/InkvoltPrint.App/ShellIntegration.cs`). Inkvolt Print opens the PDF in its Print tab. It never becomes the default PDF
   app unless the user picks it. No protocol: Inkvolt Print handles none.
 
-## Elevation (add printer by IP, HP clean-up)
+## Elevation (add printer by IP, offline fixer, HP clean-up)
 
 Packaged builds never elevate and never start PowerShell. Microsoft's "Prepare to package a desktop application" page
 says Store apps that require elevation for any part of their functionality won't be accepted, and advises against
-starting PowerShell or cmd (Windows S mode can't start them). Two features needed administrator rights:
+starting PowerShell or cmd (Windows S mode can't start them). Three features need administrator rights:
 
 - **Printer added by IP address.** Unpackaged copies create the queue with one UAC prompt (`Add-Printer -IppURL` through
   `src/InkvoltPrint.Windows/Elevated.cs`). Packaged copies (`Features.ElevatedQueueSetup` in `src/InkvoltPrint.App/Features.cs`)
@@ -62,6 +62,12 @@ starting PowerShell or cmd (Windows S mode can't start them). Two features neede
   Add device > "Add manually" > "Add a printer using an IP address or hostname" > IPP Device > paste. Inkvolt Print then
   watches for ten minutes and links the new queue by its port (`QueuePrinter.FindByHost`). Printers found on the network
   are set up with no prompt in both builds (Windows pairing).
+- **Printer offline fixer.** Diagnosis is read-only and needs no rights. Repairs first run as the signed-in user through the
+  spooler API (winspool: resume a queue and turn off "Use Printer Offline" on queues the user set up, cancel or restart their
+  own jobs). What Windows reserves for administrators (pointing a queue at a new Standard TCP/IP port, re-adding an
+  IPP-URL queue, starting or restarting the Print Spooler, other people's jobs) gets one UAC prompt per repair in
+  unpackaged copies (`Features.ElevatedRepairs`, constant scripts through `Elevated.cs`); packaged copies show the steps
+  in Windows instead and a button to Settings > Printers & scanners.
 - **HP clean-up.** Left out of packaged builds (below).
 
 So the manifest needs no `allowElevation` and nothing about elevation goes in the certification notes.

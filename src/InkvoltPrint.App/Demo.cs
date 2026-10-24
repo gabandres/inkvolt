@@ -18,13 +18,19 @@ namespace InkvoltPrint.App;
 /// (the remembered-printers file is neither read nor written). Scanning returns generated pages in turn: a straight page,
 /// the same page fed a little crooked, a blank sheet (for the scan review's Straighten and Skip blank pages); a made-up
 /// ID card for card-sized regions; the print queue card shows <see cref="DemoPrintJobs"/> (one made-up queue for both
-/// printers), where copies also "print".
+/// printers), where copies also "print". A third printer, the "Demo office laser", shows the offline fixer: it's remembered
+/// at <see cref="OfficeOldHost"/>, where nothing answers, while the made-up network (<see cref="OfflinePc"/>) finds it at
+/// <see cref="OfficeNewHost"/> and its made-up Windows queue still prints to the old address with "Use Printer Offline" on.
 /// </summary>
 internal static class Demo
 {
     private const string Uuid = "12345678-1234-4abc-8def-123456789abc"; // the fixtures' (fake) UUID
     private const string InkjetUuid = "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"; // Fixtures/inkjet-demo (made up)
+    private const string OfficeUuid = "3c9a7e51-8d2b-4f60-a1e4-5b7c9d0e2f13"; // made up
     private const string ResourcePrefix = "Demo.", InkjetPrefix = "DemoInkjet.";
+
+    /// <summary>The demo office laser's address before the (made-up) router gave it a new one, and after.</summary>
+    public const string OfficeOldHost = "192.0.2.12", OfficeNewHost = "192.0.2.23";
 
     /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
     public const string InkjetHost = "192.0.2.11";
@@ -36,6 +42,7 @@ internal static class Demo
         [
             new KnownPrinter(Uuid, "Demo printer", null, FixtureHandler.DemoHost, $"http://{FixtureHandler.DemoHost}/eSCL/"),
             new KnownPrinter(InkjetUuid, "Demo inkjet", null, InkjetHost, $"http://{InkjetHost}/eSCL/", $"http://{InkjetHost}:631/ipp/print"),
+            new KnownPrinter(OfficeUuid, "Demo office laser", null, OfficeOldHost, $"http://{OfficeOldHost}/eSCL/"),
         ],
         SelectedUuid = Uuid,
     };
@@ -44,7 +51,18 @@ internal static class Demo
     {
         [FixtureHandler.DemoHost] = new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan),
         [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan),
+        // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
+        [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),
     });
+
+    private static byte[]? OfficeDocument(string resource) => Document(resource) is not { } bytes ? null
+        : resource.EndsWith("ProductConfigDyn.xml", StringComparison.Ordinal) || resource.EndsWith("ScannerCapabilities.xml", StringComparison.Ordinal)
+            ? System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(bytes)
+                .Replace("HP LaserJet MFP M234dw", "Demo office laser").Replace(Uuid, OfficeUuid))
+            : bytes;
+
+    /// <summary>The made-up PC and network the demo printers' offline fixer looks at and repairs.</summary>
+    public static DemoOfflinePc OfflinePc { get; } = new([(Uuid, FixtureHandler.DemoHost), (InkjetUuid, InkjetHost)], OfficeUuid);
 
     // WPF drawing needs the UI thread; the handler runs wherever the scan's awaits continue.
     private static readonly Lazy<byte[]>[] Pages =

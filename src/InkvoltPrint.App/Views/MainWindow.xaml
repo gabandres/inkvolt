@@ -16,6 +16,7 @@
         <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
         <ContextMenu x:Key="PrinterMenu" x:Shared="False">
             <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
+            <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}" />
             <MenuItem Header="Remove from InkvoltPrint…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />
@@ -24,6 +25,107 @@
         <!-- ===================== Overview ===================== -->
         <DataTemplate x:Key="OverviewSection" DataType="{x:Type vm:PrinterViewModel}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                <!-- "Printer offline? Fix it": the troubleshooter, opened from the status card, the queue card or the printer menu -->
+                <Border Style="{StaticResource Card}" DataContext="{Binding Fixer}" Margin="0,0,16,16" MaxWidth="816" HorizontalAlignment="Left"
+                        Visibility="{Binding IsOpen, Converter={StaticResource VisibleWhen}}">
+                    <StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Close" Command="{Binding CloseCommand}" Style="{StaticResource LinkButton}"
+                                    VerticalAlignment="Top" AutomationProperties.Name="Close the troubleshooter" />
+                            <TextBlock Text="Fix printing problems" Style="{StaticResource CardTitle}" Margin="0" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding Headline}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,0" />
+                        <TextBlock Text="{Binding Advice}" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                   Visibility="{Binding Advice, Converter={StaticResource VisibleWhen}}" />
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,10,0,0" AutomationProperties.Name="Checking"
+                                     Visibility="{Binding IsRunning, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding LastResult}" TextWrapping="Wrap" Margin="0,10,0,0" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                   Visibility="{Binding LastResult, Converter={StaticResource VisibleWhen}}" />
+
+                        <ItemsControl ItemsSource="{Binding Checks}" Margin="0,16,0,0" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FixerCheckViewModel}">
+                                    <DockPanel Margin="0,0,0,12" AutomationProperties.Name="{Binding AccessibleText}">
+                                        <Grid DockPanel.Dock="Left" Width="24" Height="24" Margin="0,0,12,0" VerticalAlignment="Top">
+                                            <Ellipse Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                            <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="12" HorizontalAlignment="Center"
+                                                       Foreground="{Binding StatusKind, Converter={StaticResource StatusGlyphBrush}}" />
+                                        </Grid>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}"
+                                                       Visibility="{Binding Detail, Converter={StaticResource VisibleWhen}}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="What Inkvolt Print can fix" Style="{StaticResource CardTitle}" Margin="0,8,0,4"
+                                   Visibility="{Binding HasRepairs, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,0,0,8"
+                                   Text="Windows only lets an administrator change some of these, and the Microsoft Store version of Inkvolt Print never asks for that: for those, it shows the steps to take in Windows."
+                                   Visibility="{Binding ShowStoreNote, Converter={StaticResource VisibleWhen}}" />
+                        <ItemsControl ItemsSource="{Binding Repairs}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FixerRepairViewModel}">
+                                    <Border CornerRadius="6" Padding="14,10" Margin="0,0,0,8" BorderThickness="1"
+                                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                            Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <!-- Accent for the fix, plain for "or instead…" alternatives -->
+                                                <Button DockPanel.Dock="Right" Content="{Binding ButtonText}" Command="{Binding FixCommand}" Padding="16,5"
+                                                        VerticalAlignment="Top" Margin="16,0,0,0" Style="{DynamicResource AccentButtonStyle}"
+                                                        AutomationProperties.Name="{Binding Title}" AutomationProperties.HelpText="{Binding Detail}"
+                                                        Visibility="{Binding IsAlternative, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                                                <Button DockPanel.Dock="Right" Content="{Binding ButtonText}" Command="{Binding FixCommand}" Padding="16,5"
+                                                        VerticalAlignment="Top" Margin="16,0,0,0"
+                                                        AutomationProperties.Name="{Binding Title}" AutomationProperties.HelpText="{Binding Detail}"
+                                                        Visibility="{Binding IsAlternative, Converter={StaticResource VisibleWhen}}" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" />
+                                                    <TextBlock Text="{Binding AdminNote}" Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0"
+                                                               Visibility="{Binding AdminNote, Converter={StaticResource VisibleWhen}}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                            <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+                                                         Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBox Text="{Binding StepsText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                                     Padding="0" Margin="0,4,0,0" TextWrapping="Wrap" AutomationProperties.Name="Steps"
+                                                     Visibility="{Binding HasSteps, Converter={StaticResource VisibleWhen}}" />
+                                            <Button Content="Open Printers &amp; scanners" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                                    Command="{Binding DataContext.OpenPrinterSettingsCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    Visibility="{Binding HasSteps, Converter={StaticResource VisibleWhen}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="Check again" Command="{Binding CheckAgainCommand}" Margin="0,0,16,0" />
+                            <Button Content="Printers &amp; scanners settings" Command="{Binding OpenPrinterSettingsCommand}" Style="{StaticResource LinkButton}"
+                                    VerticalAlignment="Center" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
                 <WrapPanel Margin="0,0,0,16">
                     <WrapPanel.Resources>
                         <Style TargetType="Border" BasedOn="{StaticResource Card}">
@@ -57,8 +159,12 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <Button Content="Try again now" Command="{Binding ReconnectCommand}" Margin="0,12,0,0" HorizontalAlignment="Left"
-                                        Visibility="{Binding IsOnline, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+                                            Visibility="{Binding IsOnline, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                    <Button Content="Fix it…" Command="{Binding OpenFixerCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
+                                            AutomationProperties.Name="Fix printer offline" />
+                                    <Button Content="Try again now" Command="{Binding ReconnectCommand}" />
+                                </StackPanel>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -157,8 +263,12 @@
                                        Visibility="{Binding LoadError, Converter={StaticResource VisibleWhen}}" />
                             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
-                            <Button Content="Open Windows queue" Command="{Binding OpenWindowsQueueCommand}" Style="{StaticResource LinkButton}"
-                                    HorizontalAlignment="Left" Margin="0,12,0,0" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Content="Fix printing problems…" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
+                                        Command="{Binding DataContext.OpenFixerCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                        Visibility="{Binding ShowFixLink, Converter={StaticResource VisibleWhen}}" />
+                                <Button Content="Open Windows queue" Command="{Binding OpenWindowsQueueCommand}" Style="{StaticResource LinkButton}" />
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
@@ -215,6 +325,7 @@
                         </StackPanel>
                     </Border>
                 </WrapPanel>
+                </StackPanel>
             </ScrollViewer>
         </DataTemplate>
 
