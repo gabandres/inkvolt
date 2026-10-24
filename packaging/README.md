@@ -153,7 +153,8 @@ Description:
 > - Set the printer up in Windows with one click, using Windows' own driver: no driver download.
 > - Scan from the glass or the document feeder, several pages at a time, and save as JPEG or as a searchable PDF (text
 >   recognition runs on your PC).
-> - Print PDFs with copies, page ranges and two-sided printing; drop a PDF on the window or use "Open with".
+> - Print PDFs with copies, page ranges and two-sided printing. Drag a PDF onto the window, or right-click a PDF in
+>   File Explorer and open it with Inkvolt Print.
 > - Change the printer's own settings, with the admin password kept in Windows Credential Manager if you choose.
 >
 > No HP account, no cloud service, no ads, no telemetry, no background services. Inkvolt Print talks only to your printer,
@@ -163,6 +164,10 @@ Description:
 >
 > Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc. HP and LaserJet are trademarks of
 > HP Inc., used only to describe the printers Inkvolt Print works with.
+
+Partner Center sits behind a web firewall that rejects a listing save (403 "Access Denied", shown as "We are unable to
+save listing") when the text looks like SQL: "; drop a PDF" did. Keep semicolons away from words like drop, delete,
+select or insert.
 
 ### Privacy policy
 
