@@ -1,8 +1,9 @@
 """Generates assets/InkvoltPrint.ico (16-256 px), a 512 px preview PNG, and the MSIX images.
 
-Design: Fluent-style rounded tile in Windows blue; a white printer with a document feeding in on top;
-a green status light (the same "ready" dot the app uses). Tiny sizes drop detail to stay legible.
-Every size is drawn at 8x and downsampled, so edges are clean at each size rather than one image scaled.
+Design ("Vivid Fold", shared with Inkvolt PDF): no tile, per Windows 11 app icon guidance. The suite's folded sheet
+with a white bolt, in electric cyan to volt blue, feeds into an indigo printer with a cyan status light. Small sizes
+(24 px and below) use bolder shapes and drop the printed sheet; 16-20 px also drop the light. Shapes are drawn in a
+48-unit grid (assets/iconkit.py, shared with Inkvolt PDF) at about 1024 px, then box-downsampled to each size.
 
 packaging/Assets/*.png: MSIX images (tiles, Start/taskbar icons per target size, store logo, splash screen), named with
 MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri indexes into resources.pri
@@ -12,88 +13,75 @@ uses the app icon).
 Run:  python -I assets/make-icon.py   (needs Pillow)
 """
 import os
+import sys
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)  # python -I leaves the script's folder off the path
+from iconkit import Canvas, Grad, bolt_pts, inter, page_pts, sub  # noqa: E402
+
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 
 
-def lerp(a, b, t):
-    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(len(a)))
+def lvl(size):
+    return "s" if size <= 24 else "m" if size <= 48 else "l"
+
+
+SHEET = [(0, "#3FD8FF"), (0.6, "#3E86FF"), (1, "#4B4BEA")]  # electric cyan -> volt blue (Inkvolt PDF: coral -> pink)
+
+
+def folded_sheet(c, box, f, L, bolt_h, bolt_dy):
+    """The suite's folded sheet: gradient page, soft fold, white bolt."""
+    x0, y0, x1, y1 = box
+    pg = c.poly(page_pts(*box, f), [2.4, 0.8, 0.8, 2.4, 2.4])
+    c.shadow(pg, dy=0.9, blur=1.2, alpha=0.22)
+    c.fill(pg, Grad((x0, y0), (x1, y1), SHEET))
+    fold = c.poly([(x1 - f, y0), (x1 - f, y0 + f), (x1, y0 + f)], [0.6, 2.0, 0.6])
+    c.shadow(fold, dy=0.8, dx=-0.6, blur=1.0, color=(90, 0, 40), alpha=0.35, clip=pg)
+    c.fill(fold, Grad((x1 - f, y0), (x1, y0 + f), [(0, (255, 255, 255, 235)), (1, (255, 255, 255, 150))]))
+    bolt = c.poly(bolt_pts((x0 + x1) / 2, (y0 + y1) / 2 + bolt_dy, bolt_h), 0.7)
+    if L != "s":
+        c.shadow(bolt, dy=0.8, blur=0.9, color=(60, 0, 40), alpha=0.25, clip=pg)
+    c.fill(bolt, "#FFFFFF")
 
 
 def draw(size):
-    ss = 8
-    n = size * ss
-    u = n / 100.0  # design units: 0..100
-    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-
-    def box(x0, y0, x1, y1):
-        return [round(x0 * u), round(y0 * u), round(x1 * u), round(y1 * u)]
-
-    tiny = size <= 24
-    small = size <= 48
-
-    # Tile: vertical gradient, rounded square.
-    grad = Image.new("RGBA", (n, n))
-    gd = ImageDraw.Draw(grad)
-    top, bottom = (54, 148, 255, 255), (16, 92, 214, 255)
-    for y in range(n):
-        gd.line([(0, y), (n, y)], fill=lerp(top, bottom, y / n))
-    mask = Image.new("L", (n, n), 0)
-    margin = 2 if not tiny else 0
-    ImageDraw.Draw(mask).rounded_rectangle(box(margin, margin, 100 - margin, 100 - margin), radius=round(22 * u), fill=255)
-    img.paste(grad, (0, 0), mask)
-    d = ImageDraw.Draw(img)
-
-    # Soft top highlight on the tile (large sizes only).
-    if not small:
-        hl = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-        ImageDraw.Draw(hl).rounded_rectangle(box(margin, margin, 100 - margin, 52), radius=round(22 * u), fill=(255, 255, 255, 22))
-        img = Image.alpha_composite(img, Image.composite(hl, Image.new("RGBA", (n, n)), mask))
-        d = ImageDraw.Draw(img)
-
-    white = (255, 255, 255, 255)
-    paper_edge = (214, 228, 250, 255)
-    ink = (120, 150, 200, 255)
-    dark = (12, 58, 140, 255)
-
-    # Document feeding in on top (drawn first, printer body overlaps its bottom).
+    c = Canvas(size)
+    L = lvl(size)
+    s = L == "s"
+    tiny = size <= 20
+    box = (11, 2, 37, 32) if not s else (9, 1, 39, 32)
+    body = (3, 25, 45, 44) if not s else (1, 24, 47, 46)
+    bolt_h, bolt_dy = (13, -1.5) if not s else (15, -1.5)
+    if tiny:  # more sheet above a slimmer printer, so the bolt keeps its zigzag
+        box, body, bolt_h, bolt_dy = (8, 0, 40, 34), (1, 28, 47, 47), 21, -3.5
+    folded_sheet(c, box, 9 if not s else 10, L, bolt_h, bolt_dy)
+    bd = c.rrect(*body, 6 if not s else 5)
+    c.shadow(bd, dy=-0.6, blur=1.2, color=(10, 20, 80), alpha=0.35)
+    c.shadow(bd, dy=1.0, blur=1.2, alpha=0.22)
+    c.fill(bd, Grad((body[0], body[1]), (body[2], body[3]), [(0, "#4C3FE0"), (1, "#2A1F96")]))
+    c.fill(inter(bd, c.rrect(body[0], body[1], body[2], body[1] + 1.2, 0)), "#FFFFFF", 0.22)
+    slot = (11, 33, 37, 36.5) if not s else (7, 33, 35, 37.5)
     if tiny:
-        d.rounded_rectangle(box(30, 16, 70, 50), radius=round(3 * u), fill=white)
-    else:
-        d.rounded_rectangle(box(31, 15, 69, 50), radius=round(3.5 * u), fill=white, outline=paper_edge, width=max(1, round(1.2 * u)))
-        for i, w in enumerate([30, 26, 30, 18]):
-            y = 23 + i * 6
-            d.rounded_rectangle(box(37, y, 37 + w * 0.88, y + 2.4), radius=round(1.2 * u), fill=ink)
-
-    # Printer body.
-    shadow = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle(box(15, 43, 85, 79), radius=round(9 * u), fill=(0, 30, 90, 70))
-    img = Image.alpha_composite(img, shadow.transform((n, n), Image.AFFINE, (1, 0, 0, 0, 1, -round(1.6 * u))))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(box(15, 41, 85, 76), radius=round(9 * u), fill=white)
-
-    # Output slot.
-    d.rounded_rectangle(box(27, 63, 73, 67.5), radius=round(2.2 * u), fill=dark)
-
-    # Output sheet peeking out of the slot (large sizes only).
-    if not small:
-        d.rounded_rectangle(box(31, 65, 69, 86), radius=round(3 * u), fill=white, outline=paper_edge, width=max(1, round(1.2 * u)))
-        d.rounded_rectangle(box(27, 63, 73, 66), radius=round(1.5 * u), fill=dark)
-
-    # Status light.
-    r = 5.5 if tiny else 4.6
-    cx, cy = 74, 51
-    d.ellipse(box(cx - r - 1.6, cy - r - 1.6, cx + r + 1.6, cy + r + 1.6), fill=white)
-    d.ellipse(box(cx - r, cy - r, cx + r, cy + r), fill=(46, 190, 96, 255))
-
-    return img.resize((size, size), Image.LANCZOS)
+        slot = (6, 35.5, 42, 40.5)  # one bold slot, no status light: 16-20 px can't hold more
+    c.fill(c.rrect(*slot, 1.75), "#17105A")
+    if not s:
+        # the printed sheet coming out of the slot
+        o = c.rrect(slot[0] + 3, slot[1] + 1.75, slot[2] - 3, 47, 1.6)
+        o = sub(o, c.rrect(0, 0, 48, slot[1] + 1.75, 0))
+        c.shadow(o, dy=0.5, blur=0.6, color=(10, 10, 60), alpha=0.35)
+        c.fill(o, Grad((0, slot[1]), (0, 47), [(0, "#DCE6FF"), (1, "#FFFFFF")]))
+        c.fill(c.rrect(slot[0], slot[1], slot[2], slot[1] + 1.9, 0.9), "#17105A")
+    if not tiny:
+        r = 1.8 if not s else 2.6
+        cx, cy = (41, 34.75) if not s else (40.5, 35.25)
+        c.fill(c.ellipse(cx - r, cy - r, cx + r, cy + r), "#5CF0FF")
+    return c.out()
 
 
 # MSIX images. Base sizes are the scale-100 sizes; each is written at these scales.
 SCALES = [100, 125, 150, 200, 400]
-TARGET_SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
+TARGET_SIZES = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256]  # every size Windows asks for
 # name: (width, height, icon size as a fraction of the shorter side)
 TILES = {
     "Square44x44Logo": (44, 44, 1.0),
@@ -124,8 +112,8 @@ def save_msix(folder):
         for scale in SCALES:
             centered(round(w * scale / 100), round(h * scale / 100), frac).save(os.path.join(folder, f"{name}.scale-{scale}.png"))
             count += 1
-    # Taskbar, Start list and title bar pick an exact pixel size; the tile has its own background, so plated and
-    # unplated (light and dark taskbar) look the same.
+    # Taskbar, Start list and title bar pick an exact pixel size. No tile, so plated and unplated are one image; its
+    # colors keep their contrast on both the light and the dark taskbar.
     for size in TARGET_SIZES:
         app = draw(size)
         for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
