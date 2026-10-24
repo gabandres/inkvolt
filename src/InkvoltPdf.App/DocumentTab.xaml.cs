@@ -251,6 +251,7 @@ public partial class DocumentTab : UserControl, IDisposable
         Viewer.ToolChanged += (_, _) => RaiseState();
         Viewer.StatusMessage += (_, m) => Notify(m);
         InitSplit();
+        InitAi();
         Session.ContentChanged += OnContentChanged;
         Session.StateChanged += (_, _) => RaiseState();
 
@@ -1818,6 +1819,7 @@ public partial class DocumentTab : UserControl, IDisposable
         CancelSearch();
         _scheduler.Dispose();
         DisposeSplit();
+        DisposeAi();
         _viewEngine?.Dispose();
         _viewEngine = null;
         Session.Dispose();

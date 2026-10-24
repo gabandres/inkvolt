@@ -273,6 +273,27 @@ Manager. The installers don't remove an install made under the old names: uninst
   without an answer, printing goes ahead.
 - **Printer Settings (Inkvolt Print)** (File menu, shown when Inkvolt Print is installed) opens Inkvolt Print. Inkvolt Print's "Open in
   Inkvolt PDF" hands a saved scan to Inkvolt PDF (a running Inkvolt PDF opens it in a tab).
+- **AI assistant (bring your own, off by default)** (Review › AI Assistant, command palette; right-click selected text ›
+  Explain with AI): Inkvolt PDF has no AI of its own. In Settings › AI assistant you can connect one you choose: Ollama
+  or LM Studio running on this PC (presets), or any OpenAI-compatible endpoint (`/v1/chat/completions`), on your network
+  or a cloud service with your own API key. Pick the model from the endpoint's list (Test connection) or type it; set
+  the context size the model reads at once. **Summarize** a page range (a long document is summarized in parts that
+  fit the context, then combined; Stop cancels), **Ask about this document** in a pane at the right (follow-up
+  questions keep the conversation; a Pages box limits what a question is about; when the pages don't fit, only the
+  parts that share the most words with the question go), **Explain selection**. Answers stream in, are marked
+  "AI-generated, may be wrong", have a Copy button, and their page citations ([p. 3]) are links to the pages.
+  **What is sent, where**: before each send a window shows the destination (host and model, and in amber when the text
+  leaves this PC), how much (characters, an estimate of tokens, the number of requests) and, expandable, exactly the
+  text of every message. Only the text you asked about, the instructions and the model's name go: no file name, folder,
+  document properties or other documents. "Don't ask again for this endpoint" skips that window for one endpoint
+  (undo it in Settings › AI assistant); the first send to an internet endpoint and text from a PDF that forbids copying
+  are always asked about. **Privacy**: off until you turn it on; nothing is sent until you confirm; requests go only to
+  the endpoint you configure (no Inkvolt server, no default key, no telemetry; Bermudez Systems receives nothing). An
+  endpoint on this PC (localhost) or your network (private addresses, `.local` names) keeps the text off the internet;
+  any other host is labeled "Leaves this PC" and must use https://. API keys are kept per endpoint in `ai-keys.dat`,
+  encrypted with Windows DPAPI for your account (never in settings.json, never logged), and sent only to their endpoint.
+  Requests to this PC or the network never use a proxy; redirects aren't followed. The log records only the host and
+  sizes, never the text.
 
 ## Layout
 
@@ -282,6 +303,7 @@ Manager. The installers don't remove an install made under the old names: uninst
 | `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
 | `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
+| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
 Building needs the Inkvolt Print checkout: `InkvoltPdf.App` references `InkvoltPrint.Core` (eSCL, status, PDF writer, `Suite`:
@@ -395,6 +417,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   names the program that wrote it.
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
+- AI assistant: answers are only as good as the model; small local models miss things and may invent them, so check
+  the cited pages. Sizes are estimated (about 4 characters per token), so set the context size a little below the
+  model's. Ollama's OpenAI-compatible endpoint uses the model's own context length (its settings or
+  OLLAMA_CONTEXT_LENGTH), whatever Inkvolt PDF's setting says. Scanned pages need Recognize Text first; pictures, charts
+  and the look of the page aren't sent (text only). Answers show simple formatting (headings, bullets, bold); tables
+  and code in an answer show as plain text. Ask picks the related parts of a long document by shared words, not by
+  meaning. Endpoints are classified by the address as written (a public name that points to a private address still
+  counts as the internet). Only OpenAI-compatible endpoints: providers with their own API (without an OpenAI-compatible
+  one) need a local proxy such as LiteLLM.
 
 ## Backlog
 
@@ -412,6 +443,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   PowerPoint export.
 - Compare: find moved paragraphs, line up shifted or skewed scans before overlaying them, put visual differences in the
   annotated copy, and report formatting changes (font, size, color) as well as wording.
+- AI assistant: send pictures of pages to vision models; answers with tables; search by meaning (embeddings, with a
+  local model) for Ask on long documents; save a conversation; summaries written into the document as a comment.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).
   Both apps stay free.
 - Distribution outside the Store (signed GitHub releases, winget community manifests) needs a paid code-signing

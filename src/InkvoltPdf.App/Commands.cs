@@ -206,6 +206,12 @@ public static class Cmd
     // Bookmarks pane (Ctrl+B adds one for the current view, as in Acrobat)
     public static readonly RoutedUICommand AddBookmark = Make("Add _Bookmark", nameof(AddBookmark), K(Key.B, ModifierKeys.Control));
 
+    // AI assistant (bring your own, off by default; see DocumentTab.Ai and AiActions)
+    public static readonly RoutedUICommand AiSummarize = Make("_Summarize with AI…", nameof(AiSummarize));
+    public static readonly RoutedUICommand AiAsk = Make("_Ask AI about This Document", nameof(AiAsk));
+    public static readonly RoutedUICommand AiExplain = Make("E_xplain Selection with AI", nameof(AiExplain));
+    public static readonly RoutedUICommand AiSettings = Make("AI Assistant _Settings…", nameof(AiSettings));
+
     // Read Aloud (Ctrl+Shift+Y, as in Acrobat)
     public static readonly RoutedUICommand ReadAloud = Make("Read _Aloud", nameof(ReadAloud), K(Key.Y, ModifierKeys.Control | ModifierKeys.Shift));
 }

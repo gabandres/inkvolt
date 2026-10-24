@@ -13,6 +13,9 @@ public sealed partial class PageViewer
     public bool HasSelection => _selAnchor is { } a && _selActive is { } b && a != b;
     public bool SelectionIsOnOnePage => _selAnchor is { } a && _selActive is { } b && a.Page == b.Page;
 
+    /// <summary>The first page the selection touches (0-based), or null without a selection.</summary>
+    public int? SelectionFirstPage => OrderedSelection() is ({ } a, _) ? a.Page : null;
+
     /// <summary>Number of pages the selection touches (0 without a selection).</summary>
     public int SelectedPageCount => OrderedSelection() is ({ } a, { } b) ? Math.Min(b.Page, PageCount - 1) - a.Page + 1 : 0;
 

@@ -1787,6 +1787,14 @@ public partial class MainWindow : Window
         dlg.AddNote("To make Inkvolt PDF your default PDF app: Windows Settings › Apps › Default apps › Inkvolt PDF.");
         var defaults = dlg.Add(null, new Button { Content = "Open Default apps", HorizontalAlignment = HorizontalAlignment.Left });
         defaults.Click += (_, _) => Shell.Open(AppEnvironment.DefaultAppsUri);
+        var aiState = dlg.Add("AI assistant", new TextBlock { Text = AiActions.Describe(), TextWrapping = TextWrapping.Wrap }, top: 18);
+        var ai = dlg.Add(null, new Button { Content = "AI assistant settings…", HorizontalAlignment = HorizontalAlignment.Left });
+        ai.Click += (_, _) =>
+        {
+            if (!AiActions.ShowSettings(dlg)) return;
+            aiState.Text = AiActions.Describe();
+            foreach (var t in Tabs) t.RefreshAiPane();
+        };
         if (!dlg.ShowModal()) return;
 
         s.Theme = theme.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };

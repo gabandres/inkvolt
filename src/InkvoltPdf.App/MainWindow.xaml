@@ -254,6 +254,15 @@
                                     <MenuItem x:Name="RedactHitsMenu" Header="Mark Search _Matches for Redaction" Click="OnRedactHits" />
                                     <MenuItem x:Name="ApplyRedactMenu" Header="_Apply Redactions…" Click="OnApplyRedactions" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
+                                    <Separator />
+                                    <!-- Bring your own AI: off by default (AiActions, DocumentTab.Ai) -->
+                                    <MenuItem Header="A_I Assistant">
+                                        <MenuItem Command="app:Cmd.AiSummarize" />
+                                        <MenuItem Command="app:Cmd.AiAsk" />
+                                        <MenuItem Command="app:Cmd.AiExplain" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.AiSettings" />
+                                    </MenuItem>
                                 </MenuItem>
                                 <MenuItem Header="_Help">
                                     <MenuItem Command="app:Cmd.Shortcuts" />

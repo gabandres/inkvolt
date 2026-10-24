@@ -24,7 +24,9 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Split view: <c>split h|v|off · switchpane · splitstate</c>. Compare: <c>compare old.pdf new.pdf ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
+/// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
@@ -747,6 +749,47 @@ internal static class DevScript
             case "readaloud": await tab!.ToggleReadAloud(); break;
             case "readaloud-state": log.Add($"readaloud: {tab!.ReadAloudPlayer.State}"); break;
             case "readaloud-skip": tab!.ReadAloudPlayer.DevSkip(int.Parse(arg)); break;
+            // AI assistant (no network: aifake answers instead): aiconfig Ollama|LMStudio|url model [context] · aioff ·
+            // aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question ·
+            // aiexplain · aistate · dialogfill check0=on text1=… [expand] (the topmost open FormDialog, like dialogok's settings; expand opens its expanders)
+            case "aiconfig":
+            {
+                var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var s = AppSettings.Current;
+                s.AiEnabled = true;
+                if (AiService.PresetNames.Contains(a[0])) s.AiPreset = a[0];
+                else (s.AiPreset, s.AiCustomUrl) = ("Custom", a[0]);
+                s.AiModel = a.Length > 1 ? a[1] : "";
+                if (a.Length > 2) s.AiContextTokens = int.Parse(a[2]);
+                tab?.RefreshAiPane();
+                log.Add($"ai: {AiActions.Describe()}");
+                break;
+            }
+            case "aioff": AppSettings.Current.AiEnabled = false; tab?.RefreshAiPane(); break;
+            case "aifake": AiService.DevHandler = _ => new DevAiHandler(arg); break;
+            case "aipane" when arg == "off": tab!.CloseAiPane(); break;
+            case "aipane": tab!.ShowAiPane(); await Task.Delay(300); break;
+            case "aisummarize":
+                await tab!.AiSummarize(arg is "" or "all" ? [.. Enumerable.Range(0, v!.PageCount)] : Core.PageRange.TryParse(arg, v!.PageCount, out var aiPages, out _) ? aiPages : []);
+                log.Add(tab.DevAiState());
+                break;
+            case "aiask":
+                if (tab!.AiPaneView is null) tab.ShowAiPane();
+                tab.AiPaneView!.Input.Text = arg;
+                await tab.AiAsk(arg);
+                log.Add(tab.DevAiState());
+                break;
+            case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
+            case "aistate": log.Add(tab!.DevAiState()); break;
+            case "dialogfill":
+                if (Application.Current.Windows.OfType<FormDialog>().LastOrDefault(w => w.IsVisible) is { } fd)
+                {
+                    FillDialog(fd, [.. arg.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2))]);
+                    if (arg.Contains("expand", StringComparison.Ordinal))
+                        foreach (var ex in Descendants<System.Windows.Controls.Expander>(fd)) ex.IsExpanded = true;
+                }
+                else log.Add("dialogfill: no dialog open");
+                break;
             case "dropimages": log.Add($"dropimages handled: {FileTools.HandleWindowDrop(window, arg.Split(';'))}"); break; // as if dropped on the window
             case "exit": break;
             default: log.Add($"unknown step: {line}"); break;
@@ -1153,5 +1196,46 @@ internal static class DevScript
         enc.Frames.Add(BitmapFrame.Create(bmp));
         using var fs = File.Create(path);
         enc.Save(fs);
+    }
+
+    /// <summary>
+    /// <c>aifake</c>: answers AI requests as an OpenAI-compatible server would, without any network. "answer text" streams
+    /// the text word by word (for every request: map-reduce parts get it too); "error401", "refused" and "missing" fail
+    /// like a wrong key, a server that isn't running and an unknown model.
+    /// </summary>
+    private sealed class DevAiHandler(string spec) : System.Net.Http.HttpMessageHandler
+    {
+        protected override async Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var mode = spec.Split(' ', 2);
+            var json = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+            if (mode[0] == "refused")
+                throw new System.Net.Http.HttpRequestException(System.Net.Http.HttpRequestError.ConnectionError, "No connection could be made",
+                    new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused));
+            if (request.RequestUri!.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new System.Net.Http.StringContent("""{"object":"list","data":[{"id":"llama3.2:latest"},{"id":"qwen3:8b"},{"id":"gemma3:4b"}]}""") { Headers = { ContentType = json } },
+                };
+            if (mode[0] is "error401" or "missing")
+                return new System.Net.Http.HttpResponseMessage(mode[0] == "missing" ? System.Net.HttpStatusCode.NotFound : System.Net.HttpStatusCode.Unauthorized)
+                {
+                    Content = new System.Net.Http.StringContent(mode[0] == "missing" ? """{"error":{"message":"model \"phi4\" not found, try pulling it first"}}""" : """{"error":{"message":"Incorrect API key provided"}}""")
+                        { Headers = { ContentType = json } },
+                };
+            var text = (mode.Length > 1 ? mode[1] : "An answer.").Replace("\\n", "\n"); // a typed \n is a line break
+            var sb = new System.Text.StringBuilder();
+            foreach (var word in System.Text.RegularExpressions.Regex.Split(text, @"(?<=\s)"))
+            {
+                if (word.Length == 0) continue;
+                sb.Append("data: ").Append(System.Text.Json.JsonSerializer.Serialize(new { choices = new[] { new { index = 0, delta = new { content = word } } } })).Append("\n\n");
+            }
+            sb.Append("data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n");
+            await Task.Delay(150, cancellationToken);
+            return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new System.Net.Http.StringContent(sb.ToString(), System.Text.Encoding.UTF8, "text/event-stream"),
+            };
+        }
     }
 }

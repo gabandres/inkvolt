@@ -380,6 +380,18 @@ public sealed class AppSettings
     public int PrintPosterPercent { get; set; } = 200;
     public int PrintPosterOverlap { get; set; } = 1;
     public bool PrintCutMarks { get; set; } = true;
+    /// <summary>
+    /// AI assistant (bring your own; off by default): the endpoint ("Ollama", "LMStudio" or "Custom" with
+    /// <see cref="AiCustomUrl"/>), model and context size. API keys are never here: see <c>AiKeyStore</c>.
+    /// </summary>
+    public bool AiEnabled { get; set; }
+    public string AiPreset { get; set; } = "Ollama";
+    public string AiCustomUrl { get; set; } = "";
+    public string AiModel { get; set; } = "";
+    public int AiContextTokens { get; set; } = Core.AiText.DefaultContextTokens;
+    /// <summary>Endpoints (their base URLs) the user chose "don't ask again" for, and those the first-send warning was shown for.</summary>
+    public List<string> AiNoPreview { get; set; } = [];
+    public List<string> AiCloudWarned { get; set; } = [];
 
     /// <summary>Each drawing tool's last look, by tool name ("Pen", "Rectangle"…); see <c>DrawStyles</c>.</summary>
     public Dictionary<string, DrawStyleSetting> DrawStyles { get; set; } = [];
@@ -555,6 +567,8 @@ public sealed class AppSettings
             settings.Files = new Dictionary<string, FileState>(settings.Files ?? [], StringComparer.OrdinalIgnoreCase);
             settings.RecentFiles ??= [];
             settings.OpenTabs ??= [];
+            settings.AiNoPreview ??= [];
+            settings.AiCloudWarned ??= [];
             return true;
         }
         catch (JsonException ex)
