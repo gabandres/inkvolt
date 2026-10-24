@@ -110,7 +110,10 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
             // Progress<T> posts: let the last step's update land before the summary replaces "Checking…".
             await Task.Yield();
             foreach (var c in report.Checks) Checks[(int)c.Kind].Update(c);
-            if (report.Moved && report.Found is { } found) _adoptAddress(found.Address);
+            // The UUID mDNS answered for is public: two devices claiming it, or the old address still answering, means ask.
+            if (report.Found is { } found && (report.Adoption == AdoptDecision.Adopt
+                                              || report.Adoption == AdoptDecision.Ask && Prompt.Ask(report.AdoptionQuestion!, $"Use {found.Address}")))
+                _adoptAddress(found.Address);
             Report = report;
             foreach (var r in report.Repairs) Repairs.Add(new FixerRepairViewModel(r, this));
             Headline = report.Headline;
@@ -162,6 +165,13 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
                 LastResultIsError = false;
                 row.Message = null;
                 await RunAsync(); // see what's left
+                break;
+            case RepairOutcomeKind.Unknown:
+                // Timed out waiting for Windows; it may still be working. Say so and look again rather than call it a failure.
+                LastResult = $"{repair.Title}: {outcome.Message}";
+                LastResultIsError = true;
+                Prompt.Announce(outcome.Message);
+                await RunAsync();
                 break;
             case RepairOutcomeKind.Manual:
                 row.Message = outcome.Message;

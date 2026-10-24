@@ -101,11 +101,23 @@ public static class ManualSteps
     }
 }
 
-public enum AttemptResult { Done, AccessDenied, Cancelled, Failed }
+public enum AttemptResult
+{
+    Done,
+    AccessDenied,
+    Cancelled,
+    Failed,
+
+    /// <summary>Windows hadn't finished when Inkvolt Print stopped waiting; it may still be doing it.</summary>
+    Unknown,
+}
 
 /// <summary>How one try at a repair went. <see cref="Message"/> says why it failed (shown to the user).</summary>
 public sealed record Attempt(AttemptResult Result, string? Message = null)
 {
+    /// <summary>Jobs Windows refused to change for the user (someone else's): the only ones an elevated retry needs to touch.</summary>
+    public IReadOnlyList<int>? DeniedJobIds { get; init; }
+
     public static readonly Attempt Done = new(AttemptResult.Done);
     public static readonly Attempt Denied = new(AttemptResult.AccessDenied);
 }
@@ -120,7 +132,7 @@ public interface IOfflineRepairs
     Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct);
 }
 
-public enum RepairOutcomeKind { Fixed, Cancelled, Manual, Failed }
+public enum RepairOutcomeKind { Fixed, Cancelled, Manual, Failed, Unknown }
 
 /// <summary>Result of <see cref="RepairRunner"/>; <see cref="Steps"/> is set when the user has to do it by hand.</summary>
 public sealed record RepairOutcome(RepairOutcomeKind Kind, string Message, IReadOnlyList<string> Steps)
@@ -146,7 +158,10 @@ public static class RepairRunner
                 case AttemptResult.Done: return RepairOutcome.Fixed("Done.");
                 case AttemptResult.Failed: return new(RepairOutcomeKind.Failed, user.Message ?? "Windows couldn't do it.", repair.ManualSteps);
                 case AttemptResult.Cancelled: return new(RepairOutcomeKind.Cancelled, user.Message ?? "Cancelled.", []);
+                case AttemptResult.Unknown: return Unknown;
             }
+            // Jobs the user could change are done; only the refused ones go to the administrator.
+            if (user.DeniedJobIds is { Count: > 0 } denied) repair = repair with { JobIds = denied };
         }
         if (!canElevate)
             return new(RepairOutcomeKind.Manual,
@@ -157,7 +172,11 @@ public static class RepairRunner
         {
             AttemptResult.Done => RepairOutcome.Fixed("Done."),
             AttemptResult.Cancelled => new(RepairOutcomeKind.Cancelled, "Cancelled: Windows needs administrator permission for this.", []),
+            AttemptResult.Unknown => Unknown,
             _ => new(RepairOutcomeKind.Failed, admin.Message ?? "Windows couldn't do it.", repair.ManualSteps),
         };
     }
+
+    private static readonly RepairOutcome Unknown = new(RepairOutcomeKind.Unknown,
+        "Windows hasn't finished yet, so whether it worked isn't known. Checking again; if it still shows the problem, try again in a minute.", []);
 }

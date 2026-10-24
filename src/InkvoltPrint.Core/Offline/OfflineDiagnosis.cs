@@ -15,6 +15,23 @@ public sealed record OfflineReport(
     /// <summary>mDNS found the printer at a different address than the one Inkvolt Print had.</summary>
     public bool Moved => Found is not null && !string.Equals(Found.Address, Device.Host, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The printer moved, but something still answers at the address Inkvolt Print had (another device took it, or this isn't the printer that moved).</summary>
+    public bool OldAddressAnswers { get; init; }
+
+    /// <summary>
+    /// What to do with the new address: nothing (it didn't move), use it, or ask first. The UUID mDNS answered for is
+    /// public, so when more than one device announces it, or the old address still answers, the user decides.
+    /// </summary>
+    public AdoptDecision Adoption => !Moved ? AdoptDecision.None
+        : Found!.IsAmbiguous || OldAddressAnswers ? AdoptDecision.Ask
+        : AdoptDecision.Adopt;
+
+    /// <summary>The question for <see cref="AdoptDecision.Ask"/>.</summary>
+    public string? AdoptionQuestion => Adoption == AdoptDecision.Ask
+        ? $"{OfflineDiagnosis.Caution(this)}Use {Found!.Address} for {Device.Name}? Choose this only if that's the printer's address " +
+          "(its control panel or a network configuration page shows it)."
+        : null;
+
     public bool Answers => Reach?.Answers == true;
 
     public string Headline => Spooler == SpoolerState.Stopped ? "The Print Spooler service isn't running"
@@ -31,6 +48,8 @@ public sealed record OfflineReport(
         : Queues.Count == 0 ? "Use Set up at the top of the page so every app can print to it."
         : "The printer answers and Windows' printer for it is ready. If a job still won't print, turn the printer off and on, then try again.";
 }
+
+public enum AdoptDecision { None, Adopt, Ask }
 
 /// <summary>
 /// The "printer offline" fixer's diagnosis, step by step: the Print Spooler service; a fresh mDNS look-up by UUID (DHCP
@@ -63,9 +82,13 @@ public static class OfflineDiagnosis
         Start(CheckKind.Network);
         Rediscovery? found = null;
         string? lookupError = null;
-        try { found = await probes.RediscoverAsync(device.Uuid, ct).ConfigureAwait(false); }
+        try { found = (await probes.RediscoverAsync(device.Uuid, ct).ConfigureAwait(false))?.Cleaned(); }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { lookupError = ex.Message; }
-        Report(NetworkCheck(device, found, lookupError));
+        // Moved: does anything still answer at the old address? Then the new one isn't used without asking.
+        var oldAnswers = false;
+        if (found is not null && device.Host is { } oldHost && !string.Equals(found.Address, oldHost, StringComparison.OrdinalIgnoreCase))
+            oldAnswers = (await Probe(() => probes.ReachAsync(oldHost, ct), new Reachability(oldHost, false, []), ct).ConfigureAwait(false)).Answers;
+        Report(NetworkCheck(device, found, oldAnswers, lookupError));
 
         // 3. Does it answer there?
         var address = found?.Address ?? device.Host;
@@ -110,9 +133,23 @@ public static class OfflineDiagnosis
             }
         }
 
-        var repairs = Plan(device, spooler, found, reach, matched, now ?? DateTime.Now);
+        var caution = Caution(device, found, oldAnswers);
+        var repairs = Plan(device, spooler, found, reach, matched, now ?? DateTime.Now, caution.Length > 0 ? caution : null);
         var ordered = Enum.GetValues<CheckKind>().Select(k => checks.GetValueOrDefault(k) ?? CheckResult.Waiting(k)).ToList();
-        return new OfflineReport(device, spooler, found, reach, ordered, matched, repairs);
+        return new OfflineReport(device, spooler, found, reach, ordered, matched, repairs) { OldAddressAnswers = oldAnswers };
+    }
+
+    internal static string Caution(OfflineReport r) => Caution(r.Device, r.Found, r.OldAddressAnswers);
+
+    /// <summary>Why the new address isn't certain ("" when it is), as the start of a question.</summary>
+    private static string Caution(OfflineDevice device, Rediscovery? found, bool oldAnswers)
+    {
+        if (found is null) return "";
+        var parts = "";
+        if (found.IsAmbiguous)
+            parts += $"More than one device announces this printer's ID: {Reachability.Join(found.Addresses.Distinct(StringComparer.OrdinalIgnoreCase).ToList())}. ";
+        if (oldAnswers) parts += $"Something still answers at its old address, {device.Host}. ";
+        return parts;
     }
 
     private static async Task<T> Probe<T>(Func<Task<T>> probe, T fallback, CancellationToken ct)
@@ -134,7 +171,7 @@ public static class OfflineDiagnosis
         _ => "Couldn't check it.",
     });
 
-    private static CheckResult NetworkCheck(OfflineDevice device, Rediscovery? found, string? error)
+    private static CheckResult NetworkCheck(OfflineDevice device, Rediscovery? found, bool oldAnswers, string? error)
     {
         var title = CheckResult.TitleOf(CheckKind.Network);
         if (found is null)
@@ -143,6 +180,10 @@ public static class OfflineDiagnosis
                 : "It didn't announce itself on the network. It may be off or asleep, on another network, or not announce itself at all.");
         if (device.Host is null || string.Equals(found.Address, device.Host, StringComparison.OrdinalIgnoreCase))
             return new(CheckKind.Network, CheckState.Passed, title, $"Found at {found.Address}, the address Inkvolt Print uses.");
+        var caution = Caution(device, found, oldAnswers);
+        if (caution.Length > 0)
+            return new(CheckKind.Network, CheckState.Warning, title,
+                $"Found at {found.Address} (it was {device.Host}). {caution}Inkvolt Print asks before using the new address.");
         return new(CheckKind.Network, CheckState.Warning, title,
             $"Found at a new address, {found.Address} (it was {device.Host}). The router gave it a new one; Inkvolt Print uses the new address now.");
     }
@@ -256,8 +297,10 @@ public static class OfflineDiagnosis
         q.Jobs.Where(j => j.Status.HasFlag(JobStatus.Deleting) && now - j.Submitted > StuckDeleting).ToList();
 
     /// <summary>What can be repaired, in the order to do it: service first, then each queue's port, state and jobs.</summary>
+    /// <param name="caution">Why the new address isn't certain (two devices announce the UUID, the old address still
+    /// answers): put in front of the question every port repair asks.</param>
     public static IReadOnlyList<Repair> Plan(OfflineDevice device, SpoolerState spooler, Rediscovery? found, Reachability? reach,
-        IReadOnlyList<MatchedQueue> queues, DateTime now)
+        IReadOnlyList<MatchedQueue> queues, DateTime now, string? caution = null)
     {
         var list = new List<Repair>();
         if (spooler == SpoolerState.Stopped)
@@ -293,7 +336,7 @@ public static class OfflineDiagnosis
                 });
 
             if (m.PortIsStale && target is not null)
-                AddPortRepairs(list, m, target, found?.HostName);
+                AddPortRepairs(list, m, target, found?.HostName, caution);
             else if (!m.PortIsStale && answers && q.ReportsOffline && !q.WorkOffline && !q.Paused)
             {
                 // It answers, the port is right, yet Windows says offline.
@@ -359,14 +402,18 @@ public static class OfflineDiagnosis
         return list;
     }
 
-    private static void AddPortRepairs(List<Repair> list, MatchedQueue m, string target, string? hostName)
+    /// <summary>
+    /// Port repairs always ask first, naming the address that will be used, before Windows' permission prompt (which shows
+    /// only "Windows PowerShell"): the address came from the network.
+    /// </summary>
+    private static void AddPortRepairs(List<Repair> list, MatchedQueue m, string target, string? hostName, string? caution)
     {
         var q = m.Queue;
         var name = q.Name;
         var old = PortHost(q.Port);
-        var byName = m.Reason == MatchReason.Name
+        var byName = (m.Reason == MatchReason.Name
             ? $"“{name}” has the same model name as this printer, but prints to {old}. Is it for this printer? "
-            : null;
+            : "") + caution;
         if (q.Port.Kind == PortKind.IppUrl && q.Port.Url is { } url)
         {
             var newUrl = new UriBuilder(url) { Host = target }.Uri;
@@ -377,7 +424,7 @@ public static class OfflineDiagnosis
                 Queue = name,
                 TargetUrl = newUrl,
                 AdminOnly = true,
-                Question = byName is null ? null : byName + "Set it up again at the new address?",
+                Question = byName + $"Set “{name}” up again at {newUrl.AbsoluteUri}?",
                 Confirm = "Set up again",
                 ManualSteps = ManualSteps.For(RepairKind.RecreateIppQueue, name, url: newUrl),
             });
@@ -393,7 +440,7 @@ public static class OfflineDiagnosis
             AdminOnly = true,
             // LPR ports need the printer's LPR queue name too; the wizard asks for it.
             ManualOnly = q.Port.Lpr,
-            Question = byName is null ? null : byName + $"Point it at {target}?",
+            Question = byName + $"Point “{name}” at {target}? Its print jobs go to {target} from now on.",
             ManualSteps = ManualSteps.For(RepairKind.PointPortAt, name, target),
         });
         if (hostName is { Length: > 0 } && !q.Port.Lpr)
@@ -405,7 +452,7 @@ public static class OfflineDiagnosis
                 PortNumber = q.Port.PortNumber,
                 AdminOnly = true,
                 IsAlternative = true,
-                Question = byName is null ? null : byName + $"Point it at {hostName}?",
+                Question = byName + $"Point “{name}” at {hostName}? Its print jobs go to whichever address that name has.",
                 ManualSteps = ManualSteps.For(RepairKind.PointPortAt, name, hostName),
             });
     }

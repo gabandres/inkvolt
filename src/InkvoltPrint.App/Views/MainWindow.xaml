@@ -41,8 +41,18 @@
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,10,0,0" AutomationProperties.Name="Checking"
                                      Visibility="{Binding IsRunning, Converter={StaticResource VisibleWhen}}" />
                         <TextBlock Text="{Binding LastResult}" TextWrapping="Wrap" Margin="0,10,0,0" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                   Visibility="{Binding LastResult, Converter={StaticResource VisibleWhen}}" />
+                                   Visibility="{Binding LastResult, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding LastResultIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
                         <ItemsControl ItemsSource="{Binding Checks}" Margin="0,16,0,0" Focusable="False">
                             <ItemsControl.ItemTemplate>

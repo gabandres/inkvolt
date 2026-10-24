@@ -16,30 +16,38 @@ public sealed class WindowsOfflineProbes : IOfflineProbes
 {
     private static readonly TimeSpan LookupTimeout = TimeSpan.FromSeconds(12);
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan OtherAnswersWait = TimeSpan.FromSeconds(2);
     private const string TcpPorts = @"SYSTEM\CurrentControlSet\Control\Print\Monitors\Standard TCP/IP Port\Ports";
 
     public Task<SpoolerState> SpoolerAsync(CancellationToken ct) => Task.Run(SpoolerService.Query, ct);
 
+    /// <summary>
+    /// A fresh mDNS look-up by UUID. Once the printer shows up, listens a moment longer: the UUID is public, so a second
+    /// device announcing it must be seen (the fixer then asks before using either address). Only IP addresses and plain
+    /// <c>.local</c> names are accepted (<see cref="Rediscovery.Accept"/>).
+    /// </summary>
     public async Task<Rediscovery?> RediscoverAsync(string uuid, CancellationToken ct)
     {
         var id = uuid.Trim('{', '}');
-        var found = new TaskCompletionSource<Rediscovery?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var seen = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var discovery = new PrinterDiscovery();
+        DiscoveredPrinter? Find(IReadOnlyList<DiscoveredPrinter> list) =>
+            list.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase) && p.Host is not null);
         discovery.Changed += list =>
         {
-            if (list.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase) && p.Host is not null) is { } p)
-                found.TrySetResult(new Rediscovery(p.Host!, p.HostName));
+            if (Find(list) is not null) seen.TrySetResult(true);
         };
-        discovery.InitialSweepCompleted += () => found.TrySetResult(null);
+        discovery.InitialSweepCompleted += () => seen.TrySetResult(false);
         discovery.Start();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(LookupTimeout);
-        await using (timeout.Token.Register(() => found.TrySetResult(null)))
-        {
-            var result = await found.Task.ConfigureAwait(false);
-            ct.ThrowIfCancellationRequested();
-            return result;
-        }
+        bool found;
+        await using (timeout.Token.Register(() => seen.TrySetResult(false)))
+            found = await seen.Task.ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (!found) return null;
+        await Task.Delay(OtherAnswersWait, ct).ConfigureAwait(false);
+        return Find(discovery.Snapshot()) is { } p ? Rediscovery.Accept(p.Addresses.Prepend(p.Host), p.HostName) : null;
     }
 
     public async Task<Reachability> ReachAsync(string host, CancellationToken ct)

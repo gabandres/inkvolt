@@ -80,16 +80,28 @@ internal static class Winspool
         }
     }
 
-    /// <summary>Cancel (<paramref name="restart"/> false) or restart jobs. Returns the first Win32 error, 0 when all succeeded.</summary>
-    public static int ControlJobs(string printer, IEnumerable<int> jobIds, bool restart)
+    /// <summary>
+    /// Cancel (<paramref name="restart"/> false) or restart jobs. Returns the jobs Windows refused (someone else's, so an
+    /// administrator may retry just those) and the first other Win32 error (0: none).
+    /// </summary>
+    public static (IReadOnlyList<int> Denied, int Error) ControlJobs(string printer, IReadOnlyList<int> jobIds, bool restart)
     {
         using var h = Open(printer, PrinterAccessUse);
-        if (h is null) return Marshal.GetLastWin32Error();
+        if (h is null)
+        {
+            var open = Marshal.GetLastWin32Error();
+            return open == ErrorAccessDenied ? (jobIds, 0) : ([], open);
+        }
+        var denied = new List<int>();
         var error = 0;
         foreach (var id in jobIds)
-            if (!SetJob(h, (uint)id, 0, IntPtr.Zero, restart ? JobControlRestart : JobControlDelete) && error == 0)
-                error = Marshal.GetLastWin32Error();
-        return error;
+        {
+            if (SetJob(h, (uint)id, 0, IntPtr.Zero, restart ? JobControlRestart : JobControlDelete)) continue;
+            var e = Marshal.GetLastWin32Error();
+            if (e == ErrorAccessDenied) denied.Add(id);
+            else if (error == 0) error = e;
+        }
+        return (denied, error);
     }
 
     private static PrinterHandle? Open(string printer, uint access)

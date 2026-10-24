@@ -23,6 +23,9 @@ public sealed record DiscoveredPrinter(
 {
     /// <summary>IPP printer URL from the <c>_ipp</c>/<c>_ipps</c> service (port and <c>rp</c> TXT); null if not advertised.</summary>
     public Uri? IppUri { get; init; }
+
+    /// <summary>Every IPv4 address a service with this UUID announced (<see cref="Host"/> is the first). More than one: two devices claim the UUID.</summary>
+    public IReadOnlyList<string> Addresses { get; init; } = [];
 }
 
 /// <summary>
@@ -204,7 +207,11 @@ public sealed class PrinterDiscovery : IDisposable
                     // A queue on either protocol counts: Windows often installs over WSD first.
                     QueueInstalled: ippAep?.IsPaired == true || wsdAep?.IsPaired == true,
                     ScannerInstalled: scanAep?.IsPaired == true || wsdAep is { IsPaired: true, IsScanner: true },
-                    Txt: txt) { IppUri = ippUri };
+                    Txt: txt)
+                {
+                    IppUri = ippUri,
+                    Addresses = svcs.Select(s => s.IPv4).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                };
             })
             .Where(p => p.Host is not null || p.PrintEndpointId is not null)
             .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)

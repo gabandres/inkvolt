@@ -15,6 +15,8 @@ public static class Elevated
     public const int Cancelled = -1223;
     public const int TimedOut = -1;
 
+    private static readonly string PowerShellPath = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+
     /// <param name="script">Script body. Reads its inputs from <c>$v0</c>, <c>$v1</c>… and must <c>exit</c> with a code.</param>
     public static async Task<int> RunAsync(string script, IReadOnlyList<string> values, TimeSpan timeout, CancellationToken ct = default)
     {
@@ -25,7 +27,8 @@ public static class Elevated
             prologue.Append($"$v{i}=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}'));");
         }
         var full = prologue + script;
-        var psi = new ProcessStartInfo("powershell.exe",
+        // By full path: never whichever powershell.exe the search path or the current directory offers.
+        var psi = new ProcessStartInfo(PowerShellPath,
             $"-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand {Convert.ToBase64String(Encoding.Unicode.GetBytes(full))}")
         {
             UseShellExecute = true,
@@ -34,7 +37,9 @@ public static class Elevated
         };
         try
         {
-            using var p = Process.Start(psi) ?? throw new InvalidOperationException("PowerShell did not start");
+            // Process.Start returns only once the UAC prompt is answered: never block the caller's (UI) thread on it.
+            using var p = await Task.Run(() => Process.Start(psi), CancellationToken.None).ConfigureAwait(false)
+                          ?? throw new InvalidOperationException("PowerShell did not start");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeout);
             try
@@ -43,6 +48,8 @@ public static class Elevated
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
+                // The elevated process can't be stopped from this unelevated one; it may still finish. Callers must treat
+                // the result as unknown and look again, not as a failure.
                 return TimedOut;
             }
             return p.ExitCode;

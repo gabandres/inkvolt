@@ -21,8 +21,44 @@ public sealed record OfflineDevice(string Uuid, string Name, string? Model, stri
 public enum SpoolerState { Running, Stopped, Changing, Unknown }
 
 /// <summary>The printer as a fresh mDNS (DNS-SD) look-up by its UUID found it.</summary>
+/// <param name="Address">The address it announced (an IP address; see <see cref="Accept"/>).</param>
 /// <param name="HostName">Its mDNS host name (<c>NPI123456.local</c>), which follows the printer when its address changes.</param>
-public sealed record Rediscovery(string Address, string? HostName);
+public sealed record Rediscovery(string Address, string? HostName)
+{
+    /// <summary>
+    /// Every address that answered for this UUID, <see cref="Address"/> first. The UUID is public (anyone on the network
+    /// can announce it), so more than one means the fixer asks before using any of them.
+    /// </summary>
+    public IReadOnlyList<string> Addresses { get; init; } = [Address];
+
+    /// <summary>More than one device announced this printer's UUID.</summary>
+    public bool IsAmbiguous => Addresses.Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1;
+
+    /// <summary>
+    /// What mDNS reported, cleaned: only IP addresses, and a host name only when it's a plain <c>.local</c> name (it comes
+    /// from the network and ends up in a Windows port and on screen). Null when no usable address is left.
+    /// </summary>
+    public static Rediscovery? Accept(IEnumerable<string?> addresses, string? hostName)
+    {
+        var ips = addresses.Where(a => a is not null && IPAddress.TryParse(a, out var ip) && ip.ToString() == a)
+            .Select(a => a!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (ips.Count == 0) return null;
+        return new Rediscovery(ips[0], IsLocalName(hostName) ? hostName!.TrimEnd('.') : null) { Addresses = ips };
+    }
+
+    /// <summary>"name.local" (labels of letters, digits and hyphens), nothing else.</summary>
+    public static bool IsLocalName(string? name)
+    {
+        var n = name?.TrimEnd('.');
+        if (n is null || n.Length > 253 || !n.EndsWith(".local", StringComparison.OrdinalIgnoreCase)) return false;
+        var labels = n.Split('.');
+        return labels.Length >= 2 && labels.All(l => l.Length is > 0 and <= 63 && l[0] != '-' && l[^1] != '-' &&
+                                                     l.All(c => char.IsAsciiLetterOrDigit(c) || c == '-'));
+    }
+
+    /// <summary>The same look-up with anything unusable dropped (<see cref="Accept"/>).</summary>
+    public Rediscovery? Cleaned() => Accept(Addresses.Prepend(Address), HostName);
+}
 
 /// <summary>What answered at an address: ping, and which of the printing / web ports accepted a connection.</summary>
 public sealed record Reachability(string Host, bool Ping, IReadOnlyList<int> OpenPorts)

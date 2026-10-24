@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using InkvoltPrint.Core.Offline;
 using InkvoltPrint.Core.Printing;
 
@@ -65,7 +66,8 @@ public class OfflineFixerTests
         Assert.Equal(CheckState.Warning, Check(report, CheckKind.Network).State);
         Assert.Contains(NewIp, Check(report, CheckKind.Network).Detail);
         Assert.Equal(CheckState.Passed, Check(report, CheckKind.Connection).State);
-        Assert.Equal(NewIp, Assert.Single(probes.Reached)); // the new address is the one tried
+        Assert.Equal([OldIp, NewIp], probes.Reached); // nothing answers at the old address any more; the new one is tried
+        Assert.Equal(AdoptDecision.Adopt, report.Adoption);
         var queue = Assert.Single(report.Queues);
         Assert.Equal(MatchReason.Address, queue.Reason);
         Assert.True(queue.PortIsStale);
@@ -77,7 +79,7 @@ public class OfflineFixerTests
         Assert.Equal("Office laser", point.Queue);
         Assert.True(point.AdminOnly);
         Assert.False(point.IsAlternative);
-        Assert.Null(point.Question); // matched by address: no doubt it's this printer
+        Assert.Equal($"Point “Office laser” at {NewIp}? Its print jobs go to {NewIp} from now on.", point.Question); // the address, before the UAC prompt
         Assert.Contains(point.ManualSteps, s => s.Contains(NewIp));
         var byName = report.Repairs[1];
         Assert.Equal(("NPIEXAMPLE.local", true), (byName.Target, byName.IsAlternative));
@@ -384,5 +386,123 @@ public class OfflineFixerTests
     {
         Assert.Equal("IPP, raw printing (port 9100) and its web page", new Reachability(NewIp, true, [631, 9100, 80, 443]).PortsText);
         Assert.False(new Reachability(NewIp, true, []).Answers);
+    }
+
+    [Fact]
+    public async Task Two_devices_announcing_the_uuid_means_asking_before_adopting()
+    {
+        var probes = new FakeProbes
+        {
+            Found = new Rediscovery(NewIp, null) { Addresses = [NewIp, "192.0.2.66"] },
+            Answering = { NewIp },
+            Queues = [TcpQueue("Office laser", OldIp)],
+        };
+        var report = await Run(probes);
+
+        Assert.Equal(AdoptDecision.Ask, report.Adoption);
+        Assert.Contains("192.0.2.66", report.AdoptionQuestion);
+        Assert.Contains($"Use {NewIp}", report.AdoptionQuestion);
+        Assert.Equal(CheckState.Warning, Check(report, CheckKind.Network).State);
+        Assert.Contains("asks before", Check(report, CheckKind.Network).Detail);
+        Assert.StartsWith("More than one device", report.Repairs[0].Question); // the port repair says so too, before any prompt
+    }
+
+    [Fact]
+    public async Task Old_address_still_answering_means_asking_before_adopting()
+    {
+        var probes = new FakeProbes { Found = new Rediscovery(NewIp, null), Answering = { OldIp, NewIp }, Queues = [TcpQueue("Office laser", OldIp)] };
+        var report = await Run(probes);
+
+        Assert.True(report.OldAddressAnswers);
+        Assert.Equal(AdoptDecision.Ask, report.Adoption);
+        Assert.Contains($"still answers at its old address, {OldIp}", report.AdoptionQuestion);
+
+        probes.Found = new Rediscovery(OldIp, null);
+        Assert.Equal(AdoptDecision.None, (await Run(probes)).Adoption); // didn't move: nothing to adopt
+    }
+
+    [Theory]
+    [InlineData("192.0.2.23", "printer.local", "192.0.2.23", "printer.local")]
+    [InlineData("192.0.2.23", "printer.example.com", "192.0.2.23", null)] // only .local names
+    [InlineData("192.0.2.23", "bad name;.local", "192.0.2.23", null)]
+    [InlineData("192.0.2.23", "-x.local", "192.0.2.23", null)]
+    [InlineData("not-an-address", "printer.local", null, null)]          // no IP address: nothing usable
+    [InlineData("192.0.2.023", null, null, null)]                        // not in canonical form
+    public void Only_ip_addresses_and_local_names_are_accepted(string address, string? hostName, string? expectAddress, string? expectName)
+    {
+        var r = Rediscovery.Accept([address], hostName);
+        Assert.Equal(expectAddress, r?.Address);
+        Assert.Equal(expectName, r?.HostName);
+    }
+
+    [Fact]
+    public async Task Unusable_rediscovery_is_treated_as_not_found()
+    {
+        var probes = new FakeProbes { Found = new Rediscovery("evil;host", "x.example.com"), Answering = { OldIp } };
+        var report = await Run(probes);
+        Assert.Null(report.Found);
+        Assert.Equal(AdoptDecision.None, report.Adoption);
+    }
+
+    public static TheoryData<RepairKind> ScriptedKinds =>
+        [RepairKind.StartSpooler, RepairKind.RestartSpooler, RepairKind.ResumeQueue, RepairKind.ClearWorkOffline,
+         RepairKind.CancelStuckJobs, RepairKind.RestartStuckJobs, RepairKind.PointPortAt, RepairKind.RecreateIppQueue];
+
+    [Theory]
+    [MemberData(nameof(ScriptedKinds))]
+    public void Scripts_find_queues_ports_and_jobs_by_exact_name(RepairKind kind)
+    {
+        var repair = new Repair(kind, "t", "") { Queue = "Office* [2F]", Target = NewIp, JobIds = [7, 8], TargetUrl = new Uri($"http://{NewIp}:631/ipp/print") };
+        var script = RepairScripts.For(repair, portName: $"IP_{NewIp}", temporaryName: "Office* [2F] (new address)", httpUrl: repair.TargetUrl)!;
+
+        // Wildcard-taking parameters never get a value: only Add-Printer / Add-PrinterPort name what they create.
+        foreach (Match m in Regex.Matches(script.Script, @"([\w-]+) -(?:Name|PrinterName)\b"))
+            Assert.StartsWith("Add-", m.Groups[1].Value);
+        Assert.DoesNotContain("Office", script.Script); // values arrive as $v0.., never as script text
+        Assert.DoesNotContain(NewIp, script.Script);
+        Assert.Contains("Where-Object { $_.Name -eq $v0 }", script.Script);
+        if (kind is not (RepairKind.StartSpooler or RepairKind.RestartSpooler)) Assert.Equal("Office* [2F]", script.Values[0]);
+    }
+
+    [Fact]
+    public void Recreating_an_ipp_queue_reuses_a_temporary_queue_left_by_an_earlier_attempt()
+    {
+        var repair = new Repair(RepairKind.RecreateIppQueue, "t", "") { Queue = "q", TargetUrl = new Uri($"http://{NewIp}:631/ipp/print") };
+        var script = RepairScripts.For(repair, temporaryName: "q (new address)", httpUrl: repair.TargetUrl)!.Script;
+        Assert.Contains("if (-not (Get-Printer | Where-Object { $_.Name -eq $v1 })) { Add-Printer -Name $v1 -IppURL $v2 }", script);
+        Assert.True(script.IndexOf("Add-Printer", StringComparison.Ordinal) < script.IndexOf("Remove-Printer", StringComparison.Ordinal));
+        Assert.Null(RepairScripts.For(new Repair(RepairKind.TurnOffSnmp, "t", "")));
+    }
+
+    private sealed class PartlyDenied(IReadOnlyList<int> denied, AttemptResult elevated = AttemptResult.Done) : IOfflineRepairs
+    {
+        public Repair? Elevated;
+
+        public Task<Attempt> AsUserAsync(Repair repair, CancellationToken ct) =>
+            Task.FromResult(Attempt.Denied with { DeniedJobIds = denied });
+
+        public Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct)
+        {
+            Elevated = repair;
+            return Task.FromResult(new Attempt(elevated));
+        }
+    }
+
+    [Fact]
+    public async Task Elevated_retry_touches_only_the_jobs_the_user_was_refused()
+    {
+        var cancel = new Repair(RepairKind.CancelStuckJobs, "Cancel", "") { Queue = "q", JobIds = [7, 8, 9] };
+        var repairs = new PartlyDenied([8]);
+        Assert.Equal(RepairOutcomeKind.Fixed, (await RepairRunner.RunAsync(cancel, repairs, canElevate: true)).Kind);
+        Assert.Equal([8], repairs.Elevated!.JobIds);
+    }
+
+    [Fact]
+    public async Task Timed_out_elevation_is_unknown_not_failed()
+    {
+        var port = new Repair(RepairKind.PointPortAt, "Point", "") { AdminOnly = true, Target = NewIp };
+        var outcome = await RepairRunner.RunAsync(port, new FakeRepairs(AttemptResult.Done, AttemptResult.Unknown), canElevate: true);
+        Assert.Equal(RepairOutcomeKind.Unknown, outcome.Kind);
+        Assert.Contains("isn't known", outcome.Message);
     }
 }

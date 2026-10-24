@@ -9,9 +9,10 @@ namespace InkvoltPrint.Windows.Offline;
 /// Carries out the offline fixer's repairs on this PC. As the user: resume a queue, turn off "Use Printer Offline",
 /// cancel or restart jobs (winspool, no prompt; Windows decides who may). Elevated (one UAC prompt each, unpackaged
 /// copies only, see <see cref="RepairRunner"/>): the same through PowerShell/CIM, starting or restarting the Print
-/// Spooler, pointing a queue at a new Standard TCP/IP port, and re-adding a queue at a new IPP URL. Every script is a
-/// constant; queue names, addresses and job ids reach it only as Base64 values (<see cref="Elevated"/>), never as
-/// script text. Setting a discovered queue up again (pairing) is done by the app, not here.
+/// Spooler, pointing a queue at a new Standard TCP/IP port, and re-adding a queue at a new IPP URL. The scripts are
+/// <see cref="RepairScripts"/>: constants that find every queue, port and job by exact name; names, addresses and job ids
+/// reach them only as Base64 values (<see cref="Elevated"/>). Setting a discovered queue up again (pairing) is done by
+/// the app, not here.
 /// </summary>
 public sealed class WindowsOfflineRepairs : IOfflineRepairs
 {
@@ -20,83 +21,58 @@ public sealed class WindowsOfflineRepairs : IOfflineRepairs
     public Task<Attempt> AsUserAsync(Repair repair, CancellationToken ct) => Task.Run(() =>
     {
         var queue = repair.Queue ?? "";
-        var error = repair.Kind switch
+        if (repair.Kind is RepairKind.CancelStuckJobs or RepairKind.RestartStuckJobs)
+        {
+            var (denied, error) = Winspool.ControlJobs(queue, repair.JobIds, restart: repair.Kind == RepairKind.RestartStuckJobs);
+            // Someone else's jobs: only those go on to the administrator (RepairRunner retries just DeniedJobIds).
+            if (denied.Count > 0) return Attempt.Denied with { DeniedJobIds = denied };
+            return error == 0 ? Attempt.Done : new Attempt(AttemptResult.Failed, $"Windows said: {new Win32Exception(error).Message}");
+        }
+        var result = repair.Kind switch
         {
             RepairKind.ResumeQueue => Winspool.Resume(queue),
             RepairKind.ClearWorkOffline => Winspool.ClearWorkOffline(queue),
-            RepairKind.CancelStuckJobs => Winspool.ControlJobs(queue, repair.JobIds, restart: false),
-            RepairKind.RestartStuckJobs => Winspool.ControlJobs(queue, repair.JobIds, restart: true),
             _ => Winspool.ErrorAccessDenied, // services and ports: never as a standard user
         };
-        return error switch
+        return result switch
         {
             0 => Attempt.Done,
             Winspool.ErrorAccessDenied => Attempt.Denied,
-            _ => new Attempt(AttemptResult.Failed, $"Windows said: {new Win32Exception(error).Message}"),
+            _ => new Attempt(AttemptResult.Failed, $"Windows said: {new Win32Exception(result).Message}"),
         };
     }, ct);
 
-    private const string FindPrinter =
-        "$p = Get-CimInstance -ClassName Win32_Printer | Where-Object { $_.Name -eq $v0 } | Select-Object -First 1; if (-not $p) { exit 2 };";
-
     public async Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct)
     {
-        string script;
-        IReadOnlyList<string> values;
-        switch (repair.Kind)
+        // Choosing names reads the spooler's ports and the port monitor's registry key: off the UI thread.
+        var script = await Task.Run(() => repair.Kind switch
         {
-            case RepairKind.StartSpooler or RepairKind.RestartSpooler:
-                script = "try { $s = Get-Service -Name $v0; if ($s.Status -eq 'Running') { Restart-Service -Name $v0 -Force } " +
-                         "else { Start-Service -Name $v0 }; exit 0 } catch { exit 1 }";
-                values = ["Spooler"];
-                break;
-            case RepairKind.ResumeQueue:
-                script = "try { " + FindPrinter + " $r = Invoke-CimMethod -InputObject $p -MethodName Resume; if ($r.ReturnValue -ne 0) { exit 1 }; exit 0 } catch { exit 1 }";
-                values = [repair.Queue ?? ""];
-                break;
-            case RepairKind.ClearWorkOffline:
-                script = "try { " + FindPrinter + " Set-CimInstance -InputObject $p -Property @{ WorkOffline = $false }; exit 0 } catch { exit 1 }";
-                values = [repair.Queue ?? ""];
-                break;
-            case RepairKind.CancelStuckJobs or RepairKind.RestartStuckJobs:
-                // $v1 is a comma-separated list of job ids, each cast to [int] before use.
-                script = "$rc = 0; foreach ($id in ($v1 -split ',' | ForEach-Object { [int]$_ })) { try { " +
-                         (repair.Kind == RepairKind.CancelStuckJobs ? "Remove-PrintJob" : "Restart-PrintJob") +
-                         " -PrinterName $v0 -ID $id } catch { $rc = 1 } }; exit $rc";
-                values = [repair.Queue ?? "", string.Join(",", repair.JobIds)];
-                break;
-            case RepairKind.PointPortAt when repair.Target is { } target:
-                var port = PortNameFor(target, repair.PortNumber);
-                script = "try { if (-not (Get-PrinterPort -Name $v1 -ErrorAction SilentlyContinue)) { " +
-                         "Add-PrinterPort -Name $v1 -PrinterHostAddress $v2 -PortNumber ([uint32]$v3) }; Set-Printer -Name $v0 -PortName $v1; exit 0 } catch { exit 1 }";
-                values = [repair.Queue ?? "", port, target, repair.PortNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)];
-                break;
-            case RepairKind.RecreateIppQueue when repair.TargetUrl is { } url:
-                // Add first: if Windows can't add it at the new address, the old queue is left exactly as it was.
-                script = "try { Add-Printer -Name $v1 -IppURL $v2 } catch { exit 1 }; try { Remove-Printer -Name $v0 } catch { exit 2 }; " +
-                         "try { Rename-Printer -Name $v1 -NewName $v0 } catch { exit 3 }; exit 0";
-                values = [repair.Queue ?? "", TemporaryName(repair.Queue ?? "Printer"), IppQueueInstaller.HttpForm(url).AbsoluteUri];
-                break;
-            default:
-                return new Attempt(AttemptResult.Failed, "Inkvolt Print can't do this one itself.");
-        }
+            RepairKind.PointPortAt when repair.Target is { } target => RepairScripts.For(repair, portName: PortNameFor(target, repair.PortNumber)),
+            RepairKind.RecreateIppQueue when repair.TargetUrl is { } url =>
+                RepairScripts.For(repair, temporaryName: TemporaryName(repair.Queue ?? "Printer"), httpUrl: IppQueueInstaller.HttpForm(url)),
+            _ => RepairScripts.For(repair),
+        }, ct).ConfigureAwait(false);
+        if (script is null) return new Attempt(AttemptResult.Failed, "Inkvolt Print can't do this one itself.");
 
-        var code = await Elevated.RunAsync(script, values, ScriptTimeout, ct).ConfigureAwait(false);
+        var code = await Elevated.RunAsync(script.Script, script.Values, ScriptTimeout, ct).ConfigureAwait(false);
         return code switch
         {
             Elevated.Cancelled => new Attempt(AttemptResult.Cancelled),
-            Elevated.TimedOut => new Attempt(AttemptResult.Failed, "Windows didn't finish in time."),
-            0 => Attempt.Done,
-            _ => new Attempt(AttemptResult.Failed, Explain(repair, code, values)),
+            // The elevated process can't be stopped from here and may still finish: say so, and let the fixer look again.
+            Elevated.TimedOut => new Attempt(AttemptResult.Unknown),
+            RepairScripts.Done => Attempt.Done,
+            _ => new Attempt(AttemptResult.Failed, Explain(repair, code, script.Values)),
         };
     }
 
     private static string Explain(Repair repair, int code, IReadOnlyList<string> values) => (repair.Kind, code) switch
     {
-        (_, 2) when repair.Kind is RepairKind.ResumeQueue or RepairKind.ClearWorkOffline => $"Windows no longer has a printer called “{repair.Queue}”.",
-        (RepairKind.RecreateIppQueue, 1) => $"Windows couldn't add the printer at {values[2]}. “{repair.Queue}” is unchanged.",
-        (RepairKind.RecreateIppQueue, 2) => $"The printer was added as “{values[1]}”, but the old “{repair.Queue}” couldn't be removed. Remove it in Settings.",
-        (RepairKind.RecreateIppQueue, 3) => $"The printer was added as “{values[1]}” and the old one removed, but it couldn't be renamed to “{repair.Queue}”.",
+        (_, RepairScripts.NoSuchQueue) => $"Windows no longer has a printer called “{repair.Queue}”.",
+        (RepairKind.RecreateIppQueue, RepairScripts.Failed) => $"Windows couldn't add the printer at {values[2]}. “{repair.Queue}” is unchanged.",
+        (RepairKind.RecreateIppQueue, RepairScripts.NotRemoved) =>
+            $"The printer was added as “{values[1]}”, but the old “{repair.Queue}” couldn't be removed. Remove it in Settings.",
+        (RepairKind.RecreateIppQueue, RepairScripts.NotRenamed) =>
+            $"The printer was added as “{values[1]}” and the old one removed, but it couldn't be renamed to “{repair.Queue}”.",
         (RepairKind.CancelStuckJobs or RepairKind.RestartStuckJobs, _) => "Some jobs couldn't be changed. They may have just finished.",
         _ => "Windows couldn't do it.",
     };
