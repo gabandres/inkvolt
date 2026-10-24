@@ -129,6 +129,9 @@
                                                         </Run.Style>
                                                     </Run><Run Text="  ·  " /><Run Text="{Binding Details, Mode=OneWay}" />
                                                 </TextBlock>
+                                                <TextBlock Text="{Binding Owner, StringFormat='Only {0} or an administrator can cancel it.'}" Style="{StaticResource Caption}"
+                                                           FontSize="12" TextWrapping="Wrap"
+                                                           Visibility="{Binding IsMine, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                             </StackPanel>
                                         </DockPanel>
                                     </DataTemplate>
@@ -140,6 +143,8 @@
                             <TextBlock Text="This printer isn't set up in Windows yet, so it has no print queue. Use Set up at the top of the page."
                                        Style="{StaticResource Caption}" TextWrapping="Wrap"
                                        Visibility="{Binding NoQueue, Converter={StaticResource VisibleWhen}}" />
+                            <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Visibility="{Binding LoadError, Converter={StaticResource VisibleWhen}}" />
                             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
                             <Button Content="Open Windows queue" Command="{Binding OpenWindowsQueueCommand}" Style="{StaticResource LinkButton}"
@@ -521,7 +526,7 @@
 
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
 
-                            <Button Command="{Binding CopyCommand}" Style="{DynamicResource AccentButtonStyle}"
+                            <Button Command="{Binding CopyCommand}" Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding CopyButtonText}"
                                     HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0"
                                     Visibility="{Binding AwaitingBack, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                 <StackPanel Orientation="Horizontal">

@@ -16,6 +16,7 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(3);
 
+    private readonly RefreshGate _gate = new();
     private CancellationTokenSource? _poll;
 
     public ObservableCollection<PrintJobViewModel> Jobs { get; } = [];
@@ -29,6 +30,11 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
     [NotifyPropertyChangedFor(nameof(NoQueue))]
     public partial bool IsLoaded { get; set; }
 
+    /// <summary>The queue couldn't be read several times in a row (the Print Spooler service stopped, say); still retrying.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NoQueue))]
+    public partial string? LoadError { get; set; }
+
     [ObservableProperty] public partial string Summary { get; set; } = "";
     [ObservableProperty] public partial string? Message { get; set; }
 
@@ -37,7 +43,10 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
     public partial bool CanCancelAll { get; set; }
 
     public bool IsEmpty => HasQueue && Jobs.Count == 0;
-    public bool NoQueue => IsLoaded && !HasQueue;
+    public bool NoQueue => IsLoaded && !HasQueue && LoadError is null;
+
+    /// <summary>The printer's Windows queue was set up, re-created or removed.</summary>
+    public void QueueChanged() => source.QueueChanged();
 
     /// <summary>Starts or stops the refresh loop; called whenever the card's visibility may have changed.</summary>
     public void SetVisible(bool visible)
@@ -69,6 +78,8 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
 
     public async Task RefreshAsync()
     {
+        // The poll and the re-read after a cancel can overlap: only the latest read started may apply its list.
+        var ticket = _gate.Begin();
         IReadOnlyList<QueueJob>? jobs;
         try
         {
@@ -77,8 +88,20 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         catch (Exception ex)
         {
             System.Diagnostics.Trace.WriteLine($"print queue: {ex.Message}"); // the spooler restarting; next tick tries again
+            if (_gate.Failed(ticket))
+            {
+                // Still failing: say so rather than keep the card hidden (or showing a list that's going stale).
+                LoadError = "Windows' print queue isn't answering. If the Print Spooler service is stopped, start it (or restart the PC); trying again every few seconds.";
+                IsLoaded = true;
+                HasQueue = false;
+                Jobs.Clear();
+                CanCancelAll = false;
+                Summary = "";
+            }
             return;
         }
+        if (!_gate.Succeeded(ticket)) return; // a newer read started meanwhile; its list wins
+        LoadError = null;
         IsLoaded = true;
         HasQueue = jobs is not null;
         Apply(jobs ?? []);
@@ -117,7 +140,16 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         {
             Message = $"\"{job.Name}\": {ex.Message}";
         }
-        await RefreshAsync();
+        catch (Exception ex)
+        {
+            // Finding the queue (PnP, spooler) can fail in its own ways; never let one reach the global error dialog.
+            Log.Write($"Cancel print job failed: {ex}");
+            Message = $"\"{job.Name}\" couldn't be cancelled: {ex.Message}";
+        }
+        finally
+        {
+            await RefreshAsync();
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelAll))]
@@ -131,13 +163,24 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         if (!Prompt.Ask(question, "Cancel jobs")) return;
         Message = null;
         var failed = 0;
-        foreach (var job in mine)
+        try
         {
-            try { await source.CancelAsync(job.Id); }
-            catch (PrintJobCancelException) { failed++; }
+            foreach (var job in mine)
+            {
+                try { await source.CancelAsync(job.Id); }
+                catch (PrintJobCancelException) { failed++; }
+            }
+            if (failed > 0) Message = $"{failed} of {mine.Count} jobs couldn't be cancelled. They may have just finished.";
         }
-        if (failed > 0) Message = $"{failed} of {mine.Count} jobs couldn't be cancelled. They may have just finished.";
-        await RefreshAsync();
+        catch (Exception ex)
+        {
+            Log.Write($"Cancel all print jobs failed: {ex}");
+            Message = $"The jobs couldn't be cancelled: {ex.Message}";
+        }
+        finally
+        {
+            await RefreshAsync();
+        }
     }
 
     [RelayCommand]

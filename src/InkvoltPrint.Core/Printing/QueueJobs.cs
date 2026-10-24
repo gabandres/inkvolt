@@ -81,3 +81,28 @@ public static class QueueJobText
 
     private static string Bare(string name) => name[(name.LastIndexOf('\\') + 1)..];
 }
+
+/// <summary>
+/// Keeps overlapping refreshes of one list in order (the 3 s poll and the re-read after a cancel can both be in flight):
+/// only the most recently started one may apply its result, so a slower, older read never puts finished jobs back.
+/// Also counts consecutive failures, so a queue that keeps failing (spooler stopped) is reported instead of hidden.
+/// </summary>
+public sealed class RefreshGate(int failuresBeforeReport = 3)
+{
+    private int _latest;
+    private int _failures;
+
+    /// <summary>Call before reading; pass the ticket to <see cref="Succeeded"/> or <see cref="Failed"/>.</summary>
+    public int Begin() => ++_latest;
+
+    /// <summary>True when this read is the latest one started, so its result should be shown.</summary>
+    public bool Succeeded(int ticket)
+    {
+        if (ticket != _latest) return false;
+        _failures = 0;
+        return true;
+    }
+
+    /// <summary>True when this (latest) read failed and so did enough before it in a row to say so.</summary>
+    public bool Failed(int ticket) => ticket == _latest && ++_failures >= failuresBeforeReport;
+}

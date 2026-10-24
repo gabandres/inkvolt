@@ -74,3 +74,41 @@ public class PrintQueueTests
         Assert.False(QueueJobText.IsProblem(JobStatus.Printing));
     }
 }
+
+public class RefreshGateTests
+{
+    [Fact]
+    public void Only_the_latest_read_applies()
+    {
+        var gate = new RefreshGate();
+        var poll = gate.Begin();
+        var afterCancel = gate.Begin();
+
+        Assert.True(gate.Succeeded(afterCancel));
+        Assert.False(gate.Succeeded(poll)); // older read finishing last: stale, dropped
+    }
+
+    [Fact]
+    public void Repeated_failures_are_reported_and_a_success_resets_the_count()
+    {
+        var gate = new RefreshGate(failuresBeforeReport: 3);
+
+        Assert.False(gate.Failed(gate.Begin()));
+        Assert.False(gate.Failed(gate.Begin()));
+        Assert.True(gate.Failed(gate.Begin()));
+        Assert.True(gate.Failed(gate.Begin()));
+        Assert.True(gate.Succeeded(gate.Begin()));
+        Assert.False(gate.Failed(gate.Begin()));
+    }
+
+    [Fact]
+    public void A_stale_failure_does_not_count()
+    {
+        var gate = new RefreshGate(failuresBeforeReport: 1);
+        var old = gate.Begin();
+        var latest = gate.Begin();
+
+        Assert.False(gate.Failed(old));
+        Assert.True(gate.Succeeded(latest));
+    }
+}

@@ -11,6 +11,9 @@ public interface IPrintJobs
 
     /// <exception cref="PrintJobCancelException">The spooler refused (someone else's job) or the job is gone.</exception>
     Task CancelAsync(int jobId);
+
+    /// <summary>The printer's Windows queue was set up, re-created or removed: look it up again.</summary>
+    void QueueChanged() { }
 }
 
 public sealed class PrintJobCancelException(string message, bool accessDenied) : Exception(message)
@@ -22,33 +25,59 @@ public sealed class PrintJobCancelException(string message, bool accessDenied) :
 /// Reads and cancels jobs through System.Printing. Each call opens its own server/queue objects on a pool thread
 /// (they're cheap local spooler handles and not meant to be shared across threads). No elevation: anyone may
 /// list a queue and cancel their own jobs; cancelling someone else's needs an administrator, and is reported as such.
+/// The queue's name is looked up once (a PnP query plus every queue's port) and kept until the queue changes or can't
+/// be opened; "no queue" is kept for a while, since a queue added outside Inkvolt Print raises no QueueChanged.
 /// </summary>
 public sealed class WindowsPrintJobs(Func<Task<string?>> findQueue) : IPrintJobs
 {
     private const int AccessDeniedHResult = unchecked((int)0x80070005);
+    private static readonly TimeSpan NoQueueRecheck = TimeSpan.FromSeconds(30);
+
+    private string? _name;
+    private DateTime _resolvedAt = DateTime.MinValue;
+
+    public void QueueChanged() => _resolvedAt = DateTime.MinValue;
+
+    private async Task<string?> NameAsync()
+    {
+        if (_name is null ? DateTime.UtcNow - _resolvedAt > NoQueueRecheck : _resolvedAt == DateTime.MinValue)
+        {
+            _name = await findQueue();
+            _resolvedAt = DateTime.UtcNow;
+        }
+        return _name;
+    }
 
     public async Task<IReadOnlyList<QueueJob>?> ListAsync()
     {
-        if (await findQueue() is not { } name) return null;
-        return await Task.Run(() =>
+        if (await NameAsync() is not { } name) return null;
+        try
         {
-            using var server = new LocalPrintServer();
-            using var queue = new PrintQueue(server, name, PrintSystemDesiredAccess.UsePrinter);
-            using var infos = queue.GetPrintJobInfoCollection();
-            var jobs = new List<QueueJob>();
-            foreach (var info in infos)
-                using (info)
-                {
-                    try { jobs.Add(ToJob(info)); }
-                    catch (PrintSystemException) { } // finished while we were reading it
-                }
-            return (IReadOnlyList<QueueJob>)QueueJobText.Order(jobs);
-        });
+            return await Task.Run(() =>
+            {
+                using var server = new LocalPrintServer();
+                using var queue = new PrintQueue(server, name, PrintSystemDesiredAccess.UsePrinter);
+                using var infos = queue.GetPrintJobInfoCollection();
+                var jobs = new List<QueueJob>();
+                foreach (var info in infos)
+                    using (info)
+                    {
+                        try { jobs.Add(ToJob(info)); }
+                        catch (PrintSystemException) { } // finished while we were reading it
+                    }
+                return (IReadOnlyList<QueueJob>)QueueJobText.Order(jobs);
+            });
+        }
+        catch
+        {
+            QueueChanged(); // renamed or removed under us, or the spooler restarted: look it up again next time
+            throw;
+        }
     }
 
     public async Task CancelAsync(int jobId)
     {
-        if (await findQueue() is not { } name) throw new PrintJobCancelException("This printer has no Windows queue any more.", false);
+        if (await NameAsync() is not { } name) throw new PrintJobCancelException("This printer has no Windows queue any more.", false);
         await Task.Run(() =>
         {
             try

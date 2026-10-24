@@ -255,6 +255,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
                 Copy.QueueChanged();
+                Jobs.QueueChanged();
             }
         }
         catch (OperationCanceledException) { }
@@ -491,6 +492,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
                 Copy.QueueChanged();
+                Jobs.QueueChanged();
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
             }
@@ -534,6 +536,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             QueueInstalled = _discoveredQueue || _windowsQueue;
             Print.QueueChanged();
             Copy.QueueChanged();
+            Jobs.QueueChanged();
             return _windowsQueue ? null : $"{result.Message} Use Set up on this printer to add it again.";
         }
         catch (Exception ex)
