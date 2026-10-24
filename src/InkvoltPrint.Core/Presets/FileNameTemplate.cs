@@ -33,6 +33,8 @@ public static class FileNameTemplate
         "CON", "PRN", "AUX", "NUL",
         "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        // Windows also maps the superscript digits (Latin-1's ¹ ² ³) and the console handles.
+        "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³", "CONIN$", "CONOUT$",
     };
 
     private enum Kind { Text, Token, Separator }
@@ -121,6 +123,28 @@ public static class FileNameTemplate
             if (!set.Any(exists)) return set;
         }
         throw new IOException($"Too many files called \"{stem}\" in {folder}.");
+    }
+
+    /// <summary>
+    /// Moves files already written under temporary names to their final names as one set, never over another file: when a
+    /// name turns out to be taken (another program saved there since <see cref="UniquePaths"/> looked), the files moved so far
+    /// go back and the whole set tries the next free stem, so a scan's pages are never split across names.
+    /// </summary>
+    /// <param name="tryMove">Moves the first path to the second unless the second exists (then false; nothing moved).</param>
+    /// <returns>The final paths, in the order of <paramref name="temps"/>.</returns>
+    public static IReadOnlyList<string> PlaceSet(IReadOnlyList<string> temps, string folder, string stem, string extension,
+        Func<string, bool> exists, Func<string, string, bool> tryMove)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var targets = UniquePaths(folder, stem, extension, temps.Count, exists);
+            var moved = 0;
+            while (moved < temps.Count && tryMove(temps[moved], targets[moved])) moved++;
+            if (moved == temps.Count) return targets;
+            for (var i = moved - 1; i >= 0; i--)
+                if (!tryMove(targets[i], temps[i])) throw new IOException($"Couldn't put {targets[i]} back while picking another name.");
+        }
+        throw new IOException($"Couldn't find a free name for \"{stem}\" in {folder}.");
     }
 
     /// <summary>One safe Windows file or folder name: reserved and control characters become '-', no leading or trailing spaces, no trailing dots, no device names.</summary>

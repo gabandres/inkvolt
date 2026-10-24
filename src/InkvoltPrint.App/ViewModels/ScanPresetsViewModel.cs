@@ -37,6 +37,11 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
 
     public string PrinterName { get; }
 
+    /// <summary>Presets from a newer Inkvolt Print: shown, not saved (<see cref="ScanPresetLibrary.IsReadOnly"/>).</summary>
+    public bool IsReadOnly => _library.IsReadOnly;
+
+    public bool CanSave => !IsReadOnly;
+
     /// <summary>Asks the user for a folder (the dialog's OpenFolderDialog); null when cancelled. Unset: no browsing.</summary>
     public Func<string?, string?>? PickFolder { get; set; }
 
@@ -152,6 +157,7 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     /// <summary>Checks every preset; on a problem selects that preset and says what's wrong. True when saved.</summary>
     public bool Save()
     {
+        if (IsReadOnly) return false;
         var all = Snapshot();
         foreach (var item in Items)
         {

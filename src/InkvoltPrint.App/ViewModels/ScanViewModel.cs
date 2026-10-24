@@ -590,7 +590,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private async Task SaveWithPresetAsync()
     {
         if (ActivePreset is not { } active) return;
-        var preset = _presets.Find(active.Id) ?? active; // the counter may have moved on
+        var preset = _presets.FindById(active.Id) ?? active; // edited meanwhile, or deleted (then saved as it was)
         var kept = Kept;
         if (kept.Count == 0)
         {
@@ -604,57 +604,62 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         CancelCrop();
         IsBusy = true;
+        List<string> saved;
+        var jpg = preset.FileType == PresetFileType.Jpeg;
         try
         {
-            var ctx = new NameContext(DateTime.Now, preset.Name, _printerName, preset.NextNumber, kept.Count);
+            // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too.
+            var number = _presets.IncrementCounter(preset.Id) ?? preset.NextNumber;
+            var ctx = new NameContext(DateTime.Now, preset.Name, _printerName, number, kept.Count);
             var folder = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
             Directory.CreateDirectory(folder);
             var stem = FileNameTemplate.FileName(preset.FileName, ctx);
-            var jpg = preset.FileType == PresetFileType.Jpeg;
-            var saved = jpg ? await WriteImagesAsync(kept, folder, stem) : [await WritePdfAsync(await PdfPagesAsync(kept), folder, stem)];
+            saved = jpg ? await WriteImagesAsync(kept, folder, stem) : [await WritePdfAsync(await PdfPagesAsync(kept), folder, stem)];
 
-            preset = preset with { NextNumber = preset.NextNumber + 1 };
-            _presets.Update(preset);
-            ActivePreset = preset;
+            ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
             _dirty = false;
             OnPropertyChanged(nameof(HasUnsavedPages));
             Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")} in {folder}."
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
-            await AfterSaveAsync(preset, saved, kept, jpg);
         }
         catch (Exception ex)
         {
             Log.Write($"Preset save failed: {ex}");
             Message = $"Could not save: {ex.Message}";
+            return;
         }
         finally
         {
             IsBusy = false;
+        }
+        // Not busy any more: a mail app's new-message window (classic Outlook's stays open until it's sent) doesn't hold up the tab.
+        await AfterSaveAsync(preset, saved, kept, jpg);
+    }
+
+    /// <summary>File.Move that never replaces: false when <paramref name="to"/> exists.</summary>
+    private static bool TryMove(string from, string to)
+    {
+        try
+        {
+            File.Move(from, to, overwrite: false);
+            return true;
+        }
+        catch (IOException) when (File.Exists(to))
+        {
+            return false;
         }
     }
 
     /// <summary>Writes the PDF next to its final name, then moves it there only if that name is still free (else the next one).</summary>
     private static Task<string> WritePdfAsync(List<PdfPage> pages, string folder, string stem) => Task.Run(() =>
     {
-        var tmp = Path.Combine(folder, $"{stem}.{Guid.NewGuid():N}.partial");
+        var tmp = TempName(folder);
         try
         {
             using (var fs = File.Create(tmp)) PdfWriter.Write(fs, pages, stem);
-            for (var attempt = 0; ; attempt++)
-            {
-                var target = FileNameTemplate.UniquePath(folder, stem, ".pdf", File.Exists);
-                try
-                {
-                    File.Move(tmp, target, overwrite: false);
-                    return target;
-                }
-                catch (IOException) when (attempt < 5 && File.Exists(target))
-                {
-                    // Another file took the name meanwhile: take the next one.
-                }
-            }
+            return FileNameTemplate.PlaceSet([tmp], folder, stem, ".pdf", File.Exists, TryMove)[0];
         }
         finally
         {
@@ -662,17 +667,27 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     });
 
+    /// <summary>Writes every image under a temporary name first, then names them as one set (<see cref="FileNameTemplate.PlaceSet"/>).</summary>
     private static async Task<List<string>> WriteImagesAsync(List<ScanPageViewModel> kept, string folder, string stem)
     {
-        var targets = FileNameTemplate.UniquePaths(folder, stem, ".jpg", kept.Count, File.Exists);
-        for (var i = 0; i < kept.Count; i++)
+        var temps = new List<string>();
+        try
         {
-            var bytes = await kept[i].JpegAsync();
-            await using var fs = new FileStream(targets[i], FileMode.CreateNew, FileAccess.Write); // never over another file
-            await fs.WriteAsync(bytes);
+            foreach (var page in kept)
+            {
+                var tmp = TempName(folder);
+                temps.Add(tmp);
+                await File.WriteAllBytesAsync(tmp, await page.JpegAsync());
+            }
+            return [.. await Task.Run(() => FileNameTemplate.PlaceSet(temps, folder, stem, ".jpg", File.Exists, TryMove))];
         }
-        return [.. targets];
+        finally
+        {
+            foreach (var tmp in temps.Where(File.Exists)) File.Delete(tmp); // only left over when something failed
+        }
     }
+
+    private static string TempName(string folder) => Path.Combine(folder, $"~inkvolt-{Guid.NewGuid():N}.partial");
 
     /// <summary>The preset's step after saving: open in Inkvolt PDF, print a copy, or hand the file to the mail app.</summary>
     private async Task AfterSaveAsync(ScanPreset preset, List<string> saved, List<ScanPageViewModel> kept, bool jpg)
@@ -693,12 +708,16 @@ public sealed partial class ScanViewModel : ObservableObject
                 Message += " (Demo: in a real scan your mail app would open a new message with it attached.)";
                 break;
             case PresetAfter.Email:
-                Message += await MailHandoff.SendAsync(saved, Path.GetFileNameWithoutExtension(saved[0])) switch
+                var before = Message;
+                var said = Message += " Opening a new message in your mail app…";
+                var note = await MailHandoff.SendAsync(saved, Path.GetFileNameWithoutExtension(saved[0])) switch
                 {
-                    MailHandoff.Result.Attached => " It's attached to a new message in your mail app.",
+                    MailHandoff.Result.Attached => " The file was attached to a new message in your mail app.",
                     MailHandoff.Result.Cancelled => " The email was cancelled; the file is saved.",
                     _ => " Your mail app has no attachment hand-off, so a new message and the file's folder opened: drag the file into the message.",
                 };
+                // The tab may have moved on (another scan) while the message window was open: don't write over that.
+                if (Message == said) Message = before + note;
                 break;
         }
     }

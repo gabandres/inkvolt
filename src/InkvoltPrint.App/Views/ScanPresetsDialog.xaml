@@ -12,7 +12,8 @@
         <!-- Save / Cancel -->
         <DockPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="Save" Click="Save_Click" IsDefault="True" MinWidth="96" Margin="0,0,8,0" Style="{DynamicResource AccentButtonStyle}" />
+                <Button Content="Save" Click="Save_Click" IsDefault="True" MinWidth="96" Margin="0,0,8,0" Style="{DynamicResource AccentButtonStyle}"
+                        IsEnabled="{Binding CanSave}" />
                 <Button Content="Cancel" IsCancel="True" MinWidth="96" />
             </StackPanel>
             <TextBlock Text="{Binding Error}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0"
@@ -20,6 +21,9 @@
                        Visibility="{Binding Error, Converter={StaticResource VisibleWhen}}" />
         </DockPanel>
 
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,12" Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                   Visibility="{Binding IsReadOnly, Converter={StaticResource VisibleWhen}}"
+                   Text="These presets were saved by a newer version of Inkvolt Print. This version can scan with them but doesn't change them, so nothing is lost when you update again." />
         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,16"
                    Text="A preset scans with its own settings and saves the file by itself: one click on the Scan tab or the Overview, or Ctrl+1 to Ctrl+9 for the first nine. Each scanner gets the closest it can do." />
 

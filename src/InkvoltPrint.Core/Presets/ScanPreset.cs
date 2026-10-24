@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.Core.Presets;
@@ -49,8 +52,12 @@ public sealed record ScanPreset
     public string FileName { get; init; } = ScanPresets.DefaultFileName;
     public PresetAfter After { get; init; }
 
-    /// <summary>The next <c>{n}</c>; goes up by one with every scan saved with this preset.</summary>
+    /// <summary>The next <c>{n}</c>; goes up by one with every scan saved with this preset (<see cref="ScanPresets.Reserve"/>).</summary>
     public int NextNumber { get; init; } = 1;
+
+    /// <summary>Fields this version doesn't know (written by a newer one), kept as they were so saving doesn't drop them.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; init; }
 }
 
 /// <summary>The presets as stored: <see cref="Version"/> says which shape the list was written in.</summary>
@@ -58,10 +65,18 @@ public sealed class ScanPresetSettings
 {
     public int Version { get; set; } = ScanPresets.CurrentVersion;
     public List<ScanPreset>? Items { get; set; }
+
+    /// <summary>Fields a newer version added, kept as they were.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    /// <summary>Written by a newer Inkvolt Print: usable, but this version doesn't write over it (<see cref="ScanPresets.CurrentVersion"/>).</summary>
+    [JsonIgnore]
+    public bool IsNewer => Version > ScanPresets.CurrentVersion;
 }
 
 /// <summary>Built-in starters and the list operations the editor offers (create, duplicate, rename checks, reorder).</summary>
-public static class ScanPresets
+public static partial class ScanPresets
 {
     /// <summary>1: the first shape. A file without presets (version 0, from before presets) gets the built-ins.</summary>
     public const int CurrentVersion = 1;
@@ -104,7 +119,7 @@ public static class ScanPresets
             if (raw is null) continue;
             var p = raw with
             {
-                Id = string.IsNullOrWhiteSpace(raw.Id) || ids.Contains(raw.Id) ? NewId() : raw.Id,
+                Id = !IsValidId(raw.Id) || ids.Contains(raw.Id) ? NewId() : raw.Id,
                 Name = string.IsNullOrWhiteSpace(raw.Name) ? "Scan preset" : Cut(raw.Name.Trim()),
                 Source = Enum.IsDefined(raw.Source) ? raw.Source : PresetSource.Auto,
                 FileType = Enum.IsDefined(raw.FileType) ? raw.FileType : PresetFileType.Pdf,
@@ -122,6 +137,40 @@ public static class ScanPresets
             list.Add(p);
         }
         return list;
+    }
+
+    /// <summary>
+    /// Ids go on a command line (the jump list's <c>--preset id</c>) unquoted: letters, digits and '-' only, at most 64.
+    /// </summary>
+    public static bool IsValidId(string? id) => id is { Length: > 0 and <= 64 } && ValidId().IsMatch(id);
+
+    [GeneratedRegex("^[A-Za-z0-9-]+$")]
+    private static partial Regex ValidId();
+
+    /// <summary>
+    /// Takes the next <c>{n}</c> of preset <paramref name="id"/> in <paramref name="list"/> and moves its counter on, in one
+    /// step, so two scans saved with one preset never get the same number. Null when the preset isn't in the list.
+    /// </summary>
+    public static int? Reserve(IList<ScanPreset> list, string id)
+    {
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].Id != id) continue;
+            var n = list[i].NextNumber;
+            list[i] = list[i] with { NextNumber = n + 1 };
+            return n;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The editor's list with each preset's counter as it is in <paramref name="current"/> now (scans may have been saved
+    /// while the editor was open); new presets keep theirs.
+    /// </summary>
+    public static List<ScanPreset> KeepCounters(IEnumerable<ScanPreset> edited, IEnumerable<ScanPreset> current)
+    {
+        var counters = current.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().NextNumber);
+        return edited.Select(p => counters.TryGetValue(p.Id, out var n) ? p with { NextNumber = n } : p).ToList();
     }
 
     public static ScanPreset Create(IEnumerable<ScanPreset> existing) =>

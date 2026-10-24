@@ -7,7 +7,9 @@ namespace InkvoltPrint.App.Presets;
 
 /// <summary>
 /// The scan presets, shared by every printer's Scan tab and the Overview's scan card, kept in <see cref="AppState.Presets"/>.
-/// Demo mode keeps them in memory and saves into a folder under %TEMP%, never into the user's own folders.
+/// Demo mode keeps them in memory and saves into a folder under %TEMP%, never into the user's own folders. Presets written
+/// by a newer version are used as they are but never written over (<see cref="IsReadOnly"/>). Only touched on the UI thread,
+/// so reserving a counter value is one step.
 /// </summary>
 public sealed class ScanPresetLibrary
 {
@@ -17,14 +19,22 @@ public sealed class ScanPresetLibrary
     {
         _state = state;
         IsDemo = demo;
+        IsReadOnly = state.Presets?.IsNewer == true;
         var normalized = ScanPresets.Normalize(state.Presets);
         foreach (var p in normalized) Items.Add(p);
+        if (IsReadOnly) Log.Write($"Scan presets are from a newer Inkvolt Print (version {state.Presets!.Version}): used, not changed");
         // Written back only when something was added or repaired, not on every start.
-        if (state.Presets is not { Items: { } stored } settings || settings.Version != ScanPresets.CurrentVersion || !stored.SequenceEqual(normalized))
+        else if (state.Presets is not { Items: { } stored } settings || settings.Version != ScanPresets.CurrentVersion || !stored.SequenceEqual(normalized))
             Store();
     }
 
     public bool IsDemo { get; }
+
+    /// <summary>
+    /// The presets were saved by a newer Inkvolt Print: this one runs them but doesn't change them (the editor says so, and
+    /// counters go up for this session only), so going back to the newer version loses nothing.
+    /// </summary>
+    public bool IsReadOnly { get; }
 
     /// <summary>In the user's order: the first nine are Ctrl+1…Ctrl+9.</summary>
     public ObservableCollection<ScanPreset> Items { get; } = [];
@@ -33,18 +43,32 @@ public sealed class ScanPresetLibrary
     public event Action? Changed;
 
     public ScanPreset? Find(string idOrName) =>
-        Items.FirstOrDefault(p => p.Id == idOrName) ?? Items.FirstOrDefault(p => string.Equals(p.Name, idOrName, StringComparison.OrdinalIgnoreCase));
+        FindById(idOrName) ?? Items.FirstOrDefault(p => string.Equals(p.Name, idOrName, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The editor's result replaces the list.</summary>
+    public ScanPreset? FindById(string id) => Items.FirstOrDefault(p => p.Id == id);
+
+    /// <summary>The editor's result replaces the list; counters stay as they are now (scans saved while it was open count).</summary>
     public void Replace(IEnumerable<ScanPreset> presets)
     {
-        var list = presets.ToList();
+        if (IsReadOnly) return;
+        var list = ScanPresets.KeepCounters(presets, Items);
         Items.Clear();
         foreach (var p in list) Items.Add(p);
         Store();
     }
 
-    /// <summary>One preset changed (its counter after a save): same place in the list.</summary>
+    /// <summary>Takes the preset's next <c>{n}</c> and moves its counter on (<see cref="ScanPresets.Reserve"/>); null when it was deleted.</summary>
+    public int? IncrementCounter(string id)
+    {
+        var list = Items.ToList();
+        if (ScanPresets.Reserve(list, id) is not { } n) return null;
+        var i = list.FindIndex(p => p.Id == id);
+        Items[i] = list[i];
+        Store();
+        return n;
+    }
+
+    /// <summary>One preset changed (the snapshot aid's --then): same place in the list.</summary>
     public void Update(ScanPreset preset)
     {
         var i = Items.ToList().FindIndex(p => p.Id == preset.Id);
@@ -55,8 +79,12 @@ public sealed class ScanPresetLibrary
 
     private void Store()
     {
-        _state.Presets = new ScanPresetSettings { Items = [.. Items] };
-        _state.Save();
+        if (!IsReadOnly)
+        {
+            // Fields a newer version added at the top level stay (they'd only be there from a hand edit or a downgrade).
+            _state.Presets = new ScanPresetSettings { Items = [.. Items], Unknown = _state.Presets?.Unknown };
+            _state.Save();
+        }
         Changed?.Invoke();
     }
 

@@ -31,6 +31,11 @@ public class FileNameTemplateTests
     [InlineData("CON", "CON_")]
     [InlineData("lpt1", "lpt1_")]
     [InlineData("nul.backup", "nul_.backup")]
+    [InlineData("COM¹", "COM¹_")]
+    [InlineData("lpt³.txt", "lpt³_.txt")]
+    [InlineData("conin$", "conin$_")]
+    [InlineData("CONOUT$.log", "CONOUT$_.log")]
+    [InlineData("COM10", "COM10")] // not a device
     [InlineData("tab\there", "tab-here")]
     public void Sanitizes(string template, string expected) => Assert.Equal(expected, FileNameTemplate.FileName(template, Ctx));
 
@@ -94,6 +99,45 @@ public class FileNameTemplateTests
     }
 }
 
+public class FileSetTests
+{
+    /// <summary>A folder where <paramref name="late"/> files appear only when something tries to move onto them.</summary>
+    private sealed class FakeFolder(params string[] late)
+    {
+        public readonly HashSet<string> Files = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _late = new(late, StringComparer.OrdinalIgnoreCase);
+
+        public bool TryMove(string from, string to)
+        {
+            if (_late.Remove(to)) Files.Add(to); // another program saved there just now
+            if (Files.Contains(to) || !Files.Remove(from)) return false;
+            Files.Add(to);
+            return true;
+        }
+    }
+
+    [Fact]
+    public void ANameTakenMidwayMovesTheWholeSetOn()
+    {
+        var fs = new FakeFolder(@"C:\s\Photo (2).jpg");
+        fs.Files.UnionWith([@"C:\s\t1", @"C:\s\t2", @"C:\s\t3"]);
+        var placed = FileNameTemplate.PlaceSet([@"C:\s\t1", @"C:\s\t2", @"C:\s\t3"], @"C:\s", "Photo", ".jpg", fs.Files.Contains, fs.TryMove);
+        Assert.Equal([@"C:\s\Photo-2 (1).jpg", @"C:\s\Photo-2 (2).jpg", @"C:\s\Photo-2 (3).jpg"], placed);
+        // Nothing of ours left under the first name or as a temporary file; the other program's file untouched.
+        Assert.Equal(
+            new HashSet<string>([@"C:\s\Photo (2).jpg", .. placed], StringComparer.OrdinalIgnoreCase),
+            fs.Files);
+    }
+
+    [Fact]
+    public void ASingleFileTakesTheNextName()
+    {
+        var fs = new FakeFolder(@"C:\s\Scan.pdf");
+        fs.Files.Add(@"C:\s\tmp");
+        Assert.Equal([@"C:\s\Scan-2.pdf"], FileNameTemplate.PlaceSet([@"C:\s\tmp"], @"C:\s", "Scan", ".pdf", fs.Files.Contains, fs.TryMove));
+    }
+}
+
 public class ScanPresetListTests
 {
     [Fact]
@@ -148,6 +192,68 @@ public class ScanPresetListTests
         Assert.Equal(PresetFolder.Documents, list[1].Folder);
         Assert.Equal("Second (2)", list[2].Name);
         Assert.Equal(PresetFolder.Documents, list[3].Folder); // a custom folder with no path
+    }
+
+    [Theory]
+    [InlineData("receipt", true)]
+    [InlineData("a1b2-C3", true)]
+    [InlineData("x --autoprint out.txt", false)]
+    [InlineData("a\"b", false)]
+    [InlineData("tab\there", false)]
+    [InlineData("", false)]
+    public void IdsAreSafeOnACommandLine(string id, bool valid)
+    {
+        Assert.Equal(valid, ScanPresets.IsValidId(id));
+        var list = ScanPresets.Normalize(new ScanPresetSettings { Items = [new ScanPreset { Id = id, Name = "P" }] });
+        Assert.True(ScanPresets.IsValidId(list[0].Id));
+        Assert.Equal(valid, list[0].Id == id);
+    }
+
+    [Fact]
+    public void NewIdsAreValid()
+    {
+        var list = ScanPresets.BuiltIns().ToList();
+        Assert.All(list, p => Assert.True(ScanPresets.IsValidId(p.Id)));
+        Assert.True(ScanPresets.IsValidId(ScanPresets.Create(list).Id));
+        Assert.True(ScanPresets.IsValidId(ScanPresets.Duplicate(list, list[0]).Id));
+    }
+
+    [Fact]
+    public void ReservesEachNumberOnce()
+    {
+        var list = ScanPresets.BuiltIns().ToList();
+        Assert.Equal(1, ScanPresets.Reserve(list, "receipt"));
+        Assert.Equal(2, ScanPresets.Reserve(list, "receipt"));
+        Assert.Equal(3, list[2].NextNumber);
+        Assert.Equal(1, list[0].NextNumber);
+        Assert.Null(ScanPresets.Reserve(list, "gone"));
+    }
+
+    [Fact]
+    public void EditorSaveKeepsCountersThatMovedMeanwhile()
+    {
+        var current = ScanPresets.BuiltIns().Select(p => p with { NextNumber = p.Id == "receipt" ? 9 : p.NextNumber }).ToList();
+        var edited = ScanPresets.BuiltIns().Select(p => p with { Name = p.Name + "!" }).ToList(); // opened when receipt was at 1
+        var added = ScanPresets.Create(edited) with { NextNumber = 1 };
+        edited.Add(added);
+        var saved = ScanPresets.KeepCounters(edited, current);
+        Assert.Equal(9, saved[2].NextNumber);
+        Assert.Equal("Receipt!", saved[2].Name);
+        Assert.Equal(1, saved[3].NextNumber);
+    }
+
+    [Fact]
+    public void NewerFilesKeepWhatThisVersionDoesntKnow()
+    {
+        const string json = """{"Version":2,"Items":[{"Id":"receipt","Name":"Receipt","Cloud":{"x":1}}],"Sort":"name"}""";
+        var stored = JsonSerializer.Deserialize<ScanPresetSettings>(json)!;
+        Assert.True(stored.IsNewer);
+        var back = JsonSerializer.Serialize(stored);
+        Assert.Contains("\"Cloud\":{\"x\":1}", back);
+        Assert.Contains("\"Sort\":\"name\"", back);
+        Assert.Contains("\"Version\":2", back);
+        // Repaired copies keep them too.
+        Assert.NotNull(ScanPresets.Normalize(stored)[0].Unknown);
     }
 
     [Fact]
