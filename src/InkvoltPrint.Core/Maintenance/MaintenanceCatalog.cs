@@ -80,6 +80,9 @@ public sealed record MaintenanceSources
     /// <summary>HP's LEDM interface answered.</summary>
     public bool HasLedm { get; init; }
 
+    /// <summary>A newer HP printer that answered HP's CDM interface instead (read only in Inkvolt Print).</summary>
+    public bool HasCdm { get; init; }
+
     /// <summary>Job types in the printer's InternalPrintCap document; null when it has none (404, unreadable).</summary>
     public IReadOnlyList<string>? LedmJobTypes { get; init; }
 
@@ -155,6 +158,8 @@ public static class MaintenanceCatalog
         var hpActions = actions.Any(a => a.Brand is not null);
         string? note = (s.HasLedm, hpActions) switch
         {
+            (false, _) when s.HasCdm => "This newer HP printer uses HP's CDM interface, whose maintenance requests aren't publicly documented, so " +
+                                        "Inkvolt Print doesn't start them: use its control panel or its web page.",
             (true, false) => "This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it " +
                              "from its control panel or its web page.",
             (false, _) => "Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start " +

@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "makeAndModel": { "base": "HP Smart Tank 580-590", "family": "HP Smart Tank 580-590 series", "name": "HP Smart Tank 580-590 series" },
+  "manufacturer": "HP",
+  "productNumber": "1F3Y2A",
+  "serialNumber": "CN00X00000",
+  "firmwareVersion": "TJP1FN2538AR",
+  "firmwareDateCode": "20250918",
+  "deviceUuid": "7a6b5c4d-3e2f-4a1b-9c8d-0e1f2a3b4c5d"
+}

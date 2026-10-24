@@ -40,5 +40,8 @@
     <!-- The demo inkjet (not HP): IPP and eSCL documents written from the public specs -->
     <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\inkjet-demo\*" LogicalName="DemoInkjet.%(Filename)%(Extension)"
                       Link="DemoInkjet\%(Filename)%(Extension)" />
+    <!-- The demo HP color laser with CDM only (no LEDM): JSON written from public sources' captures -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\cdm-laser\*.json" LogicalName="DemoCdm.%(Filename)%(Extension)"
+                      Link="DemoCdm\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,17 @@
+{
+  "version": "1.1.0",
+  "suppliesList": [
+    { "slotIdentifier": 1, "slot": 1, "supplyType": "tonerCartridge", "supplyColorCode": "K", "colors": ["K"], "supplyState": "ok", "levelState": "ok",
+      "percentLifeDisplay": 72, "approximatePagesRemainingDisplay": 2300, "capacity": 3150, "capacityUnit": "pages",
+      "orderPartNumber": "W2120X", "productNumber": "W2120X", "isGenuineHP": "true", "brand": "HP" },
+    { "slotIdentifier": 2, "slot": 2, "supplyType": "tonerCartridge", "supplyColorCode": "C", "colors": ["C"], "supplyState": "low", "levelState": "low",
+      "percentLifeDisplay": 9, "percentLifeDisplaySymbol": "lessThan", "approximatePagesRemainingDisplay": 200, "capacity": 2200, "capacityUnit": "pages",
+      "orderPartNumber": "W2121X", "productNumber": "W2121X", "isGenuineHP": "true", "brand": "HP" },
+    { "slotIdentifier": 3, "slot": 3, "supplyType": "tonerCartridge", "supplyColorCode": "M", "colors": ["M"], "supplyState": "ok", "levelState": "ok",
+      "percentLifeDisplay": 55, "approximatePagesRemainingDisplay": 1200, "capacity": 2200, "capacityUnit": "pages",
+      "orderPartNumber": "W2123X", "productNumber": "W2123X", "isGenuineHP": "true", "brand": "HP" },
+    { "slotIdentifier": 4, "slot": 4, "supplyType": "tonerCartridge", "supplyColorCode": "Y", "colors": ["Y"], "supplyState": "ok", "levelState": "ok",
+      "percentLifeDisplay": 61, "approximatePagesRemainingDisplay": 1350, "capacity": 2200, "capacityUnit": "pages",
+      "orderPartNumber": "W2122X", "productNumber": "W2122X", "isGenuineHP": "true", "brand": "HP" }
+  ]
+}

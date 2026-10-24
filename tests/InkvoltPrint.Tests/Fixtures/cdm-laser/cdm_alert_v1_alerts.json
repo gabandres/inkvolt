@@ -1,0 +1,14 @@
+{
+  "version": "1.1.0",
+  "alerts": [
+    { "id": 41001, "category": "cartridgeLow", "sequenceNum": 1, "severity": "warning", "priority": 300, "stringId": 65001,
+      "data": [
+        { "resourcePath": "/cdm/supply/v1/suppliesPublic", "propertyPointer": "/suppliesList/1/colors", "value": { "seValue": "C" } },
+        { "propertyPointer": "/suppliesList/1/slotIdentifier", "value": { "iValue": 2 } }
+      ],
+      "links": [ { "href": "/cdm/supply/v1/alerts/41001", "rel": "self" } ] },
+    { "id": 41002, "category": "genuineHPsupply", "sequenceNum": 2, "severity": "information", "priority": 400, "stringId": 66020,
+      "data": [ { "resourcePath": "/cdm/supply/v1/suppliesPublic", "propertyPointer": "/suppliesList/0/colors", "value": { "seValue": "K" } } ],
+      "links": [ { "href": "/cdm/supply/v1/alerts/41002", "rel": "self" } ] }
+  ]
+}

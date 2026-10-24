@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using InkvoltPrint.Core.Cdm;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Ipp;
 using InkvoltPrint.Core.Ledm;
@@ -19,7 +20,10 @@ public sealed record ProbeResult(
     /// <summary>The URL IPP answered on (null when it didn't).</summary>
     public Uri? IppEndpoint { get; init; }
 
-    public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null;
+    /// <summary>HP's newer interface (CDM) answered: a newer HP printer without LEDM. Only asked when LEDM isn't there.</summary>
+    public CdmProbe? Cdm { get; init; }
+
+    public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null;
 
     public string? Uuid =>
         Product?.Uuid ?? Scanner?.Uuid ?? Ipp?.Str("printer-uuid")?.Replace("urn:uuid:", "", StringComparison.OrdinalIgnoreCase);
@@ -31,8 +35,8 @@ public sealed record ProbeResult(
     /// <summary>HP's own interfaces answered (LEDM): settings, firmware updates and usage counters work. Other printers get IPP and eSCL only.</summary>
     public bool HasHpInterfaces => Ledm is not null;
 
-    /// <summary>Who made it: HP when LEDM answers, else from the make-and-model the printer reports.</summary>
-    public PrinterBrand Brand => HasHpInterfaces ? PrinterBrand.Hp
+    /// <summary>Who made it: HP when LEDM or CDM answers, else from the make-and-model the printer reports.</summary>
+    public PrinterBrand Brand => HasHpInterfaces || Cdm is not null ? PrinterBrand.Hp
         : PrinterBrands.Detect(Ipp?.Str("printer-make-and-model"), Scanner?.MakeAndModel, Scanner?.Manufacturer);
 
     /// <summary>IPP <c>printer-location</c>, when someone set it on the printer.</summary>
@@ -68,7 +72,7 @@ public sealed record ProbeResult(
         get
         {
             if (Ledm is not null) yield return "LEDM";
-            if (Ledm?.HasCdm == true) yield return "CDM";
+            if (Ledm?.HasCdm == true || Cdm is not null) yield return "CDM";
             if (Scanner is not null) yield return "eSCL";
             if (Ipp is not null) yield return "IPP";
         }
@@ -88,6 +92,7 @@ public sealed class PrinterConnection : IDisposable
         Ledm = probe.Ledm is not null ? new LedmClient(http) : null;
         Scanner = probe.EsclRoot is not null ? new EsclClient(http, probe.EsclRoot) : null;
         Ipp = probe.Ipp is not null ? new IppClient(http, probe.IppEndpoint ?? DefaultIpp(http)) : null;
+        Cdm = probe.Cdm is { } cdm ? new CdmClient(http, cdm.Root) : null;
     }
 
     public DeviceHttp Http { get; }
@@ -95,6 +100,9 @@ public sealed class PrinterConnection : IDisposable
     public LedmClient? Ledm { get; }
     public EsclClient? Scanner { get; }
     public IppClient? Ipp { get; }
+
+    /// <summary>HP CDM, read only, for newer HP printers without LEDM: status, supplies and identity.</summary>
+    public CdmClient? Cdm { get; }
 
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
     /// <param name="transport">Replaces the network (e.g. <see cref="FixtureHandler"/> for demo mode); null: real HTTP.</param>
@@ -116,12 +124,10 @@ public sealed class PrinterConnection : IDisposable
 
     public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null)
     {
-        var ledm = Try<(DiscoveryTree?, ProductInfo?)>(async () =>
-        {
-            var c = new LedmClient(http);
-            var tree = await c.GetTreeAsync(ct).ConfigureAwait(false);
-            return tree is null ? (null, null) : (tree, await c.GetProductInfoAsync(ct).ConfigureAwait(false));
-        });
+        var ledm = ProbeLedmAsync(http, ct);
+        // CDM only when the printer answered without LEDM (or refused plain HTTP): an offline printer costs nothing more, and
+        // a printer with LEDM (all the HP printers LEDM covers) never gets a CDM request.
+        var cdm = Try(async () => (await ledm.ConfigureAwait(false)).TryCdm ? await CdmClient.ProbeAsync(http, ct).ConfigureAwait(false) : null);
         var escl = Try<(ScannerCapabilities?, Uri?)>(async () =>
         {
             foreach (var root in new[] { http.Http("/eSCL/"), esclHint }.OfType<Uri>().Distinct())
@@ -132,12 +138,31 @@ public sealed class PrinterConnection : IDisposable
             return (null, null);
         });
         var ipp = ProbeIppAsync(http, ippHint, ct);
-        await Task.WhenAll(ledm, escl, ipp).ConfigureAwait(false);
+        await Task.WhenAll(ledm, escl, ipp, cdm).ConfigureAwait(false);
 
-        var (tree, product) = ledm.Result;
+        var (tree, product, _) = ledm.Result;
         var (scanner, esclRoot) = escl.Result;
         var (attrs, endpoint) = ipp.Result;
-        return new ProbeResult(http.Host, tree, product, scanner, esclRoot, attrs) { IppEndpoint = endpoint };
+        return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs) { IppEndpoint = endpoint, Cdm = cdm.Result };
+    }
+
+    /// <summary>The DiscoveryTree and product info; <c>TryCdm</c> when the printer answered without LEDM or refused plain HTTP.</summary>
+    private static async Task<(DiscoveryTree?, ProductInfo?, bool TryCdm)> ProbeLedmAsync(DeviceHttp http, CancellationToken ct)
+    {
+        try
+        {
+            var c = new LedmClient(http);
+            var tree = await c.GetTreeAsync(ct).ConfigureAwait(false);
+            return tree is null ? (null, null, true) : (tree, await c.GetProductInfoAsync(ct).ConfigureAwait(false), false);
+        }
+        catch (HttpRequestException ex) when (Refused(ex))
+        {
+            return (null, null, true);
+        }
+        catch (Exception ex) when (IsOffline(ex) || IsTransient(ex))
+        {
+            return (null, null, ex is DeviceHttpException); // an error page is an answer; a timeout isn't
+        }
     }
 
     private static Uri DefaultIpp(DeviceHttp http) => new UriBuilder(Uri.UriSchemeHttp, http.Host, 631, "ipp/print").Uri;
@@ -207,7 +232,7 @@ public sealed class PrinterConnection : IDisposable
         && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused };
 
     /// <summary>
-    /// LEDM first, IPP as fallback. Network failures mean offline; a printer that answers with an error or
+    /// LEDM first, then CDM (newer HP printers), IPP as fallback. Network failures mean offline; a printer that answers with an error or
     /// garbage (common while it wakes up) is reported as <see cref="PrinterStatus.Unavailable"/>, not offline.
     /// </summary>
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default)
@@ -221,6 +246,15 @@ public sealed class PrinterConnection : IDisposable
             }
             catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
             catch (Exception ex) when (IsTransient(ex)) { transient = ex; }
+        }
+        if (Cdm is not null)
+        {
+            try
+            {
+                if (await Cdm.GetStatusAsync(ct).ConfigureAwait(false) is { } s) return s;
+            }
+            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
+            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
         }
         if (Ipp is not null)
         {
@@ -239,6 +273,7 @@ public sealed class PrinterConnection : IDisposable
     public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default)
     {
         if (Ledm is not null && await Ledm.GetConsumablesAsync(ct).ConfigureAwait(false) is { } c) return c;
+        if (Cdm is not null && await Cdm.GetSuppliesAsync(ct).ConfigureAwait(false) is { Count: > 0 } cdm) return cdm;
         if (Ipp is not null) return IppClient.ToConsumables(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
         return [];
     }

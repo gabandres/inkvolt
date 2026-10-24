@@ -34,10 +34,11 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
     /// <summary><c>/ipp/print</c> → <c>ipp_print.ipp.txt</c>.</summary>
     public static string IppDocumentName(string path) => path.Trim('/').Replace('/', '_') + ".ipp.txt";
 
+    /// <summary><c>/DevMgmt/ProductStatusDyn.xml</c> → <c>DevMgmt_ProductStatusDyn.xml</c>; HP CDM's JSON (<c>/cdm/...</c>) → <c>cdm_….json</c>.</summary>
     public static string DocumentName(string path)
     {
         var name = path.Trim('/').Replace('/', '_');
-        return Path.HasExtension(name) ? name : name + ".xml";
+        return Path.HasExtension(name) ? name : name + (path.StartsWith("/cdm/", StringComparison.Ordinal) ? ".json" : ".xml");
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -103,7 +104,7 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
 
         if (request.Method == HttpMethod.Get && document(DocumentName(path)) is { } bytes)
         {
-            var ok = Reply(request, HttpStatusCode.OK, bytes, "text/xml");
+            var ok = Reply(request, HttpStatusCode.OK, bytes, DocumentName(path).EndsWith(".json", StringComparison.Ordinal) ? "application/json" : "text/xml");
             if (path.EndsWith("/EventTable.xml", StringComparison.Ordinal)) ok.Headers.TryAddWithoutValidation("ETag", "1-1");
             return ok;
         }

@@ -1,0 +1,14 @@
+{
+  "version": "1.1.0",
+  "suppliesList": [
+    { "slotIdentifier": 109, "slot": 1, "supplyType": "inkCartridge", "supplyColorCode": "CMY", "colors": ["C", "M", "Y"], "supplyState": "inform",
+      "stateReasons": ["usedConsumableInfo"], "isUsed": "true", "isGenuineHP": "true", "isRefilled": "false",
+      "selectabilityNumber": "M0H50A", "orderSelectabilityNumber": "M0H50A", "brand": "HP" },
+    { "slotIdentifier": 110, "slot": 2, "supplyType": "inkCartridge", "supplyColorCode": "K", "colors": ["K"], "supplyState": "ok",
+      "isGenuineHP": "true", "selectabilityNumber": "M0H51A", "orderSelectabilityNumber": "M0H51A", "brand": "HP" },
+    { "slotIdentifier": 111, "slot": 3, "supplyType": "inkTank", "supplyColorCode": "C", "colors": ["C"], "supplyState": "ok", "percentLifeDisplay": 80, "levelState": "ok", "iconHint": "colorLetter" },
+    { "slotIdentifier": 112, "slot": 4, "supplyType": "inkTank", "supplyColorCode": "M", "colors": ["M"], "supplyState": "ok", "percentLifeDisplay": 60, "levelState": "ok", "iconHint": "colorLetter" },
+    { "slotIdentifier": 113, "slot": 5, "supplyType": "inkTank", "supplyColorCode": "Y", "colors": ["Y"], "supplyState": "low", "percentLifeDisplay": 10, "levelState": "low", "iconHint": "colorLetter" },
+    { "slotIdentifier": 114, "slot": 6, "supplyType": "inkTank", "supplyColorCode": "K", "colors": ["K"], "supplyState": "ok", "percentLifeDisplay": 100, "levelState": "ok", "iconHint": "colorLetter" }
+  ]
+}

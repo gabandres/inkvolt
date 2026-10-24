@@ -161,7 +161,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HpOnlyNote))]
     public partial bool IsNonHp { get; set; }
 
-    public string? HpOnlyNote => IsNonHp
+    /// <summary>A newer HP printer read over HP's CDM interface (no LEDM): status, supplies and details only.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HpOnlyNote))]
+    public partial bool IsCdm { get; set; }
+
+    public string? HpOnlyNote => IsCdm
+        ? "This newer HP printer uses HP's CDM interface: Inkvolt Print reads its status, supplies and details, but its settings, " +
+          "firmware updates and page counts aren't supported yet. Change settings on the printer's web page or its control panel."
+        : IsNonHp
         ? "Printer settings, firmware updates and page counts use HP's own interface, so they're HP only. " +
           "Change settings on the printer's web page or its control panel."
         : null;
@@ -507,6 +515,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IppUri = p.IppEndpoint ?? IppUri;
         Brand = p.Brand;
         IsNonHp = !p.HasHpInterfaces;
+        IsCdm = !p.HasHpInterfaces && p.Cdm is not null;
         _webPage = p.WebPage;
         Sync(About, new InfoRow?[]
         {

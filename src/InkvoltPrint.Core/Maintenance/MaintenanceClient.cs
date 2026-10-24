@@ -38,6 +38,7 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
         {
             Host = Http.Host,
             HasLedm = hasLedm,
+            HasCdm = connection.Cdm is not null,
             LedmJobTypes = jobs,
             LedmDynPath = dyn,
             AlignmentMode = alignment,

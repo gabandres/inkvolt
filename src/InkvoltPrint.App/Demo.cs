@@ -22,13 +22,19 @@ namespace InkvoltPrint.App;
 /// printers), where copies also "print". A third printer, the "Demo office laser", shows the offline fixer: it's remembered
 /// at <see cref="OfficeOldHost"/>, where nothing answers, while the made-up network (<see cref="OfflinePc"/>) finds it at
 /// <see cref="OfficeNewHost"/> and its made-up Windows queue still prints to the old address with "Use Printer Offline" on.
+/// A fourth, at <see cref="CdmHost"/>, is a newer HP color laser that answers HP's CDM only (<c>Fixtures/cdm-laser</c>, JSON
+/// written from public sources): status, toner and details without LEDM.
 /// </summary>
 internal static class Demo
 {
     private const string Uuid = "12345678-1234-4abc-8def-123456789abc"; // the fixtures' (fake) UUID
     private const string InkjetUuid = "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"; // Fixtures/inkjet-demo (made up)
     private const string OfficeUuid = "3c9a7e51-8d2b-4f60-a1e4-5b7c9d0e2f13"; // made up
-    private const string ResourcePrefix = "Demo.", InkjetPrefix = "DemoInkjet.";
+    private const string CdmUuid = "4d1e2c3b-0a9f-4e8d-b7c6-5a4b3c2d1e0f"; // Fixtures/cdm-laser (made up)
+    private const string ResourcePrefix = "Demo.", InkjetPrefix = "DemoInkjet.", CdmPrefix = "DemoCdm.";
+
+    /// <summary>The demo HP color laser that speaks CDM, not LEDM (newer HP models).</summary>
+    public const string CdmHost = "192.0.2.13";
 
     /// <summary>The demo office laser's address before the (made-up) router gave it a new one, and after.</summary>
     public const string OfficeOldHost = "192.0.2.12", OfficeNewHost = "192.0.2.23";
@@ -44,6 +50,7 @@ internal static class Demo
             new KnownPrinter(Uuid, "Demo printer", null, FixtureHandler.DemoHost, $"http://{FixtureHandler.DemoHost}/eSCL/"),
             new KnownPrinter(InkjetUuid, "Demo inkjet", null, InkjetHost, $"http://{InkjetHost}/eSCL/", $"http://{InkjetHost}:631/ipp/print"),
             new KnownPrinter(OfficeUuid, "Demo office laser", null, OfficeOldHost, $"http://{OfficeOldHost}/eSCL/"),
+            new KnownPrinter(CdmUuid, "Demo color laser (CDM)", null, CdmHost, null),
         ],
         SelectedUuid = Uuid,
     };
@@ -54,6 +61,8 @@ internal static class Demo
         [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
         // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
         [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),
+        // A newer HP model: status, supplies and identity over CDM only (no LEDM, no IPP or eSCL fixtures).
+        [CdmHost] = new FixtureHandler(name => Document(CdmPrefix + name)),
     });
 
     private static byte[]? OfficeDocument(string resource) => Document(resource) is not { } bytes ? null
