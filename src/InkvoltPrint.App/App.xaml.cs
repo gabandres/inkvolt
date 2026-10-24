@@ -26,6 +26,12 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Uninstallers: remove this copy's "Open with" and Start-with-Windows entries, then exit (no window, no single-instance hand-off).
+        if (e.Args.Contains(ShellIntegration.UnregisterArgument))
+        {
+            Shutdown(ShellIntegration.Unregister());
+            return;
+        }
         // --demo: one made-up printer, no network (Demo.cs). Like the dev aids, it runs beside a normal copy.
         // --try: the same, labelled as a demo (the "Try a demo printer" link on the no-printers screen).
         var tryDemo = e.Args.Contains("--try");

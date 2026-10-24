@@ -114,8 +114,7 @@ public static class PhotoFiles
         {
             var image = new BitmapImage();
             image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            image.CacheOption = BitmapCacheOption.OnLoad; // color profiles (Display P3, Adobe RGB) are applied: the pixels are sRGB
             if (width > 0) image.DecodePixelWidth = width;
             using var stream = File.OpenRead(photo.Path);
             image.StreamSource = stream;
@@ -136,9 +135,10 @@ public static class PhotoFiles
 
     /// <summary>
     /// The picture for a print job: decoded at the size it needs, flattened on white (transparent PNG / GIF areas print as
-    /// paper) and stored as JPEG, so the job stays a few MB a page. Runs on the spooling thread.
+    /// paper) and stored as JPEG, which the XPS writer keeps as JPEG (<see cref="PrintImages"/>), so the job
+    /// stays a few MB a page. Runs on the spooling thread.
     /// </summary>
-    public static BitmapSource ForPrint(PhotoSource photo, int width)
+    public static BitmapSource ForPrint(PhotoSource photo, int width, PrintImages images)
     {
         BitmapSource bitmap = Decode(photo, width);
         if (photo.IsJpeg) bitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr24, null, 0); // CMYK and grey JPEGs too
@@ -157,16 +157,9 @@ public static class PhotoFiles
         }
         var encoder = new JpegBitmapEncoder { QualityLevel = 92 };
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        var bytes = new MemoryStream();
+        using var bytes = new MemoryStream();
         encoder.Save(bytes);
-        bytes.Position = 0;
-        var jpeg = new BitmapImage();
-        jpeg.BeginInit();
-        jpeg.CacheOption = BitmapCacheOption.OnLoad;
-        jpeg.StreamSource = bytes;
-        jpeg.EndInit();
-        jpeg.Freeze();
-        return jpeg;
+        return images.Jpeg(bytes.ToArray());
     }
 
     // ---- Is there a WIC decoder for this container format? (IWICImagingFactory::CreateDecoder; Store codecs included) ----

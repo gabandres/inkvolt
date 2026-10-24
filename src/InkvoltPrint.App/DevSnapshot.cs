@@ -183,7 +183,8 @@ internal static class DevSnapshot
         Directory.CreateDirectory(folder);
         var (sheets, photos, sheetPaper) = vm.PrintPlan();
         var size = new Size(sheetPaper.Width * 96, sheetPaper.Height * 96);
-        var paginator = new Printing.PhotoPrinting.PhotoPaginator(sheets, photos, size);
+        using var images = new Printing.PrintImages();
+        var paginator = new Printing.PhotoPrinting.PhotoPaginator(sheets, photos, size, images);
         for (var i = 0; i < paginator.PageCount; i++)
         {
             var page = paginator.GetPage(i);
@@ -195,6 +196,11 @@ internal static class DevSnapshot
             await using var fs = File.Create(Path.Combine(folder, $"sheet-{i + 1}.png"));
             enc.Save(fs);
         }
+        // The same pages through the XPS serializer the spooler gets (job.xps: its images should stay JPEG).
+        var xpsPath = Path.Combine(folder, "job.xps");
+        File.Delete(xpsPath);
+        using var xps = new System.Windows.Xps.Packaging.XpsDocument(xpsPath, FileAccess.ReadWrite);
+        System.Windows.Xps.Packaging.XpsDocument.CreateXpsDocumentWriter(xps).Write(new Printing.PhotoPrinting.PhotoPaginator(sheets, photos, size, images));
     }
 
     /// <summary><c>--demo --tray --simulate-alerts</c> without a snapshot: the real notification, once the demo printers are read.</summary>

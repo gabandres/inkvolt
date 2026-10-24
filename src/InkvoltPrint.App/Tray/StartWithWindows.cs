@@ -13,9 +13,9 @@ namespace InkvoltPrint.App.Tray;
 /// </summary>
 public static class StartWithWindows
 {
-    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunKey = Core.Suite.ShellRegistration.RunKey; // InkvoltPrint.exe --unregister removes it too
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-    private const string ValueName = "Inkvolt Print";
+    private const string ValueName = Core.Suite.ShellRegistration.RunValue;
     public const string Argument = "--background";
 
     /// <summary>Why it can't be offered here, or null when it can.</summary>

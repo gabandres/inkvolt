@@ -134,19 +134,19 @@ public static class PhotoPrinting
         PhotoLayoutOptions layout, string jobName)
     {
         var sheets = 0;
-        await QueuePrinter.SpoolAsync(queueName, jobName, queue => Ticket(queue, settings), (queue, ticket, paperDips) =>
+        await QueuePrinter.SpoolAsync(queueName, jobName, queue => Ticket(queue, settings), (queue, ticket, paperDips, images) =>
         {
             var borderless = ticket.PageBorderless == PageBorderless.Borderless;
             var paper = SheetOf(ticket, borderless ? null : queue.GetPrintCapabilities(ticket).PageImageableArea, borderless);
             var laidOut = PhotoLayout.Sheets(photos.Select(p => p.Input).ToList(), layout, paper);
             sheets = laidOut.Count;
-            return new PhotoPaginator(laidOut, photos, paperDips);
+            return new PhotoPaginator(laidOut, photos, paperDips, images);
         });
         return sheets;
     }
 
     /// <summary>The job's pages. Each sheet's pictures are decoded when the serializer asks for it, at no more than <see cref="PrintDpi"/>.</summary>
-    internal sealed class PhotoPaginator(IReadOnlyList<PhotoSheet> sheets, IReadOnlyList<PhotoJobPhoto> photos, Size paper) : DocumentPaginator
+    internal sealed class PhotoPaginator(IReadOnlyList<PhotoSheet> sheets, IReadOnlyList<PhotoJobPhoto> photos, Size paper, PrintImages images) : DocumentPaginator
     {
         private Dictionary<(int Photo, int Width), BitmapSource?> _last = [];
 
@@ -170,7 +170,7 @@ public static class PhotoPrinting
             }
             var bitmaps = new Dictionary<(int, int), BitmapSource?>();
             foreach (var (photo, width) in widths)
-                bitmaps[(photo, width)] = _last.TryGetValue((photo, width), out var known) ? known : Load(photos[photo].Source, width);
+                bitmaps[(photo, width)] = _last.TryGetValue((photo, width), out var known) ? known : Load(photos[photo].Source, width, images);
             _last = bitmaps;
 
             var visual = new DrawingVisual();
@@ -182,9 +182,9 @@ public static class PhotoPrinting
             return new DocumentPage(visual, paper, new Rect(paper), new Rect(paper));
         }
 
-        private static BitmapSource? Load(PhotoSource source, int width)
+        private static BitmapSource? Load(PhotoSource source, int width, PrintImages images)
         {
-            try { return PhotoFiles.ForPrint(source, width); }
+            try { return PhotoFiles.ForPrint(source, width, images); }
             catch (Exception ex)
             {
                 // The file went away or changed since it was added: that print stays blank rather than failing the whole job.

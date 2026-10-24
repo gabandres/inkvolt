@@ -45,6 +45,10 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
   (sources, colors, resolutions, page sizes → `ScanRequest`; Inkvolt Print's Scan tab uses its page sizes).
 - One installer for both: `install-suite.ps1` in the Inkvolt PDF repo (`%LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf` and
   `\InkvoltPrint`, Start Menu folder "Inkvolt", App Paths; `-Uninstall` removes only what it added).
+- `InkvoltPrint.exe --unregister` (no window; exit code 0, or 1 when the registry refused) removes what the app itself writes
+  to HKCU: the "Open with" ProgIds for PDFs and pictures, their `OpenWithProgids` entries, `Applications\InkvoltPrint.exe`
+  and the Start-with-Windows `Run` value, each only when it points at that exe (another copy's entries stay;
+  `Core/Suite/ShellRegistration`, tested). It's a GUI exe, so wait for it: `Start-Process -Wait`.
 
 ## Layout
 

@@ -76,22 +76,22 @@ public static class QueuePrinter
         // From here the job belongs to the spooler: aborting a half-written XPS job leaves it stuck in the queue.
         onSpooling?.Invoke();
         progress.Report($"Sending {(pages.Count == 1 ? "the page" : $"{pages.Count} pages")} to the printer…");
-        await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, paper => new RenderedPaginator(pages, paper, options.Sizing));
+        await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, (paper, images) => new RenderedPaginator(pages, paper, options.Sizing, images));
     }
 
     /// <summary>Copies: scanned pages, each centred on its own sheet at actual size (larger pages shrink to fit).</summary>
     public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName) =>
-        SpoolAsync(queueName, copies, twoSided, jobName, paper => new RenderedPaginator(pages, paper, PageSizing.ActualSize));
+        SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, PageSizing.ActualSize, images));
 
     /// <summary>ID card copy: front on the top half of one sheet, back on the bottom half, actual size (<see cref="CopyLayout.IdCard"/>).</summary>
     public static Task PrintIdCardAsync(string queueName, RenderedPage front, RenderedPage back, int copies, string jobName) =>
-        SpoolAsync(queueName, copies, twoSided: false, jobName, paper => new IdCardPaginator(front, back, paper));
+        SpoolAsync(queueName, copies, twoSided: false, jobName, (paper, images) => new IdCardPaginator(front, back, paper, images));
 
     /// <summary>
     /// Ticket + spool on a dedicated STA thread. The paginator is made there too, once the validated ticket says
     /// which paper the queue will use.
     /// </summary>
-    private static Task SpoolAsync(string queueName, int copies, bool twoSided, string jobName, Func<Size, DocumentPaginator> paginator) =>
+    private static Task SpoolAsync(string queueName, int copies, bool twoSided, string jobName, Func<Size, PrintImages, DocumentPaginator> paginator) =>
         SpoolAsync(queueName, jobName, queue =>
         {
             var ticket = queue.DefaultPrintTicket.Clone();
@@ -100,14 +100,15 @@ public static class QueuePrinter
             ticket.Duplexing = twoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
             ticket.PageOrientation = PageOrientation.Portrait;
             return queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
-        }, (_, _, paper) => paginator(paper));
+        }, (_, _, paper, images) => paginator(paper, images));
 
     /// <summary>
     /// Spools one job on a dedicated STA thread with its own queue objects: <paramref name="makeTicket"/> returns the
-    /// validated ticket, then <paramref name="paginator"/> lays the pages out on the paper it names (DIPs).
+    /// validated ticket, then <paramref name="paginator"/> lays the pages out on the paper it names (DIPs), with its pictures
+    /// in <see cref="PrintImages"/> (removed once the job is written).
     /// </summary>
     internal static async Task SpoolAsync(string queueName, string jobName, Func<PrintQueue, PrintTicket> makeTicket,
-        Func<PrintQueue, PrintTicket, Size, DocumentPaginator> paginator)
+        Func<PrintQueue, PrintTicket, Size, PrintImages, DocumentPaginator> paginator)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -116,12 +117,13 @@ public static class QueuePrinter
             {
                 using var server = new LocalPrintServer();
                 using var queue = new PrintQueue(server, queueName);
+                using var images = new PrintImages();
                 var ticket = makeTicket(queue);
                 var paper = new Size(ticket.PageMediaSize?.Width ?? 816, ticket.PageMediaSize?.Height ?? 1056); // DIPs; Letter fallback
 
                 queue.CurrentJobSettings.Description = jobName;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-                writer.Write(paginator(queue, ticket, paper), ticket);
+                writer.Write(paginator(queue, ticket, paper, images), ticket);
                 done.SetResult();
             }
             catch (Exception ex)
@@ -136,7 +138,7 @@ public static class QueuePrinter
         await done.Task;
     }
 
-    private sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing) : DocumentPaginator
+    private sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => pages.Count;
@@ -146,7 +148,7 @@ public static class QueuePrinter
         public override DocumentPage GetPage(int pageNumber)
         {
             var src = pages[pageNumber];
-            var bitmap = Decode(src.Image);
+            var bitmap = images.Jpeg(src.Image);
 
             // Landscape page on portrait paper: rotate rather than shrink it (the copy preview places it the same way).
             var (at, rotate) = PageFit.Place(src.WidthInches * 96, src.HeightInches * 96, paper.Width, paper.Height, sizing);
@@ -169,7 +171,7 @@ public static class QueuePrinter
     }
 
     /// <summary>One sheet: the card's front on the top half, its back on the bottom half.</summary>
-    private sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper) : DocumentPaginator
+    private sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper, PrintImages images) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => 1;
@@ -183,7 +185,7 @@ public static class QueuePrinter
             var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
             foreach (var (side, at) in new[] { (front, top), (back, bottom) })
             {
-                var image = new Image { Source = Decode(side.Image), Stretch = Stretch.Fill, Width = at.Width, Height = at.Height };
+                var image = new Image { Source = images.Jpeg(side.Image), Stretch = Stretch.Fill, Width = at.Width, Height = at.Height };
                 Canvas.SetLeft(image, at.X);
                 Canvas.SetTop(image, at.Y);
                 page.Children.Add(image);
@@ -200,6 +202,7 @@ public static class QueuePrinter
         return new DocumentPage(page, paper, new Rect(paper), new Rect(paper));
     }
 
+    /// <summary>A JPEG for the screen (thumbnails, previews), optionally decoded smaller.</summary>
     public static BitmapImage Decode(byte[] image, int decodeWidth = 0)
     {
         var bitmap = new BitmapImage();
