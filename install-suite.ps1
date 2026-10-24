@@ -122,6 +122,13 @@ if ($running) { throw "$(($running.Name | Sort-Object -Unique) -join ' and ') is
 
 if ($Uninstall) {
     Undo-Registry (Read-Manifest)
+    # Inkvolt Print's own "Start with Windows" entry (it writes it itself), only when it starts this install's copy.
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    $startup = (Get-ItemProperty -LiteralPath $runKey -Name 'Inkvolt Print' -ErrorAction SilentlyContinue).'Inkvolt Print'
+    if ($startup -and $startup.IndexOf($apps.InkvoltPrint + '\', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        Remove-ItemProperty -LiteralPath $runKey -Name 'Inkvolt Print'
+        Remove-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' -Name 'Inkvolt Print' -ErrorAction SilentlyContinue
+    }
     foreach ($name in $apps.Keys) { Remove-Item -LiteralPath (Join-Path $StartMenu "$($titles[$name]).lnk") -ErrorAction SilentlyContinue }
     if ((Test-Path -LiteralPath $StartMenu) -and -not (Get-ChildItem -LiteralPath $StartMenu -Force)) { Remove-Item -LiteralPath $StartMenu }
     foreach ($dir in $apps.Values) { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
