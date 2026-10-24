@@ -158,6 +158,7 @@ public static partial class FormEditor
                     break;
                 case "/Btn" when (f.Flags & FfPushButton) == 0:
                     SetButton(f, value);
+                    dirty.Add(f);
                     break;
             }
         }
@@ -175,13 +176,7 @@ public static partial class FormEditor
         foreach (var f in js.Touched)
             if (!dirty.Contains(f)) dirty.Add(f);
 
-        foreach (var f in dirty) WriteAppearances(doc, acro, f, js);
-
-        if (dirty.Count > 0 && acro is not null)
-        {
-            acro.Elements["/NeedAppearances"] = new PdfBoolean(true);
-            EnsureDefaultFonts(doc, acro);
-        }
+        FinishAppearances(doc, acro, fields, dirty, js);
         var saved = PdfObj.Save(doc);
         runner.RunDeferred(saved);
         return new FormFillResult(saved, rejected, [.. runner.Notices, .. alerts], js.Log, runner.FocusField);
@@ -370,6 +365,91 @@ public static partial class FormEditor
     }
 
     /// <summary>
+    /// After values changed: every changed field gets appearance streams that show its value (text and choice faces drawn
+    /// from it, through its format script; check boxes and radio buttons on and off faces, made when a widget has a single
+    /// face or none). /NeedAppearances is set only when some appearance couldn't be built, since pdf.js, poppler and
+    /// others then redraw every field themselves (losing formats and list or check box looks). A form whose producer
+    /// asked for it gets all its fields' appearances built here once, so it keeps working without it.
+    /// </summary>
+    internal static void FinishAppearances(PdfDocument doc, PdfDictionary? acro, List<Field> fields, List<Field> dirty, JsFormHost? js)
+    {
+        var complete = true;
+        foreach (var f in dirty) complete &= BuildAppearance(doc, acro, f, js);
+        if (acro is null) return;
+        var producerAsked = PdfObj.Resolve(acro.Elements["/NeedAppearances"]) is PdfBoolean { Value: true };
+        if (producerAsked)
+            foreach (var f in fields)
+                if (!dirty.Contains(f)) complete &= BuildAppearance(doc, acro, f, js);
+        if (complete) acro.Elements.Remove("/NeedAppearances");
+        else acro.Elements["/NeedAppearances"] = new PdfBoolean(true);
+        if (dirty.Count > 0 || producerAsked) EnsureDefaultFonts(doc, acro);
+    }
+
+    /// <summary>Builds what a field needs to show its value by itself; false when some widget still has no appearance.</summary>
+    private static bool BuildAppearance(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js)
+    {
+        switch (f.Type)
+        {
+            case "/Tx" or "/Ch":
+                return WriteAppearances(doc, acro, f, js);
+            case "/Btn" when (f.Flags & FfPushButton) == 0:
+                EnsureStateFaces(doc, f);
+                return f.Widgets.All(HasStateFace);
+            default:
+                return f.Widgets.All(w => PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"] is not null);
+        }
+    }
+
+    /// <summary>A check box or radio widget whose normal appearance is a state dictionary holding the state it shows.</summary>
+    private static bool HasStateFace(PdfDictionary w)
+    {
+        if (PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"]) is not { Stream: null } states) return false;
+        var shown = PdfObj.Name(w.Elements["/AS"]);
+        return shown is null or "Off" || states.Elements.ContainsKey("/" + shown);
+    }
+
+    /// <summary>
+    /// Gives each check box or radio widget whose normal appearance is a single stream (or missing) on and off faces:
+    /// redrawn from its /MK (border, background, symbol) when it has one, else the single face as "on" and an empty
+    /// "off". Without that, its /AS can't switch what it shows.
+    /// </summary>
+    private static void EnsureStateFaces(PdfDocument doc, Field f)
+    {
+        var radio = (f.Flags & FfRadio) != 0;
+        for (var i = 0; i < f.Widgets.Count; i++)
+        {
+            var w = f.Widgets[i];
+            var normal = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"]);
+            if (normal is { Stream: null }) continue;
+            var state = OnStateOf(w) ?? "Yes";
+            var shown = PdfObj.Name(w.Elements["/AS"]);
+            if (PdfObj.Dict(w.Elements["/MK"]) is { } mk && (mk.Elements.ContainsKey("/BC") || mk.Elements.ContainsKey("/BG") || mk.Elements.ContainsKey("/CA")))
+            {
+                var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
+                var c = da.Color.C;
+                var mark = c.Length switch
+                {
+                    3 => new AnnotColor(c[0], c[1], c[2]),
+                    4 => new AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])),
+                    _ => new AnnotColor(c[0], c[0], c[0]),
+                };
+                FormDesign.ButtonFaces(doc, w, radio, state, mark);
+            }
+            else if (normal is not null)
+            {
+                var bbox = PdfObj.Array(normal.Elements["/BBox"]);
+                var off = PdfObj.FormXObject(doc, [], 0, 0, bbox is null ? 1 : PdfObj.Num(bbox, 2), bbox is null ? 1 : PdfObj.Num(bbox, 3), null);
+                var states = new PdfDictionary(doc);
+                states.Elements["/" + state] = normal.Reference is { } r ? r : normal;
+                states.Elements["/Off"] = off.Reference!;
+                PdfObj.Dict(w.Elements["/AP"])!.Elements["/N"] = states;
+            }
+            else continue; // no face and nothing to draw one from: NeedAppearances covers it
+            w.Elements["/AS"] = new PdfName("/" + (shown == state ? state : "Off"));
+        }
+    }
+
+    /// <summary>
     /// Generates the normal appearance of text and choice fields whose widgets lack one, or of all of them when the form
     /// asks viewers to (/NeedAppearances), e.g. before the fields are flattened into the page.
     /// </summary>
@@ -383,10 +463,14 @@ public static partial class FormEditor
                 WriteAppearances(doc, acro, f);
     }
 
-    /// <summary>Generates the normal appearance of every widget of a text or choice field from its current value.</summary>
-    internal static void WriteAppearances(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js = null)
+    /// <summary>
+    /// Generates the normal appearance of every widget of a text or choice field from its current value. False when a
+    /// widget's couldn't be built (no usable /Rect).
+    /// </summary>
+    internal static bool WriteAppearances(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js = null)
     {
-        if (f.Type is not ("/Tx" or "/Ch")) return;
+        if (f.Type is not ("/Tx" or "/Ch")) return true;
+        var complete = true;
         var raw = ValueOf(f.Dict, f.Type);
         var (exports, labels) = ReadOptions(Inherited(f.Dict, "/Opt"));
         var listBox = f.Type == "/Ch" && (f.Flags & FfCombo) == 0;
@@ -425,11 +509,16 @@ public static partial class FormEditor
                 TopIndex = topIndex,
                 ColorOverride = color is { Length: > 0 } c ? new PdfColorValue(c) : null,
             };
-            if (FieldAppearance.Build(doc, w, look) is not { } ap) continue;
+            if (FieldAppearance.Build(doc, w, look) is not { } ap)
+            {
+                complete = false;
+                continue;
+            }
             var apDict = new PdfDictionary(doc);
             apDict.Elements["/N"] = ap.Reference!;
             w.Elements["/AP"] = apDict;
         }
+        return complete;
     }
 
     /// <summary>
@@ -685,11 +774,29 @@ public static partial class FormEditor
         return null;
     }
 
+    /// <summary>
+    /// The state a check box or radio widget shows when on: a name in its normal (else down) appearance dictionary, else
+    /// its /AS. A single appearance stream is no state dictionary (its keys are /BBox, /Resources …): such a widget, or one
+    /// without any appearance, gets its position as the name when the field has an /Opt (Acrobat's "0", "1" …), else
+    /// "Yes". Null for widgets of other fields.
+    /// </summary>
     internal static string? OnStateOf(PdfDictionary widget)
     {
-        if (PdfObj.Dict(widget.Elements["/AP"]) is not { } ap) return null;
-        var normal = PdfObj.Dict(ap.Elements["/N"]) ?? PdfObj.Dict(ap.Elements["/D"]);
-        return normal?.Elements.Keys.Select(k => k.TrimStart('/')).FirstOrDefault(k => k != "Off");
+        var ap = PdfObj.Dict(widget.Elements["/AP"]);
+        foreach (var key in new[] { "/N", "/D" })
+            if (PdfObj.Dict(ap?.Elements[key]) is { Stream: null } states
+                && states.Elements.Keys.Select(k => k.TrimStart('/')).FirstOrDefault(k => k != "Off") is { } state)
+                return state;
+        if (PdfObj.Name(widget.Elements["/AS"]) is { } shown && shown != "Off") return shown;
+        var flags = PdfObj.Int(Inherited(widget, "/Ff")) ?? 0;
+        if (PdfObj.Name(Inherited(widget, "/FT")) != "Btn" || (flags & FfPushButton) != 0) return null;
+        if (PdfObj.Array(Inherited(widget, "/Opt")) is { Elements.Count: > 0 })
+        {
+            var kids = PdfObj.Array(PdfObj.Dict(widget.Elements["/Parent"])?.Elements["/Kids"]);
+            var index = kids?.Elements.Select(PdfObj.Dict).ToList().FindIndex(k => ReferenceEquals(k, widget)) ?? -1;
+            return Math.Max(0, index).ToString(PdfObj.Inv);
+        }
+        return "Yes";
     }
 
     /// <summary>Export values and display labels of a choice field's /Opt (plain strings or [export display] pairs).</summary>

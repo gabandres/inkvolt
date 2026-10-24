@@ -34,7 +34,8 @@ public class Core2FormTests
         {
             var field = Core2Pdf.Field(doc, "name")!;
             Assert.NotNull(field.Elements.GetDictionary("/AP")?.Elements.GetDictionary("/N"));
-            Assert.True(doc.Internals.Catalog.Elements.GetDictionary("/AcroForm")!.Elements.GetBoolean("/NeedAppearances"));
+            // Built: no NeedAppearances, so pdf.js and poppler show this appearance instead of drawing their own.
+            Assert.False(doc.Internals.Catalog.Elements.GetDictionary("/AcroForm")!.Elements.GetBoolean("/NeedAppearances"));
         }
         var strict = Core2Pdf.WithoutNeedAppearances(filled);
         Assert.Contains("Bob Builder", Core2Pdf.AllText(strict));

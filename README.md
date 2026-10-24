@@ -89,7 +89,8 @@ Manager. The installers don't remove an install made under the old names: uninst
   the sentence and word being read are highlighted and followed. A bar on top: pause, stop, previous/next paragraph,
   voice and speed (0.75×-2×). Stops when the document changes or its tab closes.
 - **Forms and Fill & Sign**: fill text fields, check boxes, radios and lists (Tab moves on; AF calculations and formats
-  run); type text or put check marks/crosses anywhere on a page (A, K, X); **Sign** places a handwritten signature or
+  run; values are drawn into the fields' own appearances without NeedAppearances, so pdf.js, poppler and others show
+  them formatted, as here); type text or put check marks/crosses anywhere on a page (A, K, X); **Sign** places a handwritten signature or
   initials (drawn with mouse/pen/touch, typed in a script font, or an imported image; up to 3 signatures + initials saved
   on this PC) as a stamp every viewer shows: drag to move, drag the corner to resize, Delete removes it (undoable).
 - **Prepare Form** (Edit › Forms › Prepare Form, Ctrl+Alt+F, or the command palette): add and edit form fields. A

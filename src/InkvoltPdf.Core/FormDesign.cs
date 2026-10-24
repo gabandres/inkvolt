@@ -1057,13 +1057,17 @@ public static class FormDesign
     /// A check box's or radio button's on and off faces (and pressed ones): background and border (a circle for radio
     /// buttons), and when on, the /MK /CA ZapfDingbats symbol (✔ for check boxes) or a dot for radio buttons.
     /// </summary>
-    private static void ButtonFaces(PdfDocument doc, PdfDictionary w, bool radio, string state, AnnotColor mark)
+    internal static void ButtonFaces(PdfDocument doc, PdfDictionary w, bool radio, string state, AnnotColor mark)
     {
         if (PdfObj.Array(w.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) return;
         var rw = Math.Abs(PdfObj.Num(r, 2) - PdfObj.Num(r, 0));
         var rh = Math.Abs(PdfObj.Num(r, 3) - PdfObj.Num(r, 1));
         if (rw <= 0 || rh <= 0) return;
-        var mk = PdfObj.Dict(w.Elements["/MK"])!;
+        if (PdfObj.Dict(w.Elements["/MK"]) is not { } mk)
+        {
+            mk = new PdfDictionary(doc);
+            w.Elements["/MK"] = mk;
+        }
         var rot = (((PdfObj.Int(mk.Elements["/R"]) ?? 0) % 360) + 360) % 360;
         var (wd, ht) = rot is 90 or 270 ? (rh, rw) : (rw, rh);
         var bg = PdfColorValue.From(PdfObj.Array(mk.Elements["/BG"]));
@@ -1097,8 +1101,25 @@ public static class FormDesign
         {
             var color = $"{Rgb(mark)} rg";
             var inner = Math.Min(wd, ht) - 2 * bw;
-            if (radio && glyph == 'l')
-                return $"q {color} {Circle(wd / 2, ht / 2, Math.Max(0.5, inner * 0.27))} f Q\n";
+            // The usual symbols are drawn as paths: some renderers have no ZapfDingbats (poppler without the base-14
+            // fonts draws nothing for it), a path shows everywhere.
+            var cx = wd / 2;
+            var cy = ht / 2;
+            var h = Math.Max(0.5, inner * 0.36); // half the symbol's size
+            string P(double x, double y) => $"{PdfObj.F(cx + x * h)} {PdfObj.F(cy + y * h)}";
+            switch (glyph)
+            {
+                case 'l':
+                    return $"q {color} {Circle(cx, cy, Math.Max(0.5, inner * (radio ? 0.27 : 0.3)))} f Q\n";
+                case '4': // check mark
+                    return $"q {Rgb(mark)} RG {PdfObj.F(Math.Max(0.6, inner * 0.13))} w 1 J 1 j {P(-0.8, 0)} m {P(-0.25, -0.65)} l {P(0.85, 0.75)} l S Q\n";
+                case '8': // cross
+                    return $"q {Rgb(mark)} RG {PdfObj.F(Math.Max(0.6, inner * 0.12))} w 1 J {P(-0.7, -0.7)} m {P(0.7, 0.7)} l {P(-0.7, 0.7)} m {P(0.7, -0.7)} l S Q\n";
+                case 'n': // square
+                    return $"q {color} {P(-0.65, -0.65)} {PdfObj.F(1.3 * h)} {PdfObj.F(1.3 * h)} re f Q\n";
+                case 'u': // diamond
+                    return $"q {color} {P(0, -0.85)} m {P(0.85, 0)} l {P(0, 0.85)} l {P(-0.85, 0)} l h f Q\n";
+            }
             var size = Math.Max(1, inner * 0.8);
             var advance = ZapfWidth(glyph) * size;
             var x = (wd - advance) / 2;
@@ -1127,7 +1148,7 @@ public static class FormDesign
             return PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(content), 0, 0, wd, ht, res, Matrix());
         }
 
-        var usesFont = !(radio && glyph == 'l');
+        var usesFont = glyph is not ('l' or '4' or '8' or 'n' or 'u');
         PdfDictionary States(bool down)
         {
             var d = new PdfDictionary(doc);

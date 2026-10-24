@@ -784,16 +784,8 @@ public static partial class FormEditor
                 var dirty = Calculate(_doc, _acro, _fields, Js, _alerts);
                 foreach (var f in Js.Touched)
                     if (!dirty.Contains(f)) dirty.Add(f);
-                foreach (var f in dirty) WriteAppearances(_doc, _acro, f, Js);
-                if (_acro is not null)
-                {
-                    _acro.Elements.Remove("/XFA"); // the AcroForm is now the truth
-                    if (dirty.Count > 0)
-                    {
-                        _acro.Elements["/NeedAppearances"] = new PdfBoolean(true);
-                        EnsureDefaultFonts(_doc, _acro);
-                    }
-                }
+                _acro?.Elements.Remove("/XFA"); // the AcroForm is now the truth
+                FinishAppearances(_doc, _acro, _fields, dirty, Js);
                 saved = PdfObj.Save(_doc);
             }
             RunDeferred(saved ?? _source);
