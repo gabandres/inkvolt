@@ -91,18 +91,47 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
                 _ => await PostLedmAsync(action, action.Target!, MaintenanceRequests.InternalPrint(action.JobType!), ct).ConfigureAwait(false),
             };
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException && !Http.CertificateChanged)
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException)
         {
+            if (NeverSent(ex) is { } why) return new MaintenanceResult(false, why);
             // Sent, then no answer: the printer may well be doing it. Saying so keeps a cleaning from being sent twice.
             return new MaintenanceResult(false, "The printer didn't answer, so the request may have started anyway. Check the printer before trying again.");
         }
     }
 
+    /// <summary>
+    /// Why this request's own failure proves nothing reached the printer, or null when it may have. Writes go on a new
+    /// connection each (<see cref="DeviceHttp.SendOnceAsync"/>), so a failed TLS handshake (the printer's certificate no
+    /// longer matches its pin, say) or a refused connection happened before a byte of the request was sent. Decided from
+    /// the exception alone: <see cref="DeviceHttp.CertificateChanged"/> is sticky and shared by every port.
+    /// </summary>
+    internal static string? NeverSent(Exception ex)
+    {
+        for (var e = ex.InnerException; e is not null; e = e.InnerException)
+        {
+            if (e is System.Security.Authentication.AuthenticationException)
+                return "Not sent: the secure connection to the printer failed. If its security certificate changed (after a reset or " +
+                       "an update), check it under Printer settings; otherwise another device may be answering at its address.";
+            if (e is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+                return "Not sent: the printer refused the connection. Check that it's on, then try again.";
+        }
+        return null;
+    }
+
     private async Task<MaintenanceResult> AlignAsync(MaintenanceAction action, CancellationToken ct)
     {
-        if (connection.Ledm is { } ledm && await Try(() => ledm.GetPathAsync(MaintenanceRequests.CalibrationStatePath, ct)).ConfigureAwait(false) is { } state
-            && MaintenanceRequests.CalibrationRunning(state))
-            return new MaintenanceResult(false, "An alignment is already under way on the printer. Finish it there first.");
+        if (connection.Ledm is { } ledm && await Try(() => ledm.GetPathAsync(MaintenanceRequests.CalibrationStatePath, ct)).ConfigureAwait(false) is { } state)
+        {
+            switch (MaintenanceRequests.ReadCalibration(state))
+            {
+                case CalibrationStatus.Running:
+                    return new MaintenanceResult(false, "An alignment is already under way on the printer. Finish it there first.");
+                case CalibrationStatus.AwaitingParameters:
+                    // HPLIP base/maint.py: "ParmsRequested" → "Restart device and start alignment".
+                    return new MaintenanceResult(false, "An earlier alignment is still waiting to be finished on the printer. Finish it on the " +
+                                                        "printer's control panel, or turn the printer off and on again, then try again.");
+            }
+        }
         return await PostLedmAsync(action, action.Target!, MaintenanceRequests.StartAlignment(), ct).ConfigureAwait(false);
     }
 
@@ -118,7 +147,7 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
         req.Headers.TryAddWithoutValidation("Origin", origin);
         req.Headers.TryAddWithoutValidation("Referer", origin + "/");
         req.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-        using var resp = await Http.SendAsync(req, PostTimeout, ct).ConfigureAwait(false);
+        using var resp = await Http.SendOnceAsync(req, PostTimeout, ct).ConfigureAwait(false);
         return resp.StatusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => throw new LedmAuthRequiredException(Http.HasCredentials),

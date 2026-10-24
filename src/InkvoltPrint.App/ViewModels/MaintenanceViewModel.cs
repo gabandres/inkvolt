@@ -89,6 +89,15 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
     {
         if (_client is not { } client || _http is not { } http || item.Reason is not null) return;
         if (!Prompt.Ask(item.Action.ConfirmText, item.Action.ConfirmButton)) return;
+        // The question may have stayed open a while: the printer can have gone offline, jammed or started printing since.
+        Refresh();
+        if (item.Reason is { } changed)
+        {
+            Message = $"Not sent: {changed}";
+            MessageIsError = true;
+            Prompt.Announce(Message);
+            return;
+        }
         IsBusy = true;
         Message = $"Sending to the printer: {item.Action.Label}…";
         MessageIsError = false;
@@ -108,16 +117,11 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
             Message = ex.Message;
             MessageIsError = true;
         }
-        catch (HttpRequestException)
-        {
-            // Only a changed certificate gets here (MaintenanceClient reports other network failures itself).
-            Message = "Not sent: the printer's security certificate changed since Inkvolt Print first connected. Check it under Printer settings.";
-            MessageIsError = true;
-        }
         catch (Exception ex)
         {
             Log.Write($"[{printerName}] maintenance {item.Action.Id} failed: {ex}");
-            Message = $"The printer did not take it: {ex.Message}";
+            // Unknown failure: it may have happened after the request left, so don't invite a second one.
+            Message = $"Something went wrong ({ex.Message}); the request may have reached the printer. Check it before trying again.";
             MessageIsError = true;
         }
         finally

@@ -47,6 +47,29 @@ public class CertificatePinTests
     }
 
     [Fact]
+    public async Task One_use_writes_keep_the_pin_and_a_changed_certificate_fails_before_sending()
+    {
+        using var web = new TlsServer(SelfSigned());
+        var pins = new MemoryPins();
+        using var http = new DeviceHttp("127.0.0.1", pin: pins);
+
+        using (var first = new HttpRequestMessage(HttpMethod.Get, web.Url))
+            Assert.Equal(HttpStatusCode.OK, (await http.SendOnceAsync(first)).StatusCode);
+        Assert.Equal(web.Thumbprint, pins.Get(web.Port));
+
+        using var changed = new TlsServer(SelfSigned());
+        pins.SetIfAbsent(changed.Port, "00");
+        using var refused = new HttpRequestMessage(HttpMethod.Get, changed.Url);
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(refused));
+        Assert.Contains(Inner(ex), e => e is System.Security.Authentication.AuthenticationException); // MaintenanceClient: "Not sent"
+    }
+
+    private static IEnumerable<Exception> Inner(Exception ex)
+    {
+        for (var e = ex.InnerException; e is not null; e = e.InnerException) yield return e;
+    }
+
+    [Fact]
     public void Pins_stored_before_ports_were_told_apart_stay_the_web_servers()
     {
         const string id = "12345678-1234-4abc-8def-123456789abc";

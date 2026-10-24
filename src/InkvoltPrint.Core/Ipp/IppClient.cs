@@ -39,18 +39,20 @@ public sealed class IppClient
 
     /// <summary>
     /// PWG 5100.13 Identify-Printer: the printer flashes, beeps or shows a message so it can be found. Sent once, never
-    /// retried; the caller reads the IPP status (a printer may want a signed-in user for it, §4.1).
+    /// retried (on a connection of its own: <see cref="DeviceHttp.SendOnceAsync"/>); the caller reads the IPP status (a
+    /// printer may want a signed-in user for it, §4.1).
     /// </summary>
     public Task<IppResponse> IdentifyPrinterAsync(IReadOnlyList<string> actions, string? userName, CancellationToken ct = default) =>
-        PostAsync(IppCodec.EncodeIdentifyPrinter(PrinterUri, userName, actions), TimeSpan.FromSeconds(10), ct);
+        PostAsync(IppCodec.EncodeIdentifyPrinter(PrinterUri, userName, actions), TimeSpan.FromSeconds(10), ct, once: true);
 
-    private async Task<IppResponse> PostAsync(byte[] body, TimeSpan timeout, CancellationToken ct)
+    private async Task<IppResponse> PostAsync(byte[] body, TimeSpan timeout, CancellationToken ct, bool once = false)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
         {
             Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
         };
-        using var resp = await _http.SendAsync(req, timeout, ct).ConfigureAwait(false);
+        using var resp = once ? await _http.SendOnceAsync(req, timeout, ct).ConfigureAwait(false)
+            : await _http.SendAsync(req, timeout, ct).ConfigureAwait(false);
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
         return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
     }

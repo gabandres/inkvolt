@@ -71,7 +71,11 @@ public sealed class DeviceHttp : IDisposable
     public Uri Https(string path) => new(HttpsBase, path);
 
     public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TimeSpan? timeout = null,
-        CancellationToken ct = default, HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
+        CancellationToken ct = default, HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead) =>
+        await SendAsync(ClientFor(request.RequestUri), request, timeout, ct, completion).ConfigureAwait(false);
+
+    private async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpRequestMessage request, TimeSpan? timeout,
+        CancellationToken ct, HttpCompletionOption completion)
     {
         // The admin password belongs to the web server (HTTPS on 443), never to another TLS port such as IPPS on 631.
         if (_basicAuth is not null && request.RequestUri is { Scheme: "https" } target && target.Port == HttpsBase.Port)
@@ -80,12 +84,50 @@ public sealed class DeviceHttp : IDisposable
         cts.CancelAfter(timeout ?? DefaultTimeout);
         try
         {
-            return await ClientFor(request.RequestUri).SendAsync(request, completion, cts.Token).ConfigureAwait(false);
+            return await client.SendAsync(request, completion, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new TimeoutException($"{request.Method} {request.RequestUri} timed out");
         }
+    }
+
+    /// <summary>
+    /// A request that changes something on the printer and must never arrive twice (a maintenance POST: a second cleaning
+    /// uses ink twice). .NET's connection pool resends a request on its own when a connection closes before any answer
+    /// (seen on loopback for bodiless requests, also on fresh connections, up to three more times). So this one gets a
+    /// handler of its own that never pools (<c>Connection: close</c>, no connection lifetime) and opens exactly one
+    /// connection: a second connect, which only a resend would need, fails before anything is written. Same certificate
+    /// checks and credentials rule as <see cref="SendAsync"/>; the response is read in full before the handler goes away.
+    /// A replaced transport (demo, tests) gets the request as is, marked <c>Connection: close</c>.
+    /// </summary>
+    public async Task<HttpResponseMessage> SendOnceAsync(HttpRequestMessage request, TimeSpan? timeout = null, CancellationToken ct = default)
+    {
+        request.Headers.ConnectionClose = true;
+        if (_ownTransport) return await SendAsync(request, timeout, ct).ConfigureAwait(false);
+        var port = request.RequestUri?.Port ?? HttpsBase.Port;
+        var handler = CreateHandler(Host, (c, e) => ValidateCertificate(c, e, port));
+        handler.PooledConnectionLifetime = TimeSpan.Zero;
+        handler.MaxConnectionsPerServer = 1;
+        var connects = 0;
+        handler.ConnectCallback = async (context, token) =>
+        {
+            if (Interlocked.Increment(ref connects) > 1)
+                throw new InvalidOperationException("Not sent again: a request that changes the printer goes out once.");
+            var socket = new System.Net.Sockets.Socket(System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
+                return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        };
+        using var once = NewClient(handler);
+        return await SendAsync(once, request, timeout, ct, HttpCompletionOption.ResponseContentRead).ConfigureAwait(false);
     }
 
     public async Task<HttpResponseMessage> GetAsync(Uri uri, TimeSpan? timeout = null, CancellationToken ct = default)

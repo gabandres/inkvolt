@@ -71,10 +71,19 @@ public static class MaintenanceRequests
     }
 
     /// <summary>
-    /// The calibration state says an alignment is under way (printing or waiting for its page to be scanned). HPLIP checks
-    /// for "Printing"; hp-printer-maintenance names "Scanning" for the scanner-based step.
+    /// What the calibration state says about starting an alignment. HPLIP base/maint.py refuses on "Printing" (one is under
+    /// way) and on "ParmsRequested" (an earlier session still waits for its parameters: restart the printer);
+    /// hp-printer-maintenance names "Scanning" for the scanner-based step.
     /// </summary>
-    public static bool CalibrationRunning(XDocument state) =>
-        state.Descendants().Prepend(state.Root!).Any(e => !e.HasElements && e.Name.LocalName is "CalibrationState" or "State"
-                                                          && e.Value.Trim() is "Printing" or "Scanning");
+    public static CalibrationStatus ReadCalibration(XDocument state)
+    {
+        var leaves = state.Descendants().Prepend(state.Root!).ToList();
+        if (leaves.Any(e => e.Name.LocalName == "ParmsRequested" || (!e.HasElements && e.Value.Trim() == "ParmsRequested")))
+            return CalibrationStatus.AwaitingParameters;
+        return leaves.Any(e => !e.HasElements && e.Name.LocalName is "CalibrationState" or "State" && e.Value.Trim() is "Printing" or "Scanning")
+            ? CalibrationStatus.Running : CalibrationStatus.Idle;
+    }
 }
+
+/// <summary>What <c>/Calibration/State</c> says about starting an alignment now.</summary>
+public enum CalibrationStatus { Idle, Running, AwaitingParameters }

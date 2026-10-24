@@ -117,12 +117,14 @@ public class MaintenanceTests
     }
 
     [Theory]
-    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">Printing</cal:CalibrationState>", true)]
-    [InlineData("<State><CalibrationState>Scanning</CalibrationState></State>", true)]
-    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">CalibrationValid</cal:CalibrationState>", false)]
-    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">CalibrationRequired</cal:CalibrationState>", false)]
-    public void A_running_alignment_is_recognised(string xml, bool running) =>
-        Assert.Equal(running, MaintenanceRequests.CalibrationRunning(XDocument.Parse(xml)));
+    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">Printing</cal:CalibrationState>", CalibrationStatus.Running)]
+    [InlineData("<State><CalibrationState>Scanning</CalibrationState></State>", CalibrationStatus.Running)]
+    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">ParmsRequested</cal:CalibrationState>", CalibrationStatus.AwaitingParameters)]
+    [InlineData("<State><ParmsRequested/></State>", CalibrationStatus.AwaitingParameters)]
+    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">CalibrationValid</cal:CalibrationState>", CalibrationStatus.Idle)]
+    [InlineData("<cal:CalibrationState xmlns:cal=\"urn:cal\">CalibrationRequired</cal:CalibrationState>", CalibrationStatus.Idle)]
+    public void The_calibration_state_says_whether_an_alignment_can_start(string xml, CalibrationStatus expected) =>
+        Assert.Equal(expected, MaintenanceRequests.ReadCalibration(XDocument.Parse(xml)));
 
     // ------------------------------------------------------------------ the catalog: only what the printer advertises
 
@@ -445,6 +447,198 @@ public class MaintenanceTests
         Assert.False(result.Ok);
         Assert.Contains("already", result.Message);
         Assert.Empty(LedmPosts(printer));
+    }
+
+    [Fact]
+    public async Task A_pending_alignment_session_is_not_started_over()
+    {
+        var printer = HpInkjet(calibrationState: "<cal:CalibrationState xmlns:cal=\"urn:cal\">ParmsRequested</cal:CalibrationState>");
+        using var conn = await PrinterConnection.OpenAsync(Host, transport: printer);
+        var client = new MaintenanceClient(conn);
+        var align = (await client.DetectAsync()).Actions.Single(a => a.Kind == MaintenanceKind.Alignment);
+
+        var result = await client.RunAsync(align);
+
+        Assert.False(result.Ok);
+        Assert.Contains("turn the printer off and on", result.Message);
+        Assert.Empty(LedmPosts(printer));
+    }
+
+    [Fact]
+    public async Task Maintenance_writes_ask_for_a_connection_of_their_own()
+    {
+        var printer = HpInkjet();
+        using var conn = await PrinterConnection.OpenAsync(Host, transport: printer);
+        var client = new MaintenanceClient(conn);
+        await client.RunAsync((await client.DetectAsync()).Actions.First(a => a.Kind == MaintenanceKind.Cleaning));
+        Assert.True(Assert.Single(LedmPosts(printer)).Request.Headers.ConnectionClose);
+
+        var recorder = new Recorder(_ => null, InkjetPrinter());
+        using var inkjet = await PrinterConnection.OpenAsync(InkjetHost, transport: recorder);
+        var identifying = new MaintenanceClient(inkjet);
+        await identifying.RunAsync((await identifying.DetectAsync()).Actions.Single());
+        Assert.True(Assert.Single(LedmPosts(recorder)).Request.Headers.ConnectionClose);
+    }
+
+    [Theory]
+    [InlineData("tls", "Not sent")]
+    [InlineData("refused", "Not sent")]
+    [InlineData("reset", "may have started")]
+    public async Task Whether_a_failed_request_was_sent_comes_from_its_own_error(string failure, string says)
+    {
+        Exception error = failure switch
+        {
+            "tls" => new HttpRequestException("The SSL connection could not be established",
+                new System.Security.Authentication.AuthenticationException("remote certificate rejected")),
+            "refused" => new HttpRequestException(HttpRequestError.ConnectionError, "refused",
+                new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused)),
+            _ => new HttpRequestException(HttpRequestError.ResponseEnded, "connection reset", new IOException("reset")),
+        };
+        var printer = HpInkjet(post: _ => throw error);
+        using var conn = await PrinterConnection.OpenAsync(Host, transport: printer);
+        var client = new MaintenanceClient(conn);
+        var clean = (await client.DetectAsync()).Actions.First(a => a.Kind == MaintenanceKind.Cleaning);
+
+        var result = await client.RunAsync(clean);
+
+        Assert.False(result.Ok);
+        Assert.Contains(says, result.Message);
+    }
+
+    [Fact]
+    public async Task A_changed_certificate_on_another_port_doesnt_make_a_lost_answer_look_unsent()
+    {
+        var printer = HpInkjet(post: _ => throw new HttpRequestException(HttpRequestError.ResponseEnded, "connection reset"));
+        var pins = new Pins();
+        pins.SetIfAbsent(631, "00"); // IPPS pinned to another certificate earlier
+        using var conn = await PrinterConnection.OpenAsync(Host, transport: printer, pin: pins);
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        using var cert = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=printer", rsa,
+                System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        Assert.False(conn.Http.ValidateCertificate(cert, System.Net.Security.SslPolicyErrors.None, 631));
+        Assert.True(conn.Http.CertificateChanged); // sticky, and set by port 631
+
+        var client = new MaintenanceClient(conn);
+        var result = await client.RunAsync((await client.DetectAsync()).Actions.First(a => a.Kind == MaintenanceKind.Cleaning));
+
+        Assert.Contains("may have started", result.Message); // the cleaning POST on 443 may have arrived: never invite a second one
+    }
+
+    private sealed class Pins : ICertificatePin
+    {
+        private readonly Dictionary<int, string> _pins = [];
+        public string? Get(int port) => _pins.GetValueOrDefault(port);
+        public string SetIfAbsent(int port, string sha256Hex) => _pins.TryAdd(port, sha256Hex) ? sha256Hex : _pins[port];
+    }
+
+    /// <summary>
+    /// A real HTTP server on this PC's loopback address: answers GETs with keep-alive, and drops the connection without a
+    /// word when a POST or a GET of <c>/drop</c> arrives (a printer resetting mid-request). Counts the requests it dropped.
+    /// </summary>
+    private sealed class DroppingServer : IDisposable
+    {
+        private readonly System.Net.Sockets.TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly CancellationTokenSource _stop = new();
+        private int _dropped;
+
+        public DroppingServer()
+        {
+            _listener.Start();
+            _ = AcceptAsync();
+        }
+
+        public int Dropped => Volatile.Read(ref _dropped);
+        public Uri Url(string path) => new($"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}{path}");
+
+        private async Task AcceptAsync()
+        {
+            try
+            {
+                while (!_stop.IsCancellationRequested) _ = ServeAsync(await _listener.AcceptTcpClientAsync(_stop.Token));
+            }
+            catch (Exception) { } // stopped
+        }
+
+        private async Task ServeAsync(System.Net.Sockets.TcpClient client)
+        {
+            using (client)
+            {
+                var stream = client.GetStream();
+                try
+                {
+                    while (await ReadRequestAsync(stream) is { } requestLine)
+                    {
+                        if (requestLine.StartsWith("POST", StringComparison.Ordinal) || requestLine.StartsWith("GET /drop", StringComparison.Ordinal))
+                        {
+                            Interlocked.Increment(ref _dropped);
+                            client.Client.Close(); // no response at all
+                            return;
+                        }
+                        await stream.WriteAsync("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok"u8.ToArray(), _stop.Token);
+                    }
+                }
+                catch (Exception) { } // client gone
+            }
+        }
+
+        /// <summary>One request (headers, then Content-Length bytes); its request line, or null at the end of the stream.</summary>
+        private async Task<string?> ReadRequestAsync(Stream stream)
+        {
+            var head = new List<byte>();
+            var one = new byte[1];
+            while (head.Count < 4 || head[^4] != '\r' || head[^3] != '\n' || head[^2] != '\r' || head[^1] != '\n')
+            {
+                if (await stream.ReadAsync(one, _stop.Token) == 0) return null;
+                head.Add(one[0]);
+            }
+            var lines = Encoding.ASCII.GetString(head.ToArray()).Split("\r\n");
+            var length = lines.Where(l => l.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)).Select(l => int.Parse(l[15..].Trim())).FirstOrDefault();
+            if (length > 0) await stream.ReadExactlyAsync(new byte[length], _stop.Token);
+            return lines[0];
+        }
+
+        public void Dispose()
+        {
+            _stop.Cancel();
+            _listener.Stop();
+        }
+    }
+
+    private static HttpRequestMessage Post(Uri url) => new(HttpMethod.Post, url) { Content = new StringContent("<x/>", Encoding.UTF8, "text/xml") };
+
+    [Fact]
+    public async Task A_dropped_connection_never_makes_a_maintenance_write_arrive_twice()
+    {
+        using var server = new DroppingServer();
+        using var http = new DeviceHttp("127.0.0.1");
+        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"))).Dispose(); // a kept-alive connection in the pool
+
+        using var post = Post(server.Url("/DevMgmt/InternalPrintDyn.xml"));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(post, TimeSpan.FromSeconds(5)));
+        await Task.Delay(200); // a resend, if any, would have arrived by now
+
+        Assert.Equal(1, server.Dropped);
+    }
+
+    [Fact]
+    public async Task The_one_use_connection_also_stops_the_resend_dotnet_does_on_a_reused_connection()
+    {
+        // .NET resends a request whose reused keep-alive connection closes before any answer, as long as it hasn't started
+        // sending a body (so today's POSTs are spared): shown here with a GET. SendOnceAsync never reuses a connection,
+        // so nothing it sends is ever resent, whatever .NET's rules become.
+        using var server = new DroppingServer();
+        using var http = new DeviceHttp("127.0.0.1");
+        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"))).Dispose();
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetAsync(server.Url("/drop"), TimeSpan.FromSeconds(5)));
+        var pooled = server.Dropped;
+        Assert.True(pooled >= 2, $"sent {pooled} times"); // pooled: sent again
+
+        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"))).Dispose();
+        using var once = new HttpRequestMessage(HttpMethod.Get, server.Url("/drop"));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(once, TimeSpan.FromSeconds(5)));
+        await Task.Delay(200);
+        Assert.Equal(pooled + 1, server.Dropped); // one use: sent once
     }
 
     [Theory]
