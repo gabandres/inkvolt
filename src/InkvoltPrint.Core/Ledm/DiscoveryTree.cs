@@ -72,23 +72,32 @@ public static class LedmResource
 /// </summary>
 public static class LedmManifest
 {
+    /// <summary>Type → path; a type listed more than once (one per update class, say) keeps its first path: see <see cref="Entries"/>.</summary>
     public static IReadOnlyDictionary<string, string> Parse(XDocument doc)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (type, path) in Entries(doc)) map.TryAdd(type, path);
+        return map;
+    }
+
+    /// <summary>Every resource in document order, repeated types included.</summary>
+    public static IReadOnlyList<(string Type, string Path)> Entries(XDocument doc)
+    {
+        var map = new List<(string, string)>();
         if (doc.Root?.Kid("ResourceMap") is not { } root) return map;
         var basePath = root.Kid("ResourceLink")?.KidValue("ResourceURI") ?? "";
         Walk(root, basePath, map);
         return map;
     }
 
-    private static void Walk(XElement resourceMap, string basePath, Dictionary<string, string> map)
+    private static void Walk(XElement resourceMap, string basePath, List<(string, string)> map)
     {
         foreach (var node in resourceMap.Kids("ResourceNode"))
         {
             if (node.Kid("ResourceLink")?.KidValue("ResourceURI") is not { } link) continue;
             var path = basePath.TrimEnd('/') + "/" + link.TrimStart('/');
             // The type is the text of whichever element sits in ResourceType (its name varies per interface).
-            if (node.Kid("ResourceType")?.Elements().FirstOrDefault()?.Value.Trim() is { Length: > 0 } type) map.TryAdd(type, path);
+            if (node.Kid("ResourceType")?.Elements().FirstOrDefault()?.Value.Trim() is { Length: > 0 } type) map.Add((type, path));
             if (node.Kid("ResourceMap") is { } nested) Walk(nested, path, map);
         }
     }

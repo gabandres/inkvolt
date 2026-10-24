@@ -41,7 +41,7 @@ public class FirmwareTests
         Assert.Equal(FirmwareUpdateMode.Off, s.Mode);
         Assert.Equal([FirmwareUpdateMode.Automatic, FirmwareUpdateMode.Notify, FirmwareUpdateMode.Off], s.Choices);
         Assert.True(s.CanChange);
-        Assert.True(s.HasCheck);
+        Assert.True(s.CheckWritable);
         Assert.Equal("idle", s.Status);
         Assert.Null(s.StatusMessage);
     }
@@ -105,6 +105,43 @@ public class FirmwareTests
         Assert.Equal(check, body.Root.Element(Fwu + "AutomaticCheck")!.Value);
         Assert.Equal(update, body.Root.Element(Fwu + "AutomaticUpdate")!.Value);
         Assert.Equal("fwudyn", body.Root.GetPrefixOfNamespace(Fwu));
+    }
+
+    [Fact]
+    public void BuildPut_leaves_out_a_read_only_check_switch()
+    {
+        var cap = Fixture.Xml("FirmwareUpdate_FirmwareUpdateCap.xml");
+        cap.Descendants().Single(e => e.Name.LocalName == "AutomaticCheckSupport").SetAttributeValue("access", "readOnly");
+
+        var s = FirmwareUpdateSettings.Parse(Fixture.Xml("FirmwareUpdate_FirmwareUpdateDyn.xml"), cap, "/c")!;
+
+        Assert.False(s.CheckWritable);
+        Assert.Equal([FirmwareUpdateMode.Automatic, FirmwareUpdateMode.Off], s.Choices);
+        Assert.Equal(["AutomaticUpdate"], s.BuildPut(FirmwareUpdateMode.Automatic).Root!.Elements().Select(e => e.Name.LocalName));
+    }
+
+    [Fact]
+    public void Config_path_is_the_web_update_classes_one()
+    {
+        // Another update class's Config listed first must not win (Parse keeps the first of each type).
+        var doc = XDocument.Parse("""
+            <man:Manifest xmlns:man="urn:man" xmlns:map="urn:map" xmlns:dd="urn:dd" xmlns:f="urn:f"><map:ResourceMap>
+              <map:ResourceLink><dd:ResourceURI>/FirmwareUpdate</dd:ResourceURI></map:ResourceLink>
+              <map:ResourceNode><map:ResourceLink><dd:ResourceURI>/USBFWUpdate</dd:ResourceURI></map:ResourceLink>
+                <map:ResourceType><f:T>FirmwareUpdate</f:T></map:ResourceType>
+                <map:ResourceMap><map:ResourceNode><map:ResourceLink><dd:ResourceURI>/Config</dd:ResourceURI></map:ResourceLink>
+                  <map:ResourceType><f:T>FirmwareUpdateConfig</f:T></map:ResourceType></map:ResourceNode></map:ResourceMap></map:ResourceNode>
+              <map:ResourceNode><map:ResourceLink><dd:ResourceURI>/WebFWUpdate</dd:ResourceURI></map:ResourceLink>
+                <map:ResourceType><f:T>FirmwareUpdate</f:T></map:ResourceType>
+                <map:ResourceMap><map:ResourceNode><map:ResourceLink><dd:ResourceURI>/Config</dd:ResourceURI></map:ResourceLink>
+                  <map:ResourceType><f:T>FirmwareUpdateConfig</f:T></map:ResourceType></map:ResourceNode></map:ResourceMap></map:ResourceNode>
+            </map:ResourceMap></man:Manifest>
+            """);
+
+        Assert.Equal("/FirmwareUpdate/USBFWUpdate/Config", LedmManifest.Parse(doc)["FirmwareUpdateConfig"]);
+        Assert.Equal("/FirmwareUpdate/WebFWUpdate/Config", FirmwareUpdateSettings.ConfigPathIn(LedmManifest.Entries(doc)));
+        Assert.Equal("/x/Config", FirmwareUpdateSettings.ConfigPathIn([("FirmwareUpdateConfig", "/x/Config")])); // no web class: the only one
+        Assert.Null(FirmwareUpdateSettings.ConfigPathIn([]));
     }
 
     [Theory]

@@ -135,11 +135,12 @@ public sealed class LedmClient(DeviceHttp http)
         var tree = await GetTreeAsync(ct).ConfigureAwait(false);
         if (tree?.ManifestFor(LedmResource.FirmwareUpdateManifest) is not { } manifestPath
             || await GetPathAsync(manifestPath, ct).ConfigureAwait(false) is not { } manifest) return null;
+        var entries = LedmManifest.Entries(manifest);
         var map = LedmManifest.Parse(manifest);
         if (!map.TryGetValue("FirmwareUpdateDyn", out var dynPath) || await GetPathAsync(dynPath, ct).ConfigureAwait(false) is not { } dyn)
             return null;
         var cap = map.TryGetValue("FirmwareUpdateCap", out var capPath) ? await GetPathAsync(capPath, ct).ConfigureAwait(false) : null;
-        return FirmwareUpdateSettings.Parse(dyn, cap, map.GetValueOrDefault("FirmwareUpdateConfig"));
+        return FirmwareUpdateSettings.Parse(dyn, cap, FirmwareUpdateSettings.ConfigPathIn(entries));
     }
 
     /// <summary>GET an LEDM document by path (manifest resources aren't in the DiscoveryTree). Null on 404.</summary>

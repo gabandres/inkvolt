@@ -19,6 +19,7 @@ public enum FirmwareUpdateMode
 /// HP LEDM web firmware update (<c>FirmwareUpdate</c> interface, found through its manifest): the automatic check and
 /// automatic update switches, read from <c>FirmwareUpdateDyn</c> and offered only as far as <c>FirmwareUpdateCap</c>
 /// marks them writable. <see cref="ConfigPath"/> is where a change is PUT (<c>/FirmwareUpdate/WebFWUpdate/Config</c>).
+/// <see cref="CheckWritable"/>: the printer has an automatic check switch and lets us write it (a change never writes a read-only one).
 /// </summary>
 public sealed record FirmwareUpdateSettings(
     FirmwareUpdateMode Mode,
@@ -26,7 +27,7 @@ public sealed record FirmwareUpdateSettings(
     string? Status,
     string? ConfigPath,
     XNamespace Namespace,
-    bool HasCheck)
+    bool CheckWritable)
 {
     public const string WebClass = "WebFWUpdate";
 
@@ -54,10 +55,13 @@ public sealed record FirmwareUpdateSettings(
             if (checkWritable) choices.Add(FirmwareUpdateMode.Notify);
             choices.Add(FirmwareUpdateMode.Off);
         }
-        return new FirmwareUpdateSettings(mode, choices, fw.Kid("State")?.KidValue("Status"), configPath, config.Name.Namespace, check is not null);
+        return new FirmwareUpdateSettings(mode, choices, fw.Kid("State")?.KidValue("Status"), configPath, config.Name.Namespace, checkWritable);
     }
 
-    /// <summary>The complete <c>FirmwareUpdateConfig</c> document for <paramref name="mode"/>, in the printer's own namespace.</summary>
+    /// <summary>
+    /// The <c>FirmwareUpdateConfig</c> document for <paramref name="mode"/>, in the printer's own namespace: only the switches the
+    /// Cap marks writable (a printer may refuse the whole PUT over one read-only element).
+    /// </summary>
     public XDocument BuildPut(FirmwareUpdateMode mode)
     {
         var (check, update) = mode switch
@@ -67,7 +71,7 @@ public sealed record FirmwareUpdateSettings(
             _ => ("disabled", "disabled"),
         };
         var root = new XElement(Namespace + "FirmwareUpdateConfig", new XAttribute(XNamespace.Xmlns + "fwudyn", Namespace));
-        if (HasCheck) root.Add(new XElement(Namespace + "AutomaticCheck", check));
+        if (CheckWritable) root.Add(new XElement(Namespace + "AutomaticCheck", check));
         root.Add(new XElement(Namespace + "AutomaticUpdate", update));
         return new XDocument(new XDeclaration("1.0", "UTF-8", null), root);
     }
@@ -85,6 +89,17 @@ public sealed record FirmwareUpdateSettings(
         "cancelling" => "Cancelling the update…",
         _ => StatusText.Humanize(Status),
     };
+
+    /// <summary>
+    /// Where the web update's Config is PUT: the <c>FirmwareUpdateConfig</c> under the manifest's <c>/WebFWUpdate</c> node (a
+    /// printer may list several update classes, each with its own Config), else the first one listed.
+    /// </summary>
+    public static string? ConfigPathIn(IReadOnlyList<(string Type, string Path)> manifest)
+    {
+        var configs = manifest.Where(e => e.Type == "FirmwareUpdateConfig").Select(e => e.Path).ToList();
+        return configs.FirstOrDefault(p => p.Split('/', StringSplitOptions.RemoveEmptyEntries) is [.., var parent, _] && parent == WebClass)
+               ?? configs.FirstOrDefault();
+    }
 
     /// <summary>The web-update entry (a printer may list several update classes), else the first.</summary>
     private static XElement? Pick(XDocument doc)
