@@ -20,7 +20,7 @@ public class SanitizerTests
     /// annotation in that layer, 2 hidden annotations (one a filled field), a comment with its popup, 3 filled fields, a
     /// bookmark leading to a web page, a thumbnail, 11 pieces of active content, 2 external links and 3 embedded files.
     /// </summary>
-    internal static byte[] Dirty(string pageContent = "", string extraResources = "")
+    internal static byte[] Dirty(string pageContent = "", string extraResources = "", string? xmp = null, string trailerExtra = "")
     {
         var content = "BT /F1 12 Tf 72 700 Td (Visible text) Tj ET /OC /L1 BDC BT /F1 12 Tf 72 650 Td (Shown layer) Tj ET EMC " +
                       "/OC /L2 BDC 1 0 0 rg BT /F1 12 Tf 72 600 Td (Secret layer) Tj ET 0 0 100 100 re f EMC q /Sec Do Q q 10 0 0 10 300 300 cm /Im Do Q " + pageContent;
@@ -38,7 +38,7 @@ public class SanitizerTests
             /* 4 */ Core2Pdf.Stream(content),
             /* 5 */ "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
             /* 6 */ "<< /Title (Secret title) /Author (Jane Doe) /Producer (Word) /Custom (internal) >>",
-            /* 7 */ Core2Pdf.Stream(Xmp, "/Type /Metadata /Subtype /XML"),
+            /* 7 */ Core2Pdf.Stream(xmp ?? Xmp, "/Type /Metadata /Subtype /XML"),
             /* 8 */ "<< /S /JavaScript /JS (app.alert\\(1\\)) /Next 9 0 R >>",
             /* 9 */ "<< /S /GoTo /D [3 0 R /Fit] >>",
             /* 10 */ "<< /S /JavaScript /JS (willClose\\(\\)) >>",
@@ -76,7 +76,7 @@ public class SanitizerTests
             /* 42 */ Core2Pdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 10 10]"),
             /* 43 */ "<< /Unused (orphan data) >>",
         ];
-        return Core2Pdf.Build(objects, "/Info 6 0 R");
+        return Core2Pdf.Build(objects, "/Info 6 0 R " + trailerExtra);
     }
 
     /// <summary>Everything in the file as text: its bytes plus every stream decoded, to look for what must be gone.</summary>
@@ -322,5 +322,117 @@ public class SanitizerTests
         var result = Sanitizer.Sanitize(pdf, null, All);
         Assert.True(result.Remaining!.IsClean);
         Assert.Equal([1, 2], TestPdf.PageNumbers(result.Data));
+    }
+
+    // ───────────────────────────── Review regressions: each one also shows up in the rescan ─────────────────────────────
+
+    private const string OriginalId = "00112233445566778899AABBCCDDEEFF";
+
+    private static (string First, string Second) Ids(byte[] data, string? password = null)
+    {
+        using var doc = password is null ? PdfReader.Open(new MemoryStream(data), PdfDocumentOpenMode.Import) : PdfReader.Open(new MemoryStream(data), password, PdfDocumentOpenMode.Import);
+        return (doc.Internals.FirstDocumentID, doc.Internals.SecondDocumentID);
+    }
+
+    [Fact]
+    public void FieldsNoPageListsLoseTheirScripts()
+    {
+        // A widget and a field's kid that no page has in /Annots: viewers still run their actions.
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R 5 0 R] >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+            "<< /FT /Btn /Ff 65536 /T (go) /Subtype /Widget /Rect [0 0 10 10] /A << /S /JavaScript /JS (fieldScriptA\\(\\)) >> >>",
+            "<< /FT /Tx /T (parent) /Kids [<< /Subtype /Widget /Rect [0 0 10 10] /Parent 5 0 R /A << /S /JavaScript /JS (kidScriptB\\(\\)) >> " +
+            "/AA << /K << /S /JavaScript /JS (kidKeyC\\(\\)) >> >> >>] >>",
+        ]);
+        Assert.Equal(3, Sanitizer.Scan(pdf, null)[SanitizeItem.ActiveContent]);
+        var result = Sanitizer.Sanitize(pdf, null, new HashSet<SanitizeItem> { SanitizeItem.ActiveContent });
+        Assert.Equal(3, result.Removed[SanitizeItem.ActiveContent]);
+        Assert.Equal(0, result.Remaining![SanitizeItem.ActiveContent]);
+        var all = Everything(result.Data);
+        foreach (var script in new[] { "fieldScriptA", "kidScriptB", "kidKeyC" }) Assert.False(all.Contains(script, StringComparison.Ordinal), script);
+    }
+
+    [Fact]
+    public void FileIdentifierIsMadeNew()
+    {
+        var pdf = Dirty(trailerExtra: $"/ID [<{OriginalId}> <{OriginalId}>]");
+        var before = Ids(pdf);
+        // The rescan of a copy that kept the identifier says so.
+        Assert.Equal(Sanitizer.Scan(pdf, null)[SanitizeItem.Metadata] + 1, Sanitizer.Scan(pdf, null, [before.First])[SanitizeItem.Metadata]);
+
+        var result = Sanitizer.Sanitize(pdf, null, All);
+        var after = Ids(result.Data);
+        Assert.DoesNotContain(after.First, new[] { before.First, before.Second });
+        Assert.DoesNotContain(after.Second, new[] { before.First, before.Second });
+        Assert.DoesNotContain(OriginalId, Encoding.Latin1.GetString(result.Data), StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Remaining!.IsClean, string.Join(", ", result.Remaining.Counts.Where(c => c.Value > 0)));
+
+        // Without metadata chosen the identifier stays (and so isn't reported).
+        var kept = Sanitizer.Sanitize(pdf, null, new HashSet<SanitizeItem> { SanitizeItem.Thumbnails });
+        Assert.Equal(before.First, Ids(kept.Data).First);
+    }
+
+    [Fact]
+    public void EncryptedFileGetsANewIdentifierAndStillOpens()
+    {
+        // AES-128: the key is made from the first identifier, so the protection must be written with the new one.
+        var pdf = PdfSecurity.Protect(Dirty(trailerExtra: $"/ID [<{OriginalId}> <{OriginalId}>]"), null, "open", "owner", method: EncryptionMethod.Aes128);
+        var before = Ids(pdf, "owner");
+        var result = KeptProtection.Run("open", false, () => Sanitizer.Sanitize(pdf, "owner", All));
+        var after = Ids(result.Data, "owner");
+        Assert.DoesNotContain(after.First, new[] { before.First, before.Second });
+        Assert.DoesNotContain(after.Second, new[] { before.First, before.Second });
+        Assert.Equal(EncryptionMethod.Aes128, PdfSecurity.ReadSecurity(result.Data, "open").Method);
+        Assert.Contains("Visible text", PageText(result.Data, "open"));
+        Assert.Contains("Visible text", PageText(result.Data, "owner"));
+        Assert.True(result.Remaining!.IsClean, string.Join(", ", result.Remaining.Counts.Where(c => c.Value > 0)));
+        // PDFsharp's own XMP packet in the encrypted copy has new document IDs, not the protected original's.
+        var originalUuids = System.Text.RegularExpressions.Regex.Matches(Everything(pdf, "owner"), "uuid:[0-9a-f-]{36}").Select(m => m.Value).ToHashSet();
+        var all = Everything(result.Data, "owner");
+        Assert.DoesNotContain(originalUuids, all.Contains);
+    }
+
+    [Fact]
+    public void XmpWithOnlyDocumentIdsIsMetadata()
+    {
+        const string idsOnly = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">" +
+                               "<rdf:Description rdf:about=\"\" xmlns:xmpMM=\"http://ns.adobe.com/xap/1.0/mm/\"><xmpMM:DocumentID>uuid:orig-doc-1111</xmpMM:DocumentID>" +
+                               "<xmpMM:InstanceID>uuid:orig-inst-2222</xmpMM:InstanceID><xmpMM:OriginalDocumentID>uuid:orig-first-3333</xmpMM:OriginalDocumentID>" +
+                               "</rdf:Description></rdf:RDF></x:xmpmeta>";
+        var pdf = Dirty(xmp: idsOnly);
+        Assert.Equal(8, Sanitizer.Scan(pdf, null)[SanitizeItem.Metadata]); // the packet still counts
+        var result = Sanitizer.Sanitize(pdf, null, new HashSet<SanitizeItem> { SanitizeItem.Metadata });
+        Assert.Equal(0, result.Remaining![SanitizeItem.Metadata]);
+        Assert.DoesNotContain("orig-", Everything(result.Data));
+    }
+
+    [Fact]
+    public void DirectDictionariesAndArticlesAreCleaned()
+    {
+        // A link and a note written straight into /Annots (not as objects of their own), and an article's properties.
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /Threads [<< /Type /Thread /I << /Title (Thread secret) /Author (Bob Thread) >> >>] >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [" +
+            "<< /Type /Annot /Subtype /Link /Rect [0 0 10 10] /Dest [3 0 R /Fit] /AF [4 0 R] /PieceInfo << /App << /Private (direct private) >> >> " +
+            "/NM (secret-nm) /T (Jane Author) /M (D:20200101) >> " +
+            "<< /Type /Annot /Subtype /Text /Rect [20 20 30 30] /Contents (kept note) /T (Note Author) /CreationDate (D:20190101) >>] >>",
+            "<< /Type /Filespec /F (b.txt) /EF << /F 5 0 R >> >>",
+            Core2Pdf.Stream("direct attached secret", "/Type /EmbeddedFile"),
+        ]);
+        var scan = Sanitizer.Scan(pdf, null);
+        Assert.Equal(5, scan[SanitizeItem.Metadata]); // private data, two annotations' authors and dates, the article's 2 entries
+        Assert.Equal(1, scan[SanitizeItem.EmbeddedFiles]);
+        var result = Sanitizer.Sanitize(pdf, null, new HashSet<SanitizeItem> { SanitizeItem.Metadata, SanitizeItem.EmbeddedFiles });
+        Assert.Equal(0, result.Remaining![SanitizeItem.Metadata]);
+        Assert.Equal(0, result.Remaining[SanitizeItem.EmbeddedFiles]);
+        var all = Everything(result.Data);
+        foreach (var secret in new[] { "Jane Author", "Note Author", "secret-nm", "direct private", "Thread secret", "Bob Thread", "direct attached secret", "D:2019", "D:2020" })
+            Assert.False(all.Contains(secret, StringComparison.Ordinal), $"still in the file: {secret}");
+        Assert.Contains("kept note", all); // the comment itself stays: only who wrote it and when went
     }
 }

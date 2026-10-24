@@ -78,10 +78,14 @@ public sealed record SanitizeResult(byte[] Data, SanitizeReport Removed, Sanitiz
 public static class Sanitizer
 {
     /// <summary>What the document holds of each kind (every kind counted, nothing changed).</summary>
-    public static SanitizeReport Scan(byte[] data, string? password)
+    public static SanitizeReport Scan(byte[] data, string? password) => Scan(data, password, null);
+
+    /// <param name="originalIds">The file identifiers (/ID) of the document this one was sanitized from: one still in
+    /// the file links it to the original, and counts as metadata.</param>
+    internal static SanitizeReport Scan(byte[] data, string? password, IReadOnlyCollection<string>? originalIds)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
-        return new Pass(doc, null).Run(EarlierRevisions(data));
+        return new Pass(doc, null) { OriginalIds = originalIds }.Run(EarlierRevisions(data));
     }
 
     /// <summary>Removes the chosen kinds of content; the report counts what went.</summary>
@@ -91,11 +95,22 @@ public static class Sanitizer
         SanitizeReport removed;
         byte[] saved;
         int pages;
+        List<string> originalIds;
         using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited"))
         {
             SignedEdits.RequireRewrite(data, doc, "sanitizing rewrites the whole file");
             pages = doc.PageCount;
+            originalIds = [.. new[] { doc.Internals.FirstDocumentID, doc.Internals.SecondDocumentID }.Where(id => !string.IsNullOrEmpty(id))];
             removed = new Pass(doc, items).Run(EarlierRevisions(data));
+            if (items.Contains(SanitizeItem.Metadata))
+            {
+                // The file identifier links copies of a document (its first entry never changes): new ones for both. An
+                // encrypted document's key is made from it, so the protection put back on save uses the new one.
+                doc.Internals.FirstDocumentID = FreshId();
+                doc.Internals.SecondDocumentID = FreshId();
+                // A document without an Info dictionary gets one from PDFsharp, with the time it was opened as /ModDate.
+                foreach (var key in doc.Info.Elements.Keys.ToList()) doc.Info.Elements.Remove(key);
+            }
             saved = PdfObj.Save(doc, rewrite: true, bareXmp: items.Contains(SanitizeItem.Metadata));
         }
 
@@ -117,7 +132,7 @@ public static class Sanitizer
         SanitizeReport? remaining;
         try
         {
-            remaining = Scan(saved, password);
+            remaining = Scan(saved, password, items.Contains(SanitizeItem.Metadata) ? originalIds : null);
         }
         catch (Exception ex) when (ex is InvalidOperationException or OwnerPasswordRequiredException or PdfReaderException)
         {
@@ -125,6 +140,9 @@ public static class Sanitizer
         }
         return new SanitizeResult(saved, removed, remaining);
     }
+
+    /// <summary>A random 16-byte file identifier, as PDFsharp holds it (one character per byte).</summary>
+    private static string FreshId() => Encoding.Latin1.GetString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
 
     /// <summary>Incremental updates after the first version (a linearized file's first-page section isn't one).</summary>
     internal static int EarlierRevisions(byte[] data)
@@ -159,6 +177,9 @@ public static class Sanitizer
         private bool _layerContentKept;
 
         private PdfDictionary Catalog => doc.Internals.Catalog;
+
+        /// <summary>Scanning a sanitized copy: the original's file identifiers (see <see cref="Sanitizer.Scan(byte[], string?, IReadOnlyCollection{string}?)"/>).</summary>
+        public IReadOnlyCollection<string>? OriginalIds { get; init; }
 
         public SanitizeReport Run(int earlierRevisions)
         {
@@ -215,6 +236,36 @@ public static class Sanitizer
             var seen = new HashSet<PdfDictionary>(RefEq) { Catalog };
             foreach (var o in doc.Internals.GetClosure(Catalog))
                 if (o is PdfDictionary d && seen.Add(d)) list.Add(d);
+            return list;
+        }
+
+        /// <summary>
+        /// Every dictionary the document uses: the indirect ones (<see cref="Objects"/>) and the direct ones inside them
+        /// (an annotation written straight into /Annots, a field in /Kids, a dictionary in a dictionary).
+        /// </summary>
+        private List<PdfDictionary> AllDictionaries()
+        {
+            var list = new List<PdfDictionary>();
+            var seen = new HashSet<object>(RefEq);
+            var stack = new Stack<(PdfItem Item, int Depth)>();
+            foreach (var d in Objects()) stack.Push((d, 0));
+            while (stack.Count > 0)
+            {
+                var (item, depth) = stack.Pop();
+                if (depth > 64 || !seen.Add(item)) continue;
+                switch (item)
+                {
+                    case PdfDictionary d:
+                        list.Add(d);
+                        foreach (var v in d.Elements.Values)
+                            if (v is PdfDictionary or PdfArray) stack.Push((v, depth + 1)); // references: indirect, listed already
+                        break;
+                    case PdfArray a:
+                        foreach (var v in a.Elements)
+                            if (v is PdfDictionary or PdfArray) stack.Push((v, depth + 1));
+                        break;
+                }
+            }
             return list;
         }
 
@@ -444,7 +495,12 @@ public static class Sanitizer
         private void Fields()
         {
             if (PdfObj.Dict(Catalog.Elements["/AcroForm"]) is not { } acro) return;
-            foreach (var node in FieldNodes(acro)) CleanAA(node);
+            // Every node of the field tree: a field or widget that no page lists in /Annots still runs its actions.
+            foreach (var node in FieldNodes(acro))
+            {
+                CleanActionEntry(node, "/A");
+                CleanAA(node);
+            }
 
             var fields = new List<FormEditor.Field>();
             FormEditor.Collect(doc, acro, fields);
@@ -534,8 +590,15 @@ public static class Sanitizer
         private void OtherObjects()
         {
             var catalog = Catalog;
-            foreach (var d in Objects())
+            foreach (var d in AllDictionaries())
             {
+                // Who made a comment and when (a widget's /T is its field name, not an author).
+                if (d.Elements.ContainsKey("/Rect") && PdfObj.NameOf(d, "/Subtype") is { Length: > 0 } subtype && !d.Elements.ContainsKey("/BBox"))
+                {
+                    string[] keys = subtype == "/Widget" ? ["/M"] : ["/T", "/M", "/CreationDate", "/NM"];
+                    if (keys.Any(d.Elements.ContainsKey) && Hit(SanitizeItem.Metadata))
+                        foreach (var k in keys) d.Elements.Remove(k);
+                }
                 if (d.Elements.ContainsKey("/PieceInfo") && Hit(SanitizeItem.Metadata))
                 {
                     d.Elements.Remove("/PieceInfo");
@@ -556,13 +619,23 @@ public static class Sanitizer
                                             && !(k == "/ModDate" && apply is not null && PdfObj.ParseDate(PdfObj.Str(info[k]) ?? info[k]?.ToString()) is { } t && (DateTimeOffset.Now - t).Duration() < TimeSpan.FromMinutes(5))).ToList();
             if (keys.Count > 0 && Hit(SanitizeItem.Metadata, keys.Count))
                 foreach (var k in info.Keys.ToList()) info.Remove(k);
+
+            // Articles (threads) carry an information dictionary of their own: title, author, subject, dates.
+            if (PdfObj.Array(Catalog.Elements["/Threads"]) is { } threads)
+                foreach (var t in threads.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
+                    if (PdfObj.Dict(t.Elements["/I"]) is { Elements.Count: > 0 } ti && Hit(SanitizeItem.Metadata, ti.Elements.Count))
+                        t.Elements.Remove("/I");
+
+            if (OriginalIds is { Count: > 0 } ids && (ids.Contains(doc.Internals.FirstDocumentID) || ids.Contains(doc.Internals.SecondDocumentID)))
+                Hit(SanitizeItem.Metadata); // the file identifier still links this copy to the original
         }
 
         private static readonly XNamespace Rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 
         /// <summary>
-        /// Whether an XMP packet says anything beyond what a save writes anyway (producer, tool, fresh document IDs,
-        /// PDFsharp's placeholder dates). An unreadable packet counts as data.
+        /// Whether an XMP packet says anything beyond what a save writes anyway (producer, tool, and in PDFsharp's own
+        /// packet its new document IDs and placeholder dates). Document IDs, history and derivation link a copy to
+        /// its original, so they count. An unreadable packet counts as data.
         /// </summary>
         private static bool XmpHasData(PdfDictionary stream)
         {
@@ -571,12 +644,17 @@ public static class Sanitizer
                 using var reader = XmlReader.Create(new MemoryStream(PdfObj.StreamBytes(stream)),
                     new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
                 var xmp = XDocument.Load(reader);
+                // The packet PDFsharp writes itself on every save (when the file is encrypted it can't be replaced):
+                // its document IDs are new on each save, so they link to nothing.
+                var fresh = xmp.Root?.Attributes().Any(a => a.Name.LocalName == "xmptk" && a.Value == "3.1-701") == true
+                            && xmp.Descendants().Any(e => e.Name.LocalName == "Producer" && e.Value.StartsWith("PDFsharp", StringComparison.Ordinal))
+                            && !xmp.Descendants().Any(e => e.Name.LocalName is "OriginalDocumentID" or "History" or "DerivedFrom");
                 foreach (var desc in xmp.Descendants(Rdf + "Description"))
                 {
                     foreach (var attr in desc.Attributes())
-                        if (!attr.IsNamespaceDeclaration && attr.Name != Rdf + "about" && Meaningful(attr.Name.LocalName, attr.Value)) return true;
+                        if (!attr.IsNamespaceDeclaration && attr.Name != Rdf + "about" && Meaningful(attr.Name.LocalName, attr.Value, fresh)) return true;
                     foreach (var el in desc.Elements())
-                        if (Meaningful(el.Name.LocalName, string.Concat(el.DescendantNodes().OfType<XText>().Select(t => t.Value)))) return true;
+                        if (Meaningful(el.Name.LocalName, string.Concat(el.DescendantNodes().OfType<XText>().Select(t => t.Value)), fresh)) return true;
                 }
                 return false;
             }
@@ -585,10 +663,10 @@ public static class Sanitizer
                 return true;
             }
 
-            static bool Meaningful(string name, string value)
+            static bool Meaningful(string name, string value, bool fresh)
             {
                 value = value.Trim();
-                if (value.Length == 0 || name is "Producer" or "CreatorTool" or "DocumentID" or "InstanceID") return false;
+                if (value.Length == 0 || name is "Producer" or "CreatorTool" || (fresh && name is "DocumentID" or "InstanceID")) return false;
                 return !(name is "CreateDate" or "ModifyDate" or "MetadataDate" && value.StartsWith("0001-", StringComparison.Ordinal));
             }
         }

@@ -1159,7 +1159,8 @@ internal static class Xmp
 
     internal static byte[] Build(PdfDocumentInformation info, XDocument? original, bool bare = false)
     {
-        var xmp = original is null
+        // Bare: a new packet, never the original's (its document IDs, history and derivation link back to it).
+        var xmp = original is null || bare
             ? new XDocument(new XElement(Meta + "xmpmeta", new XAttribute(XNamespace.Xmlns + "x", Meta),
                 new XElement(Rdf + "RDF", new XAttribute(XNamespace.Xmlns + "rdf", Rdf))))
             : new XDocument(original);

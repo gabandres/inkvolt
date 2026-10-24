@@ -13,7 +13,7 @@ public static class SanitizeActions
 {
     private static readonly (SanitizeItem Item, string Label, string? Group)[] Kinds =
     [
-        (SanitizeItem.Metadata, "Document properties, XMP metadata, other apps' private data", "Metadata"),
+        (SanitizeItem.Metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Metadata"),
         (SanitizeItem.HiddenLayers, "Hidden layers, with what they draw", "Hidden data"),
         (SanitizeItem.HiddenAnnotations, "Hidden comments and form fields", null),
         (SanitizeItem.Comments, "Comments, markup, stamps and drawings", null),

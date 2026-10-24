@@ -173,7 +173,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
 - **Sanitize Document** (Review menu, command palette): removes what a document carries besides its pages. The dialog
   counts what it found, one check box per kind (all on): metadata (document properties, XMP of the document, pages,
-  images and fonts, other apps' private data); hidden layers with what they draw (cut out of the content, not just
+  images and fonts, comment authors and dates, article properties, other apps' private data; the file identifier is
+  made new, so the copy can't be matched to the original); hidden layers with what they draw (cut out of the content, not just
   switched off), hidden comments and fields, comments, form field values, bookmarks, thumbnails; JavaScript (document
   scripts, open and additional actions of the document, pages, comments and fields, script actions of links, fields and
   bookmarks), Launch, Submit and Import actions, multimedia and XFA forms; links to web pages and other files; attached
