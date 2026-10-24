@@ -14,7 +14,7 @@ namespace InkvoltPrint.App.Printing;
 public sealed record PrintOptions(IReadOnlyList<int> Pages, int Copies, bool TwoSided, string JobName, PageSizing Sizing = PageSizing.ActualSize);
 
 /// <summary>
-/// Prints rendered PDF pages to a Windows print queue (for IPP printers: the Microsoft IPP Class Driver,
+/// Prints rendered PDF pages, and scanned pages for copies, to a Windows print queue (for IPP printers: the Microsoft IPP Class Driver,
 /// which converts to whatever the printer speaks — PCLm/PWG raster for the M234dw). Each page is
 /// auto-rotated to match the paper's orientation and sized per <see cref="PageSizing"/>, keeping its proportions.
 /// </summary>
@@ -76,8 +76,23 @@ public static class QueuePrinter
         // From here the job belongs to the spooler: aborting a half-written XPS job leaves it stuck in the queue.
         onSpooling?.Invoke();
         progress.Report($"Sending {(pages.Count == 1 ? "the page" : $"{pages.Count} pages")} to the printer…");
+        await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, paper => new RenderedPaginator(pages, paper, options.Sizing));
+    }
 
-        // 2. Ticket + spool on a dedicated STA thread.
+    /// <summary>Copies: scanned pages, each centred on its own sheet at actual size (larger pages shrink to fit).</summary>
+    public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName) =>
+        SpoolAsync(queueName, copies, twoSided, jobName, paper => new RenderedPaginator(pages, paper, PageSizing.ActualSize));
+
+    /// <summary>ID card copy: front on the top half of one sheet, back on the bottom half, actual size (<see cref="CopyLayout.IdCard"/>).</summary>
+    public static Task PrintIdCardAsync(string queueName, RenderedPage front, RenderedPage back, int copies, string jobName) =>
+        SpoolAsync(queueName, copies, twoSided: false, jobName, paper => new IdCardPaginator(front, back, paper));
+
+    /// <summary>
+    /// Ticket + spool on a dedicated STA thread. The paginator is made there too, once the validated ticket says
+    /// which paper the queue will use.
+    /// </summary>
+    private static async Task SpoolAsync(string queueName, int copies, bool twoSided, string jobName, Func<Size, DocumentPaginator> paginator)
+    {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
@@ -86,16 +101,16 @@ public static class QueuePrinter
                 using var server = new LocalPrintServer();
                 using var queue = new PrintQueue(server, queueName);
                 var ticket = queue.DefaultPrintTicket.Clone();
-                ticket.CopyCount = options.Copies;
+                ticket.CopyCount = copies;
                 ticket.Collation = Collation.Collated;
-                ticket.Duplexing = options.TwoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
+                ticket.Duplexing = twoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
                 ticket.PageOrientation = PageOrientation.Portrait;
                 ticket = queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
                 var paper = new Size(ticket.PageMediaSize?.Width ?? 816, ticket.PageMediaSize?.Height ?? 1056); // DIPs; Letter fallback
 
-                queue.CurrentJobSettings.Description = options.JobName;
+                queue.CurrentJobSettings.Description = jobName;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-                writer.Write(new RenderedPaginator(pages, paper, options.Sizing), ticket);
+                writer.Write(paginator(paper), ticket);
                 done.SetResult();
             }
             catch (Exception ex)
@@ -120,12 +135,7 @@ public static class QueuePrinter
         public override DocumentPage GetPage(int pageNumber)
         {
             var src = pages[pageNumber];
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = new MemoryStream(src.Image);
-            bitmap.EndInit();
-            bitmap.Freeze();
+            var bitmap = Decode(src.Image);
 
             // Landscape page on portrait paper: rotate rather than shrink it.
             var landscapePage = src.WidthInches > src.HeightInches;
@@ -149,10 +159,51 @@ public static class QueuePrinter
             Canvas.SetLeft(image, (paper.Width - w) / 2);
             Canvas.SetTop(image, (paper.Height - h) / 2);
             page.Children.Add(image);
-            page.Measure(paper);
-            page.Arrange(new Rect(paper));
-            page.UpdateLayout();
-            return new DocumentPage(page, paper, new Rect(paper), new Rect(paper));
+            return Finish(page, paper);
         }
+    }
+
+    /// <summary>One sheet: the card's front on the top half, its back on the bottom half.</summary>
+    private sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper) : DocumentPaginator
+    {
+        public override bool IsPageCountValid => true;
+        public override int PageCount => 1;
+        public override Size PageSize { get => paper; set { } }
+        public override IDocumentPaginatorSource? Source => null;
+
+        public override DocumentPage GetPage(int pageNumber)
+        {
+            var (top, bottom) = CopyLayout.IdCard(paper.Width, paper.Height,
+                (front.WidthInches * 96, front.HeightInches * 96), (back.WidthInches * 96, back.HeightInches * 96));
+            var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
+            foreach (var (side, at) in new[] { (front, top), (back, bottom) })
+            {
+                var image = new Image { Source = Decode(side.Image), Stretch = Stretch.Fill, Width = at.Width, Height = at.Height };
+                Canvas.SetLeft(image, at.X);
+                Canvas.SetTop(image, at.Y);
+                page.Children.Add(image);
+            }
+            return Finish(page, paper);
+        }
+    }
+
+    private static DocumentPage Finish(Canvas page, Size paper)
+    {
+        page.Measure(paper);
+        page.Arrange(new Rect(paper));
+        page.UpdateLayout();
+        return new DocumentPage(page, paper, new Rect(paper), new Rect(paper));
+    }
+
+    public static BitmapImage Decode(byte[] image, int decodeWidth = 0)
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        if (decodeWidth > 0) bitmap.DecodePixelWidth = decodeWidth;
+        bitmap.StreamSource = new MemoryStream(image);
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
     }
 }

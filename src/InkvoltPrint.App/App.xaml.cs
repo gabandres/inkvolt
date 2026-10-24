@@ -78,7 +78,8 @@ public partial class App : Application
                 twoSided: e.Args.Contains("--two-sided"));
         if (Array.IndexOf(e.Args, "--snapshot") is var i and >= 0 && i + 1 < e.Args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
-                scan: e.Args.Contains("--scan"), scrollToEnd: e.Args.Contains("--scroll-end"));
+                scan: e.Args.Contains("--scan"), scrollToEnd: e.Args.Contains("--scroll-end"),
+                copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault());
     }
 
     private static string? FirstPdf(IEnumerable<string> args) =>

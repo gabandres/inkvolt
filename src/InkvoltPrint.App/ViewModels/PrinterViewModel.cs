@@ -23,7 +23,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan FallbackRefresh = TimeSpan.FromSeconds(30);
 
-    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, SettingsSection = 3;
+    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, CopySection = 3, SettingsSection = 4;
 
     private readonly AppState _state;
     private readonly Action<PrinterViewModel> _remember;
@@ -48,7 +48,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _transport = transport;
         Print = new PrintViewModel(FindQueueAsync, state);
         Jobs = new PrintJobsViewModel(IsDemo ? Demo.PrintJobs : new Printing.WindowsPrintJobs(FindQueueAsync));
+        Copy = new CopyViewModel(FindQueueAsync, state, IsDemo ? Demo.PrintJobs.Add : null) { HasQueue = QueueInstalled };
     }
+
+    /// <summary>Copy and ID card copy: scan here, print through the Windows queue.</summary>
+    public CopyViewModel Copy { get; }
+
+    partial void OnQueueInstalledChanged(bool value) => Copy.HasQueue = value;
 
     /// <summary>This printer's Windows print queue (a card on the Overview).</summary>
     public PrintJobsViewModel Jobs { get; }
@@ -168,6 +174,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (SelectedSection == SettingsSection && Settings is { IsLoaded: false } s && s.LoadCommand.CanExecute(null))
             s.LoadCommand.Execute(null);
+        if (SelectedSection == CopySection) Copy.Shown();
     }
 
     public void Start()
@@ -247,6 +254,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             {
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
+                Copy.QueueChanged();
             }
         }
         catch (OperationCanceledException) { }
@@ -310,6 +318,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }.OfType<InfoRow>().ToList());
         if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
 
+        Copy.Attach(conn.Scanner is not null && p.Scanner is not null ? conn.Scanner : null, p.Scanner);
         // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
         if (conn.Scanner is not null && p.Scanner is not null)
         {
@@ -481,6 +490,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 QueueInstalled = true;
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
+                Copy.QueueChanged();
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
             }
@@ -523,6 +533,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             _windowsQueue = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
             QueueInstalled = _discoveredQueue || _windowsQueue;
             Print.QueueChanged();
+            Copy.QueueChanged();
             return _windowsQueue ? null : $"{result.Message} Use Set up on this printer to add it again.";
         }
         catch (Exception ex)

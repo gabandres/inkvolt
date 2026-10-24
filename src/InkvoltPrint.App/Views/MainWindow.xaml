@@ -464,6 +464,172 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ===================== Copy ===================== -->
+        <DataTemplate DataType="{x:Type vm:CopyViewModel}">
+            <Grid Margin="0,0,16,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Options -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,16,0" VerticalAlignment="Top">
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Copy" Style="{StaticResource CardTitle}" />
+                        <Border CornerRadius="6" Padding="12,10" Margin="0,0,0,16" BorderThickness="1"
+                                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                Visibility="{Binding UnavailableReason, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="{Binding UnavailableReason}" TextWrapping="Wrap" />
+                        </Border>
+
+                        <StackPanel IsEnabled="{Binding IsAvailable}">
+                            <RadioButton Content="Document" IsChecked="{Binding IdCard, Converter={StaticResource Not}}" GroupName="copymode"
+                                         IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" />
+                            <RadioButton IsChecked="{Binding IdCard}" GroupName="copymode" Margin="0,6,0,0"
+                                         IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
+                                <StackPanel>
+                                    <TextBlock Text="ID card" />
+                                    <TextBlock Text="Both sides on one page" Style="{StaticResource Caption}" FontSize="12" />
+                                </StackPanel>
+                            </RadioButton>
+
+                            <StackPanel Visibility="{Binding IsDocument, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="Source" Margin="0,20,0,6" FontWeight="SemiBold"
+                                           Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                                <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Source" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
+
+                            <TextBlock Text="Copies" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="Fewer copies" AutomationProperties.Name="Fewer copies">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" />
+                                </Button>
+                                <TextBox Text="{Binding Copies, UpdateSourceTrigger=PropertyChanged}" Width="56" Margin="6,0"
+                                         TextAlignment="Center" AutomationProperties.Name="Copies" />
+                                <Button Command="{Binding MoreCopiesCommand}" Width="36" ToolTip="More copies" AutomationProperties.Name="More copies">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
+                                </Button>
+                            </StackPanel>
+
+                            <CheckBox Content="Color scan" IsChecked="{Binding IsColor}" Margin="0,16,0,0"
+                                      ToolTip="Scans in color. Black-and-white printers print it in shades of grey either way." />
+                            <CheckBox Content="Print on both sides" IsChecked="{Binding TwoSided}" Margin="0,4,0,0"
+                                      Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
+
+                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
+
+                            <Button Command="{Binding CopyCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                    HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0"
+                                    Visibility="{Binding AwaitingBack, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding CopyButtonText}" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- ID card, halfway: front scanned, turn the card over -->
+                            <Border CornerRadius="6" Padding="12" Margin="0,16,0,0" BorderThickness="1"
+                                    Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Visibility="{Binding AwaitingBack, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" Margin="0,0,8,0"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        <TextBlock Text="Turn the card over" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                    <TextBlock Text="Front scanned. Put the card back in the same corner, face down, then scan the back."
+                                               TextWrapping="Wrap" Margin="0,4,0,12" />
+                                    <Button Command="{Binding ScanBackCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                            HorizontalAlignment="Stretch" Padding="0,8" Content="Scan back and print" />
+                                    <Button Content="Start over" Command="{Binding StartOverCommand}" Style="{StaticResource LinkButton}"
+                                            HorizontalAlignment="Left" Margin="0,10,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                    Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
+                        </StackPanel>
+
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                   Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                </ScrollViewer>
+
+                <!-- Preview: each sheet as it will print -->
+                <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="340"
+                                    Visibility="{Binding Sheets.Count, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" FontSize="48" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding EmptyHint}" Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,12,0,0" />
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <ItemsControl ItemsSource="{Binding Sheets}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CopySheet}">
+                                        <Border Margin="8" BorderThickness="1" CornerRadius="3" Background="White"
+                                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                                Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}">
+                                            <Viewbox Stretch="Uniform">
+                                                <ItemsControl ItemsSource="{Binding Images}" Width="{Binding PaperWidth}" Height="{Binding PaperHeight}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:CopyImage}">
+                                                            <Grid Width="{Binding Width}" Height="{Binding Height}">
+                                                                <Image Source="{Binding Image}" Stretch="Fill" />
+                                                                <Rectangle Stroke="#FF8A8A8A" StrokeThickness="3" StrokeDashArray="4 3" RadiusX="12" RadiusY="12"
+                                                                           Visibility="{Binding IsPlaceholder, Converter={StaticResource VisibleWhen}}" />
+                                                                <TextBlock Text="{Binding Label}" Foreground="#FF6A6A6A" FontSize="34" TextWrapping="Wrap"
+                                                                           TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                                                                           Visibility="{Binding IsPlaceholder, Converter={StaticResource VisibleWhen}}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Viewbox>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
         <!-- ===================== Settings ===================== -->
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <DockPanel Margin="0,0,16,16">
@@ -814,6 +980,7 @@
                                     <TabItem Header="Print" Content="{Binding Print}" />
                                     <TabItem Header="Scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
+                                    <TabItem Header="Copy" Content="{Binding Copy}" />
                                     <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
                                              Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />
                                 </TabControl>

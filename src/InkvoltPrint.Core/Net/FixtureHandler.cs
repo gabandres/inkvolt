@@ -13,13 +13,18 @@ namespace InkvoltPrint.Core.Net;
 /// </summary>
 /// <param name="document">Document name → bytes, or null when there is none.</param>
 /// <param name="scanPage">JPEG returned for each eSCL scan job (one page); null: scanning fails with 404.</param>
-public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>? scanPage = null) : HttpMessageHandler
+/// <param name="scanArea">Instead of <paramref name="scanPage"/>: the JPEG for the job's scan region (width, height in 1/300 in).</param>
+public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>? scanPage = null, Func<int, int, byte[]>? scanArea = null)
+    : HttpMessageHandler
 {
     /// <summary>Address shown for the demo printer: RFC 5737 documentation range, never a real device.</summary>
     public const string DemoHost = "192.0.2.10";
 
     private const string JobPath = "/eSCL/ScanJobs/demo-1";
     private int _pagesLeft;
+    private (int Width, int Height) _area = (2550, 3300);
+
+    private bool CanScan => scanPage is not null || scanArea is not null;
 
     public static string DocumentName(string path)
     {
@@ -41,8 +46,9 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
             return Reply(request, HttpStatusCode.NotModified);
         }
 
-        if (request.Method == HttpMethod.Post && path.EndsWith("/ScanJobs", StringComparison.Ordinal) && scanPage is not null)
+        if (request.Method == HttpMethod.Post && path.EndsWith("/ScanJobs", StringComparison.Ordinal) && CanScan)
         {
+            if (request.Content is not null) _area = Region(await request.Content.ReadAsStringAsync(ct).ConfigureAwait(false), _area);
             Interlocked.Exchange(ref _pagesLeft, 1);
             var created = Reply(request, HttpStatusCode.Created);
             created.Headers.Location = new Uri(JobPath, UriKind.Relative);
@@ -50,8 +56,8 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
         }
         if (request.Method == HttpMethod.Get && path == JobPath + "/NextDocument")
         {
-            return scanPage is not null && Interlocked.Exchange(ref _pagesLeft, 0) == 1
-                ? Reply(request, HttpStatusCode.OK, scanPage(), "image/jpeg")
+            return CanScan && Interlocked.Exchange(ref _pagesLeft, 0) == 1
+                ? Reply(request, HttpStatusCode.OK, scanArea?.Invoke(_area.Width, _area.Height) ?? scanPage!(), "image/jpeg")
                 : Reply(request, HttpStatusCode.NotFound);
         }
         if (request.Method == HttpMethod.Delete) return Reply(request, HttpStatusCode.OK);
@@ -65,6 +71,22 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
             return ok;
         }
         return Reply(request, HttpStatusCode.NotFound);
+    }
+
+    /// <summary>The ScanSettings' region (Width, Height); the previous one if it can't be read.</summary>
+    private static (int, int) Region(string settings, (int, int) fallback)
+    {
+        try
+        {
+            var region = System.Xml.Linq.XDocument.Parse(settings).Descendants().FirstOrDefault(e => e.Name.LocalName == "ScanRegion");
+            var w = region?.Elements().FirstOrDefault(e => e.Name.LocalName == "Width")?.Value;
+            var h = region?.Elements().FirstOrDefault(e => e.Name.LocalName == "Height")?.Value;
+            return int.TryParse(w, out var wi) && int.TryParse(h, out var hi) && wi > 0 && hi > 0 ? (wi, hi) : fallback;
+        }
+        catch (System.Xml.XmlException)
+        {
+            return fallback;
+        }
     }
 
     private static HttpResponseMessage Reply(HttpRequestMessage request, HttpStatusCode status, byte[]? body = null, string? type = null)

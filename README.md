@@ -12,6 +12,7 @@ no background services, no driver download.
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
 | Firmware | Version from LEDM `ProductConfigDyn` (an HP LaserJet's version is its release date) or IPP `printer-firmware-string-version`. Automatic updates (install automatically / check only / off) from LEDM's FirmwareUpdate interface (manifest in `DiscoveryTree.xml` → `FirmwareUpdateDyn`/`Cap`, PUT to `/FirmwareUpdate/WebFWUpdate/Config`), saved like the other device settings; explains HP's "dynamic security" cartridge blocking. Printers that don't expose it show the version and a link to their web page. |
+| Copy | Scan (eSCL) and print (Windows queue) in one step: copies, color or grey scan, glass or feeder, two-sided output when the queue can; actual size. **ID card copy**: scans the front from the glass's corner (4.5 × 3 in), asks to turn the card over, scans the back, prints both on one sheet (top and bottom halves, actual size; `CopyLayout`). Disabled, with the reason, when the printer has no scanner or no Windows queue. |
 | Print queue | Overview card: this printer's Windows queue jobs (System.Printing `GetPrintJobInfoCollection`: name, pages, status, time, owner), re-read every 3 s only while the card is on screen. Cancel your own jobs, or all of them (confirmed); others' jobs need an administrator and say so. No elevation. |
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
@@ -65,12 +66,12 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first, `--scroll-end` scrolls the tab to its end).
+(`--size 1366 860` window size in DIPs, `--theme Dark`, `--scan` runs one scan first, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first).
 
 Demo mode: `InkvoltPrint.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
 (embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
-the remembered-printers state is neither read nor written; scanning returns a generated page and the print queue card
-shows made-up jobs. Screenshots:
+the remembered-printers state is neither read nor written; scanning returns a generated page (a made-up ID card for
+card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
@@ -98,6 +99,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 - Printing itself goes through the Windows queue (any app's Print dialog). The M234dw's IPP formats are PCLm / PWG raster / URF (no PDF), so a direct-IPP "print file" feature would need a rasteriser.
 - CDM-only printers (newer HP models with no LEDM) get IPP status/supplies but no settings page yet.
 - OCR text layer uses WinAnsi; non-Latin scripts degrade to `?` in the hidden text.
+- Copy uses the PC: the printer's own copy function (LEDM `CopyConfig`) isn't driven, so a copy needs a Windows queue. ID card copy expects the card in the glass's reference corner.
 - Firmware: the app doesn't start an update check or install (the printer's web page does). The IPP firmware attributes are untested on a real printer (the M234dw reports its firmware over LEDM).
 - USB-only printers: not handled (Windows' USB class driver + WIA covers them).
 

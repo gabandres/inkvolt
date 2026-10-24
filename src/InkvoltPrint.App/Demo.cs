@@ -13,8 +13,8 @@ namespace InkvoltPrint.App;
 /// server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
 /// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>. Demo mode makes no network
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
-/// (the remembered-printers file is neither read nor written). Scanning returns a generated blank-ish page; the print
-/// queue card shows <see cref="DemoPrintJobs"/>.
+/// (the remembered-printers file is neither read nor written). Scanning returns a generated blank-ish page (a made-up
+/// ID card for card-sized regions); the print queue card shows <see cref="DemoPrintJobs"/>, where copies also "print".
 /// </summary>
 internal static class Demo
 {
@@ -28,10 +28,18 @@ internal static class Demo
         SelectedUuid = Uuid,
     };
 
-    public static HttpMessageHandler CreateTransport() => new FixtureHandler(Document, () => Page.Value);
+    public static HttpMessageHandler CreateTransport() => new FixtureHandler(Document, scanArea: Scan);
 
     // WPF drawing needs the UI thread; the handler runs wherever the scan's awaits continue.
     private static readonly Lazy<byte[]> Page = new(() => Application.Current.Dispatcher.Invoke(ScanPage));
+
+    private static int _cardSide;
+
+    /// <summary>A page for page-sized regions; for a small region (ID card copy), a made-up card, front and back in turn.</summary>
+    private static byte[] Scan(int width, int height) =>
+        width <= 1800 && height <= 1500
+            ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
+            : Page.Value;
 
     private static byte[]? Document(string name)
     {
@@ -66,7 +74,45 @@ internal static class Demo
                 dc.DrawRoundedRectangle(grey, null, new Rect(150, y, len, 18), 4, 4);
             }
         }
-        var bmp = new RenderTargetBitmap(w * 2, h * 2, 96, 96, PixelFormats.Pbgra32);
+        return Jpeg(visual, w * 2, h * 2);
+    }
+
+    /// <summary>
+    /// A made-up ID card (ID-1 size, 3.37 × 2.13 in at 300 dpi) in the corner of a <paramref name="width"/> ×
+    /// <paramref name="height"/> pixel scan: photo box and text bars on the front, a stripe and lines on the back.
+    /// </summary>
+    private static byte[] ScanCard(int width, int height, bool back)
+    {
+        const double cw = 1011, ch = 638, x = 30, y = 30;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+            var card = new SolidColorBrush(Color.FromRgb(0xE4, 0xEC, 0xF6));
+            var ink = new SolidColorBrush(Color.FromRgb(0x30, 0x34, 0x3A));
+            var grey = new SolidColorBrush(Color.FromRgb(0xA9, 0xB2, 0xBE));
+            dc.DrawRoundedRectangle(card, new Pen(grey, 3), new Rect(x, y, cw, ch), 38, 38);
+            if (!back)
+            {
+                dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(0x2B, 0x5C, 0x9E)), null, new Rect(x, y + 40, cw, 70), 0, 0);
+                dc.DrawRoundedRectangle(grey, null, new Rect(x + 50, y + 160, 250, 320), 14, 14);
+                for (var i = 0; i < 5; i++)
+                    dc.DrawRoundedRectangle(i == 0 ? ink : grey, null, new Rect(x + 350, y + 175 + i * 64, i == 0 ? 460 : 560 - i * 50, i == 0 ? 34 : 24), 8, 8);
+                dc.DrawRoundedRectangle(ink, null, new Rect(x + 350, y + 520, 300, 40), 6, 6);
+            }
+            else
+            {
+                dc.DrawRectangle(ink, null, new Rect(x, y + 70, cw, 120));
+                for (var i = 0; i < 6; i++)
+                    dc.DrawRoundedRectangle(grey, null, new Rect(x + 60, y + 250 + i * 52, 880 - i * 70, 22), 6, 6);
+            }
+        }
+        return Jpeg(visual, width, height);
+    }
+
+    private static byte[] Jpeg(Visual visual, int pixelWidth, int pixelHeight)
+    {
+        var bmp = new RenderTargetBitmap(pixelWidth, pixelHeight, 96, 96, PixelFormats.Pbgra32);
         bmp.Render(visual);
         var enc = new JpegBitmapEncoder { QualityLevel = 85 };
         enc.Frames.Add(BitmapFrame.Create(bmp));

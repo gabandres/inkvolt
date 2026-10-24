@@ -41,6 +41,23 @@ public class DemoTests
     }
 
     [Fact]
+    public async Task DemoScannerSeesTheRequestedRegion()
+    {
+        var regions = new List<(int, int)>();
+        var handler = new FixtureHandler(name =>
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", name);
+            return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }, scanArea: (w, h) => { regions.Add((w, h)); return Page; });
+        using var conn = await PrinterConnection.OpenAsync(FixtureHandler.DemoHost, transport: handler);
+
+        await foreach (var _ in conn.Scanner!.ScanAsync(InkvoltPrint.Core.Printing.CopyLayout.IdCardRequest(ScanColor.Grayscale, 300))) { }
+        await foreach (var _ in conn.Scanner!.ScanAsync(new ScanRequest(Width: 2550, Height: 3300))) { }
+
+        Assert.Equal([(1350, 900), (2550, 3300)], regions);
+    }
+
+    [Fact]
     public async Task EventLongPollIsHeldNotSpun()
     {
         using var http = new DeviceHttp(FixtureHandler.DemoHost, Transport());
