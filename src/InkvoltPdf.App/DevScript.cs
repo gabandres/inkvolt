@@ -26,6 +26,10 @@ namespace InkvoltPdf.App;
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
+/// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
+/// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
+/// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
+/// suggestions · taborder on|off</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
@@ -61,6 +65,26 @@ internal static class DevScript
         }
         await File.WriteAllLinesAsync(scriptPath + ".log", log);
         Application.Current.Shutdown();
+    }
+
+    private static Core.DesignFieldKind? DesignKindOf(string name) => name.ToLowerInvariant() switch
+    {
+        "text" => Core.DesignFieldKind.Text,
+        "check" => Core.DesignFieldKind.CheckBox,
+        "radio" => Core.DesignFieldKind.Radio,
+        "combo" => Core.DesignFieldKind.ComboBox,
+        "list" => Core.DesignFieldKind.ListBox,
+        "signature" => Core.DesignFieldKind.Signature,
+        "button" => Core.DesignFieldKind.Button,
+        _ => null,
+    };
+
+    /// <summary>Waits for a Prepare Form edit to land and the fields to be read again.</summary>
+    private static async Task DesignSettle(DocumentTab tab)
+    {
+        await Task.Delay(300);
+        await tab.SettleAsync();
+        await Task.Delay(500);
     }
 
     private static async Task Step(MainWindow window, string line, List<string> log)
@@ -331,6 +355,49 @@ internal static class DevScript
                 log.Add(LinkList(tab));
                 break;
             }
+            // Prepare Form (DocumentTab.FormDesign.cs)
+            case "prepareform": log.Add($"prepareform: {await tab!.SetFormDesign(arg != "off")}"); await Task.Delay(600); break;
+            case "designkind": v!.DesignKind = DesignKindOf(arg); break;
+            case "addfield":
+            {
+                // addfield text|check|radio|combo|list|signature|button p x y w h: draw a field with a field tool
+                var a = arg.Split(' ');
+                v!.DevDrawField(DesignKindOf(a[0]) ?? Core.DesignFieldKind.Text, int.Parse(a[1]) - 1, new Core.RectD(Num(a[2]), Num(a[3]), Num(a[4]), Num(a[5])));
+                await DesignSettle(tab!);
+                log.Add($"fields: {tab!.DevDesignFields()}");
+                break;
+            }
+            case "fieldsel": v!.SelectDesignField(arg == "none" ? null : v.DesignFields[int.Parse(arg)].Id, reveal: true); break;
+            case "fieldprop":
+            {
+                // fieldprop name|tooltip|default|options|format|required|size|fill value
+                var a = arg.Split(' ', 2);
+                tab!.DevSetProperty(a[0], a.Length > 1 ? a[1] : "");
+                await DesignSettle(tab);
+                log.Add($"design: {tab.DevDesignState()}");
+                break;
+            }
+            case "movefield":
+            {
+                // movefield i x y w h
+                var a = arg.Split(' ');
+                v!.DevMoveField(v.DesignFields[int.Parse(a[0])].Id, new Core.RectD(Num(a[1]), Num(a[2]), Num(a[3]), Num(a[4])));
+                await DesignSettle(tab!);
+                log.Add($"fields: {tab!.DevDesignFields()}");
+                break;
+            }
+            case "fieldaction":
+                v!.DevDesignAction(Enum.Parse<DesignAction>(arg, true));
+                await DesignSettle(tab!);
+                log.Add($"design: {tab!.DevDesignState()}");
+                break;
+            case "detect": await tab!.DevDetect(); log.Add($"suggestions: {tab.DevSuggestions()}"); break;
+            case "suggestion": v!.SelectSuggestion(int.Parse(arg), reveal: true); break;
+            case "acceptall": await tab!.DevAcceptAll(); await DesignSettle(tab); log.Add($"fields: {tab.DevDesignFields()}"); break;
+            case "designfields": log.Add($"fields: {tab!.DevDesignFields()}"); break;
+            case "designstate": log.Add($"design: {tab!.DevDesignState()}"); break;
+            case "suggestions": log.Add($"suggestions: {tab!.DevSuggestions()}"); break;
+            case "taborder": v!.ShowTabOrder = arg != "off"; break;
             case "bars":
                 foreach (var bar in new[] { "DiskBar", "FormBar", "XfaBar", "SigBar", "RedactBar" })
                     if (tab!.FindName(bar) is FrameworkElement { Visibility: Visibility.Visible }) log.Add($"bar {bar} visible");

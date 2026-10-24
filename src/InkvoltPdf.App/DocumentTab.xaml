@@ -550,6 +550,166 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Prepare Form: field tools, floating top-center (DocumentTab.FormDesign.cs) -->
+                <Border x:Name="FormDesignBar" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
+                        Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        AutomationProperties.Name="Prepare form tools">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.22" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Prepare Form" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="8,0,6,0" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <ToggleButton x:Name="DesignSelectTool" Style="{StaticResource CommandButton}" Content="Select" FontSize="12" Padding="8,4"
+                                      ToolTip="Select, move and resize fields (Esc)" />
+                        <ToggleButton x:Name="DesignTextTool" Style="{StaticResource CommandButton}" Content="Text" FontSize="12" Padding="8,4"
+                                      ToolTip="Text field: drag on the page (a click makes one line)" AutomationProperties.Name="Text field" />
+                        <ToggleButton x:Name="DesignCheckTool" Style="{StaticResource CommandButton}" Content="Check box" FontSize="12" Padding="8,4"
+                                      ToolTip="Check box: click where it goes" />
+                        <ToggleButton x:Name="DesignRadioTool" Style="{StaticResource CommandButton}" Content="Radio" FontSize="12" Padding="8,4"
+                                      ToolTip="Radio button: with one selected, the next joins its group" AutomationProperties.Name="Radio button" />
+                        <ToggleButton x:Name="DesignComboTool" Style="{StaticResource CommandButton}" Content="Dropdown" FontSize="12" Padding="8,4"
+                                      ToolTip="Dropdown list" />
+                        <ToggleButton x:Name="DesignListTool" Style="{StaticResource CommandButton}" Content="List" FontSize="12" Padding="8,4"
+                                      ToolTip="List box" AutomationProperties.Name="List box" />
+                        <ToggleButton x:Name="DesignSignatureTool" Style="{StaticResource CommandButton}" Content="Signature" FontSize="12" Padding="8,4"
+                                      ToolTip="Signature field (signed digitally later)" AutomationProperties.Name="Signature field" />
+                        <ToggleButton x:Name="DesignButtonTool" Style="{StaticResource CommandButton}" Content="Button" FontSize="12" Padding="8,4"
+                                      ToolTip="Push button: resets the form or prints" AutomationProperties.Name="Push button" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <Button x:Name="DesignDetect" Style="{StaticResource CommandButton}" Content="Detect Fields" FontSize="12" Padding="8,4"
+                                ToolTip="Suggest fields from lines, boxes and underscores on every page" />
+                        <ToggleButton x:Name="DesignTabNumbers" Style="{StaticResource CommandButton}" Content="Tab order" FontSize="12" Padding="8,4"
+                                      ToolTip="Number the fields in the order Tab fills them" AutomationProperties.Name="Show tab order" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <Button x:Name="DesignDone" Style="{StaticResource CommandButton}" Content="Done" FontSize="12" Padding="10,4" FontWeight="SemiBold"
+                                ToolTip="Leave Prepare Form" AutomationProperties.Name="Done preparing the form" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Prepare Form: the selected field's or suggestion's properties, floating right -->
+                <Border x:Name="FieldPanel" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,60,12,12" Width="272"
+                        Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        AutomationProperties.Name="Field properties">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.22" />
+                    </Border.Effect>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="14,12">
+                            <StackPanel.Resources>
+                                <Style x:Key="PanelCaption" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                    <Setter Property="FontSize" Value="12" />
+                                    <Setter Property="Margin" Value="0,8,0,3" />
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </StackPanel.Resources>
+                            <TextBlock x:Name="FieldPanelTitle" FontSize="14" FontWeight="SemiBold" Margin="0" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="FieldPanelError" Style="{StaticResource PanelCaption}" Visibility="Collapsed" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+
+                            <StackPanel x:Name="FieldProps">
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="Name (dots group fields: address.city)" />
+                                <TextBox x:Name="FieldNameBox" AutomationProperties.Name="Field name" />
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="Tooltip" />
+                                <TextBox x:Name="FieldTooltipBox" AutomationProperties.Name="Tooltip" />
+                                <WrapPanel>
+                                    <CheckBox x:Name="FieldRequiredBox" Margin="0,6,12,0" Content="Required" />
+                                    <CheckBox x:Name="FieldReadOnlyBox" Margin="0,6,12,0" Content="Read-only" />
+                                </WrapPanel>
+
+                                <StackPanel x:Name="FieldTextGroup">
+                                    <CheckBox x:Name="FieldMultilineBox" Margin="0,6,12,0" Content="Multi-line" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Most characters (0: no limit)" />
+                                    <TextBox x:Name="FieldMaxLenBox" AutomationProperties.Name="Most characters" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Format" />
+                                    <ComboBox x:Name="FieldFormatBox" AutomationProperties.Name="Format" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="FieldOptionsGroup">
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Choices (one per line)" />
+                                    <TextBox x:Name="FieldOptionsBox" AcceptsReturn="True" Height="86" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                                             AutomationProperties.Name="Choices, one per line" />
+                                    <CheckBox x:Name="FieldEditableBox" Margin="0,6,12,0" Content="Allow other values" />
+                                    <CheckBox x:Name="FieldMultiSelectBox" Margin="0,6,12,0" Content="Allow several choices" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="FieldExportGroup">
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Value when on" />
+                                    <TextBox x:Name="FieldExportBox" AutomationProperties.Name="Value when on" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="FieldButtonGroup">
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Label" />
+                                    <TextBox x:Name="FieldCaptionBox" AutomationProperties.Name="Button label" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="When clicked" />
+                                    <ComboBox x:Name="FieldActionBox" AutomationProperties.Name="When clicked" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="FieldDefaultGroup">
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Default value" />
+                                    <TextBox x:Name="FieldDefaultBox" AutomationProperties.Name="Default value" />
+                                    <ComboBox x:Name="FieldDefaultChoice" AutomationProperties.Name="Default choice" />
+                                </StackPanel>
+                                <CheckBox x:Name="FieldDefaultCheck" Margin="0,6,12,0" Content="On by default" />
+
+                                <Grid x:Name="FieldLookGroup">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                        <RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Text size" />
+                                    <ComboBox x:Name="FieldSizeBox" Grid.Row="1" IsEditable="True" AutomationProperties.Name="Text size" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Grid.Column="2" Text="Alignment" />
+                                    <ComboBox x:Name="FieldAlignBox" Grid.Row="1" Grid.Column="2" AutomationProperties.Name="Alignment" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Grid.Row="2" Text="Border" />
+                                    <ComboBox x:Name="FieldBorderBox" Grid.Row="3" AutomationProperties.Name="Border color" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Grid.Row="2" Grid.Column="2" Text="Fill" />
+                                    <ComboBox x:Name="FieldFillBox" Grid.Row="3" Grid.Column="2" AutomationProperties.Name="Fill color" />
+                                </Grid>
+
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button x:Name="FieldDuplicate" Content="Duplicate" Margin="0,0,6,6" ToolTip="A copy below this one (Ctrl+D)" />
+                                    <Button x:Name="FieldDelete" Content="Delete" Margin="0,0,6,6" ToolTip="Delete the field (Del)" />
+                                    <Button x:Name="FieldEarlier" Content="Tab earlier" Margin="0,0,6,6" ToolTip="Fill this field one step sooner" />
+                                    <Button x:Name="FieldLater" Content="Tab later" Margin="0,0,6,6" ToolTip="Fill this field one step later" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <StackPanel x:Name="SuggestionProps">
+                                <TextBlock x:Name="SuggestionSource" Style="{StaticResource PanelCaption}" />
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="Name" />
+                                <TextBox x:Name="SuggestionNameBox" AutomationProperties.Name="Suggested field name" />
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="Kind" />
+                                <ComboBox x:Name="SuggestionKindBox" AutomationProperties.Name="Suggested field kind" />
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button x:Name="SuggestionAccept" Content="Add field" Margin="0,0,6,6" Style="{DynamicResource AccentButtonStyle}" ToolTip="Add this field (Enter)" />
+                                    <Button x:Name="SuggestionReject" Content="Skip" Margin="0,0,6,6" ToolTip="Leave it out (Del)" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <StackPanel x:Name="SuggestionAll">
+                                <TextBlock x:Name="SuggestionCount" Style="{StaticResource PanelCaption}" />
+                                <WrapPanel>
+                                    <Button x:Name="SuggestionAcceptAll" Content="Add all" Margin="0,0,6,6" />
+                                    <Button x:Name="SuggestionRejectAll" Content="Skip all" Margin="0,0,6,6" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <TextBlock x:Name="FieldPanelHint" Style="{StaticResource PanelCaption}"
+                                       Text="Pick a field kind above, then drag on the page (or click) to place it. Select a field to change it; drag to move it, its handles to resize it, arrow keys to nudge it (Shift: 10 points). Tab goes from field to field." />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
                 <!-- Page and zoom pill, floating bottom-center -->
                 <Border x:Name="Pill" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="6,4"
                         CornerRadius="20" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"

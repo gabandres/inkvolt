@@ -384,7 +384,7 @@ public static partial class FormEditor
     }
 
     /// <summary>Generates the normal appearance of every widget of a text or choice field from its current value.</summary>
-    private static void WriteAppearances(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js = null)
+    internal static void WriteAppearances(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js = null)
     {
         if (f.Type is not ("/Tx" or "/Ch")) return;
         var raw = ValueOf(f.Dict, f.Type);
@@ -436,7 +436,7 @@ public static partial class FormEditor
     /// With NeedAppearances, viewers redraw every field (check boxes too) from the form's default resources;
     /// make sure the fonts they look for (Helvetica for text, ZapfDingbats for check marks) are there.
     /// </summary>
-    private static void EnsureDefaultFonts(PdfDocument doc, PdfDictionary acro)
+    internal static void EnsureDefaultFonts(PdfDocument doc, PdfDictionary acro)
     {
         if (PdfObj.Dict(acro.Elements["/DR"]) is not { } dr)
         {
@@ -685,7 +685,7 @@ public static partial class FormEditor
         return null;
     }
 
-    private static string? OnStateOf(PdfDictionary widget)
+    internal static string? OnStateOf(PdfDictionary widget)
     {
         if (PdfObj.Dict(widget.Elements["/AP"]) is not { } ap) return null;
         var normal = PdfObj.Dict(ap.Elements["/N"]) ?? PdfObj.Dict(ap.Elements["/D"]);
@@ -693,7 +693,7 @@ public static partial class FormEditor
     }
 
     /// <summary>Export values and display labels of a choice field's /Opt (plain strings or [export display] pairs).</summary>
-    private static (List<string> Exports, List<string> Labels) ReadOptions(PdfItem? opt)
+    internal static (List<string> Exports, List<string> Labels) ReadOptions(PdfItem? opt)
     {
         var exports = new List<string>();
         var labels = new List<string>();

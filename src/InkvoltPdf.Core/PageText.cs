@@ -248,6 +248,9 @@ public sealed class PageText
         return false;
     }
 
+    /// <summary>The box of the UTF-16 unit at <paramref name="index"/> (a line break's is zero-width, at its line's end).</summary>
+    public RectD BoxAt(int index) => _boxes[index];
+
     public string GetString(int start, int end)
     {
         (start, end) = Order(start, end);

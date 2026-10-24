@@ -310,6 +310,7 @@ public partial class DocumentTab : UserControl, IDisposable
             AppSettings.Current.Save();
         };
         InitReview();
+        InitFormDesign(); // Prepare Form (DocumentTab.FormDesign.cs)
         UpdatePill();
     }
 
@@ -483,7 +484,7 @@ public partial class DocumentTab : UserControl, IDisposable
 
         var fields = widgets.Where(w => !w.ReadOnly && w.Kind is not (FormFieldKind.PushButton or FormFieldKind.Signature))
             .Select(w => w.FieldName).Distinct().Count();
-        FormBar.Visibility = fields > 0 && !_formBarDismissed ? Visibility.Visible : Visibility.Collapsed;
+        FormBar.Visibility = fields > 0 && !_formBarDismissed && !IsDesigningForm ? Visibility.Visible : Visibility.Collapsed;
         FormBarText.Text = $"This form has {fields} fillable field{(fields == 1 ? "" : "s")}. Click a field to fill it; Tab moves to the next one. {Cmd.Tip("Save", Cmd.Save)} when you're done.";
         RaiseState();
     }
@@ -1008,6 +1009,7 @@ public partial class DocumentTab : UserControl, IDisposable
         if (IsOrganizing) Organizer.Load(Session.Engine, organizerSelection, organizerSelection.FirstOrDefault(Viewer.CurrentPage));
         _ = LoadAnnotationsAsync();
         _ = LoadReviewAsync();
+        _ = LoadFormDesignAsync();
         UpdateRedactBar();
         RaiseState();
     }

@@ -85,6 +85,23 @@ Manager. The installers don't remove an install made under the old names: uninst
   run); type text or put check marks/crosses anywhere on a page (A, K, X); **Sign** places a handwritten signature or
   initials (drawn with mouse/pen/touch, typed in a script font, or an imported image; up to 3 signatures + initials saved
   on this PC) as a stamp every viewer shows: drag to move, drag the corner to resize, Delete removes it (undoable).
+- **Prepare Form** (Edit › Forms › Prepare Form, Ctrl+Alt+F, or the command palette): add and edit form fields. A
+  bar over the page picks the field kind (text, check box, radio button, dropdown, list box, signature, push button):
+  drag on the page to place one, or click for the kind's usual size (with a radio button selected, the next one joins its
+  group). Click a field to select it: drag to move it, drag a handle to resize it, arrow keys nudge it (Shift: 10 pt),
+  Tab / Shift+Tab go from field to field, Del deletes, Ctrl+D duplicates, Enter opens its properties, Esc lets go. The
+  properties panel: name (dots group fields: "address.city"; names are checked so no two fields clash), tooltip,
+  required, read-only, default value (or "checked/selected by default"), multi-line, most characters, format (number,
+  currency, percent, three date styles, ZIP, phone, SSN: Acrobat's own AF scripts, which Inkvolt PDF runs too),
+  choices, the value a check box or radio button stands for, a push button's label and action (reset the form or
+  print), text size (or auto), alignment, border and fill; plus Tab earlier / later (the order Tab fills them, shown as
+  numbers with "Tab order"). **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
+  on, empty boxes, small squares, ☐ characters and runs of underscores ("Name: ______"), names each suggestion after
+  the text beside it, and shows it dashed: Enter or Add field takes one, Del or Skip leaves it out, or Add all. Fields
+  are real AcroForm fields with their own appearances (/DA, /DR fonts), so they show and fill in Acrobat, browsers and
+  phones as well as here, without relying on NeedAppearances. Every change is one undo step; a signed file gets the
+  change appended (with the usual warning), a protected one keeps its protection, and a hybrid XFA form loses its XFA
+  part (asked first; XFA-only forms can't be prepared).
 - **Images** (Review › Add Image… or the toolbar, I; Add Image from Clipboard): pick a picture (JPEG, PNG, BMP, GIF,
   TIFF; transparency kept) or take the copied one, then click where it goes; drag to move, drag the corner to resize,
   Delete removes it. A Stamp annotation with the picture as its appearance, so every viewer shows and prints it; listed
@@ -213,8 +230,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view) |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view) |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -231,6 +248,8 @@ leaving your own settings untouched and unsaved. Sample files for the review fea
 scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
 `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
+Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
+`movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 
 ## License
 
@@ -271,6 +290,13 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   stamps and fields.
 - No editing of existing page text. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
   restyled), each pen stroke is its own annotation, and pen pressure is ignored.
+- Prepare Form: one field selected at a time (no multi-select, align or distribute); no calculated fields, submit
+  buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
+  and actions). New fields use Helvetica (other scripts get an embedded font when filled). A field shown in several
+  places (same name) can't be made here, except radio buttons. Tab order follows the page's annotation order once
+  changed; a page ordered by its structure tree is shown in annotation order. Detect Fields reads drawn lines, boxes and
+  text: boxes with text in them, vertical rules, curves and scanned pages without OCR text find nothing; a table of
+  empty cells becomes a field per cell.
 - Compare: text is matched in the order the pages store it (multi-column layouts can show reordered text as changes),
   a paragraph moved elsewhere shows as removed in one place and inserted in another, and Thai, Lao or Khmer text (no
   spaces between words) is compared in long runs. Visual compare overlays pages at their top-left corners without
@@ -282,6 +308,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 ## Backlog
 
+- Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
+  custom script) and submit buttons; detect comb boxes and table rows as one field each.
 - Compare: find moved paragraphs, line up shifted or skewed scans before overlaying them, put visual differences in the
   annotated copy, and report formatting changes (font, size, color) as well as wording.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).

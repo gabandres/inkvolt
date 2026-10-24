@@ -79,6 +79,10 @@ public static class Cmd
     public static readonly RoutedUICommand AddStamp = Make("S_tamp…", nameof(AddStamp));
     public static readonly RoutedUICommand HighlightFields = Make("_Highlight Form Fields", nameof(HighlightFields));
 
+    // Forms: authoring (see DocumentTab.FormDesign)
+    public static readonly RoutedUICommand PrepareForm = Make("_Prepare Form (Add and Edit Fields)", nameof(PrepareForm), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt));
+    public static readonly RoutedUICommand DetectFields = Make("_Detect Form Fields", nameof(DetectFields));
+
     // View
     public static readonly RoutedUICommand ZoomIn = Make("Zoom _In", nameof(ZoomIn), K(Key.OemPlus, ModifierKeys.Control, "Ctrl+="), K(Key.Add, ModifierKeys.Control));
     public static readonly RoutedUICommand ZoomOut = Make("Zoom _Out", nameof(ZoomOut), K(Key.OemMinus, ModifierKeys.Control, "Ctrl+-"), K(Key.Subtract, ModifierKeys.Control));

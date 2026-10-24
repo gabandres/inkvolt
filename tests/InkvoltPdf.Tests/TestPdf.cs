@@ -9,6 +9,9 @@ internal static class TestPdf
 {
     static TestPdf() => GlobalFontSettings.UseWindowsFontsUnderWindows = true;
 
+    /// <summary>Makes sure PDFsharp finds the Windows fonts (set once, here) before a test draws text.</summary>
+    public static void UseFonts() { }
+
     public static byte[] Make(int pages, string marker = "alpha")
     {
         using var doc = new PdfDocument();
