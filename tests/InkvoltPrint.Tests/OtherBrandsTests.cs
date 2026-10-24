@@ -89,6 +89,25 @@ public class OtherBrandsTests
     }
 
     [Fact]
+    public void Several_alerts_for_one_reason_keep_every_description()
+    {
+        var s = IppClient.ToStatus(Ipp("""
+            printer-state enum 3
+            printer-state-reasons keyword marker-supply-low-warning
+            printer-alert octetString code=markerInkAlmostEmpty;index=1;severity=warning
+            printer-alert octetString code=markerInkAlmostEmpty;index=2;severity=warning
+            printer-alert octetString code=markerInkAlmostEmpty;index=3;severity=critical
+            printer-alert-description text Yellow ink is low.
+            printer-alert-description text Cyan ink is low
+            printer-alert-description text yellow ink is low.
+            """));
+
+        var a = Assert.Single(s.Alerts);
+        Assert.Equal("Yellow ink is low. Cyan ink is low.", a.Message); // de-duplicated, in order
+        Assert.Equal(Severity.Error, a.Severity);                       // the critical alert raises the reason
+    }
+
+    [Fact]
     public void Placeholder_reasons_are_not_problems()
     {
         var s = IppClient.ToStatus(Ipp("printer-state enum 3\nprinter-state-reasons keyword none\nprinter-state-reasons keyword other-report"));
@@ -270,6 +289,45 @@ public class OtherBrandsTests
         Assert.Equal("ipp_printer.ipp.txt", seen[0]);
     }
 
+    [Fact]
+    public async Task Ipps_is_tried_when_plain_IPP_is_refused()
+    {
+        var handler = new Network(InkjetTransport(), req => req.RequestUri is { Scheme: "http", Port: 631 }
+            ? Network.Refuse() : null);
+        using var conn = await PrinterConnection.OpenAsync("192.0.2.11", transport: handler);
+
+        Assert.Equal("https://192.0.2.11:631/ipp/print", conn.Probe.IppEndpoint?.AbsoluteUri);
+        Assert.Equal("https://192.0.2.11:631/ipp/print", conn.Ipp?.Endpoint.AbsoluteUri);
+        Assert.Equal(PrinterBrand.Epson, conn.Probe.Brand);
+    }
+
+    [Fact]
+    public async Task A_silent_hint_doesnt_hold_up_the_plain_IPP_answer()
+    {
+        var handler = new Network(InkjetTransport(), req => req.RequestUri?.AbsolutePath == "/ipp/printer" ? Network.Hang() : null);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var http = new DeviceHttp("192.0.2.11", handler);
+
+        var probe = await PrinterConnection.ProbeAsync(http, ippHint: new Uri("http://192.0.2.11:631/ipp/printer"));
+
+        Assert.Equal("/ipp/print", probe.IppEndpoint?.AbsolutePath);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), $"took {sw.Elapsed}");
+    }
+
+    [Fact]
+    public async Task A_printer_that_never_answers_IPP_costs_one_deadline_not_one_per_attempt()
+    {
+        var handler = new Network(InkjetTransport(), req => req.RequestUri?.Port == 631 ? Network.Hang() : null);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var http = new DeviceHttp("192.0.2.11", handler);
+
+        var probe = await PrinterConnection.ProbeAsync(http, ippHint: new Uri("http://192.0.2.11:631/ipp/printer"));
+
+        Assert.Null(probe.Ipp);
+        Assert.NotNull(probe.Scanner);
+        Assert.True(sw.Elapsed < PrinterConnection.IppProbeDeadline + TimeSpan.FromSeconds(2), $"took {sw.Elapsed}");
+    }
+
     // ------------------------------------------------------------------ eSCL
 
     private static ScannerCapabilities InkjetCaps() => ScannerCapabilities.Parse(XDocument.Load(InkjetFile("eSCL_ScannerCapabilities.xml")));
@@ -436,7 +494,21 @@ public class OtherBrandsTests
         Assert.Equal("2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b", DnssdJoin.Key(ipp, all));
         Assert.Equal("2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b", DnssdJoin.Key(scan, all));
         Assert.Null(DnssdJoin.Key(lone, all)); // no UUID anywhere on its host: not joined (add it by address)
-        Assert.Null(DnssdJoin.Key(none, all));
+        Assert.Equal("not-a-uuid", DnssdJoin.Key(none, all)); // not a GUID: kept as published (the app's list skips it)
+    }
+
+    [Fact]
+    public void Services_sharing_a_UUID_that_is_not_a_GUID_still_join()
+    {
+        var ipp = Svc("_ipp._tcp", "printer-0001", "Example-0000.local", "192.0.2.11");
+        var scan = Svc("_uscan._tcp", "printer-0001", "Example-0000.local", "192.0.2.11");
+        var bare = Svc("_uscan._tcp", null, "Example-0000.local", "192.0.2.11");
+        var all = new[] { ipp, scan, bare };
+
+        Assert.Equal(["printer-0001", "printer-0001", "printer-0001"], all.Select(x => DnssdJoin.Key(x, all)));
+        // A GUID on the host still wins for a service without a UUID.
+        var guid = Svc("_ipps._tcp", "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b", "Example-0000.local", "192.0.2.11");
+        Assert.Equal("2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b", DnssdJoin.Key(bare, [.. all, guid]));
     }
 
     [Theory]
@@ -494,6 +566,24 @@ public class OtherBrandsTests
           <pwg:Version>2.6</pwg:Version>{inner}
         </scan:ScannerCapabilities>
         """));
+
+    /// <summary>The fixtures behind a network that can refuse or hang particular requests.</summary>
+    private sealed class Network(HttpMessageHandler inner, Func<HttpRequestMessage, Func<CancellationToken, Task<HttpResponseMessage>>?> fault)
+        : DelegatingHandler(inner)
+    {
+        public static Func<CancellationToken, Task<HttpResponseMessage>> Refuse() => _ => Task.FromException<HttpResponseMessage>(
+            new HttpRequestException(HttpRequestError.ConnectionError, "refused",
+                new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused)));
+
+        public static Func<CancellationToken, Task<HttpResponseMessage>> Hang() => async ct =>
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            throw new InvalidOperationException("unreachable");
+        };
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            fault(request) is { } f ? f(ct) : base.SendAsync(request, ct);
+    }
 
     private sealed class Spy(HttpMessageHandler inner, Action<HttpRequestMessage> seen) : DelegatingHandler(inner)
     {

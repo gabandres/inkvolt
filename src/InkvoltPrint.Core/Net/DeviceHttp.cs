@@ -16,17 +16,44 @@ public sealed class DeviceHttp : IDisposable
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
     private readonly HttpClient _client;
+    private readonly bool _ownTransport;
     private readonly ICertificatePin? _pin;
+    private readonly Dictionary<int, HttpClient> _tls = [];
     private string? _basicAuth;
 
     public DeviceHttp(string host, HttpMessageHandler? handler = null, ICertificatePin? pin = null)
     {
         Host = host;
         _pin = pin;
+        _ownTransport = handler is not null;
         HttpBase = new UriBuilder(Uri.UriSchemeHttp, host).Uri;
         HttpsBase = new UriBuilder(Uri.UriSchemeHttps, host).Uri;
-        _client = new HttpClient(handler ?? CreateHandler(host, ValidateCertificate), disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
-        _client.DefaultRequestHeaders.ExpectContinue = false;
+        _client = NewClient(handler ?? CreateHandler(host, (c, e) => ValidateCertificate(c, e, HttpsBase.Port)));
+    }
+
+    private static HttpClient NewClient(HttpMessageHandler handler)
+    {
+        var client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.ExpectContinue = false;
+        return client;
+    }
+
+    /// <summary>
+    /// HTTPS gets one client per port, so each handshake is checked against that port's pin (the TLS callback can't tell
+    /// ports apart). Plain HTTP and replaced transports (demo, tests) use the one client.
+    /// </summary>
+    private HttpClient ClientFor(Uri? uri)
+    {
+        if (_ownTransport || uri is not { Scheme: "https" }) return _client;
+        lock (_tls)
+        {
+            if (!_tls.TryGetValue(uri.Port, out var client))
+            {
+                var port = uri.Port;
+                _tls[port] = client = NewClient(CreateHandler(Host, (c, e) => ValidateCertificate(c, e, port)));
+            }
+            return client;
+        }
     }
 
     public string Host { get; }
@@ -46,13 +73,14 @@ public sealed class DeviceHttp : IDisposable
     public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TimeSpan? timeout = null,
         CancellationToken ct = default, HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
-        if (_basicAuth is not null && request.RequestUri?.Scheme == Uri.UriSchemeHttps)
+        // The admin password belongs to the web server (HTTPS on 443), never to another TLS port such as IPPS on 631.
+        if (_basicAuth is not null && request.RequestUri is { Scheme: "https" } target && target.Port == HttpsBase.Port)
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout ?? DefaultTimeout);
         try
         {
-            return await _client.SendAsync(request, completion, cts.Token).ConfigureAwait(false);
+            return await ClientFor(request.RequestUri).SendAsync(request, completion, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -91,18 +119,19 @@ public sealed class DeviceHttp : IDisposable
     /// <summary>
     /// Printers use self-signed certificates, so CA validation is meaningless. Instead the first certificate seen
     /// for a printer is remembered (trust on first use) and any later different certificate is refused, so a
-    /// machine impersonating the printer on the LAN can't collect the admin password.
+    /// machine impersonating the printer on the LAN can't collect the admin password. Pins are per port: a printer
+    /// may use one certificate for its web server (443) and another for IPPS (631).
     /// </summary>
-    internal bool ValidateCertificate(X509Certificate? cert, SslPolicyErrors errors)
+    internal bool ValidateCertificate(X509Certificate? cert, SslPolicyErrors errors, int port = 443)
     {
         if (cert is null) return false;
         if (_pin is null) return true; // unpinned probe: never carries credentials
         var thumb = Convert.ToHexString(SHA256.HashData(cert.GetRawCertData()));
-        var known = _pin.Get();
+        var known = _pin.Get(port);
         if (known is null)
         {
             // Two first handshakes can race: whichever pin is stored first wins, and both are checked against it.
-            known = _pin.SetIfAbsent(thumb);
+            known = _pin.SetIfAbsent(port, thumb);
         }
         if (string.Equals(known, thumb, StringComparison.OrdinalIgnoreCase)) return true;
         CertificateChanged = true;
@@ -132,16 +161,38 @@ public sealed class DeviceHttp : IDisposable
 
     private static string? TargetHost(object sender) => sender is SslStream s ? s.TargetHostName : null;
 
-    public void Dispose() => _client.Dispose();
+    public void Dispose()
+    {
+        _client.Dispose();
+        lock (_tls)
+        {
+            foreach (var c in _tls.Values) c.Dispose();
+            _tls.Clear();
+        }
+    }
 }
 
-/// <summary>Remembered certificate fingerprint for one printer.</summary>
+/// <summary>Remembered certificate fingerprints for one printer, one per TLS port.</summary>
 public interface ICertificatePin
 {
-    string? Get();
+    string? Get(int port);
 
-    /// <summary>Stores the fingerprint unless one is already stored; returns the stored value.</summary>
-    string SetIfAbsent(string sha256Hex);
+    /// <summary>Stores the fingerprint for <paramref name="port"/> unless one is already stored; returns the stored value.</summary>
+    string SetIfAbsent(int port, string sha256Hex);
+}
+
+/// <summary>Where a printer's pin for a port is stored.</summary>
+public static class CertificatePinKey
+{
+    /// <summary>
+    /// The printer id for 443 (pins stored before they were per port were all for the web server on 443, so they stay
+    /// valid), <c>id:port</c> for any other port.
+    /// </summary>
+    public static string For(string printerId, int port) => port == 443 ? printerId : $"{printerId}:{port}";
+
+    /// <summary>The stored key is one of <paramref name="printerId"/>'s pins (any port).</summary>
+    public static bool Belongs(string key, string printerId) =>
+        string.Equals(key, printerId, StringComparison.OrdinalIgnoreCase) || key.StartsWith(printerId + ":", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class DeviceHttpException(HttpStatusCode status, HttpMethod? method, Uri? uri, string? body)

@@ -12,15 +12,19 @@ public sealed record DnssdService(string? Service, string? Uuid, string? HostNam
 public static class DnssdJoin
 {
     /// <summary>
-    /// The printer id a service belongs to: its UUID; without one, the UUID another service on the same host publishes.
-    /// Null when neither has one: such a printer is left out until a sibling shows up (giving it an address-derived id
-    /// now would leave a duplicate once the UUID arrives); it can still be added by address.
+    /// The printer id a service belongs to: its UUID (normalised when it is a GUID); without one, the UUID another service
+    /// on the same host publishes (a GUID preferred). A UUID that isn't a GUID is kept as published, so services sharing
+    /// it still join (Inkvolt Print's printer list only takes GUIDs, other users of discovery may take any). Null when no
+    /// service on the host has one: such a printer is left out until a sibling shows up (an address-derived id now would
+    /// leave a duplicate once the UUID arrives); it can still be added by address.
     /// </summary>
     public static string? Key(DnssdService s, IEnumerable<DnssdService> all)
     {
         if (PrinterId.IsValid(Clean(s.Uuid))) return PrinterId.Normalize(s.Uuid, "");
-        var sibling = all.FirstOrDefault(o => PrinterId.IsValid(Clean(o.Uuid)) && SameHost(o, s));
-        return sibling is null ? null : PrinterId.Normalize(sibling.Uuid, "");
+        var siblings = all.Where(o => !ReferenceEquals(o, s) && SameHost(o, s)).ToList();
+        if (siblings.FirstOrDefault(o => PrinterId.IsValid(Clean(o.Uuid))) is { } valid) return PrinterId.Normalize(valid.Uuid, "");
+        if (Clean(s.Uuid) is { Length: > 0 } raw) return raw;
+        return siblings.Select(o => Clean(o.Uuid)).FirstOrDefault(u => u is { Length: > 0 });
     }
 
     /// <summary>

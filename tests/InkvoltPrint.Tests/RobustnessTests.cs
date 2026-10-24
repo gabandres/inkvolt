@@ -108,7 +108,7 @@ public class RobustnessTests
         using var http = new DeviceHttp("printer.test", pin: pin);
         using var winner = SelfSigned("CN=printer");
         using var loser = SelfSigned("CN=printer");
-        pin.SetIfAbsent(Convert.ToHexString(SHA256.HashData(winner.GetRawCertData()))); // the other handshake stored first
+        pin.SetIfAbsent(443, Convert.ToHexString(SHA256.HashData(winner.GetRawCertData()))); // the other handshake stored first
 
         Assert.False(http.ValidateCertificate(loser, SslPolicyErrors.RemoteCertificateChainErrors));
         Assert.True(http.ValidateCertificate(winner, SslPolicyErrors.RemoteCertificateChainErrors));
@@ -143,8 +143,9 @@ public class RobustnessTests
 
     private sealed class MemoryPin : ICertificatePin
     {
-        public string? Value;
-        public string? Get() => Value;
-        public string SetIfAbsent(string sha256Hex) => Value ??= sha256Hex;
+        public readonly Dictionary<int, string> Pins = [];
+        public string? Value => Pins.GetValueOrDefault(443);
+        public string? Get(int port) => Pins.GetValueOrDefault(port);
+        public string SetIfAbsent(int port, string sha256Hex) => Pins.TryAdd(port, sha256Hex) ? sha256Hex : Pins[port];
     }
 }

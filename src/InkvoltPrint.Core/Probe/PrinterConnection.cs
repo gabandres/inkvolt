@@ -142,38 +142,69 @@ public sealed class PrinterConnection : IDisposable
 
     private static Uri DefaultIpp(DeviceHttp http) => new UriBuilder(Uri.UriSchemeHttp, http.Host, 631, "ipp/print").Uri;
 
+    /// <summary>The whole IPP probe gets what one request used to: an offline printer costs no more than before.</summary>
+    internal static readonly TimeSpan IppProbeDeadline = DeviceHttp.DefaultTimeout;
+
     /// <summary>
-    /// The DNS-SD hint (only on this host), then <c>http://host:631/ipp/print</c> (IPP Everywhere's path). When plain
-    /// HTTP is refused outright, the same path over TLS: some printers only take IPPS once their HTTP is switched off.
+    /// The DNS-SD hint (only on this host) and <c>http://host:631/ipp/print</c> (IPP Everywhere's path) at the same time;
+    /// the first that answers wins. When plain HTTP is refused outright, the same path over TLS: some printers only take
+    /// IPPS once their HTTP is switched off. All of it within <see cref="IppProbeDeadline"/>.
     /// </summary>
     private static async Task<(IppResponse?, Uri?)> ProbeIppAsync(DeviceHttp http, Uri? hint, CancellationToken ct)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(IppProbeDeadline);
         var plain = DefaultIpp(http);
-        var candidates = new List<Uri>();
-        if (hint is not null && string.Equals(hint.Host, http.Host, StringComparison.OrdinalIgnoreCase)
+        var candidates = new List<Uri> { plain };
+        if (hint is not null && hint != plain && string.Equals(hint.Host, http.Host, StringComparison.OrdinalIgnoreCase)
                              && (hint.Scheme == Uri.UriSchemeHttp || hint.Scheme == Uri.UriSchemeHttps))
-            candidates.Add(hint);
-        if (!candidates.Contains(plain)) candidates.Add(plain);
-        foreach (var uri in candidates)
+            candidates.Insert(0, hint);
+        var attempts = candidates.Select(Attempt).ToList();
+        var pending = attempts.ToList();
+        try
+        {
+            while (pending.Count > 0)
+            {
+                var done = await Task.WhenAny(pending).ConfigureAwait(false);
+                pending.Remove(done);
+                if (await done.ConfigureAwait(false) is ({ } r, { } uri)) return (r, uri);
+            }
+            return (null, null);
+        }
+        finally
+        {
+            await deadline.CancelAsync().ConfigureAwait(false); // the slower attempt stops; wait so nothing outlives the token
+            await Task.WhenAll(attempts).ConfigureAwait(false);
+        }
+
+        async Task<(IppResponse?, Uri?)> Attempt(Uri uri)
         {
             try
             {
-                if (await new IppClient(http, uri).GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false) is { Ok: true } r) return (r, uri);
+                return await Read(uri).ConfigureAwait(false);
             }
-            catch (HttpRequestException ex) when (uri == plain && ex.HttpRequestError == HttpRequestError.ConnectionError
-                                                  && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+            catch (HttpRequestException ex) when (uri == plain && Refused(ex))
             {
                 var tls = new UriBuilder(plain) { Scheme = Uri.UriSchemeHttps }.Uri;
-                return await Try(async () => (await new IppClient(http, tls).GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false)) is { Ok: true } r
-                    ? ((IppResponse?)r, (Uri?)tls) : (null, null)).ConfigureAwait(false);
+                try { return await Read(tls).ConfigureAwait(false); }
+                catch (Exception e) when (Missed(e)) { return (null, null); }
             }
-            catch (Exception ex) when (IsOffline(ex) || IsTransient(ex))
+            catch (Exception ex) when (Missed(ex))
             {
-                // next candidate
+                return (null, null);
             }
         }
-        return (null, null);
+
+        async Task<(IppResponse?, Uri?)> Read(Uri uri) =>
+            await new IppClient(http, uri).GetPrinterAttributesAsync(ct: deadline.Token).ConfigureAwait(false) is { Ok: true } r ? (r, uri) : (null, null);
+
+        // Offline, garbage, the deadline, or the other attempt won; the caller's own cancellation still propagates.
+        bool Missed(Exception ex) => IsOffline(ex) || IsTransient(ex) || (ex is OperationCanceledException && !ct.IsCancellationRequested);
     }
+
+    private static bool Refused(HttpRequestException ex) =>
+        ex.HttpRequestError == HttpRequestError.ConnectionError
+        && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused };
 
     /// <summary>
     /// LEDM first, IPP as fallback. Network failures mean offline; a printer that answers with an error or

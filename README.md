@@ -97,7 +97,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 
 - One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
 - Unhandled errors are logged to `%LOCALAPPDATA%\InkvoltPrint\logs\inkvoltprint.log` and shown; the app keeps running. Closing with unsaved scans asks first.
-- TLS: printer certificates are pinned on first use (per printer UUID); a changed certificate blocks password-bearing writes until the user trusts it (which also forgets the saved password). Inherent to trust-on-first-use: the very first encrypted connection is trusted as-is, so set the admin password up on a network you trust; the password dialog shows the pinned fingerprint.
+- TLS: printer certificates are pinned on first use (per printer UUID and port; pins from before ports were told apart stay the 443 pin); a changed certificate blocks password-bearing writes until the user trusts it (which also forgets the saved password). Inherent to trust-on-first-use: the very first encrypted connection is trusted as-is, so set the admin password up on a network you trust; the password dialog shows the pinned fingerprint.
 - Elevated actions (add printer by IP, HP clean-up) run a constant PowerShell script; every value is passed Base64-encoded and results return as exit codes (no temp files).
 - Printers added by IP get a Windows queue via `Add-Printer -IppURL` (Windows requires admin: one UAC prompt).
 
@@ -109,7 +109,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   Mopria eSCL) and the quirks sane-airscan documents, not against real devices. To confirm on hardware: marker names, colors
   and levels as each maker reports them (some send -3 "some left", or one entry per tri-color cartridge); whether a
   printer sends `printer-alert`; waste / maintenance box levels (shown without a percentage because makers disagree on the
-  direction); IPPS-only printers (self-signed certificate, pinned on first use: one pin per printer, so a printer using different certificates for IPPS and HTTPS scanning would be refused); Epson's `Host` header and Brother's
+  direction); IPPS-only printers (self-signed certificate, pinned on first use per port, so IPPS on 631 and the web server on 443 keep separate pins; the admin password goes only to 443); Epson's `Host` header and Brother's
   between-page pause; two-sided feeder scanning; services published with different UUIDs for printing and scanning show
   up as two entries. Usage counters, settings and firmware updates stay HP only (no standard IPP equivalent is read).
 - Scanners that only offer PDF (no JPEG) from a source say so instead of scanning (no PDF-page path yet).

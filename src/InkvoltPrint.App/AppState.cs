@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App;
@@ -95,7 +96,8 @@ public sealed class AppState
         if (string.Equals(oldId, newId, StringComparison.OrdinalIgnoreCase)) return;
         lock (_gate)
         {
-            if (CertificatePins.Remove(oldId, out var pin)) CertificatePins.TryAdd(newId, pin);
+            foreach (var key in CertificatePins.Keys.Where(k => CertificatePinKey.Belongs(k, oldId)).ToList())
+                if (CertificatePins.Remove(key, out var pin)) CertificatePins.TryAdd(newId + key[oldId.Length..], pin);
             if (QueueNames.Remove(oldId, out var queue)) QueueNames.TryAdd(newId, queue);
             for (var i = 0; i < ForgottenUuids.Count; i++)
                 if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
@@ -115,26 +117,30 @@ public sealed class AppState
         Save();
     }
 
-    public string? GetCertificatePin(string uuid)
+    /// <summary>The printer's pin for <paramref name="port"/> (443, its web server, by default).</summary>
+    public string? GetCertificatePin(string uuid, int port = 443)
     {
-        lock (_gate) return CertificatePins.GetValueOrDefault(uuid);
+        lock (_gate) return CertificatePins.GetValueOrDefault(CertificatePinKey.For(uuid, port));
     }
 
     /// <summary>Called from the TLS handshake (thread pool), hence the lock. Never overwrites an existing pin.</summary>
-    public string SetCertificatePinIfAbsent(string uuid, string sha256Hex)
+    public string SetCertificatePinIfAbsent(string uuid, int port, string sha256Hex)
     {
         string stored;
+        var key = CertificatePinKey.For(uuid, port);
         lock (_gate)
         {
-            if (!CertificatePins.TryGetValue(uuid, out stored!)) CertificatePins[uuid] = stored = sha256Hex;
+            if (!CertificatePins.TryGetValue(key, out stored!)) CertificatePins[key] = stored = sha256Hex;
         }
         Save();
         return stored;
     }
 
+    /// <summary>Forgets every pin of the printer (all ports): the user chose to trust its new certificate.</summary>
     public void ClearCertificatePin(string uuid)
     {
-        lock (_gate) CertificatePins.Remove(uuid);
+        lock (_gate)
+            foreach (var key in CertificatePins.Keys.Where(k => CertificatePinKey.Belongs(k, uuid)).ToList()) CertificatePins.Remove(key);
         Save();
     }
 

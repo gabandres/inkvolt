@@ -46,8 +46,9 @@ public sealed class IppClient
 
     /// <summary>
     /// Status from <c>printer-state</c> and <c>printer-state-reasons</c>, plus <c>printer-alert</c> entries (PWG 5100.9) that
-    /// no reason covers. An alert matching a reason lends it its <c>printer-alert-description</c> (the printer's own words,
-    /// e.g. which color is low). Placeholder reasons ("none", "other") and change events are not problems.
+    /// no reason covers. Alerts matching a reason lend it their <c>printer-alert-description</c>s (the printer's own words,
+    /// e.g. which colors are low), joined when several map to the same reason, and their severity when it is higher.
+    /// Placeholder reasons ("none", "other") and change events are not problems.
     /// </summary>
     public static PrinterStatus ToStatus(IppResponse r)
     {
@@ -59,6 +60,7 @@ public sealed class IppClient
             alerts.Add(new PrinterAlert(id, sev, IppStatusText.Describe(id)));
         }
         var descriptions = r.Strs("printer-alert-description").ToList();
+        var texts = new Dictionary<string, List<string>>(StringComparer.Ordinal); // reason id → the printer's descriptions
         var i = -1;
         foreach (var value in r.Strs("printer-alert"))
         {
@@ -67,17 +69,18 @@ public sealed class IppClient
             Severity? sev = alert.Severity switch { "critical" => Severity.Error, "warning" => Severity.Warning, _ => null };
             if (sev is null || alert.Code == "other") continue; // "other", "warningBinaryChangeEvent": nothing to fix
             var id = IppStatusText.ReasonForAlert(alert.Code) ?? alert.Code;
-            var text = i < descriptions.Count && descriptions[i].Trim() is { Length: > 0 } d ? d : null;
             var existing = alerts.FindIndex(a => a.Id == id);
-            if (existing >= 0)
+            if (existing < 0) alerts.Add(new PrinterAlert(id, sev.Value, IppStatusText.Describe(id)));
+            else if (sev.Value > alerts[existing].Severity) alerts[existing] = alerts[existing] with { Severity = sev.Value };
+            if (i < descriptions.Count && descriptions[i].Trim() is { Length: > 0 } d)
             {
-                if (text is not null) alerts[existing] = alerts[existing] with { Message = text };
-            }
-            else
-            {
-                alerts.Add(new PrinterAlert(id, sev.Value, text ?? IppStatusText.Describe(id)));
+                if (!texts.TryGetValue(id, out var list)) texts[id] = list = [];
+                if (!list.Contains(d, StringComparer.OrdinalIgnoreCase)) list.Add(d);
             }
         }
+        for (var a = 0; a < alerts.Count; a++)
+            if (texts.TryGetValue(alerts[a].Id, out var list))
+                alerts[a] = alerts[a] with { Message = string.Join(" ", list.Select(t => t.EndsWith('.') || t.EndsWith('!') ? t : t + ".")) };
         var (code, label) = r.Int("printer-state") switch
         {
             3 => ("ready", "Ready"),

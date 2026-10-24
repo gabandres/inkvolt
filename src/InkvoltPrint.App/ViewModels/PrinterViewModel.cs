@@ -637,8 +637,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Certificate fingerprint remembered per printer UUID in the app state.</summary>
     private sealed class PinStore(AppState state, string uuid) : ICertificatePin
     {
-        public string? Get() => state.GetCertificatePin(uuid);
-        public string SetIfAbsent(string sha256Hex) => state.SetCertificatePinIfAbsent(uuid, sha256Hex);
+        public string? Get(int port) => state.GetCertificatePin(uuid, port);
+        public string SetIfAbsent(int port, string sha256Hex) => state.SetCertificatePinIfAbsent(uuid, port, sha256Hex);
     }
 }
 
