@@ -430,4 +430,82 @@ public class ContentEditorTests
             File.WriteAllBytes(Path.Combine(dir, "edit-sample.pdf"), pdf);
         }
     }
+
+    // ---- Regressions (review of the first version) ----
+
+    [Theory]
+    [InlineData("BI /W 2 /H 1 /BPC 8 /CS /G /F /AHx ID 00ff> EI Q BT /FA 12 Tf 72 500 Td (Se\u00F1or) Tj ET")] // Latin-1 in a string after it
+    [InlineData("BI /W 2 /H 1 /BPC 8 /CS /G /F /AHx ID 00ff>EI Q BT /FA 12 Tf 72 500 Td (Se\u00F1or) Tj ET")]  // no space before EI
+    [InlineData("BI /W 2 /H 1 /BPC 8 /CS /G /F /A85 ID !!~> EI Q BT /FA 12 Tf 72 500 Td (Se\u00F1or) Tj ET")]
+    [InlineData("BI /W 2 /H 1 /BPC 8 /CS /G /F /Fl /L 6 ID \x01\x02 EI\xff EI Q BT /FA 12 Tf 72 500 Td (Se\u00F1or) Tj ET")] // stated length
+    public void InlineImageDataEndsWhereItSays(string body)
+    {
+        var ops = ContentLexer.Parse(Encoding.Latin1.GetBytes("q 30 0 0 10 50 50 cm " + body));
+        Assert.Equal(["q", "cm", "BI", "Q", "BT", "Tf", "Td", "Tj", "ET"], ops.Select(o => o.Name));
+        Assert.False(ops[2].Broken);
+    }
+
+    [Fact]
+    public void AnInlineImageWithoutAClearEndIsNotEditableAndNothingIsLost()
+    {
+        // Filtered data with binary bytes after every EI candidate: its end can't be told, so it isn't touched.
+        var content = "q 30 0 0 10 50 50 cm BI /W 2 /H 1 /BPC 8 /CS /G /F /Fl ID \x01 EI\x02\x03\x04 Q BT /FA 12 Tf 72 500 Td (draft) Tj ET";
+        var ops = ContentLexer.Parse(Encoding.Latin1.GetBytes(content));
+        Assert.True(ops[^1].Broken);
+        Assert.Equal(ops[^1].DataStart, ops[^1].End); // never stretched to the end of the stream
+        var pdf = ContentEditPdf.Make("BT /FA 12 Tf 72 600 Td (Hello) Tj ET " + content);
+        var page = ContentEditor.Read(pdf, null, 0);
+        Assert.NotNull(page.Images.Single().Blocked);
+        Assert.Throws<ContentEditException>(() => ContentEditor.DeleteImage(pdf, null, page.Images.Single()));
+        var edited = ContentEditor.ReplaceText(pdf, null, page.Runs.Single(r => r.Text == "Hello"), "Hell");
+        Assert.EndsWith(content, ContentEditPdf.Content(edited).TrimEnd()); // the rest of the page as it was
+    }
+
+    [Theory]
+    [InlineData("q 1 0 0 1 20 10 cm 30 0 0 10 50 50 cm BI /W 1 /H 1 /BPC 8 /CS /G ID \x80\nEI Q")] // two cms
+    [InlineData("q /GS1 gs 30 0 0 10 50 50 cm BI /W 1 /H 1 /BPC 8 /CS /G ID \x80\nEI Q")]           // gs before the cm
+    public void AnInlineImageMovedOutsideItsOwnGroupKeepsItsData(string content)
+    {
+        var pdf = ContentEditPdf.Make(content + " BT /FA 12 Tf 72 500 Td (draft) Tj ET");
+        var image = ContentEditor.Read(pdf, null, 0).Images.Single();
+        var moved = ContentEditor.MoveImage(pdf, null, image, new RectD(200, 100, 60, 20));
+        var after = ContentEditor.Read(moved, null, 0).Images.Single();
+        AssertNear(new RectD(200, 100, 60, 20), after.Box);
+        Assert.True(after.Inline);
+        Assert.Contains("ID \x80\nEI", ContentEditPdf.Content(moved));
+        var (r, g, b) = TestImages.PixelAt(moved, 0, 230, 110);
+        Assert.True(r > 100 && r < 160 && r == g && g == b, $"{r},{g},{b}"); // the gray pixel, drawn there
+    }
+
+    [Fact]
+    public void AContentStreamThatCantBeReadIsKept()
+    {
+        var pdf = ContentEditPdf.Make("BT /FA 20 Tf 72 692 Td (Hello) Tj ET", extraStreams: ["BT /FA 9 Tf 72 600 Td (draft) Tj ET"], damagedPart: true);
+        var edited = ContentEditor.ReplaceText(pdf, null, Run(pdf, "Hello"), "Hell");
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(edited), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var parts = PdfObj.Array(d.Pages[0].Elements["/Contents"])!;
+        Assert.Equal(3, parts.Elements.Count); // only the edited stream was replaced
+        Assert.Equal(12, PdfObj.Dict(parts.Elements[2])!.Stream!.Value.Length);
+        Assert.Contains("draft", ContentEditPdf.Text(edited));
+
+        // An operator split across streams needs them rewritten as one: refused rather than dropping the damaged one.
+        var split = ContentEditPdf.Make("BT /FA 20 Tf 72 692 Td (Hello)", extraStreams: ["Tj ET"], damagedPart: true);
+        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(split, null, Run(split, "Hello"), "Hell"));
+        Assert.Contains("damaged", ex.Message);
+    }
+
+    [Fact]
+    public void APictureAFormBorrowsStaysInThePageResources()
+    {
+        var pdf = ContentEditPdf.Make("q 100 0 0 50 72 600 cm /Im1 Do Q q /Fm1 Do Q", form: "q 40 0 0 20 300 300 cm /Im1 Do Q", formInherits: true);
+        var image = ContentEditor.Read(pdf, null, 0).Images.First(i => i.Blocked is null);
+        var deleted = ContentEditor.DeleteImage(pdf, null, image);
+        using (var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(deleted), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+        {
+            var xo = PdfObj.Dict(PdfObj.Dict(d.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!;
+            Assert.True(xo.Elements.ContainsKey("/Im1"));
+        }
+        var (r, _, _) = TestImages.PixelAt(deleted, 0, 320, 792 - 310);
+        Assert.True(r > 200); // the form still draws the red picture
+    }
 }

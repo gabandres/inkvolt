@@ -15,7 +15,9 @@ internal static class ContentEditPdf
 {
     public const string FontText = "Hello World draft, 2024! Ünï";
 
-    public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null)
+    /// <param name="formInherits">/Fm1 has no /Resources of its own (it borrows the page's).</param>
+    /// <param name="damagedPart">A last content stream that claims Flate but holds bytes that don't inflate.</param>
+    public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null, bool formInherits = false, bool damagedPart = false)
     {
         TestPdf.UseFonts();
         byte[] seed;
@@ -61,7 +63,9 @@ internal static class ContentEditPdf
             var fx = new PdfDictionary(d);
             fx.Elements["/Im1"] = image.Reference!;
             formRes.Elements["/XObject"] = fx;
-            xo.Elements["/Fm1"] = PdfObj.FormXObject(d, Encoding.Latin1.GetBytes(form), 0, 0, 612, 792, formRes).Reference!;
+            var fm = PdfObj.FormXObject(d, Encoding.Latin1.GetBytes(form), 0, 0, 612, 792, formRes);
+            if (formInherits) fm.Elements.Remove("/Resources");
+            xo.Elements["/Fm1"] = fm.Reference!;
         }
         res.Elements["/XObject"] = xo;
         p.Elements["/Resources"] = res;
@@ -69,7 +73,15 @@ internal static class ContentEditPdf
         else
         {
             var arr = new PdfArray(d);
-            foreach (var part in new[] { content }.Concat(extraStreams)) arr.Elements.Add(PdfObj.AddStream(d, Encoding.Latin1.GetBytes(part)).Reference!);
+            foreach (var part in new[] { content }.Concat(extraStreams)) arr.Elements.Add(PdfObj.AddStream(d, Encoding.Latin1.GetBytes(part), compress: false).Reference!);
+            if (damagedPart)
+            {
+                var bad = new PdfDictionary(d);
+                bad.CreateStream([0x78, 0x9C, 0xFF, 0xFE, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+                bad.Elements["/Filter"] = new PdfName("/FlateDecode");
+                d.Internals.AddObject(bad);
+                arr.Elements.Add(bad.Reference!);
+            }
             p.Elements["/Contents"] = arr;
         }
         if (rotate != 0) p.Elements["/Rotate"] = new PdfInteger(rotate);

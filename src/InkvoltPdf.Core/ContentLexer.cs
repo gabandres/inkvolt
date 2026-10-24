@@ -32,6 +32,8 @@ internal sealed class COp
     public int Start, End;
     /// <summary>Inline image data (between ID and EI).</summary>
     public int DataStart, DataEnd;
+    /// <summary>An inline image whose end couldn't be found for sure: never edited, and nothing after it is read.</summary>
+    public bool Broken;
 
     public double N(int i) => i < Operands.Count && Operands[i].Kind == CKind.Number ? Operands[i].Num : 0;
 }
@@ -78,6 +80,7 @@ internal sealed class ContentLexer
             operands = [];
             if (word == "BI") lx.InlineImage(op);
             ops.Add(op);
+            if (op.Broken) break; // where the content goes on is unknown: stop rather than misread it
         }
         return ops;
     }
@@ -303,18 +306,53 @@ internal sealed class ContentLexer
         op.Operands = [dict];
         if (_p < _b.Length && IsSpace(_b[_p])) _p++; // the single white-space byte after ID
         op.DataStart = _p;
-        var length = ExpectedLength(dict);
-        int end;
-        if (length is { } len && _p + len <= _b.Length && EiAt(_p + len, strict: false)) end = _p + len;
-        else end = FindEi(_p);
-        op.DataEnd = end;
-        // Past the data: optional white space, then EI.
-        var q = end;
+        // Where the data ends, surest first: its stated length (PDF 2.0 /L), the end marker of an ASCIIHex or ASCII85
+        // filter, the size of unfiltered samples; else the first EI after white space that ordinary content follows.
+        var start = _p;
+        int? end = null;
+        var filter = FirstFilter(dict);
+        if ((dict["L"] ?? dict["Length"]) is { Kind: CKind.Number, Num: >= 0 } l && start + l.Num <= _b.Length && Accept(start + (int)l.Num)) end = start + (int)l.Num;
+        else if (filter is "AHx" or "ASCIIHexDecode" && Array.IndexOf(_b, (byte)'>', start) is var gt and >= 0 && Accept(gt + 1)) end = gt + 1;
+        else if (filter is "A85" or "ASCII85Decode" && IndexOf(_b, "~>"u8, start) is var tilde and >= 0 && Accept(tilde + 2)) end = tilde + 2;
+        else if (filter is null && ExpectedLength(dict) is { } len && start + len <= _b.Length && Accept(start + len)) end = start + len;
+        end ??= FindEi(start);
+        if (end is not { } e || e < 0)
+        {
+            op.Broken = true;
+            op.DataEnd = op.End = start;
+            _p = _b.Length;
+            return;
+        }
+        op.DataEnd = e;
+        var q = e;
         while (q < _b.Length && IsSpace(_b[q])) q++;
-        if (q + 1 < _b.Length && _b[q] == 'E' && _b[q + 1] == 'I') q += 2;
-        else q = _b.Length;
+        q += 2; // EI (Accept checked it)
         _p = q;
         op.End = q;
+    }
+
+    private static int IndexOf(byte[] b, ReadOnlySpan<byte> what, int from)
+    {
+        var i = b.AsSpan(from).IndexOf(what);
+        return i < 0 ? -1 : from + i;
+    }
+
+    /// <summary>The image's first filter, abbreviated or not (null: unfiltered).</summary>
+    private static string? FirstFilter(CObj d) => (d["F"] ?? d["Filter"]) switch
+    {
+        { Kind: CKind.Name } n => n.Name,
+        { Kind: CKind.Array, Items: [{ Kind: CKind.Name } n, ..] } => n.Name,
+        _ => null,
+    };
+
+    /// <summary>Data ending at <paramref name="dataEnd"/>: optional white space, EI, then content that reads as content.</summary>
+    private bool Accept(int dataEnd) => EiAt(dataEnd, strict: false) && Plausible(EiEnd(dataEnd));
+
+    private int EiEnd(int dataEnd)
+    {
+        var q = dataEnd;
+        while (q < _b.Length && IsSpace(_b[q])) q++;
+        return q + 2;
     }
 
     /// <summary>The data length of an unfiltered inline image (null when filtered or unknown).</summary>
@@ -348,22 +386,53 @@ internal sealed class ContentLexer
     }
 
     /// <summary>
-    /// The end of filtered inline-image data: the first "EI" preceded by white space and followed by white space or the
-    /// end, where what comes next reads as ordinary content (no binary bytes in the next stretch).
+    /// The end of filtered inline-image data: the first "EI" after white space, followed by a delimiter or the end, where
+    /// what comes next lexes as content (see <see cref="Plausible"/>); -1 when there is none.
     /// </summary>
     private int FindEi(int from)
     {
-        for (var q = from; q + 2 < _b.Length + 1; q++)
+        for (var q = from + 1; q + 1 < _b.Length; q++)
         {
-            if (!IsSpace(_b[q]) || q + 2 >= _b.Length || _b[q + 1] != 'E' || _b[q + 2] != 'I') continue;
-            var after = q + 3;
-            if (after < _b.Length && !IsSpace(_b[after]) && !IsDelim(_b[after])) continue;
-            var plain = true;
-            for (var k = after; k < Math.Min(_b.Length, after + 32) && plain; k++)
-                plain = _b[k] is 9 or 10 or 13 or (>= 32 and < 127);
-            if (plain) return q;
+            if (_b[q] != 'E' || _b[q + 1] != 'I' || !IsSpace(_b[q - 1])) continue;
+            if (q + 2 < _b.Length && IsRegular(_b[q + 2])) continue;
+            if (Plausible(q + 2)) return q - 1;
         }
-        return _b.Length;
+        return -1;
+    }
+
+    private static readonly HashSet<string> Operators =
+    [
+        "b", "B", "b*", "B*", "BDC", "BI", "BMC", "BT", "BX", "c", "cm", "CS", "cs", "d", "d0", "d1", "Do", "DP", "EMC", "ET", "EX",
+        "f", "F", "f*", "G", "g", "gs", "h", "i", "j", "J", "K", "k", "l", "m", "M", "MP", "n", "q", "Q", "re", "RG", "rg", "ri",
+        "s", "S", "SC", "sc", "SCN", "scn", "sh", "T*", "Tc", "Td", "TD", "Tf", "Tj", "TJ", "TL", "Tm", "Tr", "Ts", "Tw", "Tz",
+        "v", "w", "W", "W*", "y", "'", "\"",
+    ];
+
+    /// <summary>
+    /// Whether the content from <paramref name="at"/> reads as content: the next few tokens are operands or known
+    /// operators, with no binary bytes outside strings (strings may hold anything).
+    /// </summary>
+    private bool Plausible(int at)
+    {
+        var lx = new ContentLexer(_b) { _p = at };
+        var operators = 0;
+        for (var tokens = 0; tokens < 40 && operators < 4; tokens++)
+        {
+            lx.SkipSpace();
+            if (lx._p >= _b.Length) return true;
+            var c = _b[lx._p];
+            if (c >= 0x80 || c < 32 && !IsSpace(c)) return false;
+            var start = lx._p;
+            if (lx.ReadObject() is { } obj)
+            {
+                if (obj.Kind == CKind.Name && obj.Name.Any(ch => ch >= 0x80 || ch < 32)) return false;
+                continue;
+            }
+            if (lx._p == start) return false; // a stray delimiter
+            if (!Operators.Contains(Encoding.Latin1.GetString(_b, start, lx._p - start))) return false;
+            operators++;
+        }
+        return true;
     }
 
     private static bool IsHex(byte c) => c is >= (byte)'0' and <= (byte)'9' or >= (byte)'a' and <= (byte)'f' or >= (byte)'A' and <= (byte)'F';

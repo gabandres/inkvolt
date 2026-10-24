@@ -32,6 +32,7 @@ internal sealed class TextFont
     private readonly double?[] _widths = new double?[256];
     private readonly Dictionary<int, double> _cidWidths = [];
     private readonly double _dw = 1000;
+    private readonly double _missingWidth; // a simple font's width for codes its /Widths doesn't list
     private readonly int[]? _cidToGid; // null: identity
     private readonly bool _symbolic;
     private readonly bool _standard14;
@@ -118,6 +119,7 @@ internal sealed class TextFont
             if (desc < 0) Descent = Math.Max(desc, -1000) / 1000;
             else if (desc > 0) Descent = -Math.Min(desc, 1000) / 1000; // positive descents turn up (PDFsharp writes them)
             _program = FontProgram.Load(descriptor);
+            _missingWidth = PdfObj.Num(descriptor.Elements["/MissingWidth"]);
         }
         Bold = FontNames.LooksBold(Name) || (flags & 0x40000) != 0;
         Italic = FontNames.LooksItalic(Name) || (flags & 64) != 0;
@@ -289,7 +291,7 @@ internal sealed class TextFont
         if (code is >= 0 and < 256 && _widths[code] is > 0 and var sw) return sw;
         if (ProgramAdvance(code) is { } pa) return pa;
         if (_standard14 && _simpleText[code] is { Length: 1 } t) return StdFont.FromName(Name).Advance(t[0]) * 1000;
-        return code is >= 0 and < 256 && _widths[code] is { } z ? z : 500;
+        return code is >= 0 and < 256 && _widths[code] is { } z ? z : _hasWidths ? _missingWidth : 500;
     }
 
     private bool HasWidth(int code) => TwoByte ? _cidWidths.ContainsKey(code) : code is >= 0 and < 256 && _widths[code] is > 0;
@@ -478,7 +480,8 @@ internal sealed class TextFont
                 var first = Enumerable.Range(0, 256).First(c => _widths[c] is not null);
                 var last = Enumerable.Range(0, 256).Last(c => _widths[c] is not null);
                 var arr = new PdfArray(doc);
-                for (var c = first; c <= last; c++) arr.Elements.Add(new PdfInteger((int)Math.Round(_widths[c] ?? 0)));
+                // Codes in between that the old range didn't cover keep the width viewers gave them: /MissingWidth.
+                for (var c = first; c <= last; c++) arr.Elements.Add(new PdfInteger((int)Math.Round(_widths[c] ?? _missingWidth)));
                 _font.Elements["/FirstChar"] = new PdfInteger(first);
                 _font.Elements["/LastChar"] = new PdfInteger(last);
                 _font.Elements["/Widths"] = arr;

@@ -140,7 +140,8 @@ public static class ContentEditor
         if (text == run.Text) return data;
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
         var page = PageOf(doc, run.PageIndex);
-        var content = ContentBytes(page);
+        var streams = Streams(page);
+        var content = streams.Bytes;
         var ops = ContentLexer.Parse(content);
         var walk = Walk(page, run.PageIndex, ops, default);
         // The run where it was; else (an earlier edit moved the page's operators) the same text in the same place.
@@ -156,8 +157,7 @@ public static class ContentEditor
         font.Prepare(doc, enc.Codes, middle);
         var op = ops[now.Id];
         var replacement = WriteShow(op, info, font, parts);
-        var updated = Splice(content, [(op.Start, op.End, replacement)]);
-        SetContent(doc, page, updated);
+        WriteContent(doc, page, streams, ops, [(op.Start, op.End, replacement)]);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
     }
@@ -254,7 +254,7 @@ public static class ContentEditor
     public static byte[] MoveImage(byte[] data, string? password, PageImage image, RectD box)
     {
         if (box.Width < 1 || box.Height < 1) throw new ContentEditException("A picture can't be made that small.");
-        return EditImage(data, password, image, (doc, page, found, op, ctm, ops) =>
+        return EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
         {
             var p2u = PageToUser(page);
             var u2p = p2u.Invert() ?? throw new ContentEditException("This page's size can't be read.");
@@ -270,13 +270,13 @@ public static class ContentEditor
                 var c = new Mat(cm.N(0), cm.N(1), cm.N(2), cm.N(3), cm.N(4), cm.N(5));
                 return [(cm.Start, cm.End, m.Times(c).Write() + " cm")];
             }
-            return [(op.Start, op.End, $"q {m.Write()} cm {Slice(op)} Q")];
+            return [(op.Start, op.End, $"q {m.Write()} cm {Slice(op, content)} Q")];
         });
     }
 
     /// <summary>Removes a picture from the page.</summary>
     public static byte[] DeleteImage(byte[] data, string? password, PageImage image) =>
-        EditImage(data, password, image, (doc, page, found, op, ctm, ops) =>
+        EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
         {
             SignedEdits.NoteRemoval();
             var at = ops.IndexOf(op);
@@ -288,7 +288,7 @@ public static class ContentEditor
     /// <summary>Puts another picture (an image file) in a picture's place, upright and fitted in its box with its own proportions.</summary>
     /// <exception cref="InvalidOperationException">The file isn't an image that can be read.</exception>
     public static byte[] ReplaceImage(byte[] data, string? password, PageImage image, byte[] file, string fileName) =>
-        EditImage(data, password, image, (doc, page, found, op, ctm, ops) =>
+        EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
         {
             var (xobject, w, h, dpiX, dpiY, orientation) = ImageImport.StoreImage(doc, file, fileName);
             var name = AddXObject(doc, page, xobject);
@@ -308,13 +308,14 @@ public static class ContentEditor
             return [(op.Start, op.End, $"q {m.Write()} cm /{name} Do Q")];
         }, dropName: true);
 
-    private delegate List<(int Start, int End, string Text)> ImageEdit(PdfDocument doc, PdfPage page, PageImage image, COp op, Mat ctm, List<COp> ops);
+    private delegate List<(int Start, int End, string Text)> ImageEdit(PdfDocument doc, PdfPage page, PageImage image, COp op, Mat ctm, List<COp> ops, byte[] content);
 
     private static byte[] EditImage(byte[] data, string? password, PageImage image, ImageEdit edit, bool dropName = false)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
         var page = PageOf(doc, image.PageIndex);
-        var content = ContentBytes(page);
+        var streams = Streams(page);
+        var content = streams.Bytes;
         var ops = ContentLexer.Parse(content);
         var walk = Walk(page, image.PageIndex, ops, default);
         var now = walk.Content.Images.FirstOrDefault(i => i.Id == image.Id && Near(i.Box, image.Box))
@@ -324,14 +325,35 @@ public static class ContentEditor
             throw new ContentEditException("The page changed since this picture was picked. Pick it again.");
         var op = ops[now.Id];
         var oldName = op.Name == "Do" ? op.Operands[0].Name : null;
-        var edits = edit(doc, page, now, op, ctm, ops);
-        var updated = Splice(content, edits);
-        SetContent(doc, page, updated);
-        // A picture no longer drawn anywhere on the page leaves the page's resources (when they are the page's own).
-        if (dropName && oldName is not null && !ContentLexer.Parse(updated).Any(o => o.Name == "Do" && o.Operands.Count > 0 && o.Operands[0].Name == oldName)
-            && page.Elements["/Resources"] is PdfDictionary res && res.Elements["/XObject"] is PdfDictionary xo)
+        var edits = edit(doc, page, now, op, ctm, ops, content);
+        var updated = WriteContent(doc, page, streams, ops, edits);
+        // A picture no longer drawn anywhere on the page leaves the page's resources (when they are the page's own and
+        // no form XObject that borrows the page's resources draws it).
+        if (dropName && oldName is not null && !Draws(ContentLexer.Parse(updated), oldName)
+            && page.Elements["/Resources"] is PdfDictionary res && res.Elements["/XObject"] is PdfDictionary xo && !UsedByInheritingForm(xo, oldName))
             xo.Elements.Remove("/" + oldName);
         return PdfObj.Save(doc);
+    }
+
+    private static bool Draws(List<COp> ops, string name) => ops.Any(o => o.Name == "Do" && o.Operands.Count > 0 && o.Operands[0].Name == name);
+
+    /// <summary>Whether a form XObject without resources of its own (so it uses the page's) draws <paramref name="name"/>, at any depth.</summary>
+    private static bool UsedByInheritingForm(PdfDictionary xobjects, string name)
+    {
+        var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        bool Visit(PdfDictionary? xo, int depth)
+        {
+            if (xo is null || depth > MaxDepth) return false;
+            foreach (var item in xo.Elements.Values)
+            {
+                if (PdfObj.Dict(item) is not { } form || PdfObj.NameOf(form, "/Subtype") != "/Form" || !seen.Add(form)) continue;
+                var own = PdfObj.Dict(form.Elements["/Resources"]);
+                if (own is null && Draws(ContentLexer.Parse(PdfObj.StreamBytes(form)), name)) return true;
+                if (Visit(PdfObj.Dict(own?.Elements["/XObject"]), depth + 1)) return true;
+            }
+            return false;
+        }
+        return Visit(xobjects, 0);
     }
 
     private static bool Near(RectD a, RectD b) =>
@@ -370,31 +392,76 @@ public static class ContentEditor
 
     private static List<COp> Parse(PdfPage page, CancellationToken cancel) => ContentLexer.Parse(ContentBytes(page), cancel);
 
-    /// <summary>The page's content streams read as one (they are one content stream split at token boundaries).</summary>
-    internal static byte[] ContentBytes(PdfPage page)
+    /// <summary>One content stream of a page: where its bytes sit in the page's content read as one, its place in the /Contents array.</summary>
+    private sealed record ContentPart(int Start, int End, int Slot, bool Unreadable);
+
+    /// <summary>A page's content streams read as one (they are one content stream split at token boundaries).</summary>
+    private sealed record PageStreams(byte[] Bytes, List<ContentPart> Parts);
+
+    internal static byte[] ContentBytes(PdfPage page) => Streams(page).Bytes;
+
+    private static PageStreams Streams(PdfPage page)
     {
+        var parts = new List<ContentPart>();
+        using var ms = new MemoryStream();
+        void Add(PdfDictionary s, int slot)
+        {
+            byte[] bytes;
+            try
+            {
+                bytes = PdfObj.StreamBytes(s);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
+            {
+                bytes = []; // a filter that fails on its data
+            }
+            // A stream that holds data but decodes to nothing (a damaged filter) must not be dropped by a rewrite.
+            var unreadable = bytes.Length == 0 && s.Stream!.Value.Length > 0;
+            var start = (int)ms.Length;
+            ms.Write(bytes);
+            parts.Add(new ContentPart(start, (int)ms.Length, slot, unreadable));
+            ms.WriteByte((byte)'\n');
+        }
         switch (PdfObj.Resolve(page.Elements["/Contents"]))
         {
             case PdfDictionary { Stream: not null } s:
-                return PdfObj.StreamBytes(s);
+                Add(s, -1);
+                break;
             case PdfArray a:
-            {
-                using var ms = new MemoryStream();
-                foreach (var item in a.Elements)
-                {
-                    if (PdfObj.Dict(item) is not { Stream: not null } part) continue;
-                    ms.Write(PdfObj.StreamBytes(part));
-                    ms.WriteByte((byte)'\n');
-                }
-                return ms.ToArray();
-            }
-            default:
-                return [];
+                for (var i = 0; i < a.Elements.Count; i++)
+                    if (PdfObj.Dict(a.Elements[i]) is { Stream: not null } part) Add(part, i);
+                break;
         }
+        return new PageStreams(ms.ToArray(), parts);
     }
 
-    private static void SetContent(PdfDocument doc, PdfPage page, byte[] content) =>
-        page.Elements["/Contents"] = PdfObj.AddStream(doc, content).Reference!;
+    /// <summary>
+    /// Writes the page's content with the edits. When every edit falls in one of several content streams and no operator
+    /// crosses that stream's edges, only that stream is replaced (the others stay as they are, readable or not);
+    /// otherwise the page gets one new stream, which a stream that can't be read would be lost from: refused.
+    /// Returns the page's content as now read as one.
+    /// </summary>
+    private static byte[] WriteContent(PdfDocument doc, PdfPage page, PageStreams streams, List<COp> ops, List<(int Start, int End, string Text)> edits)
+    {
+        var updated = Splice(streams.Bytes, edits);
+        if (streams.Parts.Count > 1 && edits.Count > 0 && PdfObj.Resolve(page.Elements["/Contents"]) is PdfArray old)
+        {
+            int lo = edits.Min(e => e.Start), hi = edits.Max(e => e.End);
+            if (streams.Parts.FirstOrDefault(p => lo >= p.Start && hi <= p.End) is { } part
+                && !ops.Any(o => o.Start < part.Start && o.End > part.Start || o.Start < part.End && o.End > part.End))
+            {
+                var bytes = Splice(streams.Bytes[part.Start..part.End], [.. edits.Select(e => (e.Start - part.Start, e.End - part.Start, e.Text))]);
+                var array = new PdfArray(doc, [.. old.Elements]); // the page's own: another page may share the old one
+                array.Elements[part.Slot] = PdfObj.AddStream(doc, bytes).Reference!;
+                page.Elements["/Contents"] = array;
+                return updated;
+            }
+        }
+        if (streams.Parts.Any(p => p.Unreadable))
+            throw new ContentEditException("Part of this page's content can't be read (it is damaged), so the page can't be rewritten without losing it.");
+        page.Elements["/Contents"] = PdfObj.AddStream(doc, updated).Reference!;
+        return updated;
+    }
 
     private static byte[] Splice(byte[] content, List<(int Start, int End, string Text)> edits)
     {
@@ -413,7 +480,9 @@ public static class ContentEditor
         return ms.ToArray();
     }
 
-    private static string Slice(COp op) => op.Name == "Do" ? $"/{EscapeName(op.Operands[0].Name)} Do" : "";
+    /// <summary>The drawing operator as written: the Do with its name, or the whole inline image (BI … EI, its bytes as Latin-1).</summary>
+    private static string Slice(COp op, byte[] content) =>
+        op.Name == "Do" ? $"/{EscapeName(op.Operands[0].Name)} Do" : Encoding.Latin1.GetString(content, op.Start, op.End - op.Start);
 
     private static string EscapeName(string name)
     {
@@ -614,7 +683,7 @@ public static class ContentEditor
                     break;
                 }
                 case "BI":
-                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked);
+                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (op.Broken ? "where its data ends can't be told for sure, so changing it could damage the page" : null));
                     break;
             }
         }

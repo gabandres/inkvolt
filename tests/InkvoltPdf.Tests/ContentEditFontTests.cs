@@ -149,6 +149,7 @@ public class ContentEditFontTests
             font.Elements["/FirstChar"] = new PdfInteger('H');
             font.Elements["/LastChar"] = new PdfInteger('H');
             font.Elements["/Widths"] = new PdfArray(d, new PdfInteger(722));
+            PdfObj.Dict(font.Elements["/FontDescriptor"])!.Elements["/MissingWidth"] = new PdfInteger(333);
             using var ms = new MemoryStream();
             d.Save(ms, false);
             pdf = ms.ToArray();
@@ -161,6 +162,7 @@ public class ContentEditFontTests
         Assert.Equal('W', PdfObj.Int(fa.Elements["/LastChar"]));
         var widths = PdfObj.Array(fa.Elements["/Widths"])!;
         Assert.InRange(PdfObj.Num(widths, 'W' - 'H'), 942, 945); // Arial's W
+        Assert.Equal(333, PdfObj.Num(widths, 'I' - 'H')); // codes in the gap keep the width viewers gave them
         // MuPDF places the next glyph after it: the run is as wide as H + W.
         var after = ContentEditor.Read(edited, null, 0).Runs.Single();
         Assert.Equal((722 + 943) / 1000.0 * 20, after.OldWidth, 0);
