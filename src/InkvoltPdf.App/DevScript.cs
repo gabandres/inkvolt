@@ -24,7 +24,7 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Compare: <c>compare old.pdf new.pdf ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Split view: <c>split h|v|off · switchpane · splitstate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
@@ -99,10 +99,15 @@ internal static class DevScript
         {
             case "wait": await Task.Delay(int.Parse(arg)); break;
             case "shot": Shot(window, arg); break;
-            case "page": v!.GoToPage(int.Parse(arg) - 1); break;
-            case "zoom" when arg == "fitwidth": v!.SetZoomMode(ZoomMode.FitWidth); break;
-            case "zoom" when arg == "fitpage": v!.SetZoomMode(ZoomMode.FitPage); break;
-            case "zoom": v!.SetZoom(double.Parse(arg) / 100); break;
+            // page / zoom / scroll act on the active pane of a split view (the only pane otherwise)
+            case "page": tab!.ActiveView.GoToPage(int.Parse(arg) - 1); break;
+            case "zoom" when arg == "fitwidth": tab!.ActiveView.SetZoomMode(ZoomMode.FitWidth); break;
+            case "zoom" when arg == "fitpage": tab!.ActiveView.SetZoomMode(ZoomMode.FitPage); break;
+            case "zoom": tab!.ActiveView.SetZoom(double.Parse(arg) / 100); break;
+            // Split view: split h|v|off · switchpane · splitstate
+            case "split": tab!.SetSplit(arg switch { "h" => SplitMode.TopAndBottom, "v" => SplitMode.SideBySide, _ => SplitMode.None }); await Task.Delay(600); break;
+            case "switchpane": tab!.SwitchPane(); break;
+            case "splitstate": log.Add(tab!.DevSplitState()); break;
             case "layout": v!.SetLayout(Enum.Parse<ViewLayout>(arg, true)); break;
             case "rotateview" when arg is "cw" or "ccw": (arg == "cw" ? Cmd.RotateViewRight : Cmd.RotateViewLeft).Execute(null, window); break;
             case "rotateview": v!.SetViewRotation(int.Parse(arg)); break;
@@ -118,7 +123,7 @@ internal static class DevScript
             case "delete": await Organize.DeleteSelected(tab!); break;
             case "undo": tab!.Undo(); break;
             case "redo": tab!.Redo(); break;
-            case "scroll": v!.ScrollToVerticalOffset(v.VerticalOffset + double.Parse(arg)); break;
+            case "scroll": tab!.ActiveView.ScrollToVerticalOffset(tab.ActiveView.VerticalOffset + double.Parse(arg)); break;
             case "copytext": log.Add($"selected text: {v!.GetSelectedText().Length} chars: {Trunc(v.GetSelectedText())}"); break;
             case "state": log.Add($"page={v!.CurrentPage + 1}/{v.PageCount} zoom={v.Zoom:P0} mode={v.ZoomMode} layout={v.Layout} rotation={v.ViewRotation} dirty={tab!.Session.IsDirty} undo={tab.Session.UndoLabel ?? "-"} redo={tab.Session.RedoLabel ?? "-"} selected={string.Join(',', tab.SelectedPages.Select(p => p + 1))} {v.Diagnostics}"); break;
             case "log": log.Add(arg); break;

@@ -212,7 +212,7 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             if (e.Key != Key.Enter) return;
             ApplyZoomText(ZoomBox.Text);
-            Viewer.Focus();
+            ActiveView.Focus();
             e.Handled = true;
         }), handledEventsToo: true);
         ZoomBox.LostKeyboardFocus += (_, _) => UpdatePill();
@@ -220,14 +220,14 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             if (e.Key == Key.Enter && FindPage(PageBox.Text) is { } target)
             {
-                Viewer.GoToPage(target);
-                Viewer.Focus();
+                ActiveView.GoToPage(target);
+                ActiveView.Focus();
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)
             {
                 UpdatePill();
-                Viewer.Focus();
+                ActiveView.Focus();
                 e.Handled = true;
             }
         };
@@ -250,6 +250,7 @@ public partial class DocumentTab : UserControl, IDisposable
         Viewer.SelectionChanged += (_, _) => RaiseState();
         Viewer.ToolChanged += (_, _) => RaiseState();
         Viewer.StatusMessage += (_, m) => Notify(m);
+        InitSplit();
         Session.ContentChanged += OnContentChanged;
         Session.StateChanged += (_, _) => RaiseState();
 
@@ -332,7 +333,7 @@ public partial class DocumentTab : UserControl, IDisposable
             // In the organizer only explicitly selected pages count (nothing selected = nothing to act on).
             if (IsOrganizing) return Organizer.SelectedPages;
             int[] sel = [.. Thumbs.SelectedItems.Cast<ThumbItem>().Select(t => t.Index).Order()];
-            return sel.Length > 0 ? sel : Viewer.PageCount == 0 ? [] : [Math.Clamp(Viewer.CurrentPage, 0, Viewer.PageCount - 1)];
+            return sel.Length > 0 ? sel : Viewer.PageCount == 0 ? [] : [Math.Clamp(ActiveView.CurrentPage, 0, Viewer.PageCount - 1)];
         }
     }
 
@@ -408,8 +409,9 @@ public partial class DocumentTab : UserControl, IDisposable
 
     private void UpdatePill()
     {
-        var n = Viewer.PageCount;
-        var current = Viewer.CurrentPage;
+        var view = ActiveView; // split: the pill shows and moves the active pane
+        var n = view.PageCount;
+        var current = view.CurrentPage;
         var label = PageLabel(current);
         if (!PageBox.IsKeyboardFocusWithin) PageBox.Text = n > 0 ? label : "";
         // With page labels: "iii (3 of 120)"; without: "3 of 120".
@@ -418,11 +420,11 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             _updatingPill = true;
             ZoomBox.SelectedItem = null;
-            ZoomBox.Text = $"{Viewer.Zoom * 100:0}%";
+            ZoomBox.Text = $"{view.Zoom * 100:0}%";
             _updatingPill = false;
         }
-        FitWidthButton.IsChecked = Viewer.ZoomMode == ZoomMode.FitWidth;
-        FitPageButton.IsChecked = Viewer.ZoomMode == ZoomMode.FitPage;
+        FitWidthButton.IsChecked = view.ZoomMode == ZoomMode.FitWidth;
+        FitPageButton.IsChecked = view.ZoomMode == ZoomMode.FitPage;
     }
 
     private void ApplyZoomText(string text)
@@ -432,7 +434,7 @@ public partial class DocumentTab : UserControl, IDisposable
         else if (text.Equals("Fit page", StringComparison.OrdinalIgnoreCase)) SetZoomMode(ZoomMode.FitPage);
         else if (double.TryParse(text.TrimEnd('%', ' '), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var pct) && pct > 0)
         {
-            Viewer.SetZoom(pct / 100);
+            ActiveView.SetZoom(pct / 100);
             AppSettings.Current.ZoomMode = nameof(ZoomMode.Custom);
         }
         UpdatePill();
@@ -440,7 +442,7 @@ public partial class DocumentTab : UserControl, IDisposable
 
     public void SetZoomMode(ZoomMode mode)
     {
-        Viewer.SetZoomMode(mode);
+        ActiveView.SetZoomMode(mode);
         AppSettings.Current.ZoomMode = mode.ToString();
         AppSettings.Current.Save();
         UpdatePill();
@@ -1075,7 +1077,7 @@ public partial class DocumentTab : UserControl, IDisposable
     private void SyncThumbSelection()
     {
         if (_syncingSelection || Thumbs.SelectedItems.Count > 1) return;
-        var page = Viewer.CurrentPage;
+        var page = ActiveView.CurrentPage;
         if (page < 0 || page >= _thumbs.Count) return;
         _syncingSelection = true;
         Thumbs.SelectedIndex = page;
@@ -1101,7 +1103,7 @@ public partial class DocumentTab : UserControl, IDisposable
         RaiseState();
         if (_syncingSelection || e.AddedItems.Count != 1 || e.AddedItems[0] is not ThumbItem t) return;
         _syncingSelection = true;
-        Viewer.GoToPage(t.Index, record: false);
+        ActiveView.GoToPage(t.Index, record: false);
         _syncingSelection = false;
     }
 
@@ -1414,6 +1416,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         if (index < 0 || index >= _results.Count) return;
         _activeHit = index;
+        ActivatePane(second: false); // search hits are shown in the main pane
         Viewer.ShowHit(_results[index]);
         if (SearchResults.SelectedIndex != index)
         {
@@ -1548,6 +1551,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         if (Viewer.InvertColors == on) return;
         Viewer.InvertColors = on;
+        SplitFollowDarkPages(on);
         _scheduler.Clear(k => k[0] is 't' or 'o');
         RebuildThumbs();
         if (IsOrganizing) Organizer.Load(Session.Engine, Organizer.SelectedPages, Viewer.CurrentPage);
@@ -1556,7 +1560,7 @@ public partial class DocumentTab : UserControl, IDisposable
     public void FocusContent()
     {
         if (IsOrganizing) Organizer.Focus();
-        else Viewer.Focus();
+        else ActiveView.Focus();
     }
 
     /// <summary>True when keyboard focus is in the side pane or its icon rail (for F6 cycling).</summary>
@@ -1813,6 +1817,7 @@ public partial class DocumentTab : UserControl, IDisposable
         SaveViewState();
         CancelSearch();
         _scheduler.Dispose();
+        DisposeSplit();
         _viewEngine?.Dispose();
         _viewEngine = null;
         Session.Dispose();

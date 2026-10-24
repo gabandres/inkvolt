@@ -564,6 +564,7 @@ public partial class DocumentTab
     {
         if (a.PageIndex < 0 || a.PageIndex >= Viewer.PageCount) return;
         var rect = a.QuadRects.Count > 0 ? a.QuadRects.Aggregate(default(RectD), (acc, r) => acc.Union(r)) : a.Rect;
+        ActivatePane(second: false); // comments are selected and edited in the main pane
         Viewer.Flash(a.PageIndex, rect);
     }
 

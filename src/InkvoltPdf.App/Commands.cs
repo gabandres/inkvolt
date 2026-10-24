@@ -103,6 +103,12 @@ public static class Cmd
     public static readonly RoutedUICommand RotateViewRight = Make("Rotate _View Clockwise", nameof(RotateViewRight), K(Key.OemPlus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift++"), K(Key.Add, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand RotateViewLeft = Make("Rotate View Countercloc_kwise", nameof(RotateViewLeft), K(Key.OemMinus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+-"), K(Key.Subtract, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand NavPane = Make("_Navigation Pane", nameof(NavPane), K(Key.F4));
+    // Split view: two places of the same document (DocumentTab.Split.cs). Ctrl+F6 moves between the panes, as it moves
+    // between document windows in classic Windows apps; F6 visits both panes in its cycle.
+    public static readonly RoutedUICommand SplitHorizontal = Make("Split _Top and Bottom", nameof(SplitHorizontal));
+    public static readonly RoutedUICommand SplitVertical = Make("Split _Side by Side", nameof(SplitVertical));
+    public static readonly RoutedUICommand RemoveSplit = Make("_Remove Split", nameof(RemoveSplit));
+    public static readonly RoutedUICommand SwitchPane = Make("S_witch Pane", nameof(SwitchPane), K(Key.F6, ModifierKeys.Control));
     public static readonly RoutedUICommand FullScreen = Make("_Full Screen", nameof(FullScreen), K(Key.F11), K(Key.L, ModifierKeys.Control));
     public static readonly RoutedUICommand FirstPage = Make("_First Page", nameof(FirstPage), K(Key.Home, ModifierKeys.Control));
     public static readonly RoutedUICommand PrevPage = Make("_Previous Page", nameof(PrevPage));

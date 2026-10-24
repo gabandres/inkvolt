@@ -550,7 +550,7 @@ public partial class MainWindow : Window
         DocsHost.Children.Add(tab);
         _tabs.Add(model);
         TabStrip.SelectedItem = model;
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, () => tab.PageView.Focus());
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () => tab.ActiveView.Focus());
     }
 
     private void ShowActiveTab()
@@ -596,13 +596,15 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>F6 / Shift+F6: command bar → side pane → document (and back).</summary>
+    /// <summary>F6 / Shift+F6: command bar → side pane → document (each pane of a split view) and back.</summary>
     private void CycleFocus(bool backwards)
     {
         var tab = ActiveTab;
-        var zones = tab is null ? 2 : 3; // 0 command bar, 1 side pane, 2 document (no pane without a document)
+        // 0 command bar, 1 side pane, 2 document (no pane without a document), 3 the second pane of a split view
+        var split = tab is { Split: not SplitMode.None, IsOrganizing: false };
+        var zones = tab is null ? 2 : split ? 4 : 3;
         var focused = Keyboard.FocusedElement as DependencyObject;
-        var current = IsInside(focused, CommandBar) ? 0 : tab?.IsPaneFocused == true ? 1 : zones - 1;
+        var current = IsInside(focused, CommandBar) ? 0 : tab?.IsPaneFocused == true ? 1 : split && tab!.IsSecondPaneFocused ? 3 : tab is null ? 1 : 2;
         var next = (current + (backwards ? -1 : 1) + zones) % zones;
         if (tab is null)
         {
@@ -619,8 +621,12 @@ public partial class MainWindow : Window
                 if (tab.IsOrganizing) tab.FocusContent(); // the organizer hides the pane
                 else tab.FocusPane();
                 break;
+            case 3:
+                tab.FocusPaneView(second: true);
+                break;
             default:
-                FocusDocument();
+                if (split) tab.FocusPaneView(second: false);
+                else FocusDocument();
                 break;
         }
     }
@@ -1313,20 +1319,21 @@ public partial class MainWindow : Window
 
         Bind(Cmd.Undo, t => t.Undo(), t => t.Session.CanUndo);
         Bind(Cmd.Redo, t => t.Redo(), t => t.Session.CanRedo);
-        Bind(Cmd.Copy, CopySelection, t => t.PageView.HasSelection || Keyboard.FocusedElement is TextBox);
+        Bind(Cmd.Copy, CopySelection, t => t.ActiveView.HasSelection || Keyboard.FocusedElement is TextBox);
         Bind(Cmd.SelectAll, t =>
         {
             if (Keyboard.FocusedElement is TextBox tb) tb.SelectAll();
             else if (t.IsOrganizing) t.SelectAllPages();
-            else t.PageView.SelectAll();
+            else t.ActiveView.SelectAll();
         });
         Bind(Cmd.Find, t => { t.SetOrganizing(false); t.ShowFindBar(); });
         Bind(Cmd.FindNext, t => t.FindNext(false));
         Bind(Cmd.FindPrevious, t => t.FindNext(true));
         Bind(Cmd.SearchPane, t => t.ShowSearchPane());
-        Bind(Cmd.ToolHand, t => t.PageView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);
-        Bind(Cmd.ToolSelect, t => t.PageView.Tool = ViewerTool.SelectText, t => !t.IsOrganizing);
-        Bind(Cmd.ToolSnapshot, t => t.PageView.Tool = ViewerTool.Snapshot, t => !t.IsOrganizing);
+        // Reading tools act on the active pane of a split view; the tools that change the document on the main pane.
+        Bind(Cmd.ToolHand, t => t.ActiveView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);
+        Bind(Cmd.ToolSelect, t => t.ActiveView.Tool = ViewerTool.SelectText, t => !t.IsOrganizing);
+        Bind(Cmd.ToolSnapshot, t => t.ActiveView.Tool = ViewerTool.Snapshot, t => !t.IsOrganizing);
         Bind(Cmd.ToolAddText, t => ToggleTool(t, ViewerTool.AddText), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCheck, t => ToggleTool(t, ViewerTool.AddCheck), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCross, t => ToggleTool(t, ViewerTool.AddCross), t => !t.IsOrganizing && t.Session.IsPdf);
@@ -1334,24 +1341,28 @@ public partial class MainWindow : Window
         Bind(Cmd.Sign, t => _ = SignDigitallyAsync(t, null), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !_signing);
         Bind(Cmd.HighlightFields, t => t.PageView.HighlightFields = !t.PageView.HighlightFields, t => t.PageView.HasFormFields);
 
-        Bind(Cmd.ZoomIn, t => t.PageView.ZoomStep(1), t => !t.IsOrganizing);
-        Bind(Cmd.ZoomOut, t => t.PageView.ZoomStep(-1), t => !t.IsOrganizing);
-        Bind(Cmd.ActualSize, t => t.PageView.SetZoom(1), t => !t.IsOrganizing);
+        Bind(Cmd.ZoomIn, t => t.ActiveView.ZoomStep(1), t => !t.IsOrganizing);
+        Bind(Cmd.ZoomOut, t => t.ActiveView.ZoomStep(-1), t => !t.IsOrganizing);
+        Bind(Cmd.ActualSize, t => t.ActiveView.SetZoom(1), t => !t.IsOrganizing);
         Bind(Cmd.FitWidth, t => t.SetZoomMode(ZoomMode.FitWidth), t => !t.IsOrganizing);
         Bind(Cmd.FitPage, t => t.SetZoomMode(ZoomMode.FitPage), t => !t.IsOrganizing);
         Bind(Cmd.LayoutSingle, t => SetLayout(t, ViewLayout.SinglePage));
         Bind(Cmd.LayoutContinuous, t => SetLayout(t, ViewLayout.Continuous));
         Bind(Cmd.LayoutFacing, t => SetLayout(t, ViewLayout.Facing));
         Bind(Cmd.LayoutCover, t => SetLayout(t, ViewLayout.FacingCover));
-        Bind(Cmd.RotateViewRight, t => t.PageView.RotateView(clockwise: true), t => !t.IsOrganizing && t.PageView.PageCount > 0);
-        Bind(Cmd.RotateViewLeft, t => t.PageView.RotateView(clockwise: false), t => !t.IsOrganizing && t.PageView.PageCount > 0);
-        Bind(Cmd.FirstPage, t => t.PageView.GoToPage(0), t => t.PageView.CurrentPage > 0);
-        Bind(Cmd.PrevPage, t => t.PageView.PreviousPage(), t => t.PageView.CurrentPage > 0);
-        Bind(Cmd.NextPage, t => t.PageView.NextPage(), t => t.PageView.CurrentPage < t.PageView.PageCount - 1);
-        Bind(Cmd.LastPage, t => t.PageView.GoToPage(t.PageView.PageCount - 1), t => t.PageView.CurrentPage < t.PageView.PageCount - 1);
+        Bind(Cmd.RotateViewRight, t => t.ActiveView.RotateView(clockwise: true), t => !t.IsOrganizing && t.PageView.PageCount > 0);
+        Bind(Cmd.RotateViewLeft, t => t.ActiveView.RotateView(clockwise: false), t => !t.IsOrganizing && t.PageView.PageCount > 0);
+        Bind(Cmd.FirstPage, t => t.ActiveView.GoToPage(0), t => t.ActiveView.CurrentPage > 0);
+        Bind(Cmd.PrevPage, t => t.ActiveView.PreviousPage(), t => t.ActiveView.CurrentPage > 0);
+        Bind(Cmd.NextPage, t => t.ActiveView.NextPage(), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
+        Bind(Cmd.LastPage, t => t.ActiveView.GoToPage(t.ActiveView.PageCount - 1), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
+        Bind(Cmd.SplitHorizontal, t => t.SetSplit(t.Split == SplitMode.TopAndBottom ? SplitMode.None : SplitMode.TopAndBottom), t => !t.IsOrganizing && t.PageView.PageCount > 0);
+        Bind(Cmd.SplitVertical, t => t.SetSplit(t.Split == SplitMode.SideBySide ? SplitMode.None : SplitMode.SideBySide), t => !t.IsOrganizing && t.PageView.PageCount > 0);
+        Bind(Cmd.RemoveSplit, t => t.SetSplit(SplitMode.None), t => t.Split != SplitMode.None);
+        Bind(Cmd.SwitchPane, t => t.SwitchPane(), t => t.Split != SplitMode.None && !t.IsOrganizing);
         Bind(Cmd.GoToPage, t => { t.SetOrganizing(false); t.FocusPageBox(); });
-        Bind(Cmd.Back, t => t.PageView.GoBack(), t => t.PageView.CanGoBack);
-        Bind(Cmd.Forward, t => t.PageView.GoForward(), t => t.PageView.CanGoForward);
+        Bind(Cmd.Back, t => t.ActiveView.GoBack(), t => t.ActiveView.CanGoBack);
+        Bind(Cmd.Forward, t => t.ActiveView.GoForward(), t => t.ActiveView.CanGoForward);
         Bind(Cmd.NavPane, t =>
         {
             var show = !t.NavPaneVisible;
@@ -1494,13 +1505,13 @@ public partial class MainWindow : Window
             return;
         }
         // Long selections are read in the background; the viewer reports the outcome (a toast via the tab).
-        _ = t.PageView.CopySelectionAsync();
+        _ = t.ActiveView.CopySelectionAsync();
     }
 
     private void SetLayout(DocumentTab t, ViewLayout layout)
     {
         t.SetOrganizing(false);
-        t.PageView.SetLayout(layout);
+        t.ActiveView.SetLayout(layout);
         AppSettings.Current.Layout = layout.ToString();
         AppSettings.Current.Save();
         UpdateUi();
@@ -1671,11 +1682,11 @@ public partial class MainWindow : Window
             {
                 var label = t.PageLabel(number - 1);
                 result.Insert(0, new PaletteItem(label != number.ToString() ? $"Go to page {number} ({label})" : $"Go to page {number}", "", "", "",
-                    () => { t.SetOrganizing(false); t.PageView.GoToPage(number - 1); }));
+                    () => { t.SetOrganizing(false); t.ActiveView.GoToPage(number - 1); }));
             }
             if (byLabel is { } p)
                 result.Insert(0, new PaletteItem($"Go to page {t.PageLabel(p)} ({p + 1} of {t.PageView.PageCount})", "", "", "",
-                    () => { t.SetOrganizing(false); t.PageView.GoToPage(p); }));
+                    () => { t.SetOrganizing(false); t.ActiveView.GoToPage(p); }));
         }
         PaletteList.ItemsSource = result;
         PaletteList.SelectedIndex = result.Count > 0 ? 0 : -1;
@@ -1805,9 +1816,12 @@ public partial class MainWindow : Window
         Title = t is null ? "Inkvolt PDF" : $"{(t.Session.IsDirty ? "● " : "")}{t.DisplayTitle} – Inkvolt PDF";
 
         var v = t?.PageView;
-        HandButton.IsChecked = HandMenu.IsChecked = v?.Tool == ViewerTool.Hand;
-        SelectButton.IsChecked = SelectMenu.IsChecked = v?.Tool == ViewerTool.SelectText;
-        SnapshotButton.IsChecked = SnapshotMenu.IsChecked = v?.Tool == ViewerTool.Snapshot;
+        var reading = t?.ActiveView; // split: the reading tools show the active pane's
+        HandButton.IsChecked = HandMenu.IsChecked = reading?.Tool == ViewerTool.Hand;
+        SelectButton.IsChecked = SelectMenu.IsChecked = reading?.Tool == ViewerTool.SelectText;
+        SnapshotButton.IsChecked = SnapshotMenu.IsChecked = reading?.Tool == ViewerTool.Snapshot;
+        SplitHorizontalMenu.IsChecked = t?.Split == SplitMode.TopAndBottom;
+        SplitVerticalMenu.IsChecked = t?.Split == SplitMode.SideBySide;
         AddTextButton.IsChecked = AddTextMenu.IsChecked = v?.Tool == ViewerTool.AddText;
         CheckButton.IsChecked = CheckMenu.IsChecked = v?.Tool == ViewerTool.AddCheck;
         CrossButton.IsChecked = CrossMenu.IsChecked = v?.Tool == ViewerTool.AddCross;

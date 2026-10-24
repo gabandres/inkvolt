@@ -424,7 +424,21 @@
                 </Border>
                 </StackPanel>
 
-                <v:PageViewer x:Name="Viewer" Grid.Row="1" Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                <!-- Split view (View › Split View): the main pane, a splitter and a second pane on the same document.
+                     Rows and columns are set by DocumentTab.Split.cs; the active pane gets an accent frame. -->
+                <Grid x:Name="SplitHost" Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="MainPaneFrame" Grid.RowSpan="3" Grid.ColumnSpan="3" BorderThickness="0">
+                <v:PageViewer x:Name="Viewer" Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
                               AutomationProperties.Name="Document pages">
                     <v:PageViewer.ContextMenu>
                         <ContextMenu>
@@ -460,6 +474,19 @@
                         </ContextMenu>
                     </v:PageViewer.ContextMenu>
                 </v:PageViewer>
+                    </Border>
+                    <GridSplitter x:Name="PaneSplitter" Visibility="Collapsed" Background="{DynamicResource CardStrokeColorDefaultBrush}"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeBehavior="PreviousAndNext"
+                                  KeyboardIncrement="24" AutomationProperties.Name="Resize the split" />
+                    <Border x:Name="SecondPaneFrame" Visibility="Collapsed" BorderThickness="2">
+                        <Grid x:Name="SecondPaneHost">
+                            <Button x:Name="CloseSplitButton" Style="{StaticResource IconButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,6,22,0" FontSize="11" Height="28" MinWidth="28" Content="&#xE711;" Panel.ZIndex="1"
+                                    Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                                    ToolTip="Close the split" AutomationProperties.Name="Close the split" />
+                        </Grid>
+                    </Border>
+                </Grid>
 
                 <!-- Find widget (Ctrl+F), floating top-right -->
                 <Border x:Name="FindBar" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,28,0" Padding="6"

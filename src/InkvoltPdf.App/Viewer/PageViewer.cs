@@ -103,6 +103,8 @@ public sealed partial class PageViewer : ScrollViewer
     public event EventHandler? SelectionChanged;
     public event EventHandler? ToolChanged;
     public event EventHandler<string>? StatusMessage;
+    /// <summary>A (new) engine was attached (<see cref="SetEngine"/>); the argument is its contentOnly flag.</summary>
+    public event EventHandler<bool>? EngineChanged;
 
     public PageViewer()
     {
@@ -293,6 +295,7 @@ public sealed partial class PageViewer : ScrollViewer
         }
         RaiseCurrentPageChanged();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+        EngineChanged?.Invoke(this, contentOnly);
     }
 
     // ───────────────────────────── Layout ─────────────────────────────

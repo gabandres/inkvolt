@@ -73,6 +73,13 @@ Manager. The installers don't remove an install made under the old names: uninst
   included. Page labels (i, ii, A-1…) show in the
   page pill and under thumbnails and can be typed to jump; a new file opens the way it asks (pane, layout, start page,
   title as the tab name).
+- **Split view** (View › Split View: Top and Bottom, or Side by Side): two places of the same document at once, each
+  pane with its own page, scroll, zoom, layout and view rotation; drag the bar between them to resize. The active pane
+  has an accent frame: page and zoom commands, the page pill, thumbnails and bookmarks move it. Click a pane, or press
+  Ctrl+F6 (F6 visits both in its cycle), to switch. The panes share the document, its undo history and the page
+  selection: an edit made in one shows in the other at once. The second pane is for reading (hand, text selection,
+  snapshot, links, copy); tools that change the document work in the main pane, which becomes active when one is
+  picked. The × in the second pane (or Remove Split) closes it. Kept per tab while it is open.
 - **Side rail**: Pages (thumbnails), Bookmarks, Search, Comments, Attachments, Layers, Signatures; F4 hides the pane.
 - **Bookmarks**: Ctrl+B adds one for the page and spot in view (titled with the selected text, else the page; type
   the title in place, Enter), after the selected bookmark; rename with F2 or a double-click, Del deletes, drag to
@@ -188,7 +195,7 @@ Manager. The installers don't remove an install made under the old names: uninst
   with Windows' OCR first (on the PC); without an OCR language they are kept as pictures in Word. XPS, EPUB and the
   other formats Inkvolt PDF opens export too.
 - **Reload** (F5) and an info bar when another program changes the open file. **Accessibility**: screen-reader names
-  for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page; high-contrast aware.
+  for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page (both panes of a split view); high-contrast aware.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit.
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
@@ -267,7 +274,7 @@ Manager. The installers don't remove an install made under the old names: uninst
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
 | `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -289,7 +296,8 @@ Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i
 Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
 `key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
-from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
+from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).
+Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
 everything it removes); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`.
 
@@ -366,6 +374,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   (two at least) in the top or bottom tenth. On scanned pages only the recognized text is kept (the pictures on
   them are not cut out), sizes are estimated and fonts are Word's default. Excel gets only the tables; numbers with
   currency signs, percents or thousands separators other than "," stay text.
+- Split view: the second pane is for reading: comments, fields and drawings are edited, and search and find matches
+  shown, in the main pane. One split per tab (two panes), not remembered when the tab is closed. Two different
+  documents side by side: use Compare Files.
 - Sanitize doesn't look for text drawn in white, under other content or outside the page (it can't be told reliably
   from text that shows), nor for hidden text in the structure tree's alternate text. Hidden-layer content that can't
   be cut out safely (a content stream that can't be decoded, or hidden text whose width the visible text right after it
@@ -382,6 +393,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   lacks a character, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
+- Split view: edit in either pane; more than two panes; two open tabs side by side; remember the split per file.
 - Sanitize: find text hidden in white, under images or outside the page; remove alternate text and a structure
   tree's hidden content; save a report of what was removed.
 - Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,

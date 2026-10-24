@@ -28,7 +28,7 @@ public static class Organize
     public static int CurrentPage(DocumentTab tab)
     {
         var count = tab.PageView.PageCount;
-        var page = tab.IsOrganizing && tab.Organizer.FocusedPage is >= 0 and var focused ? focused : tab.PageView.CurrentPage;
+        var page = tab.IsOrganizing && tab.Organizer.FocusedPage is >= 0 and var focused ? focused : tab.ActiveView.CurrentPage;
         return count == 0 ? 0 : Math.Clamp(page, 0, count - 1);
     }
 

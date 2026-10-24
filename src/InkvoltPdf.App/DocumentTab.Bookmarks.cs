@@ -320,7 +320,7 @@ public partial class DocumentTab
 
     private void NavigateTo(BookmarkNode node)
     {
-        if (node.PageIndex >= 0 && node.PageIndex < Viewer.PageCount) Viewer.GoToPage(node.PageIndex, node.Top);
+        if (node.PageIndex >= 0 && node.PageIndex < Viewer.PageCount) ActiveView.GoToPage(node.PageIndex, node.Top);
     }
 
     private void ExpandAll(bool expand)

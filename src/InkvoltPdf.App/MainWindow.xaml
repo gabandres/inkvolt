@@ -177,6 +177,13 @@
                                     <MenuItem Command="app:Cmd.Back" />
                                     <MenuItem Command="app:Cmd.Forward" />
                                     <Separator />
+                                    <MenuItem Header="Split _View">
+                                        <MenuItem x:Name="SplitHorizontalMenu" Command="app:Cmd.SplitHorizontal" />
+                                        <MenuItem x:Name="SplitVerticalMenu" Command="app:Cmd.SplitVertical" />
+                                        <MenuItem Command="app:Cmd.RemoveSplit" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.SwitchPane" />
+                                    </MenuItem>
                                     <MenuItem x:Name="NavPaneMenu" Command="app:Cmd.NavPane" />
                                     <MenuItem Header="_Bookmarks" Click="OnShowBookmarks" />
                                     <MenuItem Command="app:Cmd.AddBookmark" />
