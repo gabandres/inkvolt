@@ -122,7 +122,15 @@ if ($running) { throw "$(($running.Name | Sort-Object -Unique) -join ' and ') is
 
 if ($Uninstall) {
     Undo-Registry (Read-Manifest)
-    # Inkvolt Print's own "Start with Windows" entry (it writes it itself), only when it starts this install's copy.
+    # Inkvolt Print writes its own "Open with" entries and "Start with Windows" value; it removes those that point at itself.
+    $printApp = Join-Path $apps.InkvoltPrint 'InkvoltPrint.exe'
+    if (Test-Path -LiteralPath $printApp) {
+        $p = Start-Process -FilePath $printApp -ArgumentList '--unregister' -PassThru
+        # A copy from before --unregister would just open its window: don't wait on it forever.
+        if (-not $p.WaitForExit(30000)) { $p.Kill(); Write-Warning 'This Inkvolt Print copy has no --unregister; remove "Open with" entries by hand if any remain.' }
+        elseif ($p.ExitCode -ne 0) { Write-Warning "Inkvolt Print couldn't remove all of its Open with entries (exit code $($p.ExitCode))." }
+    }
+    # The Start with Windows value again, in case an older copy without --unregister wrote it.
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     $startup = (Get-ItemProperty -LiteralPath $runKey -Name 'Inkvolt Print' -ErrorAction SilentlyContinue).'Inkvolt Print'
     if ($startup -and $startup.IndexOf($apps.InkvoltPrint + '\', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
