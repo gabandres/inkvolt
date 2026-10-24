@@ -49,6 +49,7 @@ internal static class ExportActions
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
         pages = [.. pages.Where(p => p < tab.PageView.PageCount)];
         if (pages.Length == 0) return;
+        if (!Organize.ConfirmUnprotected(owner, tab, "The exported file is saved without its password protection: anyone can open it.", "Export anyway")) return;
         var recognize = ocr is not null && useOcr.IsChecked == true;
         AppSettings.Current.ExportOpen = open.IsChecked == true;
         if (ocr is not null) AppSettings.Current.ExportOcr = recognize;
@@ -63,7 +64,7 @@ internal static class ExportActions
         var engine = tab.ViewEngine; // what is shown (chosen layers included)
         using var progress = new ProgressPrompt(owner, kind.Title, "Reading the pages…");
         var cancel = progress.Token;
-        int recognized = 0, imageOnly = 0, unreadable = 0, tables = 0;
+        int recognized = 0, noText = 0, withPictures = 0, unreadable = 0, ocrFailed = 0, tables = 0;
         var images = format == Format.Word;
 
         IEnumerable<(int Number, ExportPage Page)> Read()
@@ -74,29 +75,44 @@ internal static class ExportActions
                 var p = pages[i];
                 progress.Report($"Reading page {p + 1} ({i + 1} of {pages.Length})…", (double)i / pages.Length);
                 ExportPage page;
+                var readable = true;
                 try
                 {
                     page = engine.GetExportPage(p, images, cancel);
                 }
                 catch (MuPDFCore.MuPDFException ex)
                 {
-                    // A damaged page: export the rest (it is left out, and said so).
+                    // A damaged page: export the rest (it stays empty, and the status says so).
                     Log.Write($"Export: page {p + 1} can't be read: {ex.Message}");
                     unreadable++;
+                    readable = false;
                     var g = engine.GetPage(p);
                     page = new ExportPage(g.Width, g.Height, [], [], []);
                 }
-                if (!page.HasText && recognize)
+                if (readable && !page.HasText && recognize)
                 {
                     progress.Report($"Recognizing text on page {p + 1} ({i + 1} of {pages.Length})…", (double)i / pages.Length);
-                    var words = PageOcr.Recognize(ocr!, engine, p, cancel);
-                    if (words.Count > 0)
+                    try
                     {
-                        page = page with { Lines = ExportPage.LinesFromOcr(words), FromOcr = true };
-                        recognized++;
+                        var words = PageOcr.Recognize(ocr!, engine, p, cancel);
+                        if (words.Count > 0)
+                        {
+                            page = page with { Lines = ExportPage.LinesFromOcr(words), FromOcr = true };
+                            recognized++;
+                        }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // Rendering or the OCR engine failed on this page: go on without its text.
+                        Log.Write($"Export: text recognition failed on page {p + 1}: {ex.Message}");
+                        ocrFailed++;
                     }
                 }
-                if (!page.HasText && page.Images.Count + page.Lines.Count > 0) imageOnly++;
+                if (!page.HasText)
+                {
+                    noText++;
+                    if (page.Images.Count > 0) withPictures++;
+                }
                 yield return (p + 1, page);
             }
             progress.Report("Writing the file…", 1);
@@ -104,40 +120,60 @@ internal static class ExportActions
 
         try
         {
+            // Nothing is saved when nothing was extracted: no text at all (and, for Word, no pictures either) or no tables.
             var written = await Task.Run(() =>
             {
                 switch (format)
                 {
                     case Format.Word:
-                        WriteVia(path, s => DocumentExport.WriteDocx(s, Read().Select(x => x.Page), name), cancel);
-                        return true;
+                        return WriteVia(path, s =>
+                        {
+                            DocumentExport.WriteDocx(s, Read().Select(x => x.Page), name);
+                            return noText < pages.Length || withPictures > 0;
+                        }, cancel);
                     case Format.Excel:
                     {
                         var found = DocumentExport.Tables(Read());
                         tables = found.Count;
-                        if (found.Count == 0) return false;
-                        WriteVia(path, s => XlsxWriter.Write(s, found, name), cancel);
-                        return true;
+                        return found.Count > 0 && WriteVia(path, s =>
+                        {
+                            XlsxWriter.Write(s, found, name);
+                            return true;
+                        }, cancel);
                     }
                     default:
                     {
                         var text = DocumentExport.PlainText(Read().Select(x => x.Page));
-                        WriteVia(path, s => s.Write(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(text)).ToArray()), cancel);
-                        return true;
+                        return noText < pages.Length && WriteVia(path, s =>
+                        {
+                            s.Write([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(text)]);
+                            return true;
+                        }, cancel);
                     }
                 }
             }, cancel);
             progress.Dispose();
             if (!written)
             {
-                Prompt.Info(owner, "No tables found",
-                    $"No tables were found on {(pages.Length == 1 ? "this page" : "these pages")}, so no workbook was saved. Tables are found from ruled grids, or from text lined up in columns over three rows or more." +
-                    (imageOnly > 0 ? $" {Pages(imageOnly)} had no text{(recognize ? " even after text recognition" : "")}." : ""));
+                var these = pages.Length == 1 ? "this page" : "these pages";
+                var why = "";
+                if (noText > 0)
+                {
+                    why = noText == pages.Length ? (pages.Length == 1 ? " The page has no text" : " None of the pages has text") : $" {Pages(noText)} had no text";
+                    why += recognize ? (ocrFailed > 0 ? "; text recognition failed on some of them." : ", even after text recognition.")
+                        : ocr is null ? ", and Windows has no text recognition (OCR) language installed."
+                        : ": turn on \"Recognize text on scanned pages\" to read scans.";
+                }
+                if (format == Format.Excel)
+                    Prompt.Info(owner, "No tables found", $"No tables were found on {these}, so no workbook was saved. Tables are found from ruled grids, or from text lined up in columns over three rows or more.{why}");
+                else
+                    Prompt.Info(owner, "No text found", $"Nothing could be extracted from {these}, so no file was saved.{why}");
                 return;
             }
             var notes = new List<string>();
             if (recognized > 0) notes.Add($"{Pages(recognized)} recognized with OCR");
-            if (imageOnly > 0) notes.Add($"{Pages(imageOnly)} without text{(format == Format.Word ? " kept as pictures" : " left out")}");
+            if (noText > 0) notes.Add($"{Pages(noText)} without text{(format == Format.Word && withPictures > 0 ? " (pictures kept)" : "")}");
+            if (ocrFailed > 0) notes.Add($"text recognition failed on {Pages(ocrFailed)}");
             if (unreadable > 0) notes.Add($"{Pages(unreadable)} couldn't be read and {(unreadable == 1 ? "is" : "are")} empty");
             if (format == Format.Excel) notes.Insert(0, tables == 1 ? "1 table" : $"{tables} tables");
             Log.Write($"Export {format}: {pages.Length} page(s) to {Log.Name(path)}{(notes.Count > 0 ? "; " + string.Join("; ", notes) : "")}");
@@ -178,20 +214,30 @@ internal static class ExportActions
         return dlg.ShowDialog(owner) == true ? dlg.FileName : null;
     }
 
-    /// <summary>Writes through a temporary file in the same folder, swapped in at the end, so a failed or cancelled export leaves nothing half-written.</summary>
-    private static void WriteVia(string path, Action<Stream> write, CancellationToken cancel)
+    /// <summary>
+    /// Writes through a temporary file in the same folder, swapped in at the end, so a failed or cancelled export leaves
+    /// nothing half-written. <paramref name="write"/> returns false to keep nothing (the export found nothing to save).
+    /// </summary>
+    private static bool WriteVia(string path, Func<Stream, bool> write, CancellationToken cancel)
     {
         var full = Path.GetFullPath(path);
         var tmp = Path.Combine(Path.GetDirectoryName(full)!, $"~inkvoltpdf-{Guid.NewGuid():N}.tmp");
         try
         {
+            bool keep;
             using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                write(fs);
+                keep = write(fs);
                 fs.Flush(flushToDisk: true);
             }
             cancel.ThrowIfCancellationRequested();
+            if (!keep)
+            {
+                File.Delete(tmp);
+                return false;
+            }
             File.Move(tmp, full, overwrite: true);
+            return true;
         }
         catch
         {

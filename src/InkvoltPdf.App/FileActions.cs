@@ -289,6 +289,7 @@ public static class FileActions
             return Directory.Exists(folder.Text) ? null : "Choose an existing folder.";
         });
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
+        if (!Organize.ConfirmUnprotected(owner, tab, "The page images are saved without its password protection: anyone can open them.", "Export anyway")) return;
         pages = [.. pages.Where(p => p < tab.PageView.PageCount)];
         if (pages.Length == 0) return;
 

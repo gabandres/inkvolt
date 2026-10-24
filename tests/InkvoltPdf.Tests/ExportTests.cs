@@ -328,12 +328,84 @@ public class ExportTests
     [InlineData("-3.5", -3.5)]
     [InlineData("1,234.50", 1234.5)]
     [InlineData("0.99", 0.99)]
+    [InlineData("0.5", 0.5)]
+    [InlineData("$5", 5.0)]
+    [InlineData("-$1,200.00", -1200.0)]
+    [InlineData("12%", 0.12)]
     [InlineData("007", null)]
-    [InlineData("$5", null)]
-    [InlineData("12%", null)]
     [InlineData("1.234,50", null)]
     [InlineData("1234567890123456", null)]
-    public void Excel_numbers(string text, double? value) => Assert.Equal(value, XlsxWriter.Number(text));
+    [InlineData("-$-5", null)]
+    [InlineData("5 €", null)]
+    public void Excel_numbers(string text, double? value)
+    {
+        var n = XlsxWriter.Number(text);
+        if (value is null) Assert.Null(n);
+        else Assert.Equal(value.Value, n!.Value, 9);
+    }
+
+    [Theory]
+    [InlineData("12", null)]
+    [InlineData("12.50", "0.00")]
+    [InlineData("1,234.5", "#,##0.0")]
+    [InlineData("1,234", "#,##0")]
+    [InlineData("12.5%", "0.0%")]
+    [InlineData("$5.00", "\"$\"#,##0.00")]
+    [InlineData("-€3", "\"€\"#,##0")]
+    public void Excel_number_formats_show_the_number_as_written(string text, string? format) =>
+        Assert.Equal(format, XlsxWriter.Parse(text)!.Value.Format);
+
+    private static DocCell Cell(string text) =>
+        new([new DocParagraph([new ExportSpan(text, "Arial", 11, false, false, 0, new RectD(0, 0, 10, 10))], new RectD(0, 0, 10, 10))]);
+
+    private static SpreadsheetDocument Workbook(params string[][] rows)
+    {
+        var table = new DocTable([.. rows.Select(r => (IReadOnlyList<DocCell>)[.. r.Select(Cell)])], [.. rows[0].Select(_ => 60.0)], true, new RectD(0, 0, 100, 100));
+        var ms = new MemoryStream();
+        XlsxWriter.Write(ms, [("Page 1", table)], null);
+        ms.Position = 0;
+        return SpreadsheetDocument.Open(ms, false);
+    }
+
+    [Fact]
+    public void Excel_cells_keep_decimals_separators_percents_and_currency_with_one_style_each()
+    {
+        using var book = Workbook(["12.50", "1,234.50", "12.5%", "$5.00"], ["3.10", "2,000.75", "7", "-$1.25"]);
+        AssertValid(book);
+        var styles = book.WorkbookPart!.WorkbookStylesPart!.Stylesheet;
+        var formats = styles.NumberingFormats!.Elements<X.NumberingFormat>().ToDictionary(f => f.NumberFormatId!.Value, f => f.FormatCode!.Value);
+        Assert.Equal(["0.00", "#,##0.00", "0.0%", "\"$\"#,##0.00"], formats.Values); // each format once
+        var xfs = styles.CellFormats!.Elements<X.CellFormat>().ToList();
+        string FormatOf(X.Cell c) => c.StyleIndex is null ? "General" : formats.GetValueOrDefault(xfs[(int)c.StyleIndex.Value].NumberFormatId!.Value, "General")!;
+        var cells = book.WorkbookPart.WorksheetParts.Single().Worksheet.Descendants<X.Cell>().ToDictionary(c => c.CellReference!.Value!);
+        Assert.Equal("12.5", cells["A1"].CellValue!.Text);
+        Assert.Equal("0.00", FormatOf(cells["A1"]));
+        Assert.Equal(cells["A1"].StyleIndex!.Value, cells["A2"].StyleIndex!.Value); // same look, same style
+        Assert.Equal("#,##0.00", FormatOf(cells["B2"]));
+        Assert.Equal("0.125", cells["C1"].CellValue!.Text);
+        Assert.Equal("General", FormatOf(cells["C2"]));
+        Assert.Equal("-1.25", cells["D2"].CellValue!.Text);
+        Assert.Equal("\"$\"#,##0.00", FormatOf(cells["D2"]));
+        Assert.Equal(5, xfs.Count); // plain + the four formats
+    }
+
+    [Fact]
+    public void Long_cells_and_names_are_cut_without_splitting_an_emoji()
+    {
+        Assert.Equal("ab", OpenXmlParts.Cut("ab\U0001F600", 3));
+        Assert.Equal("ab\U0001F600", OpenXmlParts.Cut("ab\U0001F600c", 4));
+        Assert.Equal("abc", OpenXmlParts.Cut("abc", 5));
+        var text = new string('a', 32766) + "\U0001F600 and more";
+        using var book = Workbook([text, "x"]);
+        AssertValid(book);
+        var cell = book.WorkbookPart!.WorksheetParts.Single().Worksheet.Descendants<X.Cell>().First();
+        Assert.Equal(new string('a', 32766), cell.InnerText);
+        Assert.Equal(new string('x', 30), Assert.Single(XlsxWriter.SheetNames([new string('x', 30) + "\U0001F600"])));
+        // A font name with an emoji across Word's 31-character limit.
+        var span = new ExportSpan("Hi", new string('F', 30) + "\U0001F600", 11, false, false, 0, new RectD(72, 72, 20, 12));
+        using var doc = WordprocessingDocument.Open(new MemoryStream(Docx([new ExportPage(612, 792, [ExportLine.Of([span])], [], [])])), false);
+        AssertValid(doc);
+    }
 
     [Fact]
     public void Excel_sheet_names_and_columns()

@@ -303,7 +303,7 @@ public sealed class DocxWriter : IDisposable
         w.WriteStartElement("r", W);
         w.WriteStartElement("rPr", W);
         var font = OpenXmlParts.Clean(FontNames.Family(s.Font)).Trim();
-        if (font.Length > 31) font = font[..31]; // Windows font names are at most 31 characters
+        font = OpenXmlParts.Cut(font, 31); // Windows font names are at most 31 characters
         if (font.Length > 0)
         {
             w.WriteStartElement("rFonts", W);
@@ -747,6 +747,14 @@ internal static class OpenXmlParts
         w.WriteStartDocument(true);
         write(w);
         w.WriteEndDocument();
+    }
+
+    /// <summary>At most the first <paramref name="max"/> characters, never splitting a surrogate pair (an emoji) in two.</summary>
+    public static string Cut(string text, int max)
+    {
+        if (text.Length <= max) return text;
+        if (max <= 0) return "";
+        return char.IsHighSurrogate(text[max - 1]) ? text[..(max - 1)] : text[..max];
     }
 
     /// <summary>Text with the characters XML can't hold (control characters, lone surrogates) dropped; tabs and newlines kept.</summary>

@@ -331,8 +331,8 @@ public static class Organize
     // Tabs already warned that extracting/splitting drops the password (once per tab, like page edits).
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DocumentTab, object> ProtectionWarned = new();
 
-    /// <summary>Warns once per tab that output from a password-protected PDF is written without the password.</summary>
-    private static bool ConfirmUnprotected(Window owner, DocumentTab tab, string body, string confirm)
+    /// <summary>Warns once per tab that output from a password-protected PDF (extracted pages, split files, exports) is written without the password.</summary>
+    internal static bool ConfirmUnprotected(Window owner, DocumentTab tab, string body, string confirm)
     {
         if (!tab.Session.Engine.IsEncrypted || ProtectionWarned.TryGetValue(tab, out _)) return true;
         if (!Prompt.Confirm(owner, "This PDF is password-protected", body, confirm, warning: true)) return false;

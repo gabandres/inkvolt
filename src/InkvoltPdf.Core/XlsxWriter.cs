@@ -6,9 +6,9 @@ using System.Xml;
 namespace InkvoltPdf.Core;
 
 /// <summary>
-/// Writes tables to an Excel workbook (.xlsx), one sheet per table: plain numbers ("1,234.50", "-7") become numbers,
-/// everything else stays text as shown; cells spanning columns are merged; a cell in bold type is bold; column widths
-/// follow the table's.
+/// Writes tables to an Excel workbook (.xlsx), one sheet per table: numbers ("1,234.50", "-7", "12.5%", "$5.00") become
+/// numbers shown as they were (decimal places, thousands separator, percent, currency sign); everything else stays text
+/// as shown; cells spanning columns are merged; a cell in bold type is bold; column widths follow the table's.
 /// </summary>
 public static partial class XlsxWriter
 {
@@ -21,10 +21,11 @@ public static partial class XlsxWriter
         if (sheets.Count == 0) throw new ArgumentException("A workbook needs at least one sheet.", nameof(sheets));
         var names = SheetNames(sheets.Select(s => s.Name));
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
+        var styles = new CellStyles();
         for (var i = 0; i < sheets.Count; i++)
         {
             var table = sheets[i].Table;
-            OpenXmlParts.Entry(zip, $"xl/worksheets/sheet{i + 1}.xml", w => Sheet(w, table));
+            OpenXmlParts.Entry(zip, $"xl/worksheets/sheet{i + 1}.xml", w => Sheet(w, table, styles));
         }
         OpenXmlParts.Entry(zip, "xl/workbook.xml", w =>
         {
@@ -42,7 +43,7 @@ public static partial class XlsxWriter
             w.WriteEndElement();
             w.WriteEndElement();
         });
-        OpenXmlParts.Entry(zip, "xl/styles.xml", Styles);
+        OpenXmlParts.Entry(zip, "xl/styles.xml", styles.Write);
         OpenXmlParts.Entry(zip, "xl/_rels/workbook.xml.rels", w =>
         {
             const string ns = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -89,33 +90,54 @@ public static partial class XlsxWriter
         {
             var name = new string([.. raw.Select(c => ":\\/?*[]".Contains(c) || char.IsControl(c) ? ' ' : c)]).Trim().Trim('\'');
             if (name.Length == 0) name = "Sheet";
-            if (name.Length > 31) name = name[..31].Trim();
+            if (name.Length > 31) name = OpenXmlParts.Cut(name, 31).Trim();
             var candidate = name;
             for (var n = 2; !used.Add(candidate); n++)
             {
                 var suffix = $" ({n})";
-                candidate = (name.Length + suffix.Length > 31 ? name[..(31 - suffix.Length)] : name) + suffix;
+                candidate = (name.Length + suffix.Length > 31 ? OpenXmlParts.Cut(name, 31 - suffix.Length) : name) + suffix;
             }
             result.Add(candidate);
         }
         return result;
     }
 
-    /// <summary>The number a cell's text shows, if it is a plain one (no currency, percent or leading zero).</summary>
-    public static double? Number(string text)
+    /// <summary>The number a cell's text shows, if any (see <see cref="Parse"/>).</summary>
+    public static double? Number(string text) => Parse(text)?.Value;
+
+    /// <summary>
+    /// The number a cell's text shows and the Excel format that shows it the same way ("1,234.50" → 1234.5 with
+    /// "#,##0.00"; "12.5%" → 0.125 with "0.0%"; "-$5" → -5 with "$"#,##0); a null format is General. Null when the
+    /// text isn't a number: other separators ("1.234,50"), a leading zero ("007", an ID), more digits than Excel keeps.
+    /// </summary>
+    public static (double Value, string? Format)? Parse(string text)
     {
-        var t = text.Trim();
-        if (!PlainNumber().IsMatch(t)) return null;
-        var digits = t.TrimStart('-', '+');
-        if (digits.Length > 1 && digits[0] == '0' && digits[1] != '.') return null; // "007": an ID, not a number
-        if (digits.Count(char.IsAsciiDigit) > 15) return null;                     // longer than Excel keeps exactly
-        return double.TryParse(t.Replace(",", ""), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) ? v : null;
+        var m = NumberText().Match(text.Trim());
+        if (!m.Success || (m.Groups["sign"].Success && m.Groups["sign2"].Success)) return null;
+        var whole = m.Groups["int"].Value;
+        var frac = m.Groups["frac"].Value;
+        var digits = whole.Replace(",", "");
+        if (digits.Length > 1 && digits[0] == '0') return null; // "007": an ID, not a number
+        if (digits.Length + frac.Length > 15) return null;       // longer than Excel keeps exactly
+        if (!double.TryParse(frac.Length > 0 ? $"{digits}.{frac}" : digits, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v))
+            return null;
+        if (m.Groups["sign"].Value == "-" || m.Groups["sign2"].Value == "-") v = -v;
+        var thousands = whole.Contains(',');
+        var currency = m.Groups["cur"].Value;
+        var percent = m.Groups["pct"].Success;
+        if (percent) v /= 100;
+        if (!thousands && frac.Length == 0 && currency.Length == 0 && !percent) return (v, null);
+        var format = (thousands || currency.Length > 0 ? "#,##0" : "0") + (frac.Length > 0 ? "." + new string('0', frac.Length) : "");
+        if (percent) format += "%";
+        if (currency.Length > 0) format = "\"" + currency + "\"" + format;
+        return (v, format);
     }
 
-    [GeneratedRegex(@"^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$")]
-    private static partial Regex PlainNumber();
+    // [sign][currency][sign]digits[.digits][%], thousands in groups of three after ",".
+    [GeneratedRegex(@"^(?<sign>[-+])?(?<cur>[$€£¥])?(?<sign2>[-+])?(?<int>\d{1,3}(?:,\d{3})+|\d+)(?:\.(?<frac>\d+))?(?<pct>%)?$")]
+    private static partial Regex NumberText();
 
-    private static void Sheet(XmlWriter w, DocTable t)
+    private static void Sheet(XmlWriter w, DocTable t, CellStyles styles)
     {
         w.WriteStartElement("worksheet", S);
         w.WriteAttributeString("xmlns", "r", null, R);
@@ -153,11 +175,12 @@ public static partial class XlsxWriter
                     var wrap = text.Contains('\n');
                     w.WriteStartElement("c", S);
                     w.WriteAttributeString("r", Column(c) + rowNo);
-                    var style = (bold ? 1 : 0) + (wrap ? 2 : 0);
+                    var number = Parse(text);
+                    var style = styles.Index(bold, wrap && number is null, number?.Format);
                     if (style != 0) w.WriteAttributeString("s", style.ToString(CultureInfo.InvariantCulture));
-                    if (Number(text) is { } v)
+                    if (number is { } n)
                     {
-                        w.WriteElementString("v", S, v.ToString("R", CultureInfo.InvariantCulture));
+                        w.WriteElementString("v", S, n.Value.ToString("R", CultureInfo.InvariantCulture));
                     }
                     else
                     {
@@ -165,7 +188,7 @@ public static partial class XlsxWriter
                         w.WriteStartElement("is", S);
                         w.WriteStartElement("t", S);
                         if (text != text.Trim() || text.Contains('\n')) w.WriteAttributeString("xml", "space", null, "preserve");
-                        w.WriteString(text.Length > 32767 ? text[..32767] : text); // Excel's cell limit
+                        w.WriteString(OpenXmlParts.Cut(text, 32767)); // Excel's cell limit
                         w.WriteEndElement();
                         w.WriteEndElement();
                     }
@@ -199,73 +222,103 @@ public static partial class XlsxWriter
         return s;
     }
 
-    /// <summary>Styles: 0 plain, 1 bold, 2 wrapped, 3 bold and wrapped.</summary>
-    private static void Styles(XmlWriter w)
+    /// <summary>
+    /// The workbook's cell styles: bold or not, wrapped or not, and a number format; each combination once (index 0 is
+    /// the plain style), each number format once (ids from 164 up, where custom formats start).
+    /// </summary>
+    private sealed class CellStyles
     {
-        w.WriteStartElement("styleSheet", S);
-        w.WriteStartElement("fonts", S);
-        w.WriteAttributeString("count", "2");
-        foreach (var bold in new[] { false, true })
-        {
-            w.WriteStartElement("font", S);
-            if (bold) w.WriteElementString("b", S, null);
-            w.WriteStartElement("sz", S);
-            w.WriteAttributeString("val", "11");
-            w.WriteEndElement();
-            w.WriteStartElement("name", S);
-            w.WriteAttributeString("val", "Calibri");
-            w.WriteEndElement();
-            w.WriteEndElement();
-        }
-        w.WriteEndElement();
-        w.WriteStartElement("fills", S);
-        w.WriteAttributeString("count", "2");
-        foreach (var pattern in new[] { "none", "gray125" })
-        {
-            w.WriteStartElement("fill", S);
-            w.WriteStartElement("patternFill", S);
-            w.WriteAttributeString("patternType", pattern);
-            w.WriteEndElement();
-            w.WriteEndElement();
-        }
-        w.WriteEndElement();
-        w.WriteStartElement("borders", S);
-        w.WriteAttributeString("count", "1");
-        w.WriteStartElement("border", S);
-        foreach (var side in new[] { "left", "right", "top", "bottom", "diagonal" }) w.WriteElementString(side, S, null);
-        w.WriteEndElement();
-        w.WriteEndElement();
-        w.WriteStartElement("cellStyleXfs", S);
-        w.WriteAttributeString("count", "1");
-        Xf(w, 0, false, null);
-        w.WriteEndElement();
-        w.WriteStartElement("cellXfs", S);
-        w.WriteAttributeString("count", "4");
-        Xf(w, 0, false, 0);
-        Xf(w, 1, false, 0);
-        Xf(w, 0, true, 0);
-        Xf(w, 1, true, 0);
-        w.WriteEndElement();
-        w.WriteStartElement("cellStyles", S);
-        w.WriteAttributeString("count", "1");
-        w.WriteStartElement("cellStyle", S);
-        w.WriteAttributeString("name", "Normal");
-        w.WriteAttributeString("xfId", "0");
-        w.WriteAttributeString("builtinId", "0");
-        w.WriteEndElement();
-        w.WriteEndElement();
-        w.WriteEndElement();
+        private readonly List<(bool Bold, bool Wrap, int NumFmt)> _xfs = [(false, false, 0)];
+        private readonly Dictionary<string, int> _formats = [];
 
-        static void Xf(XmlWriter w, int font, bool wrap, int? xfId)
+        public int Index(bool bold, bool wrap, string? format)
+        {
+            var id = 0;
+            if (format is not null && !_formats.TryGetValue(format, out id)) _formats[format] = id = 164 + _formats.Count;
+            var i = _xfs.IndexOf((bold, wrap, id));
+            if (i >= 0) return i;
+            _xfs.Add((bold, wrap, id));
+            return _xfs.Count - 1;
+        }
+
+        public void Write(XmlWriter w)
+        {
+            w.WriteStartElement("styleSheet", S);
+            if (_formats.Count > 0)
+            {
+                w.WriteStartElement("numFmts", S);
+                w.WriteAttributeString("count", _formats.Count.ToString(CultureInfo.InvariantCulture));
+                foreach (var (code, id) in _formats)
+                {
+                    w.WriteStartElement("numFmt", S);
+                    w.WriteAttributeString("numFmtId", id.ToString(CultureInfo.InvariantCulture));
+                    w.WriteAttributeString("formatCode", code);
+                    w.WriteEndElement();
+                }
+                w.WriteEndElement();
+            }
+            w.WriteStartElement("fonts", S);
+            w.WriteAttributeString("count", "2");
+            foreach (var bold in new[] { false, true })
+            {
+                w.WriteStartElement("font", S);
+                if (bold) w.WriteElementString("b", S, null);
+                w.WriteStartElement("sz", S);
+                w.WriteAttributeString("val", "11");
+                w.WriteEndElement();
+                w.WriteStartElement("name", S);
+                w.WriteAttributeString("val", "Calibri");
+                w.WriteEndElement();
+                w.WriteEndElement();
+            }
+            w.WriteEndElement();
+            w.WriteStartElement("fills", S);
+            w.WriteAttributeString("count", "2");
+            foreach (var pattern in new[] { "none", "gray125" })
+            {
+                w.WriteStartElement("fill", S);
+                w.WriteStartElement("patternFill", S);
+                w.WriteAttributeString("patternType", pattern);
+                w.WriteEndElement();
+                w.WriteEndElement();
+            }
+            w.WriteEndElement();
+            w.WriteStartElement("borders", S);
+            w.WriteAttributeString("count", "1");
+            w.WriteStartElement("border", S);
+            foreach (var side in new[] { "left", "right", "top", "bottom", "diagonal" }) w.WriteElementString(side, S, null);
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteStartElement("cellStyleXfs", S);
+            w.WriteAttributeString("count", "1");
+            Xf(w, (false, false, 0), null);
+            w.WriteEndElement();
+            w.WriteStartElement("cellXfs", S);
+            w.WriteAttributeString("count", _xfs.Count.ToString(CultureInfo.InvariantCulture));
+            foreach (var xf in _xfs) Xf(w, xf, 0);
+            w.WriteEndElement();
+            w.WriteStartElement("cellStyles", S);
+            w.WriteAttributeString("count", "1");
+            w.WriteStartElement("cellStyle", S);
+            w.WriteAttributeString("name", "Normal");
+            w.WriteAttributeString("xfId", "0");
+            w.WriteAttributeString("builtinId", "0");
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteEndElement();
+        }
+
+        private static void Xf(XmlWriter w, (bool Bold, bool Wrap, int NumFmt) xf, int? xfId)
         {
             w.WriteStartElement("xf", S);
-            w.WriteAttributeString("numFmtId", "0");
-            w.WriteAttributeString("fontId", font.ToString(CultureInfo.InvariantCulture));
+            w.WriteAttributeString("numFmtId", xf.NumFmt.ToString(CultureInfo.InvariantCulture));
+            w.WriteAttributeString("fontId", xf.Bold ? "1" : "0");
             w.WriteAttributeString("fillId", "0");
             w.WriteAttributeString("borderId", "0");
             if (xfId is { } x) w.WriteAttributeString("xfId", x.ToString(CultureInfo.InvariantCulture));
-            if (font != 0) w.WriteAttributeString("applyFont", "1");
-            if (wrap)
+            if (xf.NumFmt != 0) w.WriteAttributeString("applyNumberFormat", "1");
+            if (xf.Bold) w.WriteAttributeString("applyFont", "1");
+            if (xf.Wrap)
             {
                 w.WriteAttributeString("applyAlignment", "1");
                 w.WriteStartElement("alignment", S);
