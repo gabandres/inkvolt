@@ -86,6 +86,13 @@ public sealed partial class ScanViewModel : ObservableObject
         Straighten = state.ScanStraighten;
         SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
         KeepSeparators = _batchKeep = state.ScanKeepSeparators;
+        FindPhotos = state.ScanFindPhotos;
+        EditedPhotos.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(PhotoStatus));
+            RemovePhotoCommand.NotifyCanExecuteChanged();
+            TurnPhotoCommand.NotifyCanExecuteChanged();
+        };
         Pages.CollectionChanged += (_, _) =>
         {
             for (var i = 0; i < Pages.Count; i++) Pages[i].Number = i + 1;
@@ -108,7 +115,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void PageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (nameof(ScanPageViewModel.Edits) or nameof(ScanPageViewModel.IsSkipped)
-                or nameof(ScanPageViewModel.Separator) or nameof(ScanPageViewModel.StartsFile))) return;
+                or nameof(ScanPageViewModel.Separator) or nameof(ScanPageViewModel.StartsFile) or nameof(ScanPageViewModel.Photos))) return;
         _dirty = true;
         if (e.PropertyName != nameof(ScanPageViewModel.Edits)) RefreshFiles();
         PagesChanged();
@@ -189,6 +196,140 @@ public sealed partial class ScanViewModel : ObservableObject
         return [.. BatchSplit.Parts([.. pages.Select(p => p.AsBatchPage)], _batchKeep).Select(part => part.Select(i => pages[i]).ToList())];
     }
 
+    // ---- Several photos on the glass: each saved as its own picture ----
+
+    /// <summary>Find the photos on a scan of the glass and save each one by itself, cut out straight.</summary>
+    [ObservableProperty] public partial bool FindPhotos { get; set; }
+
+    partial void OnFindPhotosChanged(bool value) { _state.ScanFindPhotos = value; _state.Save(); }
+
+    /// <summary>The page whose photos are being adjusted; null when the photo view is closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingPhotos))]
+    public partial ScanPageViewModel? PhotoPage { get; set; }
+
+    public bool IsEditingPhotos => PhotoPage is not null;
+
+    /// <summary>The whole scan, large (as scanned: photos are found and cut on the original).</summary>
+    [ObservableProperty] public partial BitmapSource? PhotoImage { get; set; }
+
+    /// <summary>The photos being adjusted (the view edits them in place).</summary>
+    public ObservableCollection<PhotoBox> EditedPhotos { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PhotoStatus))]
+    [NotifyCanExecuteChangedFor(nameof(RemovePhotoCommand), nameof(TurnPhotoCommand))]
+    public partial int SelectedPhoto { get; set; } = -1;
+
+    /// <summary>"Photo 2 of 3: 6.0 × 4.0 in, turned 3°" for the selected photo, or how many there are.</summary>
+    public string PhotoStatus
+    {
+        get
+        {
+            if (PhotoPage is not { } page) return "";
+            if (EditedPhotos.Count == 0) return "No photos marked: the whole scan is saved as one picture. Drag over a photo to mark it.";
+            if (SelectedPhoto < 0 || SelectedPhoto >= EditedPhotos.Count)
+                return EditedPhotos.Count == 1 ? "1 photo, saved as its own picture." : $"{EditedPhotos.Count} photos, each saved as its own picture.";
+            var b = EditedPhotos[SelectedPhoto];
+            var inches = page.WidthInches;
+            var turns = b.QuarterTurns % 4 == 0 ? "" : $", saved turned {90 * b.QuarterTurns}°";
+            return string.Create(CultureInfo.CurrentCulture,
+                $"Photo {SelectedPhoto + 1} of {EditedPhotos.Count}: {b.Width * inches:0.0} × {b.Height * inches:0.0} in, straightened by {b.Angle:0.#}°{turns}.");
+        }
+    }
+
+    [RelayCommand]
+    private async Task EditPhotosAsync(ScanPageViewModel? page)
+    {
+        if (page is null || IsBusy) return;
+        CancelCrop();
+        PhotoPage = page;
+        EditedPhotos.Clear();
+        foreach (var box in page.Photos ?? []) EditedPhotos.Add(box);
+        SelectedPhoto = EditedPhotos.Count > 0 ? 0 : -1;
+        PhotoImage = null;
+        try
+        {
+            var image = await Task.Run(() => ScanImaging.Render(page.Original, PageEdits.None, 1600));
+            if (PhotoPage == page) PhotoImage = image;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Photo view failed: {ex}");
+            Message = $"Couldn't show the scan: {ex.Message}";
+            PhotoPage = null;
+        }
+        OnPropertyChanged(nameof(PhotoStatus));
+    }
+
+    partial void OnSelectedPhotoChanged(int value)
+    {
+        if (IsEditingPhotos && value >= 0) Prompt.Announce(PhotoStatus);
+    }
+
+    [RelayCommand]
+    private void AddPhoto()
+    {
+        if (PhotoPage is not { } page) return;
+        var aspect = page.HeightInches / page.WidthInches; // the scan's height in units of its width
+        EditedPhotos.Add(new PhotoBox(0.5, aspect / 2, 0.4, 0.3, 0));
+        SelectedPhoto = EditedPhotos.Count - 1;
+        Prompt.Announce($"Photo {EditedPhotos.Count} added in the middle. Arrow keys move it, Shift+arrows resize it.");
+    }
+
+    private bool HasSelectedPhoto() => SelectedPhoto >= 0 && SelectedPhoto < EditedPhotos.Count;
+
+    [RelayCommand(CanExecute = nameof(HasSelectedPhoto))]
+    private void RemovePhoto()
+    {
+        if (!HasSelectedPhoto()) return;
+        var removed = SelectedPhoto;
+        EditedPhotos.RemoveAt(removed);
+        SelectedPhoto = Math.Min(removed, EditedPhotos.Count - 1);
+        Prompt.Announce($"Photo {removed + 1} removed. {EditedPhotos.Count} left.");
+    }
+
+    /// <summary>The selected photo is saved turned a further quarter clockwise (a portrait print laid on its side).</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedPhoto))]
+    private void TurnPhoto()
+    {
+        if (!HasSelectedPhoto()) return;
+        var b = EditedPhotos[SelectedPhoto];
+        EditedPhotos[SelectedPhoto] = b with { QuarterTurns = (b.QuarterTurns + 1) % 4 };
+        OnPropertyChanged(nameof(PhotoStatus));
+        Prompt.Announce(PhotoStatus);
+    }
+
+    /// <summary>Looks for the photos again, dropping the changes made here.</summary>
+    [RelayCommand]
+    private async Task FindPhotosAgainAsync()
+    {
+        if (PhotoPage is not { } page) return;
+        var found = await Task.Run(() => ScanPageViewModel.FindPhotosOn(page.Original, page.Dpi));
+        if (PhotoPage != page) return;
+        EditedPhotos.Clear();
+        foreach (var box in found) EditedPhotos.Add(box);
+        SelectedPhoto = EditedPhotos.Count > 0 ? 0 : -1;
+        OnPropertyChanged(nameof(PhotoStatus));
+        Prompt.Announce(found.Count == 1 ? "1 photo found" : $"{found.Count} photos found");
+    }
+
+    [RelayCommand]
+    private void ApplyPhotos()
+    {
+        if (PhotoPage is { } page) page.Photos = [.. EditedPhotos];
+        CancelPhotos();
+    }
+
+    [RelayCommand]
+    private void CancelPhotos()
+    {
+        PhotoPage = null;
+        PhotoImage = null;
+        EditedPhotos.Clear();
+        SelectedPhoto = -1;
+    }
+
     /// <summary>Whether this batch keeps its separator sheets: the preset's or the tab's setting when it was scanned.</summary>
     private bool _batchKeep;
 
@@ -213,6 +354,8 @@ public sealed partial class ScanViewModel : ObservableObject
             var kept = files.Sum(f => f.Count);
             var text = kept switch { 0 => Pages.Count == 0 ? "No pages yet" : "No pages to save", 1 => "1 page", var n => $"{n} pages" };
             if (files.Count > 1) text += $" in {files.Count} files";
+            var photos = files.Sum(f => f.Sum(p => p.HasPhotos ? p.Photos!.Count : 0));
+            if (photos > 0) text += $" ({(photos == 1 ? "1 photo" : $"{photos} photos")})";
             var skipped = Pages.Count(p => p.IsSkipped && !p.IsSeparator);
             var separators = _batchKeep ? 0 : Pages.Count(p => p.IsSeparator);
             if (separators > 0) text += $"  ·  {separators} separator{(separators == 1 ? "" : "s")} left out";
@@ -341,14 +484,14 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>What one scan uses: the tab's settings, or a preset's matched to this scanner.</summary>
     private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes,
-        SplitAt Split = SplitAt.None, bool KeepSeparators = false);
+        SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false);
 
     private ScanJob TabJob()
     {
         var area = PageSize?.Value;
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
-        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators);
+        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos);
     }
 
     /// <summary>
@@ -379,14 +522,19 @@ public sealed partial class ScanViewModel : ObservableObject
             var request = job.Request;
             var dpi = request.Resolution;
             _batchKeep = job.KeepSeparators;
-            if (_presets.IsDemo) Demo.FeederBatch = job.Split != SplitAt.None; // the made-up feeder then holds a batch with separator sheets
+            var findPhotos = job.FindPhotos && request.Source == ScanSource.Platen; // photos lie on the glass, not in the feeder
+            if (_presets.IsDemo)
+            {
+                Demo.FeederBatch = job.Split != SplitAt.None; // the made-up feeder then holds a batch with separator sheets
+                Demo.PhotosOnGlass = findPhotos;              // and the made-up glass a few photos
+            }
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
                 var page = new ScanPageViewModel(jpeg, dpi, job.Ocr);
                 page.PropertyChanged += PageChanged;
                 Pages.Add(page);
                 added.Add(page);
-                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split)); // while the next page scans
+                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos)); // while the next page scans
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
             await Task.WhenAll(checks);
@@ -396,8 +544,11 @@ public sealed partial class ScanViewModel : ObservableObject
             var straightened = added.Count(p => p.Edits.Deskew != 0);
             var separators = added.Count(p => p.IsSeparator);
             var files = Files().Count;
+            var photos = added.Sum(p => p.Photos?.Count ?? 0);
             var notes = string.Join(" ", new List<string>
             {
+                !findPhotos ? "" : photos == 0 ? "No photos were found on the glass: the whole scan is saved. Crop (or the photo view) marks them by hand."
+                    : $"{(photos == 1 ? "1 photo" : $"{photos} photos")} found, each saved as its own picture. Check the boxes with the crop button.",
                 separators == 0 ? job.Split == SplitAt.None ? "" : "No separator sheets were found: it's one file."
                     : $"{(separators == 1 ? "1 separator sheet" : $"{separators} separator sheets")} found: {(files == 1 ? "1 file" : $"{files} files")}.",
                 blank == 0 ? "" : blank == 1 ? "1 blank page is left out (Keep puts it back)." : $"{blank} blank pages are left out (Keep puts them back).",
@@ -482,16 +633,21 @@ public sealed partial class ScanViewModel : ObservableObject
         return $"Moved to position {index + 1} of {Pages.Count}";
     }
 
+    /// <summary>Turns the page; a scan of photos on the glass turns every photo instead.</summary>
     [RelayCommand]
     private void RotateLeft(ScanPageViewModel? page)
     {
-        if (page is not null && !IsBusy) page.Edits = page.Edits.Turned(-1);
+        if (page is null || IsBusy) return;
+        if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 3) % 4 })];
+        else page.Edits = page.Edits.Turned(-1);
     }
 
     [RelayCommand]
     private void RotateRight(ScanPageViewModel? page)
     {
-        if (page is not null && !IsBusy) page.Edits = page.Edits.Turned(1);
+        if (page is null || IsBusy) return;
+        if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 1) % 4 })];
+        else page.Edits = page.Edits.Turned(1);
     }
 
     /// <summary>A page found blank goes back into what's saved.</summary>
@@ -520,6 +676,11 @@ public sealed partial class ScanViewModel : ObservableObject
     private async Task CropAsync(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
+        if (page.FindsPhotos)
+        {
+            await EditPhotosAsync(page); // a scan of photos: adjust the photos instead
+            return;
+        }
         CropPage = page;
         CropBox = page.Edits.ShownCrop;
         CropImage = null;
@@ -564,6 +725,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void DropPages()
     {
         CancelCrop();
+        CancelPhotos();
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
         Message = null;
@@ -590,7 +752,7 @@ public sealed partial class ScanViewModel : ObservableObject
         _state.ScanFolder = Path.GetDirectoryName(dialog.FileName);
         _state.Save();
 
-        var targets = Targets(dialog.FileName, files, jpg);
+        var targets = Targets(dialog.FileName, [.. files.Select(f => f.Sum(p => p.ImageCount))], jpg);
         var all = targets.SelectMany(t => t).ToList();
         // The dialog already asked about the name typed; numbered files (images, several PDFs) are siblings it never saw.
         if (all.Count > 1 && all.Where(t => t != dialog.FileName && File.Exists(t)).ToList() is { Count: > 0 } clobbered &&
@@ -598,6 +760,7 @@ public sealed partial class ScanViewModel : ObservableObject
             return;
 
         CancelCrop();
+        CancelPhotos();
         IsBusy = true;
         try
         {
@@ -605,7 +768,9 @@ public sealed partial class ScanViewModel : ObservableObject
             {
                 if (jpg)
                 {
-                    for (var i = 0; i < files[n].Count; i++) await File.WriteAllBytesAsync(targets[n][i], await files[n][i].JpegAsync());
+                    var k = 0;
+                    foreach (var page in files[n])
+                        foreach (var image in await page.ImagesAsync()) await File.WriteAllBytesAsync(targets[n][k++], image);
                     continue;
                 }
                 var pages = await PdfPagesAsync(files[n]);
@@ -636,11 +801,16 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     }
 
+    /// <summary>The PDF's pages: each page with its text layer, or for a scan of photos on the glass, each photo (no text).</summary>
     private async Task<List<PdfPage>> PdfPagesAsync(List<ScanPageViewModel> kept)
     {
-        if (kept.Any(p => !p.OcrAsync().IsCompleted)) Message = "Finishing text recognition…";
+        if (kept.Any(p => !p.HasPhotos && !p.OcrAsync().IsCompleted)) Message = "Finishing text recognition…";
         var pages = new List<PdfPage>();
-        foreach (var p in kept) pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
+        foreach (var p in kept)
+        {
+            if (p.HasPhotos) pages.AddRange((await p.ImagesAsync()).Select(jpeg => new PdfPage(jpeg, p.Dpi)));
+            else pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
+        }
         return pages;
     }
 
@@ -656,13 +826,14 @@ public sealed partial class ScanViewModel : ObservableObject
     /// Where each file's pages go: one file is saved as chosen (images numbered "(1)", "(2)"…); several are numbered after the
     /// chosen name, "Scan (1).pdf", "Scan (2).pdf", or for images "Scan (2-1).jpg", "Scan (2-2).jpg"…
     /// </summary>
-    private static List<List<string>> Targets(string chosen, List<List<ScanPageViewModel>> files, bool jpg)
+    /// <param name="images">How many images each file has (pages, or photos cut out of a page).</param>
+    private static List<List<string>> Targets(string chosen, List<int> images, bool jpg)
     {
-        if (files.Count == 1) return [jpg ? ImagePaths(chosen, files[0].Count) : [chosen]];
+        if (images.Count == 1) return [jpg ? ImagePaths(chosen, images[0]) : [chosen]];
         var dir = Path.GetDirectoryName(chosen)!;
         var stem = Path.GetFileNameWithoutExtension(chosen);
-        return [.. files.Select((file, f) => jpg
-            ? file.Count == 1 ? [Path.Combine(dir, $"{stem} ({f + 1}).jpg")] : file.Select((_, i) => Path.Combine(dir, $"{stem} ({f + 1}-{i + 1}).jpg")).ToList()
+        return [.. images.Select((count, f) => jpg
+            ? count == 1 ? [Path.Combine(dir, $"{stem} ({f + 1}).jpg")] : Enumerable.Range(1, count).Select(i => Path.Combine(dir, $"{stem} ({f + 1}-{i}).jpg")).ToList()
             : new List<string> { Path.Combine(dir, $"{stem} ({f + 1}).pdf") })];
     }
 
@@ -738,7 +909,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var r = plan.Request;
         Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}");
         _presetNotes = plan.Notes;
-        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators);
+        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos);
     }
 
     /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
@@ -782,6 +953,7 @@ public sealed partial class ScanViewModel : ObservableObject
             return;
         }
         CancelCrop();
+        CancelPhotos();
         IsBusy = true;
         var saved = new List<string>();
         var jpg = preset.FileType == PresetFileType.Jpeg;
@@ -794,7 +966,7 @@ public sealed partial class ScanViewModel : ObservableObject
                 // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too;
                 // a batch takes one per file, and {pages} is each file's own.
                 var number = _presets.IncrementCounter(preset.Id) ?? preset.NextNumber;
-                var ctx = new NameContext(now, preset.Name, _printerName, number, file.Count);
+                var ctx = new NameContext(now, preset.Name, _printerName, number, file.Sum(p => p.ImageCount));
                 var into = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
                 folder ??= into;
                 Directory.CreateDirectory(into);
@@ -864,11 +1036,12 @@ public sealed partial class ScanViewModel : ObservableObject
         try
         {
             foreach (var page in kept)
-            {
-                var tmp = TempName(folder);
-                temps.Add(tmp);
-                await File.WriteAllBytesAsync(tmp, await page.JpegAsync());
-            }
+                foreach (var image in await page.ImagesAsync())
+                {
+                    var tmp = TempName(folder);
+                    temps.Add(tmp);
+                    await File.WriteAllBytesAsync(tmp, image);
+                }
             return [.. await Task.Run(() => FileNameTemplate.PlaceSet(temps, folder, stem, ".jpg", File.Exists, TryMove))];
         }
         finally
@@ -918,7 +1091,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var name = Path.GetFileName(file);
         if (_demoPrint is not null)
         {
-            _demoPrint(name, kept.Count);
+            _demoPrint(name, kept.Sum(p => p.ImageCount));
             Message += " A copy went to the (demo) print queue.";
             return;
         }
@@ -931,12 +1104,12 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             var pages = new List<RenderedPage>();
             foreach (var p in kept)
-            {
-                var jpeg = await p.JpegAsync();
-                var (w, h, _) = PdfWriter.JpegInfo(jpeg);
-                var (wIn, hIn) = CopyLayout.Inches(w, h, p.Dpi);
-                pages.Add(new RenderedPage(jpeg, wIn, hIn));
-            }
+                foreach (var jpeg in await p.ImagesAsync())
+                {
+                    var (w, h, _) = PdfWriter.JpegInfo(jpeg);
+                    var (wIn, hIn) = CopyLayout.Inches(w, h, p.Dpi);
+                    pages.Add(new RenderedPage(jpeg, wIn, hIn));
+                }
             await QueuePrinter.PrintPagesAsync(queue, pages, copies: 1, twoSided: false, name);
             Message += " A copy is printing.";
         }
@@ -966,6 +1139,15 @@ public sealed partial class ScanPageViewModel : ObservableObject
         Original = jpeg;
         Dpi = dpi;
         _ocr = ocr;
+        try
+        {
+            var (w, h, _) = PdfWriter.JpegInfo(jpeg);
+            _size = (w, h);
+        }
+        catch (FormatException)
+        {
+            _size = (8 * dpi, 11 * dpi); // unreadable header: the save says so later; a letter page for the checks meanwhile
+        }
         Thumbnail = ScanImaging.Render(jpeg, PageEdits.None, ThumbnailWidth);
     }
 
@@ -1027,6 +1209,50 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     public BatchPage AsBatchPage => new(IsSeparator, StartsFile, IsSkipped);
 
+    /// <summary>
+    /// A scan of photos on the glass: the photos found (and adjusted in the review), each saved as its own picture instead of
+    /// the page. Null when the page wasn't looked at for photos; empty when none were found (the page is saved whole).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPhotos), nameof(FindsPhotos), nameof(ImageCount), nameof(Note), nameof(Label), nameof(CropText))]
+    public partial IReadOnlyList<PhotoBox>? Photos { get; set; }
+
+    public bool HasPhotos => Photos is { Count: > 0 };
+
+    /// <summary>The crop button's name: a scan of photos adjusts its photos instead.</summary>
+    public string CropText => FindsPhotos ? "Adjust photos" : "Crop page";
+    public bool FindsPhotos => Photos is not null;
+
+    /// <summary>The pictures this page saves as: one, or one per photo.</summary>
+    public int ImageCount => HasPhotos ? Photos!.Count : 1;
+
+    /// <summary>The scan's size in inches.</summary>
+    public double WidthInches => _size.Width / (double)Dpi;
+    public double HeightInches => _size.Height / (double)Dpi;
+    private (int Width, int Height) _size;
+
+    partial void OnPhotosChanged(IReadOnlyList<PhotoBox>? value) => _ = RefreshThumbnailAsync(Edits);
+
+    private (IReadOnlyList<PhotoBox> Photos, Task<IReadOnlyList<byte[]>> Images)? _images;
+
+    /// <summary>The pictures as saved: the page's JPEG, or each photo cut out straight (encoded once per set of boxes).</summary>
+    public async Task<IReadOnlyList<byte[]>> ImagesAsync()
+    {
+        if (Photos is not { Count: > 0 } photos) return [await JpegAsync()];
+        if (_images is { } cached && ReferenceEquals(cached.Photos, photos) && !cached.Images.IsFaulted) return await cached.Images;
+        var original = Original;
+        var task = Task.Run(() => (IReadOnlyList<byte[]>)ScanImaging.Photos(original, photos));
+        _images = (photos, task);
+        return await task;
+    }
+
+    /// <summary>The photos on a scan of the glass (decodes the analysis copy).</summary>
+    public static List<PhotoBox> FindPhotosOn(byte[] jpeg, int dpi)
+    {
+        var image = ScanImaging.Analysis(jpeg);
+        return PhotoFinder.Find(image, image.Width * (double)dpi / PdfWriter.JpegInfo(jpeg).Width);
+    }
+
     public bool IsEdited => !Edits.IsEmpty;
 
     /// <summary>Screen reader name: "Page 2", "Page 3, straightened", "Page 4, blank, not saved", "Page 5, starts file 2".</summary>
@@ -1042,7 +1268,10 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     /// <summary>What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", or nothing.</summary>
     public string Note => IsSeparator ? (SeparatorKept ? "Separator, kept" : "Separator, not saved")
-        : IsSkipped ? "Blank, not saved" : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
+        : IsSkipped ? "Blank, not saved"
+        : HasPhotos ? (Photos!.Count == 1 ? "1 photo" : $"{Photos.Count} photos")
+        : FindsPhotos ? "No photos found"
+        : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
 
     partial void OnEditsChanged(PageEdits value) => _ = RefreshThumbnailAsync(value);
 
@@ -1072,24 +1301,28 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// Separator, blank and skew checks, then OCR in the background (on the straightened page when it was straightened).
     /// A separator sheet is neither skipped nor straightened.
     /// </summary>
-    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None)
+    /// <param name="findPhotos">A scan of photos on the glass: find them (each is saved by itself), don't straighten the page.</param>
+    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false)
     {
         try
         {
-            if (skipBlank || straighten || split != SplitAt.None)
+            if (skipBlank || straighten || split != SplitAt.None || findPhotos)
             {
-                var (blank, angle, separator, looksBlank) = await Task.Run(() =>
+                var (blank, angle, separator, looksBlank, photos) = await Task.Run(() =>
                 {
                     var image = ScanImaging.Analysis(Original);
-                    var ppi = image.Width * (double)Dpi / PdfWriter.JpegInfo(Original).Width;
+                    var ppi = image.Width * (double)Dpi / _size.Width;
                     var separator = Separators.Detect(image, ppi, split);
                     var looksBlank = separator.Kind == SeparatorKind.BlankPage || BlankPage.IsBlank(image);
                     var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
-                    return (isBlank, straighten && !isBlank && !separator.IsSeparator ? Deskew.Angle(image) : 0, separator, looksBlank);
+                    var photos = findPhotos && !isBlank && !separator.IsSeparator ? PhotoFinder.Find(image, ppi) : null;
+                    var angle = straighten && !isBlank && !separator.IsSeparator && photos is null ? Deskew.Angle(image) : 0;
+                    return (isBlank, angle, separator, looksBlank, photos);
                 });
                 LooksBlank = looksBlank;
                 Separator = separator;
                 IsSkipped = blank;
+                if (photos is not null) Photos = photos;
                 if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
             }
         }
@@ -1098,15 +1331,17 @@ public sealed partial class ScanPageViewModel : ObservableObject
             Trace.WriteLine($"Page check failed: {ex.Message}"); // the page stays as scanned
         }
         IsAnalysed = true;
-        if (!IsSkipped && !IsSeparator) _ = OcrAsync();
+        if (!IsSkipped && !IsSeparator && !HasPhotos) _ = OcrAsync();
     }
 
     private async Task RefreshThumbnailAsync(PageEdits edits)
     {
         try
         {
-            var thumbnail = await Task.Run(() => ScanImaging.Render(Original, edits, ThumbnailWidth));
-            if (edits == Edits) Thumbnail = thumbnail; // a later edit's thumbnail wins
+            var photos = Photos;
+            var thumbnail = await Task.Run(() => ScanImaging.Render(Original, photos is { Count: > 0 } ? PageEdits.None : edits, ThumbnailWidth));
+            // A later edit's thumbnail wins; photos are drawn over the scan as found (on the UI thread: it's drawing).
+            if (edits == Edits && ReferenceEquals(photos, Photos)) Thumbnail = photos is { Count: > 0 } ? ScanImaging.WithPhotos(thumbnail, photos) : thumbnail;
         }
         catch (Exception ex)
         {

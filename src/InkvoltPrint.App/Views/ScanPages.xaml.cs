@@ -28,6 +28,10 @@ public partial class ScanPages : UserControl
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Cropper.Focus());
         };
+        PhotoBoxes.IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PhotoBoxes.Focus());
+        };
     }
 
     private ScanViewModel? Vm => DataContext as ScanViewModel;

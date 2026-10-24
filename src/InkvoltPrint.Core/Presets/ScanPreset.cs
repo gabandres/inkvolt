@@ -47,6 +47,9 @@ public sealed record ScanPreset
 
     /// <summary>Separator sheets stay in (as the first page of the file they start) instead of being left out.</summary>
     public bool KeepSeparators { get; init; }
+
+    /// <summary>Several photos on the glass: each found and saved by itself, cut out straight (glass scans only).</summary>
+    public bool FindPhotos { get; init; }
     public PresetFolder Folder { get; init; }
 
     /// <summary>The folder for <see cref="PresetFolder.Custom"/>.</summary>
@@ -278,6 +281,7 @@ public static class ScanPresetText
             Folder(p),
         };
         if (p.SplitAt != SplitAt.None) parts.Add($"a new file at each {SplitText(p.SplitAt)}");
+        if (p.FindPhotos) parts.Add("each photo on the glass by itself");
         if (p.Review) parts.Add("review first");
         if (p.After != PresetAfter.None) parts.Add($"then {After(p.After)}");
         return string.Join(" · ", parts);

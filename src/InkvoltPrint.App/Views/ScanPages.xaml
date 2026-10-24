@@ -12,7 +12,10 @@
         <ContextMenu x:Key="PageMenu" x:Shared="False">
             <MenuItem Header="Turn left" Command="{Binding PlacementTarget.Tag.RotateLeftCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <MenuItem Header="Turn right" Command="{Binding PlacementTarget.Tag.RotateRightCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
-            <MenuItem Header="Crop…" Command="{Binding PlacementTarget.Tag.CropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Crop…" Command="{Binding PlacementTarget.Tag.CropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
+                      Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+            <MenuItem Header="Photos…" Command="{Binding PlacementTarget.Tag.EditPhotosCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
+                      Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}}" />
             <Separator />
             <MenuItem Header="Move earlier" InputGestureText="Alt+Shift+Left"
                       Command="{Binding PlacementTarget.Tag.MovePageEarlierCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
@@ -133,7 +136,7 @@
                                     Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" />
                             </Button>
-                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Crop" AutomationProperties.Name="Crop page"
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding CropText}" AutomationProperties.Name="{Binding CropText}"
                                     Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" />
                             </Button>
@@ -159,6 +162,38 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+
+        <!-- Photos on the glass: the scan, large, with a box over each photo -->
+        <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                   Visibility="{Binding IsEditingPhotos, Converter={StaticResource VisibleWhen}}">
+            <DockPanel DockPanel.Dock="Top" Margin="20,4,14,10">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Cancel" Command="{Binding CancelPhotosCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Done" Command="{Binding ApplyPhotosCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding PhotoPage.Number, StringFormat='Photos on page {0}'}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                               Text="Each box is saved as its own picture. Drag a box, its corners, or its round handle (the photo's top) to turn it; drag on the glass to mark a photo. Tab picks a box; arrows move it, Shift+arrows resize, Ctrl+arrows turn, Delete removes." />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button Content="Add photo" Command="{Binding AddPhotoCommand}" Margin="0,0,8,0" />
+                        <Button Content="Remove photo" Command="{Binding RemovePhotoCommand}" Margin="0,0,8,0" />
+                        <Button Content="Turn saved photo" Command="{Binding TurnPhotoCommand}" Margin="0,0,8,0"
+                                ToolTip="Saves the selected photo turned a quarter clockwise" />
+                        <Button Content="Find again" Command="{Binding FindPhotosAgainCommand}" Style="{StaticResource LinkButton}" VerticalAlignment="Center"
+                                ToolTip="Looks for the photos again, dropping the changes made here" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding PhotoStatus}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+            <Grid Margin="20,0,20,20">
+                <TextBlock Text="Loading the scan…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding PhotoImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <views:PhotoBoxesView x:Name="PhotoBoxes" Source="{Binding PhotoImage}" Boxes="{Binding EditedPhotos}" SelectedIndex="{Binding SelectedPhoto}"
+                                      AutomationProperties.Name="Photos on the glass"
+                                      AutomationProperties.HelpText="Tab picks a photo. Arrow keys move it, Shift+arrow keys resize it, Ctrl+arrow keys turn it, Delete removes it." />
+            </Grid>
+        </DockPanel>
 
         <!-- Crop: one page, large, with the box to keep -->
         <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"

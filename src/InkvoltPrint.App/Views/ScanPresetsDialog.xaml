@@ -145,6 +145,12 @@
                             </StackPanel>
                         </CheckBox>
                     </Grid>
+                    <CheckBox IsChecked="{Binding FindPhotos}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Several photos on the glass" />
+                            <TextBlock Text="Each photo saved by itself, cut out straight (glass scans only)" Style="{StaticResource Caption}" FontSize="12" />
+                        </StackPanel>
+                    </CheckBox>
 
                     <TextBlock Text="Save" Style="{StaticResource CardTitle}" Margin="0,20,0,8" />
                     <TextBlock Text="Save to" Style="{StaticResource Label}" />

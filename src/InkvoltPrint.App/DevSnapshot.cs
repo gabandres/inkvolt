@@ -14,7 +14,9 @@ namespace InkvoltPrint.App;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
 /// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);
 /// <c>--crop n</c> then opens the crop view on page n; <c>--source glass|feeder|duplex</c>, <c>--split none|patch|blank|either</c> and
-/// <c>--keep-separators</c> set the tab before scanning (with <c>--preset</c>, demo only: the preset scans a feeder batch and splits it); <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
+/// <c>--keep-separators</c> set the tab before scanning (with <c>--preset</c>, demo only: the preset scans a feeder batch and splits it);
+/// <c>--find-photos</c> turns on Several photos on the glass first (with <c>--demo</c>: the glass holds three made-up prints), and
+/// <c>--crop n</c> then opens the photo view on page n, <c>--photo-box n</c> selecting its n-th photo; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
@@ -62,8 +64,12 @@ internal static class DevSnapshot
                     "either" => Core.Imaging.SplitAt.PatchCodeOrBlankPage, _ => Core.Imaging.SplitAt.None,
                 });
             if (args.Contains("--keep-separators")) scanner.KeepSeparators = true;
+            if (args.Contains("--find-photos")) scanner.FindPhotos = true;
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
+            // --photo-box n: select the n-th photo in the photo view (opened by --crop on a scan of photos).
+            if (int.TryParse(Value(args, "--photo-box"), out var photoBox) && scanner.IsEditingPhotos && photoBox <= scanner.EditedPhotos.Count)
+                scanner.SelectedPhoto = photoBox - 1;
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (preset is not null && window.DataContext is ViewModels.MainViewModel presetMain)
@@ -72,6 +78,9 @@ internal static class DevSnapshot
             if (then is not null && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } chosen
                 && Enum.TryParse<Core.Presets.PresetAfter>(then switch { "pdf" => "OpenInInkvoltPdf", var t => t }, ignoreCase: true, out var after))
                 presetMain.Presets.Update(chosen with { After = after });
+            // --find-photos: the preset finds the photos on the glass and saves each as a JPEG, without the review (demo only).
+            if (args.Contains("--find-photos") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } photos)
+                presetMain.Presets.Update(photos with { FindPhotos = true, Review = false, FileType = Core.Presets.PresetFileType.Jpeg, Source = Core.Presets.PresetSource.Glass });
             // --split patch|blank|either: the preset scans a batch from the feeder and splits it (demo only).
             if (Value(args, "--split") is { } presetSplit && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } splitting)
                 presetMain.Presets.Update(splitting with

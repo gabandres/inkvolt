@@ -514,6 +514,12 @@
                                 <TextBlock Text="Fixes pages scanned a little crooked" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
+                        <CheckBox IsChecked="{Binding FindPhotos}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Several photos on the glass" />
+                                <TextBlock Text="Each saved by itself, cut out straight" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
                         <!-- Batch scanning: one feeder run, several files -->
                         <TextBlock Text="Split into files at" Margin="0,12,0,4" />
                         <ComboBox ItemsSource="{Binding SplitChoices}" SelectedItem="{Binding SplitMode}" HorizontalAlignment="Stretch"

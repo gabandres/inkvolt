@@ -57,6 +57,72 @@ public static class ScanImaging
         return bmp;
     }
 
+    /// <summary>
+    /// The photos on a scan of the glass, each cut out straight (<see cref="PhotoCrop"/>) and turned its quarter turns, at the
+    /// scan's full resolution, as JPEGs. The scan is decoded once; only the pixels around each photo are copied out of it.
+    /// </summary>
+    public static List<byte[]> Photos(byte[] jpeg, IReadOnlyList<PhotoBox> boxes)
+    {
+        BitmapSource bmp = Decode(jpeg, 0);
+        if (bmp.Format != PixelFormats.Gray8 && bmp.Format != PixelFormats.Bgr24)
+            bmp = new FormatConvertedBitmap(bmp, PixelFormats.Bgr24, null, 0);
+        bmp.Freeze();
+        return [.. boxes.Select(box => Jpeg(Photo(bmp, box)))];
+    }
+
+    private static BitmapSource Photo(BitmapSource bmp, PhotoBox box)
+    {
+        var channels = bmp.Format == PixelFormats.Gray8 ? 1 : 3;
+        var (x, y, w, h) = PhotoCrop.Bounds(box, bmp.PixelWidth, bmp.PixelHeight);
+        var stride = (w * channels + 3) & ~3;
+        var region = new byte[stride * h];
+        bmp.CopyPixels(new Int32Rect(x, y, w, h), region, stride, 0);
+        var photo = PhotoCrop.Straighten(region, w, h, stride, channels, box, bmp.PixelWidth, x, y);
+        BitmapSource result = BitmapSource.Create(photo.Width, photo.Height, bmp.DpiX, bmp.DpiY, bmp.Format, null, photo.Pixels, photo.Stride);
+        if (box.QuarterTurns % 4 != 0) result = new TransformedBitmap(result, new RotateTransform(90 * box.QuarterTurns));
+        result.Freeze();
+        return result;
+    }
+
+    /// <summary>
+    /// The page's thumbnail with each photo's outline and number drawn over it (for the review's thumbnails). Needs the UI
+    /// thread (drawing). Frozen.
+    /// </summary>
+    public static BitmapSource WithPhotos(BitmapSource page, IReadOnlyList<PhotoBox> photos)
+    {
+        if (photos.Count == 0) return page;
+        var (w, h) = (page.PixelWidth, page.PixelHeight);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(page, new Rect(0, 0, w, h));
+            var accent = new SolidColorBrush(Color.FromRgb(0x00, 0x67, 0xC0));
+            var pen = new Pen(accent, Math.Max(2, w / 160.0));
+            var typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+            for (var i = 0; i < photos.Count; i++)
+            {
+                var corners = photos[i].Corners().Select(c => new Point(c.X * w, c.Y * w)).ToList();
+                var outline = new StreamGeometry();
+                using (var g = outline.Open())
+                {
+                    g.BeginFigure(corners[0], false, true);
+                    g.PolyLineTo(corners.Skip(1).ToList(), true, false);
+                }
+                dc.DrawGeometry(null, pen, outline);
+                var label = new FormattedText($"{i + 1}", System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface,
+                    Math.Max(12, w / 18.0), Brushes.White, 1);
+                var centre = new Point(photos[i].CenterX * w, photos[i].CenterY * w);
+                var r = Math.Max(label.Width, label.Height) * 0.75;
+                dc.DrawEllipse(accent, null, centre, r, r);
+                dc.DrawText(label, new Point(centre.X - label.Width / 2, centre.Y - label.Height / 2));
+            }
+        }
+        var bmp = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
     public static byte[] Jpeg(BitmapSource bmp)
     {
         var encoder = new JpegBitmapEncoder { QualityLevel = Quality };

@@ -111,7 +111,42 @@ internal static class Demo
     private static byte[] Scan(int width, int height) =>
         width <= 1800 && height <= 1500
             ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
+            : PhotosOnGlass ? Application.Current.Dispatcher.Invoke(() => GlassWithPhotos(width, height))
             : Pages[Interlocked.Increment(ref _page) % Pages.Length].Value;
+
+    /// <summary>The next glass scan looks for photos: the made-up glass then holds three prints (set by the Scan tab).</summary>
+    public static bool PhotosOnGlass { get; set; }
+
+    /// <summary>
+    /// Three made-up prints laid on the glass, each a little crooked, on a slightly grey lid: a 4.8 × 3.4 in landscape, a 4 × 6 in
+    /// portrait print on its side and a small square one, all within a letter or A4 page. <paramref name="width"/> × <paramref name="height"/> pixels at 300 dpi.
+    /// </summary>
+    private static byte[] GlassWithPhotos(int width, int height)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xF3, 0xF3, 0xF1)), null, new Rect(0, 0, width, height));
+            Print(dc, 0.3, 0.3, 4.8, 3.4, -4, Color.FromRgb(0x6F, 0xA8, 0xDC), Color.FromRgb(0x4E, 0x8B, 0x3A));
+            Print(dc, 5.9, 0.5, 2.4, 2.4, 3, Color.FromRgb(0x9B, 0x7F, 0xD4), Color.FromRgb(0x2E, 0x4A, 0x7A));
+            Print(dc, 1.5, 3.8, 4, 6, 90 + 6, Color.FromRgb(0xF2, 0xA6, 0x5A), Color.FromRgb(0x8C, 0x4A, 0x2F)); // on its side
+        }
+        return Jpeg(visual, width, height);
+
+        // A print with its top-left corner at (x, y) inches, turned clockwise about its centre: sky, hills and a sun.
+        static void Print(DrawingContext dc, double x, double y, double w, double h, double degrees, Color sky, Color land)
+        {
+            var r = new Rect(x * 300, y * 300, w * 300, h * 300);
+            dc.PushTransform(new RotateTransform(degrees, r.X + r.Width / 2, r.Y + r.Height / 2));
+            dc.DrawRectangle(new LinearGradientBrush(sky, Color.FromRgb((byte)((sky.R + 200) / 2), (byte)((sky.G + 200) / 2), (byte)((sky.B + 200) / 2)), 90), null, r);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(0xFF, 0xD8, 0x4D)), null, new Point(r.X + r.Width * 0.75, r.Y + r.Height * 0.28), r.Height * 0.1, r.Height * 0.1);
+            dc.PushClip(new RectangleGeometry(r));
+            dc.DrawEllipse(new SolidColorBrush(land), null, new Point(r.X + r.Width * 0.3, r.Bottom), r.Width * 0.55, r.Height * 0.45);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xDD, land.R, land.G, land.B)), null, new Point(r.X + r.Width * 0.85, r.Bottom), r.Width * 0.45, r.Height * 0.35);
+            dc.Pop();
+            dc.Pop();
+        }
+    }
 
     private static byte[]? Document(string resource)
     {

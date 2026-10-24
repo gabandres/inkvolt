@@ -207,6 +207,7 @@ public sealed partial class PresetItem : ObservableObject
         Straighten = preset.Straighten;
         SplitAt = ScanPresetsViewModel.Splits.First(o => o.Value == preset.SplitAt);
         KeepSeparators = preset.KeepSeparators;
+        FindPhotos = preset.FindPhotos;
         Folder = owner.ChoiceFor(preset.Folder, preset.FolderPath);
         Subfolder = preset.Subfolder;
         FileName = preset.FileName;
@@ -239,6 +240,7 @@ public sealed partial class PresetItem : ObservableObject
     public partial Option<SplitAt> SplitAt { get; set; }
 
     [ObservableProperty] public partial bool KeepSeparators { get; set; }
+    [ObservableProperty] public partial bool FindPhotos { get; set; }
 
     public bool Splits => SplitAt.Value != Core.Imaging.SplitAt.None;
 
@@ -321,6 +323,7 @@ public sealed partial class PresetItem : ObservableObject
         Straighten = Straighten,
         SplitAt = SplitAt.Value,
         KeepSeparators = KeepSeparators,
+        FindPhotos = FindPhotos,
         Folder = Folder.IsBrowse ? _original.Folder : Folder.Kind,
         FolderPath = Folder.Kind == PresetFolder.Custom && !Folder.IsBrowse ? Folder.Path : null,
         Subfolder = Subfolder ?? "",
