@@ -178,5 +178,49 @@ public class FieldDetectionTests
     public void CaptionsRightOfABoxKeepTheirFirstWords() =>
         Assert.Equal("I agree to the terms", FieldDetection.CleanLabel("I agree to the terms and conditions", leading: true));
 
+    [Fact]
+    public void ACancelledPageStopsAndBusyPagesStayQuick()
+    {
+        // A dense page: 60 x 60 small squares (a grid of check boxes), each with a caption character to its right.
+        var shapes = new List<PageShape>();
+        var line = new List<(string, RectD)>();
+        for (var row = 0; row < 60; row++)
+            for (var col = 0; col < 60; col++)
+            {
+                shapes.Add(new PageShape(new RectD(10 + col * 13, 10 + row * 13, 8, 8), false));
+                line.Add(("x", new RectD(19 + col * 13, 10 + row * 13, 3, 8)));
+            }
+        var text = new PageText([line]);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Throws<OperationCanceledException>(() => FieldDetection.Suggest(0, 800, 800, text, shapes, [], [], cts.Token));
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var found = FieldDetection.Suggest(0, 800, 800, text, shapes, [], []);
+        Assert.Equal(3600, found.Count);
+        Assert.All(found, s => Assert.Equal(DesignFieldKind.CheckBox, s.Kind));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"took {watch.Elapsed}");
+    }
+
+    [Fact]
+    public void TheGridFindsWhatTouchesARegion()
+    {
+        var rng = new Random(3);
+        var grid = new RectGrid();
+        var rects = new List<RectD>();
+        for (var i = 0; i < 500; i++)
+        {
+            var r = new RectD(rng.NextDouble() * 600, rng.NextDouble() * 800, rng.NextDouble() * (i % 50 == 0 ? 2000 : 60), rng.NextDouble() * 40);
+            rects.Add(r);
+            grid.Add(r);
+        }
+        for (var q = 0; q < 200; q++)
+        {
+            var region = new RectD(rng.NextDouble() * 600, rng.NextDouble() * 800, rng.NextDouble() * 200, rng.NextDouble() * 200);
+            var expected = Enumerable.Range(0, rects.Count).Where(i => rects[i].X <= region.Right && rects[i].Right >= region.X && rects[i].Y <= region.Bottom && rects[i].Bottom >= region.Y);
+            Assert.Equal(expected, grid.NearIndices(region));
+        }
+    }
+
     private static RectD Round(RectD r) => new(Math.Round(r.X), Math.Round(r.Y), Math.Round(r.Width), Math.Round(r.Height));
 }

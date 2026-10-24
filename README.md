@@ -93,7 +93,8 @@ Manager. The installers don't remove an install made under the old names: uninst
   properties panel: name (dots group fields: "address.city"; names are checked so no two fields clash), tooltip,
   required, read-only, default value (or "checked/selected by default"), multi-line, most characters, format (number,
   currency, percent, three date styles, ZIP, phone, SSN: Acrobat's own AF scripts, which Inkvolt PDF runs too),
-  choices, the value a check box or radio button stands for, a push button's label and action (reset the form or
+  choices (one per line, "Shown text = value" when they differ), the value a check box or radio button stands for (each
+  radio button of a group its own), a push button's label and action (reset the form or
   print), text size (or auto), alignment, border and fill; plus Tab earlier / later (the order Tab fills them, shown as
   numbers with "Tab order"). **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
   on, empty boxes, small squares, ☐ characters and runs of underscores ("Name: ______"), names each suggestion after

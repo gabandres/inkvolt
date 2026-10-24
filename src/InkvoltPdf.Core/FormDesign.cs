@@ -64,6 +64,13 @@ public sealed record DesignField
     /// <summary>Combo and list boxes: the choices (export values).</summary>
     public IReadOnlyList<string> Options { get; init; } = [];
 
+    /// <summary>Combo and list boxes: the text shown for each choice, parallel to <see cref="Options"/> (empty: the
+    /// export values themselves). Written as [export display] pairs where they differ.</summary>
+    public IReadOnlyList<string> OptionLabels { get; init; } = [];
+
+    /// <summary>The text shown for each choice (<see cref="OptionLabels"/>, else the export values).</summary>
+    public IReadOnlyList<string> ShownOptions => OptionLabels.Count == Options.Count ? OptionLabels : Options;
+
     /// <summary>Combo box: the user may type a value of their own.</summary>
     public bool Editable { get; init; }
 
@@ -188,7 +195,7 @@ public static class FormDesign
         var mk = PdfObj.Dict(w.Elements["/MK"]);
         var formatScript = Script(f, w, "/F");
         var format = kind == DesignFieldKind.Text ? FormScripts.ParseFormat(formatScript) : null;
-        var (exports, _) = FormEditor.ReadOptions(FormEditor.Inherited(f.Dict, "/Opt"));
+        var (exports, labels) = FormEditor.ReadOptions(FormEditor.Inherited(f.Dict, "/Opt"));
         var dv = PdfObj.Resolve(FormEditor.Inherited(f.Dict, "/DV")) switch
         {
             PdfString s => s.Value,
@@ -218,6 +225,7 @@ public static class FormDesign
             Format = format,
             CustomFormat = format is null && !string.IsNullOrWhiteSpace(formatScript),
             Options = kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox ? exports : [],
+            OptionLabels = kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox && !labels.SequenceEqual(exports) ? labels : [],
             Editable = kind == DesignFieldKind.ComboBox && (f.Flags & FfEdit) != 0,
             MultiSelect = kind == DesignFieldKind.ListBox && (f.Flags & FfMultiSelect) != 0,
             ExportValue = kind is DesignFieldKind.CheckBox or DesignFieldKind.Radio ? FormEditor.OnStateOf(w) ?? "Yes" : "",
@@ -307,8 +315,8 @@ public static class FormDesign
     /// <summary><paramref name="baseName"/> if no field has it yet, else "baseName_2", "baseName_3", …</summary>
     public static string UniqueName(IEnumerable<string> existing, string baseName)
     {
-        var taken = existing.ToHashSet(StringComparer.Ordinal);
-        bool Free(string n) => !taken.Contains(n) && !taken.Any(t => t.StartsWith(n + ".", StringComparison.Ordinal) || n.StartsWith(t + ".", StringComparison.Ordinal));
+        var free = NameCheck(existing);
+        bool Free(string n) => free(n);
         if (Free(baseName)) return baseName;
         for (var i = 2; ; i++)
             if (Free($"{baseName}_{i}")) return $"{baseName}_{i}";
@@ -327,9 +335,29 @@ public static class FormDesign
             DesignFieldKind.Signature => "Signature",
             _ => "Button",
         };
-        var taken = existing.ToHashSet(StringComparer.Ordinal);
+        var free = NameCheck(existing);
         for (var i = 1; ; i++)
-            if (!taken.Contains(prefix + i) && !taken.Any(t => t.StartsWith($"{prefix}{i}.", StringComparison.Ordinal))) return prefix + i;
+            if (free(prefix + i)) return prefix + i;
+    }
+
+    /// <summary>
+    /// Whether a name is free among <paramref name="existing"/>: not taken, not a group of taken names ("a" when "a.b"
+    /// is), and not under a taken field ("a.b" when "a" is). Each check costs the name's length, not the field count.
+    /// </summary>
+    private static Func<string, bool> NameCheck(IEnumerable<string> existing)
+    {
+        var taken = existing.ToHashSet(StringComparer.Ordinal);
+        var groups = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var t in taken)
+            for (var dot = t.IndexOf('.'); dot > 0; dot = t.IndexOf('.', dot + 1))
+                groups.Add(t[..dot]);
+        return n =>
+        {
+            if (taken.Contains(n) || groups.Contains(n)) return false;
+            for (var dot = n.IndexOf('.'); dot > 0; dot = n.IndexOf('.', dot + 1))
+                if (taken.Contains(n[..dot])) return false;
+            return true;
+        };
     }
 
     /// <summary>
@@ -454,8 +482,9 @@ public static class FormDesign
         var acro = EnsureAcroForm(doc);
         // Find every widget first: positional ids ("p0:3") refer to the document as it was read.
         var targets = changes.Select(c => (Spec: c, Found: Annotations.Find(doc, c.Id) ?? throw new InvalidOperationException("That field is no longer in the document."))).ToList();
-        foreach (var (spec, (page, w)) in targets)
+        foreach (var (change, (page, w)) in targets)
         {
+            var spec = change;
             var all = Fields(doc, acro);
             var f = all.FirstOrDefault(x => x.Widgets.Any(k => ReferenceEquals(k, w))) ?? throw new InvalidOperationException("That isn't a form field.");
             var kind = KindOf(f) ?? throw new InvalidOperationException("That kind of field can't be edited.");
@@ -499,7 +528,15 @@ public static class FormDesign
                     Attach(doc, acro, f.Dict, spec.Name);
                 }
             }
-            Apply(doc, acro, field, w, spec with { PageIndex = page }, isNew: false);
+            var joined = !ReferenceEquals(field, f.Dict);
+            if (joined)
+            {
+                // A button that changes groups doesn't bring its old group's default: the new group keeps its own, and
+                // a new group starts with this button as default only when it was the old one's.
+                var keep = PdfObj.Name(field.Elements["/DV"]) is { } dv && dv != "Off" ? dv : spec.DefaultValue == spec.ExportValue && field.Elements["/DV"] is null && KidsOf(doc, field).Elements.Count == 1 ? spec.ExportValue : "";
+                spec = spec with { DefaultValue = keep };
+            }
+            Apply(doc, acro, field, w, spec with { PageIndex = page }, isNew: false, joined);
         }
         return PdfObj.Save(doc);
     }
@@ -582,6 +619,8 @@ public static class FormDesign
             throw new ArgumentException(bad);
         if (spec.Kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox && !spec.Options.SequenceEqual(old?.Options ?? []) && spec.Options.Any(o => o.Length == 0))
             throw new ArgumentException("A choice can't be empty.");
+        if (spec.OptionLabels.Count > 0 && spec.OptionLabels.Count != spec.Options.Count)
+            throw new ArgumentException("Each choice needs its own text.");
     }
 
     private static List<FormEditor.Field> Fields(PdfDocument doc, PdfDictionary acro)
@@ -694,11 +733,34 @@ public static class FormDesign
             Detach(doc, acro, field);
             RemoveFromCalculationOrder(acro, field);
         }
-        else if (FormEditor.OnStateOf(w) is { } state && PdfObj.Name(field.Elements["/V"]) == state
-                 && !PdfObj.Array(field.Elements["/Kids"])!.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Any(k => FormEditor.OnStateOf(k) == state))
+        else
         {
-            field.Elements["/V"] = new PdfName("/Off"); // the selected button left the group
+            // The value and default may have been the button that left: then they name no button of the group.
+            var states = PdfObj.Array(field.Elements["/Kids"])!.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Select(FormEditor.OnStateOf).ToHashSet();
+            if (PdfObj.Name(field.Elements["/DV"]) is { } dv && dv != "Off" && !states.Contains(dv)) field.Elements.Remove("/DV");
+            if (PdfObj.Name(field.Elements["/V"]) is { } v && v != "Off" && !states.Contains(v)) field.Elements["/V"] = new PdfName("/Off");
         }
+    }
+
+    /// <summary>Refuses a radio button value another button of its group already stands for (they'd turn on together).</summary>
+    private static void RequireFreeValue(PdfDictionary group, PdfDictionary w, DesignField spec)
+    {
+        if (ReferenceEquals(group, w) || PdfObj.Array(group.Elements["/Kids"]) is not { } kids) return;
+        if (kids.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Any(k => !ReferenceEquals(k, w) && FormEditor.OnStateOf(k) == spec.ExportValue))
+            throw new ArgumentException($"Another button of \"{spec.Name}\" already stands for \"{spec.ExportValue}\": give this one a value of its own.");
+    }
+
+    /// <summary>
+    /// Whether two /DA strings mean the same: font, size and color (gray, RGB or CMYK compared as RGB). For check boxes
+    /// and radio buttons only the color counts (their symbol's font and size are the face's business).
+    /// </summary>
+    internal static bool SameAppearance(string a, string b, bool colorOnly = false)
+    {
+        var x = DefaultAppearance.Parse(a);
+        var y = DefaultAppearance.Parse(b);
+        var (cx, cy) = (ToRgb(x.Color.C), ToRgb(y.Color.C));
+        var sameColor = Math.Abs(cx.R - cy.R) < 0.005 && Math.Abs(cx.G - cy.G) < 0.005 && Math.Abs(cx.B - cy.B) < 0.005;
+        return colorOnly ? sameColor : sameColor && x.FontName == y.FontName && Math.Abs(x.Size - y.Size) < 0.01;
     }
 
     private static void RemoveFromCalculationOrder(PdfDictionary acro, PdfDictionary field)
@@ -709,7 +771,8 @@ public static class FormDesign
     }
 
     /// <summary>Writes <paramref name="spec"/>'s properties into the field and the widget, then redraws what they change.</summary>
-    private static void Apply(PdfDocument doc, PdfDictionary acro, PdfDictionary field, PdfDictionary w, DesignField spec, bool isNew)
+    /// <param name="joined">The widget (a radio button) just moved into <paramref name="field"/> from another group.</param>
+    private static void Apply(PdfDocument doc, PdfDictionary acro, PdfDictionary field, PdfDictionary w, DesignField spec, bool isNew, bool joined = false)
     {
         var page = doc.Pages[spec.PageIndex];
         var oldRect = PdfObj.Array(w.Elements["/Rect"]) is { Elements.Count: >= 4 } r0 ? PdfObj.RectToPage(page, r0) : default;
@@ -766,10 +829,15 @@ public static class FormDesign
         if (PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(acro.Elements["/DR"])?.Elements["/Font"])?.Elements[font]) is null) font = "/Helv";
         var da = $"{font} {PdfObj.F(Math.Clamp(spec.FontSize, 0, 200))} Tf {Rgb(spec.TextColor)} rg";
         if (spec.Kind is DesignFieldKind.CheckBox or DesignFieldKind.Radio) da = $"/ZaDb 0 Tf {Rgb(spec.TextColor)} rg";
-        var daChanged = oldDa != da;
-        field.Elements["/DA"] = new PdfString(da);
-        if (!ReferenceEquals(field, w) && w.Elements.ContainsKey("/DA")) w.Elements["/DA"] = new PdfString(da);
+        // Compared parsed: "0 g" and "0 0 0 rg" are the same black, and a field's own DA stays as written when it means the same.
+        var daChanged = oldDa is null || !SameAppearance(oldDa, da, spec.Kind is DesignFieldKind.CheckBox or DesignFieldKind.Radio);
+        if (daChanged || isNew)
+        {
+            field.Elements["/DA"] = new PdfString(da);
+            if (!ReferenceEquals(field, w) && w.Elements.ContainsKey("/DA")) w.Elements["/DA"] = new PdfString(da);
+        }
 
+        var captionChanged = false;
         switch (spec.Kind)
         {
             case DesignFieldKind.Text:
@@ -778,12 +846,16 @@ public static class FormDesign
                 break;
             case DesignFieldKind.ComboBox or DesignFieldKind.ListBox:
             {
-                var (exports, _) = FormEditor.ReadOptions(FormEditor.Inherited(field, "/Opt"));
-                if (isNew || !exports.SequenceEqual(spec.Options))
-                    field.Elements["/Opt"] = new PdfArray(doc, [.. spec.Options.Select(o => (PdfItem)PdfObj.MakeString(o))]);
+                var (exports, labels) = FormEditor.ReadOptions(FormEditor.Inherited(field, "/Opt"));
+                var shown = spec.ShownOptions;
+                var optionsChanged = isNew || !exports.SequenceEqual(spec.Options) || !labels.SequenceEqual(shown);
+                if (optionsChanged)
+                    field.Elements["/Opt"] = new PdfArray(doc, [.. spec.Options.Select((o, i) => shown[i].Length == 0 || shown[i] == o
+                        ? (PdfItem)PdfObj.MakeString(o)
+                        : new PdfArray(doc, PdfObj.MakeString(o), PdfObj.MakeString(shown[i])))]);
                 var dv = spec.DefaultValue.Length > 0 && spec.Options.Contains(spec.DefaultValue) ? spec.DefaultValue : "";
                 var changed = SetDefault(field, dv.Length > 0 ? PdfObj.MakeString(dv) : null, isNew);
-                if (changed || isNew || !exports.SequenceEqual(spec.Options))
+                if (changed || optionsChanged)
                 {
                     if (dv.Length > 0) field.Elements["/I"] = new PdfArray(doc, new PdfInteger(spec.Options.ToList().IndexOf(dv)));
                     else field.Elements.Remove("/I");
@@ -791,6 +863,7 @@ public static class FormDesign
                 break;
             }
             case DesignFieldKind.Button:
+                captionChanged = (PdfObj.Str(mk.Elements["/CA"]) ?? "") != spec.Caption;
                 if (spec.Caption.Length > 0) mk.Elements["/CA"] = PdfObj.MakeString(spec.Caption);
                 else mk.Elements.Remove("/CA");
                 SetAction(doc, w, spec.Action);
@@ -806,13 +879,16 @@ public static class FormDesign
                 var f = fields.FirstOrDefault(x => ReferenceEquals(x.Dict, field));
                 if (spec.Kind is DesignFieldKind.Text or DesignFieldKind.ComboBox or DesignFieldKind.ListBox && f is not null)
                     FormEditor.WriteAppearances(doc, acro, f);
-                else if (isNew || resized || colorsChanged || daChanged || spec.Kind == DesignFieldKind.Button)
+                // A button with an icon (/MK /I) keeps its faces (normal, down, rollover): only its rect moves.
+                else if ((isNew || resized || colorsChanged || daChanged || captionChanged) && PdfObj.Dict(mk.Elements["/I"]) is null)
                     StaticFace(doc, w, spec);
                 break;
             }
             case DesignFieldKind.CheckBox or DesignFieldKind.Radio:
             {
                 var oldState = FormEditor.OnStateOf(w);
+                if (spec.Kind == DesignFieldKind.Radio && (isNew || joined || oldState != spec.ExportValue))
+                    RequireFreeValue(field, w, spec);
                 if (isNew || resized || colorsChanged || daChanged || oldState != spec.ExportValue)
                     ButtonFaces(doc, w, spec.Kind == DesignFieldKind.Radio, spec.ExportValue, spec.TextColor);
                 SetButtonDefault(doc, field, w, spec, oldState, isNew);
@@ -868,6 +944,10 @@ public static class FormDesign
         var dvName = spec.Kind == DesignFieldKind.CheckBox
             ? spec.DefaultValue.Length > 0 && spec.DefaultValue != "Off" ? state : null
             : spec.DefaultValue.Length > 0 && spec.DefaultValue != "Off" ? spec.DefaultValue : null;
+        // A radio default must be the value of a button in the group (this one's new value included).
+        if (dvName is not null && spec.Kind == DesignFieldKind.Radio && dvName != state && !ReferenceEquals(field, w)
+            && !(PdfObj.Array(field.Elements["/Kids"])?.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Any(k => !ReferenceEquals(k, w) && FormEditor.OnStateOf(k) == dvName) ?? false))
+            dvName = null;
         var oldDv = PdfObj.Name(field.Elements["/DV"]);
         if (isNew || oldDv != dvName)
         {

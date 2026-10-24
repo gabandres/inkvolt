@@ -628,7 +628,7 @@
                                 </StackPanel>
 
                                 <StackPanel x:Name="FieldOptionsGroup">
-                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Choices (one per line)" />
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="Choices, one per line (&quot;Shown text = value&quot; when the value differs)" />
                                     <TextBox x:Name="FieldOptionsBox" AcceptsReturn="True" Height="86" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
                                              AutomationProperties.Name="Choices, one per line" />
                                     <CheckBox x:Name="FieldEditableBox" Margin="0,6,12,0" Content="Allow other values" />

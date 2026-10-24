@@ -38,7 +38,7 @@ public static class FieldDetection
             progress?.Report((done++, list.Count));
             var g = engine.GetPage(p);
             var found = Suggest(p, g.Width, g.Height, engine.GetText(p, cache: false, cancel), VectorShapes.Read(doc, p, cancel),
-                [.. existing.Where(f => f.PageIndex == p).Select(f => f.Rect)], names);
+                [.. existing.Where(f => f.PageIndex == p).Select(f => f.Rect)], names, cancel);
             names.AddRange(found.Select(s => s.Name));
             result.AddRange(found);
         }
@@ -47,17 +47,20 @@ public static class FieldDetection
 
     /// <summary>Suggestions for one page, in reading order, named uniquely among <paramref name="existingNames"/> and each other.</summary>
     public static IReadOnlyList<FieldSuggestion> Suggest(int pageIndex, double pageWidth, double pageHeight, PageText text,
-        IReadOnlyList<PageShape> shapes, IReadOnlyList<RectD> existingFields, IEnumerable<string> existingNames)
+        IReadOnlyList<PageShape> shapes, IReadOnlyList<RectD> existingFields, IEnumerable<string> existingNames, CancellationToken cancel = default)
     {
-        var chars = Chars(text);
+        var chars = new CharIndex(Chars(text));
         var found = new List<(RectD Rect, DesignFieldKind Kind, string Label, bool Multiline, string Source)>();
         var captions = new HashSet<string>(StringComparer.Ordinal); // labels read right of their field (their first words count)
 
         // Boxes first: they decide which rules are only their edges.
-        var boxes = Boxes(shapes, pageWidth, pageHeight);
+        var boxes = Boxes(shapes, pageWidth, pageHeight, cancel);
+        var boxGrid = new RectGrid();
         foreach (var b in boxes)
         {
-            if (chars.Any(c => !char.IsWhiteSpace(c.C) && b.Inflate(-1).Contains(c.Box.CenterX, c.Box.CenterY))) continue; // holds text
+            cancel.ThrowIfCancellationRequested();
+            boxGrid.Add(b);
+            if (chars.Near(b).Any(c => !char.IsWhiteSpace(c.C) && b.Inflate(-1).Contains(c.Box.CenterX, c.Box.CenterY))) continue; // holds text
             if (IsSquare(b))
                 found.Add((b, DesignFieldKind.CheckBox, Caption(LabelRight(chars, b)) ?? LabelLeft(chars, b, 120) ?? "", false, "square"));
             else if (b.Height >= 10 && b.Width >= 24 && b.Height <= Math.Min(400, pageHeight * 0.6))
@@ -68,40 +71,45 @@ public static class FieldDetection
         }
 
         // ☐ characters.
-        foreach (var c in chars.Where(c => BoxGlyphs.Contains(c.C)))
+        foreach (var c in chars.All.Where(c => BoxGlyphs.Contains(c.C)))
         {
+            cancel.ThrowIfCancellationRequested();
             var side = Math.Max(6, Math.Min(c.Box.Width, c.Box.Height) * 0.9);
             var r = new RectD(c.Box.CenterX - side / 2, c.Box.CenterY - side / 2, side, side);
             found.Add((r, DesignFieldKind.CheckBox, Caption(LabelRight(chars, r)) ?? LabelLeft(chars, r, 120) ?? "", false, "box character"));
         }
 
         // Runs of underscores: a field on the run, named after the text before it on the line.
-        for (var i = 0; i < chars.Count; i++)
+        var all = chars.All;
+        for (var i = 0; i < all.Count; i++)
         {
-            if (chars[i].C != '_') continue;
+            if (all[i].C != '_') continue;
+            cancel.ThrowIfCancellationRequested();
             var j = i;
-            while (j + 1 < chars.Count && chars[j + 1].C == '_' && chars[j + 1].Line == chars[i].Line) j++;
+            while (j + 1 < all.Count && all[j + 1].C == '_' && all[j + 1].Line == all[i].Line) j++;
             if (j - i + 1 >= 3)
             {
-                var run = chars.Skip(i).Take(j - i + 1).Select(c => c.Box).Aggregate((a, b) => a.Union(b));
+                var run = all[i].Box;
+                for (var k = i + 1; k <= j; k++) run = run.Union(all[k].Box);
                 // The rule of an underscore lies near the baseline; character boxes end at the descender or, with
                 // some embedded fonts, above the baseline: reach a little below the box either way.
                 var bottom = run.Bottom + run.Height * 0.3;
                 var height = Math.Clamp(run.Height * 1.3, 12, 24);
                 var r = RectD.FromEdges(run.X, bottom - height, run.Right, bottom);
-                var label = TextBefore(chars, i) ?? LabelBelow(chars, r) ?? LabelAbove(chars, r) ?? "";
+                var label = TextBefore(all, i) ?? LabelBelow(chars, r) ?? LabelAbove(chars, r) ?? "";
                 found.Add((r, KindFor(label), label, false, "underscores"));
             }
             i = j;
         }
 
         // Ruled lines: a field standing on the line.
-        foreach (var line in Rules(shapes))
+        foreach (var line in Rules(shapes, cancel))
         {
             if (line.Width < 30) continue;
-            if (boxes.Any(b => OnEdge(line, b))) continue;
+            if (boxGrid.Near(line.Inflate(2)).Any(b => OnEdge(line, b))) continue;
             // Underlined text, or a rule just below a line of text: not a blank to fill.
-            var above = chars.Where(c => !char.IsWhiteSpace(c.C) && c.Box.Right > line.X && c.Box.X < line.Right && c.Box.Bottom <= line.Y + 2 && c.Box.Bottom > line.Y - 24).ToList();
+            var above = chars.Near(RectD.FromEdges(line.X, line.Y - 24, line.Right, line.Y + 2))
+                .Where(c => !char.IsWhiteSpace(c.C) && c.Box.Right > line.X && c.Box.X < line.Right && c.Box.Bottom <= line.Y + 2 && c.Box.Bottom > line.Y - 24).ToList();
             var covered = above.Where(c => c.Box.Bottom > line.Y - 6).Sum(c => Math.Min(c.Box.Right, line.Right) - Math.Max(c.Box.X, line.X));
             if (covered > line.Width * 0.2) continue;
             var free = above.Count == 0 ? 24 : line.Y - above.Max(c => c.Box.Bottom);
@@ -121,11 +129,14 @@ public static class FieldDetection
         }
 
         // Drop what overlaps an existing field or an earlier suggestion (boxes win over the rules and runs inside them).
+        var taken = new RectGrid();
+        foreach (var e in existingFields) taken.Add(e);
         var kept = new List<(RectD Rect, DesignFieldKind Kind, string Label, bool Multiline, string Source)>();
         foreach (var s in found)
         {
-            if (existingFields.Any(e => Overlaps(e, s.Rect, 0.3))) continue;
-            if (kept.Any(k => Overlaps(k.Rect, s.Rect, 0.3))) continue;
+            cancel.ThrowIfCancellationRequested();
+            if (taken.Near(s.Rect).Any(k => Overlaps(k, s.Rect, 0.3))) continue;
+            taken.Add(s.Rect);
             kept.Add(s);
         }
 
@@ -187,27 +198,37 @@ public static class FieldDetection
     }
 
     /// <summary>Distinct boxes, without page frames and without boxes that hold other boxes (tables, panels).</summary>
-    private static List<RectD> Boxes(IReadOnlyList<PageShape> shapes, double pageWidth, double pageHeight)
+    private static List<RectD> Boxes(IReadOnlyList<PageShape> shapes, double pageWidth, double pageHeight, CancellationToken cancel)
     {
         var all = new List<RectD>();
+        var grid = new RectGrid();
         foreach (var s in shapes)
         {
+            cancel.ThrowIfCancellationRequested();
             if (s.IsLine) continue;
             var b = s.Box;
             if (b.Width * b.Height > pageWidth * pageHeight * 0.4 || b.Width > pageWidth * 0.95) continue;
             if (b.Width < 5 || b.Height < 5) continue;
-            if (all.Any(a => Same(a, b))) continue;
+            if (grid.Near(b.Inflate(1)).Any(a => Same(a, b))) continue;
+            grid.Add(b);
             all.Add(b);
         }
-        return [.. all.Where(b => !all.Any(o => !Same(o, b) && Inside(o, b)))];
+        var result = new List<RectD>();
+        foreach (var b in all)
+        {
+            cancel.ThrowIfCancellationRequested();
+            if (!grid.Near(b).Any(o => !Same(o, b) && Inside(o, b))) result.Add(b);
+        }
+        return result;
     }
 
-    private static IEnumerable<RectD> Rules(IReadOnlyList<PageShape> shapes)
+    private static IEnumerable<RectD> Rules(IReadOnlyList<PageShape> shapes, CancellationToken cancel)
     {
-        var seen = new List<RectD>();
+        var seen = new RectGrid();
         foreach (var s in shapes)
         {
-            if (!s.IsLine || seen.Any(r => Math.Abs(r.X - s.Box.X) < 1 && Math.Abs(r.Right - s.Box.Right) < 1 && Math.Abs(r.Y - s.Box.Y) < 1.5)) continue;
+            cancel.ThrowIfCancellationRequested();
+            if (!s.IsLine || seen.Near(s.Box.Inflate(1.5)).Any(r => Math.Abs(r.X - s.Box.X) < 1 && Math.Abs(r.Right - s.Box.Right) < 1 && Math.Abs(r.Y - s.Box.Y) < 1.5)) continue;
             seen.Add(s.Box);
             yield return s.Box;
         }
@@ -236,7 +257,7 @@ public static class FieldDetection
     }
 
     /// <summary>Text on the same line before character <paramref name="index"/> (back to the previous run of underscores).</summary>
-    private static string? TextBefore(List<Ch> chars, int index)
+    private static string? TextBefore(IReadOnlyList<Ch> chars, int index)
     {
         var line = chars[index].Line;
         var start = index;
@@ -246,9 +267,9 @@ public static class FieldDetection
     }
 
     /// <summary>Words on the same row ending at most <paramref name="reach"/> points left of <paramref name="r"/>.</summary>
-    private static string? LabelLeft(List<Ch> chars, RectD r, double reach)
+    private static string? LabelLeft(CharIndex chars, RectD r, double reach)
     {
-        var row = chars.Where(c => c.Box.Right <= r.X + 2 && c.Box.Right > r.X - reach && VerticalOverlap(c.Box, r) > Math.Min(c.Box.Height, r.Height) * 0.5).ToList();
+        var row = chars.Near(RectD.FromEdges(r.X - reach, r.Y, r.X + 2, r.Bottom)).Where(c => c.Box.Right <= r.X + 2 && c.Box.Right > r.X - reach && VerticalOverlap(c.Box, r) > Math.Min(c.Box.Height, r.Height) * 0.5).ToList();
         if (row.Count == 0) return null;
         // Only the stretch nearest the field: stop at a wide gap.
         var ordered = row.OrderByDescending(c => c.Box.X).ToList();
@@ -263,9 +284,9 @@ public static class FieldDetection
     }
 
     /// <summary>Words on the same row starting just right of <paramref name="r"/> (a check box's caption).</summary>
-    private static string? LabelRight(List<Ch> chars, RectD r)
+    private static string? LabelRight(CharIndex chars, RectD r)
     {
-        var row = chars.Where(c => c.Box.X >= r.Right - 1 && c.Box.X < r.Right + 200 && VerticalOverlap(c.Box, r) > Math.Min(c.Box.Height, r.Height) * 0.4)
+        var row = chars.Near(RectD.FromEdges(r.Right - 1, r.Y, r.Right + 200, r.Bottom)).Where(c => c.Box.X >= r.Right - 1 && c.Box.X < r.Right + 200 && VerticalOverlap(c.Box, r) > Math.Min(c.Box.Height, r.Height) * 0.4)
             .OrderBy(c => c.Box.X).ToList();
         if (row.Count == 0 || row[0].Box.X - r.Right > 30) return null;
         var taken = new List<Ch> { row[0] };
@@ -278,18 +299,18 @@ public static class FieldDetection
     }
 
     /// <summary>The line of text just above <paramref name="r"/> (within 20 points), over its left part.</summary>
-    private static string? LabelAbove(List<Ch> chars, RectD r)
+    private static string? LabelAbove(CharIndex chars, RectD r)
     {
-        var near = chars.Where(c => c.Box.Bottom <= r.Y + 2 && c.Box.Bottom > r.Y - 20 && c.Box.Right > r.X - 4 && c.Box.X < r.Right).ToList();
+        var near = chars.Near(RectD.FromEdges(r.X - 4, r.Y - 20, r.Right, r.Y + 2)).Where(c => c.Box.Bottom <= r.Y + 2 && c.Box.Bottom > r.Y - 20 && c.Box.Right > r.X - 4 && c.Box.X < r.Right).ToList();
         if (near.Count == 0) return null;
         var line = near.MaxBy(c => c.Box.Bottom).Line;
         return Join(near.Where(c => c.Line == line).OrderBy(c => c.Box.X));
     }
 
     /// <summary>A caption just below <paramref name="r"/> (within 16 points), as under a signature line.</summary>
-    private static string? LabelBelow(List<Ch> chars, RectD r)
+    private static string? LabelBelow(CharIndex chars, RectD r)
     {
-        var near = chars.Where(c => c.Box.Y >= r.Bottom - 1 && c.Box.Y < r.Bottom + 16 && c.Box.Right > r.X && c.Box.X < r.Right).ToList();
+        var near = chars.Near(RectD.FromEdges(r.X, r.Bottom - 1, r.Right, r.Bottom + 16)).Where(c => c.Box.Y >= r.Bottom - 1 && c.Box.Y < r.Bottom + 16 && c.Box.Right > r.X && c.Box.X < r.Right).ToList();
         if (near.Count == 0) return null;
         var line = near.MinBy(c => c.Box.Y).Line;
         return Join(near.Where(c => c.Line == line).OrderBy(c => c.Box.X));
@@ -302,4 +323,82 @@ public static class FieldDetection
         var s = new string([.. chars.Select(c => c.C)]).Trim();
         return s.Length > 0 ? s : null;
     }
+    /// <summary>The page's characters with a <see cref="RectGrid"/> over their boxes.</summary>
+    private sealed class CharIndex
+    {
+        private readonly RectGrid _grid = new();
+
+        public CharIndex(List<Ch> chars)
+        {
+            All = chars;
+            foreach (var c in chars) _grid.Add(c.Box);
+        }
+
+        public IReadOnlyList<Ch> All { get; }
+
+        /// <summary>The characters whose boxes touch <paramref name="region"/>, in text order.</summary>
+        public IEnumerable<Ch> Near(RectD region) => _grid.NearIndices(region).Select(i => All[i]);
+    }
 }
+
+/// <summary>
+/// Rectangles bucketed in a uniform grid, so "which boxes touch this region" costs the boxes nearby instead of all of
+/// them. Boxes spanning more than a few hundred cells go into one list every query looks at.
+/// </summary>
+internal sealed class RectGrid(double cell = 48)
+{
+    private const int MaxCells = 256;
+    private readonly List<RectD> _rects = [];
+    private readonly Dictionary<(int, int), List<int>> _cells = [];
+    private readonly List<int> _large = [];
+
+    public int Count => _rects.Count;
+
+    public void Add(RectD r)
+    {
+        var i = _rects.Count;
+        _rects.Add(r);
+        var (x0, y0, x1, y1) = Span(r);
+        if ((long)(x1 - x0 + 1) * (y1 - y0 + 1) > MaxCells)
+        {
+            _large.Add(i);
+            return;
+        }
+        for (var x = x0; x <= x1; x++)
+            for (var y = y0; y <= y1; y++)
+            {
+                if (!_cells.TryGetValue((x, y), out var list)) _cells[(x, y)] = list = [];
+                list.Add(i);
+            }
+    }
+
+    /// <summary>Indices (in the order added) of the rectangles touching <paramref name="region"/>.</summary>
+    public IEnumerable<int> NearIndices(RectD region)
+    {
+        var (x0, y0, x1, y1) = Span(region);
+        var hits = new SortedSet<int>(_large);
+        if ((long)(x1 - x0 + 1) * (y1 - y0 + 1) > _cells.Count)
+        {
+            foreach (var list in _cells.Values) hits.UnionWith(list);
+        }
+        else
+        {
+            for (var x = x0; x <= x1; x++)
+                for (var y = y0; y <= y1; y++)
+                    if (_cells.TryGetValue((x, y), out var list)) hits.UnionWith(list);
+        }
+        foreach (var i in hits)
+            if (Touches(_rects[i], region)) yield return i;
+    }
+
+    public IEnumerable<RectD> Near(RectD region) => NearIndices(region).Select(i => _rects[i]);
+
+    private static bool Touches(RectD a, RectD b) => a.X <= b.Right && a.Right >= b.X && a.Y <= b.Bottom && a.Bottom >= b.Y;
+
+    private (int X0, int Y0, int X1, int Y1) Span(RectD r)
+    {
+        static int C(double v, double size) => (int)Math.Floor(Math.Clamp(v, -1e6, 1e6) / size);
+        return (C(r.X, cell), C(r.Y, cell), C(r.Right, cell), C(r.Bottom, cell));
+    }
+}
+

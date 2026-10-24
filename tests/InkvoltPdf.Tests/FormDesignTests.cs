@@ -319,5 +319,140 @@ public class FormDesignTests
         Assert.True(w.Triggers.HasFlag(FormTriggers.Up));
     }
 
+    /// <summary>The bytes of a widget's appearance entry (/N, /D or /R; a state's face with <paramref name="state"/>).</summary>
+    private static byte[]? Face(byte[] pdf, int annot, string key = "/N", string? state = null)
+    {
+        using var doc = Core2Pdf.Open(pdf);
+        var w = PdfObj.Dict(PdfObj.Array(doc.Pages[0].Elements["/Annots"])!.Elements[annot])!;
+        var entry = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements[key]);
+        if (state is not null) entry = PdfObj.Dict(entry?.Elements[state]);
+        return entry is null ? null : PdfObj.StreamBytes(entry);
+    }
+
+    private static PdfDictionary Widget(PdfDocument doc, int annot) => PdfObj.Dict(PdfObj.Array(doc.Pages[0].Elements["/Annots"])!.Elements[annot])!;
+
+    [Fact]
+    public void PushButtonsKeepTheirFacesWhenMovedAndIconButtonsAlways()
+    {
+        var pdf = Add(TestPdf.Make(1), New(DesignFieldKind.Button, new RectD(72, 100, 80, 24), "Go"));
+        var face = Face(pdf, 0);
+        Assert.NotNull(face);
+        var moved = FormDesign.Update(pdf, null, [FormDesign.Read(pdf, null).Single() with { Rect = new RectD(200, 300, 80, 24) }]);
+        Assert.Equal(face, Face(moved, 0));
+        var relabeled = FormDesign.Update(moved, null, [FormDesign.Read(moved, null).Single() with { Caption = "Clear" }]);
+        Assert.NotEqual(face, Face(relabeled, 0));
+
+        // A button with an icon and its own down and rollover faces: moved, resized or relabeled, they stay.
+        var icon = Core2Pdf.Form(
+        [
+            "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /T (Logo) /Rect [72 600 172 640] /P 3 0 R /MK << /I 6 0 R /CA (Go) >> /AP << /N 6 0 R /D 7 0 R /R 8 0 R >> >>",
+            Core2Pdf.Stream("0 0 1 rg 0 0 100 40 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 40]"),
+            Core2Pdf.Stream("1 0 0 rg 0 0 100 40 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 40]"),
+            Core2Pdf.Stream("0 1 0 rg 0 0 100 40 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 40]"),
+        ]);
+        Assert.NotNull(Face(icon, 0, "/D"));
+        var b = FormDesign.Read(icon, null).Single();
+        var changed = FormDesign.Update(icon, null, [b with { Rect = new RectD(80, 160, 120, 50), Caption = "Start", FillColor = new AnnotColor(1, 1, 0) }]);
+        Assert.Equal(Face(icon, 0), Face(changed, 0));
+        Assert.Equal(Face(icon, 0, "/D"), Face(changed, 0, "/D"));
+        Assert.Equal(Face(icon, 0, "/R"), Face(changed, 0, "/R"));
+        using var doc = Core2Pdf.Open(changed);
+        Assert.NotNull(PdfObj.Dict(PdfObj.Dict(Widget(doc, 0).Elements["/MK"])!.Elements["/I"]));
+        Assert.Equal(new RectD(80, 160, 120, 50), Round(FormDesign.Read(changed, null).Single().Rect));
+    }
+
+    [Fact]
+    public void RadioValuesStayUniqueInTheirGroup()
+    {
+        var pdf = Add(TestPdf.Make(1),
+            New(DesignFieldKind.Radio, new RectD(72, 100, 14, 14), "A") with { ExportValue = "One" },
+            New(DesignFieldKind.Radio, new RectD(100, 100, 14, 14), "A") with { ExportValue = "Two" },
+            New(DesignFieldKind.Radio, new RectD(72, 140, 14, 14), "B") with { ExportValue = "One" });
+        // Adding one with a value the group has.
+        Assert.Throws<ArgumentException>(() => Add(pdf, New(DesignFieldKind.Radio, new RectD(130, 100, 14, 14), "A") with { ExportValue = "Two" }));
+        var all = FormDesign.Read(pdf, null);
+        // Changing a value to one the group has.
+        Assert.Throws<ArgumentException>(() => FormDesign.Update(pdf, null, [all.Single(f => f.Name == "A" && f.ExportValue == "Two") with { ExportValue = "One" }]));
+        // Moving into a group that has the value (from a group of two, and as a group's only button).
+        Assert.Throws<ArgumentException>(() => FormDesign.Update(pdf, null, [all.Single(f => f.Name == "A" && f.ExportValue == "One") with { Name = "B" }]));
+        Assert.Throws<ArgumentException>(() => FormDesign.Update(pdf, null, [all.Single(f => f.Name == "B") with { Name = "A" }]));
+        // A free value is fine, and a plain move of a group that already repeats a value isn't refused.
+        Assert.Equal(3, FormEditor.Read(FormDesign.Update(pdf, null, [all.Single(f => f.Name == "B") with { Name = "A", ExportValue = "Three" }]), null).Count(w => w.FieldName == "A"));
+    }
+
+    [Fact]
+    public void RadioButtonsLeaveTheirGroupsDefaultBehind()
+    {
+        var pdf = Add(TestPdf.Make(1),
+            New(DesignFieldKind.Radio, new RectD(72, 100, 14, 14), "A") with { ExportValue = "One" },
+            New(DesignFieldKind.Radio, new RectD(100, 100, 14, 14), "A") with { ExportValue = "Two", DefaultValue = "Two" },
+            New(DesignFieldKind.Radio, new RectD(72, 140, 14, 14), "C") with { ExportValue = "Three" });
+        Assert.Equal("Two", FormEditor.Read(pdf, null).First(w => w.FieldName == "A").Value);
+        var two = FormDesign.Read(pdf, null).Single(f => f.ExportValue == "Two");
+        Assert.Equal("Two", two.DefaultValue);
+
+        // Into an existing group: neither group points at a button it doesn't have.
+        var joined = FormDesign.Update(pdf, null, [two with { Name = "C" }]);
+        using (var doc = Core2Pdf.Open(joined))
+        {
+            var a = Core2Pdf.Field(doc, "A")!;
+            var c = Core2Pdf.Field(doc, "C")!;
+            Assert.False(a.Elements.ContainsKey("/DV"));
+            Assert.Equal("Off", PdfObj.Name(a.Elements["/V"]));
+            Assert.False(c.Elements.ContainsKey("/DV"));
+            Assert.Equal("Off", PdfObj.Name(c.Elements["/V"]));
+        }
+        Assert.All(FormDesign.Read(joined, null), f => Assert.Equal("", f.DefaultValue));
+
+        // Into a new group of its own: it stays that group's default.
+        var alone = FormDesign.Update(pdf, null, [two with { Name = "D" }]);
+        Assert.Equal("Two", FormEditor.Read(alone, null).Single(w => w.FieldName == "D").Value);
+        using (var doc = Core2Pdf.Open(alone))
+            Assert.False(Core2Pdf.Field(doc, "A")!.Elements.ContainsKey("/DV"));
+    }
+
+    [Fact]
+    public void ChoicesKeepTheirShownText()
+    {
+        var form = Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Ch /Ff 131072 /T (Metal) /Rect [72 600 222 620] /P 3 0 R /DA (/Helv 0 Tf 0 g) /Opt [[(g)(Gold)] [(s)(Silver)] (Bronze)] /V (s) >>"]);
+        var f = FormDesign.Read(form, null).Single();
+        Assert.Equal(["g", "s", "Bronze"], f.Options);
+        Assert.Equal(["Gold", "Silver", "Bronze"], f.ShownOptions);
+
+        // A move or another property keeps the pairs.
+        var moved = FormDesign.Update(form, null, [f with { Rect = f.Rect with { X = 100 }, Required = true }]);
+        Assert.Equal(["Gold", "Silver", "Bronze"], FormEditor.Read(moved, null).Single().OptionLabels ?? []);
+        // Editing the choices writes pairs where the text differs.
+        var edited = FormDesign.Update(moved, null, [FormDesign.Read(moved, null).Single() with { Options = ["g", "p"], OptionLabels = ["Gold", "Platinum"], DefaultValue = "p" }]);
+        var w = FormEditor.Read(edited, null).Single();
+        Assert.Equal(["g", "p"], w.Options);
+        Assert.Equal(["Gold", "Platinum"], w.OptionLabels ?? []);
+        Assert.Equal("p", w.Value);
+        Assert.Contains("Platinum", Core2Pdf.AllText(edited));
+    }
+
+    [Fact]
+    public void DefaultAppearancesAreComparedByMeaning()
+    {
+        Assert.True(FormDesign.SameAppearance("/Helv 0 Tf 0 g", "/Helv 0 Tf 0 0 0 rg"));
+        Assert.True(FormDesign.SameAppearance("/Helv 10 Tf 0 0 0 1 k", "/Helv 10 Tf 0 0 0 rg"));
+        Assert.False(FormDesign.SameAppearance("/Helv 10 Tf 0 g", "/Helv 12 Tf 0 g"));
+        Assert.True(FormDesign.SameAppearance("/ZaDb 12 Tf 0 g", "/ZaDb 0 Tf 0 0 0 rg", colorOnly: true));
+
+        // An Acrobat check box (DA "0 g", its own face) moved: face and DA untouched.
+        var form = Core2Pdf.Form(
+        [
+            "<< /Type /Annot /Subtype /Widget /FT /Btn /T (Ok) /Rect [72 600 86 614] /P 3 0 R /DA (/ZaDb 0 Tf 0 g) /V /Off /AS /Off /MK << /BC [0] >> /AP << /N << /Yes 6 0 R /Off 7 0 R >> >> >>",
+            Core2Pdf.Stream("q 0 0 14 14 re S 2 2 10 10 re f Q", "/Type /XObject /Subtype /Form /BBox [0 0 14 14]"),
+            Core2Pdf.Stream("q 0 0 14 14 re S Q", "/Type /XObject /Subtype /Form /BBox [0 0 14 14]"),
+        ]);
+        var f = FormDesign.Read(form, null).Single();
+        Assert.NotNull(Face(form, 0, "/N", "/Yes"));
+        var moved = FormDesign.Update(form, null, [f with { Rect = f.Rect with { X = 300 } }]);
+        Assert.Equal(Face(form, 0, "/N", "/Yes"), Face(moved, 0, "/N", "/Yes"));
+        using var doc = Core2Pdf.Open(moved);
+        Assert.Equal("/ZaDb 0 Tf 0 g", PdfObj.Str(Widget(doc, 0).Elements["/DA"]));
+    }
+
     private static RectD Round(RectD r) => new(Math.Round(r.X, 2), Math.Round(r.Y, 2), Math.Round(r.Width, 2), Math.Round(r.Height, 2));
 }

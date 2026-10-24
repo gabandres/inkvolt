@@ -104,6 +104,8 @@ public partial class DocumentTab
             var v = FieldExportBox.Text.Trim();
             if (v == f.ExportValue) return f;
             if (FormDesign.ExportValueProblem(v) is { } problem) return Refuse(problem);
+            if (f.Kind == DesignFieldKind.Radio && Viewer.DesignFields.Any(o => o.Id != f.Id && o.Kind == DesignFieldKind.Radio && o.Name == f.Name && o.ExportValue == v))
+                return Refuse($"Another button of \"{f.Name}\" already stands for \"{v}\": give this one a value of its own.");
             // A radio button that was the group's default stays it.
             return f with { ExportValue = v, DefaultValue = f.Kind == DesignFieldKind.Radio && f.DefaultValue == f.ExportValue ? v : f.DefaultValue };
         }));
@@ -111,10 +113,15 @@ public partial class DocumentTab
         OnCommit(FieldDefaultBox, () => Change("Change default", f => f with { DefaultValue = FieldDefaultBox.Text }));
         OnCommit(FieldOptionsBox, () => Change("Change choices", f =>
         {
-            var options = FieldOptionsBox.Text.Replace("\r", "").Split('\n').Select(o => o.Trim()).Where(o => o.Length > 0).Distinct().ToList();
-            if (options.SequenceEqual(f.Options)) return f;
+            var (options, labels) = ParseChoices(FieldOptionsBox.Text);
+            if (options.SequenceEqual(f.Options) && labels.SequenceEqual(f.ShownOptions)) return f;
             if (options.Count == 0) return Refuse("Type at least one choice.");
-            return f with { Options = options, DefaultValue = options.Contains(f.DefaultValue) ? f.DefaultValue : "" };
+            return f with
+            {
+                Options = options,
+                OptionLabels = labels.SequenceEqual(options) ? [] : labels,
+                DefaultValue = options.Contains(f.DefaultValue) ? f.DefaultValue : "",
+            };
         }), enterCommits: false);
         OnCommit(SuggestionNameBox, () =>
         {
@@ -569,7 +576,34 @@ public partial class DocumentTab
         _ = UpdateDesignFields(label, [updated]);
     }
 
-    private static bool Same(DesignField a, DesignField b) => a with { Options = b.Options } == b && a.Options.SequenceEqual(b.Options);
+    private static bool Same(DesignField a, DesignField b) =>
+        a with { Options = b.Options, OptionLabels = b.OptionLabels } == b && a.Options.SequenceEqual(b.Options) && a.ShownOptions.SequenceEqual(b.ShownOptions);
+
+    /// <summary>
+    /// The options editor's lines: "Shown text" (the value is the same), or "Shown text = value" (Acrobat's item and
+    /// export value). Repeated values keep their first line.
+    /// </summary>
+    internal static (List<string> Options, List<string> Labels) ParseChoices(string text)
+    {
+        var options = new List<string>();
+        var labels = new List<string>();
+        foreach (var raw in text.Replace("\r", "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            var at = line.LastIndexOf(" = ", StringComparison.Ordinal);
+            var (label, value) = at > 0 ? (line[..at].Trim(), line[(at + 3)..].Trim()) : (line, line);
+            if (value.Length == 0) value = label;
+            if (options.Contains(value)) continue;
+            options.Add(value);
+            labels.Add(label);
+        }
+        return (options, labels);
+    }
+
+    /// <summary>The options editor's text for a field's choices (see <see cref="ParseChoices"/>).</summary>
+    internal static string ChoicesText(DesignField f) =>
+        string.Join(Environment.NewLine, f.Options.Select((o, i) => f.ShownOptions[i] == o ? o : $"{f.ShownOptions[i]} = {o}"));
 
     private void ChangeSize(string text)
     {
@@ -653,7 +687,7 @@ public partial class DocumentTab
         FieldOptionsGroup.Visibility = choice ? Visibility.Visible : Visibility.Collapsed;
         if (choice)
         {
-            SetText(FieldOptionsBox, string.Join(Environment.NewLine, f.Options));
+            SetText(FieldOptionsBox, ChoicesText(f));
             FieldEditableBox.Visibility = f.Kind == DesignFieldKind.ComboBox ? Visibility.Visible : Visibility.Collapsed;
             FieldMultiSelectBox.Visibility = f.Kind == DesignFieldKind.ListBox ? Visibility.Visible : Visibility.Collapsed;
             FieldEditableBox.IsChecked = f.Editable;
@@ -677,7 +711,7 @@ public partial class DocumentTab
         if (text) SetText(FieldDefaultBox, f.DefaultValue);
         if (choice)
         {
-            FieldDefaultChoice.ItemsSource = f.Options.Prepend("(none)").ToList();
+            FieldDefaultChoice.ItemsSource = f.ShownOptions.Prepend("(none)").ToList();
             FieldDefaultChoice.SelectedIndex = f.Options.ToList().IndexOf(f.DefaultValue) + 1;
         }
         FieldDefaultCheck.Visibility = onOff ? Visibility.Visible : Visibility.Collapsed;
