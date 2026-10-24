@@ -93,6 +93,24 @@ public sealed class AppState
     /// <summary>Queue name → whether its driver reports two-sided printing (cached: the query is slow).</summary>
     public Dictionary<string, bool> TwoSidedQueues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Printers seen turning on automatic firmware installs when only the update check was enabled (no Notify for them).</summary>
+    public List<string> NoFirmwareNotify { get; set; } = [];
+
+    public bool KeepsFirmwareNotify(string uuid)
+    {
+        lock (_gate) return !NoFirmwareNotify.Contains(uuid, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void SetNoFirmwareNotify(string uuid)
+    {
+        lock (_gate)
+        {
+            if (NoFirmwareNotify.Contains(uuid, StringComparer.OrdinalIgnoreCase)) return;
+            NoFirmwareNotify.Add(uuid);
+        }
+        Save();
+    }
+
     public bool? GetTwoSided(string queue)
     {
         lock (_gate) return TwoSidedQueues.TryGetValue(queue, out var v) ? v : null;
@@ -119,6 +137,8 @@ public sealed class AppState
             if (QueueNames.Remove(oldId, out var queue)) QueueNames.TryAdd(newId, queue);
             for (var i = 0; i < ForgottenUuids.Count; i++)
                 if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
+            for (var i = 0; i < NoFirmwareNotify.Count; i++)
+                if (string.Equals(NoFirmwareNotify[i], oldId, StringComparison.OrdinalIgnoreCase)) NoFirmwareNotify[i] = newId;
             if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
         }
         Save();
@@ -170,6 +190,7 @@ public sealed class AppState
             // Hand-edited or older files can hold nulls; never let that stop the app from starting.
             state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
+            state.NoFirmwareNotify ??= [];
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);

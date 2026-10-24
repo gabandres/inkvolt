@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace InkvoltPrint.Core.Ledm;
@@ -13,6 +14,19 @@ public enum FirmwareUpdateMode
 
     /// <summary>Checks and installs updates by itself.</summary>
     Automatic,
+}
+
+/// <summary>How a firmware update mode write turned out, from the printer's read-back.</summary>
+public enum FirmwareUpdateWriteResult
+{
+    /// <summary>The printer reads back the mode written.</summary>
+    Kept,
+
+    /// <summary>Notify was written and the printer reads back Automatic: it ties the check to installs.</summary>
+    NotifyInstalls,
+
+    /// <summary>The printer reads back some other mode.</summary>
+    Other,
 }
 
 /// <summary>
@@ -57,6 +71,26 @@ public sealed record FirmwareUpdateSettings(
         }
         return new FirmwareUpdateSettings(mode, choices, fw.Kid("State")?.KidValue("Status"), configPath, config.Name.Namespace, checkWritable);
     }
+
+    /// <summary>
+    /// These settings without <see cref="FirmwareUpdateMode.Notify"/>: for a printer that doesn't keep it (enabling only the check
+    /// turns on automatic installs too, as the LaserJet MFP M234dw does: it reads back <c>AutomaticUpdate</c> enabled).
+    /// </summary>
+    public FirmwareUpdateSettings WithoutNotify() =>
+        Choices.Contains(FirmwareUpdateMode.Notify) ? this with { Choices = Choices.Where(m => m != FirmwareUpdateMode.Notify).ToList() } : this;
+
+    /// <summary>
+    /// Printers known not to keep Notify, by model: the LaserJet MFP M232–M237 series (one firmware for the series; the M234dw
+    /// was seen turning installs on). Others are learned the first time a Notify write reads back as Automatic.
+    /// </summary>
+    public static bool KnownNotToKeepNotify(string? model) =>
+        model is not null && Regex.IsMatch(model, @"\bLaserJet\s+MFP\s+M23[2-7]", RegexOptions.IgnoreCase);
+
+    /// <summary>What the printer did with a written <paramref name="chosen"/> mode, judged from its read-back.</summary>
+    public static FirmwareUpdateWriteResult Judge(FirmwareUpdateMode chosen, FirmwareUpdateMode readBack) =>
+        readBack == chosen ? FirmwareUpdateWriteResult.Kept
+        : chosen == FirmwareUpdateMode.Notify && readBack == FirmwareUpdateMode.Automatic ? FirmwareUpdateWriteResult.NotifyInstalls
+        : FirmwareUpdateWriteResult.Other;
 
     /// <summary>
     /// The <c>FirmwareUpdateConfig</c> document for <paramref name="mode"/>, in the printer's own namespace: only the switches the

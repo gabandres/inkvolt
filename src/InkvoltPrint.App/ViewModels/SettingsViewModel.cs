@@ -78,7 +78,8 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             }
             Items.Clear();
             foreach (var i in items) Items.Add(i);
-            Firmware = new FirmwareViewModel(await TryGetFirmwareUpdateAsync(ledm), _connection.Probe.Firmware?.Display, OnItemChanged, openWebPage);
+            Firmware = new FirmwareViewModel(OfferedFirmwareChoices(await TryGetFirmwareUpdateAsync(ledm)), _connection.Probe.Firmware?.Display,
+                OnItemChanged, openWebPage);
             IsLoaded = true;
             OnItemChanged();
         }
@@ -108,11 +109,15 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
                 var body = LedmSettingCatalog.BuildPut(_dyn[group.Key], group.Select(i => (i.Setting.Def, i.Value)));
                 await PutWithAuthAsync(() => ledm.PutAsync(group.Key, body));
             }
+            string? firmwareNote = null;
             if (Firmware is { IsDirty: true, Settings: { ConfigPath: { } path } fw, Selected: { } mode })
+            {
                 await PutWithAuthAsync(() => ledm.PutPathAsync(path, fw.BuildPut(mode.Value)));
+                firmwareNote = await CheckFirmwareKeptAsync(ledm, fw, mode.Value);
+            }
             IsBusy = false;
             await LoadAsync(); // read back what the printer actually stored
-            if (!MessageIsError) Message = "Saved.";
+            if (!MessageIsError) Message = firmwareNote ?? "Saved.";
         }
         catch (OperationCanceledException)
         {
@@ -178,6 +183,43 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     {
         foreach (var i in Items) i.Value = i.Setting.Value;
         Firmware?.Revert();
+    }
+
+    /// <summary>Notify is left out for printers that don't keep it (unless one reads back Notify now).</summary>
+    private FirmwareUpdateSettings? OfferedFirmwareChoices(FirmwareUpdateSettings? fw) =>
+        fw is { Mode: not FirmwareUpdateMode.Notify }
+        && (!state.KeepsFirmwareNotify(uuid) || FirmwareUpdateSettings.KnownNotToKeepNotify(_connection.Probe.Model))
+            ? fw.WithoutNotify()
+            : fw;
+
+    /// <summary>
+    /// Reads the firmware switches back after a write. A printer that ties the check to installs (Notify read back as
+    /// Automatic) is set back to what it was before, remembered, and no longer offered Notify. Returns what to tell the user,
+    /// or null when the printer kept the choice.
+    /// </summary>
+    private async Task<string?> CheckFirmwareKeptAsync(LedmClient ledm, FirmwareUpdateSettings before, FirmwareUpdateMode chosen)
+    {
+        if (await TryGetFirmwareUpdateAsync(ledm) is not { } back) return null;
+        switch (FirmwareUpdateSettings.Judge(chosen, back.Mode))
+        {
+            case FirmwareUpdateWriteResult.Kept:
+                return null;
+            case FirmwareUpdateWriteResult.NotifyInstalls:
+                Log.Write("Firmware: the printer read back Automatic after Notify was written; setting it back and no longer offering Notify");
+                state.SetNoFirmwareNotify(uuid);
+                if (back.Mode != before.Mode && back.ConfigPath is { } path)
+                {
+                    await PutWithAuthAsync(() => ledm.PutPathAsync(path, back.BuildPut(before.Mode)));
+                    if (await TryGetFirmwareUpdateAsync(ledm) is not { } restored || restored.Mode != before.Mode)
+                        return "This printer can't check for updates without installing them: it turned on automatic installs, and " +
+                               "it didn't take the old setting back. Check automatic updates on its web page.";
+                }
+                return "This printer can't check for updates without installing them (it turned on automatic installs), so " +
+                       $"automatic updates were set back to \"{FirmwareViewModel.Label(before.Mode)}\". \"{FirmwareViewModel.Label(FirmwareUpdateMode.Notify)}\" " +
+                       "is no longer offered for it.";
+            default:
+                return $"Saved, but the printer reads back automatic updates as \"{FirmwareViewModel.Label(back.Mode)}\".";
+        }
     }
 
     /// <summary>Firmware update settings are optional: a printer without them (or that fails to answer) still shows the rest.</summary>
@@ -317,7 +359,7 @@ public sealed partial class FirmwareViewModel : ObservableObject
     [RelayCommand]
     private void OpenWebPage() => _openWebPage?.Invoke();
 
-    private static string Label(FirmwareUpdateMode m) => m switch
+    internal static string Label(FirmwareUpdateMode m) => m switch
     {
         FirmwareUpdateMode.Automatic => "Install automatically",
         FirmwareUpdateMode.Notify => "Check, don't install",

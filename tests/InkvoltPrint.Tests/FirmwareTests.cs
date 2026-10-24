@@ -121,6 +121,48 @@ public class FirmwareTests
     }
 
     [Fact]
+    public void Without_notify_keeps_the_other_choices()
+    {
+        var s = Captured().WithoutNotify();
+
+        Assert.Equal([FirmwareUpdateMode.Automatic, FirmwareUpdateMode.Off], s.Choices);
+        Assert.True(s.CanChange);
+        Assert.Same(s, s.WithoutNotify());
+    }
+
+    [Theory]
+    [InlineData("HP LaserJet MFP M234dw", true)]
+    [InlineData("HP LaserJet MFP M232-M237", true)]
+    [InlineData("HP LaserJet MFP M237sdwe", true)]
+    [InlineData("HP LaserJet MFP M140we", false)]
+    [InlineData("HP LaserJet Pro MFP M227fdw", false)]
+    [InlineData("HP OfficeJet Pro 9010", false)]
+    [InlineData(null, false)]
+    public void Known_models_that_do_not_keep_notify(string? model, bool expected) =>
+        Assert.Equal(expected, FirmwareUpdateSettings.KnownNotToKeepNotify(model));
+
+    [Theory]
+    [InlineData(FirmwareUpdateMode.Notify, FirmwareUpdateMode.Notify, FirmwareUpdateWriteResult.Kept)]
+    [InlineData(FirmwareUpdateMode.Off, FirmwareUpdateMode.Off, FirmwareUpdateWriteResult.Kept)]
+    [InlineData(FirmwareUpdateMode.Notify, FirmwareUpdateMode.Automatic, FirmwareUpdateWriteResult.NotifyInstalls)] // the M234dw
+    [InlineData(FirmwareUpdateMode.Notify, FirmwareUpdateMode.Off, FirmwareUpdateWriteResult.Other)]
+    [InlineData(FirmwareUpdateMode.Off, FirmwareUpdateMode.Automatic, FirmwareUpdateWriteResult.Other)]
+    public void Judges_the_read_back(FirmwareUpdateMode chosen, FirmwareUpdateMode readBack, FirmwareUpdateWriteResult expected) =>
+        Assert.Equal(expected, FirmwareUpdateSettings.Judge(chosen, readBack));
+
+    [Fact]
+    public void M234dw_read_back_after_notify_is_automatic()
+    {
+        // What the M234dw stores after AutomaticCheck=enabled is written (with or without AutomaticUpdate=disabled).
+        var dyn = Fixture.Xml("FirmwareUpdate_FirmwareUpdateDyn.xml");
+        dyn.Descendants(Fwu + "AutomaticCheck").Single().Value = "enabled";
+        dyn.Descendants(Fwu + "AutomaticUpdate").Single().Value = "enabled";
+        var readBack = FirmwareUpdateSettings.Parse(dyn, Fixture.Xml("FirmwareUpdate_FirmwareUpdateCap.xml"), "/c")!;
+
+        Assert.Equal(FirmwareUpdateWriteResult.NotifyInstalls, FirmwareUpdateSettings.Judge(FirmwareUpdateMode.Notify, readBack.Mode));
+    }
+
+    [Fact]
     public void Config_path_is_the_web_update_classes_one()
     {
         // Another update class's Config listed first must not win (Parse keeps the first of each type).
