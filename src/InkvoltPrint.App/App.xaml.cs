@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using InkvoltPrint.App.Presets;
 using InkvoltPrint.App.ViewModels;
 using InkvoltPrint.App.Views;
 
@@ -52,6 +53,7 @@ public partial class App : Application
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
+        Prompt.EditPresets = (presets, printer) => ScanPresetsDialog.Open(MainWindow, presets, printer);
         Prompt.Announcer = message =>
         {
             if (MainWindow is { } w && (System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(w)
@@ -75,10 +77,18 @@ public partial class App : Application
         MainWindow.Show();
 
         _instance?.Listen(args => Dispatcher.InvokeAsync(() => HandleForwarded(args)));
-        if (!devRun) _ = Task.Run(ShellIntegration.RegisterOpenWith);
+        if (!devRun)
+        {
+            _ = Task.Run(ShellIntegration.RegisterOpenWith);
+            var vm = _vm;
+            PresetJumpList.Update(this, vm.Presets.Items);
+            vm.Presets.Changed += () => PresetJumpList.Update(this, vm.Presets.Items);
+        }
 
         // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
         if (FirstPdf(e.Args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
+        // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.
+        if (PresetArg(e.Args) is { } preset && !e.Args.Contains("--snapshot")) _ = _vm.RunPresetWhenReadyAsync(preset);
         if (Array.IndexOf(e.Args, "--autoprint") is var ap and >= 0 && ap + 1 < e.Args.Length)
             _ = DevAutoPrint.RunAsync(_vm, e.Args[ap + 1],
                 copies: int.TryParse(e.Args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
@@ -90,8 +100,14 @@ public partial class App : Application
                 copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
                 crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
                 printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
-                fix: !e.Args.Contains("--fix") ? null : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() == "all" ? "all" : "check");
+                fix: !e.Args.Contains("--fix") ? null : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() == "all" ? "all" : "check",
+                preset: PresetArg(e.Args),
+                then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
+                editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1);
     }
+
+    private static string? PresetArg(string[] args) =>
+        Array.IndexOf(args, "--preset") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 
     private static string? FirstPdf(IEnumerable<string> args) =>
         args.FirstOrDefault(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(a));
@@ -121,6 +137,7 @@ public partial class App : Application
         w.Topmost = true; // Windows won't let a background process steal focus; flash to the top instead
         w.Topmost = false;
         if (FirstPdf(args) is { } pdf && _vm is not null) _ = _vm.OpenPdfAsync(pdf);
+        if (PresetArg(args) is { } preset && _vm is not null) _ = _vm.RunPresetWhenReadyAsync(preset);
     }
 
     /// <summary>Last line of defence: log it, tell the user, keep running (and keep their scanned pages).</summary>

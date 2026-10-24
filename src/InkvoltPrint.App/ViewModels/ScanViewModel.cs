@@ -6,12 +6,16 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using InkvoltPrint.App.Presets;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Pdf;
+using InkvoltPrint.Core.Presets;
+using InkvoltPrint.Core.Printing;
 using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Windows.Ocr;
+using InkvoltPrint.Windows.Printing;
 using InkvoltPrint.Windows.Suite;
 
 namespace InkvoltPrint.App.ViewModels;
@@ -28,8 +32,12 @@ public sealed record ScanArea(string Key, int? Width, int? Height);
 /// Scan straight from the device over eSCL. Each page lands as a JPEG (no re-encode), is checked for being blank or
 /// crooked, and OCR runs in the background while the next page scans. Before saving, the pages can be reviewed:
 /// turned, cropped, reordered (drag, or Alt+Shift+arrows), deleted, and more scanned onto the end. Save assembles a
-/// searchable PDF locally; pages nobody edited keep the scanner's own JPEG.
+/// searchable PDF locally; pages nobody edited keep the scanner's own JPEG. A preset (one click) scans with its own
+/// settings and saves by itself into its folder under its file-name template, then opens, prints or emails the file;
+/// presets with the review step stop on the pages first and save with "Save (preset)".
 /// </summary>
+/// <param name="findQueue">The printer's Windows queue, for presets that print a copy.</param>
+/// <param name="demoPrint">Demo printer: "prints" here instead of a Windows queue.</param>
 public sealed partial class ScanViewModel : ObservableObject
 {
     private readonly AppState _state;
@@ -37,15 +45,24 @@ public sealed partial class ScanViewModel : ObservableObject
     private CancellationTokenSource? _scanCts;
     private bool _dirty;
     private readonly ScannerCapabilities _caps;
+    private readonly ScanPresetLibrary _presets;
+    private readonly string _printerName;
+    private readonly Func<Task<string?>> _findQueue;
+    private readonly Action<string, int>? _demoPrint;
 
     private static readonly Option<ScanArea>[] AllPageSizes =
         [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
-    public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state)
+    public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
+        Func<Task<string?>> findQueue, Action<string, int>? demoPrint = null)
     {
         _client = client;
         _state = state;
         _caps = caps;
+        _presets = presets;
+        _printerName = printerName;
+        _findQueue = findQueue;
+        _demoPrint = demoPrint;
         Sources = caps.Sources.Select(s => new Option<ScanSource>(s, ScanChoices.SourceLabel(s))).ToList();
         Source = Sources.FirstOrDefault();
         var input = (caps.Platen ?? caps.Adf)!;
@@ -145,7 +162,7 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial bool Straighten { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand))]
     public partial bool IsBusy { get; set; }
 
     /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
@@ -201,45 +218,67 @@ public sealed partial class ScanViewModel : ObservableObject
     private bool NotBusy() => !IsBusy;
     private bool CanSave(string? format) => !IsBusy && Pages.Any(p => !p.IsSkipped);
 
-    /// <summary>Scans and appends pages, so multi-page documents from the glass are just "Scan" again.</summary>
+    /// <summary>What one scan uses: the tab's settings, or a preset's matched to this scanner.</summary>
+    private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes);
+
+    private ScanJob TabJob()
+    {
+        var area = PageSize?.Value;
+        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, Resolution?.Value ?? 300,
+            Width: area?.Width, Height: area?.Height);
+        return new(request, UseOcr, SkipBlank, Straighten, []);
+    }
+
+    /// <summary>
+    /// Scans and appends pages, so multi-page documents from the glass are just "Scan" again. "Scan more pages" after a
+    /// preset keeps scanning with the preset's settings; a fresh scan uses the tab's.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private async Task ScanAsync()
+    {
+        if (!HasPages) ActivePreset = null;
+        var preset = ActivePreset;
+        await ScanPagesAsync(() => preset is null ? Task.FromResult(TabJob()) : PlanAsync(preset));
+    }
+
+    /// <summary>Scans with the job <paramref name="makeJob"/> gives (it may ask the scanner first). Returns the pages added; -1 when it failed or was cancelled.</summary>
+    private async Task<int> ScanPagesAsync(Func<Task<ScanJob>> makeJob)
     {
         IsBusy = true;
         IsScanning = true;
         LastSavedPath = null;
         _scanCts = new CancellationTokenSource();
-        var dpi = Resolution?.Value ?? 300;
-        var area = PageSize?.Value;
-        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, dpi,
-            Width: area?.Width, Height: area?.Height);
         var added = new List<ScanPageViewModel>();
         var checks = new List<Task>();
         try
         {
             Message = "Scanning… (the first page takes longer if the printer was asleep)";
+            var job = await makeJob();
+            var request = job.Request;
+            var dpi = request.Resolution;
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
-                var page = new ScanPageViewModel(jpeg, dpi, UseOcr);
+                var page = new ScanPageViewModel(jpeg, dpi, job.Ocr);
                 page.PropertyChanged += PageChanged;
                 Pages.Add(page);
                 added.Add(page);
-                checks.Add(page.AnalyseAsync(SkipBlank, Straighten)); // while the next page scans
+                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten)); // while the next page scans
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
             await Task.WhenAll(checks);
             var blank = added.Count(p => p.IsSkipped);
             var straightened = added.Count(p => p.Edits.Deskew != 0);
-            var notes = string.Join(" ", new[]
+            var notes = string.Join(" ", new List<string>
             {
                 blank == 0 ? "" : blank == 1 ? "1 blank page is left out (Keep puts it back)." : $"{blank} blank pages are left out (Keep puts them back).",
                 straightened == 0 ? "" : straightened == 1 ? "1 page was straightened." : $"{straightened} pages were straightened.",
-            }.Where(n => n.Length > 0));
+            }.Concat(job.Notes).Where(n => n.Length > 0));
             Message = added.Count == 0
                 ? "The scanner returned no pages."
                 : (request.Source == ScanSource.Platen
                     ? "Done. To add another page, put it on the glass and press Scan more pages."
                     : $"Done: {added.Count} page{(added.Count == 1 ? "" : "s")} from the feeder.") + (notes.Length > 0 ? " " + notes : "");
+            return added.Count;
         }
         catch (OperationCanceledException)
         {
@@ -261,6 +300,7 @@ public sealed partial class ScanViewModel : ObservableObject
             IsBusy = false;
             IsScanning = false;
         }
+        return -1;
     }
 
     [RelayCommand]
@@ -368,11 +408,17 @@ public sealed partial class ScanViewModel : ObservableObject
     private void Clear()
     {
         if (HasUnsavedPages && !Prompt.Ask($"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved?", "Discard")) return;
+        DropPages();
+    }
+
+    private void DropPages()
+    {
         CancelCrop();
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
         Message = null;
         LastSavedPath = null;
+        ActivePreset = null;
     }
 
     /// <param name="format">"pdf" (default) or "jpg".</param>
@@ -410,9 +456,7 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             else
             {
-                if (kept.Any(p => !p.OcrAsync().IsCompleted)) Message = "Finishing text recognition…";
-                var pages = new List<PdfPage>();
-                foreach (var p in kept) pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
+                var pages = await PdfPagesAsync(kept);
                 var title = Path.GetFileNameWithoutExtension(dialog.FileName);
                 var target = dialog.FileName;
                 await Task.Run(() =>
@@ -437,6 +481,14 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private async Task<List<PdfPage>> PdfPagesAsync(List<ScanPageViewModel> kept)
+    {
+        if (kept.Any(p => !p.OcrAsync().IsCompleted)) Message = "Finishing text recognition…";
+        var pages = new List<PdfPage>();
+        foreach (var p in kept) pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
+        return pages;
     }
 
     private static List<string> ImagePaths(string chosen, int count)
@@ -465,6 +517,225 @@ public sealed partial class ScanViewModel : ObservableObject
     private void ShowSavedInFolder()
     {
         if (LastSavedPath is not null) Shell.ShowInFolder(LastSavedPath);
+    }
+
+    // ---- Presets: one click scans with a preset's settings and saves (or stops on the review first) ----
+
+    /// <summary>Shared by every printer; the editor changes them for all.</summary>
+    public ObservableCollection<ScanPreset> Presets => _presets.Items;
+
+    /// <summary>The preset the pages on screen were scanned with: "Scan more pages" keeps using it, "Save (name)" saves with it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActivePreset), nameof(SavePresetText))]
+    [NotifyCanExecuteChangedFor(nameof(SaveWithPresetCommand))]
+    public partial ScanPreset? ActivePreset { get; set; }
+
+    public bool HasActivePreset => ActivePreset is not null;
+
+    /// <summary>What the last preset scan couldn't do as asked (kept for the message after saving).</summary>
+    private IReadOnlyList<string> _presetNotes = [];
+
+    [RelayCommand]
+    private void ManagePresets() => Prompt.EditPresets?.Invoke(_presets, _printerName);
+
+    public string SavePresetText => ActivePreset is { } p ? $"Save ({p.Name})" : "";
+
+    /// <summary>The preset matched to this scanner; with Auto, asks whether the feeder holds pages (a short status read).</summary>
+    private async Task<ScanJob> PlanAsync(ScanPreset preset)
+    {
+        bool? loaded = null;
+        if (preset.Source == PresetSource.Auto && _caps.Adf is not null && _caps.Platen is not null)
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_scanCts?.Token ?? default);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                var status = await _client.GetStatusAsync(timeout.Token);
+                loaded = status.AdfState is null ? null : status.AdfLoaded;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || _scanCts?.IsCancellationRequested != true)
+            {
+                Log.Write($"Feeder check before a preset scan failed (scanning from the glass): {ex.Message}");
+            }
+        }
+        var plan = PresetPlan.For(preset, _caps, loaded, OcrAvailable, RegionInfo.CurrentRegion.IsMetric);
+        var r = plan.Request;
+        Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}");
+        _presetNotes = plan.Notes;
+        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes);
+    }
+
+    /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private async Task RunPresetAsync(ScanPreset? preset)
+    {
+        if (preset is null || IsBusy) return;
+        preset = _presets.Find(preset.Id) ?? preset;
+        if (HasUnsavedPages && !Prompt.Ask(
+                $"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved and scan with \"{preset.Name}\"?", "Discard and scan"))
+            return;
+        DropPages();
+        ActivePreset = preset;
+        Prompt.Announce($"Scanning with {preset.Name}");
+        var added = await ScanPagesAsync(() => PlanAsync(preset));
+        if (added <= 0) return;
+        if (!preset.Review) await SaveWithPresetAsync();
+        else Message += $" Check the pages, then press {SavePresetText}.";
+    }
+
+    private bool CanSaveWithPreset() => ActivePreset is not null && !IsBusy;
+
+    /// <summary>Saves the kept pages into the preset's folder under its file-name template (never over another file), then its "after saving" step.</summary>
+    [RelayCommand(CanExecute = nameof(CanSaveWithPreset))]
+    private async Task SaveWithPresetAsync()
+    {
+        if (ActivePreset is not { } active) return;
+        var preset = _presets.Find(active.Id) ?? active; // the counter may have moved on
+        var kept = Kept;
+        if (kept.Count == 0)
+        {
+            Message = "No pages to save: every page was left out as blank. Keep puts a page back.";
+            return;
+        }
+        if (_presets.Folder(preset, out var problem) is not { } root)
+        {
+            Message = problem;
+            return;
+        }
+        CancelCrop();
+        IsBusy = true;
+        try
+        {
+            var ctx = new NameContext(DateTime.Now, preset.Name, _printerName, preset.NextNumber, kept.Count);
+            var folder = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
+            Directory.CreateDirectory(folder);
+            var stem = FileNameTemplate.FileName(preset.FileName, ctx);
+            var jpg = preset.FileType == PresetFileType.Jpeg;
+            var saved = jpg ? await WriteImagesAsync(kept, folder, stem) : [await WritePdfAsync(await PdfPagesAsync(kept), folder, stem)];
+
+            preset = preset with { NextNumber = preset.NextNumber + 1 };
+            _presets.Update(preset);
+            ActivePreset = preset;
+            LastSavedPath = saved[0];
+            _dirty = false;
+            OnPropertyChanged(nameof(HasUnsavedPages));
+            Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")} in {folder}."
+                + string.Concat(_presetNotes.Select(n => " " + n));
+            Prompt.Announce(Message);
+            await AfterSaveAsync(preset, saved, kept, jpg);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Preset save failed: {ex}");
+            Message = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Writes the PDF next to its final name, then moves it there only if that name is still free (else the next one).</summary>
+    private static Task<string> WritePdfAsync(List<PdfPage> pages, string folder, string stem) => Task.Run(() =>
+    {
+        var tmp = Path.Combine(folder, $"{stem}.{Guid.NewGuid():N}.partial");
+        try
+        {
+            using (var fs = File.Create(tmp)) PdfWriter.Write(fs, pages, stem);
+            for (var attempt = 0; ; attempt++)
+            {
+                var target = FileNameTemplate.UniquePath(folder, stem, ".pdf", File.Exists);
+                try
+                {
+                    File.Move(tmp, target, overwrite: false);
+                    return target;
+                }
+                catch (IOException) when (attempt < 5 && File.Exists(target))
+                {
+                    // Another file took the name meanwhile: take the next one.
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
+        }
+    });
+
+    private static async Task<List<string>> WriteImagesAsync(List<ScanPageViewModel> kept, string folder, string stem)
+    {
+        var targets = FileNameTemplate.UniquePaths(folder, stem, ".jpg", kept.Count, File.Exists);
+        for (var i = 0; i < kept.Count; i++)
+        {
+            var bytes = await kept[i].JpegAsync();
+            await using var fs = new FileStream(targets[i], FileMode.CreateNew, FileAccess.Write); // never over another file
+            await fs.WriteAsync(bytes);
+        }
+        return [.. targets];
+    }
+
+    /// <summary>The preset's step after saving: open in Inkvolt PDF, print a copy, or hand the file to the mail app.</summary>
+    private async Task AfterSaveAsync(ScanPreset preset, List<string> saved, List<ScanPageViewModel> kept, bool jpg)
+    {
+        var demo = _presets.IsDemo;
+        if (!jpg && (preset.After == PresetAfter.OpenInInkvoltPdf || OpenInInkvoltPdf))
+        {
+            if (demo) Message += " (Demo: nothing is opened in Inkvolt PDF.)";
+            else if (!InkvoltPdfInstalled) Message += " Inkvolt PDF isn't installed, so it wasn't opened.";
+            else OpenSavedInInkvoltPdf();
+        }
+        switch (preset.After)
+        {
+            case PresetAfter.Print:
+                await PrintCopyAsync(saved[0], kept);
+                break;
+            case PresetAfter.Email when demo:
+                Message += " (Demo: in a real scan your mail app would open a new message with it attached.)";
+                break;
+            case PresetAfter.Email:
+                Message += await MailHandoff.SendAsync(saved, Path.GetFileNameWithoutExtension(saved[0])) switch
+                {
+                    MailHandoff.Result.Attached => " It's attached to a new message in your mail app.",
+                    MailHandoff.Result.Cancelled => " The email was cancelled; the file is saved.",
+                    _ => " Your mail app has no attachment hand-off, so a new message and the file's folder opened: drag the file into the message.",
+                };
+                break;
+        }
+    }
+
+    /// <summary>Prints the saved pages through this printer's Windows queue at actual size (like a copy).</summary>
+    private async Task PrintCopyAsync(string file, List<ScanPageViewModel> kept)
+    {
+        var name = Path.GetFileName(file);
+        if (_demoPrint is not null)
+        {
+            _demoPrint(name, kept.Count);
+            Message += " A copy went to the (demo) print queue.";
+            return;
+        }
+        try
+        {
+            if (await _findQueue() is not { } queue)
+            {
+                Message += " It wasn't printed: this printer isn't set up in Windows yet (Set up, at the top of the page).";
+                return;
+            }
+            var pages = new List<RenderedPage>();
+            foreach (var p in kept)
+            {
+                var jpeg = await p.JpegAsync();
+                var (w, h, _) = PdfWriter.JpegInfo(jpeg);
+                var (wIn, hIn) = CopyLayout.Inches(w, h, p.Dpi);
+                pages.Add(new RenderedPage(jpeg, wIn, hIn));
+            }
+            await QueuePrinter.PrintPagesAsync(queue, pages, copies: 1, twoSided: false, name);
+            Message += " A copy is printing.";
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Preset print failed: {ex}");
+            Message += $" It couldn't be printed: {ex.Message}";
+        }
     }
 }
 

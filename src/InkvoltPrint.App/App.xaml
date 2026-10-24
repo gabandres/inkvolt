@@ -13,6 +13,9 @@
         <local:VisibleWhenConverter x:Key="VisibleWhen" />
         <local:PlusOneConverter x:Key="PageNumber" />
         <local:NotConverter x:Key="Not" />
+        <local:PresetSummaryConverter x:Key="PresetSummary" />
+        <local:PresetGlyphConverter x:Key="PresetGlyph" />
+        <local:PresetShortcutConverter x:Key="PresetShortcut" />
 
         <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 

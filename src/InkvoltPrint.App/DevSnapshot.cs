@@ -16,7 +16,9 @@ namespace InkvoltPrint.App;
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
-/// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC).
+/// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
+/// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
+/// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
 /// </summary>
 internal static class DevSnapshot
 {
@@ -27,7 +29,7 @@ internal static class DevSnapshot
             ? (w, h) : null;
 
     public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
-        string? copy = null, int crop = 0, int printer = 0, string? fix = null)
+        string? copy = null, int crop = 0, int printer = 0, string? fix = null, string? preset = null, int editPresets = 0, string? then = null)
     {
         if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
             main.Selected = main.Printers[printer - 1];
@@ -41,6 +43,18 @@ internal static class DevSnapshot
         {
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+        if (preset is not null && window.DataContext is ViewModels.MainViewModel presetMain)
+        {
+            // --then print|email|pdf: try the preset's after-saving step (demo only: it never reaches a real queue or mail app).
+            if (then is not null && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } chosen
+                && Enum.TryParse<Core.Presets.PresetAfter>(then switch { "pdf" => "OpenInInkvoltPdf", var t => t }, ignoreCase: true, out var after))
+                presetMain.Presets.Update(chosen with { After = after });
+            var ask = ViewModels.Prompt.Confirm;
+            ViewModels.Prompt.Confirm = (_, _) => true; // "discard the pages scanned above?"
+            try { await presetMain.RunPresetWhenReadyAsync(preset); }
+            finally { ViewModels.Prompt.Confirm = ask; }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (copy is not null && window.DataContext is ViewModels.MainViewModel { Selected.Copy: { } copier })
@@ -78,14 +92,30 @@ internal static class DevSnapshot
             foreach (var sv in Descendants<ScrollViewer>(shown)) sv.ScrollToEnd();
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
-        var content = (FrameworkElement)window.Content;
-        var dpi = VisualTreeHelper.GetDpi(window);
+        Window shot = window;
+        if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
+        {
+            var editor = ScanPresetsDialog.Create(editMain.Presets, editMain.Selected?.Name ?? "Demo printer");
+            editor.Owner = window;
+            if (editor.DataContext is ViewModels.ScanPresetsViewModel evm && editPresets <= evm.Items.Count) evm.Selected = evm.Items[editPresets - 1];
+            editor.Show();
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            if (scrollToEnd)
+            {
+                foreach (var sv in Descendants<ScrollViewer>(editor)) sv.ScrollToEnd();
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+            shot = editor;
+        }
+        // A dialog's content has a margin, which a VisualBrush would shift by: take the window's own root instead.
+        var content = shot == window ? (FrameworkElement)shot.Content : (FrameworkElement)VisualTreeHelper.GetChild(shot, 0);
+        var dpi = VisualTreeHelper.GetDpi(shot);
         var bmp = new RenderTargetBitmap((int)(content.ActualWidth * dpi.DpiScaleX), (int)(content.ActualHeight * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            var bg = window.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? window.Background ?? Brushes.White;
+            var bg = shot.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? shot.Background ?? Brushes.White;
             dc.DrawRectangle(bg, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
             // Map the content 1:1: by default a VisualBrush stretches the visual's bounds (which can overhang) to fit.
             var area = new Rect(0, 0, content.ActualWidth, content.ActualHeight);

@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using InkvoltPrint.Core.Net;
+using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App;
@@ -59,6 +60,9 @@ public sealed class AppState
         get => false;
         set { if (value) OpenScansInInkvoltPdf = true; }
     }
+
+    /// <summary>Scan presets (versioned; null in files from before presets, which then get the built-ins). See Presets/ScanPresetLibrary.</summary>
+    public ScanPresetSettings? Presets { get; set; }
 
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }

@@ -12,6 +12,19 @@
         WindowStartupLocation="CenterScreen"
         AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop">
 
+    <!-- Ctrl+1…Ctrl+9: scan with the first nine presets on the selected printer -->
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="D1" Command="{Binding RunPresetAtCommand}" CommandParameter="1" />
+        <KeyBinding Modifiers="Control" Key="D2" Command="{Binding RunPresetAtCommand}" CommandParameter="2" />
+        <KeyBinding Modifiers="Control" Key="D3" Command="{Binding RunPresetAtCommand}" CommandParameter="3" />
+        <KeyBinding Modifiers="Control" Key="D4" Command="{Binding RunPresetAtCommand}" CommandParameter="4" />
+        <KeyBinding Modifiers="Control" Key="D5" Command="{Binding RunPresetAtCommand}" CommandParameter="5" />
+        <KeyBinding Modifiers="Control" Key="D6" Command="{Binding RunPresetAtCommand}" CommandParameter="6" />
+        <KeyBinding Modifiers="Control" Key="D7" Command="{Binding RunPresetAtCommand}" CommandParameter="7" />
+        <KeyBinding Modifiers="Control" Key="D8" Command="{Binding RunPresetAtCommand}" CommandParameter="8" />
+        <KeyBinding Modifiers="Control" Key="D9" Command="{Binding RunPresetAtCommand}" CommandParameter="9" />
+    </Window.InputBindings>
+
     <Window.Resources>
         <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
         <ContextMenu x:Key="PrinterMenu" x:Shared="False">
@@ -177,6 +190,43 @@
                                 </StackPanel>
                             </StackPanel>
                         </DockPanel>
+                    </Border>
+
+                    <!-- Scanner: one-click presets (they run on the Scan tab) -->
+                    <Border Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="All scan options" Command="{Binding GoToScanCommand}" Style="{StaticResource LinkButton}"
+                                        VerticalAlignment="Center" />
+                                <TextBlock Text="Scan" Style="{StaticResource CardTitle}" Margin="0" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Scan.Presets}" AlternationCount="100" Focusable="False" AutomationProperties.Name="Scan presets">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.RunPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" Margin="0,0,0,6" Padding="12,8"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                AutomationProperties.Name="{Binding Name, StringFormat='Scan with {0}'}"
+                                                AutomationProperties.HelpText="{Binding Converter={StaticResource PresetSummary}}"
+                                                AutomationProperties.AcceleratorKey="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource PresetShortcut}}">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="{Binding Converter={StaticResource PresetGlyph}}"
+                                                           FontSize="18" Margin="0,2,12,0" VerticalAlignment="Top" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Converter={StaticResource PresetSummary}}" Style="{StaticResource Caption}" FontSize="12"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="No presets yet. Manage presets adds one." Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                       Visibility="{Binding Scan.Presets.Count, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                            <Button Content="Manage presets…" Command="{Binding Scan.ManagePresetsCommand}" Style="{StaticResource LinkButton}"
+                                    HorizontalAlignment="Left" Margin="0,6,0,0" />
+                        </StackPanel>
                     </Border>
 
                     <!-- Toner -->
@@ -346,8 +396,43 @@
                     <ColumnDefinition Width="280" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                <Border Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
+                <!-- One-click presets: scan with the preset's settings and save (Ctrl+1…9 for the first nine) -->
+                <DockPanel Grid.ColumnSpan="2" Margin="0,0,0,8">
+                    <Button DockPanel.Dock="Right" Content="Manage presets…" Command="{Binding ManagePresetsCommand}" Style="{StaticResource LinkButton}"
+                            VerticalAlignment="Top" Margin="12,8,0,0" />
+                    <TextBlock DockPanel.Dock="Left" Text="One-click scans" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,8,16,0" />
+                    <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False"
+                                  AutomationProperties.Name="Scan presets"
+                                  AutomationProperties.HelpText="Each button scans with that preset and saves the file. Ctrl+1 to Ctrl+9 run the first nine.">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.RunPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" Margin="0,0,8,8" Padding="12,6"
+                                        ToolTip="{Binding Converter={StaticResource PresetSummary}}"
+                                        AutomationProperties.Name="{Binding Name, StringFormat='Scan with {0}'}"
+                                        AutomationProperties.HelpText="{Binding Converter={StaticResource PresetSummary}}"
+                                        AutomationProperties.AcceleratorKey="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource PresetShortcut}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource Icon}" Text="{Binding Converter={StaticResource PresetGlyph}}" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Name}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
                         <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
@@ -397,7 +482,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="0">
                     <DockPanel>
                         <!-- Toolbar -->
                         <DockPanel DockPanel.Dock="Top" Margin="20,14,14,10">
@@ -405,7 +490,15 @@
                                 <Button Content="Clear" Command="{Binding ClearCommand}" Margin="0,0,8,0"
                                         Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Save as images" Command="{Binding SaveCommand}" CommandParameter="jpg" Margin="0,0,8,0" />
-                                <Button Content="Save as PDF" Command="{Binding SaveCommand}" CommandParameter="pdf" Style="{DynamicResource AccentButtonStyle}" />
+                                <Button Content="Save as PDF" Command="{Binding SaveCommand}" CommandParameter="pdf" Style="{DynamicResource AccentButtonStyle}"
+                                        Visibility="{Binding HasActivePreset, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                                <!-- With a preset's pages on screen, its Save is the main button -->
+                                <Button Content="Save as PDF" Command="{Binding SaveCommand}" CommandParameter="pdf" Margin="0,0,8,0"
+                                        Visibility="{Binding HasActivePreset, Converter={StaticResource VisibleWhen}}" />
+                                <!-- Pages scanned with a preset: save them the preset's way (folder, name, after-saving step) -->
+                                <Button Content="{Binding SavePresetText}" Command="{Binding SaveWithPresetCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                        ToolTip="{Binding ActivePreset, Converter={StaticResource PresetSummary}}"
+                                        Visibility="{Binding HasActivePreset, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" />

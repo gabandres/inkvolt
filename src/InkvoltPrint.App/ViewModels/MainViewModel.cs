@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Windows.Cleanup;
@@ -26,6 +27,9 @@ public static class Prompt
     public static Action<string>? Announcer { get; set; }
 
     public static void Announce(string message) => Announcer?.Invoke(message);
+
+    /// <summary>Opens the scan presets editor (Views.ScanPresetsDialog); the printer name is for its file-name example. Unset (tests): no-op.</summary>
+    public static Action<ScanPresetLibrary, string>? EditPresets { get; set; }
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -40,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _state = state;
         _transport = transport;
+        Presets = new ScanPresetLibrary(state, demo: transport is not null);
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
         {
@@ -60,7 +65,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
-            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember, transport)
+            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Presets, Remember, transport)
             {
                 IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
             });
@@ -80,6 +85,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
+
+    /// <summary>Scan presets, shared by every printer (Scan tab, Overview scan card, Ctrl+1…9, jump list).</summary>
+    public ScanPresetLibrary Presets { get; }
+
+    /// <summary>Ctrl+1…Ctrl+9: the n-th preset on the selected printer.</summary>
+    [RelayCommand]
+    private async Task RunPresetAtAsync(string? number)
+    {
+        if (!int.TryParse(number, out var n) || n < 1 || n > Presets.Items.Count || Selected is not { Scan: not null } printer) return;
+        await printer.RunPresetAsync(Presets.Items[n - 1]);
+    }
+
+    /// <summary>
+    /// A preset asked for from outside (the jump list's <c>--preset id</c>, at start or forwarded to the running copy): waits up
+    /// to 30 s for the selected printer's scanner to connect, then runs it on the Scan tab.
+    /// </summary>
+    public async Task RunPresetWhenReadyAsync(string idOrName)
+    {
+        if (Presets.Find(idOrName) is not { } preset)
+        {
+            Log.Write("A preset asked for on the command line doesn't exist any more");
+            return;
+        }
+        for (var i = 0; i < 120 && Selected?.Scan is null; i++) await Task.Delay(250);
+        if (Selected is not { Scan: not null } printer)
+        {
+            Prompt.Tell($"No scanner is connected yet, so \"{preset.Name}\" didn't scan. Try again when the printer shows up.");
+            return;
+        }
+        await printer.RunPresetAsync(preset);
+    }
 
     [ObservableProperty]
     public partial PrinterViewModel? Selected { get; set; }
@@ -282,7 +318,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (vm is null)
             {
                 if (d.Host is null || _state.ForgottenUuids.Contains(d.Uuid, StringComparer.OrdinalIgnoreCase)) continue;
-                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Remember);
+                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember);
                 Printers.Add(vm);
                 vm.Start();
                 Selected ??= vm;
@@ -334,7 +370,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)
             {
-                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Remember) { IppUri = probe.IppEndpoint };
+                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember) { IppUri = probe.IppEndpoint };
                 Printers.Add(vm);
                 vm.Start();
                 NotifyEmpty();

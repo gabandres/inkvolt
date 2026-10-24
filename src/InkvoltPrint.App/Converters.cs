@@ -126,3 +126,30 @@ public sealed class StatusGlyphBrushConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Scan preset → its one-line summary (tooltips, screen-reader help, the Overview's scan card).</summary>
+public sealed class PresetSummaryConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is InkvoltPrint.Core.Presets.ScanPreset p ? InkvoltPrint.Core.Presets.ScanPresetText.Summary(p) : "";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Scan preset → icon: a photo for JPEG presets, a document for PDF ones.</summary>
+public sealed class PresetGlyphConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is InkvoltPrint.Core.Presets.ScanPreset { FileType: InkvoltPrint.Core.Presets.PresetFileType.Jpeg } ? "" : "";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>A preset's place in the list (ItemsControl.AlternationIndex) → its shortcut, Ctrl+1…Ctrl+9; nothing after the ninth.</summary>
+public sealed class PresetShortcutConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is int i and >= 0 and < 9 ? $"Ctrl+{i + 1}" : "";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}

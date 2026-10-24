@@ -13,6 +13,7 @@ printing). No account, no cloud, no telemetry, no background services, no driver
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. Capabilities from any Mopria scanner: inline or named (`ref`) setting profiles, discrete resolutions (X = Y only) or a resolution range (usual values the step reaches), glass / feeder / two-sided feeder; color falls back to grey before black-and-white, "Document" intent to "TextAndGraphic"; `DocumentFormatExt` sent only to scanners that list it. Feeder states in plain words (empty, jam, cover open, mispick…); "Testing" (warming up) waits like "Processing". Maker quirks from sane-airscan: Epson gets the port in the `Host` header, Brother feeders get a short pause between pages. |
 | Scan review | Large thumbnails before saving: turn, crop (drag a box on an enlarged page), delete, reorder by dragging or Alt+Shift+arrows (announced to screen readers), scan more onto the end. **Skip blank pages** (on by default): ink coverage inside a margin against the page's own paper level, specks ignored, conservative (a short word isn't blank); skipped pages stay listed, dimmed, with Keep. **Straighten pages** (on by default): projection-profile skew detection on a ~100 dpi greyscale copy, ±10°, only when the text lines give a clear answer (`InkvoltPrint.Core/Imaging`). Unedited pages keep the scanner's JPEG; edited ones are encoded once and OCR'd again. |
+| Scan presets (one click) | Named sets of scan settings plus where the file goes: source (feeder when it holds pages, else the glass; glass; feeder, optionally both sides), color or grey, resolution, page size, PDF / searchable PDF (OCR) / JPEG, review step on or off, skip blank pages, straighten. One click on the Scan tab's **One-click scans** strip or the Overview's **Scan** card (Ctrl+1…Ctrl+9 for the first nine; buttons named "Scan with …" for screen readers) scans with the preset, matched to each scanner (closest resolution, a size that fits, a fallback source, each said in the status line), and saves by itself; with the review step it stops on the pages and **Save (preset)** saves. Saves to Documents, Pictures, a OneDrive or Dropbox folder on this PC (found locally: the `OneDrive*` environment variables and `HKCU\Software\Microsoft\OneDrive\Accounts\*\UserFolder`, Dropbox's `info.json`; no API, no network) or any folder, with a subfolder and file-name template: `{date}` / `{date:yyyy-MM}`, `{time}`, `{preset}`, `{printer}`, `{n}` / `{n:000}` (the preset's counter), `{pages}`; names are made safe for Windows and never overwrite (`-2`, `-3`…; a scan's images move on together). Then, optionally: open it in Inkvolt PDF, print a copy (the Windows queue, actual size), or **email it**: no account or mail server; a registered Simple MAPI mail app (`Software\Clients\Mail`) gets a new message with the files attached (`MAPISendMailW`), otherwise the folder opens with the file selected plus a `mailto:` message. Built-in starters "Document to PDF", "Photo", "Receipt"; **Manage presets…** creates, renames, duplicates, deletes and reorders them (Alt+Up / Alt+Down) with a preview of the next file name. Stored in `state.json` with a version number (repaired on load: unknown values from newer versions fall back). Installed unpackaged copies also put the first five in the taskbar / Start jump list (`InkvoltPrint.exe --preset <id>`, handed to a running copy). Logic in `Core/Presets` (`FileNameTemplate`, `ScanPresets`, `PresetPlan`, `SyncFolders`). |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
 | Firmware | Version from LEDM `ProductConfigDyn` (an HP LaserJet's version is its release date) or IPP `printer-firmware-string-version`. Automatic updates (install automatically / check only / off) from LEDM's FirmwareUpdate interface (manifest in `DiscoveryTree.xml` → `FirmwareUpdateDyn`/`Cap`, PUT to `/FirmwareUpdate/WebFWUpdate/Config`), saved like the other device settings; explains HP's "dynamic security" cartridge blocking. Printers that don't expose it show the version and a link to their web page. |
 | Copy | Scan (eSCL) and print (Windows queue) in one step: copies, color or grey scan, glass or feeder, two-sided output when the queue can; actual size. **ID card copy**: scans the front from the glass's corner (4.5 × 3 in), asks to turn the card over, scans the back, prints both on one sheet (top and bottom halves, actual size; `CopyLayout`). Disabled, with the reason, when the printer has no scanner or no Windows queue. |
@@ -46,7 +47,7 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
 ## Layout
 
 ```
-src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Offline (fixer), Suite (shared with Inkvolt PDF)
+src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, probe, PDF writer, Offline (fixer), Presets (scan presets, file-name templates), Suite (shared with Inkvolt PDF)
 src/InkvoltPrint.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Offline (spooler probes, repairs), Suite/InkvoltApps
 src/InkvoltPrint.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
 src/InkvoltPrint.Cli       developer CLI over the same code (inkvoltprint discover|probe|status|watch|settings|scan|spooler|offline)
@@ -71,7 +72,7 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--fix` opens the offline fixer, `--fix all` also applies its repairs (demo printers only), `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer).
+(`--size 1366 860` window size in DIPs, `--fix` opens the offline fixer, `--fix all` also applies its repairs (demo printers only), `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer, `--preset id|name` runs a scan preset (`--then print|email|pdf` sets its after-saving step first, demo only), `--presets [n]` renders the presets editor on its n-th preset instead of the window).
 
 Demo mode: `InkvoltPrint.exe --demo` shows three made-up printers: the HP laser at 192.0.2.10 served from the scrubbed test
 fixtures, an Epson-style inkjet at 192.0.2.11 (IPP and eSCL only, no HP interfaces; low yellow ink, maintenance box,
@@ -82,7 +83,9 @@ fixer runs against a made-up PC (`DemoOfflinePc`: a Windows queue whose TCP/IP p
 on, a stuck job) and finds the printer at 192.0.2.23, so the whole flow works without touching this PC's queues
 (`--demo --printer 3 --fix all --snapshot fixed.png`). No network access, no discovery, no Windows queue, and
 the remembered-printers state is neither read nor written; scanning returns generated pages in turn (straight, crooked,
-blank, for the scan review; a made-up ID card for card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Screenshots:
+blank, for the scan review; a made-up ID card for card-sized regions), the print queue card shows made-up jobs and copies "print" into it. Scan presets save under
+`%TEMP%\Inkvolt Print demo scans` (never the real Documents or Pictures), offer made-up OneDrive and Dropbox folders, "print"
+to the made-up queue and open neither Inkvolt PDF nor a mail app. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
@@ -129,6 +132,12 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   Set up again from the fixer. The SNMP check reads the port's `SNMP Enabled` registry value. Network-name ports rely on
   Windows resolving `.local` names for the spooler. LPR ports and the SNMP switch are steps only. Queues on a print
   server (connections) aren't looked at.
+- Scan presets: "Email it" was built from the Simple MAPI documentation and never run against a mail app during development
+  (to try: classic Outlook, Thunderbird, and a PC with only the new Outlook or no mail app, which should get the folder plus
+  `mailto:` fallback). The jump list is set only by installed unpackaged copies (not the Microsoft Store package, where it
+  wasn't tested, nor dev builds), and its tasks weren't tried on a real taskbar. Print a copy uses Copy's printing path
+  (untested on hardware). "Feeder if it has pages" relies on the scanner reporting `AdfState`; one that doesn't scans from
+  the glass. Presets don't remember a printer: they run on the printer shown.
 - USB-only printers: not handled (Windows' USB class driver + WIA covers them).
 
 ## License

@@ -4,9 +4,11 @@ using System.IO;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
+using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Windows.Discovery;
 using InkvoltPrint.Windows.Offline;
@@ -28,6 +30,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, CopySection = 3, SettingsSection = 4;
 
     private readonly AppState _state;
+    private readonly ScanPresetLibrary _presets;
     private readonly Action<PrinterViewModel> _remember;
     private readonly Func<HttpMessageHandler>? _transport;
     private CancellationTokenSource? _loop;
@@ -38,9 +41,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private readonly List<string> _previousHosts = [];
 
     /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
-    public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, Action<PrinterViewModel> remember,
-        Func<HttpMessageHandler>? transport = null)
+    public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, ScanPresetLibrary presets,
+        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
     {
+        _presets = presets;
         Uuid = uuid;
         Name = name;
         Model = model;
@@ -418,7 +422,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
         if (scanner is not null && p.Scanner is not null)
         {
-            if (Scan is null) Scan = new ScanViewModel(scanner, p.Scanner, _state);
+            if (Scan is null) Scan = new ScanViewModel(scanner, p.Scanner, _state, _presets, Name, FindQueueAsync, IsDemo ? Demo.PrintJobs.Add : null);
             else Scan.Rebind(scanner);
         }
         if (conn.Ledm is not null)
@@ -663,6 +667,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void GoToScan() => SelectedSection = ScanSection;
+
+    /// <summary>A preset button on the Overview's scan card (or Ctrl+1…9, or the jump list): run it on the Scan tab.</summary>
+    [RelayCommand]
+    public async Task RunPresetAsync(ScanPreset? preset)
+    {
+        if (Scan is not { } scan || preset is null) return;
+        SelectedSection = ScanSection;
+        if (scan.RunPresetCommand.CanExecute(preset)) await scan.RunPresetCommand.ExecuteAsync(preset);
+    }
 
     [RelayCommand]
     private void GoToPrint() => SelectedSection = PrintSection;
