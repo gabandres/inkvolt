@@ -124,12 +124,14 @@ public sealed class WindowsOfflineProbes : IOfflineProbes
     /// </summary>
     internal static QueuePort Port(string name, Winspool.PortInfo? info)
     {
-        if (Uri.TryCreate(name, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" or "ipp" or "ipps")
+        var kind = PortKinds.Of(name, info?.Monitor, info?.Description);
+        if (kind == PortKind.IppUrl)
+        {
+            var url = new Uri(name);
             return new QueuePort(name, PortKind.IppUrl) { Url = url, Host = url.Host };
-        var monitor = info?.Monitor ?? "";
-        if (monitor.Contains("WSD", StringComparison.OrdinalIgnoreCase) || name.StartsWith("WSD-", StringComparison.OrdinalIgnoreCase))
-            return new QueuePort(name, PortKind.DeviceId);
-        if (monitor.Contains("TCP/IP", StringComparison.OrdinalIgnoreCase))
+        }
+        if (kind == PortKind.DeviceId) return new QueuePort(name, PortKind.DeviceId);
+        if (kind == PortKind.TcpIp)
         {
             using var key = Registry.LocalMachine.OpenSubKey($@"{TcpPorts}\{name}");
             var host = key?.GetValue("HostName") as string is { Length: > 0 } hn ? hn

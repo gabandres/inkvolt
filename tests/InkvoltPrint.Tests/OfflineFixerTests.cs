@@ -505,4 +505,21 @@ public class OfflineFixerTests
         Assert.Equal(RepairOutcomeKind.Unknown, outcome.Kind);
         Assert.Contains("isn't known", outcome.Message);
     }
+
+    // Port name, pMonitorName and pDescription as EnumPorts level 2 returns them on Windows 11.
+    [Theory]
+    [InlineData("IP_192.0.2.50", "TCPMON.DLL", "Standard TCP/IP Port", PortKind.TcpIp)]
+    [InlineData("192.0.2.50", "tcpmon.dll", null, PortKind.TcpIp)]
+    [InlineData("Office_9100", "Standard TCP/IP Port", "Standard TCP/IP Port", PortKind.TcpIp)]
+    [InlineData("WSD-4ecf4206-777d-4c1a-9b0d-7cc7acdd1402", "WSD Port Monitor", "WSD Port", PortKind.DeviceId)]
+    [InlineData("WSD-5bc6701e-7a29-48c2-874d-d5ddf442db28", "WSD Port Monitor", "IPP Port", PortKind.DeviceId)]
+    [InlineData("WSD-5bc6701e-7a29-48c2-874d-d5ddf442db28", null, null, PortKind.DeviceId)]
+    [InlineData("SomePort", "WSDMON", null, PortKind.DeviceId)]
+    [InlineData("http://192.0.2.50:631/ipp/print", "Internet Port", "Internet Port", PortKind.IppUrl)]
+    [InlineData("ipps://printer.example/ipp/print", null, null, PortKind.IppUrl)]
+    [InlineData("USB001", "Dynamic Print Monitor", "Virtual printer port for USB", PortKind.Other)]
+    [InlineData("FILE:", "Local Monitor", "Local Port", PortKind.Other)]
+    [InlineData("LPT1:", "Local Monitor", "Local Port", PortKind.Other)]
+    public void Port_kind_from_the_real_monitor_strings(string name, string? monitor, string? description, PortKind expected) =>
+        Assert.Equal(expected, PortKinds.Of(name, monitor, description));
 }

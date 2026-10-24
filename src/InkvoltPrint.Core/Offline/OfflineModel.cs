@@ -102,6 +102,27 @@ public enum PortKind
     Other,
 }
 
+/// <summary>
+/// Which kind a spooler port is, from its name and what <c>EnumPorts</c> (level 2) says of it. The monitor names are the DLL or
+/// friendly name depending on the monitor: Standard TCP/IP ports report <c>TCPMON.DLL</c> with the description
+/// "Standard TCP/IP Port"; Windows' discovered WSD and IPP queues report "WSD Port Monitor" with "WSD Port" or "IPP Port"
+/// and a <c>WSD-</c> name; queues added by URL are named by the URL.
+/// </summary>
+public static class PortKinds
+{
+    public static PortKind Of(string name, string? monitor, string? description)
+    {
+        if (Uri.TryCreate(name, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" or "ipp" or "ipps") return PortKind.IppUrl;
+        if (name.StartsWith("WSD-", StringComparison.OrdinalIgnoreCase) || Has(monitor, "WSD") || Has(monitor, "IPP")
+            || Has(description, "WSD Port") || Has(description, "IPP Port"))
+            return PortKind.DeviceId;
+        if (Has(monitor, "TCPMON") || Has(monitor, "TCP/IP") || Has(description, "Standard TCP/IP")) return PortKind.TcpIp;
+        return PortKind.Other;
+    }
+
+    private static bool Has(string? text, string part) => text?.Contains(part, StringComparison.OrdinalIgnoreCase) == true;
+}
+
 public sealed record QueuePort(string Name, PortKind Kind)
 {
     /// <summary>TCP/IP: the port's host name or IP address; IPP URL: the URL's host. Null for other ports.</summary>
