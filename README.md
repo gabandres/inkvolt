@@ -103,6 +103,19 @@ Manager. The installers don't remove an install made under the old names: uninst
   phones as well as here, without relying on NeedAppearances. Every change is one undo step; a signed file gets the
   change appended (with the usual warning), a protected one keeps its protection, and a hybrid XFA form loses its XFA
   part (asked first; XFA-only forms can't be prepared).
+- **Edit Text & Images** (Edit menu or the command palette): change the page's own text and pictures. Text under the
+  pointer shows a frame; a click opens an editor right over it, in its size, style and color, that says live how much
+  wider or narrower the new text is (it doesn't reflow: wider text may run into what follows) and which characters the
+  font can't draw. Enter (or clicking elsewhere) writes it in the text's own embedded font, Esc cancels. Only characters
+  the font really holds can be typed (embedded fonts are usually subsets with just the characters the document used):
+  any other is refused by name, never drawn in another font. Kerning outside the change is kept; a word space the font
+  has no glyph for becomes a gap; new characters the font has but the PDF didn't use yet get their widths and their
+  text (so copying and search still work). Pictures show a frame: click one to select it, drag to move it, drag a
+  handle to resize it (Shift keeps its proportions), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
+  Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
+  places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
+  Each change is one undo step; a signed file gets it appended (with the usual warning), a protected one keeps its
+  protection.
 - **Images** (Review › Add Image… or the toolbar, I; Add Image from Clipboard): pick a picture (JPEG, PNG, BMP, GIF,
   TIFF; transparency kept) or take the copied one, then click where it goes; drag to move, drag the corner to resize,
   Delete removes it. A Stamp annotation with the picture as its appearance, so every viewer shows and prints it; listed
@@ -243,8 +256,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`) |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`) |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
@@ -264,7 +277,9 @@ scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page w
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`; `check0` is OCR,
-`check1` "open when done"); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+`check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
+`key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
+from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`.
 
 ## License
@@ -304,7 +319,13 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   Scripts that open URLs, submit, print or mail are ignored. XFA-only forms can't be filled.
 - Right-to-left text with explicit bidi controls (embeddings, overrides, isolates) isn't laid out in new annotations,
   stamps and fields.
-- No editing of existing page text. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
+- Edit Text & Images is a first step: a piece of text is what the page draws with one text operator (often a line,
+  sometimes a word or a single letter), edited on its own, with no reflow into the next line and no other font when
+  the embedded one lacks a character (most embedded fonts are subsets). Text and pictures inside form XObjects (reused
+  drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can Type 3
+  fonts, vertical text, CJK fonts with predefined CMaps, invisible OCR text, or text carrying ActualText. Simple CFF
+  (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
+  replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
   restyled), each pen stroke is its own annotation, and pen pressure is ignored.
 - Prepare Form: one field selected at a time (no multi-select, align or distribute); no calculated fields, submit
   buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
@@ -338,6 +359,10 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
 
 ## Backlog
+
+- Edit Text & Images: edit a whole paragraph with reflow, fall back to a matching installed font when the embedded one
+  lacks a character, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
+  places a stamp), crop pictures.
 
 - Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
   custom script) and submit buttons; detect comb boxes and table rows as one field each.

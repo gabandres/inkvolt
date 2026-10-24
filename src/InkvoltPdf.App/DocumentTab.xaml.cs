@@ -311,6 +311,7 @@ public partial class DocumentTab : UserControl, IDisposable
         };
         InitReview();
         InitFormDesign(); // Prepare Form (DocumentTab.FormDesign.cs)
+        InitEditContent(); // Edit Text & Images (DocumentTab.EditContent.cs)
         UpdatePill();
     }
 
@@ -1010,6 +1011,7 @@ public partial class DocumentTab : UserControl, IDisposable
         _ = LoadAnnotationsAsync();
         _ = LoadReviewAsync();
         _ = LoadFormDesignAsync();
+        ReloadEditContent();
         UpdateRedactBar();
         RaiseState();
     }

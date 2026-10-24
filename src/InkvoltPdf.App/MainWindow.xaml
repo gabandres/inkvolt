@@ -147,6 +147,7 @@
                                         <MenuItem x:Name="CrossMenu" Command="app:Cmd.ToolCross" InputGestureText="X" />
                                         <MenuItem Command="app:Cmd.AddSignature" />
                                     </MenuItem>
+                                    <MenuItem x:Name="EditContentMenu" Command="app:Cmd.EditContent" />
                                     <MenuItem Header="F_orms">
                                         <MenuItem x:Name="PrepareFormMenu" Command="app:Cmd.PrepareForm" />
                                         <MenuItem Command="app:Cmd.DetectFields" />

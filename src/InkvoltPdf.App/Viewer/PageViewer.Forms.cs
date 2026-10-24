@@ -666,6 +666,10 @@ public sealed partial class PageViewer
         {
             PositionDrawingEditor(d, k);
         }
+        else if (_editorRun is { } run && run.PageIndex < _rects.Length && !_rects[run.PageIndex].IsEmpty)
+        {
+            PositionRunEditor(k);
+        }
         else
         {
             _editor.Visibility = Visibility.Collapsed;
@@ -693,7 +697,7 @@ public sealed partial class PageViewer
                 Focus();
                 e.Handled = true;
                 break;
-            case Key.Enter when _editor is ListBox:
+            case Key.Enter when _editor is ListBox || _editorRun is not null:
                 CommitEditor();
                 Focus();
                 e.Handled = true;
@@ -757,6 +761,10 @@ public sealed partial class PageViewer
             {
                 CommitDrawingText(dt, dtb.Text);
             }
+            else if (_editorRun is { } run && _editor is TextBox rtb)
+            {
+                CommitRunText(run, rtb.Text);
+            }
         }
         finally
         {
@@ -785,6 +793,7 @@ public sealed partial class PageViewer
         _editor = null;
         _editorWidget = null;
         _editorStamp = null;
+        CloseRunInfo();
         var hadDrawing = _editorDrawing is not null;
         _editorDrawing = null;
         _surface.InvalidateVisual();

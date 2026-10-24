@@ -53,6 +53,22 @@ public static class ImageImport
         return PdfObj.Save(doc);
     }
 
+    /// <summary>
+    /// An image file stored in <paramref name="doc"/> as an image XObject the way <see cref="ImagesToPdf"/> stores it (the
+    /// first frame of a multi-page file), with its pixel size, resolution and EXIF orientation.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The file isn't an image that can be read (the message names it).</exception>
+    internal static (PdfDictionary Image, int Width, int Height, double DpiX, double DpiY, int Orientation) StoreImage(PdfDocument doc, byte[] bytes, string name)
+    {
+        var p = Sniff(bytes, name) switch
+        {
+            InputFileTypes.JPEG when Jpeg(doc, bytes) is { } jpeg => jpeg,
+            { } type => Decoded(doc, bytes, type, name, maxPages: 1)[0],
+            null => throw new InvalidOperationException($"\"{name}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF)."),
+        };
+        return (p.Image, p.Width, p.Height, p.DpiX, p.DpiY, p.Orientation);
+    }
+
     private static void AddPage(PdfDocument doc, Picture p, PageSizeOption size)
     {
         var w = p.Width * 72 / p.DpiX;
@@ -195,7 +211,7 @@ public static class ImageImport
 
     // ---- Other formats: decoded by MuPDF ----
 
-    private static List<Picture> Decoded(PdfDocument doc, byte[] bytes, InputFileTypes type, string name)
+    private static List<Picture> Decoded(PdfDocument doc, byte[] bytes, InputFileTypes type, string name, int maxPages = int.MaxValue)
     {
         var (pxW, pxH, dpiX, dpiY) = Header(bytes, type);
         using var ctx = new MuPDFContext(64 * 1024 * 1024);
@@ -211,7 +227,7 @@ public static class ImageImport
         try
         {
             var list = new List<Picture>();
-            for (var i = 0; i < mu.Pages.Count; i++)
+            for (var i = 0; i < mu.Pages.Count && list.Count < maxPages; i++)
             {
                 var bounds = mu.Pages[i].Bounds;
                 if (bounds.Width <= 0 || bounds.Height <= 0) continue;

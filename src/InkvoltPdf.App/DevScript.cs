@@ -29,7 +29,8 @@ namespace InkvoltPdf.App;
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
-/// suggestions · taborder on|off</c>.
+/// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
+/// the editor on text run i, then <c>key Enter</c> commits) <c>· imagesel p i|none · moveimage p i x y w h · imageaction delete|replace file</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
@@ -398,6 +399,46 @@ internal static class DevScript
             case "designstate": log.Add($"design: {tab!.DevDesignState()}"); break;
             case "suggestions": log.Add($"suggestions: {tab!.DevSuggestions()}"); break;
             case "taborder": v!.ShowTabOrder = arg != "off"; break;
+            case "editcontent": tab!.SetEditContent(arg != "off"); await Task.Delay(800); log.Add($"content: {tab.DevContentState()}"); break;
+            case "contentstate": log.Add($"content: {tab!.DevContentState()}"); break;
+            case "edittext":
+            {
+                // edittext p i [text]: open the editor on run i of page p (and type text); commit with "key Enter"
+                var a = arg.Split(' ', 3);
+                var run = v!.DevContent(int.Parse(a[0]) - 1)!.Runs[int.Parse(a[1])];
+                v.DevEditRun(run, a.Length > 2 ? a[2] : null);
+                await Task.Delay(300);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
+            }
+            case "imagesel":
+            {
+                // imagesel p i|none
+                var a = arg.Split(' ');
+                var page = int.Parse(a[0]) - 1;
+                v!.SelectImage(page, a[1] == "none" ? null : v.DevContent(page)!.Images[int.Parse(a[1])].Box);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
+            }
+            case "moveimage":
+            {
+                // moveimage p i x y w h
+                var a = arg.Split(' ');
+                var page = int.Parse(a[0]) - 1;
+                v!.DevMoveImage(v.DevContent(page)!.Images[int.Parse(a[1])], new Core.RectD(Num(a[2]), Num(a[3]), Num(a[4]), Num(a[5])));
+                await DesignSettle(tab!);
+                await Task.Delay(500);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
+            }
+            case "imageaction":
+                // imageaction delete | imageaction replace file
+                if (arg.StartsWith("replace ", StringComparison.Ordinal)) await tab!.DevReplaceImage(arg[8..]);
+                else v!.DevContentAction(ContentAction.Delete);
+                await DesignSettle(tab!);
+                await Task.Delay(500);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
             case "bars":
                 foreach (var bar in new[] { "DiskBar", "FormBar", "XfaBar", "SigBar", "RedactBar" })
                     if (tab!.FindName(bar) is FrameworkElement { Visibility: Visibility.Visible }) log.Add($"bar {bar} visible");

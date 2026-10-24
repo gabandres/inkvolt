@@ -588,6 +588,31 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Edit Text & Images: the mode's bar (see DocumentTab.EditContent.cs) -->
+                <Border x:Name="EditContentBar" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
+                        Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        AutomationProperties.Name="Edit text and images">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.22" />
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="EditContentTitle" Text="Edit Text &amp; Images" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="8,0,6,0"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <TextBlock Text="Click text to change it · click a picture to move or resize it" VerticalAlignment="Center" FontSize="12" Margin="6,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <Button x:Name="EditContentReplace" Style="{StaticResource CommandButton}" Content="Replace Picture…" FontSize="12" Padding="8,4" IsEnabled="False"
+                                ToolTip="Put another picture in the selected one's place (Enter)" />
+                        <Button x:Name="EditContentDelete" Style="{StaticResource CommandButton}" Content="Delete Picture" FontSize="12" Padding="8,4" IsEnabled="False"
+                                ToolTip="Remove the selected picture from the page (Del)" />
+                        <Border Style="{StaticResource BarSeparator}" />
+                        <Button x:Name="EditContentDone" Style="{StaticResource CommandButton}" Content="Done" FontSize="12" Padding="10,4" FontWeight="SemiBold"
+                                ToolTip="Leave Edit Text &amp; Images (Esc)" AutomationProperties.Name="Done editing text and images" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Prepare Form: the selected field's or suggestion's properties, floating right -->
                 <Border x:Name="FieldPanel" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,60,12,12" Width="272"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"

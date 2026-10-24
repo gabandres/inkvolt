@@ -18,6 +18,8 @@ public enum ViewerTool
     Pen, Highlighter, Rectangle, Ellipse, Line, Arrow, TextBox, Callout,
     // Prepare Form: placing and editing form fields (see PageViewer.FormDesign)
     PrepareForm,
+    // Edit Text & Images: the page's own text and pictures (see PageViewer.EditContent)
+    EditContent,
 }
 
 public sealed record SearchHit(int Page, int Start, int End, IReadOnlyList<RectD> Rects, string Excerpt)
@@ -235,6 +237,7 @@ public sealed partial class PageViewer : ScrollViewer
             if (value != ViewerTool.SelectText && !_caretBrowsing) ClearSelection();
             OnDrawToolChanged();
             OnDesignToolChanged();
+            OnContentToolChanged();
             if (value != ViewerTool.AddLink) _selectedLink = null;
             UpdateCursor(Mouse.GetPosition(_surface));
             ToolChanged?.Invoke(this, EventArgs.Empty);
@@ -1105,6 +1108,7 @@ public sealed partial class PageViewer : ScrollViewer
             PaintLinks(dc, i);
             PaintDrawing(dc, i);
             PaintDesign(dc, i);
+            PaintContent(dc, i);
             PaintSpeech(dc, i);
 
             if (_hitsByPage.TryGetValue(i, out var hits))
@@ -1272,9 +1276,9 @@ public sealed partial class PageViewer : ScrollViewer
         _pressLinkPage = page;
         HideLinkTip();
         ClearFocusLink();
-        if (HandleDesignDown(e, page, sp))
+        if (HandleDesignDown(e, page, sp) || HandleContentDown(e, page, sp))
         {
-            _pressLink = null; // Prepare Form: links don't open
+            _pressLink = null; // Prepare Form, Edit Text & Images: links don't open
             return;
         }
         if (e.ChangedButton == MouseButton.Left && HandleFormMouseDown(e, page, sp)) return;
@@ -1346,7 +1350,7 @@ public sealed partial class PageViewer : ScrollViewer
             }
 
             AutoScroll(vpPos);
-            if (MoveSigningDrag(sp) || MoveLinkDrag(sp) || MoveDesignDrag(sp)) return;
+            if (MoveSigningDrag(sp) || MoveLinkDrag(sp) || MoveDesignDrag(sp) || MoveImageDrag(sp)) return;
             if (MoveDrawing(e, sp)) return;
             if (_selecting && _dragged)
             {
@@ -1396,7 +1400,7 @@ public sealed partial class PageViewer : ScrollViewer
         }
         var page = HitPage(sp);
         Cursor = null;
-        if (DesignCursor(page, sp) is { } designCursor)
+        if ((DesignCursor(page, sp) ?? ContentCursor(page, sp)) is { } designCursor)
         {
             HideLinkTip();
             _surface.Cursor = designCursor;
@@ -1441,7 +1445,7 @@ public sealed partial class PageViewer : ScrollViewer
     private void OnSurfaceUp(object sender, MouseButtonEventArgs e)
     {
         var sp = e.GetPosition(_surface);
-        if (EndSigningDrag() || EndLinkDrag() || EndDesignDrag() || EndDrawingDrag(sp))
+        if (EndSigningDrag() || EndLinkDrag() || EndDesignDrag() || EndImageDrag() || EndDrawingDrag(sp))
         {
             EndDrag();
             UpdateCursor(sp);
@@ -1480,6 +1484,7 @@ public sealed partial class PageViewer : ScrollViewer
         CancelSigningDrag();
         CancelLinkDrag();
         CancelDesignDrag();
+        CancelImageDrag();
         CancelDrawingDrag();
         if (_markPage >= 0)
         {
@@ -1594,7 +1599,7 @@ public sealed partial class PageViewer : ScrollViewer
         // Keys typed into a field or Fill & Sign editor bubble up here. Leave them alone: handling KeyDown makes WPF
         // drop the character, so viewer shortcuts (H, A, T, Space…) would eat letters from the user's text.
         if (IsEditorKey(e)) return;
-        if (_engine is not null && (HandleDesignKey(e) || HandleFormKey(e) || HandleSigningKey(e) || HandleLinkKey(e) || HandleDrawingKey(e) || HandleCaretKey(e)))
+        if (_engine is not null && (HandleDesignKey(e) || HandleContentKey(e) || HandleFormKey(e) || HandleSigningKey(e) || HandleLinkKey(e) || HandleDrawingKey(e) || HandleCaretKey(e)))
         {
             e.Handled = true;
             return;
