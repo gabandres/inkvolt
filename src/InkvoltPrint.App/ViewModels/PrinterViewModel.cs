@@ -47,7 +47,18 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _remember = remember;
         _transport = transport;
         Print = new PrintViewModel(FindQueueAsync, state);
+        Jobs = new PrintJobsViewModel(IsDemo ? Demo.PrintJobs : new Printing.WindowsPrintJobs(FindQueueAsync));
     }
+
+    /// <summary>This printer's Windows print queue (a card on the Overview).</summary>
+    public PrintJobsViewModel Jobs { get; }
+
+    /// <summary>This is the printer on screen (set by the main view model); the queue card refreshes only then.</summary>
+    [ObservableProperty] public partial bool IsShown { get; set; }
+
+    partial void OnIsShownChanged(bool value) => UpdateJobsVisibility();
+
+    private void UpdateJobsVisibility() => Jobs.SetVisible(IsShown && SelectedSection == OverviewSection);
 
     /// <summary>Print a PDF. Works through the Windows queue, so it doesn't need the device connection.</summary>
     public PrintViewModel Print { get; }
@@ -144,7 +155,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool ShowScanShortcut => Scan is not null && SelectedSection != ScanSection;
     public bool ShowPrintShortcut => SelectedSection != PrintSection;
 
-    partial void OnSelectedSectionChanged(int value) => EnsureSectionLoaded();
+    partial void OnSelectedSectionChanged(int value)
+    {
+        EnsureSectionLoaded();
+        UpdateJobsVisibility();
+    }
 
     partial void OnSettingsChanged(SettingsViewModel? value) => EnsureSectionLoaded();
 
@@ -549,6 +564,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Jobs.SetVisible(false);
         _loop?.Cancel();
         _loop = null;
         _watch?.Cancel();

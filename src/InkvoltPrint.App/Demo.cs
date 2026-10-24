@@ -2,7 +2,9 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Net;
+using InkvoltPrint.Core.Printing;
 
 namespace InkvoltPrint.App;
 
@@ -11,7 +13,8 @@ namespace InkvoltPrint.App;
 /// server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
 /// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>. Demo mode makes no network
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
-/// (the remembered-printers file is neither read nor written). Scanning returns a generated blank-ish page.
+/// (the remembered-printers file is neither read nor written). Scanning returns a generated blank-ish page; the print
+/// queue card shows <see cref="DemoPrintJobs"/>.
 /// </summary>
 internal static class Demo
 {
@@ -38,6 +41,9 @@ internal static class Demo
         s.CopyTo(ms);
         return ms.ToArray();
     }
+
+    /// <summary>The demo printer's made-up Windows queue (one demo printer, so one queue).</summary>
+    public static DemoPrintJobs PrintJobs { get; } = new();
 
     /// <summary>A synthetic letter-size page at 300 dpi: a heading, grey text bars and a picture box. Never a real scan.</summary>
     private static byte[] ScanPage()
@@ -67,5 +73,61 @@ internal static class Demo
         using var outStream = new MemoryStream();
         enc.Save(outStream);
         return outStream.ToArray();
+    }
+}
+
+/// <summary>
+/// A pretend print queue: a few jobs, one of them someone else's (so Cancel is refused like Windows would), and the
+/// first job printing a page each time the list is read. Finished jobs leave the queue, so it empties after a while.
+/// </summary>
+internal sealed class DemoPrintJobs : IPrintJobs
+{
+    private readonly object _lock = new();
+    private readonly List<QueueJob> _jobs;
+    private int _nextId = 14;
+
+    public DemoPrintJobs()
+    {
+        var now = DateTime.Now;
+        var me = Environment.UserName;
+        _jobs =
+        [
+            new(11, "Quarterly report.pdf", 12, 3, JobStatus.Printing, now.AddMinutes(-2), me),
+            new(12, "Shipping label.pdf", 1, 0, JobStatus.None, now.AddMinutes(-1), me),
+            new(13, "Team schedule.docx", 2, 0, JobStatus.None, now.AddSeconds(-40), "alex"),
+        ];
+    }
+
+    /// <summary>A job "printed" by the demo printer (copies, the Copy tab), queued behind the others.</summary>
+    public void Add(string name, int pages)
+    {
+        lock (_lock) _jobs.Add(new(_nextId++, name, pages, 0, JobStatus.None, DateTime.Now, Environment.UserName));
+    }
+
+    public Task<IReadOnlyList<QueueJob>?> ListAsync()
+    {
+        lock (_lock)
+        {
+            if (_jobs.Count > 0)
+            {
+                var first = _jobs[0];
+                var printed = first.Status.HasFlag(JobStatus.Printing) ? first.PagesPrinted + 1 : 0;
+                if (printed >= first.Pages) _jobs.RemoveAt(0);
+                else _jobs[0] = first with { Status = JobStatus.Printing, PagesPrinted = printed };
+            }
+            return Task.FromResult<IReadOnlyList<QueueJob>?>(_jobs.ToList());
+        }
+    }
+
+    public Task CancelAsync(int jobId)
+    {
+        lock (_lock)
+        {
+            var job = _jobs.FirstOrDefault(j => j.Id == jobId) ?? throw new PrintJobCancelException("The job couldn't be cancelled. It may have just finished.", false);
+            if (!QueueJobText.IsOwner(job.Owner, Environment.UserName))
+                throw new PrintJobCancelException("Windows didn't allow it: only the person who printed it, or an administrator, can cancel it.", true);
+            _jobs.Remove(job);
+        }
+        return Task.CompletedTask;
     }
 }

@@ -11,6 +11,7 @@ no background services, no driver download.
 | Live updates | LEDM event table long poll: `GET /EventMgmt/EventTable.xml?timeout=600` + `If-None-Match` (device holds the request up to 60 s). An idle printer costs one request a minute; HP Smart polls. |
 | Scan | eSCL direct: JPEG pages, multi-page from the glass or feeder, fixes HP's zero-height ADF JPEGs (DNL). Saves JPEG or PDF; PDF gets an invisible OCR text layer from inbox `Windows.Media.Ocr`. |
 | Print a PDF | Windows' built-in PDF engine renders pages (300 dpi, auto-rotate, fit); spooled to the printer's Windows queue with copies, page ranges, two-sided. Password-protected PDFs prompt. Drag-and-drop, "Open with", or a second launch hands the file to the running window. |
+| Print queue | Overview card: this printer's Windows queue jobs (System.Printing `GetPrintJobInfoCollection`: name, pages, status, time, owner), re-read every 3 s only while the card is on screen. Cancel your own jobs, or all of them (confirmed); others' jobs need an administrator and say so. No elevation. |
 | HP clean-up | Detects HP Smart, HP's Print Support App and the services/virtual queue it leaves behind; removes them (one UAC prompt), blocks Windows from re-installing it, and re-creates affected queues (a queue created while HP's app was attached cancels every job once the app is gone). Not in the Microsoft Store package (see packaging/README.md). |
 | Device settings | LEDM `*Dyn` + `*Cap`: only writable settings, only allowed values. Saves a minimal partial document over HTTPS; asks for the EWS admin password on 401 and can keep it in Windows Credential Manager. |
 
@@ -67,7 +68,8 @@ Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to 
 
 Demo mode: `InkvoltPrint.exe --demo` shows one made-up printer at 192.0.2.10 served from the scrubbed test fixtures
 (embedded in the exe; `FixtureHandler` replaces the network). No network access, no discovery, no Windows queue, and
-the remembered-printers state is neither read nor written; scanning returns a generated page. Screenshots:
+the remembered-printers state is neither read nor written; scanning returns a generated page and the print queue card
+shows made-up jobs. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
 Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the

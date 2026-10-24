@@ -259,6 +259,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         value?.EnsureSectionLoaded();
     }
 
+    partial void OnSelectedChanged(PrinterViewModel? oldValue, PrinterViewModel? newValue)
+    {
+        if (oldValue is not null) oldValue.IsShown = false;
+        if (newValue is not null) newValue.IsShown = true;
+    }
+
     private void Merge(IReadOnlyList<DiscoveredPrinter> found)
     {
         foreach (var d in found)

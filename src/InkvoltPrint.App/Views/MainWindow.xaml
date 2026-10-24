@@ -93,6 +93,60 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Print queue: this printer's Windows jobs, refreshed while shown -->
+                    <Border DataContext="{Binding Jobs}" Visibility="{Binding IsLoaded, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <Button DockPanel.Dock="Right" Content="Cancel all" Command="{Binding CancelAllCommand}" Style="{StaticResource LinkButton}"
+                                        VerticalAlignment="Center" Visibility="{Binding CanCancelAll, Converter={StaticResource VisibleWhen}}" />
+                                <StackPanel>
+                                    <TextBlock Text="Print queue" Style="{StaticResource CardTitle}" Margin="0" />
+                                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}"
+                                               Visibility="{Binding HasQueue, Converter={StaticResource VisibleWhen}}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Jobs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PrintJobViewModel}">
+                                        <DockPanel Margin="0,0,0,10">
+                                            <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8A5;" FontSize="18" Margin="0,2,12,0"
+                                                       VerticalAlignment="Top" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCommand}" Style="{StaticResource LinkButton}"
+                                                    VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.Name="{Binding Name, StringFormat='Cancel {0}'}"
+                                                    Visibility="{Binding IsMine, Converter={StaticResource VisibleWhen}}" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                                <TextBlock Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis">
+                                                    <Run Text="{Binding Status, Mode=OneWay}">
+                                                        <Run.Style>
+                                                            <Style TargetType="Run">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Run.Style>
+                                                    </Run><Run Text="  ·  " /><Run Text="{Binding Details, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Nothing is waiting to print. Jobs from any app on this PC show up here."
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource VisibleWhen}}" />
+                            <TextBlock Text="This printer isn't set up in Windows yet, so it has no print queue. Use Set up at the top of the page."
+                                       Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                       Visibility="{Binding NoQueue, Converter={StaticResource VisibleWhen}}" />
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
+                            <Button Content="Open Windows queue" Command="{Binding OpenWindowsQueueCommand}" Style="{StaticResource LinkButton}"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Usage -->
                     <Border Visibility="{Binding Stats.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
