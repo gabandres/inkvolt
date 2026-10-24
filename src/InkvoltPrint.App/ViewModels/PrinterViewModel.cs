@@ -73,6 +73,42 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool IsDemo => _transport is not null;
     public Uri? EsclRoot { get; private set; }
 
+    /// <summary>IPP URL from DNS-SD or the last connection (tried first when connecting); null: the IPP Everywhere default.</summary>
+    public Uri? IppUri { get; set; }
+
+    /// <summary>Who made it (HP when its LEDM interface answers); Other until connected.</summary>
+    [ObservableProperty] public partial PrinterBrand Brand { get; set; }
+
+    /// <summary>
+    /// Connected, and not over HP's LEDM interface: a Canon, Epson, Brother or other IPP / eSCL printer. Status, supplies,
+    /// scanning, copying and printing work; printer settings, firmware updates and page counts are HP only.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HpOnlyNote))]
+    public partial bool IsNonHp { get; set; }
+
+    public string? HpOnlyNote => IsNonHp
+        ? "Printer settings, firmware updates and page counts use HP's own interface, so they're HP only. " +
+          "Change settings on the printer's web page or its control panel."
+        : null;
+
+    /// <summary>"Toner", "Ink", or "Supplies" when the printer reports a mix (drums, waste boxes…).</summary>
+    public string SuppliesTitle
+    {
+        get
+        {
+            if (Supplies.Count == 0 || Supplies.Any(s => s.Supply.IsWaste && s.Supply.Kind.Contains("toner", StringComparison.OrdinalIgnoreCase)))
+                return "Supplies";
+            var kinds = Supplies.Where(s => !s.Supply.IsWaste).Select(s => s.Supply.Kind).ToList();
+            if (kinds.Count > 0 && kinds.All(k => k.Contains("toner", StringComparison.OrdinalIgnoreCase)) && kinds.Count == Supplies.Count)
+                return "Toner";
+            if (kinds.Count > 0 && kinds.All(k => k.Contains("ink", StringComparison.OrdinalIgnoreCase))) return "Ink";
+            return "Supplies";
+        }
+    }
+
+    private Uri? _webPage;
+
     [ObservableProperty] public partial string Name { get; set; }
     [ObservableProperty] public partial string? Model { get; set; }
     [ObservableProperty] public partial string? Host { get; set; }
@@ -145,7 +181,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool SetupInSettings => PrintEndpointId is null && !Features.ElevatedQueueSetup;
 
     /// <summary>The address Windows' "Add a printer using an IP address or hostname" needs for this printer.</summary>
-    private Uri IppUrl => new UriBuilder("http", Host!, 631, "ipp/print").Uri;
+    private Uri IppUrl => IppUri is { Scheme: "http" } known && known.Host == Host ? known : new UriBuilder("http", Host!, 631, "ipp/print").Uri;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
@@ -194,6 +230,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         ScannerInstalled = d.ScannerInstalled;
         Model ??= d.Model;
         if (d.EsclRoot is not null) EsclRoot = d.EsclRoot;
+        if (d.IppUri is not null) IppUri = d.IppUri;
         if (d.Host is not null && d.Host != Host)
         {
             // DHCP moved it: reconnect at the new address.
@@ -275,7 +312,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             try
             {
                 IsConnecting = true;
-                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke());
+                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
                 if (!conn.Probe.Reachable)
                 {
                     conn.Dispose();
@@ -308,10 +345,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var p = conn.Probe;
         if (p.Product?.MakeAndModel is { } mm) Name = mm;
         Model = p.Model ?? Model;
+        IppUri = p.IppEndpoint ?? IppUri;
+        Brand = p.Brand;
+        IsNonHp = !p.HasHpInterfaces;
+        _webPage = p.WebPage;
         Sync(About, new InfoRow?[]
         {
             new("Model", p.Model ?? Model ?? Name),
             new("IP address", Host ?? "—"),
+            p.Location is { } where ? new("Location", where) : null,
             p.Product?.SerialNumber is { } sn ? new("Serial number", sn) : null,
             p.Product?.ProductNumber is { } pn ? new("Product number", pn) : null,
             p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
@@ -319,12 +361,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }.OfType<InfoRow>().ToList());
         if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
 
-        Copy.Attach(conn.Scanner is not null && p.Scanner is not null ? conn.Scanner : null, p.Scanner);
+        // A scanner offering neither glass nor feeder (only a camera, say) has nothing Inkvolt Print can scan from.
+        var scanner = conn.Scanner is not null && p.Scanner?.Sources.Any() == true ? conn.Scanner : null;
+        Copy.Attach(scanner, scanner is null ? null : p.Scanner);
         // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
-        if (conn.Scanner is not null && p.Scanner is not null)
+        if (scanner is not null && p.Scanner is not null)
         {
-            if (Scan is null) Scan = new ScanViewModel(conn.Scanner, p.Scanner, _state);
-            else Scan.Rebind(conn.Scanner);
+            if (Scan is null) Scan = new ScanViewModel(scanner, p.Scanner, _state);
+            else Scan.Rebind(scanner);
         }
         if (conn.Ledm is not null)
         {
@@ -337,7 +381,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             conn.Http.SetCredentials("admin", pw);
 
         if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
-            Log.Write($"[{Name}] UUID changed {Uuid} → {p.Uuid}");
+            Log.Write($"[{Name}] reports a different UUID than the one it was added with"); // never the UUIDs themselves
         _remember(this);
         old?.Dispose();
     }
@@ -372,6 +416,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         {
             var supplies = await suppliesTask;
             Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
+            OnPropertyChanged(nameof(SuppliesTitle));
             if (await usageTask is { } u)
                 Sync(Stats, new InfoRow?[]
                 {
@@ -415,8 +460,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             byte[]? bytes = File.Exists(cache) ? await File.ReadAllBytesAsync(cache) : null;
             if (bytes is null)
             {
-                foreach (var path in new[] { "/ipp/images/printer-large.png", "/ipp/images/printer.png" })
-                    if ((bytes = await conn.Http.GetBytesOrNullAsync(conn.Http.Http(path))) is not null) break;
+                // IPP printer-icons first (any IPP Everywhere printer), then the paths HP printers serve.
+                var urls = conn.Probe.Icons.Concat(new[] { "/ipp/images/printer-large.png", "/ipp/images/printer.png" }.Select(conn.Http.Http));
+                foreach (var url in urls)
+                    if ((bytes = await conn.Http.GetBytesOrNullAsync(url)) is not null) break;
                 if (bytes is null) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(cache)!);
                 await File.WriteAllBytesAsync(cache, bytes);
@@ -554,7 +601,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null && !IsDemo) Shell.Open($"https://{Host}/");
+        if (Host is not null && !IsDemo) Shell.Open(_webPage?.AbsoluteUri ?? $"https://{Host}/");
     }
 
     [RelayCommand]
@@ -599,10 +646,13 @@ public sealed record InfoRow(string Label, string Value);
 
 public sealed record SupplyViewModel(Consumable Supply)
 {
-    /// <summary>"About 100 pages left", or the state when no estimate is available.</summary>
-    public string Headline => Supply.State switch
+    /// <summary>"About 100 pages left", or the state when no estimate is available; null for a waste box with room left.</summary>
+    public string? Headline => Supply.State switch
     {
+        "full" => "Replace now",
+        "almostFull" => "Replace soon",
         "out" => "Empty — replace now",
+        _ when Supply.IsWaste => null,
         _ when Supply.EstimatedPagesRemaining is { } pages => $"About {pages:N0} pages left",
         _ when Supply.IsLow => "Running low",
         _ => "OK",
@@ -610,15 +660,33 @@ public sealed record SupplyViewModel(Consumable Supply)
 
     public string? Cartridge => string.Join("  ·  ", new[]
     {
-        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null,
+        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
         Supply.ProductNumber,
     }.Where(s => s is not null)) is { Length: > 0 } c ? $"Replacement: {c}" : null;
 
-    public string Level => Supply.State == "out" ? "empty" : IsLow ? "low" : "ok";
+    public string Level => Supply.State is "out" or "full" ? "empty" : IsLow ? "low" : "ok";
 
     public string Name => Supply.Name;
     public double Percent => Supply.PercentRemaining ?? 0;
-    public string PercentText => Supply.PercentRemaining is { } p ? $"{p}%" : "—";
+
+    /// <summary>A percentage to show (and a bar). Waste boxes and unknown levels have none.</summary>
+    public bool HasPercent => Supply.PercentRemaining is not null;
+
+    /// <summary>The big figure: "45%", or for supplies without a level their state ("OK", "Almost full", "Full", "—").</summary>
+    public string PercentText => Supply.PercentRemaining is { } p ? $"{p}%" : Supply.State switch
+    {
+        "full" => "Full",
+        "almostFull" => "Almost full",
+        "out" => "Empty",
+        "ok" => "OK",
+        _ => "—",
+    };
+
     public bool IsLow => Supply.IsLow;
-    public string ColorCode => Supply.ColorCode ?? "K";
+
+    /// <summary>K, C, M, Y or #RRGGBB for the color swatch; null when the supply has no color (a waste box).</summary>
+    public string? ColorCode => Supply.ColorCode;
+
+    /// <summary>For screen readers: "Cyan ink, 55%, OK" or "Maintenance box, OK".</summary>
+    public string AccessibleText => string.Join(", ", new[] { Name, PercentText, Headline is { } h && h != PercentText ? h : null }.OfType<string>());
 }

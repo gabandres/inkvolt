@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using InkvoltPrint.Core.Discovery;
 using Windows.Devices.Enumeration;
 
 namespace InkvoltPrint.Windows.Discovery;
@@ -18,12 +19,18 @@ public sealed record DiscoveredPrinter(
     string? ScanEndpointId,
     bool QueueInstalled,
     bool ScannerInstalled,
-    IReadOnlyDictionary<string, string> Txt);
+    IReadOnlyDictionary<string, string> Txt)
+{
+    /// <summary>IPP printer URL from the <c>_ipp</c>/<c>_ipps</c> service (port and <c>rp</c> TXT); null if not advertised.</summary>
+    public Uri? IppUri { get; init; }
+}
 
 /// <summary>
 /// Streams printers from the OS's own mDNS/WSD discovery (no custom multicast sockets, no port 5353 clash).
 /// Two watchers: DNS-SD services give IPv4 + TXT; association endpoints give "is a queue installed" and
-/// the handle used to install one. They join on the printer UUID (TXT <c>UUID</c> == AEP ContainerId).
+/// the handle used to install one. They join on the printer UUID (TXT <c>UUID</c> == AEP ContainerId); a service without
+/// a UUID joins its host's other services (<see cref="DnssdJoin"/>).
+/// Nothing here is HP-specific: any IPP Everywhere / AirPrint / Mopria printer or eSCL scanner is found.
 /// </summary>
 public sealed class PrinterDiscovery : IDisposable
 {
@@ -159,8 +166,9 @@ public sealed class PrinterDiscovery : IDisposable
     private List<DiscoveredPrinter> Merge()
     {
         var byUuid = new Dictionary<string, (List<Svc> S, List<Aep> A)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in _services.Values.Where(s => s.Uuid is not null))
-            Bucket(s.Uuid!).S.Add(s);
+        var all = _services.Values.Select(s => s.Dnssd).ToList();
+        foreach (var s in _services.Values)
+            if (DnssdJoin.Key(s.Dnssd, all) is { } key) Bucket(key).S.Add(s);
         foreach (var a in _endpoints.Values.Where(a => a.ContainerId is not null && a.IsPresent != false))
             Bucket(a.ContainerId!).A.Add(a);
 
@@ -178,13 +186,10 @@ public sealed class PrinterDiscovery : IDisposable
                 var printAep = ippAep ?? wsdAep;
                 var scanAep = aeps.FirstOrDefault(a => a.Protocol == EsclProtocol);
                 var host = svcs.Select(s => s.IPv4).FirstOrDefault(h => h is not null);
-                Uri? escl = null;
-                if (scan is not null && host is not null)
-                {
-                    var rs = scan.Txt.GetValueOrDefault("rs", "eSCL").Trim('/');
-                    var scheme = scan.Service == "_uscans._tcp" ? "https" : "http";
-                    escl = new UriBuilder(scheme, host, scan.Port ?? (scheme == "https" ? 443 : 80), rs + "/").Uri;
-                }
+                var escl = scan is not null && host is not null ? DnssdJoin.EsclRoot(scan.Dnssd, host) : null;
+                // Plain IPP when the printer offers both: it needs no certificate; IPPS-only printers get https.
+                var ippSvc = svcs.FirstOrDefault(s => s.Service == "_ipp._tcp") ?? ipp;
+                var ippUri = ippSvc is not null && host is not null ? DnssdJoin.IppUri(ippSvc.Dnssd, host) : null;
                 var txt = (ipp?.Txt ?? scan?.Txt ?? new Dictionary<string, string>());
                 return new DiscoveredPrinter(
                     Uuid: kv.Key.ToLowerInvariant(),
@@ -199,7 +204,7 @@ public sealed class PrinterDiscovery : IDisposable
                     // A queue on either protocol counts: Windows often installs over WSD first.
                     QueueInstalled: ippAep?.IsPaired == true || wsdAep?.IsPaired == true,
                     ScannerInstalled: scanAep?.IsPaired == true || wsdAep is { IsPaired: true, IsScanner: true },
-                    Txt: txt);
+                    Txt: txt) { IppUri = ippUri };
             })
             .Where(p => p.Host is not null || p.PrintEndpointId is not null)
             .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -232,7 +237,9 @@ public sealed class PrinterDiscovery : IDisposable
     private sealed record Svc(string? Service, string? Instance, string? HostName, string? IPv4, int? Port, IReadOnlyDictionary<string, string> Txt)
         : IMergeable<Svc>
     {
-        public string? Uuid => Txt.GetValueOrDefault("UUID") ?? Txt.GetValueOrDefault("uuid");
+        public string? Uuid => Txt.GetValueOrDefault("UUID");
+
+        public DnssdService Dnssd => new(Service, Uuid, HostName, IPv4, Port, Txt);
 
         public Svc With(Svc u) => new(u.Service ?? Service, u.Instance ?? Instance, u.HostName ?? HostName, u.IPv4 ?? IPv4,
             u.Port ?? Port, u.Txt.Count > 0 ? u.Txt : Txt);

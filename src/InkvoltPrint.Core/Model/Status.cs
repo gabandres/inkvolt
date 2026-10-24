@@ -27,7 +27,13 @@ public sealed record Consumable(
     int? EstimatedPagesRemaining,
     DateOnly? Installed)
 {
-    public bool IsLow => State is "low" or "veryLow" or "out" || (PercentRemaining is { } p && LowThreshold is { } t && p <= t);
+    /// <summary>Needs attention soon: low, empty, or (a waste box) almost full or full.</summary>
+    public bool IsLow => State is "low" or "veryLow" or "out" or "almostFull" or "full" || (PercentRemaining is { } p && LowThreshold is { } t && p <= t);
+
+    /// <summary>A box that fills up (waste ink or toner, an inkjet's maintenance box) rather than a supply that runs out.</summary>
+    public bool IsWaste => IsWasteKind(Kind);
+
+    public static bool IsWasteKind(string kind) => kind.StartsWith("waste", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record ProductInfo(

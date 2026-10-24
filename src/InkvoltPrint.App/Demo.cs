@@ -9,27 +9,42 @@ using InkvoltPrint.Core.Printing;
 namespace InkvoltPrint.App;
 
 /// <summary>
-/// <c>InkvoltPrint.exe --demo</c>: one made-up printer for screenshots and trying the app without a printer. Its web
-/// server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
-/// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>. Demo mode makes no network
+/// <c>InkvoltPrint.exe --demo</c>: made-up printers for screenshots and trying the app without a printer. The HP laser's
+/// web server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
+/// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>; the inkjet (an Epson-style
+/// IPP Everywhere / eSCL printer with no HP interfaces) answers IPP and eSCL from <c>Fixtures/inkjet-demo</c>, written from
+/// the public specs, at <see cref="InkjetHost"/>. A <see cref="HostRouter"/> sends each request to its printer. Demo mode makes no network
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
 /// (the remembered-printers file is neither read nor written). Scanning returns generated pages in turn: a straight page,
 /// the same page fed a little crooked, a blank sheet (for the scan review's Straighten and Skip blank pages); a made-up
-/// ID card for card-sized regions; the print queue card shows <see cref="DemoPrintJobs"/>, where copies also "print".
+/// ID card for card-sized regions; the print queue card shows <see cref="DemoPrintJobs"/> (one made-up queue for both
+/// printers), where copies also "print".
 /// </summary>
 internal static class Demo
 {
     private const string Uuid = "12345678-1234-4abc-8def-123456789abc"; // the fixtures' (fake) UUID
-    private const string ResourcePrefix = "Demo.";
+    private const string InkjetUuid = "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"; // Fixtures/inkjet-demo (made up)
+    private const string ResourcePrefix = "Demo.", InkjetPrefix = "DemoInkjet.";
+
+    /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
+    public const string InkjetHost = "192.0.2.11";
 
     public static AppState CreateState() => new()
     {
         IsInMemory = true,
-        Printers = [new KnownPrinter(Uuid, "Demo printer", null, FixtureHandler.DemoHost, $"http://{FixtureHandler.DemoHost}/eSCL/")],
+        Printers =
+        [
+            new KnownPrinter(Uuid, "Demo printer", null, FixtureHandler.DemoHost, $"http://{FixtureHandler.DemoHost}/eSCL/"),
+            new KnownPrinter(InkjetUuid, "Demo inkjet", null, InkjetHost, $"http://{InkjetHost}/eSCL/", $"http://{InkjetHost}:631/ipp/print"),
+        ],
         SelectedUuid = Uuid,
     };
 
-    public static HttpMessageHandler CreateTransport() => new FixtureHandler(Document, scanArea: Scan);
+    public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>
+    {
+        [FixtureHandler.DemoHost] = new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan),
+        [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan),
+    });
 
     // WPF drawing needs the UI thread; the handler runs wherever the scan's awaits continue.
     private static readonly Lazy<byte[]>[] Pages =
@@ -44,16 +59,16 @@ internal static class Demo
             ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
             : Pages[Interlocked.Increment(ref _page) % Pages.Length].Value;
 
-    private static byte[]? Document(string name)
+    private static byte[]? Document(string resource)
     {
-        using var s = typeof(Demo).Assembly.GetManifestResourceStream(ResourcePrefix + name);
+        using var s = typeof(Demo).Assembly.GetManifestResourceStream(resource);
         if (s is null) return null;
         using var ms = new MemoryStream();
         s.CopyTo(ms);
         return ms.ToArray();
     }
 
-    /// <summary>The demo printer's made-up Windows queue (one demo printer, so one queue).</summary>
+    /// <summary>The demo printers' made-up Windows queue (shared: nothing is printed anyway).</summary>
     public static DemoPrintJobs PrintJobs { get; } = new();
 
     /// <summary>

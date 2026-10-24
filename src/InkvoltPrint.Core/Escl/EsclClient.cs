@@ -12,19 +12,23 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
 {
     private static readonly TimeSpan PageTimeout = TimeSpan.FromMinutes(3);
     private ScannerCapabilities? _caps;
+    private EsclQuirks _quirks = EsclQuirks.None;
 
     public Uri Root { get; } = root.AbsoluteUri.EndsWith('/') ? root : new Uri(root.AbsoluteUri + "/");
 
     public async Task<ScannerCapabilities?> GetCapabilitiesAsync(CancellationToken ct = default)
     {
         if (_caps is not null) return _caps;
-        var bytes = await http.GetBytesOrNullAsync(new Uri(Root, "ScannerCapabilities"), ct: ct).ConfigureAwait(false);
-        return bytes is null ? null : _caps = ScannerCapabilities.Parse(Load(bytes));
+        var bytes = await GetBytesOrNullAsync(new Uri(Root, "ScannerCapabilities"), ct).ConfigureAwait(false);
+        if (bytes is null) return null;
+        _caps = ScannerCapabilities.Parse(Load(bytes));
+        _quirks = EsclQuirks.For(_caps);
+        return _caps;
     }
 
     public async Task<ScannerStatus> GetStatusAsync(CancellationToken ct = default)
     {
-        var bytes = await http.GetBytesOrNullAsync(new Uri(Root, "ScannerStatus"), ct: ct).ConfigureAwait(false)
+        var bytes = await GetBytesOrNullAsync(new Uri(Root, "ScannerStatus"), ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Scanner status not available");
         return ScannerStatus.Parse(Load(bytes));
     }
@@ -36,19 +40,22 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
     public async IAsyncEnumerable<byte[]> ScanAsync(ScanRequest request, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var caps = await GetCapabilitiesAsync(ct).ConfigureAwait(false) ?? throw new InvalidOperationException("Not an eSCL scanner");
+        if (caps.For(request.Source) is { OffersJpeg: false })
+            throw new ScanException("This scanner doesn't send JPEG pages from this source, which Inkvolt Print needs.");
         var status = await GetStatusAsync(ct).ConfigureAwait(false);
-        if (request.Source != ScanSource.Platen && status.AdfState is not null && !status.AdfLoaded)
-            throw new ScanException("Load the pages into the document feeder first.");
-        if (!status.IsIdle && status.State != "Processing")
-            throw new ScanException($"Scanner is {status.State.ToLowerInvariant()}.");
+        if (status.Problem(feeder: request.Source != ScanSource.Platen) is { } problem) throw new ScanException(problem);
 
         var job = await CreateJobAsync(EsclXml.BuildScanSettings(request, caps), ct).ConfigureAwait(false);
         var done = false;
         try
         {
+            var lastLoad = TimeSpan.Zero;
             for (var page = 0; ; page++)
             {
+                if (page > 0 && _quirks.NextLoadDelay) await Task.Delay(EsclQuirks.NextLoadWait(lastLoad), ct).ConfigureAwait(false);
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
                 var bytes = await NextDocumentAsync(job, ct).ConfigureAwait(false);
+                lastLoad = System.Diagnostics.Stopwatch.GetElapsedTime(started);
                 if (bytes is null) break;
                 yield return JpegFix.PatchZeroHeight(bytes);
                 if (request.Source == ScanSource.Platen) break;
@@ -66,10 +73,8 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
         var body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + settings.Root!.ToString(SaveOptions.DisableFormatting);
         for (var attempt = 0; ; attempt++)
         {
-            using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(Root, "ScanJobs"))
-            {
-                Content = new StringContent(body, Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
-            };
+            using var req = Request(HttpMethod.Post, new Uri(Root, "ScanJobs"));
+            req.Content = new StringContent(body, Encoding.UTF8, new MediaTypeHeaderValue("text/xml"));
             HttpResponseMessage resp;
             try
             {
@@ -101,7 +106,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
     {
         for (var attempt = 0; ; attempt++)
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, new Uri(job, "NextDocument"));
+            using var req = Request(HttpMethod.Get, new Uri(job, "NextDocument"));
             using var resp = await http.SendAsync(req, PageTimeout, ct).ConfigureAwait(false);
             switch (resp.StatusCode)
             {
@@ -140,13 +145,30 @@ public sealed class EsclClient(DeviceHttp http, Uri root)
     {
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Delete, job);
+            using var req = Request(HttpMethod.Delete, job);
             using var _ = await http.SendAsync(req, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException)
         {
             // Best effort; the device times stale jobs out on its own.
         }
+    }
+
+    /// <summary>A request to the scanner, with the port in the Host header for scanners that need it (<see cref="EsclQuirks"/>).</summary>
+    private HttpRequestMessage Request(HttpMethod method, Uri uri)
+    {
+        var req = new HttpRequestMessage(method, uri);
+        if (_quirks.PortInHost) req.Headers.Host = $"{uri.Host}:{uri.Port}";
+        return req;
+    }
+
+    private async Task<byte[]?> GetBytesOrNullAsync(Uri uri, CancellationToken ct)
+    {
+        using var req = Request(HttpMethod.Get, uri);
+        using var resp = await http.SendAsync(req, ct: ct).ConfigureAwait(false);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+        return await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
     }
 
     private static XDocument Load(byte[] bytes)

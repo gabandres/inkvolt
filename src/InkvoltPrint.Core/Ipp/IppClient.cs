@@ -1,0 +1,154 @@
+using System.Net.Http.Headers;
+using InkvoltPrint.Core.Model;
+using InkvoltPrint.Core.Net;
+
+namespace InkvoltPrint.Core.Ipp;
+
+public sealed class IppClient
+{
+    public static readonly string[] StatusAttributes =
+    [
+        "printer-state", "printer-state-reasons", "printer-state-message", "printer-make-and-model", "printer-uuid",
+        "printer-info", "marker-names", "marker-levels", "marker-low-levels", "marker-high-levels", "marker-types", "marker-colors",
+        "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
+        "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
+    ];
+
+    private readonly DeviceHttp _http;
+
+    public IppClient(DeviceHttp http, string resourcePath = "ipp/print", int port = 631)
+        : this(http, new UriBuilder(Uri.UriSchemeHttp, http.Host, port, resourcePath).Uri)
+    {
+    }
+
+    /// <param name="endpoint">http(s) URL of the printer object, e.g. <c>http://host:631/ipp/print</c> (IPPS: https).</param>
+    public IppClient(DeviceHttp http, Uri endpoint)
+    {
+        _http = http;
+        Endpoint = endpoint;
+    }
+
+    public Uri Endpoint { get; }
+
+    public async Task<IppResponse> GetPrinterAttributesAsync(IEnumerable<string>? requested = null, CancellationToken ct = default)
+    {
+        var scheme = Endpoint.Scheme == Uri.UriSchemeHttps ? "ipps" : "ipp";
+        var printerUri = new UriBuilder(scheme, Endpoint.Host, Endpoint.Port, Endpoint.AbsolutePath).Uri.AbsoluteUri;
+        var body = IppCodec.EncodeGetPrinterAttributes(printerUri, requested ?? StatusAttributes);
+        using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+        {
+            Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
+        };
+        using var resp = await _http.SendAsync(req, TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+        return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Status from <c>printer-state</c> and <c>printer-state-reasons</c>, plus <c>printer-alert</c> entries (PWG 5100.9) that
+    /// no reason covers. An alert matching a reason lends it its <c>printer-alert-description</c> (the printer's own words,
+    /// e.g. which color is low). Placeholder reasons ("none", "other") and change events are not problems.
+    /// </summary>
+    public static PrinterStatus ToStatus(IppResponse r)
+    {
+        var alerts = new List<PrinterAlert>();
+        foreach (var x in r.Strs("printer-state-reasons"))
+        {
+            var (id, sev) = SplitReason(x);
+            if (id is "none" or "other" || alerts.Any(a => a.Id == id)) continue;
+            alerts.Add(new PrinterAlert(id, sev, IppStatusText.Describe(id)));
+        }
+        var descriptions = r.Strs("printer-alert-description").ToList();
+        var i = -1;
+        foreach (var value in r.Strs("printer-alert"))
+        {
+            i++;
+            if (IppAlert.Parse(value) is not { } alert) continue;
+            Severity? sev = alert.Severity switch { "critical" => Severity.Error, "warning" => Severity.Warning, _ => null };
+            if (sev is null || alert.Code == "other") continue; // "other", "warningBinaryChangeEvent": nothing to fix
+            var id = IppStatusText.ReasonForAlert(alert.Code) ?? alert.Code;
+            var text = i < descriptions.Count && descriptions[i].Trim() is { Length: > 0 } d ? d : null;
+            var existing = alerts.FindIndex(a => a.Id == id);
+            if (existing >= 0)
+            {
+                if (text is not null) alerts[existing] = alerts[existing] with { Message = text };
+            }
+            else
+            {
+                alerts.Add(new PrinterAlert(id, sev.Value, text ?? IppStatusText.Describe(id)));
+            }
+        }
+        var (code, label) = r.Int("printer-state") switch
+        {
+            3 => ("ready", "Ready"),
+            4 => ("processing", "Printing"),
+            5 => ("stopped", "Stopped"),
+            _ => ("unknown", "Unknown"),
+        };
+        var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : code == "stopped" ? Severity.Error : Severity.Info;
+        var detail = alerts.Where(a => a.Severity == severity).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);
+        return new PrinterStatus(code, r.Str("printer-state-message") is { Length: > 0 } m ? m : label, severity, alerts, detail);
+    }
+
+    private static readonly (string Suffix, Severity Severity)[] Suffixes =
+        [("-error", Severity.Error), ("-warning", Severity.Warning), ("-report", Severity.Info)];
+
+    private static (string Id, Severity Severity) SplitReason(string x)
+    {
+        foreach (var (suffix, sev) in Suffixes)
+            if (x.Length > suffix.Length && x.EndsWith(suffix, StringComparison.Ordinal)) return (x[..^suffix.Length], sev);
+        return (x, IppStatusText.DefaultSeverity(x)); // RFC 8011 §5.4.12: no suffix is an error (but "low" is a warning)
+    }
+
+    /// <summary>
+    /// Supplies from PWG 5100.13's parallel <c>marker-*</c> lists. Levels: 0-100 percent, -1 unavailable, -2 unknown,
+    /// -3 "some left". Waste boxes (<c>waste-ink</c>, <c>waste-toner</c>…) report how full they are on some printers and
+    /// how much room is left on others (CUPS turns one into the other), so they get no percentage: their state comes from
+    /// the <c>marker-waste-*</c> reasons.
+    /// </summary>
+    public static IReadOnlyList<Consumable> ToConsumables(IppResponse r)
+    {
+        var names = r.Strs("marker-names").ToList();
+        var levels = r.Ints("marker-levels").ToList();
+        var lows = r.Ints("marker-low-levels").ToList();
+        var types = r.Strs("marker-types").ToList();
+        var colors = r.Strs("marker-colors").ToList();
+        var waste = r.Strs("printer-state-reasons").Select(x => SplitReason(x).Id)
+            .Where(x => x.StartsWith("marker-waste", StringComparison.Ordinal)).ToList();
+        var wasteState = waste.Any(x => !x.EndsWith("almost-full", StringComparison.Ordinal) && x.EndsWith("-full", StringComparison.Ordinal)) ? "full"
+            : waste.Any(x => x.EndsWith("almost-full", StringComparison.Ordinal)) ? "almostFull"
+            : "ok";
+        return names.Select((n, i) =>
+        {
+            var kind = i < types.Count ? types[i] : "supply";
+            var color = i < colors.Count ? ColorCode(colors[i]) : null;
+            if (Consumable.IsWasteKind(kind)) return new Consumable(n, kind, color, null, wasteState, null, null, null, null, null);
+            var raw = i < levels.Count ? levels[i] : -2;
+            int? level = raw >= 0 ? Math.Min(raw, 100) : null;
+            int? low = i < lows.Count && lows[i] >= 0 ? lows[i] : null;
+            var state = raw == -3 ? "ok" : level is null ? "unknown" : level == 0 ? "out" : low is { } l && level <= l ? "low" : "ok";
+            return new Consumable(n, kind, color, level, state, null, null, low, null, null);
+        }).ToList();
+    }
+
+    /// <summary>
+    /// <c>marker-colors</c> value (<c>#RRGGBB</c>, several for a multi-color cartridge, or <c>none</c>) → K/C/M/Y for the
+    /// process colors, <c>#RRGGBB</c> for others (the first color of a multi-color cartridge), null when there is no color.
+    /// </summary>
+    public static string? ColorCode(string value)
+    {
+        if (value.Length < 7 || value[0] != '#' || !Uri.IsHexDigit(value[1])) return null;
+        for (var i = 1; i < 7; i++)
+            if (!Uri.IsHexDigit(value[i])) return null;
+        var hex = value[..7].ToUpperInvariant();
+        if (value.Length > 7) return hex; // a multi-color cartridge: not one of the process colors
+        return hex switch
+        {
+            "#000000" => "K",
+            "#00FFFF" => "C",
+            "#FF00FF" => "M",
+            "#FFFF00" => "Y",
+            _ => hex,
+        };
+    }
+}

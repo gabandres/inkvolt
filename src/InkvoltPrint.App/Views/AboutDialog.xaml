@@ -13,10 +13,10 @@
             </StackPanel>
         </StackPanel>
         <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
-                   Text="Status, scanning and printing for HP network printers. No account, no cloud, no telemetry." />
+                   Text="Status, scanning and printing for network printers: HP, plus Canon, Epson, Brother and other IPP Everywhere and Mopria printers. No account, no cloud, no telemetry." />
         <TextBlock TextWrapping="Wrap" Text="Copyright (c) 2026 Bermudez Systems LLC. Free software under the MIT License." />
         <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" FontSize="12"
-                   Text="Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc. HP, LaserJet and HP Smart are trademarks of HP Inc., used only to describe the printers Inkvolt Print works with." />
+                   Text="Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc., Canon Inc., Seiko Epson Corporation or Brother Industries, Ltd. HP, LaserJet and HP Smart are trademarks of HP Inc.; Canon, Epson and Brother are trademarks of their owners. They are used only to describe the printers Inkvolt Print works with." />
         <TextBlock x:Name="PackagedNote" Style="{StaticResource Caption}" Margin="0,8,0,0" FontSize="12" Visibility="Collapsed"
                    Text="Installed as an app package; Windows keeps it up to date." />
         <WrapPanel Margin="0,20,0,0">

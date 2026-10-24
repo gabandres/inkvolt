@@ -55,7 +55,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
-            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember, transport));
+            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Remember, transport)
+            {
+                IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
+            });
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
         foreach (var p in Printers) p.Start();
 
@@ -288,7 +291,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (p.Host is null || !Printers.Contains(p)) return;
         _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
-        _state.Printers.Add(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri));
+        _state.Printers.Add(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri));
         _state.Save();
     }
 
@@ -326,7 +329,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
             if (vm is null)
             {
-                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Remember);
+                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Remember) { IppUri = probe.IppEndpoint };
                 Printers.Add(vm);
                 vm.Start();
                 NotifyEmpty();

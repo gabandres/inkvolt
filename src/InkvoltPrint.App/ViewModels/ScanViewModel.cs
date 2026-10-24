@@ -49,7 +49,9 @@ public sealed partial class ScanViewModel : ObservableObject
         Sources = caps.Sources.Select(s => new Option<ScanSource>(s, ScanChoices.SourceLabel(s))).ToList();
         Source = Sources.FirstOrDefault();
         var input = (caps.Platen ?? caps.Adf)!;
-        Resolutions = input.Resolutions.Select(r => new Option<int>(r, r switch
+        // A scanner that lists no resolutions (or only ranges nothing usual fits) still accepts the common ones.
+        IReadOnlyList<int> offered = input.Resolutions.Count > 0 ? input.Resolutions : [150, 200, 300, 600];
+        Resolutions = offered.Select(r => new Option<int>(r, r switch
         {
             <= 150 => $"{r} dpi (draft)",
             <= 200 => $"{r} dpi (screen)",

@@ -13,7 +13,8 @@ namespace InkvoltPrint.App;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
 /// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);
 /// <c>--crop n</c> then opens the crop view on page n; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
-/// (with <c>--demo</c>: generated scans, "printed" to the made-up queue).
+/// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
+/// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces).
 /// </summary>
 internal static class DevSnapshot
 {
@@ -24,8 +25,10 @@ internal static class DevSnapshot
             ? (w, h) : null;
 
     public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
-        string? copy = null, int crop = 0)
+        string? copy = null, int crop = 0, int printer = 0)
     {
+        if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
+            main.Selected = main.Printers[printer - 1];
         await Task.Delay(TimeSpan.FromSeconds(5));
         if (tab is not null && FindTabs(window) is { } tabs)
         {

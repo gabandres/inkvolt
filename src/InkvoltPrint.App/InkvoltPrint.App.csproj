@@ -29,5 +29,8 @@
     <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->
     <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\m234dw\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
                       Link="Demo\%(Filename)%(Extension)" />
+    <!-- The demo inkjet (not HP): IPP and eSCL documents written from the public specs -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\inkjet-demo\*" LogicalName="DemoInkjet.%(Filename)%(Extension)"
+                      Link="DemoInkjet\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

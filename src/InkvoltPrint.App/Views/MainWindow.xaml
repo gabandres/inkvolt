@@ -67,25 +67,33 @@
                     <Border Visibility="{Binding Supplies.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource CardTitle}">
-                                <Run Text="Toner" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <Run Text="{Binding SuppliesTitle, Mode=OneWay}" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </TextBlock>
                             <ItemsControl ItemsSource="{Binding Supplies}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:SupplyViewModel}">
-                                        <StackPanel Margin="0,0,0,8">
+                                        <StackPanel Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleText}">
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Headline}" Style="{StaticResource Caption}"
-                                                           VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                                                           VerticalAlignment="Bottom" Margin="0,0,0,4"
+                                                           Visibility="{Binding Headline, Converter={StaticResource VisibleWhen}}" />
                                                 <TextBlock Text="{Binding PercentText}" FontSize="28" FontWeight="SemiBold" />
                                             </DockPanel>
-                                            <Grid Height="8" Margin="0,6,0,0">
+                                            <Grid Height="8" Margin="0,6,0,0" Visibility="{Binding HasPercent, Converter={StaticResource VisibleWhen}}">
                                                 <Border CornerRadius="4" Background="{DynamicResource ControlStrongFillColorDefaultBrush}" Opacity="0.25" />
                                                 <ProgressBar Minimum="0" Maximum="100" Value="{Binding Percent, Mode=OneWay}" Height="8"
                                                              Background="Transparent" BorderThickness="0"
                                                              Foreground="{Binding Level, Converter={StaticResource LevelBrush}}"
                                                              AutomationProperties.Name="{Binding Name}" />
                                             </Grid>
-                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <!-- The supply's own color (decorative: the name says it) -->
+                                                <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                         Fill="{Binding ColorCode, Converter={StaticResource SupplyBrush}}"
+                                                         Stroke="{DynamicResource ControlStrongStrokeColorDefaultBrush}" StrokeThickness="0.5"
+                                                         Visibility="{Binding ColorCode, Converter={StaticResource VisibleWhen}}" />
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource Caption}" />
+                                            </StackPanel>
                                             <TextBlock Text="{Binding Cartridge}" Style="{StaticResource Caption}"
                                                        Visibility="{Binding Cartridge, Converter={StaticResource VisibleWhen}}" />
                                         </StackPanel>
@@ -197,6 +205,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- Canon, Epson, Brother…: say what's HP only instead of leaving the user to wonder where Printer settings went -->
+                            <TextBlock Text="{Binding HpOnlyNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="420"
+                                       HorizontalAlignment="Left" Visibility="{Binding HpOnlyNote, Converter={StaticResource VisibleWhen}}" />
                             <WrapPanel Margin="0,8,0,0">
                                 <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0" />
                                 <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}" />

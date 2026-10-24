@@ -5,7 +5,8 @@ using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App;
 
-public sealed record KnownPrinter(string Uuid, string Name, string? Model, string Host, string? EsclRoot);
+/// <param name="IppUri">The IPP URL the printer answered on last time (DNS-SD <c>rp</c>, IPPS), tried first on the next start.</param>
+public sealed record KnownPrinter(string Uuid, string Name, string? Model, string Host, string? EsclRoot, string? IppUri = null);
 
 /// <summary>Remembered printers and preferences, so the app connects instantly on start instead of waiting for discovery.</summary>
 public sealed class AppState

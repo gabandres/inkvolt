@@ -1,8 +1,5 @@
 using System.Buffers.Binary;
-using System.Net.Http.Headers;
 using System.Text;
-using InkvoltPrint.Core.Model;
-using InkvoltPrint.Core.Net;
 
 namespace InkvoltPrint.Core.Ipp;
 
@@ -12,8 +9,8 @@ public static class IppCodec
     public const ushort GetPrinterAttributes = 0x000B;
 
     private const byte OperationTag = 0x01, PrinterTag = 0x04, EndTag = 0x03;
-    private const byte Integer = 0x21, Boolean = 0x22, Enum = 0x23;
-    private const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44;
+    internal const byte Integer = 0x21, Boolean = 0x22, Enum = 0x23, OctetString = 0x30;
+    internal const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44;
 
     public static byte[] EncodeGetPrinterAttributes(string printerUri, IEnumerable<string> requested, int requestId = 1)
     {
@@ -66,6 +63,8 @@ public static class IppCodec
                 Integer or Enum when valLen == 4 => BinaryPrimitives.ReadInt32BigEndian(val),
                 Boolean when valLen == 1 => val[0] != 0,
                 >= 0x40 and <= 0x4F => Encoding.UTF8.GetString(val),
+                // printer-alert (PWG 5100.9) is an octetString of US-ASCII "code=…;severity=…" text.
+                OctetString => Encoding.UTF8.GetString(val),
                 _ => val.ToArray(),
             };
             if (!attrs.TryGetValue(last, out var list)) attrs[last] = list = [];
@@ -74,10 +73,55 @@ public static class IppCodec
         return new IppResponse(status, attrs);
     }
 
-    private static void WriteAttr(Stream s, byte tag, string name, string value)
+    /// <summary>Operation id and request id of an IPP request (for <see cref="Net.FixtureHandler"/>).</summary>
+    public static (ushort Operation, int RequestId) ReadRequestHeader(ReadOnlySpan<byte> b) =>
+        b.Length < 8 ? throw new FormatException("IPP request too short")
+            : (BinaryPrimitives.ReadUInt16BigEndian(b[2..]), BinaryPrimitives.ReadInt32BigEndian(b[4..]));
+
+    /// <summary>
+    /// A Get-Printer-Attributes response carrying <paramref name="printerAttributes"/> (consecutive values with the same
+    /// name form one multi-valued attribute). Demo mode and tests serve printers written in <see cref="IppText"/> with it.
+    /// </summary>
+    public static byte[] EncodeResponse(ushort status, int requestId, IEnumerable<IppValue> printerAttributes)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = 1; head[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], status);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        ms.WriteByte(PrinterTag);
+        string? previous = null;
+        foreach (var a in printerAttributes)
+        {
+            var name = a.Name == previous ? "" : a.Name;
+            previous = a.Name;
+            WriteAttr(ms, a.Tag, name, a.Tag switch
+            {
+                Integer or Enum => Int32(int.Parse(a.Value, System.Globalization.CultureInfo.InvariantCulture)),
+                Boolean => [a.Value == "true" ? (byte)1 : (byte)0],
+                _ => Encoding.UTF8.GetBytes(a.Value),
+            });
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    private static byte[] Int32(int v)
+    {
+        var b = new byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(b, v);
+        return b;
+    }
+
+    private static void WriteAttr(Stream s, byte tag, string name, string value) => WriteAttr(s, tag, name, Encoding.UTF8.GetBytes(value));
+
+    private static void WriteAttr(Stream s, byte tag, string name, byte[] v)
     {
         var n = Encoding.UTF8.GetBytes(name);
-        var v = Encoding.UTF8.GetBytes(value);
         Span<byte> len = stackalloc byte[2];
         s.WriteByte(tag);
         BinaryPrimitives.WriteUInt16BigEndian(len, (ushort)n.Length); s.Write(len); s.Write(n);
@@ -94,65 +138,3 @@ public sealed record IppResponse(ushort StatusCode, IReadOnlyDictionary<string, 
     public IEnumerable<int> Ints(string name) => Attributes.TryGetValue(name, out var v) ? v.OfType<int>() : [];
 }
 
-public sealed class IppClient(DeviceHttp http, string resourcePath = "ipp/print", int port = 631)
-{
-    public static readonly string[] StatusAttributes =
-    [
-        "printer-state", "printer-state-reasons", "printer-state-message", "printer-make-and-model", "printer-uuid",
-        "printer-info", "marker-names", "marker-levels", "marker-low-levels", "marker-types", "marker-colors",
-        "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
-    ];
-
-    public Uri Endpoint { get; } = new UriBuilder(Uri.UriSchemeHttp, http.Host, port, resourcePath).Uri;
-
-    public async Task<IppResponse> GetPrinterAttributesAsync(IEnumerable<string>? requested = null, CancellationToken ct = default)
-    {
-        var printerUri = new UriBuilder("ipp", http.Host, port, resourcePath).Uri.AbsoluteUri;
-        var body = IppCodec.EncodeGetPrinterAttributes(printerUri, requested ?? StatusAttributes);
-        using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
-        {
-            Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
-        };
-        using var resp = await http.SendAsync(req, TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
-        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
-        return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
-    }
-
-    public static PrinterStatus ToStatus(IppResponse r)
-    {
-        var reasons = r.Strs("printer-state-reasons").Where(x => x != "none").ToList();
-        var alerts = reasons.Select(x =>
-        {
-            var sev = x.EndsWith("-error", StringComparison.Ordinal) ? Severity.Error
-                : x.EndsWith("-warning", StringComparison.Ordinal) ? Severity.Warning
-                : x.EndsWith("-report", StringComparison.Ordinal) ? Severity.Info
-                : Severity.Error; // RFC 8011 §5.4.12: a reason with no suffix is an error
-            var id = x.EndsWith("-error") || x.EndsWith("-warning") || x.EndsWith("-report") ? x[..x.LastIndexOf('-')] : x;
-            return new PrinterAlert(id, sev, Ledm.StatusText.Humanize(id));
-        }).ToList();
-        var (code, text) = r.Int("printer-state") switch
-        {
-            3 => ("ready", "Ready"),
-            4 => ("processing", "Printing"),
-            5 => ("stopped", "Stopped"),
-            _ => ("unknown", "Unknown"),
-        };
-        var sev = alerts.Count > 0 ? alerts.Max(a => a.Severity) : code == "stopped" ? Severity.Error : Severity.Info;
-        return new PrinterStatus(code, r.Str("printer-state-message") is { Length: > 0 } m ? m : text, sev, alerts);
-    }
-
-    public static IReadOnlyList<Consumable> ToConsumables(IppResponse r)
-    {
-        var names = r.Strs("marker-names").ToList();
-        var levels = r.Ints("marker-levels").ToList();
-        var lows = r.Ints("marker-low-levels").ToList();
-        var types = r.Strs("marker-types").ToList();
-        return names.Select((n, i) =>
-        {
-            int? level = i < levels.Count && levels[i] >= 0 ? levels[i] : null;
-            int? low = i < lows.Count ? lows[i] : null;
-            var state = level is null ? "unknown" : level == 0 ? "out" : low is { } l && level <= l ? "low" : "ok";
-            return new Consumable(n, i < types.Count ? types[i] : "supply", null, level, state, null, null, low, null, null);
-        }).ToList();
-    }
-}

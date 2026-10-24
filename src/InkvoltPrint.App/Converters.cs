@@ -31,7 +31,7 @@ public sealed class StatusBrushConverter : IValueConverter
     }
 }
 
-/// <summary>Supply colour code (K, C, M, Y) → bar colour.</summary>
+/// <summary>Supply colour code (K, C, M, Y, or #RRGGBB from IPP <c>marker-colors</c>) → swatch colour.</summary>
 public sealed class SupplyBrushConverter : IValueConverter
 {
     private static readonly Brush K = StatusBrushConverter.Frozen(0x30, 0x30, 0x30);
@@ -45,8 +45,15 @@ public sealed class SupplyBrushConverter : IValueConverter
         "M" => M,
         "Y" => Y,
         "K" => SystemParameters.HighContrast ? SystemColors.WindowTextBrush : K,
+        string hex when hex.Length == 7 && hex[0] == '#' && ColorConverter.ConvertFromString(hex) is Color c => Freeze(new SolidColorBrush(c)),
         _ => DependencyProperty.UnsetValue,
     };
+
+    private static Brush Freeze(Brush b)
+    {
+        b.Freeze();
+        return b;
+    }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }

@@ -16,6 +16,9 @@ public sealed record ProbeResult(
     Uri? EsclRoot,
     IppResponse? Ipp)
 {
+    /// <summary>The URL IPP answered on (null when it didn't).</summary>
+    public Uri? IppEndpoint { get; init; }
+
     public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null;
 
     public string? Uuid =>
@@ -24,6 +27,41 @@ public sealed record ProbeResult(
     public string? Model => Product?.MakeAndModel ?? Scanner?.MakeAndModel ?? Ipp?.Str("printer-make-and-model");
 
     public FirmwareInfo? Firmware => FirmwareInfo.From(Product, Ipp);
+
+    /// <summary>HP's own interfaces answered (LEDM): settings, firmware updates and usage counters work. Other printers get IPP and eSCL only.</summary>
+    public bool HasHpInterfaces => Ledm is not null;
+
+    /// <summary>Who made it: HP when LEDM answers, else from the make-and-model the printer reports.</summary>
+    public PrinterBrand Brand => HasHpInterfaces ? PrinterBrand.Hp
+        : PrinterBrands.Detect(Ipp?.Str("printer-make-and-model"), Scanner?.MakeAndModel, Scanner?.Manufacturer);
+
+    /// <summary>IPP <c>printer-location</c>, when someone set it on the printer.</summary>
+    public string? Location => Ipp?.Str("printer-location") is { } l && l.Trim().Length > 0 ? l.Trim() : null;
+
+    /// <summary>
+    /// The printer's own web page: IPP <c>printer-more-info</c> when it is an http(s) page on this printer (the address
+    /// comes from the network, so never another host), else null (callers fall back to <c>https://host/</c>).
+    /// </summary>
+    public Uri? WebPage => Ipp?.Str("printer-more-info") is { } s ? OnThisPrinter(s) : null;
+
+    /// <summary>
+    /// IPP <c>printer-icons</c> (PWG 5100.13: 48, 128 and 512 px PNGs, in that order) on this printer, the 128 px one first
+    /// (the app shows it at up to 256 px), then the larger, then the smaller.
+    /// </summary>
+    public IReadOnlyList<Uri> Icons
+    {
+        get
+        {
+            var icons = Ipp?.Strs("printer-icons").Select(OnThisPrinter).OfType<Uri>().ToList() ?? [];
+            return icons.Count < 2 ? icons : [.. icons.Skip(1), icons[0]];
+        }
+    }
+
+    /// <summary>An http(s) URL from the printer's replies, only when it points back at this printer (never another host).</summary>
+    private Uri? OnThisPrinter(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)
+        && string.Equals(u.IdnHost, Host, StringComparison.OrdinalIgnoreCase) && u.UserInfo.Length == 0
+            ? u : null;
 
     public IEnumerable<string> Interfaces
     {
@@ -49,7 +87,7 @@ public sealed class PrinterConnection : IDisposable
         Probe = probe;
         Ledm = probe.Ledm is not null ? new LedmClient(http) : null;
         Scanner = probe.EsclRoot is not null ? new EsclClient(http, probe.EsclRoot) : null;
-        Ipp = probe.Ipp is not null ? new IppClient(http) : null;
+        Ipp = probe.Ipp is not null ? new IppClient(http, probe.IppEndpoint ?? DefaultIpp(http)) : null;
     }
 
     public DeviceHttp Http { get; }
@@ -60,13 +98,14 @@ public sealed class PrinterConnection : IDisposable
 
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
     /// <param name="transport">Replaces the network (e.g. <see cref="FixtureHandler"/> for demo mode); null: real HTTP.</param>
+    /// <param name="ippHint">IPP printer URL from DNS-SD (<c>rp</c> TXT + port, https for <c>_ipps</c>), tried first.</param>
     public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
-        ICertificatePin? pin = null, HttpMessageHandler? transport = null)
+        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null)
     {
         var http = new DeviceHttp(host, transport, pin);
         try
         {
-            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct).ConfigureAwait(false));
+            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint).ConfigureAwait(false));
         }
         catch
         {
@@ -75,7 +114,7 @@ public sealed class PrinterConnection : IDisposable
         }
     }
 
-    public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default)
+    public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null)
     {
         var ledm = Try<(DiscoveryTree?, ProductInfo?)>(async () =>
         {
@@ -92,12 +131,48 @@ public sealed class PrinterConnection : IDisposable
             }
             return (null, null);
         });
-        var ipp = Try(() => new IppClient(http).GetPrinterAttributesAsync(ct: ct));
+        var ipp = ProbeIppAsync(http, ippHint, ct);
         await Task.WhenAll(ledm, escl, ipp).ConfigureAwait(false);
 
         var (tree, product) = ledm.Result;
         var (scanner, esclRoot) = escl.Result;
-        return new ProbeResult(http.Host, tree, product, scanner, esclRoot, ipp.Result is { Ok: true } r ? r : null);
+        var (attrs, endpoint) = ipp.Result;
+        return new ProbeResult(http.Host, tree, product, scanner, esclRoot, attrs) { IppEndpoint = endpoint };
+    }
+
+    private static Uri DefaultIpp(DeviceHttp http) => new UriBuilder(Uri.UriSchemeHttp, http.Host, 631, "ipp/print").Uri;
+
+    /// <summary>
+    /// The DNS-SD hint (only on this host), then <c>http://host:631/ipp/print</c> (IPP Everywhere's path). When plain
+    /// HTTP is refused outright, the same path over TLS: some printers only take IPPS once their HTTP is switched off.
+    /// </summary>
+    private static async Task<(IppResponse?, Uri?)> ProbeIppAsync(DeviceHttp http, Uri? hint, CancellationToken ct)
+    {
+        var plain = DefaultIpp(http);
+        var candidates = new List<Uri>();
+        if (hint is not null && string.Equals(hint.Host, http.Host, StringComparison.OrdinalIgnoreCase)
+                             && (hint.Scheme == Uri.UriSchemeHttp || hint.Scheme == Uri.UriSchemeHttps))
+            candidates.Add(hint);
+        if (!candidates.Contains(plain)) candidates.Add(plain);
+        foreach (var uri in candidates)
+        {
+            try
+            {
+                if (await new IppClient(http, uri).GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false) is { Ok: true } r) return (r, uri);
+            }
+            catch (HttpRequestException ex) when (uri == plain && ex.HttpRequestError == HttpRequestError.ConnectionError
+                                                  && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+            {
+                var tls = new UriBuilder(plain) { Scheme = Uri.UriSchemeHttps }.Uri;
+                return await Try(async () => (await new IppClient(http, tls).GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false)) is { Ok: true } r
+                    ? ((IppResponse?)r, (Uri?)tls) : (null, null)).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsOffline(ex) || IsTransient(ex))
+            {
+                // next candidate
+            }
+        }
+        return (null, null);
     }
 
     /// <summary>
@@ -139,7 +214,7 @@ public sealed class PrinterConnection : IDisposable
 
     /// <summary>
     /// Yields whenever status may have changed: on LEDM device events (long poll) or, for printers
-    /// without events, every <paramref name="fallbackInterval"/>.
+    /// without events, once right away and then every <paramref name="fallbackInterval"/>.
     /// </summary>
     public async IAsyncEnumerable<string> WatchAsync(TimeSpan fallbackInterval, [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -149,6 +224,7 @@ public sealed class PrinterConnection : IDisposable
                 yield return events.Count > 0 ? events[^1].Category : "changed";
             yield break;
         }
+        yield return "start"; // read once right away; IPP-only printers (Canon, Epson, Brother…) have no event feed
         using var timer = new PeriodicTimer(fallbackInterval);
         while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
             yield return "tick";

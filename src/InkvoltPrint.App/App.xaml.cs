@@ -81,7 +81,8 @@ public partial class App : Application
                 scans: !e.Args.Contains("--scan") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
                 scrollToEnd: e.Args.Contains("--scroll-end"),
                 copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
-                crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0);
+                crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
+                printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0);
     }
 
     private static string? FirstPdf(IEnumerable<string> args) =>
