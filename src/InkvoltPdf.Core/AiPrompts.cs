@@ -56,10 +56,13 @@ public static partial class AiPrompts
     /// <summary>
     /// Summarizes <paramref name="chunks"/>: one request when the text fits, else map-reduce (each chunk summarized, then
     /// the partial summaries combined, in rounds while they don't fit one request). <paramref name="ask"/> sends one
-    /// request; the last one (<see cref="AiStep.IsFinal"/>) is the answer the user sees.
+    /// request; the last one (<see cref="AiStep.IsFinal"/>) is the answer the user sees. Before each combining round,
+    /// <paramref name="confirmCombine"/> gets that round's requests exactly as they will be sent (they carry the model's
+    /// own partial summaries); when it declines, nothing more is sent and the answer is the partial summaries as they are.
     /// </summary>
     public static async Task<string> SummarizeAsync(IReadOnlyList<AiChunk> chunks, int inputChars,
-        Func<IReadOnlyList<AiMessage>, AiStep, CancellationToken, Task<string>> ask, CancellationToken cancel = default)
+        Func<IReadOnlyList<AiMessage>, AiStep, CancellationToken, Task<string>> ask, CancellationToken cancel = default,
+        Func<IReadOnlyList<IReadOnlyList<AiMessage>>, CancellationToken, Task<bool>>? confirmCombine = null)
     {
         if (chunks.Count == 0) throw new AiException("These pages have no text to summarize. Scanned pages need Recognize Text (OCR) first.");
         var first = SummaryRequests(chunks);
@@ -79,15 +82,20 @@ public static partial class AiPrompts
         {
             cancel.ThrowIfCancellationRequested();
             var groups = Group(parts, inputChars);
+            var round = groups.Count == 1
+                ? [CombineRequest(parts, final: true)]
+                : groups.Where(g => g.Count > 1).Select(g => CombineRequest(g, final: false)).ToList();
+            if (confirmCombine is not null && !await confirmCombine(round, cancel)) return PartsAsAnswer(parts);
             if (groups.Count == 1)
-                return await ask(CombineRequest(parts, final: true), new AiStep(++done, total, true, "Combining the parts into one summary"), cancel);
+                return await ask(round[0], new AiStep(++done, total, true, "Combining the parts into one summary"), cancel);
             total += groups.Count;
             var next = new List<(AiChunk Part, string Summary)>();
+            var r = 0;
             foreach (var g in groups)
             {
                 var span = new AiChunk(g[0].Part.FirstPage, g[^1].Part.LastPage, "");
                 var summary = g.Count == 1 ? g[0].Summary
-                    : await ask(CombineRequest(g, final: false), new AiStep(++done, total, false, $"Combining the summaries of {span.PagesText}"), cancel);
+                    : await ask(round[r++], new AiStep(++done, total, false, $"Combining the summaries of {span.PagesText}"), cancel);
                 next.Add((span, summary));
             }
             if (next.Count >= parts.Count) // no progress: the summaries alone are too long; keep the start of each
@@ -95,6 +103,10 @@ public static partial class AiPrompts
             parts = next;
         }
     }
+
+    /// <summary>The partial summaries, each under its pages, when they aren't to be combined.</summary>
+    private static string PartsAsAnswer(List<(AiChunk Part, string Summary)> parts) =>
+        string.Join("\n\n", parts.Select(p => $"### {Capital(p.Part.PagesText)}\n{p.Summary.Trim()}"));
 
     /// <summary>Consecutive partial summaries grouped so each group fits one request.</summary>
     private static List<List<(AiChunk Part, string Summary)>> Group(List<(AiChunk Part, string Summary)> parts, int inputChars)

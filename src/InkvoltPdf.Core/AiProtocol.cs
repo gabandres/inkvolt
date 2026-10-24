@@ -126,6 +126,9 @@ public sealed class AiStreamParser
 {
     private readonly StringBuilder _data = new();
 
+    /// <summary>Most characters held for one event while its data lines are joined.</summary>
+    public const int MaxEventChars = 4 << 20;
+
     /// <summary>True after <c>[DONE]</c>.</summary>
     public bool Done { get; private set; }
 
@@ -154,6 +157,11 @@ public sealed class AiStreamParser
             _data.Clear();
             Done = true;
             return "";
+        }
+        if (_data.Length + payload.Length > MaxEventChars)
+        {
+            _data.Clear();
+            throw new AiException("The endpoint sent a streamed chunk too large to be part of an answer.");
         }
         if (_data.Length > 0) _data.Append('\n');
         _data.Append(payload);
@@ -192,7 +200,7 @@ public sealed class AiStreamParser
         foreach (var c in choices.EnumerateArray())
         {
             if (c.ValueKind != JsonValueKind.Object) continue;
-            if (c.TryGetProperty("index", out var i) && i.ValueKind == JsonValueKind.Number && i.GetInt32() != 0) continue; // only the first choice
+            if (c.TryGetProperty("index", out var i) && !(i.ValueKind == JsonValueKind.Number && i.TryGetInt32(out var index) && index == 0)) continue; // only the first choice
             if (c.TryGetProperty("delta", out var d) && d.ValueKind == JsonValueKind.Object && d.TryGetProperty("content", out var dc) && dc.ValueKind == JsonValueKind.String)
                 sb.Append(dc.GetString());
             else if (c.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.Object && m.TryGetProperty("content", out var mc) && mc.ValueKind == JsonValueKind.String)

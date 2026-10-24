@@ -81,6 +81,16 @@ public sealed record AiEndpoint
             error = "That isn't a web address. Enter one such as https://api.example.com/v1";
             return false;
         }
+        // HttpClient connects to the IDNA (punycode) form of a host, in which look-alike dots such as "。" become real
+        // ones: a name classified as typed could be another host. Only plain ASCII names are taken.
+        var start = text.IndexOf("://", StringComparison.Ordinal) + 3;
+        var end = text.IndexOfAny(['/', '?', '#'], start);
+        var authority = text.AsSpan(start, (end < 0 ? text.Length : end) - start);
+        if (uri.Host.Any(c => c > 0x7E) || authority.ContainsAnyExceptInRange((char)0x21, (char)0x7E))
+        {
+            error = "Type the host name in plain letters and digits (an international domain name in its xn-- form).";
+            return false;
+        }
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
             error = "The address must start with https:// (or http:// for this PC or your network).";
@@ -113,6 +123,18 @@ public sealed record AiEndpoint
         endpoint = new AiEndpoint(b.Uri, reach);
         return true;
     }
+
+    /// <summary>
+    /// True when a connection to <paramref name="ip"/> keeps the promise of <see cref="Reach"/>: loopback for this PC;
+    /// loopback or a private, link-local or unique-local address for the network; anything for the internet. Checked on
+    /// every address a name resolves to, so a ".local" or ".localhost" name (or DNS rebinding) can't lead elsewhere.
+    /// </summary>
+    public bool Allows(IPAddress ip) => Reach switch
+    {
+        AiReach.ThisPc => Classify(ip) == AiReach.ThisPc,
+        AiReach.LocalNetwork => Classify(ip) != AiReach.Internet,
+        _ => true,
+    };
 
     /// <summary>Where a host is, by its name or address as written.</summary>
     public static AiReach Classify(string host)

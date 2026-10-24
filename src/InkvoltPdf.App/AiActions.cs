@@ -77,7 +77,6 @@ public static class AiActions
         keyRow.Children.Add(key);
         dlg.Add("API key (optional)", keyRow);
         var keyNote = dlg.AddNote("");
-        var removeKey = false;
 
         var sizes = AiText.ContextSizes.Select(n => n.ToString("N0")).ToList();
         var context = dlg.Add("Context size (tokens the model reads at once)", new ComboBox { IsEditable = true, ItemsSource = sizes, Text = s.AiContextTokens.ToString("N0"), Width = 160, HorizontalAlignment = HorizontalAlignment.Left });
@@ -105,6 +104,10 @@ public static class AiActions
             return ep;
         }
 
+        // A typed key (or "remove") belongs to the endpoint it was entered for: any change of endpoint drops it.
+        var draft = new AiKeyDraft(Parsed(out _)?.Key);
+        key.PasswordChanged += (_, _) => draft.Type(key.Password);
+
         void Refresh()
         {
             var on = enabled.IsChecked == true;
@@ -127,7 +130,8 @@ public static class AiActions
                 reachBox.SetResourceReference(Border.BackgroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBackgroundBrush" : "SubtleFillColorSecondaryBrush");
                 reachIcon.SetResourceReference(TextBlock.ForegroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush");
             }
-            var saved = ep is not null && AiKeyStore.Has(ep.Key) && !removeKey;
+            if (draft.EndpointChanged(ep?.Key) && key.Password.Length > 0) key.Password = "";
+            var saved = ep is not null && AiKeyStore.Has(ep.Key) && !draft.Remove;
             keyNote.Text = saved
                 ? "A key is saved for this endpoint, encrypted for your Windows account. Leave the box empty to keep it."
                 : "Only if the endpoint needs one (local servers don't). Kept encrypted for your Windows account (DPAPI), sent only to this endpoint.";
@@ -153,7 +157,7 @@ public static class AiActions
         enabled.Unchecked += (_, _) => Refresh();
         forgetKey.Click += (_, _) =>
         {
-            removeKey = true;
+            draft.RemoveSaved();
             key.Password = "";
             Refresh();
         };
@@ -175,7 +179,7 @@ public static class AiActions
             testResult.Text = $"Connecting to {ep.Host}…";
             try
             {
-                var apiKey = key.Password.Length > 0 ? key.Password : removeKey ? null : AiKeyStore.Get(ep.Key);
+                var apiKey = draft.KeyToUse(AiKeyStore.Get);
                 using var client = AiService.CreateClient(ep, model.Text.Trim(), apiKey);
                 var models = await client.ListModelsAsync(mine.Token);
                 if (mine.IsCancellationRequested) return;
@@ -221,12 +225,12 @@ public static class AiActions
         s.AiModel = model.Text.Trim();
         s.AiContextTokens = contextTokens;
         s.AiNoPreview = trusted;
-        if (Parsed(out _) is { } saved)
+        if (draft.EndpointKey is { } endpointKey)
         {
             try
             {
-                if (key.Password.Length > 0) AiKeyStore.Set(saved.Key, key.Password);
-                else if (removeKey) AiKeyStore.Set(saved.Key, null);
+                if (draft.Typed is { } typedKey) AiKeyStore.Set(endpointKey, typedKey);
+                else if (draft.Remove) AiKeyStore.Set(endpointKey, null);
             }
             catch (InvalidOperationException ex)
             {
@@ -251,13 +255,14 @@ public static class AiActions
     /// tokens, requests) and exactly what (an expandable preview of every message). Skipped for an endpoint the user
     /// chose "don't ask again" for, except for the first send to an internet endpoint and for text the PDF forbids copying.
     /// </summary>
-    public static bool ConfirmSend(Window owner, AiConfig config, AiOutgoing outgoing, bool copyRestricted)
+    /// <param name="force">Ask even when the user chose "don't ask again" for this endpoint.</param>
+    public static bool ConfirmSend(Window owner, AiConfig config, AiOutgoing outgoing, bool copyRestricted, bool force = false, string? title = null)
     {
         var ep = config.Endpoint;
         var firstCloud = !AiService.WarnedAbout(ep);
-        if (AiService.SkipsPreview(ep) && !copyRestricted && !firstCloud) return true;
+        if (AiService.SkipsPreview(ep) && !copyRestricted && !firstCloud && !force) return true;
 
-        var dlg = new FormDialog(owner, "Send to the AI assistant?", "Send", 600);
+        var dlg = new FormDialog(owner, title ?? "Send to the AI assistant?", "Send", 600);
         var to = new DockPanel();
         var icon = new TextBlock { Style = (Style)Application.Current.FindResource("Icon"), FontSize = 16, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Top };
         DockPanel.SetDock(icon, Dock.Left);
@@ -327,8 +332,13 @@ public static class AiActions
             dlg.AddNote("The author of this PDF restricted copying its text. Sending it to an AI copies it out of the document.").FontWeight = FontWeights.SemiBold;
             restrictedOk = dlg.AddCheck("Send it anyway: I'm allowed to use this text");
         }
-        var dontAsk = dlg.AddCheck($"Don't ask again for {ep.Host} (change this in Settings › AI assistant)", AiService.SkipsPreview(ep));
-        dontAsk.Margin = new Thickness(0, 14, 0, 0);
+        // A window shown regardless of that choice (combining partial summaries for an internet endpoint) doesn't offer it.
+        CheckBox? dontAsk = null;
+        if (!force)
+        {
+            dontAsk = dlg.AddCheck($"Don't ask again for {ep.Host} (change this in Settings › AI assistant)", AiService.SkipsPreview(ep));
+            dontAsk.Margin = new Thickness(0, 14, 0, 0);
+        }
         dlg.Validate(() =>
             cloudOk is { IsChecked: not true } ? $"Tick \"I understand\" to send text to {ep.Host}, or Cancel."
             : restrictedOk is { IsChecked: not true } ? "Tick \"Send it anyway\" to send text the author restricted, or Cancel."
@@ -336,8 +346,11 @@ public static class AiActions
         if (!dlg.ShowModal()) return false;
 
         var s = AppSettings.Current;
-        s.AiNoPreview.RemoveAll(k => string.Equals(k, ep.Key, StringComparison.OrdinalIgnoreCase));
-        if (dontAsk.IsChecked == true) s.AiNoPreview.Add(ep.Key);
+        if (dontAsk is not null)
+        {
+            s.AiNoPreview.RemoveAll(k => string.Equals(k, ep.Key, StringComparison.OrdinalIgnoreCase));
+            if (dontAsk.IsChecked == true) s.AiNoPreview.Add(ep.Key);
+        }
         if (firstCloud) s.AiCloudWarned.Add(ep.Key);
         s.Save();
         return true;
@@ -354,12 +367,20 @@ public static class AiActions
         // (a quick byte scan) before reading the permissions with PDFsharp.
         if (!s.IsPdf || data.AsSpan().IndexOf("/Encrypt"u8) < 0) return false;
         var password = s.Password;
-        return await Task.Run(() =>
+        try
         {
-            if (SecurityActions.Read(s) is not { IsEncrypted: true } info || info.Permissions.Copy) return false;
-            var hasOwnerPassword = !string.IsNullOrEmpty(password) && !PdfSecurity.IsOpenPassword(data, password);
-            return !hasOwnerPassword;
-        });
+            return await Task.Run(() =>
+            {
+                if (SecurityActions.Read(s) is not { IsEncrypted: true } info || info.Permissions.Copy) return false;
+                var hasOwnerPassword = !string.IsNullOrEmpty(password) && !PdfSecurity.IsOpenPassword(data, password);
+                return !hasOwnerPassword;
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"AI: permissions unreadable ({ex.GetType().Name}); asking as if copying were restricted");
+            return true;
+        }
     }
 
     /// <summary>Review › AI Assistant › Summarize: which pages. Null when cancelled.</summary>

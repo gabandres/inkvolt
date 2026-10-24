@@ -654,6 +654,7 @@ public class AiPromptTests
         {
             Directory.CreateDirectory(dir);
             File.WriteAllBytes(Path.Combine(dir, "ai-no-copy.pdf"), pdf);
+            File.WriteAllBytes(Path.Combine(dir, "ai-long.pdf"), TestPdf.Make(60)); // summarized in parts at a 2,048-token context
         }
     }
 

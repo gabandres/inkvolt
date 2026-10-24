@@ -15,6 +15,7 @@ public partial class DocumentTab
     private ColumnDefinition? _aiColumn;
     private GridSplitter? _aiSplitter;
     private CancellationTokenSource? _aiCancel;
+    private bool _aiCopyRestricted;
     private readonly List<AiTurn> _aiTurns = [];
     private MenuItem? _ctxExplain;
     // Page text already read for the AI, for the engine it came from (an edit replaces the engine and so the cache).
@@ -131,21 +132,38 @@ public partial class DocumentTab
         }
         var first = AiPrompts.SummaryRequests(chunks);
         var label = $"Summarize {AiText.PagesText(pages)}";
+        // The combining requests carry the model's own partial summaries: they are shown before they go (always for an
+        // internet endpoint; on this PC or the network unless the user chose not to be asked for it).
+        var showCombine = config.Endpoint.Reach == AiReach.Internet || !AiService.SkipsPreview(config.Endpoint);
         var outgoing = new AiOutgoing(first, $"The text of {AiText.PagesText(pages)}",
-            first.Count > 1 ? "the partial summaries the model writes, to combine them into one" : null);
+            first.Count == 1 ? null
+            : showCombine ? "the partial summaries the model writes, which you'll see before they're sent back to it to be combined"
+            : "the partial summaries the model writes, sent back to it to be combined (without asking, as chosen for this endpoint)");
         await AiRun(config, label, outgoing, async (client, onFinal, onStep, ct) =>
         {
             string? finish = null;
+            var declined = false;
             var text = await AiPrompts.SummarizeAsync(chunks, config.InputChars, async (messages, step, c) =>
             {
                 onStep(step);
                 var reply = await client.ChatAsync(messages, step.IsFinal ? onFinal : null, c);
                 if (step.IsFinal) finish = reply.FinishReason;
                 return AiText.WithoutThinking(reply.Text, out _);
-            }, ct);
-            return new AiReply(text, finish);
+            }, ct, async (round, c) =>
+            {
+                await Task.Yield();
+                var ok = Window.GetWindow(this) is { } w && !_disposed && AiActions.ConfirmSend(w, config,
+                    new AiOutgoing(round, $"The partial summaries the model wrote about {AiText.PagesText(pages)}", null),
+                    _aiCopyRestricted, force: config.Endpoint.Reach == AiReach.Internet, title: "Send the partial summaries to combine them?");
+                declined = !ok;
+                return ok;
+            });
+            return new AiReply(text, declined ? NotCombined : finish);
         });
     }
+
+    /// <summary>The finish reason of a summary whose parts the user chose not to send back to be combined.</summary>
+    private const string NotCombined = "inkvolt:not-combined";
 
     /// <summary>A question about the pages in the pane's Pages box, with the conversation so far.</summary>
     public async Task AiAsk(string question)
@@ -289,6 +307,12 @@ public partial class DocumentTab
                 _aiPane.ShowStatus("Not sent: the document changed while its text was read. Try again.");
                 return null;
             }
+            catch (Exception ex)
+            {
+                Log.Write($"AI: reading the pages' text failed: {ex.GetType().Name}");
+                _aiPane.ShowStatus("Not sent: the pages' text couldn't be read.");
+                return null;
+            }
             finally
             {
                 _aiCancel = null;
@@ -308,6 +332,7 @@ public partial class DocumentTab
         if (_disposed || Window.GetWindow(this) is not { } owner || _aiPane is null) return false;
         var restricted = await AiActions.IsCopyRestrictedAsync(Session);
         if (_disposed) return false;
+        _aiCopyRestricted = restricted;
         if (!AiActions.ConfirmSend(owner, config, outgoing, restricted))
         {
             _aiPane.ShowStatus("Not sent.");
@@ -346,7 +371,9 @@ public partial class DocumentTab
             await dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background); // streamed pieces first
             finished = true;
             var answer = AiText.WithoutThinking(reply.Text, out _).Trim();
-            card.Finish(answer, reply.WasCutOff ? "The answer was cut off at the model's length limit." : answer.Length == 0 ? "The model sent an empty answer." : null);
+            card.Finish(answer, reply.FinishReason == NotCombined ? "The partial summaries, not combined: you chose not to send them back to the model."
+                : reply.WasCutOff ? "The answer was cut off at the model's length limit."
+                : answer.Length == 0 ? "The model sent an empty answer." : null);
             if (answer.Length > 0) _aiTurns.Add(new AiTurn(historyQuestion ?? question, answer));
             _aiPane.ShowStatus("Answer ready. AI-generated: check it against the pages.");
             return true;
@@ -363,6 +390,15 @@ public partial class DocumentTab
             Log.Write($"AI: the request to {config.Endpoint.Host} failed"); // not the message: a server may echo text back
             card.Finish(null, ex.Message, error: true);
             _aiPane.ShowStatus(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            // Anything unexpected still ends the card (the callers don't await this): an error, never a lasting "…".
+            finished = true;
+            Log.Write($"AI: the request to {config.Endpoint.Host} failed unexpectedly: {ex.GetType().Name}");
+            var message = $"Something went wrong with the answer from {config.Endpoint.Host} ({ex.GetType().Name}). Nothing more was sent.";
+            card.Finish(null, message, error: true);
+            _aiPane.ShowStatus(message);
         }
         finally
         {

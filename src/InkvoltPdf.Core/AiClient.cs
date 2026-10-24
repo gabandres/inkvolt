@@ -44,18 +44,51 @@ public sealed class AiClient : IDisposable
         _http = new HttpClient(handler ?? CreateHandler(endpoint, _timeouts), disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
+    /// <summary>Longest line of a streamed answer, largest whole body read, longest answer kept.</summary>
+    public const int MaxLineChars = 1 << 20, MaxBodyBytes = 8 << 20, MaxAnswerChars = 4 << 20;
+
     /// <summary>
     /// The connection settings: no redirects (they could take the text somewhere else), no cookies. Requests to this PC or
-    /// the network never go through a proxy; internet endpoints use the Windows proxy setting, as browsers do.
+    /// the network never go through a proxy, and connect only to an address in the endpoint's range
+    /// (<see cref="AiEndpoint.Allows"/>): the name is resolved here and the checked address is the one connected to, so
+    /// neither a name that resolves elsewhere nor DNS rebinding can take the text off the PC or network. Internet
+    /// endpoints use the Windows proxy setting, as browsers do.
     /// </summary>
-    public static SocketsHttpHandler CreateHandler(AiEndpoint endpoint, AiTimeouts? timeouts = null) => new()
+    /// <param name="resolve">For tests: name resolution (by default <see cref="Dns.GetHostAddressesAsync(string, CancellationToken)"/>).</param>
+    public static SocketsHttpHandler CreateHandler(AiEndpoint endpoint, AiTimeouts? timeouts = null,
+        Func<string, CancellationToken, Task<IPAddress[]>>? resolve = null) => new()
     {
         AllowAutoRedirect = false,
         UseCookies = false,
         UseProxy = endpoint.Reach == AiReach.Internet,
         ConnectTimeout = (timeouts ?? AiTimeouts.Default).Connect,
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+        ConnectCallback = (context, cancel) => Connect(endpoint, context.DnsEndPoint, resolve ?? Dns.GetHostAddressesAsync, cancel),
     };
+
+    private static async ValueTask<Stream> Connect(AiEndpoint endpoint, DnsEndPoint target, Func<string, CancellationToken, Task<IPAddress[]>> resolve,
+        CancellationToken cancel)
+    {
+        var host = target.Host.Trim('[', ']');
+        var resolved = IPAddress.TryParse(host, out var literal) ? [literal] : await resolve(host, cancel);
+        var allowed = resolved.Where(endpoint.Allows).ToArray();
+        if (allowed.Length == 0)
+            throw new AiAddressException(resolved.Length == 0
+                ? $"Couldn't find {host}. Check the address, and that this PC is online."
+                : $"{host} leads to {resolved[0]}, outside {(endpoint.Reach == AiReach.ThisPc ? "this PC" : "your network")}, so nothing was sent. " +
+                  "If the endpoint is on the internet, enter its public https:// address.");
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(allowed, target.Port, cancel);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
 
     /// <summary>The models the endpoint offers (<c>GET /models</c>). Empty when it doesn't list them (404).</summary>
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken cancel = default)
@@ -65,7 +98,7 @@ public sealed class AiClient : IDisposable
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         cts.CancelAfter(TimeSpan.FromSeconds(20));
         using var response = await Send(request, cts, cancel, TimeSpan.FromSeconds(20));
-        var body = await ReadBody(response, cts, cancel);
+        var body = await ReadBody(response, cts, cancel, truncate: !response.IsSuccessStatusCode);
         if (response.StatusCode == HttpStatusCode.NotFound) return [];
         if (!response.IsSuccessStatusCode)
             throw new AiException(AiProtocol.DescribeError((int)response.StatusCode, AiProtocol.ErrorMessageOf(body), _model, _endpoint));
@@ -87,7 +120,7 @@ public sealed class AiClient : IDisposable
         using var response = await Send(request, cts, cancel, _timeouts.FirstByte);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await ReadBody(response, cts, cancel);
+            var body = await ReadBody(response, cts, cancel, truncate: true);
             throw new AiException(AiProtocol.DescribeError((int)response.StatusCode, AiProtocol.ErrorMessageOf(body), _model, _endpoint));
         }
 
@@ -105,7 +138,7 @@ public sealed class AiClient : IDisposable
         try
         {
             await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var reader = new LineReader(stream);
             while (!parser.Done)
             {
                 cts.CancelAfter(_timeouts.Idle);
@@ -113,6 +146,8 @@ public sealed class AiClient : IDisposable
                 if (line is null) break;
                 var piece = parser.Line(line);
                 if (piece.Length == 0) continue;
+                if (text.Length + piece.Length > MaxAnswerChars)
+                    throw new AiException($"The answer from {_endpoint.Host} grew far longer than an answer should; it was stopped.");
                 text.Append(piece);
                 onText?.Invoke(piece);
             }
@@ -152,7 +187,7 @@ public sealed class AiClient : IDisposable
             throw new AiException($"{_endpoint.Host} didn't answer within {Describe(wait)}." +
                                   (_endpoint.Reach == AiReach.ThisPc ? " A large model may still be loading: try again in a moment." : ""));
         }
-        catch (HttpRequestException ex) when (!cancel.IsCancellationRequested)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or SocketException && !cancel.IsCancellationRequested)
         {
             throw new AiException(DescribeConnectionFailure(_endpoint, ex), ex);
         }
@@ -167,30 +202,94 @@ public sealed class AiClient : IDisposable
         return response;
     }
 
-    private static async Task<string> ReadBody(HttpResponseMessage response, CancellationTokenSource cts, CancellationToken cancel)
+    /// <summary>
+    /// Reads a whole (not streamed) body, at most <see cref="MaxBodyBytes"/>: an error body is cut there
+    /// (<paramref name="truncate"/>), an answer that long is refused.
+    /// </summary>
+    private async Task<string> ReadBody(HttpResponseMessage response, CancellationTokenSource cts, CancellationToken cancel, bool truncate = false)
     {
         try
         {
-            var bytes = await response.Content.ReadAsByteArrayAsync(cts.Token);
-            return Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 1 << 20));
+            await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+            using var ms = new MemoryStream();
+            var buffer = new byte[16384];
+            int n;
+            while ((n = await stream.ReadAsync(buffer, cts.Token)) > 0)
+            {
+                if (ms.Length + n > MaxBodyBytes)
+                {
+                    if (!truncate) throw new AiException($"{_endpoint.Host} sent more than {MaxBodyBytes >> 20} MB in one answer; it was stopped.");
+                    ms.Write(buffer, 0, (int)(MaxBodyBytes - ms.Length));
+                    break;
+                }
+                ms.Write(buffer, 0, n);
+            }
+            return Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
         }
         catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
         {
             throw new AiException("The endpoint took too long to send its answer.");
         }
+        catch (Exception ex) when (ex is HttpRequestException or IOException && !cancel.IsCancellationRequested)
+        {
+            throw new AiException($"The connection to {_endpoint.Host} broke off: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>Reads UTF-8 lines (LF or CRLF) of at most <see cref="MaxLineChars"/>, so a stream without line breaks can't fill memory.</summary>
+    private sealed class LineReader(Stream stream)
+    {
+        private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
+        private readonly byte[] _bytes = new byte[8192];
+        private readonly char[] _chars = new char[Encoding.UTF8.GetMaxCharCount(8192)];
+        private readonly StringBuilder _line = new();
+        private int _pos, _count;
+        private bool _ended;
+
+        public async Task<string?> ReadLineAsync(CancellationToken cancel)
+        {
+            while (true)
+            {
+                for (; _pos < _count; _pos++)
+                {
+                    var c = _chars[_pos];
+                    if (c == '\n')
+                    {
+                        _pos++;
+                        return Take();
+                    }
+                    if (_line.Length >= MaxLineChars) throw new AiException("The endpoint sent a line too long to be part of a streamed answer.");
+                    _line.Append(c);
+                }
+                if (_ended) return _line.Length > 0 ? Take() : null;
+                var n = await stream.ReadAsync(_bytes, cancel);
+                _ended = n == 0;
+                _count = _decoder.GetChars(_bytes, 0, n, _chars, 0, flush: _ended);
+                _pos = 0;
+            }
+        }
+
+        private string Take()
+        {
+            if (_line.Length > 0 && _line[^1] == '\r') _line.Length--;
+            var s = _line.ToString();
+            _line.Clear();
+            return s;
+        }
     }
 
     /// <summary>"Couldn't connect to localhost:11434. Is Ollama running?" and the like.</summary>
-    public static string DescribeConnectionFailure(AiEndpoint endpoint, HttpRequestException ex)
+    public static string DescribeConnectionFailure(AiEndpoint endpoint, Exception ex)
     {
+        if (FindInner<AiAddressException>(ex) is { } refused) return refused.Message;
         var socket = FindInner<SocketException>(ex);
         if (socket?.SocketErrorCode == SocketError.TimedOut || FindInner<TimeoutException>(ex) is not null)
             return $"{endpoint.Host} didn't respond. Check the address, the network and any firewall.";
-        if (ex.HttpRequestError == HttpRequestError.NameResolutionError || socket?.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData)
+        if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.NameResolutionError || socket?.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData)
             return $"Couldn't find {endpoint.BaseUrl.Host}. Check the address, and that this PC is online.";
-        if (ex.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<AuthenticationException>(ex) is not null)
+        if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<AuthenticationException>(ex) is not null)
             return $"Couldn't make a secure connection to {endpoint.Host}: its certificate isn't trusted by Windows, or it doesn't speak https.";
-        if (socket?.SocketErrorCode == SocketError.ConnectionRefused || ex.HttpRequestError == HttpRequestError.ConnectionError)
+        if (socket?.SocketErrorCode == SocketError.ConnectionRefused || (ex as HttpRequestException)?.HttpRequestError == HttpRequestError.ConnectionError)
             return $"Couldn't connect to {endpoint.Host}: nothing is listening there. " + endpoint.ServerName switch
             {
                 "Ollama" => "Is Ollama running? Start it (or run: ollama serve) and try again.",
@@ -211,3 +310,6 @@ public sealed class AiClient : IDisposable
 
     public void Dispose() => _http.Dispose();
 }
+
+/// <summary>A name led to an address outside the endpoint's range (or to none); no connection was made.</summary>
+public sealed class AiAddressException(string message) : IOException(message);
