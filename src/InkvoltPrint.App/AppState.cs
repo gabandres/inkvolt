@@ -50,6 +50,10 @@ public sealed class AppState
     public bool ScanStraighten { get; set; } = true;
     public string? PrintFolder { get; set; }
 
+    /// <summary>Photos tab: the folder pictures were last added from, and the last layout (PhotosViewModel's layout keys).</summary>
+    public string? PhotoFolder { get; set; }
+    public string? PhotoLayout { get; set; }
+
     /// <summary>Open each scan saved as PDF in Inkvolt PDF (Inkvolt suite) right away.</summary>
     public bool OpenScansInInkvoltPdf { get; set; }
 

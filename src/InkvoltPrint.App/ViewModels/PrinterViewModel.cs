@@ -28,7 +28,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan FallbackRefresh = TimeSpan.FromSeconds(30);
 
-    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, CopySection = 3, SettingsSection = 4;
+    public const int OverviewSection = 0, PrintSection = 1, ScanSection = 2, CopySection = 3, PhotosSection = 4, SettingsSection = 5;
 
     private readonly AppState _state;
     private readonly ScanPresetLibrary _presets;
@@ -57,6 +57,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Print = new PrintViewModel(FindQueueAsync, state);
         Jobs = new PrintJobsViewModel(IsDemo ? Demo.PrintJobs : new Printing.WindowsPrintJobs(FindQueueAsync));
         Copy = new CopyViewModel(FindQueueAsync, state, IsDemo ? Demo.PrintJobs.Add : null) { HasQueue = QueueInstalled };
+        Photos = new PhotosViewModel(FindQueueAsync, state, IsDemo ? Demo.PhotoQueue(uuid) : null);
         // Demo printers get a made-up PC (Demo.OfflinePc): the fixer never reads or touches this PC's queues for them.
         Fixer = new OfflineFixerViewModel(FixerDevice,
             IsDemo ? Demo.OfflinePc : new WindowsOfflineProbes(),
@@ -108,6 +109,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>Copy and ID card copy: scan here, print through the Windows queue.</summary>
     public CopyViewModel Copy { get; }
+
+    /// <summary>Print photos and other pictures with layouts, through the Windows queue.</summary>
+    public PhotosViewModel Photos { get; }
 
     partial void OnQueueInstalledChanged(bool value) => Copy.HasQueue = value;
 
@@ -266,6 +270,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (SelectedSection == SettingsSection && Settings is { IsLoaded: false } s && s.LoadCommand.CanExecute(null))
             s.LoadCommand.Execute(null);
         if (SelectedSection == CopySection) Copy.Shown();
+        if (SelectedSection == PhotosSection) Photos.Shown();
     }
 
     public void Start()
@@ -410,6 +415,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
                 Copy.QueueChanged();
+                Photos.QueueChanged();
                 Jobs.QueueChanged();
             }
         }
@@ -672,6 +678,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 SetupMessage = "Ready to print from any app.";
                 Print.QueueChanged();
                 Copy.QueueChanged();
+                Photos.QueueChanged();
                 Jobs.QueueChanged();
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
@@ -701,7 +708,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (!IsOnline) return "the printer isn't reachable right now. Turn it on, then use Set up";
         if (Print.IsBusy) return "a print job is being sent. Try again when it's done";
         IsInstalling = true;
-        Print.QueueBusy = true; // no new jobs while the queue is being re-created
+        Print.QueueBusy = Photos.QueueBusy = true; // no new jobs while the queue is being re-created
         try
         {
             if (!await QueueInstaller.UninstallAsync(endpoint)) return "Windows didn't remove the old printer";
@@ -716,6 +723,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             QueueInstalled = _discoveredQueue || _windowsQueue;
             Print.QueueChanged();
             Copy.QueueChanged();
+            Photos.QueueChanged();
             Jobs.QueueChanged();
             return _windowsQueue ? null : $"{result.Message} Use Set up on this printer to add it again.";
         }
@@ -727,7 +735,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         finally
         {
             IsInstalling = false;
-            Print.QueueBusy = false;
+            Print.QueueBusy = Photos.QueueBusy = false;
         }
     }
 
@@ -764,6 +772,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         SelectedSection = PrintSection;
         return Print.OpenAsync(path);
     }
+
+    /// <summary>Drag-and-drop / "Open with" for pictures: jump to Photos and add them.</summary>
+    public Task OpenPhotosAsync(IReadOnlyList<string> paths)
+    {
+        SelectedSection = PhotosSection;
+        return Photos.AddAsync(paths);
+    }
+
+    [RelayCommand]
+    private void GoToPhotos() => SelectedSection = PhotosSection;
 
     public void Dispose()
     {

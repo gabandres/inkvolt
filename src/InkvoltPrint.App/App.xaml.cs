@@ -110,6 +110,8 @@ public partial class App : Application
 
         // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
         if (FirstPdf(e.Args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
+        // InkvoltPrint.exe photo.jpg … ("Open with" on pictures) → Photos for the last-used printer.
+        else if (Pictures(e.Args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
         // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.
         if (PresetArg(e.Args) is { } preset && !e.Args.Contains("--snapshot")) _ = _vm.RunPresetWhenReadyAsync(preset);
         if (Array.IndexOf(e.Args, "--autoprint") is var ap and >= 0 && ap + 1 < e.Args.Length)
@@ -129,7 +131,8 @@ public partial class App : Application
                 preset: PresetArg(e.Args),
                 then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
                 editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
-                tray: e.Args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: e.Args.Contains("--simulate-alerts"));
+                tray: e.Args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: e.Args.Contains("--simulate-alerts"),
+                args: e.Args);
         _started = true;
     }
 
@@ -138,6 +141,11 @@ public partial class App : Application
 
     private static string? FirstPdf(IEnumerable<string> args) =>
         args.FirstOrDefault(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(a));
+
+    /// <summary>Picture files among the arguments; the dev aids' output files (<c>--snapshot shot.png</c>) are not.</summary>
+    private static List<string> Pictures(string[] args) =>
+        args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--snapshot" or "--autoprint" or "--photo-sheets"))
+                             && (Printing.PhotoFiles.IsPicture(a) || Printing.PhotoFiles.MissingCodec(a) is not null) && File.Exists(a)).ToList();
 
     /// <summary>Quit (tray menu): closes the window for real; unsaved scans are asked about first, with the window shown.</summary>
     public void Quit()
@@ -180,6 +188,7 @@ public partial class App : Application
             w.Topmost = false;
         }
         if (FirstPdf(args) is { } pdf && _vm is not null) _ = _vm.OpenPdfAsync(pdf);
+        else if (Pictures(args) is { Count: > 0 } pictures && _vm is not null) _ = _vm.OpenPhotosAsync(pictures);
         if (PresetArg(args) is { } preset && _vm is not null) _ = _vm.RunPresetWhenReadyAsync(preset);
     }
 

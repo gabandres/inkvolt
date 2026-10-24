@@ -29,6 +29,7 @@
         <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
         <ContextMenu x:Key="PrinterMenu" x:Shared="False">
             <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
+            <MenuItem Header="Print photos…" Command="{Binding GoToPhotosCommand}" />
             <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}" />
             <MenuItem Header="Remove from InkvoltPrint…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -843,6 +844,246 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ===================== Photos ===================== -->
+        <DataTemplate DataType="{x:Type vm:PhotosViewModel}">
+            <Grid Margin="0,0,16,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Layout and printer options -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,16,0" VerticalAlignment="Top">
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Print photos" Style="{StaticResource CardTitle}" />
+                        <Button Command="{Binding AddPhotosCommand}" HorizontalAlignment="Stretch" Padding="0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xEB9F;" Margin="0,0,8,0" />
+                                <TextBlock Text="Add photos…" />
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock Text="Layout" Margin="0,20,0,6" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.Layouts}" SelectedItem="{Binding Layout}" HorizontalAlignment="Stretch"
+                                  AutomationProperties.Name="Layout" />
+                        <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.ContactCounts}" SelectedItem="{Binding PerSheet}" HorizontalAlignment="Stretch"
+                                  Margin="0,8,0,0" AutomationProperties.Name="Photos per contact sheet"
+                                  Visibility="{Binding IsContactSheet, Converter={StaticResource VisibleWhen}}" />
+                        <StackPanel Visibility="{Binding ShowFit, Converter={StaticResource VisibleWhen}}" Margin="0,10,0,0">
+                            <RadioButton Content="Fill (crop to the shape)" IsChecked="{Binding Fill}" GroupName="photofit"
+                                         ToolTip="Covers the whole print; drag a photo in the preview to choose what's cropped" />
+                            <RadioButton Content="Fit (whole photo)" IsChecked="{Binding Fill, Converter={StaticResource Not}}" GroupName="photofit" Margin="0,6,0,0"
+                                         ToolTip="Shows the whole photo, with white bands where its shape differs" />
+                        </StackPanel>
+                        <CheckBox Content="Fill each sheet with one photo" IsChecked="{Binding OnePhotoPerSheet}" Margin="0,10,0,0"
+                                  ToolTip="Every print on a sheet is the same photo; copies then count sheets"
+                                  Visibility="{Binding ShowOnePerSheet, Converter={StaticResource VisibleWhen}}" />
+
+                        <TextBlock Text="Paper" Margin="0,20,0,6" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{Binding Papers}" SelectedItem="{Binding Paper}" HorizontalAlignment="Stretch" AutomationProperties.Name="Paper size" />
+                        <ComboBox ItemsSource="{Binding MediaTypes}" SelectedItem="{Binding MediaType}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                  AutomationProperties.Name="Paper type" ToolTip="Paper type: tells the printer how much ink the paper takes"
+                                  Visibility="{Binding HasMediaTypes, Converter={StaticResource VisibleWhen}}" />
+                        <CheckBox Content="Borderless" IsChecked="{Binding Borderless}" Margin="0,10,0,0"
+                                  ToolTip="Prints to the edges of the paper (the printer enlarges the photo a little past them)"
+                                  Visibility="{Binding CanBorderless, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding BorderlessNote}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding BorderlessNote, Converter={StaticResource VisibleWhen}}" />
+
+                        <StackPanel Visibility="{Binding HasQualities, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="Quality" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding Qualities}" SelectedItem="{Binding Quality}" HorizontalAlignment="Stretch" AutomationProperties.Name="Print quality" />
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding HasColors, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="Color" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding ColorMode}" HorizontalAlignment="Stretch" AutomationProperties.Name="Color" />
+                        </StackPanel>
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0" ToolTip="Reading what this printer offers…"
+                                     Visibility="{Binding IsReadingOptions, Converter={StaticResource VisibleWhen}}" />
+
+                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,16,0,0"
+                                   Visibility="{Binding Summary, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Warning}" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Visibility="{Binding Warning, Converter={StaticResource VisibleWhen}}" />
+
+                        <Button Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
+                                <TextBlock Text="Print" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                   Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                </ScrollViewer>
+
+                <!-- Photos, the selected photo, and every sheet as it will print -->
+                <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360"
+                                    Visibility="{Binding HasPhotos, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xEB9F;" FontSize="48" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Drop photos here" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,4" />
+                            <TextBlock Text="or add them. You'll see every sheet as it will print before anything prints."
+                                       Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap" />
+                            <Button Content="Add photos…" Command="{Binding AddPhotosCommand}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                            <TextBlock Text="{Binding FormatsText}" Style="{StaticResource Caption}" FontSize="12" TextAlignment="Center" TextWrapping="Wrap" Margin="0,16,0,0" />
+                        </StackPanel>
+
+                        <DockPanel Visibility="{Binding HasPhotos, Converter={StaticResource VisibleWhen}}">
+                            <!-- The photos: select one to turn, crop or set its copies (Del removes it) -->
+                            <DockPanel DockPanel.Dock="Top" Margin="12,12,12,0">
+                                <Button DockPanel.Dock="Right" Content="Remove all" Command="{Binding ClearCommand}" Style="{StaticResource LinkButton}"
+                                        VerticalAlignment="Top" Margin="12,0,0,0" />
+                                <ListBox ItemsSource="{Binding Photos}" SelectedItem="{Binding Selected}" AutomationProperties.Name="Photos"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                         Background="Transparent" BorderThickness="0" Padding="0,0,0,12">
+                                    <ListBox.InputBindings>
+                                        <KeyBinding Key="Delete" Command="{Binding RemoveCommand}" />
+                                        <KeyBinding Modifiers="Control" Key="R" Command="{Binding RotateRightCommand}" />
+                                        <KeyBinding Modifiers="Control" Key="L" Command="{Binding RotateLeftCommand}" />
+                                        <KeyBinding Key="OemPlus" Command="{Binding MoreCopiesCommand}" />
+                                        <KeyBinding Key="Add" Command="{Binding MoreCopiesCommand}" />
+                                        <KeyBinding Key="OemMinus" Command="{Binding FewerCopiesCommand}" />
+                                        <KeyBinding Key="Subtract" Command="{Binding FewerCopiesCommand}" />
+                                    </ListBox.InputBindings>
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+                                            <Setter Property="Padding" Value="4" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:PhotoItemViewModel}">
+                                            <StackPanel Width="96" ToolTip="{Binding Name}">
+                                                <Grid Height="72">
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                                                        <Image.LayoutTransform>
+                                                            <TransformGroup>
+                                                                <ScaleTransform ScaleX="{Binding ThumbnailScaleX}" />
+                                                                <RotateTransform Angle="{Binding ThumbnailAngle}" />
+                                                            </TransformGroup>
+                                                        </Image.LayoutTransform>
+                                                    </Image>
+                                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" CornerRadius="3" Padding="4,0" Margin="2"
+                                                            Background="#CC202020" Visibility="{Binding IsLowResolution, Converter={StaticResource VisibleWhen}}"
+                                                            ToolTip="{Binding DpiText}">
+                                                        <TextBlock Text="low res" Foreground="White" FontSize="10" />
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                                <TextBlock Text="{Binding CopiesText}" Style="{StaticResource Caption}" FontSize="11" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+
+                            <!-- The selected photo -->
+                            <Border DockPanel.Dock="Top" Margin="12,8,12,0" Padding="12" CornerRadius="6" BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                                    Visibility="{Binding HasSelection, Converter={StaticResource VisibleWhen}}">
+                                <DockPanel>
+                                    <views:PhotoCropView DockPanel.Dock="Left" Width="220" Height="170" Margin="0,0,16,0"
+                                                         Cell="{Binding SelectedCell}" Item="{Binding Selected}" Owner="{Binding}" Grey="{Binding PreviewInGrey}"
+                                                         AutomationProperties.Name="Crop"
+                                                         AutomationProperties.HelpText="Drag, or use the arrow keys, to choose the part that prints. Plus and minus zoom, Home resets."
+                                                         Visibility="{Binding ShowCrop, Converter={StaticResource VisibleWhen}}" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Selected.Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Selected.DpiText}" Style="{StaticResource Caption}" FontSize="12" />
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Button Command="{Binding RotateLeftCommand}" Width="36" Margin="0,0,6,6" ToolTip="Turn left (Ctrl+L)" AutomationProperties.Name="Turn left">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" RenderTransformOrigin="0.5,0.5">
+                                                    <TextBlock.RenderTransform>
+                                                        <ScaleTransform ScaleX="-1" />
+                                                    </TextBlock.RenderTransform>
+                                                </TextBlock>
+                                            </Button>
+                                            <Button Command="{Binding RotateRightCommand}" Width="36" Margin="0,0,16,6" ToolTip="Turn right (Ctrl+R)" AutomationProperties.Name="Turn right">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" />
+                                            </Button>
+                                            <Button Command="{Binding FewerCopiesCommand}" Width="36" Margin="0,0,0,6" ToolTip="Fewer copies (−)" AutomationProperties.Name="Fewer copies">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" />
+                                            </Button>
+                                            <TextBox Text="{Binding Selected.CopiesInput, UpdateSourceTrigger=PropertyChanged}" Width="48" Margin="6,0,6,6"
+                                                     TextAlignment="Center" AutomationProperties.Name="Copies of this photo" />
+                                            <Button Command="{Binding MoreCopiesCommand}" Width="36" Margin="0,0,16,6" ToolTip="More copies (+)" AutomationProperties.Name="More copies">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
+                                            </Button>
+                                            <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="0,0,0,6" ToolTip="Remove from the job (Del)" />
+                                        </WrapPanel>
+                                        <StackPanel Visibility="{Binding ShowCrop, Converter={StaticResource VisibleWhen}}">
+                                            <DockPanel Margin="0,6,0,0">
+                                                <TextBlock DockPanel.Dock="Left" Text="Zoom" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                <Button DockPanel.Dock="Right" Content="Reset" Command="{Binding ResetCropCommand}" Style="{StaticResource LinkButton}"
+                                                        VerticalAlignment="Center" Margin="10,0,0,0" ToolTip="Back to the centre, no zoom (Home in the crop)" />
+                                                <Slider Minimum="100" Maximum="400" SmallChange="10" LargeChange="50" Value="{Binding Selected.ZoomPercent}"
+                                                        VerticalAlignment="Center" AutomationProperties.Name="Zoom" />
+                                            </DockPanel>
+                                            <TextBlock Text="Drag the photo, here or on a sheet, to choose what prints." Style="{StaticResource Caption}" FontSize="12"
+                                                       TextWrapping="Wrap" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Sheets -->
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Sheets}" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:PhotoSheetPreview}">
+                                                <StackPanel Margin="8">
+                                                    <Border BorderThickness="1" CornerRadius="2" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                                        <views:PhotoSheetView Preview="{Binding}" Version="{Binding Version}"
+                                                                              Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}"
+                                                                              AutomationProperties.Name="{Binding Label}" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding MoreSheetsText}" Style="{StaticResource Caption}" Margin="8"
+                                               Visibility="{Binding MoreSheetsText, Converter={StaticResource VisibleWhen}}" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
         <!-- ===================== Settings ===================== -->
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <DockPanel Margin="0,0,16,16">
@@ -1197,6 +1438,7 @@
                                     <TabItem Header="Scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Copy" Content="{Binding Copy}" />
+                                    <TabItem Header="Photos" Content="{Binding Photos}" />
                                     <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
                                              Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />
                                 </TabControl>

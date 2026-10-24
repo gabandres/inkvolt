@@ -19,7 +19,8 @@ namespace InkvoltPrint.App;
 /// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
 /// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
-/// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
+/// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
+/// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -35,8 +36,9 @@ internal static class DevSnapshot
 
     public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
         string? copy = null, int crop = 0, int printer = 0, string? fix = null, string? preset = null, int editPresets = 0, string? then = null,
-        string? tray = null, bool simulateAlerts = false)
+        string? tray = null, bool simulateAlerts = false, string[]? args = null)
     {
+        args ??= [];
         if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
             main.Selected = main.Printers[printer - 1];
         await Task.Delay(TimeSpan.FromSeconds(5));
@@ -70,6 +72,8 @@ internal static class DevSnapshot
             if (copy == "idcard") await copier.ScanBackCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        if (args.Contains("--photos") && window.DataContext is ViewModels.MainViewModel { Selected: { } photoPrinter })
+            await PhotosAsync(photoPrinter, args);
         if (fix is not null && window.DataContext is ViewModels.MainViewModel { Selected: { } fixing })
         {
             await fixing.OpenFixerCommand.ExecuteAsync(null);
@@ -139,6 +143,58 @@ internal static class DevSnapshot
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
         Application.Current.Shutdown();
+    }
+
+    private static string? Value(string[] args, string name) =>
+        Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary>
+    /// <c>--photos [layout]</c>: the Photos tab with the demo's generated sample pictures (Demo.SamplePhotos), in a layout
+    /// (full, 4x6in, 5x7in, 8x10in, 10x15cm, 13x18cm, wallet, contact); <c>--paper key</c> (e.g. NorthAmerica4x6),
+    /// <c>--borderless</c>, <c>--fit</c>, <c>--one-per-sheet</c>, <c>--per-sheet n</c>, <c>--photo-zoom n</c> (zoom the n-th photo and move
+    /// its crop) and <c>--photo-sheets folder</c>: each sheet rendered to a PNG there by the print job's own paginator (what
+    /// the printer would get, at 100 dpi), so the print path is checked without printing.
+    /// </summary>
+    private static async Task PhotosAsync(ViewModels.PrinterViewModel printer, string[] args)
+    {
+        printer.SelectedSection = ViewModels.PrinterViewModel.PhotosSection;
+        var vm = printer.Photos;
+        await Task.Delay(TimeSpan.FromSeconds(1)); // the queue's options
+        await vm.AddAsync(Demo.SamplePhotos());
+        if (Value(args, "--photos") is { } layout && ViewModels.PhotosViewModel.Layouts.FirstOrDefault(l => l.Key == layout) is { } chosen) vm.Layout = chosen;
+        if (Value(args, "--paper") is { } key && vm.Papers.FirstOrDefault(p => p.Key == key) is { } paper)
+        {
+            vm.Paper = paper;
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (int.TryParse(Value(args, "--per-sheet"), out var perSheet) && ViewModels.PhotosViewModel.ContactCounts.FirstOrDefault(c => c.Value == perSheet) is { } count)
+            vm.PerSheet = count;
+        if (args.Contains("--borderless")) vm.Borderless = true;
+        if (args.Contains("--fit")) vm.Fill = false;
+        if (args.Contains("--one-per-sheet")) vm.OnePhotoPerSheet = true;
+        if (int.TryParse(Value(args, "--photo-zoom"), out var nth) && nth >= 1 && nth <= vm.Photos.Count)
+        {
+            vm.Selected = vm.Photos[nth - 1];
+            vm.Selected.ZoomPercent = 160;
+            vm.Selected.SetCrop(vm.Selected.Crop with { PanX = 0.8, PanY = -0.5 });
+        }
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (Value(args, "--photo-sheets") is not { } folder) return;
+        Directory.CreateDirectory(folder);
+        var (sheets, photos, sheetPaper) = vm.PrintPlan();
+        var size = new Size(sheetPaper.Width * 96, sheetPaper.Height * 96);
+        var paginator = new Printing.PhotoPrinting.PhotoPaginator(sheets, photos, size);
+        for (var i = 0; i < paginator.PageCount; i++)
+        {
+            var page = paginator.GetPage(i);
+            const double dpi = 100;
+            var bmp = new RenderTargetBitmap((int)Math.Ceiling(size.Width * dpi / 96), (int)Math.Ceiling(size.Height * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
+            bmp.Render(page.Visual);
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(bmp));
+            await using var fs = File.Create(Path.Combine(folder, $"sheet-{i + 1}.png"));
+            enc.Save(fs);
+        }
     }
 
     /// <summary><c>--demo --tray --simulate-alerts</c> without a snapshot: the real notification, once the demo printers are read.</summary>

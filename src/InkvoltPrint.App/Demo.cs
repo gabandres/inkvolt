@@ -166,6 +166,125 @@ internal static class Demo
         return Jpeg(visual, width, height);
     }
 
+    /// <summary>
+    /// The demo printers' photo options: the inkjet takes photo paper in color and prints borderless on everything but Legal;
+    /// the lasers take plain paper and labels, in black, with margins. Jobs "print" to <see cref="PrintJobs"/>.
+    /// </summary>
+    public static ViewModels.DemoPhotoQueue PhotoQueue(string uuid)
+    {
+        static PaperChoice Paper(string key, double w, double h) => new(key, Core.Photos.PhotoPaperText.Paper(key, w, h), w, h, null);
+        static List<ViewModels.Option<string>> Names(Func<string, string> label, params string[] names) =>
+            [.. names.Select(n => new ViewModels.Option<string>(n, label(n)))];
+        var inkjet = uuid == InkjetUuid;
+        var papers = inkjet
+            ? new[] { Paper("NorthAmericaLetter", 8.5, 11), Paper("ISOA4", 8.27, 11.69), Paper("NorthAmerica4x6", 4, 6), Paper("NorthAmerica5x7", 5, 7),
+                Paper("NorthAmerica8x10", 8, 10), Paper("NorthAmericaLegal", 8.5, 14) }
+            : [Paper("NorthAmericaLetter", 8.5, 11), Paper("NorthAmericaLegal", 8.5, 14), Paper("ISOA4", 8.27, 11.69), Paper("ISOA5", 5.83, 8.27)];
+        var options = inkjet
+            ? new PhotoQueueOptions(papers, "NorthAmericaLetter",
+                Names(Core.Photos.PhotoPaperText.MediaType, "Plain", "Photographic", "PhotographicGlossy", "PhotographicSemiGloss", "PhotographicMatte"), "Plain",
+                Names(Core.Photos.PhotoPaperText.Quality, "Draft", "Normal", "High", "Photographic"), "Normal",
+                Names(Core.Photos.PhotoPaperText.Color, "Color", "Grayscale"), "Color")
+            : new PhotoQueueOptions(papers, "NorthAmericaLetter",
+                Names(Core.Photos.PhotoPaperText.MediaType, "Plain", "Label", "CardStock", "Transparency"), "Plain",
+                Names(Core.Photos.PhotoPaperText.Quality, "Draft", "Normal"), "Normal",
+                Names(Core.Photos.PhotoPaperText.Color, "Monochrome"), "Monochrome");
+        var margin = inkjet ? 0.125 : 1 / 6.0;
+        return new ViewModels.DemoPhotoQueue(options,
+            paper => new PaperSetup(inkjet && paper.Key != "NorthAmericaLegal",
+                new Core.Photos.SheetPaper(paper.WidthIn, paper.HeightIn, margin, margin, margin, margin)),
+            PrintJobs.Add);
+    }
+
+    /// <summary>
+    /// Sample pictures for the Photos tab, drawn here (no photos ship with the app) and saved under %TEMP%: a landscape JPEG,
+    /// a portrait JPEG stored on its side with EXIF orientation 6 (it must show upright), a PNG, a two-page TIFF and a small
+    /// BMP that prints soft.
+    /// </summary>
+    public static IReadOnlyList<string> SamplePhotos()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "Inkvolt Print demo photos");
+        Directory.CreateDirectory(folder);
+        // Written once and reused; several demo copies at once (snapshots) each write a temporary file and the first one wins.
+        string Save(string name, BitmapEncoder encoder)
+        {
+            var path = Path.Combine(folder, name);
+            if (File.Exists(path)) return path;
+            var temp = Path.Combine(folder, $"{Guid.NewGuid():N}.tmp");
+            using (var fs = File.Create(temp)) encoder.Save(fs);
+            try { File.Move(temp, path); }
+            catch (IOException) { File.Delete(temp); }
+            return path;
+        }
+        var lake = Scene(3000, 2000, Color.FromRgb(0xF6, 0x9A, 0x5B), Color.FromRgb(0x5B, 0x3E, 0x8C), Color.FromRgb(0x2E, 0x4A, 0x6B), "Lake");
+        var park = Scene(1800, 2400, Color.FromRgb(0xA8, 0xD8, 0xF0), Color.FromRgb(0x4A, 0x90, 0xC8), Color.FromRgb(0x4E, 0x8A, 0x3C), "Park");
+        var beach = Scene(2400, 1600, Color.FromRgb(0x9E, 0xE0, 0xF5), Color.FromRgb(0x2D, 0x9C, 0xDB), Color.FromRgb(0xE8, 0xD3, 0x9A), "Beach");
+        var hills = Scene(2000, 1400, Color.FromRgb(0xFF, 0xE0, 0xA8), Color.FromRgb(0xE0, 0x7A, 0x5F), Color.FromRgb(0x6B, 0x8E, 0x4E), "Hills");
+        var snow = Scene(1400, 2000, Color.FromRgb(0xDD, 0xE6, 0xF0), Color.FromRgb(0x8A, 0xA4, 0xC0), Color.FromRgb(0xF4, 0xF6, 0xF8), "Snow");
+        var small = Scene(320, 240, Color.FromRgb(0xC9, 0xE4, 0xCA), Color.FromRgb(0x55, 0x82, 0x5A), Color.FromRgb(0x2F, 0x4F, 0x2F), "Small");
+
+        var paths = new List<string>();
+        var jpeg = new JpegBitmapEncoder { QualityLevel = 88 };
+        jpeg.Frames.Add(BitmapFrame.Create(lake));
+        paths.Add(Save("Lake at sunset.jpg", jpeg));
+
+        // Stored a quarter turn left, tagged "turn 90° clockwise to view".
+        var sideways = new TransformedBitmap(park, new RotateTransform(-90));
+        var meta = new BitmapMetadata("jpg");
+        try { meta.SetQuery("/app1/ifd/{ushort=274}", (ushort)6); }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException) { Log.Write($"Demo EXIF: {ex.Message}"); }
+        var tagged = new JpegBitmapEncoder { QualityLevel = 88 };
+        tagged.Frames.Add(BitmapFrame.Create(sideways, null, meta, null));
+        paths.Add(Save("Walk in the park.jpg", tagged));
+
+        var png = new PngBitmapEncoder();
+        png.Frames.Add(BitmapFrame.Create(beach));
+        paths.Add(Save("Beach.png", png));
+
+        var tiff = new TiffBitmapEncoder { Compression = TiffCompressOption.Lzw };
+        tiff.Frames.Add(BitmapFrame.Create(hills));
+        tiff.Frames.Add(BitmapFrame.Create(snow));
+        paths.Add(Save("Two pages.tif", tiff));
+
+        var bmp = new BmpBitmapEncoder();
+        bmp.Frames.Add(BitmapFrame.Create(small));
+        paths.Add(Save("Small picture.bmp", bmp));
+        return paths;
+    }
+
+    /// <summary>A made-up landscape: sky gradient, sun, two mountain ridges, ground, and the label top-left (which side is up).</summary>
+    private static BitmapSource Scene(int w, int h, Color skyTop, Color skyBottom, Color ground, string label)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new LinearGradientBrush(skyTop, skyBottom, 90), null, new Rect(0, 0, w, h));
+            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(0xFF, 0xF1, 0xB8)), null, new Point(w * 0.72, h * 0.3), Math.Min(w, h) * 0.09, Math.Min(w, h) * 0.09);
+            Geometry Ridge(double baseY, double[] peaks)
+            {
+                var g = new StreamGeometry();
+                using (var ctx = g.Open())
+                {
+                    ctx.BeginFigure(new Point(0, h), true, true);
+                    for (var i = 0; i < peaks.Length; i++) ctx.LineTo(new Point(w * i / (peaks.Length - 1.0), h * (baseY - peaks[i])), true, false);
+                    ctx.LineTo(new Point(w, h), true, false);
+                }
+                g.Freeze();
+                return g;
+            }
+            dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(0xC0, 0x3A, 0x3F, 0x5C)), null, Ridge(0.62, [0.05, 0.22, 0.1, 0.3, 0.12, 0.2, 0.04]));
+            dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(0xE0, 0x2C, 0x33, 0x40)), null, Ridge(0.72, [0.02, 0.1, 0.16, 0.06, 0.14, 0.03]));
+            dc.DrawRectangle(new SolidColorBrush(ground), null, new Rect(0, h * 0.74, w, h * 0.26));
+            var size = Math.Max(12, Math.Min(w, h) * 0.07);
+            dc.DrawText(new FormattedText($"↑ {label}", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                new Typeface("Segoe UI Semibold"), size, Brushes.White, 1), new Point(size * 0.6, size * 0.5));
+        }
+        var bmp = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
     private static byte[] Jpeg(Visual visual, int pixelWidth, int pixelHeight)
     {
         var bmp = new RenderTargetBitmap(pixelWidth, pixelHeight, 96, 96, PixelFormats.Pbgra32);

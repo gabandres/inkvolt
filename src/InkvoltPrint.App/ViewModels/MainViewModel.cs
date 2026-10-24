@@ -422,6 +422,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>"Open with" / InkvoltPrint.exe photo.jpg …: the pictures go to the selected printer's Photos tab.</summary>
+    public Task OpenPhotosAsync(IReadOnlyList<string> paths)
+    {
+        if (Selected is { } p) return p.OpenPhotosAsync(paths);
+        Prompt.Tell("Inkvolt Print hasn't found a printer yet, so the photos can't be printed. " +
+                    "Wait for your printer to appear (or add it by address), then open them again.");
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
         _discovery?.Dispose();

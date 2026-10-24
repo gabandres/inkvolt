@@ -91,7 +91,23 @@ public static class QueuePrinter
     /// Ticket + spool on a dedicated STA thread. The paginator is made there too, once the validated ticket says
     /// which paper the queue will use.
     /// </summary>
-    private static async Task SpoolAsync(string queueName, int copies, bool twoSided, string jobName, Func<Size, DocumentPaginator> paginator)
+    private static Task SpoolAsync(string queueName, int copies, bool twoSided, string jobName, Func<Size, DocumentPaginator> paginator) =>
+        SpoolAsync(queueName, jobName, queue =>
+        {
+            var ticket = queue.DefaultPrintTicket.Clone();
+            ticket.CopyCount = copies;
+            ticket.Collation = Collation.Collated;
+            ticket.Duplexing = twoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
+            ticket.PageOrientation = PageOrientation.Portrait;
+            return queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
+        }, (_, _, paper) => paginator(paper));
+
+    /// <summary>
+    /// Spools one job on a dedicated STA thread with its own queue objects: <paramref name="makeTicket"/> returns the
+    /// validated ticket, then <paramref name="paginator"/> lays the pages out on the paper it names (DIPs).
+    /// </summary>
+    internal static async Task SpoolAsync(string queueName, string jobName, Func<PrintQueue, PrintTicket> makeTicket,
+        Func<PrintQueue, PrintTicket, Size, DocumentPaginator> paginator)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -100,17 +116,12 @@ public static class QueuePrinter
             {
                 using var server = new LocalPrintServer();
                 using var queue = new PrintQueue(server, queueName);
-                var ticket = queue.DefaultPrintTicket.Clone();
-                ticket.CopyCount = copies;
-                ticket.Collation = Collation.Collated;
-                ticket.Duplexing = twoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
-                ticket.PageOrientation = PageOrientation.Portrait;
-                ticket = queue.MergeAndValidatePrintTicket(queue.DefaultPrintTicket, ticket).ValidatedPrintTicket;
+                var ticket = makeTicket(queue);
                 var paper = new Size(ticket.PageMediaSize?.Width ?? 816, ticket.PageMediaSize?.Height ?? 1056); // DIPs; Letter fallback
 
                 queue.CurrentJobSettings.Description = jobName;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-                writer.Write(paginator(paper), ticket);
+                writer.Write(paginator(queue, ticket, paper), ticket);
                 done.SetResult();
             }
             catch (Exception ex)

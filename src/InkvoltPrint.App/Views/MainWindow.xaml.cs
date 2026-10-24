@@ -60,23 +60,31 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string? DroppedPdf(DragEventArgs e) =>
-        e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files
-        && files[0].EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? files[0] : null;
+    private static string[] Dropped(DragEventArgs e) => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
+
+    private static string? DroppedPdf(string[] files) =>
+        files is [var first, ..] && first.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? first : null;
+
+    /// <summary>Pictures to print, including HEIC / WebP without a codec (the Photos tab then says what's missing).</summary>
+    private static List<string> DroppedPictures(string[] files) =>
+        files.Where(f => Printing.PhotoFiles.IsPicture(f) || Printing.PhotoFiles.MissingCodec(f) is not null).ToList();
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = DroppedPdf(e) is not null && Vm?.Selected is not null ? DragDropEffects.Copy : DragDropEffects.None;
+        var files = Dropped(e);
+        e.Effects = (DroppedPdf(files) is not null || DroppedPictures(files).Count > 0) && Vm?.Selected is not null ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    /// <summary>Drop a PDF anywhere on the window: it opens in the selected printer's Print section.</summary>
+    /// <summary>Drop a PDF anywhere on the window: it opens in the selected printer's Print section. Pictures go to Photos.</summary>
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         try
         {
-            if (DroppedPdf(e) is { } path && Vm?.Selected is { } printer && File.Exists(path))
-                await printer.OpenPdfAsync(path);
+            var files = Dropped(e);
+            if (Vm?.Selected is not { } printer) return;
+            if (DroppedPdf(files) is { } path && File.Exists(path)) await printer.OpenPdfAsync(path);
+            else if (DroppedPictures(files).Where(File.Exists).ToList() is { Count: > 0 } pictures) await printer.OpenPhotosAsync(pictures);
         }
         catch (Exception ex)
         {

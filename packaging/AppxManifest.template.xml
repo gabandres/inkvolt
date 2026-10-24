@@ -72,6 +72,25 @@
             </uap:SupportedFileTypes>
           </uap3:FileTypeAssociation>
         </uap3:Extension>
+        <!-- "Open with > Inkvolt Print" for pictures: they open in the Photos tab (HEIC / WebP need Windows' codecs) -->
+        <uap3:Extension Category="windows.fileTypeAssociation">
+          <uap3:FileTypeAssociation Name="pictures" Parameters="&quot;%1&quot;">
+            <uap:DisplayName>Picture</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:InfoTip>Print with Inkvolt Print</uap:InfoTip>
+            <uap:SupportedFileTypes>
+              <uap:FileType ContentType="image/jpeg">.jpg</uap:FileType>
+              <uap:FileType ContentType="image/jpeg">.jpeg</uap:FileType>
+              <uap:FileType ContentType="image/png">.png</uap:FileType>
+              <uap:FileType ContentType="image/bmp">.bmp</uap:FileType>
+              <uap:FileType ContentType="image/gif">.gif</uap:FileType>
+              <uap:FileType ContentType="image/tiff">.tif</uap:FileType>
+              <uap:FileType ContentType="image/tiff">.tiff</uap:FileType>
+              <uap:FileType ContentType="image/heic">.heic</uap:FileType>
+              <uap:FileType ContentType="image/webp">.webp</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap3:FileTypeAssociation>
+        </uap3:Extension>
         <!-- "inkvoltprint" (inkvoltprint.exe) from a terminal, Run, or another app such as Inkvolt PDF -->
         <uap5:Extension Category="windows.appExecutionAlias" Executable="InkvoltPrint.exe" EntryPoint="Windows.FullTrustApplication">
           <uap5:AppExecutionAlias>

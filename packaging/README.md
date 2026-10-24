@@ -46,9 +46,10 @@ sizes, store logo, splash screen; the same set as Inkvolt PDF's minus its PDF fi
 - `runFullTrust` (every packaged desktop app); nothing else. No `allowElevation` (see "Elevation").
 - App execution alias `inkvoltprint.exe`: `inkvoltprint` from a terminal or Run, and how Inkvolt PDF finds and starts a packaged
   Inkvolt Print.
-- File type: `.pdf` only, as an "Open with" entry, the same one the unpackaged app registers in HKCU
-  (`src/InkvoltPrint.App/ShellIntegration.cs`). Inkvolt Print opens the PDF in its Print tab. It never becomes the default PDF
-  app unless the user picks it. No protocol: Inkvolt Print handles none.
+- File types: `.pdf`, and pictures (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.tif`, `.tiff`, `.heic`, `.webp`), as "Open with"
+  entries, the same ones the unpackaged app registers in HKCU (`src/InkvoltPrint.App/ShellIntegration.cs`). Inkvolt Print opens
+  a PDF in its Print tab and pictures in its Photos tab. It never becomes the default app for either unless the user picks it.
+  No protocol: Inkvolt Print handles none.
 
 ## Elevation (add printer by IP, offline fixer, HP clean-up)
 
