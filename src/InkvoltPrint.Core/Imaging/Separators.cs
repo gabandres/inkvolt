@@ -4,7 +4,7 @@ namespace InkvoltPrint.Core.Imaging;
 public enum SplitAt { None, PatchCode, BlankPage, PatchCodeOrBlankPage }
 
 /// <summary>How a page came to be a separator: a patch code, a blank page, or marked in the review.</summary>
-public enum SeparatorKind { None, PatchCode, BlankPage, ByHand }
+public enum SeparatorKind { None, PatchCode, BlankPage, ByHand, SheetBack }
 
 /// <summary>A separator sheet found on a page: what kind, and for a patch code, which.</summary>
 public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code = null)
@@ -19,6 +19,7 @@ public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code
         SeparatorKind.PatchCode => $"{PatchCodes.Name(Code ?? Imaging.PatchCode.PatchT)} sheet",
         SeparatorKind.BlankPage => "blank page",
         SeparatorKind.ByHand => "marked by hand",
+        SeparatorKind.SheetBack => "back of the patch sheet",
         _ => "",
     };
 }
@@ -92,6 +93,28 @@ public static class BatchSplit
             current = [];
             hasContent = false;
         }
+    }
+
+    /// <summary>
+    /// A two-sided scan's pages come front, back, front, back…: the other side of each patch code sheet belongs to the sheet.
+    /// When the run has an even number of pages that order holds, so the other side is the sheet's whatever is on it (light
+    /// through a thin sheet can make its back look printed); with an odd number (a scanner that dropped a side) only an other
+    /// side that looks blank is taken. Returns the indexes to treat as separators too.
+    /// </summary>
+    /// <param name="patch">Each page is a patch code sheet.</param>
+    /// <param name="blank">Each page looks blank.</param>
+    public static List<int> DuplexSeparatorBacks(IReadOnlyList<bool> patch, IReadOnlyList<bool> blank)
+    {
+        var paired = patch.Count % 2 == 0;
+        var backs = new List<int>();
+        for (var i = 0; i < patch.Count; i++)
+        {
+            if (!patch[i]) continue;
+            var other = i % 2 == 0 ? i + 1 : i - 1;
+            if (other < patch.Count && !patch[other] && (paired || blank[other]) && !backs.Contains(other)) backs.Add(other);
+        }
+        backs.Sort();
+        return backs;
     }
 
     /// <summary>For each page, the file (1-based) it is the first page of; 0 for every other page.</summary>

@@ -97,6 +97,7 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             for (var i = 0; i < Pages.Count; i++) Pages[i].Number = i + 1;
             _dirty = Pages.Count > 0;
+            _savedParts.Clear();
             RefreshFiles();
             PagesChanged();
         };
@@ -117,6 +118,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (e.PropertyName is not (nameof(ScanPageViewModel.Edits) or nameof(ScanPageViewModel.IsSkipped)
                 or nameof(ScanPageViewModel.Separator) or nameof(ScanPageViewModel.StartsFile) or nameof(ScanPageViewModel.Photos))) return;
         _dirty = true;
+        _savedParts.Clear(); // a page changed: what was saved isn't what's on screen any more
         if (e.PropertyName != nameof(ScanPageViewModel.Edits)) RefreshFiles();
         PagesChanged();
     }
@@ -587,20 +589,17 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Two-sided scans: the other side of a patch code sheet (pages come front, back, front…) is part of the sheet when it's
-    /// blank, so it neither starts the next file nor ends up in it.
+    /// Two-sided scans: the other side of a patch code sheet is part of the sheet (<see cref="BatchSplit.DuplexSeparatorBacks"/>),
+    /// so it neither starts the next file nor ends up in it.
     /// </summary>
     private static void SeparatorBacks(List<ScanPageViewModel> added)
     {
-        for (var i = 0; i < added.Count; i++)
+        var backs = BatchSplit.DuplexSeparatorBacks([.. added.Select(p => p.Separator.Kind == SeparatorKind.PatchCode)], [.. added.Select(p => p.LooksBlank)]);
+        foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator))
         {
-            if (added[i].Separator.Kind != SeparatorKind.PatchCode) continue;
-            var other = i % 2 == 0 ? i + 1 : i - 1;
-            if (other < added.Count && added[other] is { IsSeparator: false, LooksBlank: true } back)
-            {
-                back.IsSkipped = false;
-                back.Separator = new SeparatorFound(SeparatorKind.BlankPage);
-            }
+            back.IsSkipped = false;
+            back.Separator = new SeparatorFound(SeparatorKind.SheetBack);
+            back.Edits = PageEdits.None; // not straightened: it isn't saved (unless separators are kept)
         }
     }
 
@@ -956,23 +955,38 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelPhotos();
         IsBusy = true;
         var saved = new List<string>();
+        var before = new List<string>(); // written by an earlier save that failed part-way: not written again
+        var done = 0;
         var jpg = preset.FileType == PresetFileType.Jpeg;
         try
         {
             string? folder = null;
             var now = DateTime.Now;
+            var numbers = new PartNumbers(preset.NextNumber);
             foreach (var file in files)
             {
+                if (_savedParts.Find(file) is { } earlier)
+                {
+                    saved.AddRange(earlier);
+                    before.AddRange(earlier);
+                    done++;
+                    continue;
+                }
                 // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too;
-                // a batch takes one per file, and {pages} is each file's own.
-                var number = _presets.IncrementCounter(preset.Id) ?? preset.NextNumber;
+                // a batch takes one per file (counting on by itself if the preset was deleted meanwhile), and {pages} is each file's own.
+                var number = numbers.Take(_presets.IncrementCounter(preset.Id));
                 var ctx = new NameContext(now, preset.Name, _printerName, number, file.Sum(p => p.ImageCount));
                 var into = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
                 folder ??= into;
                 Directory.CreateDirectory(into);
                 var stem = FileNameTemplate.FileName(preset.FileName, ctx);
-                saved.AddRange(jpg ? await WriteImagesAsync(file, into, stem) : [await WritePdfAsync(await PdfPagesAsync(file), into, stem)]);
+                List<string> written = jpg ? await WriteImagesAsync(file, into, stem) : [await WritePdfAsync(await PdfPagesAsync(file), into, stem)];
+                _savedParts.Add(file, written);
+                saved.AddRange(written);
+                done++;
             }
+            _savedParts.Clear(); // all saved: a deliberate Save again writes everything again
+            folder ??= Path.GetDirectoryName(saved[0]);
 
             ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
@@ -981,6 +995,7 @@ public sealed partial class ScanViewModel : ObservableObject
             OnPropertyChanged(nameof(HasUnsavedPages));
             Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")}"
                 + $"{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")} in {folder}."
+                + (before.Count == 0 ? "" : $" Already saved the first time, not written again: {string.Join(", ", before.Select(Path.GetFileName))}.")
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
         }
@@ -988,7 +1003,8 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             Log.Write($"Preset save failed: {ex}");
             Message = saved.Count == 0 ? $"Could not save: {ex.Message}"
-                : $"Saved {saved.Count} file{(saved.Count == 1 ? "" : "s")} ({Path.GetFileName(saved[0])}…), then could not save the rest: {ex.Message}";
+                : $"Saved {done} of {files.Count} files ({string.Join(", ", saved.Select(Path.GetFileName))}), then could not save file {done + 1}: {ex.Message} "
+                  + "Save again saves only the files not saved yet.";
             if (saved.Count > 0) LastSavedPath = saved[0];
             return;
         }
@@ -999,6 +1015,9 @@ public sealed partial class ScanViewModel : ObservableObject
         // Not busy any more: a mail app's new-message window (classic Outlook's stays open until it's sent) doesn't hold up the tab.
         await AfterSaveAsync(preset, saved, kept, jpg);
     }
+
+    /// <summary>Files of this batch a preset save wrote before failing part-way: Save again writes only the others.</summary>
+    private readonly SavedParts<ScanPageViewModel> _savedParts = new();
 
     /// <summary>File.Move that never replaces: false when <paramref name="to"/> exists.</summary>
     private static bool TryMove(string from, string to)

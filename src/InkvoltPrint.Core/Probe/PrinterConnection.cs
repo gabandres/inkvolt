@@ -125,8 +125,8 @@ public sealed class PrinterConnection : IDisposable
     public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null)
     {
         var ledm = ProbeLedmAsync(http, ct);
-        // CDM only when the printer answered without LEDM (or refused plain HTTP): an offline printer costs nothing more, and
-        // a printer with LEDM (all the HP printers LEDM covers) never gets a CDM request.
+        // CDM only when the printer clearly has no LEDM (see ProbeLedmAsync): an offline or waking printer costs nothing more,
+        // and a printer with LEDM (all the HP printers LEDM covers) never gets a CDM request.
         var cdm = Try(async () => (await ledm.ConfigureAwait(false)).TryCdm ? await CdmClient.ProbeAsync(http, ct).ConfigureAwait(false) : null);
         var escl = Try<(ScannerCapabilities?, Uri?)>(async () =>
         {
@@ -146,8 +146,12 @@ public sealed class PrinterConnection : IDisposable
         return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs) { IppEndpoint = endpoint, Cdm = cdm.Result };
     }
 
-    /// <summary>The DiscoveryTree and product info; <c>TryCdm</c> when the printer answered without LEDM or refused plain HTTP.</summary>
-    private static async Task<(DiscoveryTree?, ProductInfo?, bool TryCdm)> ProbeLedmAsync(DeviceHttp http, CancellationToken ct)
+    /// <summary>
+    /// The DiscoveryTree and product info. <c>TryCdm</c> only when the printer clearly has no LEDM: the DiscoveryTree is 404,
+    /// plain HTTP is refused, or the tree's address redirects somewhere that isn't LEDM (<c>/DevMgmt/</c>). A 5xx, 401 or
+    /// any other error page, or a timeout, is an LEDM printer waking up or busy: no CDM, the connection tries again later.
+    /// </summary>
+    internal static async Task<(DiscoveryTree?, ProductInfo?, bool TryCdm)> ProbeLedmAsync(DeviceHttp http, CancellationToken ct)
     {
         try
         {
@@ -159,9 +163,14 @@ public sealed class PrinterConnection : IDisposable
         {
             return (null, null, true);
         }
+        catch (DeviceHttpException ex) when ((int)ex.Status is >= 300 and < 400)
+        {
+            var to = ex.Location is null ? null : ex.Location.IsAbsoluteUri ? ex.Location : new Uri(http.HttpBase, ex.Location);
+            return (null, null, to is not null && !to.AbsolutePath.StartsWith("/DevMgmt/", StringComparison.OrdinalIgnoreCase));
+        }
         catch (Exception ex) when (IsOffline(ex) || IsTransient(ex))
         {
-            return (null, null, ex is DeviceHttpException); // an error page is an answer; a timeout isn't
+            return (null, null, false);
         }
     }
 

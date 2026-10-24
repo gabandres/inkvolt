@@ -149,7 +149,7 @@ public sealed class DeviceHttp : IDisposable
     {
         if (resp.IsSuccessStatusCode) return;
         throw new DeviceHttpException(resp.StatusCode, resp.RequestMessage?.Method, resp.RequestMessage?.RequestUri,
-            await SafeReadAsync(resp).ConfigureAwait(false));
+            await SafeReadAsync(resp).ConfigureAwait(false), resp.Headers.Location);
     }
 
     private static async Task<string?> SafeReadAsync(HttpResponseMessage resp)
@@ -237,9 +237,12 @@ public static class CertificatePinKey
         string.Equals(key, printerId, StringComparison.OrdinalIgnoreCase) || key.StartsWith(printerId + ":", StringComparison.OrdinalIgnoreCase);
 }
 
-public sealed class DeviceHttpException(HttpStatusCode status, HttpMethod? method, Uri? uri, string? body)
+public sealed class DeviceHttpException(HttpStatusCode status, HttpMethod? method, Uri? uri, string? body, Uri? location = null)
     : Exception($"{method} {uri?.PathAndQuery} returned {(int)status} {status}")
 {
     public HttpStatusCode Status { get; } = status;
     public string? Body { get; } = body;
+
+    /// <summary>A redirect's <c>Location</c> (redirects aren't followed), as the printer sent it.</summary>
+    public Uri? Location { get; } = location;
 }

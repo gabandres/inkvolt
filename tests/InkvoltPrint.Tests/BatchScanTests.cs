@@ -251,6 +251,47 @@ public class BatchScanTests
         Assert.DoesNotContain("new file", Core.Presets.ScanPresetText.Summary(presets[1]));
     }
 
+    [Fact]
+    public void Two_sided_runs_give_a_patch_sheets_other_side_to_the_sheet()
+    {
+        // Front, back pairs (an even run): the patch sheet's back goes with it even when show-through makes it look printed.
+        Assert.Equal([3], BatchSplit.DuplexSeparatorBacks([false, false, true, false, false, false], [false, true, false, false, false, true]));
+        // Laid face down: the patch on the back, its front goes with it.
+        Assert.Equal([2], BatchSplit.DuplexSeparatorBacks([false, false, false, true], [false, false, false, false]));
+        // An odd run (a side dropped): the pairing isn't known, so only a back that looks blank.
+        Assert.Empty(BatchSplit.DuplexSeparatorBacks([false, false, true, false, false], [false, false, false, false, false]));
+        Assert.Equal([3], BatchSplit.DuplexSeparatorBacks([false, false, true, false, false], [false, false, false, true, false]));
+        Assert.Empty(BatchSplit.DuplexSeparatorBacks([true, true], [false, false])); // both sides patch sheets already
+    }
+
+    [Fact]
+    public void A_retry_after_a_partial_save_skips_the_files_already_written()
+    {
+        var (a, b, c) = (new object(), new object(), new object());
+        var saved = new Core.Presets.SavedParts<object>();
+        saved.Add([a, b], ["Doc 1.pdf"]);
+
+        Assert.Equal(["Doc 1.pdf"], saved.Find([a, b]));
+        Assert.Null(saved.Find([c]));
+        Assert.Null(saved.Find([b, a])); // reordered: a different file now
+        Assert.Null(saved.Find([a]));
+        saved.Clear();
+        Assert.Null(saved.Find([a, b]));
+    }
+
+    [Fact]
+    public void Each_file_gets_its_own_number_even_when_the_preset_is_gone()
+    {
+        var reserved = new Core.Presets.PartNumbers(5);
+        Assert.Equal([7, 8], new[] { reserved.Take(7), reserved.Take(8) });
+
+        var deleted = new Core.Presets.PartNumbers(5);
+        Assert.Equal([5, 6, 7], new[] { deleted.Take(null), deleted.Take(null), deleted.Take(null) });
+
+        var midway = new Core.Presets.PartNumbers(5); // deleted after the first file took 9
+        Assert.Equal([9, 10], new[] { midway.Take(9), midway.Take(null) });
+    }
+
     // ---- The printable separator sheet ----
 
     [Fact]

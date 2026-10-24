@@ -192,6 +192,74 @@ public class CdmTests
         Assert.DoesNotContain("IPP", options.Note);
     }
 
+    /// <summary>The DiscoveryTree answers with <paramref name="status"/> (and a Location for redirects); CDM from the laser fixtures.</summary>
+    private static async Task<(bool AskedCdm, ProbeResult Probe)> ProbeWithTree(HttpStatusCode status, string? location = null)
+    {
+        var seen = new List<(HttpMethod, string)>();
+        var handler = new Scripted(seen, request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/DevMgmt/DiscoveryTree.xml")
+            {
+                var resp = new HttpResponseMessage(status) { RequestMessage = request, Content = new StringContent("") };
+                if (location is not null) resp.Headers.Location = new Uri(location, UriKind.RelativeOrAbsolute);
+                return resp;
+            }
+            var file = Path.Combine(AppContext.BaseDirectory, "Fixtures", "cdm-laser", FixtureHandler.DocumentName(path));
+            return new HttpResponseMessage(path.StartsWith("/cdm/", StringComparison.Ordinal) && File.Exists(file) ? HttpStatusCode.OK : HttpStatusCode.NotFound)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(path.StartsWith("/cdm/", StringComparison.Ordinal) && File.Exists(file) ? File.ReadAllBytes(file) : []),
+            };
+        });
+        using var http = new DeviceHttp("192.0.2.13", handler);
+        var probe = await PrinterConnection.ProbeAsync(http);
+        return (seen.Any(r => r.Item2.StartsWith("/cdm/", StringComparison.Ordinal)), probe);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)] // an LEDM printer waking up
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    public async Task An_ledm_error_page_is_ledm_busy_not_a_cdm_printer(HttpStatusCode status)
+    {
+        var (askedCdm, probe) = await ProbeWithTree(status);
+
+        Assert.False(askedCdm);
+        Assert.Null(probe.Cdm);
+    }
+
+    [Theory]
+    [InlineData("/hp/device/webAccess/index.htm", true)]                       // the web page instead: no LEDM
+    [InlineData("https://192.0.2.13/DevMgmt/DiscoveryTree.xml", false)]        // LEDM over HTTPS: LEDM, not CDM
+    [InlineData("/DevMgmt/DiscoveryTree.xml?x=1", false)]
+    public async Task A_redirect_counts_as_no_ledm_only_away_from_ledm(string location, bool cdm)
+    {
+        var (askedCdm, probe) = await ProbeWithTree(HttpStatusCode.MovedPermanently, location);
+
+        Assert.Equal(cdm, askedCdm);
+        Assert.Equal(cdm, probe.Cdm is not null);
+    }
+
+    [Fact]
+    public async Task A_missing_discovery_tree_is_no_ledm()
+    {
+        var (askedCdm, probe) = await ProbeWithTree(HttpStatusCode.NotFound);
+
+        Assert.True(askedCdm);
+        Assert.Equal("HP Color LaserJet Pro MFP 3302", probe.Model);
+    }
+
+    private sealed class Scripted(List<(HttpMethod, string)> seen, Func<HttpRequestMessage, HttpResponseMessage> reply) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            lock (seen) seen.Add((request.Method, request.RequestUri!.AbsolutePath));
+            return Task.FromResult(reply(request));
+        }
+    }
+
     [Fact]
     public void Cdm_paths_map_to_json_fixtures() =>
         Assert.Equal("cdm_supply_v1_suppliesPublic.json", FixtureHandler.DocumentName("/cdm/supply/v1/suppliesPublic"));
