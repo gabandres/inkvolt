@@ -456,6 +456,16 @@ public sealed class DocxWriter : IDisposable
         w.WriteStartElement("tblLayout", W);
         w.WriteAttributeString("w", "type", W, "fixed");
         w.WriteEndElement();
+        // Narrow cell padding (Word's default is 5.4 pt a side), so tight PDF columns of numbers don't wrap digit by digit.
+        w.WriteStartElement("tblCellMar", W);
+        foreach (var side in new[] { "left", "right" })
+        {
+            w.WriteStartElement(side, W);
+            w.WriteAttributeString("w", "w", W, Twips(Math.Clamp((widths.Count > 0 ? widths.Min() : 90) * 0.06, 1, 5.4)));
+            w.WriteAttributeString("w", "type", W, "dxa");
+            w.WriteEndElement();
+        }
+        w.WriteEndElement();
         w.WriteEndElement(); // tblPr
         w.WriteStartElement("tblGrid", W);
         foreach (var c in widths)

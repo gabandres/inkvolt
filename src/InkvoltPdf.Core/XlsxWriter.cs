@@ -133,6 +133,9 @@ public static partial class XlsxWriter
         return (v, format);
     }
 
+    [GeneratedRegex(@"(?:[ \t]*\.){3,}[ \t]*(?=\n|$)")]
+    private static partial Regex Leaders();
+
     // [sign][currency][sign]digits[.digits][%], thousands in groups of three after ",".
     [GeneratedRegex(@"^(?<sign>[-+])?(?<cur>[$€£¥])?(?<sign2>[-+])?(?<int>\d{1,3}(?:,\d{3})+|\d+)(?:\.(?<frac>\d+))?(?<pct>%)?$")]
     private static partial Regex NumberText();
@@ -167,7 +170,8 @@ public static partial class XlsxWriter
             foreach (var cell in t.Rows[r])
             {
                 var span = Math.Max(1, cell.ColSpan);
-                var text = OpenXmlParts.Clean(cell.Text).Trim();
+                // Dot leaders ("2008 . . . . .") are layout, not part of the value.
+                var text = Leaders().Replace(OpenXmlParts.Clean(cell.Text), "").Trim();
                 if (span > 1) merges.Add($"{Column(c)}{rowNo}:{Column(c + span - 1)}{rowNo}");
                 if (text.Length > 0)
                 {

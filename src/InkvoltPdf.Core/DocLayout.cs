@@ -73,9 +73,24 @@ public static partial class DocLayout
     public static DocLayoutResult AnalyzeDocument(IReadOnlyList<ExportPage> pages)
     {
         var (stripped, header, footer) = Running(pages);
-        var body = BodySize(stripped);
-        var laid = stripped.Select(p => LayOut(p, body)).ToList();
-        return new DocLayoutResult(AssignHeadings(laid, body), header, footer);
+        var upright = stripped.Select(Upright).ToList();
+        var body = BodySize(upright);
+        var laid = upright.Select(p => LayOut(p, body)).ToList();
+        laid = AssignHeadings(laid, body);
+        return new DocLayoutResult(Dehyphenate(laid, upright), header, footer);
+    }
+
+    /// <summary>
+    /// A page whose text mostly reads sideways (a landscape table set on a portrait page) turned so that it reads left
+    /// to right; it then exports as a landscape page.
+    /// </summary>
+    public static ExportPage Upright(ExportPage page)
+    {
+        var counts = new int[4];
+        foreach (var l in page.Lines) counts[l.Reads] += l.Text.Count(c => !char.IsWhiteSpace(c));
+        var total = counts.Sum();
+        var turn = Enumerable.Range(1, 3).MaxBy(t => counts[t]);
+        return total > 0 && counts[turn] > 0.6 * total ? page.Turned(turn) : page;
     }
 
     /// <summary>The size most of the document's characters have (11 when it has no text).</summary>
@@ -153,14 +168,17 @@ public static partial class DocLayout
         var content = all.Aggregate((a, b) => a.Union(b));
         var ordered = Order(items, body, 0);
         foreach (var i in ordered) i.Column ??= content;
-        var blocks = Flow(ordered, body);
-        // Sideways text (a rotated label) goes in where it starts on the page, each line its own paragraph.
-        foreach (var l in sideways)
+        var blocks = MergeTables(Flow(ordered, body), body);
+        // Sideways text (a rotated label, a margin stamp, a turned table on a mostly upright page): each direction's lines
+        // are laid out in their own turned frame, so they read as paragraphs, and go in where they start on the page.
+        foreach (var group in sideways.GroupBy(l => l.Reads))
         {
-            var p = Paragraph([l], content, body);
-            var at = blocks.FindIndex(b => b.Box.Y > l.Box.Y);
-            if (at < 0) blocks.Add(p);
-            else blocks.Insert(at, p);
+            var top = group.Min(l => l.Box.Y);
+            var turned = new ExportPage(page.Width, page.Height, [.. group], [], []).Turned(group.Key);
+            var at = blocks.FindIndex(b => b.Box.Y > top);
+            var inserted = LayOut(turned, body).Blocks.Select(b => b with { Box = new RectD(b.Box.X, top, b.Box.Width, 0) }).ToList();
+            if (at < 0) blocks.AddRange(inserted);
+            else blocks.InsertRange(at, inserted);
         }
         return new DocPage(page.Width, page.Height, content, blocks, page.FromOcr);
     }
@@ -199,6 +217,8 @@ public static partial class DocLayout
                 var size = Math.Max(prev.Size, line.Size);
                 var maxGap = IsMarkerOnly(prev.Text) ? 4 * size : 1.2 * size;
                 if (gap < -1 || gap > maxGap) continue;
+                // Two numbers apart are two table columns, not one line.
+                if (gap > 0.8 * size && ExportLine.NumberLike(prev.Text) && ExportLine.NumberLike(line.Text)) continue;
                 result[k] = Join(prev, line);
                 merged = true;
                 break;
@@ -387,6 +407,9 @@ public static partial class DocLayout
             cells.Add(r);
             prevBox = box;
         }
+        // Most cells hold something, and not too many columns: chart labels and scattered words don't make a table.
+        var filledCells = cells.Sum(r => r.Count(c => c.Count > 0));
+        if (cols > MaxTableColumns || filledCells < 0.5 * cells.Count * cols) return null;
         var tableBox = bounds.Aggregate((a, b) => a.Union(b));
         var docRows = cells.Select(r => (IReadOnlyList<DocCell>)[.. r.Select((ls, k) =>
             new DocCell(CellParagraphs(ls, new RectD(edges[k], tableBox.Y, edges[k + 1] - edges[k], tableBox.Height), body)))]).ToList();
@@ -417,6 +440,117 @@ public static partial class DocLayout
             else rows.Add((x.Line.Box.Y, x.Line.Box.Bottom, [x]));
         }
         return [.. rows.Select(r => r.Members)];
+    }
+
+    /// <summary>
+    /// Tables without lines that follow one another with the same columns (a long table cut where its row groups leave a
+    /// gap) are one table.
+    /// </summary>
+    private static List<DocBlock> MergeTables(List<DocBlock> blocks, double body)
+    {
+        for (var i = blocks.Count - 2; i >= 0; i--)
+        {
+            if (blocks[i] is not DocTable { Ruled: false } a || blocks[i + 1] is not DocTable { Ruled: false } b) continue;
+            if (a.ColumnWidths.Count != b.ColumnWidths.Count || b.Box.Y < a.Box.Bottom - 1 || b.Box.Y - a.Box.Bottom > 4 * body) continue;
+            double Edge(DocTable t, int k) => t.Box.X + t.ColumnWidths.Take(k).Sum();
+            if (Enumerable.Range(0, a.ColumnWidths.Count + 1).Any(k => Math.Abs(Edge(a, k) - Edge(b, k)) > Math.Max(18, 1.5 * body))) continue;
+            blocks[i] = new DocTable([.. a.Rows, .. b.Rows], a.ColumnWidths, false, a.Box.Union(b.Box));
+            blocks.RemoveAt(i + 1);
+        }
+        return blocks;
+    }
+
+    /// <summary>More columns than this is a scatter of words (chart labels), not a table.</summary>
+    private const int MaxTableColumns = 20;
+
+    // ---- figures drawn with vectors ----
+
+    /// <summary>
+    /// Areas of a page drawn with many vector paths and holding little text: charts and diagrams, exported as a picture
+    /// rather than read as text and tables. A figure is a cluster of at least 10 paths (touching or within 4 pt), over
+    /// 40 x 40 pt, whose text lines cover less than a fifth of it and hold at most 80 words (400 when they are short
+    /// labels, four words a line or fewer: a diagram), and that isn't a ruled table
+    /// (a grid with text in at least half its cells). Paths covering half the page or more (backgrounds, frames) don't
+    /// count. Labels just outside the paths (within 6 pt) belong to the figure.
+    /// </summary>
+    public static IReadOnlyList<RectD> FigureRegions(IReadOnlyList<(RectD Box, bool Stroked)> paths, IReadOnlyList<ExportLine> lines,
+        double width, double height)
+    {
+        const double near = 4;
+        var items = paths.Where(p => p.Box.Width >= 0 && p.Box.Height >= 0 && double.IsFinite(p.Box.Width) && double.IsFinite(p.Box.Height)
+                                     && p.Box.Width * p.Box.Height < 0.5 * width * height)
+            .OrderBy(p => p.Box.X).ToList();
+        if (items.Count < 10) return [];
+        var parent = Enumerable.Range(0, items.Count).ToArray();
+        int Find(int i) => parent[i] == i ? i : parent[i] = Find(parent[i]);
+        for (var i = 0; i < items.Count; i++)
+        {
+            var a = items[i].Box;
+            for (var j = i + 1; j < items.Count && items[j].Box.X <= a.Right + near; j++)
+            {
+                var b = items[j].Box;
+                if (b.Y <= a.Bottom + near && a.Y <= b.Bottom + near) parent[Find(j)] = Find(i);
+            }
+        }
+        var clusters = Enumerable.Range(0, items.Count).GroupBy(Find)
+            .Where(g => g.Count() >= 10)
+            .Select(g => (Paths: g.Select(i => items[i]).ToList(), Box: g.Select(i => items[i].Box).Aggregate((x, y) => x.Union(y))))
+            .ToList();
+        // Clusters whose areas overlap are one figure (a legend inside a plot, bars beside axes).
+        for (var merged = true; merged;)
+        {
+            merged = false;
+            for (var i = 0; i < clusters.Count && !merged; i++)
+            for (var j = i + 1; j < clusters.Count && !merged; j++)
+            {
+                if (clusters[i].Box.Intersect(clusters[j].Box).IsEmpty) continue;
+                clusters[i] = ([.. clusters[i].Paths, .. clusters[j].Paths], clusters[i].Box.Union(clusters[j].Box));
+                clusters.RemoveAt(j);
+                merged = true;
+            }
+        }
+        var figures = new List<RectD>();
+        foreach (var (clusterPaths, box) in clusters)
+        {
+            if (box.Width < 40 || box.Height < 40) continue;
+            var around = box.Inflate(6);
+            var inside = lines.Where(l => around.Contains(l.Box.CenterX, l.Box.CenterY)).ToList();
+            var textArea = inside.Sum(l => l.Box.Width * l.Box.Height);
+            var wordCount = inside.Sum(l => Letters().Matches(l.Text).Count + l.Text.Count(char.IsDigit) / 4);
+            // Labels are short; a form or a text box has sentences.
+            var labels = inside.Count > 0 && wordCount <= 4.0 * inside.Count;
+            if (textArea >= 0.2 * box.Width * box.Height || wordCount > (labels ? 400 : 80)) continue;
+            if (IsRuledTable(clusterPaths, inside) || RowsOfText(inside)) continue;
+            // The labels around the drawing go with it.
+            var region = inside.Aggregate(box, (r, l) => r.Union(l.Box)).Intersect(new RectD(0, 0, width, height));
+            if (!region.IsEmpty) figures.Add(region);
+        }
+        return figures;
+    }
+
+    /// <summary>
+    /// The text is set in rows of pieces side by side, three or more, or two with words (four rows at least, and most of
+    /// them): a table, even one whose lines don't form a grid. A chart's labels are alone on their row (a legend) or
+    /// numbers (the ticks of axes side by side).
+    /// </summary>
+    private static bool RowsOfText(List<ExportLine> lines)
+    {
+        var rows = Rows([.. lines.Where(l => !l.Sideways).Select(l => (l, 0))]);
+        var multi = rows.Count(r => r.Count >= 3 || (r.Count == 2 && r.Any(x => x.Line.Text.Count(char.IsLetter) >= 2)));
+        return multi >= 4 && multi >= 0.5 * rows.Count;
+    }
+
+    /// <summary>The paths draw a grid with text in at least half its cells.</summary>
+    private static bool IsRuledTable(List<(RectD Box, bool Stroked)> paths, List<ExportLine> lines)
+    {
+        foreach (var grid in Grids(RulesFromPaths(paths)))
+        {
+            int rows = grid.Ys.Count - 1, cols = grid.Xs.Count - 1;
+            var filled = lines.Select(l => (R: grid.Ys.FindLastIndex(y => y <= l.Box.CenterY), C: grid.Xs.FindLastIndex(x => x <= l.Box.CenterX)))
+                .Where(rc => rc.R >= 0 && rc.R < rows && rc.C >= 0 && rc.C < cols).Distinct().Count();
+            if (filled >= 0.5 * rows * cols) return true;
+        }
+        return false;
     }
 
     // ---- tables from ruled grids ----
@@ -521,7 +655,10 @@ public static partial class DocLayout
             list.Add(new DocPicture(img, img.Box));
             usedImages.Add(img);
         }
-        if (content.Count == 0 || content.Keys.Union(pictures.Keys).Count() < 2) return null;
+        // A third of the cells at least hold something (a form's grid of empty boxes isn't a table to rebuild).
+        var cellCount = start.Sum(row => row.Select((s, c) => s == c ? 1 : 0).Sum());
+        var filled = content.Keys.Union(pictures.Keys).Count();
+        if (content.Count == 0 || filled < 2 || filled < cellCount / 3.0) return null;
         foreach (var l in used) lines.Remove(l);
         foreach (var i in usedImages) images.Remove(i);
 
@@ -562,6 +699,7 @@ public static partial class DocLayout
         // Where the text of each column ends on the right: its longest line (justified text reaches it on every line).
         var textRight = ordered.Where(i => i.Line is not null).GroupBy(i => i.Column ?? i.Box)
             .ToDictionary(g => g.Key, g => g.Max(i => i.Box.Right));
+        var blockRight = BlockRights(ordered, textRight);
         void Flush()
         {
             if (cur.Count > 0) blocks.Add(Paragraph(cur, column, body));
@@ -576,7 +714,7 @@ public static partial class DocLayout
                 continue;
             }
             var line = item.Line!;
-            if (cur.Count > 0 && Continues(cur, line, column, textRight.GetValueOrDefault(column, column.Right))) cur.Add(line);
+            if (cur.Count > 0 && Continues(cur, line, column, blockRight.GetValueOrDefault(cur[^1], textRight.GetValueOrDefault(column, column.Right)))) cur.Add(line);
             else
             {
                 Flush();
@@ -586,6 +724,53 @@ public static partial class DocLayout
         }
         Flush();
         return blocks;
+    }
+
+    /// <summary>
+    /// Where each line's block of text ends on the right. A block is a run of lines one under the other, close together
+    /// and starting about level; when most of its lines reach the same right edge (justified or filled text, such as an
+    /// indented abstract or quote) that edge is the block's own, else the column's (short lines: an address).
+    /// </summary>
+    private static Dictionary<ExportLine, double> BlockRights(List<Item> ordered, Dictionary<RectD, double> textRight)
+    {
+        var result = new Dictionary<ExportLine, double>(ReferenceEqualityComparer.Instance);
+        var block = new List<ExportLine>();
+        RectD? blockColumn = null;
+        void Close()
+        {
+            if (block.Count == 0) return;
+            var column = blockColumn ?? block[0].Box;
+            var right = textRight.GetValueOrDefault(column, column.Right);
+            if (block.Count >= 3)
+            {
+                var max = block.Max(l => l.Box.Right);
+                var size = block[0].Size;
+                var reach = block.Take(block.Count - 1).Count(l => l.Box.Right >= max - 2 * size);
+                if (reach >= 2 && reach >= 0.6 * (block.Count - 1)) right = max;
+            }
+            foreach (var l in block) result[l] = right;
+            block.Clear();
+        }
+        foreach (var item in ordered)
+        {
+            if (item.Line is not { } line)
+            {
+                Close();
+                continue;
+            }
+            if (block.Count > 0)
+            {
+                var prev = block[^1];
+                var size = Math.Max(1, prev.Size);
+                if (item.Column != blockColumn || line.Box.Y < prev.Box.Y + 0.5 * prev.Box.Height
+                    || line.Box.Y - prev.Box.Bottom > size || Math.Abs(line.Box.X - prev.Box.X) > 3 * size)
+                    Close();
+            }
+            if (block.Count == 0) blockColumn = item.Column;
+            block.Add(line);
+        }
+        Close();
+        return result;
     }
 
     /// <summary>
@@ -626,15 +811,20 @@ public static partial class DocLayout
             var spans = line.Spans;
             if (runs.Count > 0)
             {
-                var last = runs[^1].Text;
+                var last = runs[^1].Text.TrimEnd();
                 var next = line.Text.TrimStart();
-                if (last.Length >= 2 && last[^1] == '-' && char.IsLetter(last[^2]) && next.Length > 0 && char.IsLower(next[0]))
-                    runs[^1] = runs[^1] with { Text = last[..^1] }; // "exam-" + "ple" → "example"
-                else if (!char.IsWhiteSpace(last.LastOrDefault(' ')))
-                    runs[^1] = runs[^1] with { Text = last + " " };
+                if (last.Length >= 2 && last[^1] == SoftHyphen && char.IsLetter(last[^2]))
+                    runs[^1] = runs[^1] with { Text = last[..^1] };                // a hyphenation point: "educa­" + "tion"
+                else if (last.Length >= 2 && last[^1] == '-' && char.IsLetter(last[^2]) && next.Length > 0 && char.IsLower(next[0]))
+                    runs[^1] = runs[^1] with { Text = last[..^1] + LineHyphen };   // "exam-" + "ple": Dehyphenate decides
+                else if (!char.IsWhiteSpace(runs[^1].Text.LastOrDefault(' ')))
+                    runs[^1] = runs[^1] with { Text = runs[^1].Text + " " };
             }
             foreach (var s in spans) Add(runs, s);
         }
+        // Soft hyphens inside a line are invisible break points: not text.
+        for (var i = 0; i < runs.Count; i++)
+            if (runs[i].Text.Contains(SoftHyphen)) runs[i] = runs[i] with { Text = runs[i].Text.Replace(SoftHyphen.ToString(), "") };
         // Trim the ends.
         while (runs.Count > 0 && string.IsNullOrWhiteSpace(runs[0].Text)) runs.RemoveAt(0);
         while (runs.Count > 0 && string.IsNullOrWhiteSpace(runs[^1].Text)) runs.RemoveAt(runs.Count - 1);
@@ -849,6 +1039,69 @@ public static partial class DocLayout
     /// Paragraphs in larger type than the body text (short ones: a heading is at most three lines) become headings: the
     /// largest size used for one is level 1, the next level 2, and so on (sizes within 0.75 pt count as one).
     /// </summary>
+    private const char SoftHyphen = '­';
+
+    /// <summary>Stands for a hyphen at the end of a line, before a lowercase letter, until <see cref="Dehyphenate"/> decides.</summary>
+    private const char LineHyphen = '';
+
+    /// <summary>
+    /// Settles each hyphen that ended a line before a lowercase word: kept ("equivalence-adjusted") when the document
+    /// hyphenates with soft hyphens (so a hard one is real), or when both halves are words the document uses and the
+    /// joined word isn't; otherwise dropped ("exam-" + "ple" → "example"). The document's words leave out each line's
+    /// first word and a hyphenated last word, which may be halves.
+    /// </summary>
+    private static List<DocPage> Dehyphenate(List<DocPage> pages, IReadOnlyList<ExportPage> source)
+    {
+        var soft = false;
+        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in source.SelectMany(p => p.Lines))
+        {
+            var text = line.Text;
+            if (text.Contains(SoftHyphen)) soft = true;
+            var tokens = Letters().Matches(text);
+            var end = text.TrimEnd();
+            var last = end.EndsWith('-') || end.EndsWith(SoftHyphen) ? tokens.Count - 1 : tokens.Count;
+            for (var i = 1; i < last; i++) words.Add(tokens[i].Value);
+        }
+        DocParagraph Fix(DocParagraph p)
+        {
+            if (!p.Runs.Any(r => r.Text.Contains(LineHyphen))) return p;
+            var text = p.Text;
+            var keep = new Queue<bool>();
+            for (var i = text.IndexOf(LineHyphen); i >= 0; i = text.IndexOf(LineHyphen, i + 1))
+            {
+                var a = i;
+                while (a > 0 && char.IsLetter(text[a - 1])) a--;
+                var b = i + 1;
+                while (b < text.Length && char.IsLetter(text[b])) b++;
+                var (left, right) = (text[a..i], text[(i + 1)..b]);
+                keep.Enqueue(soft || (!words.Contains(left + right) && words.Contains(left) && words.Contains(right)));
+            }
+            var runs = p.Runs.Select(r =>
+            {
+                if (!r.Text.Contains(LineHyphen)) return r;
+                var sb = new System.Text.StringBuilder();
+                foreach (var c in r.Text)
+                {
+                    if (c != LineHyphen) sb.Append(c);
+                    else if (keep.Dequeue()) sb.Append('-');
+                }
+                return r with { Text = sb.ToString() };
+            }).ToList();
+            return p with { Runs = runs };
+        }
+        DocBlock FixBlock(DocBlock b) => b switch
+        {
+            DocParagraph p => Fix(p),
+            DocTable t => t with { Rows = [.. t.Rows.Select(r => (IReadOnlyList<DocCell>)[.. r.Select(c => c with { Paragraphs = [.. c.Paragraphs.Select(Fix)] })])] },
+            _ => b,
+        };
+        return [.. pages.Select(pg => pg with { Blocks = [.. pg.Blocks.Select(FixBlock)] })];
+    }
+
+    [GeneratedRegex(@"\p{L}+")]
+    private static partial Regex Letters();
+
     private static List<DocPage> AssignHeadings(List<DocPage> pages, double body)
     {
         static bool Candidate(DocParagraph p, double body) =>

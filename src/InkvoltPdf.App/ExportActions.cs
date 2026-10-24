@@ -182,16 +182,19 @@ internal static class ExportActions
         }
         catch (OperationCanceledException)
         {
+            progress.Dispose();
             Log.Write($"Export {format} cancelled");
             host.ShowStatus("Export cancelled. Nothing was saved.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            progress.Dispose(); // the progress window closes before the error shows, not behind it
             Log.Write($"Export {format} failed: {ex.Message}");
             Prompt.Error(owner, "Can't save the export", $"{ex.Message}\n\nIf the file is open in another program, close it there or choose another name.");
         }
         catch (Exception ex)
         {
+            progress.Dispose();
             Log.Write($"Export {format} failed: {ex}");
             Prompt.Error(owner, "Export failed", ex.Message);
         }

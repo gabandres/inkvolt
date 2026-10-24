@@ -189,9 +189,13 @@ Manager. The installers don't remove an install made under the old names: uninst
   rebuilt as editable text: paragraphs (wrapped lines joined, hyphenated words rejoined), fonts, sizes, bold, italic and
   colors; headings (Heading 1-6, from type larger than the body text, so they show in Word's navigation pane);
   bulleted items as Word bullets, numbered ones keep their numbers; tables from ruled grids (merged cells, icons in
-  cells) or from text lined up in columns; pictures inline (a picture used again is stored once); two-column pages
-  in reading order; lines and logos repeated at the top or bottom of the pages become the header and footer, page
-  numbers Word's own; each page its own section with its size and orientation. **Excel (.xlsx)**: every table found,
+  cells) or from text lined up in columns; pictures inline, transparent ones kept transparent (a picture used again is
+  stored once); charts and diagrams drawn with lines and shapes as a picture of the figure; two-column pages in
+  reading order; a page whose text is turned sideways (a wide table set on its side) as a landscape page, and a few
+  sideways lines (a margin stamp) as a paragraph; lines and logos repeated at the top or bottom of the pages become
+  the header and footer, page numbers Word's own; each page its own section with its size and orientation. **Excel
+  (.xlsx)**: every table found (number columns set close together kept apart, a long table split into row groups kept
+  as one, dot leaders dropped),
   one sheet per table named after its page, plain numbers as numbers, merged cells merged. **Plain text (.txt)**: the
   text in reading order, a paragraph per line, table rows tab-separated. Scanned pages without text are recognized
   with Windows' OCR first (on the PC); without an OCR language they are kept as pictures in Word. XPS, EPUB and the
@@ -369,8 +373,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   body-size headings stay body text); bullets drawn as shapes rather than characters aren't recognized, and numbered
   lists keep their numbers as typed text; tables without lines need three or more rows lined up in columns, a cell
   wrapped over several lines can become extra rows, cells merged down a column are split, and two-column text with
-  short lines can be taken for a table; vector drawings (charts, diagrams, shapes) are left out, only their text is
-  kept; several pictures side by side are stacked, and a picture covering the whole page behind text (a scan under
+  short lines can be taken for a table; a chart or diagram is found from many paths with little text around them, so a
+  sparse drawing (a few arrows) keeps its labels as text and loses its lines, and a diagram whose labels sit in rows
+  (boxes side by side) can still come out as text; turned pictures keep their own orientation; a hyphen at a line end
+  before a lowercase word is dropped unless the document hyphenates with soft hyphens or both halves are words it
+  uses elsewhere; several pictures side by side are stacked, and a picture covering the whole page behind text (a scan under
   its OCR text, a background) is left out; form fields export as their shown values; right-to-left text keeps
   MuPDF's order and isn't marked right-to-left. Running headers and footers need to repeat on at least half the pages
   (two at least) in the top or bottom tenth. On scanned pages only the recognized text is kept (the pictures on

@@ -453,33 +453,40 @@ public sealed class PdfEngine : IDisposable
     /// <summary>Pictures larger than this many pixels are exported as JPEG (scans, photos), smaller ones as PNG.</summary>
     private const long JpegAbovePixels = 1_500_000;
 
+    /// <summary>Largest picture rendered again to keep its transparency, and largest rendering of a vector figure (pixels).</summary>
+    private const long MaxRenderedPicture = 4_000_000;
+
     /// <summary>
-    /// What Export to Word / Excel / text reads from a page: text lines with their fonts, sizes and colors, the pictures
-    /// (encoded, when <paramref name="images"/>) and the thin lines and box outlines the page draws. Not cached.
+    /// What Export to Word / Excel / text reads from a page: text lines with their fonts, sizes, colors and direction, the
+    /// pictures (encoded, when <paramref name="images"/>; transparent ones as PNG with their transparency) and the thin
+    /// lines and box outlines the page draws. Charts and diagrams drawn with vectors (<see cref="DocLayout.FigureRegions"/>)
+    /// become one picture each, rendered as shown, and their labels and lines are left out of the text. Not cached.
     /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
     public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
+        var lines = new List<ExportLine>();
+        var pictures = new List<ExportImage>();
+        var paths = new List<(RectD Box, bool Stroked)>();
+        var tooManyPaths = false;
+        PageGeometry g;
         EnterText(cancel);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            var g = _pages[page];
+            g = _pages[page];
             var flags = StructuredTextFlags.CollectVectors | (images ? StructuredTextFlags.PreserveImages : StructuredTextFlags.None);
             using var st = TextDoc(page).GetStructuredTextPage(page, includeAnnotations: true, flags);
-            var lines = new List<ExportLine>();
-            var pictures = new List<ExportImage>();
-            var paths = new List<(RectD Box, bool Stroked)>();
-            RectD Box(Rectangle r) => RectD.FromEdges(r.X0 - g.OriginX, r.Y0 - g.OriginY, r.X1 - g.OriginX, r.Y1 - g.OriginY);
+            var pg = g;
+            RectD Box(Rectangle r) => RectD.FromEdges(r.X0 - pg.OriginX, r.Y0 - pg.OriginY, r.X1 - pg.OriginX, r.Y1 - pg.OriginY);
             foreach (var block in st)
             {
                 cancel.ThrowIfCancellationRequested();
                 switch (block)
                 {
                     case MuPDFTextStructuredTextBlock tb:
-                        foreach (var line in tb)
-                            if (ReadLine(line, g) is { } l) lines.Add(l);
+                        foreach (var line in tb) lines.AddRange(ReadLine(line, g));
                         break;
                     case MuPDFImageStructuredTextBlock ib when images && ib.Image is { Width: > 0, Height: > 0 } img:
                     {
@@ -494,37 +501,123 @@ public sealed class PdfEngine : IDisposable
                         }
                         catch (Exception ex) when (ex is MuPDFException or ArgumentException or NotSupportedException)
                         {
-                            break; // an image MuPDF can't convert (unusual color space): leave it out
+                            ms.SetLength(0); // an image MuPDF can't convert (unusual color space): rendered below instead
                         }
                         pictures.Add(new ExportImage(ms.ToArray(), jpeg ? "jpeg" : "png", img.Width, img.Height, box));
                         break;
                     }
                     case MuPDFVectorStructuredTextBlock vb:
-                        if (paths.Count <= MaxRulePaths) paths.Add((Box(vb.BoundingBox), vb.Stroked));
+                        if (paths.Count < MaxRulePaths) paths.Add((Box(vb.BoundingBox), vb.Stroked));
+                        else tooManyPaths = true;
                         break;
                 }
             }
-            return new ExportPage(g.Width, g.Height, lines, pictures, paths.Count > MaxRulePaths ? [] : DocLayout.RulesFromPaths(paths));
         }
         finally
         {
             _textGate.Exit();
         }
+
+        IReadOnlyList<RectD> rules = tooManyPaths ? [] : DocLayout.RulesFromPaths(paths);
+        var figures = DocLayout.FigureRegions(paths, lines, g.Width, g.Height);
+        if (figures.Count > 0)
+        {
+            bool InFigure(RectD r) => figures.Any(f => f.Inflate(1).Contains(r.CenterX, r.CenterY));
+            lines.RemoveAll(l => InFigure(l.Box));
+            rules = [.. rules.Where(r => !InFigure(r))];
+            pictures.RemoveAll(p => InFigure(p.Box));
+        }
+        if (images)
+        {
+            // Rendered again where the picture stands: what MuPDF draws applies its soft mask, so a transparent logo keeps
+            // its transparency (the picture's own pixels have none). Not where text lies over it (it would be doubled).
+            for (var i = pictures.Count - 1; i >= 0; i--)
+            {
+                var p = pictures[i];
+                var covered = lines.Any(l => Overlap(l.Box, p.Box) > 0.2 * l.Box.Width * l.Box.Height);
+                var tooBig = (long)p.PixelWidth * p.PixelHeight > MaxRenderedPicture;
+                if (covered || (tooBig && p.Data.Length > 0))
+                {
+                    if (p.Data.Length == 0) pictures.RemoveAt(i);
+                    continue;
+                }
+                var scale = Math.Clamp(Math.Max(p.PixelWidth / p.Box.Width, p.PixelHeight / p.Box.Height), 0.5, 8);
+                if (RenderRegionRgba(page, p.Box, scale, cancel) is not { } r)
+                {
+                    if (p.Data.Length == 0) pictures.RemoveAt(i);
+                    continue;
+                }
+                var transparent = HasTransparency(r.Rgba);
+                if (transparent || p.Data.Length == 0)
+                    pictures[i] = p with { Data = PngEncoder.Encode(r.Width, r.Height, r.Rgba, alpha: true), Extension = "png", PixelWidth = r.Width, PixelHeight = r.Height };
+            }
+            foreach (var f in figures)
+                if (RenderRegionRgba(page, f, 2, cancel) is { } r)
+                    pictures.Add(new ExportImage(PngEncoder.Encode(r.Width, r.Height, r.Rgba, alpha: HasTransparency(r.Rgba)), "png", r.Width, r.Height, f));
+        }
+        return new ExportPage(g.Width, g.Height, lines, pictures, rules);
+
+        static double Overlap(RectD a, RectD b) =>
+            Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X)) * Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y));
+
+        static bool HasTransparency(byte[] rgba)
+        {
+            for (var k = 3; k < rgba.Length; k += 4)
+                if (rgba[k] != 255) return true;
+            return false;
+        }
     }
 
-    /// <summary>A structured-text line as spans of one look each (null when it holds no characters).</summary>
-    private static ExportLine? ReadLine(MuPDFStructuredTextLine line, PageGeometry g)
+    /// <summary>
+    /// A region of a page (page space) rendered on a transparent background as straight (not premultiplied) RGBA, at
+    /// <paramref name="scale"/> pixels per point or less (at most <see cref="MaxRenderedPicture"/> pixels); null if MuPDF
+    /// can't draw it.
+    /// </summary>
+    private (byte[] Rgba, int Width, int Height)? RenderRegionRgba(int page, RectD region, double scale, CancellationToken cancel)
     {
-        var spans = new List<ExportSpan>();
-        var text = new System.Text.StringBuilder();
-        ExportSpan? look = null;
-        RectD box = default;
-        void Flush()
+        cancel.ThrowIfCancellationRequested();
+        var area0 = region.Width * region.Height;
+        if (area0 <= 0) return null;
+        if (area0 * scale * scale > MaxRenderedPicture) scale = Math.Sqrt(MaxRenderedPicture / area0);
+        lock (_gate)
         {
-            if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
-            text.Clear();
-            look = null;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _loaded.Touch(page);
+            var g = _pages[page];
+            var area = new Rectangle(g.OriginX + region.X, g.OriginY + region.Y, g.OriginX + region.Right, g.OriginY + region.Bottom);
+            var px = area.Round(scale);
+            if (px.Width <= 0 || px.Height <= 0) return null;
+            byte[] rgba;
+            try
+            {
+                rgba = _doc.Render(page, area, scale, PixelFormats.RGBA, includeAnnotations: true);
+            }
+            catch (MuPDFException)
+            {
+                return null;
+            }
+            if (rgba.Length != px.Width * px.Height * 4) return null;
+            // MuPDF's pixels are premultiplied by alpha; PNG wants them straight.
+            for (var i = 0; i < rgba.Length; i += 4)
+            {
+                var a = rgba[i + 3];
+                if (a is 0 or 255) continue;
+                rgba[i] = (byte)Math.Min(255, rgba[i] * 255 / a);
+                rgba[i + 1] = (byte)Math.Min(255, rgba[i + 1] * 255 / a);
+                rgba[i + 2] = (byte)Math.Min(255, rgba[i + 2] * 255 / a);
+            }
+            return (rgba, px.Width, px.Height);
         }
+    }
+
+    /// <summary>
+    /// A structured-text line as spans of one look each, split where a left-to-right line has a gap wide enough to be
+    /// a column gap: over 2.5 times the type size, or over its size between two numbers (table columns set close
+    /// together, which MuPDF reads as one line). Empty when it holds no characters.
+    /// </summary>
+    private static List<ExportLine> ReadLine(MuPDFStructuredTextLine line, PageGeometry g)
+    {
+        var chars = new List<(string Text, RectD Rect, ExportSpan Look)>();
         foreach (var ch in line)
         {
             var q = ch.BoundingQuad;
@@ -535,21 +628,44 @@ public sealed class PdfEngine : IDisposable
             var rect = RectD.FromEdges(l - g.OriginX, t - g.OriginY, r - g.OriginX, b - g.OriginY);
             var font = ch.Font;
             var name = font?.Name ?? "";
-            var c = new ExportSpan("", name, ch.Size, (font?.IsBold ?? false) || FontNames.LooksBold(name),
+            var look = new ExportSpan("", name, ch.Size, (font?.IsBold ?? false) || FontNames.LooksBold(name),
                 (font?.IsItalic ?? false) || FontNames.LooksItalic(name), ch.Color & 0xFFFFFF, rect);
-            if (look is null || !look.SameLook(c))
-            {
-                Flush();
-                look = c;
-                box = rect;
-            }
-            else box = box.Union(rect);
-            text.Append(ch.Character);
+            chars.Add((ch.Character, rect, look));
         }
-        Flush();
-        if (spans.Count == 0) return null;
+        var turn = ExportLine.TurnOf(line.Direction.X, line.Direction.Y);
         var sideways = Math.Abs(line.Direction.Y) > 0.1 || line.Direction.X <= 0;
-        return ExportLine.Of(spans, sideways);
+        var result = new List<ExportLine>();
+        // Positions along the reading direction, whichever way the line runs.
+        var along = chars.Select(c => turn switch
+        {
+            0 => (c.Text, c.Rect.X, c.Rect.Right, c.Look.Size),
+            1 => (c.Text, c.Rect.Y, c.Rect.Bottom, c.Look.Size),
+            2 => (c.Text, -c.Rect.Right, -c.Rect.X, c.Look.Size),
+            _ => (c.Text, -c.Rect.Bottom, -c.Rect.Y, c.Look.Size),
+        }).ToList();
+        foreach (var part in ExportLine.SplitAtColumnGaps(along))
+        {
+            var spans = new List<ExportSpan>();
+            var text = new System.Text.StringBuilder();
+            ExportSpan? look = null;
+            RectD box = default;
+            for (var i = part.Start; i < part.End; i++)
+            {
+                var (s, rect, c) = chars[i];
+                if (look is null || !look.SameLook(c))
+                {
+                    if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
+                    text.Clear();
+                    look = c;
+                    box = rect;
+                }
+                else box = box.Union(rect);
+                text.Append(s);
+            }
+            if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
+            if (spans.Count > 0) result.Add(ExportLine.Of(spans, sideways) with { Turn = turn });
+        }
+        return result;
     }
 
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the links were read.</exception>
