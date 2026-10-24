@@ -51,36 +51,22 @@ sizes, store logo, splash screen; the same set as PdfDesk's minus its PDF file-t
 
 ## Elevation (add printer by IP, HP clean-up)
 
-Two user-started actions need administrator rights because Windows requires them: creating a queue for a printer added
-by IP address (`Add-Printer -IppURL`) and the HP clean-up (deleting HP's services, a printer, a folder in Program Files,
-and one HKLM policy value). `src/PrintDesk.Windows/Elevated.cs` starts `powershell.exe` from Windows with a constant
-script and the `runas` verb (`ShellExecute`), which shows the normal UAC prompt.
+Packaged builds never elevate and never start PowerShell. Microsoft's "Prepare to package a desktop application" page
+says Store apps that require elevation for any part of their functionality won't be accepted, and advises against
+starting PowerShell or cmd (Windows S mode can't start them). Two features needed administrator rights:
 
-Findings:
+- **Printer added by IP address.** Unpackaged copies create the queue with one UAC prompt (`Add-Printer -IppURL` through
+  `src/PrintDesk.Windows/Elevated.cs`). Packaged copies (`Features.ElevatedQueueSetup` in `src/PrintDesk.App/Features.cs`)
+  copy the printer's IPP address to the clipboard and open Settings > Printers & scanners, with the steps on screen:
+  Add device > "Add manually" > "Add a printer using an IP address or hostname" > IPP Device > paste. PrintDesk then
+  watches for ten minutes and links the new queue by its port (`QueuePrinter.FindByHost`). Printers found on the network
+  are set up with no prompt in both builds (Windows pairing).
+- **HP clean-up.** Left out of packaged builds (below).
 
-- **No capability needed for this.** `allowElevation` is the restricted capability for packaged apps whose *own*
-  executables elevate ("existing desktop functionality that depends on auto-elevation, either at launch or during
-  runtime"; Microsoft Learn, App capability declarations). Store approval is under strict criteria and needs an email to
-  reportapp@microsoft.com beforehand. PrintDesk.exe stays `asInvoker` and never elevates; the elevated process is
-  Windows PowerShell, which is outside the package, so the UAC service starts it as an ordinary unpackaged admin process.
-  It runs without the package's file and registry redirection, so its changes reach the real system as they do today.
-- **Store policy risk.** Microsoft's "Prepare to package a desktop application" page says Store apps that require
-  elevation for any part of their functionality won't be accepted, and advises against starting PowerShell or cmd
-  (Windows S mode can't start them). Mitigations already in place: printers found on the network are set up with no admin
-  prompt (Windows pairing); the IP-address queue is an optional fallback; the HP clean-up is left out of packaged builds
-  (below). If certification still objects to the IP-address queue, the next step is to hide that one button in packaged
-  builds too (`Features` in `src/PrintDesk.App/Features.cs`) and point the user to Settings > Bluetooth & devices >
-  Printers & scanners > Add device > "Add manually".
-- **Not yet tried on a device.** Nothing was installed here. Test before submitting: sideload (below), add a printer by
-  IP address, then "Set up": expect one UAC prompt and a new queue in Settings. If Windows refuses to start the elevated
-  process from the package, add `<rescap:Capability Name="allowElevation" />` to the manifest and use this text in
-  Partner Center (and the email to reportapp@microsoft.com):
+So the manifest needs no `allowElevation` and nothing about elevation goes in the certification notes.
 
-  > PrintDesk never runs elevated itself. One optional, user-started action needs administrator rights because Windows
-  > requires them: adding a printer queue for a network printer the user entered by IP address (Windows' own
-  > Add-Printer cmdlet). PrintDesk then starts Windows PowerShell with a fixed script through the standard UAC prompt;
-  > the user's input is passed as encoded data, never as script text. Printers found automatically are set up
-  > without administrator rights.
+**Test before submitting:** sideload (below), add a printer by IP address, press "Set up", add it in Settings as shown,
+and check that PrintDesk shows "Ready to print from any app" within a few seconds.
 
 ## HP clean-up and the Store
 

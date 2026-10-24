@@ -17,4 +17,11 @@ public static class Features
 #else
         !AppPackage.IsPackaged;
 #endif
+
+    /// <summary>
+    /// Printers added by IP address: unpackaged copies create the Windows queue themselves with one UAC prompt
+    /// (elevated PowerShell). Store policy rejects apps that elevate or start PowerShell, so packaged copies copy the
+    /// printer's address and open Windows Settings, where the user adds it with Windows' own "Add manually".
+    /// </summary>
+    public static bool ElevatedQueueSetup { get; } = !AppPackage.IsPackaged;
 }

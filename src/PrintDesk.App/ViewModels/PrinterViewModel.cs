@@ -29,6 +29,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private readonly Action<PrinterViewModel> _remember;
     private readonly Func<HttpMessageHandler>? _transport;
     private CancellationTokenSource? _loop;
+    private CancellationTokenSource? _watch;
     private PrinterConnection? _connection;
     private bool _discoveredQueue;
     private bool _windowsQueue;
@@ -94,7 +95,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult), nameof(SetupNeedsAdmin))]
+    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult), nameof(SetupNeedsAdmin), nameof(SetupInSettings))]
     [NotifyCanExecuteChangedFor(nameof(SetUpCommand))]
     public partial string? PrintEndpointId { get; set; }
 
@@ -121,7 +122,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool NeedsSetup => !QueueInstalled && (PrintEndpointId is not null || Host is not null);
 
     /// <summary>True when setup will need administrator permission (printer added by address).</summary>
-    public bool SetupNeedsAdmin => PrintEndpointId is null;
+    public bool SetupNeedsAdmin => PrintEndpointId is null && Features.ElevatedQueueSetup;
+
+    /// <summary>Printer added by address in a packaged copy: Windows Settings adds the queue (<see cref="Features.ElevatedQueueSetup"/>).</summary>
+    public bool SetupInSettings => PrintEndpointId is null && !Features.ElevatedQueueSetup;
+
+    /// <summary>The address Windows' "Add a printer using an IP address or hostname" needs for this printer.</summary>
+    private Uri IppUrl => new UriBuilder("http", Host!, 631, "ipp/print").Uri;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
@@ -185,8 +192,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (IsDemo) return null; // never print to a real queue
         if (await QueueFinder.FindQueueNameAsync(Uuid) is { } byContainer) return byContainer;
-        if (_state.GetQueueName(Uuid) is not { } created) return null;
-        return (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)) ? created : null;
+        if (_state.GetQueueName(Uuid) is { } created
+            && (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)))
+            return created;
+        // Added in Windows Settings by address: Windows names the queue itself, but its port carries the address.
+        if (Host is not { } host || await Task.Run(() => Printing.QueuePrinter.FindByHost(host)) is not { } byPort) return null;
+        _state.SetQueueName(Uuid, byPort);
+        return byPort;
     }
 
     /// <summary>Looks for an installed Windows queue for this printer.</summary>
@@ -203,6 +215,26 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         QueueInstalled = _discoveredQueue || _windowsQueue;
         OnPropertyChanged(nameof(SetupNeedsAdmin));
+        OnPropertyChanged(nameof(SetupInSettings));
+    }
+
+    /// <summary>After sending the user to Settings: notice the new queue when it appears (checks for ten minutes).</summary>
+    private async Task WatchForQueueAsync(CancellationToken ct)
+    {
+        try
+        {
+            for (var i = 0; i < 120 && !QueueInstalled; i++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                await RefreshQueueAsync();
+            }
+            if (QueueInstalled)
+            {
+                SetupMessage = "Ready to print from any app.";
+                Print.QueueChanged();
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void Restart()
@@ -396,6 +428,19 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSetUp))]
     private async Task SetUpAsync()
     {
+        if (SetupInSettings)
+        {
+            var url = IppUrl.AbsoluteUri;
+            try { System.Windows.Clipboard.SetText(url); }
+            catch (Exception ex) { Trace.WriteLine($"[{Name}] clipboard: {ex.Message}"); } // the message shows the address too
+            Shell.Open("ms-settings:printers");
+            SetupMessage = "In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. " +
+                $"Pick “IPP Device” and paste {url} (it’s on the clipboard). PrintDesk notices the printer when it’s added.";
+            _watch?.Cancel();
+            _watch = new CancellationTokenSource();
+            _ = WatchForQueueAsync(_watch.Token);
+            return;
+        }
         IsInstalling = true;
         SetupMessage = SetupNeedsAdmin
             ? "Setting up… approve the Windows permission prompt to add the printer."
@@ -410,7 +455,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             else
             {
                 var queueName = IppQueueInstaller.SafeQueueName($"{Name} ({Host})");
-                print = await IppQueueInstaller.InstallAsync(queueName, new UriBuilder("http", Host!, 631, "ipp/print").Uri);
+                print = await IppQueueInstaller.InstallAsync(queueName, IppUrl);
                 if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
                     _state.SetQueueName(Uuid, IppQueueInstaller.SafeQueueName(queueName));
             }
@@ -506,6 +551,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         _loop?.Cancel();
         _loop = null;
+        _watch?.Cancel();
+        _watch = null;
         _connection?.Dispose();
         _connection = null;
     }

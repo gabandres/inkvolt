@@ -685,6 +685,9 @@
                                             <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0"
                                                        Text="Windows will ask for administrator permission, because this printer was added by address."
                                                        Visibility="{Binding SetupNeedsAdmin, Converter={StaticResource VisibleWhen}}" />
+                                            <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                       Text="This printer was added by address, so Windows adds it in Settings. Set up copies the address and opens Settings."
+                                                       Visibility="{Binding SetupInSettings, Converter={StaticResource VisibleWhen}}" />
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>

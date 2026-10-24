@@ -1,5 +1,6 @@
 using System.IO;
 using System.Printing;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -21,6 +22,32 @@ public static class QueuePrinter
     public const int RenderDpi = 300;
 
     public static PrintQueue Open(string queueName) => new(new LocalPrintServer(), queueName);
+
+    /// <summary>
+    /// The installed queue whose port is this host: "192.0.2.10", "IP_192.0.2.10" (Standard TCP/IP) or
+    /// "http://192.0.2.10:631/ipp/print" (IPP). The host has to stand alone, so 192.0.2.1 doesn't match 192.0.2.10.
+    /// </summary>
+    public static string? FindByHost(string host)
+    {
+        try
+        {
+            using var server = new LocalPrintServer();
+            foreach (var queue in server.GetPrintQueues([EnumeratedPrintQueueTypes.Local]))
+                using (queue)
+                {
+                    try { if (queue.QueuePort?.Name is { } port && PortIsHost(port, host)) return queue.Name; }
+                    catch (PrintSystemException) { } // a queue being deleted; skip it
+                }
+        }
+        catch (PrintSystemException ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"queue ports: {ex.Message}");
+        }
+        return null;
+    }
+
+    public static bool PortIsHost(string port, string host) =>
+        Regex.IsMatch(port, $@"(?<![A-Za-z0-9.-]){Regex.Escape(host)}(?![A-Za-z0-9-]|\.[A-Za-z0-9])", RegexOptions.IgnoreCase);
 
     public static bool SupportsTwoSided(PrintQueue queue)
     {
