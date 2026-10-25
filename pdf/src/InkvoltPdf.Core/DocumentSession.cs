@@ -4,21 +4,25 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// An open document: its bytes, the MuPDF view of them, and undo/redo snapshots of page edits. The file on disk is
-/// read once and never locked; it changes only on Save.
+/// read once and never locked; it changes only on Save. Edits go through <see cref="EditAsync"/> (the edit transaction,
+/// in DocumentSession.Edit.cs).
 /// </summary>
-public sealed class DocumentSession : IDisposable
+public sealed partial class DocumentSession : IDisposable
 {
     private const int MaxUndoSteps = 50;
     private const long MaxUndoBytes = 768L * 1024 * 1024;
 
     /// <summary>An undo/redo state: its bytes, and the passwords that open them (a protection change swaps them).</summary>
-    private readonly record struct Step(byte[] Data, string Label, int Version, string? Password, string? OpenPassword);
+    /// <remarks><paramref name="Id"/> names the edit: it stays with the step through undo and redo.</remarks>
+    private readonly record struct Step(byte[] Data, string Label, int Version, string? Password, string? OpenPassword, long Id);
 
     private readonly LinkedList<Step> _undo = new();
     private readonly Stack<Step> _redo = new();
     private int _version;
     private int _savedVersion;
     private int _nextVersion = 1;
+    private long _lastStepId;
+    private bool _disposed;
     private (long Length, DateTime WriteTimeUtc)? _onDisk;
 
     public string? FilePath { get; private set; }
@@ -38,14 +42,17 @@ public sealed class DocumentSession : IDisposable
     public bool IsPdf => FileType == InputFileTypes.PDF;
 
     public bool CanUndo => _undo.Count > 0;
-    /// <summary>Number of undo steps; lets a toast's Undo act only on the edit it announced.</summary>
-    public int UndoDepth => _undo.Count;
     public bool CanRedo => _redo.Count > 0;
     public string? UndoLabel => _undo.Last?.Value.Label;
+    /// <summary>
+    /// The edit that <see cref="Undo"/> would take back (what <see cref="EditResult.StepId"/> returned when it was made),
+    /// or null: lets a toast's Undo act only on the very edit it announced.
+    /// </summary>
+    public long? UndoStepId => _undo.Last?.Value.Id;
     public string? RedoLabel => _redo.TryPeek(out var r) ? r.Label : null;
 
-    /// <summary>Raised after the document content changed (edit, undo, redo); the engine has been replaced.</summary>
-    public event EventHandler? ContentChanged;
+    /// <summary>Raised after the document content changed (edit, undo, redo, reload); the engine has been replaced.</summary>
+    public event EventHandler<ContentChangedEventArgs>? ContentChanged;
 
     /// <summary>Raised when the name, path or dirty state changed.</summary>
     public event EventHandler? StateChanged;
@@ -99,14 +106,20 @@ public sealed class DocumentSession : IDisposable
     /// Replaces the content with edited bytes that open with other passwords (the protection changed), recording an
     /// undo step: undoing it goes back to the old bytes and passwords.
     /// </summary>
-    public void Commit(byte[] newData, string label, string? password, string? openPassword)
+    public void Commit(byte[] newData, string label, string? password, string? openPassword) =>
+        Commit(newData, label, password, openPassword, ContentChange.Edit);
+
+    /// <returns>The new undo step's id (<see cref="UndoStepId"/>).</returns>
+    private long Commit(byte[] newData, string label, string? password, string? openPassword, ContentChange change)
     {
         var engine = PdfEngine.Open(newData, FileType, password);
-        _undo.AddLast(new Step(Data, label, _version, Password, OpenPassword));
+        var id = ++_lastStepId;
+        _undo.AddLast(new Step(Data, label, _version, Password, OpenPassword, id));
         TrimUndo();
         _redo.Clear();
         (Password, OpenPassword) = (password, openPassword);
-        Swap(newData, engine, _nextVersion++);
+        Swap(newData, engine, _nextVersion++, change);
+        return id;
     }
 
     public void Undo()
@@ -117,7 +130,7 @@ public sealed class DocumentSession : IDisposable
         _undo.RemoveLast();
         _redo.Push(step with { Data = Data, Version = _version, Password = Password, OpenPassword = OpenPassword });
         (Password, OpenPassword) = (step.Password, step.OpenPassword);
-        Swap(step.Data, engine, step.Version);
+        Swap(step.Data, engine, step.Version, ContentChange.Undo);
     }
 
     public void Redo()
@@ -127,7 +140,7 @@ public sealed class DocumentSession : IDisposable
         _redo.Pop();
         _undo.AddLast(step with { Data = Data, Version = _version, Password = Password, OpenPassword = OpenPassword });
         (Password, OpenPassword) = (step.Password, step.OpenPassword);
-        Swap(step.Data, engine, step.Version);
+        Swap(step.Data, engine, step.Version, ContentChange.Redo);
     }
 
     /// <summary>
@@ -260,7 +273,7 @@ public sealed class DocumentSession : IDisposable
         _onDisk = copy.Stamp;
         var version = _nextVersion++;
         _savedVersion = version;
-        Swap(copy.Data, copy.Engine, version);
+        Swap(copy.Data, copy.Engine, version, ContentChange.Reload);
     }
 
     private static (long, DateTime)? DiskStamp(string path)
@@ -269,13 +282,13 @@ public sealed class DocumentSession : IDisposable
         return info.Exists ? (info.Length, info.LastWriteTimeUtc) : null;
     }
 
-    private void Swap(byte[] data, PdfEngine engine, int version)
+    private void Swap(byte[] data, PdfEngine engine, int version, ContentChange change)
     {
         var old = Engine;
         Data = data;
         Engine = engine;
         _version = version;
-        ContentChanged?.Invoke(this, EventArgs.Empty);
+        ContentChanged?.Invoke(this, new ContentChangedEventArgs(change));
         StateChanged?.Invoke(this, EventArgs.Empty);
         old.Dispose();
     }
@@ -290,5 +303,9 @@ public sealed class DocumentSession : IDisposable
         }
     }
 
-    public void Dispose() => Engine.Dispose();
+    public void Dispose()
+    {
+        _disposed = true;
+        Engine.Dispose();
+    }
 }

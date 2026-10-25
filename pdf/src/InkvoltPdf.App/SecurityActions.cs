@@ -6,9 +6,6 @@ using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
-/// <summary>The open password an edit of an AES-256 document needs, or the choice to save it without one.</summary>
-public sealed record OpenPasswordAnswer(string? Password, bool DropIt);
-
 /// <summary>File › Protect with Password / Remove Protection, the security line in Properties, and the open-password prompt.</summary>
 public static class SecurityActions
 {

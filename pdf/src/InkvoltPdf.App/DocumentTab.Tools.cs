@@ -27,11 +27,10 @@ public partial class DocumentTab
             Notify(message, error: error);
             return;
         }
-        var depth = Session.UndoDepth;
-        var label = Session.UndoLabel;
+        var step = Session.UndoStepId;
         Notify(message, "Undo", () =>
         {
-            if (_disposed || IsBusy || Session.UndoDepth != depth || Session.UndoLabel != label) return;
+            if (_disposed || IsBusy || Session.UndoStepId != step) return;
             Undo();
         }, error);
     }

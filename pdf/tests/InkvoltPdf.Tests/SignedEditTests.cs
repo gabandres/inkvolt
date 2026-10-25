@@ -54,7 +54,7 @@ public class SignedEditTests(ITestOutputHelper output)
         edited.Length > original.Length && edited.AsSpan(0, original.Length).SequenceEqual(original);
 
     /// <summary>The same document saved encrypted: still signed-looking (its /ByteRange is in the clear), never appendable.</summary>
-    private static byte[] Encrypted(byte[] pdf)
+    internal static byte[] Encrypted(byte[] pdf)
     {
         using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify);
         doc.SecuritySettings.UserPassword = "user";

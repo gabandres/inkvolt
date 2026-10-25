@@ -215,10 +215,8 @@ public partial class DocumentTab
     private int _layerTicket;
     private PdfEngine? _viewEngine;
     private IReadOnlyList<SignatureInfo> _signatures = [];
-    private bool _signedOnOpen;
     private readonly Dictionary<string, SignatureInfo> _signaturesOnOpen = [];
     private bool _signatureBaselineStale; // reloaded from disk: the next verification is the new "on open" result
-    private bool _signatureWarned;
     private bool _sigBarDismissed;
     private bool _xfaBarDismissed;
     private bool _displayDocTitle;
@@ -1068,7 +1066,7 @@ public partial class DocumentTab
         _signatures = sigs;
         if (onOpen)
         {
-            _signedOnOpen = IsSigned;
+            Session.SignedOnOpen = IsSigned;
             _signaturesOnOpen.Clear();
             foreach (var s in sigs) _signaturesOnOpen[s.FieldName] = s;
         }
@@ -1114,42 +1112,6 @@ public partial class DocumentTab
     {
         if (sender is FrameworkElement { Tag: SignatureItem s } && s.Info.PageIndex >= 0) Viewer.Flash(s.Info.PageIndex, s.Info.Rect);
     }
-
-    /// <summary>
-    /// Edits of a signed document are appended after the signed bytes (incremental update), which keeps the signatures
-    /// valid. An encrypted signed document is always rewritten: it is warned about before the first edit. Any other edit
-    /// that can't be appended stops with <see cref="SignaturesWouldBreakException"/> and asks
-    /// (<see cref="ConfirmSignatureRewrite"/>) before it is redone as a rewrite. Redaction warns on its own.
-    /// </summary>
-    private bool NeedsSignedWarning => _signedOnOpen && !_signatureWarned && Session.Engine.IsEncrypted;
-
-    /// <summary>Before the first edit of an encrypted signed document: say that editing breaks the signatures.</summary>
-    private bool ConfirmSignedEdit()
-    {
-        if (!NeedsSignedWarning) return true;
-        if (!Prompt.Confirm(Window.GetWindow(this), "This document is digitally signed",
-                "Any change invalidates its signatures: they will no longer verify. To keep the signed original, save your changes as a copy (Save As).",
-                "Edit anyway", warning: true)) return false;
-        _signatureWarned = true;
-        return true;
-    }
-
-    /// <summary>Before an edit that would invalidate signatures that are intact now.</summary>
-    private bool ConfirmBreakingEdit(string label, IReadOnlyList<SignatureInfo> broken)
-    {
-        var who = broken.Count == 1 ? $"the signature of {broken[0].SignerName ?? broken[0].FieldName}" : $"{broken.Count} signatures";
-        return Prompt.Confirm(Window.GetWindow(this), $"{label} invalidates {who}",
-            "A signature allows filling in forms, comments and more signatures afterwards, but not this change: it alters what was signed, " +
-            "or it can't be added without rewriting the file. Afterwards the signature shows as invalid.\n\n" +
-            "To keep the signed original, undo the change, or save your changes as a copy (Save As).",
-            $"{label} anyway", warning: true);
-    }
-
-    /// <summary>An edit of a signed document can't be appended: saving it rewrites the file. True when the user goes ahead.</summary>
-    private bool ConfirmSignatureRewrite(int signatures) =>
-        Prompt.Confirm(Window.GetWindow(this), "This edit breaks the signatures",
-            $"This edit can't be added to the signed file as an update, so saving it will invalidate {(signatures == 1 ? "its signature" : $"its {signatures} signatures")}: they will no longer verify. Continue? To keep the signed original, save your changes as a copy (Save As).",
-            "Edit anyway", warning: true);
 
     /// <summary>
     /// A removal (pages, a comment, an attachment) appended to a signed document leaves the item in the file's earlier,
@@ -1242,7 +1204,7 @@ public partial class DocumentTab
         var pages = marks.Select(m => m.PageIndex).Distinct().Order().ToList();
         var list = string.Join(", ", pages.Take(12).Select(PageLabel)) + (pages.Count > 12 ? "…" : "");
         if (confirm && !Prompt.Confirm(Window.GetWindow(this), $"Apply {marks.Count} redaction{(marks.Count == 1 ? "" : "s")}?",
-                $"The marked areas are blacked out and their content removed. {(pages.Count == 1 ? "Page" : "Pages")} {list} become images: their text can no longer be selected, searched or copied, and their links, comments and form fields are flattened into the image.{(_signedOnOpen ? "\n\nThis document is digitally signed: redaction rewrites the file, so its signatures will no longer verify." : "")}\n\nYou can undo this until you save. Once saved, the removed content can't be recovered.",
+                $"The marked areas are blacked out and their content removed. {(pages.Count == 1 ? "Page" : "Pages")} {list} become images: their text can no longer be selected, searched or copied, and their links, comments and form fields are flattened into the image.{(Session.SignedOnOpen ? "\n\nThis document is digitally signed: redaction rewrites the file, so its signatures will no longer verify." : "")}\n\nYou can undo this until you save. Once saved, the removed content can't be recovered.",
                 "Apply redactions", warning: true)) return false;
         var areas = marks.GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
         var ocr = PageOcr.Engine;

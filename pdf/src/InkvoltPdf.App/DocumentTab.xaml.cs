@@ -75,8 +75,6 @@ public sealed record Toast(string Message, string? ActionLabel = null, Action? A
 public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures }
 
 /// <summary>How <see cref="DocumentTab.TryEdit"/> ended.</summary>
-public enum EditOutcome { Done, NoChange, Busy, Declined, Failed }
-
 public partial class DocumentTab : UserControl, IDisposable
 {
     private const double ThumbBox = 130;
@@ -108,19 +106,12 @@ public partial class DocumentTab : UserControl, IDisposable
     private bool _formSaving;
     private int _annotationLoad;
     private bool _formBarDismissed;
-    private bool _contentOnlyCommit;
-    private bool _steppingHistory;
     private NavPaneKind _paneBeforeOrganize;
 
     // Pending writes (form values, Fill & Sign stamps, page edits): Save and Close wait for them.
     private int _pendingWrites;
     private TaskCompletionSource? _writesDone;
     private TaskCompletionSource? _idle;
-
-    // Edit identity, mirroring the session's undo/redo stacks, so a toast's Undo only undoes its own edit.
-    private long _editSeq;
-    private readonly List<long> _undoIds = [];
-    private readonly Stack<long> _redoIds = new();
 
     // Watching the file on disk for changes by other programs.
     private FileSystemWatcher? _watcher;
@@ -136,6 +127,7 @@ public partial class DocumentTab : UserControl, IDisposable
     private InsertionAdorner? _insertion;
 
     public DocumentSession Session { get; }
+    private readonly TabEditPrompts _editPrompts;
     public PageViewer PageView => Viewer;
     /// <summary>True while any long operation (edit, print, export, save, reload, a warning prompt) holds the tab.</summary>
     public bool IsBusy => _busy.Count > 0;
@@ -153,6 +145,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         InitializeComponent();
         Session = session;
+        _editPrompts = new TabEditPrompts(this);
         _scheduler = new RenderScheduler(Dispatcher);
 
         // Shortcuts in tooltips come from the commands' gestures (never typed by hand, so they can't drift).
@@ -745,6 +738,8 @@ public partial class DocumentTab : UserControl, IDisposable
     /// same bytes), <see cref="EditOutcome.Busy"/> (another edit or its
     /// warning prompt holds the tab: try again once idle), <see cref="EditOutcome.Declined"/> (the user said no to the
     /// password/signature warning) or <see cref="EditOutcome.Failed"/> (the edit threw, or the file isn't a PDF).
+    /// The edit policy (passwords, signatures, protection, the undo step) is the session's edit transaction
+    /// (<see cref="DocumentSession.EditAsync"/>); this adds the tab's part: busy state, progress veil, toasts.
     /// </summary>
     /// <param name="signaturesWarned">The caller already said the edit breaks signatures (redaction): don't ask again.</param>
     /// <param name="newPasswords">The edit changes the protection (protect, unprotect): the passwords that open the result.</param>
@@ -760,160 +755,57 @@ public partial class DocumentTab : UserControl, IDisposable
         }
         if (_disposed) return EditOutcome.Failed;
         if (IsBusy) return EditOutcome.Busy;
-        BusyLease? hold = null;
-        if (NeedsSignedWarning)
-        {
-            // Hold the tab while the warning is open, so an edit started meanwhile waits (Busy) instead of slipping in
-            // or opening a second prompt. No veil: the prompt is the only thing on screen.
-            hold = BeginBusy(null);
-            var go = false;
-            try
-            {
-                go = ConfirmSignedEdit();
-            }
-            finally
-            {
-                if (!go) hold.Dispose();
-            }
-            if (!go) return EditOutcome.Declined;
-            if (_disposed)
-            {
-                hold.Dispose();
-                return EditOutcome.Failed;
-            }
-        }
-
-        using var busy = BeginBusy(veil ? $"{label}…" : null);
-        hold?.Dispose();
-        BeginWrite();
+        // Hold the tab while a warning is open, so an edit started meanwhile waits (Busy) instead of slipping in or
+        // opening a second prompt. No veil until the edit itself starts: the prompt is the only thing on screen.
+        using var hold = BeginBusy(null);
+        BusyLease? work = null;
+        var writing = false;
         try
         {
-            var data = Session.Data;
-            var password = Session.Password;
-            byte[] result;
-            SignedEditReport report;
-            var rewrite = _signatureWarned; // already accepted that edits break the signatures (encrypted signed file)
-            // An encrypted document keeps its protection through the edit; AES-256 opened with the owner password needs
-            // its open password for that (asked once, see KeptProtection).
-            var openPassword = Session.OpenPassword;
-            var dropOpenPassword = false;
-            while (true)
+            var request = new EditRequest(label, edit) { ContentOnly = contentOnly, SignaturesWarned = signaturesWarned, NewPasswords = newPasswords };
+            var result = await Session.EditAsync(request, _editPrompts, () =>
             {
-                try
-                {
-                    var allowRewrite = rewrite;
-                    var (open, drop) = (openPassword, dropOpenPassword);
-                    (result, report) = await Task.Run(() => KeptProtection.Run(open, drop, () => SignedEdits.Run(() => edit(data, password), allowRewrite)));
-                    break;
-                }
-                catch (OpenPasswordUnknownException) when (!_disposed)
-                {
-                    switch (SecurityActions.PromptOpenPassword(Window.GetWindow(this), Session.DisplayName, data))
-                    {
-                        case null:
-                            return EditOutcome.Declined;
-                        case { DropIt: true }:
-                            dropOpenPassword = true;
-                            break;
-                        case { Password: var given }:
-                            openPassword = given;
-                            break;
-                    }
-                }
-                catch (OwnerPasswordRequiredException ex) when (!_disposed)
-                {
-                    // Opened for viewing without the permissions password: ask for it and try the same edit again.
-                    if (PdfFiles.PromptOwnerPassword(Window.GetWindow(this), Session.DisplayName, ex.WrongPassword) is not { } owner)
-                        return EditOutcome.Declined;
-                    password = owner;
-                }
-                catch (SignaturesWouldBreakException ex) when (!_disposed && !rewrite)
-                {
-                    // The edit can't be appended to the signed file: say so before anything is committed, then redo it as a rewrite.
-                    Log.Write($"{label}: {ex.Reason}");
-                    if (!ConfirmSignatureRewrite(ex.SignatureCount)) return EditOutcome.Declined;
-                    rewrite = true;
-                }
-            }
-            if (_disposed) return EditOutcome.Failed;
-            if (password is not null && password != Session.Password) Session.UsePassword(password); // only once it worked
-            if (openPassword != Session.OpenPassword) Session.UseOpenPassword(openPassword);
-            if (ReferenceEquals(result, data)) return EditOutcome.NoChange; // nothing to do: no undo step
-            // Signed document: an edit a signature doesn't allow (a page change, or one that couldn't be appended and
-            // rewrites the file) shows that signature as invalid from then on. Say so before it happens.
-            if (_signedOnOpen && !signaturesWarned && !rewrite)
+                if (veil) work = BeginBusy($"{label}…");
+                BeginWrite();
+                writing = true;
+            });
+            if (result.Error is { } ex) // top-level UI action: report any failure, never lose it
             {
-                var broken = await Task.Run(() => Signatures.BrokenByEdits(Signatures.Verify(data, password), result, password));
-                if (_disposed) return EditOutcome.Failed;
-                if (broken.Count > 0 && !ConfirmBreakingEdit(label, broken)) return EditOutcome.Declined;
+                Log.Write($"{label} failed: {ex}");
+                Prompt.Error(Window.GetWindow(this), $"{label} didn't work", ex.Message);
             }
-            _contentOnlyCommit = contentOnly;
-            try
-            {
-                if (newPasswords is { } np) Session.Commit(result, label, np.Password, np.OpenPassword);
-                else Session.Commit(result, label, Session.Password, dropOpenPassword ? null : Session.OpenPassword);
-            }
-            finally
-            {
-                _contentOnlyCommit = false;
-            }
-            var id = ++_editSeq;
-            _undoIds.Add(id);
-            _redoIds.Clear();
-            if (_undoIds.Count > Session.UndoDepth) _undoIds.RemoveRange(0, _undoIds.Count - Session.UndoDepth);
+            if (result.Outcome != EditOutcome.Done) return result.Outcome;
+            var id = result.StepId;
             if (goToPage is { } p) Viewer.GoToPage(Math.Clamp(p, 0, Viewer.PageCount - 1), record: false);
             if (!quiet)
             {
                 Notify(label, "Undo", () =>
                 {
                     // Only while this very edit is still the newest undo step (not an older or newer one at the same depth).
-                    if (_disposed || IsBusy || _undoIds.Count == 0 || _undoIds[^1] != id || !Session.CanUndo) return;
+                    if (_disposed || IsBusy || Session.UndoStepId != id) return;
                     Undo();
                 });
             }
-            if (report.RemovedItemKept) NotifyRemovedItemKept();
+            if (result.RemovedItemKept) NotifyRemovedItemKept();
             return EditOutcome.Done;
-        }
-        catch (OperationCanceledException)
-        {
-            return EditOutcome.Declined; // the user cancelled a long edit (e.g. text recognition): nothing changed
-        }
-        catch (Exception ex) // top-level UI action: report any failure, never lose it
-        {
-            Log.Write($"{label} failed: {ex}");
-            Prompt.Error(Window.GetWindow(this), $"{label} didn't work", ex.Message);
-            return EditOutcome.Failed;
         }
         finally
         {
-            EndWrite();
+            if (writing) EndWrite();
+            work?.Dispose();
         }
     }
 
     public void Undo()
     {
         if (!Session.CanUndo) return;
-        Step(() =>
-        {
-            _steppingHistory = true;
-            try { Session.Undo(); } finally { _steppingHistory = false; }
-            if (_undoIds.Count > 0)
-            {
-                _redoIds.Push(_undoIds[^1]);
-                _undoIds.RemoveAt(_undoIds.Count - 1);
-            }
-        }, Session.UndoLabel, "Undo");
+        Step(Session.Undo, Session.UndoLabel, "Undo");
     }
 
     public void Redo()
     {
         if (!Session.CanRedo) return;
-        Step(() =>
-        {
-            _steppingHistory = true;
-            try { Session.Redo(); } finally { _steppingHistory = false; }
-            _undoIds.Add(_redoIds.TryPop(out var id) ? id : ++_editSeq);
-        }, Session.RedoLabel, "Redo");
+        Step(Session.Redo, Session.RedoLabel, "Redo");
     }
 
     private void Step(Action action, string? label, string verb)
@@ -991,7 +883,7 @@ public partial class DocumentTab : UserControl, IDisposable
         public void Dispose() => tab.EndBusy(this);
     }
 
-    private void OnContentChanged(object? sender, EventArgs e)
+    private void OnContentChanged(object? sender, ContentChangedEventArgs e)
     {
         _readAloud?.Stop(); // it reads the old pages' text
         CancelSearch();
@@ -1003,10 +895,10 @@ public partial class DocumentTab : UserControl, IDisposable
         FindStatus.Text = SearchStatus.Text = "";
 
         // After undo/redo the same positions may hold different pages (e.g. undoing a Move): don't carry the selection over.
-        int[] organizerSelection = IsOrganizing && !_steppingHistory && Organizer.PageCount == Session.Engine.PageCount ? Organizer.SelectedPages : [];
+        int[] organizerSelection = IsOrganizing && !e.SteppedHistory && Organizer.PageCount == Session.Engine.PageCount ? Organizer.SelectedPages : [];
         _scheduler.Clear();
         // A form value or Fill & Sign edit leaves the pages as they were: keep the open field editor (typing continues).
-        Viewer.SetEngine(Session.Engine, _scheduler, keepPosition: true, contentOnly: _contentOnlyCommit);
+        Viewer.SetEngine(Session.Engine, _scheduler, keepPosition: true, contentOnly: e.ContentOnly);
         DropViewEngine(); // made from the old bytes; chosen layers are re-applied once they are re-read
         RebuildThumbs();
         LoadOutline();
@@ -1762,8 +1654,6 @@ public partial class DocumentTab : UserControl, IDisposable
                 return true;
             });
             if (!reloaded) return;
-            _undoIds.Clear();
-            _redoIds.Clear();
             _reloadAttempts = 0;
             DiskBar.Visibility = Visibility.Collapsed;
             if (toast is not null) Notify(toast);

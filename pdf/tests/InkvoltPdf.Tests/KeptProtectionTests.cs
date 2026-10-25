@@ -9,11 +9,11 @@ namespace InkvoltPdf.Tests;
 /// <summary>Edits of encrypted PDFs keep the protection: method family, permissions and both passwords.</summary>
 public class KeptProtectionTests
 {
-    private const string Owner = "owner-pw";
+    internal const string Owner = "owner-pw";
     private static readonly PdfPermissions Restricted = new(PrintPermission.LowResolution, Copy: false, Modify: true, Annotate: true, FillForms: true, Assemble: true);
 
     /// <summary>A one-page form (text field "name") plus a second page, encrypted by PDFsharp with <paramref name="method"/>.</summary>
-    private static byte[] Encrypted(PdfDefaultEncryption method, string user, PdfPermissions? permissions = null)
+    internal static byte[] Encrypted(PdfDefaultEncryption method, string user, PdfPermissions? permissions = null)
     {
         permissions ??= Restricted;
         var form = Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]);
