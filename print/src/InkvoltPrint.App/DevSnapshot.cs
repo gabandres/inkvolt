@@ -111,7 +111,7 @@ internal static class DevSnapshot
         if (fix is not null && window.DataContext is ViewModels.MainViewModel { Selected: { } fixing })
         {
             await fixing.OpenFixerCommand.ExecuteAsync(null);
-            if (fix is "waiting" or "cancel" && fixing.IsDemo
+            if (fix is "waiting" or "cancel" && fixing.Pc.IsDemo
                 && fixing.Fixer.Repairs.FirstOrDefault(r => r.Repair.AdminOnly && !r.Repair.ManualOnly) is { } elevated)
             {
                 // The first repair needing permission, its prompt left unanswered; "cancel" then presses Cancel.
@@ -127,7 +127,7 @@ internal static class DevSnapshot
                     await running;
                 }
             }
-            if (fix == "all" && fixing.IsDemo)
+            if (fix == "all" && fixing.Pc.IsDemo)
             {
                 var ask = ViewModels.Prompt.Confirm;
                 ViewModels.Prompt.Confirm = (_, _) => true;
@@ -207,7 +207,7 @@ internal static class DevSnapshot
         for (var i = 0; i < 20 && !printer.Maintenance.IsLoaded; i++) await Task.Delay(250);
         printer.ShowMaintenanceCommand.Execute(null);
         await Task.Delay(TimeSpan.FromSeconds(1));
-        if (!printer.IsDemo || !int.TryParse(Value(args, "--maintenance"), out var n) || n < 1 || n > printer.Maintenance.Items.Count) return;
+        if (!printer.Pc.IsDemo || !int.TryParse(Value(args, "--maintenance"), out var n) || n < 1 || n > printer.Maintenance.Items.Count) return;
         var ask = ViewModels.Prompt.Confirm;
         ViewModels.Prompt.Confirm = (_, _) => true;
         try { await printer.Maintenance.Items[n - 1].RunCommand.ExecuteAsync(null); }

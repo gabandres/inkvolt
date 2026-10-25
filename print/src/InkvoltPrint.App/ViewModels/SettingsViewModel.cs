@@ -5,7 +5,6 @@ using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.Core.Ledm;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Probe;
-using InkvoltPrint.Windows.Security;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -13,9 +12,10 @@ namespace InkvoltPrint.App.ViewModels;
 /// Device settings over LEDM: read Dyn + Cap, edit, PUT only what changed. Firmware auto-update comes from the
 /// FirmwareUpdate interface (its own manifest and Config resource) and saves the same way.
 /// </summary>
+/// <param name="passwords">Where the admin password is kept when the user asks (Windows Credential Manager; memory in demo mode).</param>
 /// <param name="openWebPage">Opens the printer's web page (EWS); the demo printer has none.</param>
 public sealed partial class SettingsViewModel(PrinterConnection connection, string uuid, string printerName, AppState state,
-    Action? openWebPage = null) : ObservableObject
+    IPrinterPasswords passwords, Action? openWebPage = null) : ObservableObject
 {
     private static readonly (string Dyn, string Cap)[] Resources =
     [
@@ -157,12 +157,12 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             try
             {
                 await put();
-                if (entered is { Remember: true } e) CredentialStore.Save(uuid, e.Password);
+                if (entered is { Remember: true } e) passwords.Save(uuid, e.Password);
                 return;
             }
             catch (LedmAuthRequiredException ex)
             {
-                if (ex.CredentialsWereSent) CredentialStore.Delete(uuid);
+                if (ex.CredentialsWereSent) passwords.Delete(uuid);
                 entered = AskPassword?.Invoke(printerName, ex.CredentialsWereSent, state.GetCertificatePin(uuid)) ?? throw new OperationCanceledException();
                 _connection.Http.SetCredentials("admin", entered.Value.Password);
             }
@@ -174,7 +174,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     {
         state.ClearCertificatePin(uuid);
         // The saved password must not ride along on the first handshake with the new certificate unattended.
-        CredentialStore.Delete(uuid);
+        passwords.Delete(uuid);
         _connection.Http.ClearCredentials();
         _connection.Http.ResetCertificateChanged();
         CertificateChanged = false;
@@ -272,7 +272,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     [RelayCommand]
     private void ForgetPassword()
     {
-        CredentialStore.Delete(uuid);
+        passwords.Delete(uuid);
         _connection.Http.ClearCredentials();
         Message = "Saved password removed.";
         MessageIsError = false;

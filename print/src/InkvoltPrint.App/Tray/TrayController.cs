@@ -38,12 +38,12 @@ public sealed class TrayController : IDisposable
     private string? _noticeUuid, _savedShown;
     private bool _hidden, _powerEvents, _alertsOn;
 
-    public TrayController(Application app, MainViewModel vm, AppState state, bool demo)
+    public TrayController(Application app, MainViewModel vm, AppState state, PcEnvironment pc)
     {
         _app = app;
         _vm = vm;
         _state = state;
-        IsDemo = demo;
+        _pc = pc;
         _settings = state.Tray ??= new TraySettings();
         _tracker = new AlertTracker(Rules(), _settings.Shown.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value))
         {
@@ -62,7 +62,10 @@ public sealed class TrayController : IDisposable
         foreach (var p in vm.Printers) Watch(p); // after Apply: the icon exists to show what was read already
     }
 
-    public bool IsDemo { get; }
+    private readonly PcEnvironment _pc;
+
+    /// <summary>Demo mode's made-up PC (for the wording of what isn't offered, and the dev aid's simulated alerts).</summary>
+    public bool IsDemo => _pc.IsDemo;
 
     public TraySettings Settings => _settings;
 
@@ -367,7 +370,7 @@ public sealed class TrayController : IDisposable
                 var battery = PowerInfo.OnBattery();
                 var metered = PowerInfo.Metered();
                 var printers = _vm.Printers.ToList();
-                var online = IsDemo || PowerInfo.NetworkUp();
+                var online = _pc.NetworkUp();
                 if (online)
                     foreach (var p in printers)
                     {

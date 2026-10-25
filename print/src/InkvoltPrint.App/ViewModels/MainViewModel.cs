@@ -12,7 +12,6 @@ using InkvoltPrint.Core.Wia;
 using InkvoltPrint.Windows.Cleanup;
 using InkvoltPrint.Windows.Discovery;
 using InkvoltPrint.Windows.Printing;
-using InkvoltPrint.Windows.Scanning;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -42,7 +41,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly AppState _state;
     private readonly PrinterDiscovery? _discovery;
-    private readonly Func<HttpMessageHandler>? _transport;
+    private readonly PcEnvironment _pc;
     private readonly CancellationTokenSource _queueWatch = new();
     private readonly SemaphoreSlim _relist = new(0, 1);
     private IReadOnlyList<SpoolerQueue> _queues = [];
@@ -52,14 +51,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private IReadOnlyList<WiaDeviceInfo> _scanners = [];
     private bool _scannersRead;
 
-    /// <param name="transport">Demo mode (<c>--demo</c>): every printer talks to this instead of the network, and
-    /// discovery, adding by address and the HP software check are off.</param>
-    public MainViewModel(AppState state, Func<HttpMessageHandler>? transport = null)
+    /// <param name="pc">This PC, or demo mode's made-up one (<c>--demo</c>): there every printer talks to made-up web servers instead
+    /// of the network, the queues and scanners are made up, and discovery, adding by address and the HP software check are off.</param>
+    public MainViewModel(AppState state, PcEnvironment pc)
     {
         _state = state;
-        _transport = transport;
-        _wia = transport is null ? WindowsWia.Instance : Demo.Wia;
-        Presets = new ScanPresetLibrary(state, demo: transport is not null);
+        _pc = pc;
+        _wia = pc.Wia;
+        Presets = new ScanPresetLibrary(state, demo: pc.IsDemo);
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
         {
@@ -70,7 +69,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             try
             {
                 state.RenamePrinterId(k.Uuid, id);
-                InkvoltPrint.Windows.Security.CredentialStore.Rename(k.Uuid, id);
+                pc.Passwords.Rename(k.Uuid, id);
             }
             catch (Exception ex)
             {
@@ -80,7 +79,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         state.Printers = state.Printers.Select(k => k with { Uuid = PrinterId.Normalize(k.Uuid, k.Host) })
             .DistinctBy(k => k.Uuid, StringComparer.OrdinalIgnoreCase).ToList();
         foreach (var k in state.Printers)
-            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Presets, Remember, transport)
+            Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Presets, Remember, pc)
             {
                 IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
                 SnmpDevice = k.Snmp,
@@ -91,19 +90,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
         foreach (var p in Printers) p.Start();
 
-        if (transport is not null)
+        if (pc.FixedDevices is var (queues, scanners)) // the made-up PC's: known at once, never read from Windows
         {
             IsSearching = false;
             _sweepDone = true;
-            _queues = Demo.Queues;
+            _queues = queues;
             ReconcileQueues();
-            _scanners = Demo.Wia.Scanners.Select(s => s.Device).ToList(); // made up: this PC's scanners are never asked in demo mode
+            _scanners = scanners;
             _scannersRead = true;
             ReconcileScanners();
             return;
         }
         _ = WatchQueuesAsync(_queueWatch.Token);
-        _discovery = new PrinterDiscovery();
+        if (pc.ChecksHpSoftware) _ = CheckHpSoftwareAsync();
+        if (pc.CreateDiscovery() is not { } discovery) return;
+        _discovery = discovery;
         _discovery.Changed += list => Application.Current?.Dispatcher.InvokeAsync(() => Merge(list));
         _discovery.InitialSweepCompleted += () => Application.Current?.Dispatcher.InvokeAsync(() =>
         {
@@ -113,7 +114,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ReconcileQueues(); // network queues no network printer claimed after the first sweep show now
         });
         _discovery.Start();
-        if (Features.HpCleanup) _ = CheckHpSoftwareAsync();
     }
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
@@ -353,7 +353,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (vm is null)
             {
                 if (d.Host is null || _state.ForgottenUuids.Contains(d.Uuid, StringComparer.OrdinalIgnoreCase)) continue;
-                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember);
+                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember, _pc);
                 Printers.Add(vm);
                 vm.Start();
                 Selected ??= vm;
@@ -478,7 +478,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var id = QueueKinds.IdFor(q.Name);
             if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
-            var vm = new PrinterViewModel(q, QueueStatusSource(q), _state, Presets, Remember, _transport);
+            var vm = new PrinterViewModel(q, _pc.QueueStatus(q), _state, Presets, Remember, _pc);
             vm.QueueMissing += RelistQueues;
             Printers.Add(vm);
             vm.Start();
@@ -547,7 +547,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var id = PrinterViewModel.ScannerIdFor(d.Id);
             if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
-            var vm = new PrinterViewModel(d, _wia, _state, Presets, Remember, _transport);
+            var vm = new PrinterViewModel(d, _wia, _state, Presets, Remember, _pc);
             Printers.Add(vm);
             vm.Start();
             if (Selected is null || string.Equals(id, _wantedScanner, StringComparison.OrdinalIgnoreCase)) Selected = vm;
@@ -556,18 +556,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var present = _scanners.Select(d => PrinterViewModel.ScannerIdFor(d.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (_state.ForgottenUuids.RemoveAll(f => PrinterViewModel.IsScannerId(f) && !present.Contains(f)) > 0) _state.Save();
         NotifyEmpty();
-    }
-
-    /// <summary>
-    /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, the
-    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one.
-    /// </summary>
-    private IQueueStatusSource QueueStatusSource(SpoolerQueue q)
-    {
-        IQueueStatusSource windows = _transport is null ? new SpoolerStatusSource(q) : Demo.QueueStatus(q);
-        return QueueKinds.SnmpAddress(q) is { } host
-            ? new SnmpQueueStatusSource(windows, host, _transport is null ? UdpSnmpTransport.Instance : Demo.Snmp, q.PortCommunity)
-            : windows;
     }
 
     private void Remember(PrinterViewModel p)
@@ -593,16 +581,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ManualError = $"\"{host}\" is not a valid address.";
             return;
         }
-        if (_transport is not null)
+        if (_pc.AddByAddressOff is { } off)
         {
-            ManualError = "Adding printers is turned off in demo mode.";
+            ManualError = off;
             return;
         }
         IsAdding = true;
         try
         {
-            using var http = new InkvoltPrint.Core.Net.DeviceHttp(host);
-            var probe = await PrinterConnection.ProbeAsync(http, snmp: UdpSnmpTransport.Instance); // SNMP-only printers can be added too
+            using var http = new InkvoltPrint.Core.Net.DeviceHttp(host, _pc.DeviceTransport());
+            var probe = await PrinterConnection.ProbeAsync(http, snmp: _pc.Snmp); // SNMP-only printers can be added too
             if (!probe.Reachable)
             {
                 ManualError = $"No printer answered at {host}. Check the address and that the printer is on.";
@@ -615,7 +603,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var snmpOnly = probe.Snmp is { } snmp ? SnmpDevice.From(snmp) : null;
             if (vm is null)
             {
-                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember)
+                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember, _pc)
                     { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly };
                 Printers.Add(vm);
                 vm.Start();

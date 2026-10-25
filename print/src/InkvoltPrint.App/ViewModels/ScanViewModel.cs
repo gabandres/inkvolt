@@ -37,7 +37,7 @@ public sealed record ScanArea(string Key, int? Width, int? Height);
 /// presets with the review step stop on the pages first and save with "Save (preset)".
 /// </summary>
 /// <param name="findQueue">The printer's Windows queue, for presets that print a copy.</param>
-/// <param name="demoPrint">Demo printer: "prints" here instead of a Windows queue.</param>
+/// <param name="pc">This PC, or the demo's made-up one: where a made-up printer "prints", whether other apps are started.</param>
 public sealed partial class ScanViewModel : ObservableObject
 {
     private readonly AppState _state;
@@ -48,13 +48,13 @@ public sealed partial class ScanViewModel : ObservableObject
     private readonly ScanPresetLibrary _presets;
     private readonly string _printerName;
     private readonly Func<Task<string?>> _findQueue;
-    private readonly Action<string, int>? _demoPrint;
+    private readonly PcEnvironment _pc;
 
     private static readonly Option<ScanArea>[] AllPageSizes =
         [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
     public ScanViewModel(IScanner client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
-        Func<Task<string?>> findQueue, Action<string, int>? demoPrint = null)
+        Func<Task<string?>> findQueue, PcEnvironment pc)
     {
         _client = client;
         _state = state;
@@ -62,7 +62,7 @@ public sealed partial class ScanViewModel : ObservableObject
         _presets = presets;
         _printerName = printerName;
         _findQueue = findQueue;
-        _demoPrint = demoPrint;
+        _pc = pc;
         Sources = caps.Sources.Select(s => new Option<ScanSource>(s, ScanChoices.SourceLabel(s))).ToList();
         Source = Sources.FirstOrDefault();
         var input = (caps.Platen ?? caps.Adf)!;
@@ -557,11 +557,7 @@ public sealed partial class ScanViewModel : ObservableObject
             var dpi = request.Resolution;
             _batchKeep = job.KeepSeparators;
             var findPhotos = job.FindPhotos && request.Source == ScanSource.Platen; // photos lie on the glass, not in the feeder
-            if (_presets.IsDemo)
-            {
-                Demo.FeederBatch = job.Split != SplitAt.None; // the made-up feeder then holds a batch with separator sheets
-                Demo.PhotosOnGlass = findPhotos;              // and the made-up glass a few photos
-            }
+            _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos); // what made-up scanners then hold
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
                 var page = new ScanPageViewModel(jpeg, dpi, job.Ocr);
@@ -1106,7 +1102,7 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>The preset's step after saving: open in Inkvolt PDF, print a copy, or hand the file to the mail app.</summary>
     private async Task AfterSaveAsync(ScanPreset preset, List<string> saved, List<ScanPageViewModel> kept, bool jpg)
     {
-        var demo = _presets.IsDemo;
+        var demo = !_pc.OpensOtherApps; // the made-up PC's scans only say what would happen
         if (!jpg && (preset.After == PresetAfter.OpenInInkvoltPdf || OpenInInkvoltPdf))
         {
             if (demo) Message += " (Demo: nothing is opened in Inkvolt PDF.)";
@@ -1142,9 +1138,9 @@ public sealed partial class ScanViewModel : ObservableObject
     private async Task PrintCopyAsync(string file, List<ScanPageViewModel> kept)
     {
         var name = Path.GetFileName(file);
-        if (_demoPrint is not null)
+        if (_pc.MadeUpPrint is { } madeUp)
         {
-            _demoPrint(name, kept.Sum(p => p.ImageCount));
+            madeUp(name, kept.Sum(p => p.ImageCount));
             Message += " A copy went to the (demo) print queue.";
             return;
         }

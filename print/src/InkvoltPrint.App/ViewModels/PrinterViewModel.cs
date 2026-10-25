@@ -16,10 +16,7 @@ using InkvoltPrint.Core.Queues;
 using InkvoltPrint.Core.Snmp;
 using InkvoltPrint.Core.Wia;
 using InkvoltPrint.Windows.Discovery;
-using InkvoltPrint.Windows.Offline;
-using InkvoltPrint.Windows.Printing;
 using InkvoltPrint.Windows.Queues;
-using InkvoltPrint.Windows.Security;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -37,7 +34,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private readonly AppState _state;
     private readonly ScanPresetLibrary _presets;
     private readonly Action<PrinterViewModel> _remember;
-    private readonly Func<HttpMessageHandler>? _transport;
+    private readonly PcEnvironment _pc;
     private CancellationTokenSource? _loop;
     private CancellationTokenSource? _watch;
     private PrinterConnection? _connection;
@@ -50,9 +47,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private WiaScanner? _wia;
     private bool _wiaConnecting;
 
-    /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
+    /// <param name="pc">This PC, or the demo's made-up one: the network, Windows' queues, the fixer's checks and repairs (<see cref="PcEnvironment"/>).</param>
     public PrinterViewModel(string uuid, string name, string? model, string? host, Uri? esclRoot, AppState state, ScanPresetLibrary presets,
-        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
+        Action<PrinterViewModel> remember, PcEnvironment pc)
     {
         _presets = presets;
         Uuid = uuid;
@@ -62,17 +59,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         EsclRoot = esclRoot;
         _state = state;
         _remember = remember;
-        _transport = transport;
+        _pc = pc;
         Print = new PrintViewModel(FindQueueAsync, state);
-        Jobs = new PrintJobsViewModel(IsDemo ? Demo.PrintJobs : new Printing.WindowsPrintJobs(FindQueueAsync));
-        Copy = new CopyViewModel(FindQueueAsync, state, IsDemo ? Demo.PrintJobs.Add : null) { HasQueue = QueueInstalled };
-        Photos = new PhotosViewModel(FindQueueAsync, state, IsDemo ? Demo.PhotoQueue(uuid) : null);
-        // Demo printers get a made-up PC (Demo.OfflinePc): the fixer never reads or touches this PC's queues for them.
-        Fixer = new OfflineFixerViewModel(FixerDevice,
-            IsDemo ? Demo.OfflinePc : new WindowsOfflineProbes(),
-            new FixerRepairs(IsDemo ? Demo.OfflinePc : new WindowsOfflineRepairs(), this),
-            AdoptAddress, canElevate: Features.ElevatedRepairs); // the demo PC's "elevation" is made up too
-        Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, IsDemo);
+        Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
+        Copy = new CopyViewModel(FindQueueAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
+        Photos = new PhotosViewModel(FindQueueAsync, state, pc.PhotoQueue(uuid));
+        Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
+            canElevate: Features.ElevatedRepairs);
+        Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, pc);
         Copy.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CopyViewModel.HasScanner)) OnPropertyChanged(nameof(ShowCopy));
@@ -82,12 +76,12 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>
     /// A printer known only by its Windows queue (USB, WSD, an older network printer, one shared from another PC): status from
     /// <paramref name="source"/> (the spooler and driver), the print queue card, Print a PDF and Print photos through the queue.
-    /// No device connection, so no scanning, settings, maintenance or offline fixer. <paramref name="transport"/>: demo mode
-    /// (the queue is made up and nothing is printed).
+    /// No device connection, so no scanning, settings, maintenance or offline fixer. On the demo's made-up PC the queue is made
+    /// up and nothing is printed.
     /// </summary>
     public PrinterViewModel(SpoolerQueue queue, IQueueStatusSource source, AppState state, ScanPresetLibrary presets,
-        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
-        : this(QueueKinds.IdFor(queue.Name), QueueKinds.DisplayName(queue), queue.DriverName, null, null, state, presets, remember, transport)
+        Action<PrinterViewModel> remember, PcEnvironment pc)
+        : this(QueueKinds.IdFor(queue.Name), QueueKinds.DisplayName(queue), queue.DriverName, null, null, state, presets, remember, pc)
     {
         _queueSource = source;
         WindowsQueue = queue;
@@ -112,11 +106,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>
     /// A scanner Windows has a driver for (WIA) that belongs to no printer on the list: a USB flatbed, a sheet-fed scanner, an
     /// all-in-one whose printer part isn't here. Overview and Scan only (no queue: no Print, Copy or Photos). It's connected in the
-    /// background, and again every 30 s while it doesn't answer. <paramref name="transport"/>: demo mode.
+    /// background, and again every 30 s while it doesn't answer.
     /// </summary>
     public PrinterViewModel(WiaDeviceInfo scanner, IWiaSystem wia, AppState state, ScanPresetLibrary presets,
-        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
-        : this(ScannerIdFor(scanner.Id), scanner.Name, scanner.Description, null, null, state, presets, remember, transport)
+        Action<PrinterViewModel> remember, PcEnvironment pc)
+        : this(ScannerIdFor(scanner.Id), scanner.Name, scanner.Description, null, null, state, presets, remember, pc)
     {
         _wiaSystem = wia;
         ScannerDevice = scanner;
@@ -203,8 +197,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private OfflineDevice FixerDevice() => new(Uuid, Name, Model, Host)
     {
         PreviousHosts = _previousHosts.ToList(),
-        StoredQueueName = IsDemo ? null : _state.GetQueueName(Uuid),
-        CanPair = PrintEndpointId is not null || IsDemo,
+        StoredQueueName = _state.GetQueueName(Uuid), // never set on the made-up PC: its queue lookup finds none
+        CanPair = PrintEndpointId is not null || _pc.PairsAnyPrinter,
     };
 
     /// <summary>The fixer found the printer at a new address (mDNS by UUID): reconnect there and remember it.</summary>
@@ -222,20 +216,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         SelectedSection = OverviewSection;
         await Fixer.OpenAsync();
-    }
-
-    /// <summary>Setting a discovered queue up again is pairing, which this view model does; everything else is the PC's.</summary>
-    private sealed class FixerRepairs(IOfflineRepairs inner, PrinterViewModel printer) : IOfflineRepairs
-    {
-        public async Task<Attempt> AsUserAsync(Repair repair, CancellationToken ct)
-        {
-            if (repair.Kind != RepairKind.SetUpAgain || printer.IsDemo) return await inner.AsUserAsync(repair, ct);
-            return await printer.ReinstallQueueAsync() is { } error
-                ? new Attempt(AttemptResult.Failed, char.ToUpperInvariant(error[0]) + error[1..] + (error.EndsWith('.') ? "" : "."))
-                : Attempt.Done;
-        }
-
-        public Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct) => inner.ElevatedAsync(repair, ct);
     }
 
     /// <summary>Copy and ID card copy: scan here, print through the Windows queue.</summary>
@@ -260,7 +240,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public PrintViewModel Print { get; }
 
     public string Uuid { get; }
-    public bool IsDemo => _transport is not null;
+
+    /// <summary>The PC this printer is reached from: the real one, or the demo's made-up one.</summary>
+    public PcEnvironment Pc => _pc;
     public Uri? EsclRoot { get; private set; }
 
     /// <summary>IPP URL from DNS-SD or the last connection (tried first when connecting); null: the IPP Everywhere default.</summary>
@@ -440,7 +422,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (_loop is not null || _suspended) return;
         _loop = new CancellationTokenSource();
         _ = IsScannerOnly ? RunScannerAsync(_loop.Token) : IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token);
-        if (!IsDemo && IsNetworkPrinter) _ = RefreshQueueAsync();
+        if (_pc.HasWindowsQueues && IsNetworkPrinter) _ = RefreshQueueAsync();
     }
 
     /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
@@ -561,7 +543,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         {
             DeviceIdentity identity;
             bool answers;
-            using (var http = new DeviceHttp(host, _transport?.Invoke()))
+            using (var http = new DeviceHttp(host, _pc.DeviceTransport()))
             {
                 var probe = await PrinterConnection.ProbeAsync(http, d.EsclRoot, ippHint: d.IppUri);
                 answers = probe.Reachable;
@@ -599,19 +581,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// This printer's Windows queue: the one whose device container is the printer (discovered/paired queues), or
     /// the queue Inkvolt Print created by address (Windows doesn't promise those share the printer's container id).
     /// </summary>
-    public async Task<string?> FindQueueAsync()
-    {
-        if (IsDemo) return null; // never print to a real queue
-        if (WindowsQueue is { } queue) return queue.Name;
-        if (await QueueFinder.FindQueueNameAsync(Uuid) is { } byContainer) return byContainer;
-        if (_state.GetQueueName(Uuid) is { } created
-            && (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)))
-            return created;
-        // Added in Windows Settings by address: Windows names the queue itself, but its port carries the address.
-        if (Host is not { } host || await Task.Run(() => Printing.QueuePrinter.FindByHost(host)) is not { } byPort) return null;
-        _state.SetQueueName(Uuid, byPort);
-        return byPort;
-    }
+    public Task<string?> FindQueueAsync() => _pc.FindQueueAsync(Uuid, Host, WindowsQueue, _state); // none on the demo's made-up PC
 
     /// <summary>Looks for an installed Windows queue for this printer.</summary>
     public async Task RefreshQueueAsync()
@@ -777,8 +747,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task<PrinterConnection?> ConnectAsync(CancellationToken ct)
     {
-        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri,
-            SnmpDevice.TransportFor(SnmpDevice, IsDemo ? Demo.Snmp : UdpSnmpTransport.Instance));
+        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _pc.DeviceTransport(), IppUri,
+            SnmpDevice.TransportFor(SnmpDevice, _pc.Snmp));
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
@@ -847,7 +817,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (!conn.OverSnmp || Host is null || DateTime.UtcNow - _richerTriedAt < RicherInterval) return null;
         _richerTriedAt = DateTime.UtcNow;
-        var richer = await conn.TryRicherAsync(SnmpDevice, EsclRoot, IppUri, new PinStore(_state, Uuid), _transport?.Invoke(), ct);
+        var richer = await conn.TryRicherAsync(SnmpDevice, EsclRoot, IppUri, new PinStore(_state, Uuid), _pc.DeviceTransport(), ct);
         if (richer is null) return null;
         if (Identify(Host, richer.Probe.ReportedUuids) == DeviceIdentity.Different)
         {
@@ -927,18 +897,18 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
-        if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
+        if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
         if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
-            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, IsDemo ? null : OpenWebPage);
+            if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, _pc.Passwords, _pc.Browser is null ? null : OpenWebPage);
             else Settings.Rebind(conn);
         }
         // A saved password is only attached once this printer's certificate is pinned. Without a pin (older
         // version, reset state) the first save asks for it instead, and that handshake pins the certificate.
-        if (!IsDemo && CredentialStore.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
+        if (_pc.Passwords.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
             conn.Http.SetCredentials("admin", pw);
 
         _remember(this);
@@ -966,7 +936,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return;
         }
         if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
-            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, FindQueueAsync, IsDemo ? Demo.PrintJobs.Add : null);
+            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, FindQueueAsync, _pc);
         else Scan.Rebind(scanner);
     }
 
@@ -1099,9 +1069,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>The printer's own product photo (served by its web server), cached so it shows instantly next time.</summary>
-    private async Task LoadImageAsync(PrinterConnection conn)
+    private async Task LoadImageAsync(PrinterConnection conn, string folder)
     {
-        var cache = Path.Combine(AppState.DataDirectory, "images", $"{PrinterId.FileName(Uuid)}.png");
+        var cache = Path.Combine(folder, $"{PrinterId.FileName(Uuid)}.png");
         try
         {
             byte[]? bytes = File.Exists(cache) ? await File.ReadAllBytesAsync(cache) : null;
@@ -1250,7 +1220,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null && !IsDemo) Shell.Open(_webPage?.AbsoluteUri ?? $"https://{Host}/");
+        if (Host is not null) _pc.Browser?.Invoke(_webPage?.AbsoluteUri ?? $"https://{Host}/");
     }
 
     [RelayCommand]

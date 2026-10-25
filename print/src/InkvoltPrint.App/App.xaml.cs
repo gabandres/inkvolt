@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -78,7 +78,8 @@ public partial class App : Application
                     System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
         };
 
-        _vm = demo ? new MainViewModel(Demo.CreateState(), Demo.CreateTransport) : new MainViewModel(AppState.Load());
+        var pc = demo ? Demo.Pc : PcEnvironment.Real; // chosen once: every view model takes its adapters from it
+        _vm = new MainViewModel(pc.LoadState(), pc);
         MainWindow = new MainWindow { DataContext = _vm };
         if (tryDemo)
         {
@@ -93,7 +94,7 @@ public partial class App : Application
         if (!tryDemo && (!devRun || e.Args.Contains("--tray")))
         {
             if (demo) (_vm.State.Tray ??= new TraySettings()).Enabled = true; // demo state is in memory only
-            Tray = new TrayController(this, _vm, _vm.State, demo);
+            Tray = new TrayController(this, _vm, _vm.State, pc);
             SessionEnding += (_, _) => Quitting = true; // never hold up signing out by hiding instead of closing
             if (!demo) StartWithWindows.KeepCurrent();
         }

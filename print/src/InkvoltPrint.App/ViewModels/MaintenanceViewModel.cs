@@ -5,7 +5,6 @@ using InkvoltPrint.Core.Ledm;
 using InkvoltPrint.Core.Maintenance;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Probe;
-using InkvoltPrint.Windows.Security;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -14,7 +13,7 @@ namespace InkvoltPrint.App.ViewModels;
 /// Identify-Printer), each confirmed first with what it uses, plus the printer's maintenance and web pages. Disabled, with
 /// the reason, while the printer is offline, printing, in error or answering the last request.
 /// </summary>
-public sealed partial class MaintenanceViewModel(string uuid, string printerName, AppState state, Action openWebPage, bool isDemo) : ObservableObject
+public sealed partial class MaintenanceViewModel(string uuid, string printerName, AppState state, Action openWebPage, PcEnvironment pc) : ObservableObject
 {
     private MaintenanceClient? _client;
     private Core.Net.DeviceHttp? _http;
@@ -48,7 +47,7 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
     public async Task AttachAsync(PrinterConnection connection)
     {
         var generation = ++_generation;
-        var client = new MaintenanceClient(connection, isDemo ? "demo" : Environment.UserName);
+        var client = new MaintenanceClient(connection, pc.UserName);
         MaintenanceOptions options;
         try
         {
@@ -143,12 +142,12 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
             try
             {
                 var result = await client.RunAsync(action);
-                if (entered is { Remember: true } e && !isDemo) CredentialStore.Save(uuid, e.Password);
+                if (entered is { Remember: true } e) pc.Passwords.Save(uuid, e.Password);
                 return result;
             }
-            catch (LedmAuthRequiredException ex) when (!isDemo)
+            catch (LedmAuthRequiredException ex)
             {
-                if (ex.CredentialsWereSent) CredentialStore.Delete(uuid);
+                if (ex.CredentialsWereSent) pc.Passwords.Delete(uuid);
                 entered = SettingsViewModel.AskPassword?.Invoke(printerName, ex.CredentialsWereSent, state.GetCertificatePin(uuid))
                           ?? throw new OperationCanceledException();
                 http.SetCredentials("admin", entered.Value.Password);
@@ -159,7 +158,7 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
     [RelayCommand]
     private void OpenSupplyPage()
     {
-        if (SupplyPage is { } page && !isDemo) Shell.Open(page.AbsoluteUri);
+        if (SupplyPage is { } page) pc.Browser?.Invoke(page.AbsoluteUri);
     }
 
     [RelayCommand]

@@ -49,6 +49,50 @@ internal static class Demo
     /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
     public const string InkjetHost = "192.0.2.11";
 
+    /// <summary>The made-up PC: every adapter the app reaches outside itself, made up (see <see cref="PcEnvironment"/>).</summary>
+    public static PcEnvironment Pc { get; } = new DemoPc();
+
+    private sealed class DemoPc : PcEnvironment
+    {
+        public override bool IsDemo => true;
+        public override AppState LoadState() => CreateState();
+        public override HttpMessageHandler? DeviceTransport() => CreateTransport();
+        public override Core.Snmp.ISnmpTransport Snmp => Demo.Snmp;
+        public override bool NetworkUp() => true;
+        public override Windows.Discovery.PrinterDiscovery? CreateDiscovery() => null;
+        public override string? AddByAddressOff => "Adding printers is turned off in demo mode.";
+
+        // Made up: this PC's queues and scanners are never asked in demo mode.
+        public override (IReadOnlyList<Core.Queues.SpoolerQueue>, IReadOnlyList<Core.Wia.WiaDeviceInfo>)? FixedDevices =>
+            (Queues, Demo.Wia.Scanners.Select(s => s.Device).ToList());
+
+        public override Core.Wia.IWiaSystem Wia => Demo.Wia;
+        public override bool HasWindowsQueues => false;
+        public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
+        protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
+        public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => Demo.PrintJobs;
+        public override Action<string, int>? MadeUpPrint => Demo.PrintJobs.Add;
+        public override ViewModels.DemoPhotoQueue? PhotoQueue(string uuid) => Demo.PhotoQueue(uuid);
+
+        // The made-up PC's fixer never reads or touches this PC's queues; its "elevation" is made up too.
+        public override Core.Offline.IOfflineProbes OfflineProbes => OfflinePc;
+        public override Core.Offline.IOfflineRepairs OfflineRepairs(Func<Task<string?>> setUpAgain) => OfflinePc;
+        public override bool PairsAnyPrinter => true;
+
+        public override IPrinterPasswords Passwords { get; } = new MemoryPasswords();
+        public override Action<string>? Browser => null;
+        public override bool OpensOtherApps => false;
+        public override string UserName => "demo";
+        public override string? ImageCache => null;
+        public override bool ChecksHpSoftware => false;
+
+        public override void PrepareScan(bool feederBatch, bool photosOnGlass)
+        {
+            FeederBatch = feederBatch;
+            PhotosOnGlass = photosOnGlass;
+        }
+    }
+
     public static AppState CreateState() => new()
     {
         IsInMemory = true,
