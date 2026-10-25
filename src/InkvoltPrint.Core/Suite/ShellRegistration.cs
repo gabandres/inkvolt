@@ -52,6 +52,23 @@ public static class ShellRegistration
 
     private static string Normalize(string path) => path.Trim().Replace('/', '\\');
 
+    private static bool SamePath(string a, string b) => string.Equals(Normalize(a), Normalize(b), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the copy at <paramref name="exePath"/> may write the "Open with" entries (and the jump list): an installed copy
+    /// (<paramref name="installedExes"/>, the installer's folders) always may; any other copy only when no entry points at
+    /// another program that still exists. So a dev build or a copy in another folder never takes over the installed copy's
+    /// entries (and its <c>--unregister</c> then finds nothing of its own), while a copy whose old exe is gone does.
+    /// </summary>
+    public static bool MayRegister(IUserRegistry registry, string exePath, IEnumerable<string> installedExes, Func<string, bool> fileExists)
+    {
+        if (installedExes.Any(i => SamePath(i, exePath))) return true;
+        foreach (var key in new[] { ProgIdKey(PdfProgId), ProgIdKey(ImageProgId), ApplicationKey })
+            if (CommandExe(registry.GetString(CommandKey(key), null)) is { } other && !SamePath(other, exePath) && fileExists(other))
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// Removes this copy's registrations: each ProgId whose open command starts <paramref name="exePath"/>, with its
     /// OpenWithProgids entries (also entries left behind by a ProgId that's already gone), the Applications key when its

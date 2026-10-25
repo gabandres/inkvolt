@@ -110,4 +110,56 @@ public class ShellRegistrationTests
     [InlineData("", null)]
     [InlineData(null, null)]
     public void Command_exe(string? command, string? expected) => Assert.Equal(expected, ShellRegistration.CommandExe(command));
+
+    private const string DevExe = @"Z:\Src\InkvoltPrint\publish\InkvoltPrint.exe";
+
+    [Fact]
+    public void Another_copy_never_takes_over_an_existing_installed_copys_entries()
+    {
+        var r = new FakeRegistry();
+        Registered(r, Exe);
+
+        Assert.False(ShellRegistration.MayRegister(r, DevExe, [Exe], _ => true));
+    }
+
+    [Fact]
+    public void Another_copy_takes_over_entries_whose_exe_is_gone()
+    {
+        var r = new FakeRegistry();
+        Registered(r, OtherExe);
+
+        Assert.True(ShellRegistration.MayRegister(r, DevExe, [Exe], path => path != OtherExe));
+    }
+
+    [Fact]
+    public void The_installed_copy_always_registers()
+    {
+        var r = new FakeRegistry();
+        Registered(r, OtherExe);
+
+        Assert.True(ShellRegistration.MayRegister(r, Exe.ToUpperInvariant(), [Exe], _ => true));
+    }
+
+    [Fact]
+    public void Any_copy_registers_when_nothing_is_registered_or_the_entries_are_its_own()
+    {
+        var r = new FakeRegistry();
+        Assert.True(ShellRegistration.MayRegister(r, DevExe, [Exe], _ => true));
+
+        Registered(r, DevExe);
+        Assert.True(ShellRegistration.MayRegister(r, DevExe, [Exe], _ => true));
+    }
+
+    [Fact]
+    public void A_second_copy_that_did_not_register_unregisters_nothing_of_the_installed_copy()
+    {
+        // The tester's case: the installed copy registered, a copy from another folder ran, then that copy's --unregister.
+        var r = new FakeRegistry();
+        Registered(r, Exe);
+        r.DeleteValue(ShellRegistration.RunKey, ShellRegistration.RunValue);
+
+        Assert.False(ShellRegistration.MayRegister(r, DevExe, [Exe], _ => true));
+        Assert.Empty(ShellRegistration.Unregister(r, DevExe));
+        Assert.True(r.KeyExists(ShellRegistration.ProgIdKey(ShellRegistration.PdfProgId)));
+    }
 }

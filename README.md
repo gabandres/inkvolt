@@ -52,7 +52,9 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
 - `InkvoltPrint.exe --unregister` (no window; exit code 0, or 1 when the registry refused) removes what the app itself writes
   to HKCU: the "Open with" ProgIds for PDFs and pictures, their `OpenWithProgids` entries, `Applications\InkvoltPrint.exe`
   and the Start-with-Windows `Run` value, each only when it points at that exe (another copy's entries stay;
-  `Core/Suite/ShellRegistration`, tested). It's a GUI exe, so wait for it: `Start-Process -Wait`.
+  `Core/Suite/ShellRegistration`, tested). It's a GUI exe, so wait for it: `Start-Process -Wait`. Those entries and the
+  jump list are written by the installed copy (the installer's folders), or by another unpackaged copy only when they're
+  missing or point at an exe that's gone: a second copy in another folder never takes them over (`MayRegister`).
 
 ## Layout
 

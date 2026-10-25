@@ -24,6 +24,11 @@ public static class ShellIntegration
             RemoveLegacyOpenWith();
             var command = $"\"{exe}\" \"%1\"";
             if (IsCurrent(command)) return;
+            if (!MayRegister(exe))
+            {
+                Log.Write("Open-with registration left to the copy it points at (installed or still present)");
+                return;
+            }
             Register(ShellRegistration.PdfProgId, "PDF document", ShellRegistration.PdfTypes, exe, command);
             Register(ShellRegistration.ImageProgId, "Picture", ShellRegistration.ImageTypes, exe, command);
             using var app = Registry.CurrentUser.CreateSubKey(ShellRegistration.ApplicationKey);
@@ -35,6 +40,23 @@ public static class ShellIntegration
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or System.IO.IOException)
         {
             Log.Write($"Open-with registration skipped: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// This copy may write the "Open with" entries and the jump list: it is the installed copy, or no entry points at another
+    /// copy that still exists (<see cref="ShellRegistration.MayRegister"/>).
+    /// </summary>
+    public static bool MayRegister(string exe)
+    {
+        try
+        {
+            var installed = InkvoltPaths.AppCandidates("InkvoltPrint.exe", Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)).Folders;
+            return ShellRegistration.MayRegister(new CurrentUserRegistry(), exe, installed, System.IO.File.Exists);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or System.IO.IOException)
+        {
+            return false;
         }
     }
 

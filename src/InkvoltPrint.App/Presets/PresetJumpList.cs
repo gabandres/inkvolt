@@ -17,12 +17,15 @@ public static class PresetJumpList
     /// <summary>What the jump list shows now: a counter going up after each save doesn't rewrite it.</summary>
     private static string? _shown;
 
+    private static bool? _mayRegister;
+
     public static bool Supported =>
         !AppPackage.IsPackaged && Environment.ProcessPath is { } exe && !exe.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase);
 
     public static void Update(Application app, IEnumerable<ScanPreset> presets)
     {
-        if (!Supported || Environment.ProcessPath is not { } exe) return;
+        // A second copy (another folder) leaves the installed copy's jump list alone, as it does its "Open with" entries.
+        if (!Supported || Environment.ProcessPath is not { } exe || !(_mayRegister ??= ShellIntegration.MayRegister(exe))) return;
         var top = presets.Take(Count).ToList();
         var shown = string.Join("\n", top.Select(p => $"{p.Id}\t{p.Name}\t{ScanPresetText.Summary(p)}"));
         if (shown == _shown) return;
