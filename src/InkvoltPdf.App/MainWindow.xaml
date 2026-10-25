@@ -249,6 +249,14 @@
                                     <MenuItem x:Name="LinkMenu" Command="app:Cmd.ToolLink" InputGestureText="N" />
                                     <MenuItem Command="app:Cmd.LinkSelection" />
                                     <MenuItem Command="app:Cmd.AddStamp" InputGestureText="S" />
+                                    <MenuItem Header="_Measure">
+                                        <MenuItem Command="app:Cmd.MeasureDistance" />
+                                        <MenuItem Command="app:Cmd.MeasurePerimeter" />
+                                        <MenuItem Command="app:Cmd.MeasureArea" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.MeasureScale" />
+                                        <MenuItem Command="app:Cmd.MeasureCalibrate" />
+                                    </MenuItem>
                                     <Separator />
                                     <MenuItem x:Name="AttachMenu" Header="Attach a _File…" Click="OnAttachFile" />
                                     <MenuItem Command="app:Cmd.RecognizeText" />

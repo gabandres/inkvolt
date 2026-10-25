@@ -366,6 +366,7 @@ public partial class DocumentTab
         };
         InitSigning();
         InitDrawing();
+        InitMeasure();
         InitInsert();
         InitStamps();
         _ = LoadReviewAsync();

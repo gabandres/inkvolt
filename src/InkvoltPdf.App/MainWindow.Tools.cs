@@ -10,6 +10,11 @@ public partial class MainWindow
         BindAlways(Cmd.Compare, () => _ = Comparing.Start(this));
         BindAlways(Cmd.CreateFromOffice, () => _ = Converting.FromOfficeFile(this));
         BindAlways(Cmd.CreateFromWeb, () => _ = Converting.FromWebPage(this));
+        Bind(Cmd.MeasureDistance, t => ToggleTool(t, Viewer.ViewerTool.MeasureDistance), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.MeasurePerimeter, t => ToggleTool(t, Viewer.ViewerTool.MeasurePerimeter), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.MeasureArea, t => ToggleTool(t, Viewer.ViewerTool.MeasureArea), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.MeasureCalibrate, t => ToggleTool(t, Viewer.ViewerTool.MeasureCalibrate), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.MeasureScale, t => _ = t.SetMeasureScale(), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.SaveAsPdfA, t => _ = PdfAActions.SaveAs(this, t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));

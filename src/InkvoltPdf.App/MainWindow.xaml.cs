@@ -1514,6 +1514,9 @@ public partial class MainWindow : Window
             ViewerTool.Line or ViewerTool.Arrow => "Drag to draw; Shift keeps it horizontal, vertical or at 45°. Esc goes back to the hand tool",
             ViewerTool.TextBox => "Click to type a line, or drag a box for wrapped text",
             ViewerTool.Callout => "Drag from what the callout points at to where its text goes",
+            ViewerTool.MeasureDistance => "Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Review › Measure › Set Scale)",
+            ViewerTool.MeasurePerimeter or ViewerTool.MeasureArea => "Click each corner; double-click or Enter finishes, Backspace takes a corner back, Esc cancels",
+            ViewerTool.MeasureCalibrate => "Click both ends of something whose real length you know (a dimension, a scale bar)",
             _ => "Click where each cross should go; click one again to remove it",
         });
         UpdateUi();

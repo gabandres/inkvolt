@@ -20,6 +20,8 @@ public enum ViewerTool
     PrepareForm,
     // Edit Text & Images: the page's own text and pictures (see PageViewer.EditContent)
     EditContent,
+    // Measuring (see PageViewer.Measure)
+    MeasureDistance, MeasurePerimeter, MeasureArea, MeasureCalibrate,
 }
 
 public sealed record SearchHit(int Page, int Start, int End, IReadOnlyList<RectD> Rects, string Excerpt)
@@ -235,6 +237,7 @@ public sealed partial class PageViewer : ScrollViewer
             if (_tool == value) return;
             CommitEditor();
             _tool = value;
+            CancelMeasure();
             IsManipulationEnabled = value == ViewerTool.Hand;
             if (value != ViewerTool.SelectText && !_caretBrowsing) ClearSelection();
             OnDrawToolChanged();
@@ -1110,6 +1113,7 @@ public sealed partial class PageViewer : ScrollViewer
             PaintSigning(dc, i);
             PaintLinks(dc, i);
             PaintDrawing(dc, i);
+            PaintMeasure(dc, i);
             PaintDesign(dc, i);
             PaintContent(dc, i);
             PaintSpeech(dc, i);
@@ -1286,6 +1290,7 @@ public sealed partial class PageViewer : ScrollViewer
         }
         if (e.ChangedButton == MouseButton.Left && HandleFormMouseDown(e, page, sp)) return;
         CommitEditor();
+        if (HandleMeasureDown(e, page, sp)) return;
         if (HandleLinkDown(e, page, sp)) return;
         if (HandleSigningDown(e, page, sp)) return;
         if (HandleDrawingDown(e, page, sp, hadTextEditor)) return;
@@ -1382,6 +1387,7 @@ public sealed partial class PageViewer : ScrollViewer
             }
             return;
         }
+        MoveMeasure(sp);
         UpdateCursor(sp);
     }
 
@@ -1419,6 +1425,12 @@ public sealed partial class PageViewer : ScrollViewer
         {
             HideLinkTip();
             _surface.Cursor = signCursor;
+            return;
+        }
+        if (IsMeasureTool(_tool))
+        {
+            HideLinkTip();
+            _surface.Cursor = page >= 0 ? Cursors.Cross : Cursors.Arrow;
             return;
         }
         if (DrawingCursor(page, sp) is { } drawCursor)
@@ -1602,7 +1614,7 @@ public sealed partial class PageViewer : ScrollViewer
         // Keys typed into a field or Fill & Sign editor bubble up here. Leave them alone: handling KeyDown makes WPF
         // drop the character, so viewer shortcuts (H, A, T, Space…) would eat letters from the user's text.
         if (IsEditorKey(e)) return;
-        if (_engine is not null && (HandleDesignKey(e) || HandleContentKey(e) || HandleFormKey(e) || HandleSigningKey(e) || HandleLinkKey(e) || HandleDrawingKey(e) || HandleCaretKey(e)))
+        if (_engine is not null && (HandleDesignKey(e) || HandleContentKey(e) || HandleFormKey(e) || HandleSigningKey(e) || HandleLinkKey(e) || HandleMeasureKey(e) || HandleDrawingKey(e) || HandleCaretKey(e)))
         {
             e.Handled = true;
             return;

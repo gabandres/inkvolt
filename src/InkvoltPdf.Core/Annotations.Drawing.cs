@@ -192,6 +192,21 @@ public static partial class Annotations
         return PdfObj.Save(doc);
     }
 
+    /// <summary>Adds a measurement (a Line, PolyLine or Polygon carrying <paramref name="scale"/> as its /Measure), labeled with its value.</summary>
+    internal static byte[] AddMeasurement(byte[] data, string? password, int pageIndex, string subtype, IReadOnlyList<PointD> points, AnnotStyle s,
+        string author, string? id, MeasureScale scale)
+    {
+        var g = new AnnotGeometry { Paths = [points] };
+        Validate(subtype, g, s);
+        using var doc = OpenForEdit(data, password);
+        if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
+        var page = doc.Pages[pageIndex];
+        var annot = NewAnnot(doc, page, subtype, 0, 0, 0, 0, id, "", author, s.Color ?? AnnotStyle.Black);
+        annot.Elements["/Measure"] = Measurements.MeasureDict(doc, scale);
+        Apply(doc, page, annot, subtype, g, s);
+        return PdfObj.Save(doc);
+    }
+
     /// <summary>A drawing annotation Inkvolt PDF can describe and redraw (Fill &amp; Sign stamps are managed by <see cref="TextStamps"/>).</summary>
     private static bool IsDrawing(PdfDictionary a, string subtype) =>
         subtype is "Ink" or "Square" or "Circle" or "Line" or "Polygon" or "PolyLine"
@@ -289,6 +304,8 @@ public static partial class Annotations
         }
 
         List<(double X, double Y)> rectPts = [];
+        List<(double X, double Y)> labelCorners = [];
+        PdfDictionary? resources = null;
         double pad;
         switch (subtype)
         {
@@ -320,6 +337,21 @@ public static partial class Annotations
                     Ending(ops, s.StartEnding, pts[0], Dir(pts[1], pts[0]), w, endFill);
                     Ending(ops, s.EndEnding, pts[^1], Dir(pts[^2], pts[^1]), w, endFill);
                 }
+                // A measurement: its value as the comment's text and drawn as a label, recomputed whenever it is redrawn.
+                if (Measurements.Label(page, annot, subtype, g.Paths[0], s) is { } label)
+                {
+                    ops.Append(label.Ops);
+                    labelCorners = label.Corners;
+                    e["/Contents"] = PdfObj.MakeString(label.Text);
+                    e["/IT"] = new PdfName(label.Kind switch
+                    {
+                        MeasureKind.Distance => "/LineDimension",
+                        MeasureKind.Perimeter => "/PolyLineDimension",
+                        _ => "/PolygonDimension",
+                    });
+                    if (subtype == "Line") e["/Cap"] = new PdfBoolean(true);
+                    resources = Measurements.LabelResources(doc);
+                }
                 rectPts.AddRange(pts);
                 pad = w / 2 + (ends ? EndingSize(w) + w : 0) + 1;
                 break;
@@ -343,8 +375,10 @@ public static partial class Annotations
         }
 
         double rx1 = rectPts.Min(q => q.X) - pad, ry1 = rectPts.Min(q => q.Y) - pad, rx2 = rectPts.Max(q => q.X) + pad, ry2 = rectPts.Max(q => q.Y) + pad;
+        foreach (var (lx, ly) in labelCorners)
+            (rx1, ry1, rx2, ry2) = (Math.Min(rx1, lx - 1), Math.Min(ry1, ly - 1), Math.Max(rx2, lx + 1), Math.Max(ry2, ly + 1));
         e["/Rect"] = PdfObj.Reals(doc, rx1, ry1, rx2, ry2);
-        SetAppearance(doc, annot, Appearance(doc, ops.ToString(), null, rx1, ry1, rx2, ry2, null, s));
+        SetAppearance(doc, annot, Appearance(doc, ops.ToString(), resources, rx1, ry1, rx2, ry2, null, s));
     }
 
     private static void ApplyFreeText(PdfDocument doc, PdfPage page, PdfDictionary annot, AnnotGeometry g, AnnotStyle s, StringBuilder ops)

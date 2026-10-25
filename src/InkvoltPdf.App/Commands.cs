@@ -197,6 +197,11 @@ public static class Cmd
     public static readonly RoutedUICommand ReloadFromDisk = Make("Re_load from Disk", nameof(ReloadFromDisk), K(Key.F5));
 
     // File: create, protect, reduce (see FileTools, SecurityActions)
+    public static readonly RoutedUICommand MeasureDistance = Make("Measure _Distance", nameof(MeasureDistance));
+    public static readonly RoutedUICommand MeasurePerimeter = Make("Measure _Perimeter", nameof(MeasurePerimeter));
+    public static readonly RoutedUICommand MeasureArea = Make("Measure _Area", nameof(MeasureArea));
+    public static readonly RoutedUICommand MeasureScale = Make("Set Measuring _Scale…", nameof(MeasureScale));
+    public static readonly RoutedUICommand MeasureCalibrate = Make("_Calibrate Scale from a Known Length", nameof(MeasureCalibrate));
     public static readonly RoutedUICommand SaveAsPdfA = Make("Save as PDF/_A-2b (Archive)…", nameof(SaveAsPdfA));
     public static readonly RoutedUICommand CreateFromOffice = Make("PDF from _Office File (Word, Excel, PowerPoint)…", nameof(CreateFromOffice));
     public static readonly RoutedUICommand CreateFromWeb = Make("PDF from _Web Page…", nameof(CreateFromWeb));

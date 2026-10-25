@@ -24,7 +24,7 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -115,7 +115,8 @@ internal static class DevScript
             case "rotateview": v!.SetViewRotation(int.Parse(arg)); break;
             case "tool": v!.Tool = arg switch { "select" => ViewerTool.SelectText, "snapshot" => ViewerTool.Snapshot, "addtext" => ViewerTool.AddText, "check" => ViewerTool.AddCheck, "note" => ViewerTool.AddNote, "redact" => ViewerTool.Redact,
                 "pen" => ViewerTool.Pen, "marker" or "highlighter" => ViewerTool.Highlighter, "rect" or "rectangle" => ViewerTool.Rectangle, "ellipse" => ViewerTool.Ellipse,
-                "line" => ViewerTool.Line, "arrow" => ViewerTool.Arrow, "textbox" => ViewerTool.TextBox, "callout" => ViewerTool.Callout, "link" => ViewerTool.AddLink, _ => ViewerTool.Hand }; break;
+                "line" => ViewerTool.Line, "arrow" => ViewerTool.Arrow, "textbox" => ViewerTool.TextBox, "callout" => ViewerTool.Callout, "link" => ViewerTool.AddLink, "measure-distance" => ViewerTool.MeasureDistance,
+                "measure-perimeter" => ViewerTool.MeasurePerimeter, "measure-area" => ViewerTool.MeasureArea, _ => ViewerTool.Hand }; break;
             case "selectall": v!.SelectAll(); break;
             case "find": Cmd.Find.Execute(null, window); SetFindText(tab!, arg); tab!.FindNext(false); break;
             case "findnext": tab!.FindNext(false); break;
@@ -857,6 +858,25 @@ internal static class DevScript
                 log.Add($"webpage: {pdf.Length} bytes, active '{window.ActiveTab?.Session.DisplayName}' pages={window.ActiveTab?.PageView.PageCount}");
                 break;
             }
+            // Measuring: measure distance|perimeter|area|calibrate p x1 y1 x2 y2 … (as if clicked; calibrate opens its dialog) ·
+            // setscale 1 in = 10 ft [all] · measurements (the current page's, and one in progress)
+            case "measure":
+            {
+                var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var tool = a[0] switch { "perimeter" => ViewerTool.MeasurePerimeter, "area" => ViewerTool.MeasureArea, "calibrate" => ViewerTool.MeasureCalibrate, _ => ViewerTool.MeasureDistance };
+                var nums = a.Skip(2).Select(n => double.Parse(n, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+                tab!.PageView.DevMeasure(int.Parse(a[1]) - 1, tool, [.. Enumerable.Range(0, nums.Count / 2).Select(i => new Core.PointD(nums[2 * i], nums[2 * i + 1]))]);
+                await Task.Delay(400);
+                await tab.SettleAsync();
+                log.Add(tab.DevMeasurements());
+                break;
+            }
+            case "setscale":
+                await tab!.DevSetScale(arg.Replace(" all", "", StringComparison.Ordinal), arg.EndsWith(" all", StringComparison.Ordinal));
+                await tab.SettleAsync();
+                log.Add(tab.DevMeasurements());
+                break;
+            case "measurements": log.Add(tab!.DevMeasurements()); break;
             case "pdfa": await PdfAActions.SaveAs(window, tab!); break; // savepath out.pdf first; answer the prompts with later/prompt
             case "converters":
                 log.Add($"converters: office=[{string.Join(", ", OfficeConverter.InstalledApps)}] webview2={WebCapture.RuntimeVersion ?? "none"} menu={window.OfficeMenu.Visibility}");
