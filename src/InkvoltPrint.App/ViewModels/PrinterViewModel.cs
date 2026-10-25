@@ -12,6 +12,7 @@ using InkvoltPrint.Core.Offline;
 using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Queues;
+using InkvoltPrint.Core.Snmp;
 using InkvoltPrint.Windows.Discovery;
 using InkvoltPrint.Windows.Offline;
 using InkvoltPrint.Windows.Printing;
@@ -103,8 +104,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
     public string? StatusSourceNote => _queueSource is not { } source ? null
-        : $"Status from {source.Origin}. That's less than Inkvolt Print reads from a printer it reaches over the network" +
-          (source.HasSupplyLevels ? "." : ": no ink or toner levels, and problems only as the driver reports them.");
+        : source.HasSupplyLevels
+        ? $"Status and supply levels from {source.Origin}. No scanning, settings or maintenance for this printer here."
+        : $"Status from {source.Origin}. That's less than Inkvolt Print reads from a printer it reaches over the network: " +
+          "no ink or toner levels, and problems only as the driver reports them.";
 
     /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
     public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : null);
@@ -215,7 +218,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HpOnlyNote))]
     public partial bool IsCdm { get; set; }
 
-    public string? HpOnlyNote => IsCdm
+    /// <summary>Read over SNMP only (no LEDM, CDM or IPP answered): status, alerts and supply levels; no scanning or settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HpOnlyNote))]
+    public partial bool IsSnmp { get; set; }
+
+    public string? HpOnlyNote => IsSnmp
+        ? "This printer answers only SNMP (the standard printer management protocol), so Inkvolt Print reads its status, alerts and " +
+          "supply levels, but can't scan with it or change its settings. Change settings on the printer's web page or its control panel."
+        : IsCdm
         ? "This newer HP printer uses HP's CDM interface: Inkvolt Print reads its status, supplies and details, but its settings, " +
           "firmware updates and page counts aren't supported yet. Change settings on the printer's web page or its control panel."
         : IsNonHp
@@ -660,6 +671,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         Sync(Supplies, read.Supplies.Select(s => new SupplyViewModel(s)).ToList());
         OnPropertyChanged(nameof(SuppliesTitle));
+        OnPropertyChanged(nameof(StatusSourceNote)); // SNMP may have started or stopped answering
         if (read.Offline)
         {
             SetOffline(read.Status.Message, read.Status.Detail ?? "");
@@ -682,7 +694,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task<PrinterConnection?> ConnectAsync(CancellationToken ct)
     {
-        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
+        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri,
+            IsDemo ? Demo.Snmp : UdpSnmpTransport.Instance);
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
@@ -773,13 +786,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Brand = p.Brand;
         IsNonHp = !p.HasHpInterfaces;
         IsCdm = !p.HasHpInterfaces && p.Cdm is not null;
+        IsSnmp = p.Snmp is not null;
         _webPage = p.WebPage;
         Sync(About, new InfoRow?[]
         {
             new("Model", p.Model ?? Model ?? Name),
             new("IP address", Host ?? "—"),
             p.Location is { } where ? new("Location", where) : null,
-            p.Product?.SerialNumber is { } sn ? new("Serial number", sn) : null,
+            p.SerialNumber is { } sn ? new("Serial number", sn) : null,
             p.Product?.ProductNumber is { } pn ? new("Product number", pn) : null,
             p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
@@ -1109,6 +1123,7 @@ public sealed record SupplyViewModel(Consumable Supply)
     /// <summary>"About 100 pages left", or the state when no estimate is available; null for a waste box with room left.</summary>
     public string? Headline => Supply.State switch
     {
+        "missing" => "Missing — install it",
         "full" => "Replace now",
         "almostFull" => "Replace soon",
         "out" => "Empty — replace now",
@@ -1124,7 +1139,7 @@ public sealed record SupplyViewModel(Consumable Supply)
         Supply.ProductNumber,
     }.Where(s => s is not null)) is { Length: > 0 } c ? $"Replacement: {c}" : null;
 
-    public string Level => Supply.State is "out" or "full" ? "empty" : IsLow ? "low" : "ok";
+    public string Level => Supply.State is "out" or "full" or "missing" ? "empty" : IsLow ? "low" : "ok";
 
     public string Name => Supply.Name;
     public double Percent => Supply.PercentRemaining ?? 0;
@@ -1138,6 +1153,7 @@ public sealed record SupplyViewModel(Consumable Supply)
         "full" => "Full",
         "almostFull" => "Almost full",
         "out" => "Empty",
+        "missing" => "Missing",
         "ok" => "OK",
         _ => "—",
     };

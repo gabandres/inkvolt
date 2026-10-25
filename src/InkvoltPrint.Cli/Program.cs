@@ -24,6 +24,9 @@ switch (cmd)
     case "status" when host is not null:
         await Status(host);
         break;
+    case "snmp" when host is not null:
+        await Snmp(host, Opt("--community") ?? InkvoltPrint.Core.Snmp.SnmpClient.DefaultCommunity, args.Contains("--walk"));
+        break;
     case "watch" when host is not null:
         await Watch(host);
         break;
@@ -113,6 +116,7 @@ switch (cmd)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
             inkvoltprint queues                            (read-only: installed queues as the sidebar sees them)
+            inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
             inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)
@@ -171,6 +175,32 @@ async Task Status(string h)
     static string Ipp(InkvoltPrint.Core.Ipp.IppResponse r) =>
         $"{InkvoltPrint.Core.Ipp.IppClient.ToStatus(r).Message}; " +
         string.Join(", ", InkvoltPrint.Core.Ipp.IppClient.ToConsumables(r).Select(s => $"{s.Name} {s.PercentRemaining}%"));
+}
+
+// Read only: Get, GetNext and GetBulk (SnmpClient can't send a Set). --walk also lists the Printer MIB objects read.
+async Task Snmp(string h, string community, bool walk)
+{
+    var transport = InkvoltPrint.Core.Snmp.UdpSnmpTransport.Instance;
+    var sw = Stopwatch.StartNew();
+    var printer = await InkvoltPrint.Core.Snmp.SnmpPrinterClient.ProbeAsync(transport, h, community, ct);
+    if (printer is null) { Console.WriteLine($"no SNMP printer answered ({sw.ElapsedMilliseconds} ms)"); return; }
+    var id = printer.Identity;
+    Console.WriteLine($"SNMP {id.Version}, device index {id.DeviceIndex}, probed in {sw.ElapsedMilliseconds} ms: model={id.Model}");
+    sw.Restart();
+    var reading = await printer.ReadAsync(ct);
+    Console.WriteLine($"read in {sw.ElapsedMilliseconds} ms: hrDeviceStatus={reading.DeviceStatus} hrPrinterStatus={reading.PrinterStatus} " +
+                      $"hrPrinterDetectedErrorState={Convert.ToHexString(reading.DetectedErrorState)}");
+    foreach (var a in reading.Alerts) Console.WriteLine($"  prtAlert {a.Index}: severity={a.Severity} group={a.Group}/{a.GroupIndex} code={a.Code} \"{a.Description}\"");
+    foreach (var s in reading.Supplies) Console.WriteLine($"  prtMarkerSupplies {s.Index}: class={s.Class} type={s.Type} \"{s.Description}\" {s.Level}/{s.MaxCapacity} colorant={s.ColorantIndex}");
+    var status = InkvoltPrint.Core.Snmp.SnmpPrinterStatus.ToStatus(reading);
+    Console.WriteLine($"status: {status.Message} [{status.Code}, {status.Severity}]");
+    foreach (var a in status.Alerts) Console.WriteLine($"  alert: {a.Severity} {a.Id}: {a.Message}");
+    foreach (var c in InkvoltPrint.Core.Snmp.SnmpPrinterStatus.ToConsumables(reading))
+        Console.WriteLine($"  {c.Name} ({c.Kind}, {c.ColorCode}): {c.PercentRemaining}% {c.State}");
+    if (!walk) return;
+    var client = new InkvoltPrint.Core.Snmp.SnmpClient(transport, h, id.Version, community);
+    foreach (var column in await client.WalkAsync([InkvoltPrint.Core.Snmp.Oid.Parse("1.3.6.1.2.1.43.11"), InkvoltPrint.Core.Snmp.Oid.Parse("1.3.6.1.2.1.43.18")], ct))
+        foreach (var (index, value) in column) Console.WriteLine($"  .{string.Join('.', index)} = {value}");
 }
 
 async Task Watch(string h)

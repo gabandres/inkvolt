@@ -43,5 +43,8 @@
     <!-- The demo HP color laser with CDM only (no LEDM): JSON written from public sources' captures -->
     <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\cdm-laser\*.json" LogicalName="DemoCdm.%(Filename)%(Extension)"
                       Link="DemoCdm\%(Filename)%(Extension)" />
+    <!-- The demo SNMP agents (an SNMP-only laser, a color MFP behind a TCP/IP queue): objects written from the MIBs -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\snmp-demo\*.txt" LogicalName="DemoSnmp.%(Filename)%(Extension)"
+                      Link="DemoSnmp\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -6,6 +6,7 @@ using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Queues;
+using InkvoltPrint.Core.Snmp;
 using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Windows.Cleanup;
 using InkvoltPrint.Windows.Discovery;
@@ -413,7 +414,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var id = QueueKinds.IdFor(q.Name);
             if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
-            var vm = new PrinterViewModel(q, _transport is null ? new SpoolerStatusSource(q) : Demo.QueueStatus(q), _state, Presets, Remember, _transport);
+            var vm = new PrinterViewModel(q, QueueStatusSource(q), _state, Presets, Remember, _transport);
             Printers.Add(vm);
             vm.Start();
             if (Selected is null || string.Equals(id, _wantedSelection, StringComparison.OrdinalIgnoreCase)) Selected = vm;
@@ -426,6 +427,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (_state.ForgottenUuids.RemoveAll(f => QueueKinds.IsQueueId(f) && !present.Contains(f)) > 0) _state.Save();
         }
         NotifyEmpty();
+    }
+
+    /// <summary>
+    /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, the
+    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one.
+    /// </summary>
+    private IQueueStatusSource QueueStatusSource(SpoolerQueue q)
+    {
+        IQueueStatusSource windows = _transport is null ? new SpoolerStatusSource(q) : Demo.QueueStatus(q);
+        return QueueKinds.SnmpAddress(q) is { } host
+            ? new SnmpQueueStatusSource(windows, host, _transport is null ? UdpSnmpTransport.Instance : Demo.Snmp, q.PortCommunity)
+            : windows;
     }
 
     private void Remember(PrinterViewModel p)
@@ -459,7 +472,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             using var http = new InkvoltPrint.Core.Net.DeviceHttp(host);
-            var probe = await PrinterConnection.ProbeAsync(http);
+            var probe = await PrinterConnection.ProbeAsync(http, snmp: UdpSnmpTransport.Instance); // SNMP-only printers can be added too
             if (!probe.Reachable)
             {
                 ManualError = $"No printer answered at {host}. Check the address and that the printer is on.";

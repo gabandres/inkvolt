@@ -27,6 +27,9 @@ public static class SpoolerStatus
         (SpoolerFlags.StatusDriverUpdateNeeded, "driver-update", Severity.Warning, "Windows says the printer's driver needs an update"),
     ];
 
+    /// <summary>The headline while Windows' "Use Printer Offline" holds the jobs.</summary>
+    public const string UsePrinterOfflineMessage = "Use Printer Offline is on";
+
     private const uint OfflineBits = SpoolerFlags.StatusOffline | SpoolerFlags.StatusNotAvailable | SpoolerFlags.StatusServerOffline;
 
     public static QueueReading Describe(SpoolerQueue q)
@@ -44,7 +47,7 @@ public static class SpoolerStatus
                 _ => "Check that it's turned on and connected.",
             };
             return workOffline
-                ? new(new PrinterStatus("offline", "Use Printer Offline is on", Severity.Error, [],
+                ? new(new PrinterStatus("offline", UsePrinterOfflineMessage, Severity.Error, [],
                     $"Windows holds print jobs for this printer until it's turned off in the printer's queue (Open Windows queue › Printer).{waiting}"), true)
                 : new(new PrinterStatus("offline", "Offline", Severity.Error, [], $"Windows can't reach the printer. {check}{waiting}"), true);
         }

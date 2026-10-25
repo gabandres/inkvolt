@@ -87,11 +87,31 @@ public static partial class QueueKinds
         {
             QueueConnection.Shared => text,
             QueueConnection.Network when port.StartsWith("WSD", StringComparison.OrdinalIgnoreCase) => $"{text} (WSD)",
+            QueueConnection.Network when q.PortAddress?.Trim() is { Length: > 0 } address => $"{text} ({address})",
             QueueConnection.Network when Uri.TryCreate(port, UriKind.Absolute, out var u) && u.Host.Length > 0 => $"{text} (IPP, {u.Host})",
             QueueConnection.Network when QueueMatch.HostsIn(port).FirstOrDefault(h => System.Net.IPAddress.TryParse(h, out _)) is { } ip => $"{text} ({ip})",
             _ when port.Length > 0 => $"{text} ({port.TrimEnd(':')})",
             _ => text,
         };
+    }
+
+    /// <summary>
+    /// Where a queue's printer can be asked over SNMP: a network queue whose port has the printer's address (a Standard TCP/IP
+    /// or LPR port, an IPP URL, an address in the port's name). Null for USB, WSD (no address in the port), queues shared from
+    /// another PC (the address there is the PC's) and the rest.
+    /// </summary>
+    public static string? SnmpAddress(SpoolerQueue q)
+    {
+        if (Connection(q) != QueueConnection.Network) return null;
+        var port = q.PortName.Trim();
+        if (port.StartsWith("WSD", StringComparison.OrdinalIgnoreCase)) return null;
+        if (q.PortAddress?.Trim() is { Length: > 0 } address && Uri.CheckHostName(address) != UriHostNameType.Unknown) return address;
+        if (Uri.TryCreate(port, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" or "ipp" or "ipps" && u.Host.Length > 0) return u.Host;
+        var hosts = QueueMatch.HostsIn(port);
+        if (hosts.FirstOrDefault(h => System.Net.IPAddress.TryParse(h, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) is { } v4)
+            return v4;
+        // A TCP/IP port named after the printer's host name ("IP_printer.example", Windows' default naming).
+        return q.PortMonitor is "Standard TCP/IP Port" or "LPR Port" && hosts.FirstOrDefault(h => h.Contains('.')) is { } name ? name : null;
     }
 
     private static string? ServerOf(string name) =>

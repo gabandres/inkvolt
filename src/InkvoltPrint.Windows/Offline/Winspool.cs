@@ -60,6 +60,50 @@ internal static class Winspool
     private static Core.Queues.SpoolerQueue ToQueue(PrinterInfo2 p) =>
         new(p.pPrinterName!, p.pPortName ?? "", p.pDriverName, p.Status, p.Attributes, (int)p.cJobs) { Location = p.pLocation, Comment = p.pComment };
 
+    /// <summary>
+    /// A Standard TCP/IP port's printer address and, when SNMP status is on for the port, its community: TCPMON's
+    /// <c>HostAddress</c>, <c>SNMPEnabled</c> and <c>SNMPCommunity</c> Xcv commands (read only, through an Xcv handle opened
+    /// with enumerate access as the user). Null when the port can't be opened or isn't a TCP/IP port.
+    /// </summary>
+    public static (string? Host, string? Community)? TcpPortConfig(string port)
+    {
+        const uint serverAccessEnumerate = 0x2;
+        using var h = Open(",XcvPort " + port, serverAccessEnumerate);
+        if (h is null) return null;
+        var host = XcvString(h, "HostAddress");
+        var community = XcvDword(h, "SNMPEnabled") == 1 ? XcvString(h, "SNMPCommunity") : null;
+        return host is null && community is null ? null : (host, community);
+    }
+
+    private static string? XcvString(PrinterHandle h, string command)
+    {
+        const int size = 1024;
+        var buf = Marshal.AllocHGlobal(size);
+        try
+        {
+            if (!XcvData(h, command, IntPtr.Zero, 0, buf, size, out _, out var status) || status != 0) return null;
+            Marshal.WriteInt16(buf, size - 2, 0); // never read past the buffer
+            return Marshal.PtrToStringUni(buf)?.Trim() is { Length: > 0 } s ? s : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    private static uint? XcvDword(PrinterHandle h, string command)
+    {
+        var buf = Marshal.AllocHGlobal(4);
+        try
+        {
+            return XcvData(h, command, IntPtr.Zero, 0, buf, 4, out _, out var status) && status == 0 ? (uint)Marshal.ReadInt32(buf) : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
     public static IReadOnlyList<PortInfo> Ports() =>
         Enumerate<PortInfo2>((buf, cb, out needed, out count) => EnumPorts(null, 2, buf, cb, out needed, out count))
             .Where(p => p.pPortName is not null).Select(p => new PortInfo(p.pPortName!, p.pMonitorName, p.pDescription)).ToList();
@@ -225,6 +269,9 @@ internal static class Winspool
 
     [DllImport("winspool.drv", SetLastError = true)]
     private static extern bool ClosePrinter(IntPtr handle);
+
+    [DllImport("winspool.drv", EntryPoint = "XcvDataW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool XcvData(PrinterHandle h, string dataName, IntPtr input, uint cbInput, IntPtr output, uint cbOutput, out uint needed, out uint status);
 
     [DllImport("winspool.drv", EntryPoint = "EnumPrintersW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool EnumPrinters(uint flags, string? name, uint level, IntPtr buf, uint cb, out uint needed, out uint returned);

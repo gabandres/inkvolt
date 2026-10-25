@@ -5,6 +5,7 @@ using InkvoltPrint.Core.Ipp;
 using InkvoltPrint.Core.Ledm;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
+using InkvoltPrint.Core.Snmp;
 
 namespace InkvoltPrint.Core.Probe;
 
@@ -23,7 +24,13 @@ public sealed record ProbeResult(
     /// <summary>HP's newer interface (CDM) answered: a newer HP printer without LEDM. Only asked when LEDM isn't there.</summary>
     public CdmProbe? Cdm { get; init; }
 
-    public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null;
+    /// <summary>
+    /// The printer answered SNMP with the Printer MIB: asked only when neither LEDM, CDM nor IPP answered (a printer that has
+    /// none of them), and only when the caller passed an SNMP transport.
+    /// </summary>
+    public SnmpIdentity? Snmp { get; init; }
+
+    public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null || Snmp is not null;
 
     public string? Uuid =>
         Product?.Uuid ?? Scanner?.Uuid ?? Ipp?.Str("printer-uuid")?.Replace("urn:uuid:", "", StringComparison.OrdinalIgnoreCase);
@@ -31,7 +38,10 @@ public sealed record ProbeResult(
     /// <summary>Every UUID the printer reports, one per interface (they normally agree; a scanner may have its own).</summary>
     public IReadOnlyList<string?> ReportedUuids => [Product?.Uuid, Cdm?.Identity.Uuid, Scanner?.Uuid, Ipp?.Str("printer-uuid")];
 
-    public string? Model => Product?.MakeAndModel ?? Scanner?.MakeAndModel ?? Ipp?.Str("printer-make-and-model");
+    public string? Model => Product?.MakeAndModel ?? Scanner?.MakeAndModel ?? Ipp?.Str("printer-make-and-model") ?? Snmp?.Model;
+
+    /// <summary>The serial number: LEDM's or CDM's, else the Printer MIB's prtGeneralSerialNumber.</summary>
+    public string? SerialNumber => Product?.SerialNumber ?? Snmp?.SerialNumber;
 
     public FirmwareInfo? Firmware => FirmwareInfo.From(Product, Ipp);
 
@@ -40,10 +50,10 @@ public sealed record ProbeResult(
 
     /// <summary>Who made it: HP when LEDM or CDM answers, else from the make-and-model the printer reports.</summary>
     public PrinterBrand Brand => HasHpInterfaces || Cdm is not null ? PrinterBrand.Hp
-        : PrinterBrands.Detect(Ipp?.Str("printer-make-and-model"), Scanner?.MakeAndModel, Scanner?.Manufacturer);
+        : PrinterBrands.Detect(Ipp?.Str("printer-make-and-model"), Scanner?.MakeAndModel, Scanner?.Manufacturer, Snmp?.Model, Snmp?.SystemDescription);
 
     /// <summary>IPP <c>printer-location</c>, when someone set it on the printer.</summary>
-    public string? Location => Ipp?.Str("printer-location") is { } l && l.Trim().Length > 0 ? l.Trim() : null;
+    public string? Location => Ipp?.Str("printer-location") is { } l && l.Trim().Length > 0 ? l.Trim() : Snmp?.Location;
 
     /// <summary>
     /// The printer's own web page: IPP <c>printer-more-info</c> when it is an http(s) page on this printer (the address
@@ -78,17 +88,18 @@ public sealed record ProbeResult(
             if (Ledm?.HasCdm == true || Cdm is not null) yield return "CDM";
             if (Scanner is not null) yield return "eSCL";
             if (Ipp is not null) yield return "IPP";
+            if (Snmp is not null) yield return "SNMP";
         }
     }
 }
 
 /// <summary>
-/// Live connection to one printer: picks LEDM for status/supplies/settings when present, IPP otherwise,
-/// and eSCL for scanning. Owns the printer's single <see cref="DeviceHttp"/>.
+/// Live connection to one printer: picks LEDM for status/supplies/settings when present, then CDM, then IPP, and SNMP for a
+/// printer that has none of them; eSCL for scanning. Owns the printer's single <see cref="DeviceHttp"/>.
 /// </summary>
 public sealed class PrinterConnection : IDisposable
 {
-    private PrinterConnection(DeviceHttp http, ProbeResult probe)
+    private PrinterConnection(DeviceHttp http, ProbeResult probe, ISnmpTransport? snmp)
     {
         Http = http;
         Probe = probe;
@@ -96,6 +107,7 @@ public sealed class PrinterConnection : IDisposable
         Scanner = probe.EsclRoot is not null ? new EsclClient(http, probe.EsclRoot) : null;
         Ipp = probe.Ipp is not null ? new IppClient(http, probe.IppEndpoint ?? DefaultIpp(http)) : null;
         Cdm = probe.Cdm is { } cdm ? new CdmClient(http, cdm.Root) : null;
+        Snmp = probe.Snmp is { } id && snmp is not null ? new SnmpPrinterClient(snmp, http.Host, id) : null;
     }
 
     public DeviceHttp Http { get; }
@@ -107,16 +119,23 @@ public sealed class PrinterConnection : IDisposable
     /// <summary>HP CDM, read only, for newer HP printers without LEDM: status, supplies and identity.</summary>
     public CdmClient? Cdm { get; }
 
+    /// <summary>SNMP (Printer MIB), read only, for a printer without LEDM, CDM or IPP: status, alerts and supply levels.</summary>
+    public SnmpPrinterClient? Snmp { get; }
+
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
     /// <param name="transport">Replaces the network (e.g. <see cref="FixtureHandler"/> for demo mode); null: real HTTP.</param>
     /// <param name="ippHint">IPP printer URL from DNS-SD (<c>rp</c> TXT + port, https for <c>_ipps</c>), tried first.</param>
+    /// <param name="snmp">
+    /// Where SNMP goes (<see cref="UdpSnmpTransport"/>, or a made-up agent in demo mode) when the printer has neither LEDM, CDM
+    /// nor IPP; null: SNMP isn't tried.
+    /// </param>
     public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
-        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null)
+        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null, ISnmpTransport? snmp = null)
     {
         var http = new DeviceHttp(host, transport, pin);
         try
         {
-            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint).ConfigureAwait(false));
+            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint, snmp).ConfigureAwait(false), snmp);
         }
         catch
         {
@@ -125,7 +144,9 @@ public sealed class PrinterConnection : IDisposable
         }
     }
 
-    public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null)
+    /// <param name="snmp">See <see cref="OpenAsync"/>: SNMP is asked only after LEDM, CDM and IPP all stayed silent.</param>
+    public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null,
+        ISnmpTransport? snmp = null)
     {
         var ledm = ProbeLedmAsync(http, ct);
         // CDM only when the printer clearly has no LEDM (see ProbeLedmAsync): an offline or waking printer costs nothing more,
@@ -146,7 +167,12 @@ public sealed class PrinterConnection : IDisposable
         var (tree, product, _) = ledm.Result;
         var (scanner, esclRoot) = escl.Result;
         var (attrs, endpoint) = ipp.Result;
-        return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs) { IppEndpoint = endpoint, Cdm = cdm.Result };
+        // SNMP last, and only for a printer none of the others reached: a printer with LEDM, CDM or IPP never gets an SNMP request.
+        var snmpProbe = tree is null && cdm.Result is null && attrs is null && snmp is not null
+            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, ct: ct).ConfigureAwait(false)
+            : null;
+        return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs)
+            { IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity };
     }
 
     /// <summary>
@@ -244,7 +270,7 @@ public sealed class PrinterConnection : IDisposable
         && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused };
 
     /// <summary>
-    /// LEDM first, then CDM (newer HP printers), IPP as fallback. Network failures mean offline; a printer that answers with an error or
+    /// LEDM first, then CDM (newer HP printers), IPP as fallback, then SNMP. Network failures mean offline; a printer that answers with an error or
     /// garbage (common while it wakes up) is reported as <see cref="PrinterStatus.Unavailable"/>, not offline.
     /// </summary>
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default)
@@ -273,6 +299,15 @@ public sealed class PrinterConnection : IDisposable
             try
             {
                 return IppClient.ToStatus(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
+            }
+            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
+            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
+        }
+        if (Snmp is not null)
+        {
+            try
+            {
+                return await Snmp.GetStatusAsync(ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
             catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
@@ -310,6 +345,7 @@ public sealed class PrinterConnection : IDisposable
         if (Ledm is not null && await Ledm.GetConsumablesAsync(ct).ConfigureAwait(false) is { } c) return c;
         if (Cdm is not null && await Cdm.GetSuppliesAsync(ct).ConfigureAwait(false) is { Count: > 0 } cdm) return cdm;
         if (Ipp is not null) return IppClient.ToConsumables(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
+        if (Snmp is not null) return await Snmp.GetSuppliesAsync(ct).ConfigureAwait(false);
         return [];
     }
 
@@ -334,7 +370,7 @@ public sealed class PrinterConnection : IDisposable
     public static bool IsOffline(Exception ex) => ex is HttpRequestException or TimeoutException;
 
     /// <summary>The printer answered, but with an error status or an unreadable body.</summary>
-    public static bool IsTransient(Exception ex) => ex is DeviceHttpException or System.Xml.XmlException or FormatException;
+    public static bool IsTransient(Exception ex) => ex is DeviceHttpException or System.Xml.XmlException or FormatException or SnmpErrorException;
 
     private static async Task<T?> Try<T>(Func<Task<T>> f)
     {

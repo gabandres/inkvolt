@@ -23,8 +23,11 @@ namespace InkvoltPrint.App;
 /// at <see cref="OfficeOldHost"/>, where nothing answers, while the made-up network (<see cref="OfflinePc"/>) finds it at
 /// <see cref="OfficeNewHost"/> and its made-up Windows queue still prints to the old address with "Use Printer Offline" on.
 /// A fourth, at <see cref="CdmHost"/>, is a newer HP color laser that answers HP's CDM only (<c>Fixtures/cdm-laser</c>, JSON
-/// written from public sources): status, toner and details without LEDM. Two more come from the made-up PC's Windows queues
-/// (<see cref="Queues"/>): a USB laser and a printer shared from another PC, with status as Windows and the driver report it.
+/// written from public sources): status, toner and details without LEDM. A fifth, at <see cref="SnmpHost"/>, answers SNMP only
+/// (no IPP, LEDM or CDM): status, alerts and toner from the Printer MIB of a made-up agent (<see cref="Snmp"/>,
+/// <c>Fixtures/snmp-demo</c>). Three more come from the made-up PC's Windows queues (<see cref="Queues"/>): a USB laser and a
+/// printer shared from another PC, with status as Windows and the driver report it, and a color MFP on a TCP/IP port at
+/// <see cref="SnmpQueueHost"/>, whose status and toner come from the printer over SNMP.
 /// </summary>
 internal static class Demo
 {
@@ -40,6 +43,9 @@ internal static class Demo
     /// <summary>The demo office laser's address before the (made-up) router gave it a new one, and after.</summary>
     public const string OfficeOldHost = "192.0.2.12", OfficeNewHost = "192.0.2.23";
 
+    /// <summary>The demo printer that answers SNMP only, and the demo color MFP behind a Windows TCP/IP port.</summary>
+    public const string SnmpHost = "192.0.2.14", SnmpQueueHost = "192.0.2.15";
+
     /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
     public const string InkjetHost = "192.0.2.11";
 
@@ -52,6 +58,8 @@ internal static class Demo
             new KnownPrinter(InkjetUuid, "Demo inkjet", null, InkjetHost, $"http://{InkjetHost}/eSCL/", $"http://{InkjetHost}:631/ipp/print"),
             new KnownPrinter(OfficeUuid, "Demo office laser", null, OfficeOldHost, $"http://{OfficeOldHost}/eSCL/"),
             new KnownPrinter(CdmUuid, "Demo color laser (CDM)", null, CdmHost, null),
+            // Added by address, as an SNMP-only printer is (no UUID: its id comes from the address).
+            new KnownPrinter(Core.Model.PrinterId.Normalize(null, SnmpHost), "Demo Laser 5200 Series", null, SnmpHost, null),
         ],
         SelectedUuid = Uuid,
     };
@@ -71,6 +79,19 @@ internal static class Demo
             ? System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(bytes)
                 .Replace("HP LaserJet MFP M234dw", "Demo office laser").Replace(Uuid, OfficeUuid))
             : bytes;
+
+    /// <summary>
+    /// The made-up SNMP agents: the SNMP-only laser and the color MFP behind the TCP/IP queue (objects written from the MIBs,
+    /// <c>Fixtures/snmp-demo</c>). Every other address stays silent, so no SNMP goes to the network in demo mode.
+    /// </summary>
+    public static Core.Snmp.ISnmpTransport Snmp { get; } = new Core.Snmp.SnmpRouter(new Dictionary<string, Core.Snmp.ISnmpTransport>
+    {
+        [SnmpHost] = SnmpAgent("workgroup-laser.txt"),
+        [SnmpQueueHost] = SnmpAgent("color-mfp.txt"),
+    });
+
+    private static Core.Snmp.SnmpAgent SnmpAgent(string name) =>
+        new(Core.Snmp.SnmpAgent.ParseWalk(System.Text.Encoding.UTF8.GetString(Document("DemoSnmp." + name) ?? [])));
 
     /// <summary>The made-up PC and network the demo printers' offline fixer looks at and repairs.</summary>
     public static DemoOfflinePc OfflinePc { get; } = new([(Uuid, FixtureHandler.DemoHost), (InkjetUuid, InkjetHost)], OfficeUuid);
@@ -169,7 +190,8 @@ internal static class Demo
 
     /// <summary>
     /// The made-up PC's Windows queues: a USB laser that discovery can't see (listed from its queue, toner low as its driver
-    /// reports it), a printer shared from another PC that is off, and two that stay out of the list: Microsoft Print to PDF
+    /// reports it), a printer shared from another PC that is off, a color MFP on a Standard TCP/IP port (renamed, so its address
+    /// comes from the port's configuration; read over SNMP), and two that stay out of the list: Microsoft Print to PDF
     /// (virtual) and the demo HP laser's own WSD queue (its device container is the printer's UUID, so it isn't listed twice).
     /// </summary>
     public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues { get; } =
@@ -178,6 +200,8 @@ internal static class Demo
             { PortMonitor = "USB Monitor" },
         new(@"\\demo-pc\Front desk", @"\\demo-pc\Front desk", "Demo Inkjet 3700 Series", Core.Queues.SpoolerFlags.StatusOffline,
             Core.Queues.SpoolerFlags.AttributeNetwork, 0),
+        new("Office color MFP", "Office color", "Demo Color MFP 4400 PCL6", 0, Core.Queues.SpoolerFlags.AttributeLocal, 1)
+            { PortMonitor = "Standard TCP/IP Port", PortAddress = SnmpQueueHost, PortCommunity = "public", Location = "Copy room" },
         new("Microsoft Print to PDF", "PORTPROMPT:", "Microsoft Print To PDF", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0) { PortMonitor = "Local Monitor" },
         new("HP LaserJet MFP M234dw (demo)", "WSD-00000000-0000-4000-8000-000000000000", "Microsoft IPP Class Driver", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0)
             { PortMonitor = "WSD Port Monitor", ContainerId = Uuid },

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using InkvoltPrint.Core.Queues;
 using InkvoltPrint.Windows.Offline;
 using Windows.Devices.Enumeration;
@@ -41,14 +42,29 @@ public static class InstalledQueues
         foreach (var q in queues)
         {
             var container = devices.FirstOrDefault(d => string.Equals(d.Name, q.Name, StringComparison.OrdinalIgnoreCase))?.ContainerId;
+            var monitor = monitors.GetValueOrDefault(q.PortName);
+            // A Standard TCP/IP port may be named anything: its printer's address (for SNMP) comes from the port monitor.
+            var tcp = monitor == "Standard TCP/IP Port" && !QueueKinds.IsVirtual(q) ? await Task.Run(() => TcpPort(q.PortName)) : null;
             list.Add(q with
             {
-                PortMonitor = monitors.GetValueOrDefault(q.PortName),
+                PortMonitor = monitor,
                 ContainerId = container,
                 DevicePresent = QueueKinds.IsVirtual(q) ? null : await DevicePresentAsync(container),
+                PortAddress = tcp?.Host,
+                PortCommunity = tcp?.Community,
             });
         }
         return list;
+    }
+
+    private static (string? Host, string? Community)? TcpPort(string port)
+    {
+        try { return Winspool.TcpPortConfig(port); }
+        catch (Exception ex) when (ex is Win32Exception or ExternalException)
+        {
+            System.Diagnostics.Trace.WriteLine($"tcp/ip port: {ex.Message}");
+            return null;
+        }
     }
 
     // Queues without a device of their own (and some virtual ones) share the PC's container: thousands of nodes, none theirs.

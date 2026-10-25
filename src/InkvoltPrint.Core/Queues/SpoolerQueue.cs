@@ -13,6 +13,14 @@ public sealed record SpoolerQueue(string Name, string PortName, string? DriverNa
     public string? Comment { get; init; }
 
     /// <summary>
+    /// The printer's address as a Standard TCP/IP port is set up with (TCPMON's <c>HostAddress</c>), and the port's SNMP
+    /// community when SNMP status is on for it; null when not known (other ports, or not looked up).
+    /// </summary>
+    public string? PortAddress { get; init; }
+
+    public string? PortCommunity { get; init; }
+
+    /// <summary>
     /// Whether Windows sees the printer itself (its USB or WSD device node, <see cref="QueueKinds.DevicePresence"/>); null when
     /// that can't be told (IPP and TCP/IP queues, or not looked up). The spooler keeps saying "ready" for a WSD printer that left.
     /// </summary>

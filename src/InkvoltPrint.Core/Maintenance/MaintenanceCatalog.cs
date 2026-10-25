@@ -83,6 +83,9 @@ public sealed record MaintenanceSources
     /// <summary>A newer HP printer that answered HP's CDM interface instead (read only in Inkvolt Print).</summary>
     public bool HasCdm { get; init; }
 
+    /// <summary>Read over SNMP only (no LEDM, CDM or IPP): SNMP has no maintenance requests.</summary>
+    public bool HasSnmp { get; init; }
+
     /// <summary>Job types in the printer's InternalPrintCap document; null when it has none (404, unreadable).</summary>
     public IReadOnlyList<string>? LedmJobTypes { get; init; }
 
@@ -162,6 +165,8 @@ public static class MaintenanceCatalog
                                         "Inkvolt Print doesn't start them: use its control panel or its web page.",
             (true, false) => "This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it " +
                              "from its control panel or its web page.",
+            (false, _) when s.HasSnmp => "Inkvolt Print reads this printer over SNMP, which has no maintenance requests, so it can't start " +
+                                         "cleaning, nozzle checks or alignment: use its control panel or its web page.",
             (false, _) => "Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start " +
                           "them on this printer: use its control panel" + (supplyPage is null ? " or its web page." : " or its maintenance page."),
             _ => null,
