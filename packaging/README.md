@@ -154,7 +154,7 @@ Short description:
 
 Description:
 
-> Inkvolt Print is a lean, private app for network printers. Made for HP printers, it also works with Canon, Epson,
+> Inkvolt Print is a lean, private app for your printers. Made for HP printers, it also works with Canon, Epson,
 > Brother and other AirPrint, Mopria or IPP Everywhere printers. It finds your printer on the network and shows what
 > matters: ready or sleeping, ink or toner levels, paper problems, and usage counts, updated live.
 >
