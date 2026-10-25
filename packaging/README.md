@@ -92,7 +92,7 @@ needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDeskt
 > bundled native PDF engine (MuPDF), read and save files the user opens anywhere on disk, print through the Windows
 > print system, use Windows OCR, make PDFs from Office files through the user's own installed Microsoft Office
 > (automation of a separate, hidden Office instance) and from web pages through the system WebView2 runtime, and sign documents with certificates from the user's Windows certificate store and
-> smart cards. It installs no services or drivers, needs no administrator rights, and changes no system settings.
+> smart cards, and (only when the user turns it on) send text the user picks to an AI endpoint the user configures. It installs no services or drivers, needs no administrator rights, and changes no system settings.
 
 ### Draft Store description
 
@@ -111,16 +111,29 @@ Description:
 > - Digital signatures: sign with a certificate or smart card, add a trusted timestamp, and check every signature's
 >   status in detail.
 > - Comment and draw: highlight, underline, sticky notes, pen, shapes, arrows, text boxes and callouts.
-> - Organize: reorder, rotate, insert, extract, split and merge pages; make PDFs from images or the clipboard.
-> - Redact for real: removes the text and images underneath, not just a black box on top.
-> - Make scans searchable with Windows' own text recognition, protect files with a password, and reduce their size.
+> - Edit text and images on the page, add links, stamps, headers and footers, watermarks.
+> - Create forms: add text fields, check boxes, lists and signature fields, or detect them on a page.
+> - Organize: reorder, rotate, insert, extract, split and merge pages. Make PDFs from images, the clipboard, Office files
+>   (with your installed Microsoft Office) and web pages.
+> - Redact for real: removes the text and images underneath, not just a black box on top. Sanitize hidden data.
+> - Make scans searchable with Windows' own text recognition, export to Word, Excel or text, protect files with a
+>   password, reduce their size and save as PDF/A for archiving.
+> - Compare two versions of a document, measure distances and areas on drawings, and process many files at once.
 > - Scan straight into a PDF with Inkvolt Print.
 >
-> No account, no cloud, no ads, no telemetry. Your documents never leave your PC.
+> Optional AI assistant (off by default): connect an AI you choose, such as Ollama or LM Studio on your PC or a service
+> with your own API key, to summarize, ask questions about a document or explain a passage. Answers are generated live
+> by that AI model and may be wrong. Inkvolt PDF includes no AI of its own and shows exactly what text will be sent, and
+> where, before anything goes.
+>
+> No account, no ads, no telemetry. Your documents stay on your PC unless you send text to an AI service you set up.
 >
 > Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt-pdf
 
 Keywords (up to 7): PDF, PDF editor, fill and sign, digital signature, annotate, merge PDF, OCR.
+
+The AI paragraph is the metadata disclosure Store policy 11.16 (Live Generative AI Content, policies 7.20) asks for. Also
+tick the generative AI question in Partner Center when submitting (below).
 
 ### Privacy policy
 
@@ -134,6 +147,9 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
   which open in the default browser after the user clicks (and confirms for anything but http/https/mailto).
 - PDF from Web Page loads the address the user types (or a local file) in a private WebView2 session, as a browser
   would; nothing else is sent. PDF from Office File uses the Office installed on the PC; the file stays on the PC.
+- The AI assistant is off until the user turns it on and sends only to the endpoint the user configures (on the PC, the
+  local network or a service of the user's choice with the user's own key), only the text the user asked about, after
+  showing it and asking. Bermudez Systems receives nothing. API keys stay on the PC, encrypted for the Windows user.
 - Settings, recent files and logs stay in the user's local app data folder.
 
 ### Store listing checklist
@@ -148,6 +164,8 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
 - [ ] Privacy policy URL; support URL or email.
 - [ ] Age rating questionnaire; pricing and availability (markets, free/paid).
 - [ ] `runFullTrust` justification.
+- [ ] Live generative AI (policy 11.16): the AI paragraph in the description, and the generative AI declaration in
+      Partner Center during the submission.
 - [ ] Notes for certification: "No sign-in needed. Open any PDF from File > Open."
 
 ## Local test install (optional)
