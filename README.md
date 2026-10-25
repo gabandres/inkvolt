@@ -473,7 +473,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   measurement made before the page was turned keeps its label's angle (as other comments do). Not tested in Acrobat
   itself: the dictionaries follow the PDF standard and Acrobat's own measurements.
 - PDF/A: level 2b only (not 1, 3, or the accessible "a" level: no tagging is added). Fonts that aren't embedded are
-  embedded only for the standard Latin faces; Symbol and ZapfDingbats (often check marks in older forms), and other
+  embedded only for the standard Latin faces, in their style (bold, italic), and only when the document's widths are
+  that face's (other designs under a similar name, such as Helvetica Neue or condensed faces, refuse); Symbol and ZapfDingbats (often check marks in older forms), and other
   fonts, refuse the conversion, as do CMYK colors without a profile (the copy's output intent is sRGB) and signed
   documents. A form field without an appearance of its own refuses it too; comments without one are left out. Inkvolt
   PDF checks the rules it handles (Validate); it isn't a full validator: the copies made from the test documents (Word,

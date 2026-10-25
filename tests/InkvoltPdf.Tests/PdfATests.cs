@@ -132,6 +132,81 @@ public class PdfATests
         Assert.Contains(result.Changes, c => c.Contains("2 standard fonts embedded"));
     }
 
+    private static byte[] OneFont(string font) => Core2Pdf.Build(
+    [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        Core2Pdf.Stream("BT /F1 24 Tf 72 700 Td (ri) Tj ET"),
+        font,
+    ]);
+
+    [Theory]
+    [InlineData("Helvetica", false, false)]
+    [InlineData("Helvetica-BoldOblique", true, true)]
+    [InlineData("Times-Roman", false, false)]
+    [InlineData("ABCDEF+Arial,Bold", true, false)]
+    [InlineData("Arial,BoldItalic", true, true)]
+    [InlineData("Arial-ItalicMT", false, true)]
+    [InlineData("ArialMT", false, false)]
+    [InlineData("TimesNewRomanPS-BoldMT", true, false)]
+    [InlineData("TimesNewRoman,Italic", false, true)]
+    [InlineData("CourierNewPSMT", false, false)]
+    [InlineData("Courier-Oblique", false, true)]
+    public void StandardFacesAreRecognizedWithTheirStyle(string name, bool bold, bool italic)
+    {
+        var face = PdfA.StandardFace(name);
+        Assert.NotNull(face);
+        Assert.Equal((bold, italic), (face!.Bold, face.Italic));
+    }
+
+    [Theory]
+    [InlineData("HelveticaNeue")]
+    [InlineData("HelveticaNeue-Bold")]
+    [InlineData("Helvetica-Condensed")]
+    [InlineData("Arial-Black")]
+    [InlineData("ArialNarrow")]
+    [InlineData("Arial,Light")]
+    [InlineData("TimesTen-Roman")]
+    public void OtherDesignsOfTheFamilyAreNotStandardFaces(string name) => Assert.Null(PdfA.StandardFace(name));
+
+    [Fact]
+    public void ABoldFontIsEmbeddedBoldAndWidthsMustFit()
+    {
+        // "i" is 278 wide in Arial Bold and 222 in Arial: a bold font named "Arial,Bold" with bold widths gets the bold face.
+        var bold = PdfA.Convert(OneFont("<< /Type /Font /Subtype /TrueType /BaseFont /Arial,Bold /FirstChar 105 /LastChar 114 /Widths [278 0 0 0 0 0 0 0 0 389] /Encoding /WinAnsiEncoding >>"), null);
+        Assert.Empty(PdfA.Validate(bold.Data));
+        using (var doc = Core2Pdf.Open(bold.Data))
+        {
+            var f = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/Font"])!.Elements["/F1"])!;
+            Assert.EndsWith("Arial-Bold", PdfObj.Name(f.Elements["/BaseFont"]));
+            Assert.Equal(278, PdfObj.Num(PdfObj.Array(f.Elements["/Widths"])!, 'i' - PdfObj.Int(f.Elements["/FirstChar"])!.Value));
+        }
+        // Widths that aren't the Windows face's (another design under a standard name) refuse, saying why.
+        var narrow = OneFont("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 105 /LastChar 105 /Widths [400] >>");
+        Assert.Contains(PdfA.Check(narrow, null), b => b.Contains("widths"));
+        Assert.Contains(PdfA.Check(OneFont("<< /Type /Font /Subtype /Type1 /BaseFont /HelveticaNeue >>"), null), b => b.Contains("HelveticaNeue"));
+    }
+
+    [Fact]
+    public void DocumentPropertiesAndXmpSayTheSame()
+    {
+        using var source = new PdfDocument();
+        source.Info.Title = "  Spaced\u0001 title  ";
+        source.Info.Author = "Ada ";
+        source.AddPage();
+        using var ms = new MemoryStream();
+        source.Save(ms);
+        var result = PdfA.Convert(ms.ToArray(), null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var doc = Core2Pdf.Open(result.Data);
+        Assert.Equal("Spaced title", doc.Info.Title);
+        Assert.Equal("Ada", doc.Info.Author);
+        var xmp = Xmp(result.Data);
+        Assert.Contains(">Spaced title<", xmp);
+        Assert.Contains(">Ada<", xmp);
+    }
+
     [Fact]
     public void WhatCantBeKeptRefusesTheConversion()
     {
@@ -183,6 +258,8 @@ public class PdfATests
             ("synthetic", TestPdf.Make(3)),
             ("scripts", ScriptsPdf()),
             ("standard-fonts", StandardFontsPdf()),
+            ("bold-arial", OneFont("<< /Type /Font /Subtype /TrueType /BaseFont /Arial,BoldItalic /Encoding /WinAnsiEncoding >>")),
+            ("times-mt", OneFont("<< /Type /Font /Subtype /TrueType /BaseFont /TimesNewRomanPS-BoldMT /Encoding /WinAnsiEncoding >>")),
             ("commented", Annotations.AddNote(Annotations.AddTextMarkup(TestPdf.Make(1), null, 0, TextMarkupKind.Highlight, [new RectD(72, 80, 200, 24)],
                 AnnotColor.Yellow, "check", "Ada"), null, 0, 300, 300, "A note", "Ada")),
             ("form", FormEditor.SetValues(Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]),

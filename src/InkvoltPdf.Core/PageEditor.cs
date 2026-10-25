@@ -1246,6 +1246,22 @@ internal static class Xmp
         host.Add(new XElement(name, structured is null ? value : structured(value)));
     }
 
+    /// <summary>
+    /// Writes the document properties back as the XMP packet will carry them (<see cref="Clean"/>: trimmed, without
+    /// characters XML can't hold), so both say exactly the same (PDF/A requires it).
+    /// </summary>
+    internal static void CleanInfo(PdfDocumentInformation info)
+    {
+        foreach (var key in new[] { "/Title", "/Author", "/Subject", "/Keywords", "/Creator", "/Producer" })
+        {
+            if (PdfObj.Text(info.Elements[key]) is not { } value) continue;
+            var clean = Clean(value);
+            if (clean == value) continue;
+            if (clean.Length == 0) info.Elements.Remove(key);
+            else info.Elements[key] = PdfObj.MakeString(clean);
+        }
+    }
+
     /// <summary>Drops characters XML can't carry (PDF strings may hold control characters).</summary>
     private static string Clean(string? s) =>
         string.IsNullOrEmpty(s) ? "" : string.Concat(s.Where((c, i) => XmlConvert.IsXmlChar(c) ||

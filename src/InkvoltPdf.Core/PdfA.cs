@@ -85,6 +85,7 @@ public static class PdfA
 
         if (doc.Version > 17 || doc.Version < 14) doc.Version = 17;
         doc.Info.ModificationDate = now ?? DateTime.Now;
+        Xmp.CleanInfo(doc.Info); // the XMP packet carries the same values (6.6.2.3): trimmed, without control characters
         doc.Info.Elements.Remove("/Trapped"); // optional, and a wrong value would break conformance
         using var ms = new MemoryStream();
         doc.Save(ms, false);
@@ -96,6 +97,42 @@ public static class PdfA
     }
 
     private static string Count(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
+
+    /// <summary>
+    /// The base-14 Latin face a font name stands for, and so the Windows font with its metrics: the standard names
+    /// (Helvetica-Bold, Times-Roman, Courier-Oblique ...) and the Windows twins as PDF writers name them (Arial,Bold;
+    /// Arial-BoldMT; TimesNewRomanPS-ItalicMT; CourierNew,BoldItalic), with a subset prefix or not. Null for anything else:
+    /// other designs of the family (Helvetica Neue, condensed, narrow, black) have other widths.
+    /// </summary>
+    internal static StdFont? StandardFace(string baseFont)
+    {
+        var n = baseFont.TrimStart('/');
+        if (n.Length > 7 && n[6] == '+') n = n[7..];
+        n = n.Replace(" ", "", StringComparison.Ordinal);
+        string family, style;
+        if (n.IndexOf(',') is >= 0 and var comma) (family, style) = (n[..comma], n[(comma + 1)..]);
+        else if (n.IndexOf('-') is >= 0 and var dash) (family, style) = (n[..dash], n[(dash + 1)..]);
+        else (family, style) = (n, "");
+        foreach (var tail in new[] { "PSMT", "MT", "PS" })
+            if (family.EndsWith(tail, StringComparison.Ordinal)) family = family[..^tail.Length];
+        if (style.EndsWith("MT", StringComparison.Ordinal)) style = style[..^2];
+        StdFamily? f = family switch
+        {
+            "Helvetica" or "Arial" => StdFamily.Helvetica,
+            "Times" or "TimesNewRoman" => StdFamily.Times,
+            "Courier" or "CourierNew" => StdFamily.Courier,
+            _ => null,
+        };
+        (bool Bold, bool Italic)? s = style switch
+        {
+            "" or "Roman" or "Regular" or "Normal" => (false, false),
+            "Bold" => (true, false),
+            "Italic" or "Oblique" => (false, true),
+            "BoldItalic" or "BoldOblique" => (true, true),
+            _ => null,
+        };
+        return f is { } fam && s is { } st ? new StdFont(fam, st.Bold, st.Italic) : null;
+    }
 
     // ───────────────────────────── the pass ─────────────────────────────
 
@@ -415,7 +452,7 @@ public static class PdfA
                     if (sub == "Type3" || IsEmbedded(PdfObj.Dict(f.Elements["/FontDescriptor"])) ||
                         sub == "Type0" && IsEmbedded(PdfObj.Dict(PdfObj.Dict(PdfObj.Array(f.Elements["/DescendantFonts"])?.Elements.FirstOrDefault())?.Elements["/FontDescriptor"])))
                         continue;
-                    if (!Substitute(f)) dr.Elements.Remove(key);
+                    if (Substitute(f) is not null) dr.Elements.Remove(key);
                 }
             foreach (var font in used)
             {
@@ -429,7 +466,7 @@ public static class PdfA
                     continue;
                 }
                 if (IsEmbedded(PdfObj.Dict(font.Elements["/FontDescriptor"]))) continue;
-                if (!Substitute(font)) Blockers.Add($"The font {FontName(font)} isn't embedded, and only the standard fonts can be embedded here.");
+                if (Substitute(font) is { } why) Blockers.Add(why);
             }
         }
 
@@ -453,22 +490,18 @@ public static class PdfA
         }
 
         /// <summary>
-        /// Embeds a non-embedded standard Latin font (Helvetica, Times, Courier and their Windows twins) as a TrueType
-        /// subset of the metric-compatible Windows font, encoded WinAnsi with differences for the codes the original
-        /// encoding maps elsewhere. False when the font isn't one of those or the Windows font is missing.
+        /// Embeds a non-embedded standard Latin font (<see cref="StandardFace"/>: Helvetica, Times, Courier and their Windows
+        /// twins, in their style) as a TrueType subset of the metric-compatible Windows face, encoded WinAnsi with
+        /// differences for the codes the original encoding maps elsewhere. Null when done, else why it can't be: another
+        /// font, the Windows face missing, or widths in the document that differ from that face's.
         /// </summary>
-        private bool Substitute(PdfDictionary font)
+        private string? Substitute(PdfDictionary font)
         {
             var subtype = PdfObj.Name(font.Elements["/Subtype"]);
-            if (subtype is not ("Type1" or "TrueType" or "MMType1")) return false;
-            var name = (PdfObj.Name(font.Elements["/BaseFont"]) ?? "").Split(',')[0];
-            if (name.Length > 7 && name[6] == '+') name = name[7..];
-            var plain = name.Replace(" ", "", StringComparison.Ordinal).Replace("-", "", StringComparison.Ordinal);
-            if (!(plain.StartsWith("Helvetica", StringComparison.OrdinalIgnoreCase) || plain.StartsWith("Arial", StringComparison.OrdinalIgnoreCase) && !plain.StartsWith("ArialNarrow", StringComparison.OrdinalIgnoreCase) && !plain.StartsWith("ArialBlack", StringComparison.OrdinalIgnoreCase)
-                  || plain.StartsWith("Times", StringComparison.OrdinalIgnoreCase) || plain.StartsWith("Courier", StringComparison.OrdinalIgnoreCase)))
-                return false;
-            var std = StdFont.FromName(name);
-            if (std.Metrics is not { } ttf) return false;
+            var name = PdfObj.Name(font.Elements["/BaseFont"]) ?? "";
+            var notEmbedded = $"The font {FontName(font)} isn't embedded, and only the standard Helvetica, Times and Courier faces can be embedded here.";
+            if (subtype is not ("Type1" or "TrueType" or "MMType1") || PdfA.StandardFace(name) is not { } std) return notEmbedded;
+            if (std.Metrics is not { } ttf) return $"The font {FontName(font)} isn't embedded, and Windows' matching font isn't installed.";
 
             // The original code → glyph name map (its encoding, else StandardEncoding as the standard fonts have).
             var names = new string?[256];
@@ -501,8 +534,22 @@ public static class PdfA
                 if (u.Length == (cp > 0xFFFF ? 2 : 1) && ttf.Has(cp)) unicodes[c] = cp;
             }
             var used = unicodes.Where(u => u > 0).Distinct().ToList();
-            if (used.Count == 0) return false;
-            if (HbSubset.SubsetUnicodes(ttf, used) is not { } program) return false;
+            if (used.Count == 0) return notEmbedded;
+
+            // The document's own widths (where it has them) must be the Windows face's, or the text would move.
+            if (PdfObj.Array(font.Elements["/Widths"]) is { } own)
+            {
+                var firstOwn = PdfObj.Int(font.Elements["/FirstChar"]) ?? 0;
+                for (var i = 0; i < own.Elements.Count; i++)
+                {
+                    var code = firstOwn + i;
+                    var w = PdfObj.Num(own, i);
+                    if (code is < 0 or > 255 || unicodes[code] == 0 || w <= 0) continue;
+                    if (Math.Abs(w - ttf.Advance(unicodes[code]) * 1000) > 20)
+                        return $"The font {FontName(font)} isn't embedded, and its letter widths differ from Windows' {std.Family switch { StdFamily.Times => "Times New Roman", StdFamily.Courier => "Courier New", _ => "Arial" }}{(std.Bold ? " Bold" : "")}{(std.Italic ? " Italic" : "")}, so the text would move.";
+                }
+            }
+            if (HbSubset.SubsetUnicodes(ttf, used) is not { } program) return notEmbedded;
 
             var differences = new PdfArray(doc);
             for (var c = 0; c < 256; c++)
@@ -519,7 +566,8 @@ public static class PdfA
             for (var c = first; c <= last; c++) widths.Elements.Add(new PdfInteger(unicodes[c] > 0 ? (int)Math.Round(ttf.Advance(unicodes[c]) * 1000) : 0));
 
             var tag = Tag(name + string.Join(",", used));
-            var postScript = new string([.. (std.BaseFont).Where(ch => char.IsAsciiLetterOrDigit(ch) || ch == '-')]);
+            var style = (std.Bold, std.Italic) switch { (true, true) => "-BoldItalic", (true, false) => "-Bold", (false, true) => "-Italic", _ => "" };
+            var postScript = std.Family switch { StdFamily.Times => "TimesNewRoman", StdFamily.Courier => "CourierNew", _ => "Arial" } + style;
             var baseFont = $"/{tag}+{postScript}";
             var file = PdfObj.AddStream(doc, program);
             file.Elements["/Length1"] = new PdfInteger(program.Length);
@@ -553,7 +601,7 @@ public static class PdfA
                 font.Elements["/Encoding"] = encoding;
             }
             _embedded++;
-            return true;
+            return null;
         }
 
         private static string Tag(string seed)
