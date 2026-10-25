@@ -179,15 +179,15 @@ async Task Status(string h)
 {
     using var c = await PrinterConnection.OpenAsync(h, ct: ct);
     var sw = Stopwatch.StartNew();
-    var status = await c.GetStatusAsync(ct);
-    var supplies = await c.GetSuppliesAsync(ct);
+    var reading = await c.ReadAsync(ct);
+    var status = reading.Status;
     Console.WriteLine($"status ({sw.ElapsedMilliseconds} ms): {status.Message} [{status.Code}, {status.Severity}]");
     foreach (var a in status.Alerts) Console.WriteLine($"  alert: {a.Severity} {a.Message}");
-    foreach (var s in supplies)
+    foreach (var s in reading.Supplies ?? [])
         Console.WriteLine($"  {s.Name}: {s.PercentRemaining}% {s.State} ~{s.EstimatedPagesRemaining} pages, {s.ProductNumber} ({s.SelectibilityNumber})");
-    if (c.Ledm is not null && await c.Ledm.GetUsageAsync(ct) is { } u)
+    if (reading.Usage is { } u)
         Console.WriteLine($"  pages printed: {u.TotalImpressions}, scans: {u.ScanImages}, jams: {u.JamEvents}");
-    if (c.Ipp is not null)
+    if (c.Ipp is not null) // a diagnostic: what IPP says, beside what the reading took from LEDM or CDM
     {
         var ippStatus = Ipp(await c.Ipp.GetPrinterAttributesAsync(ct: ct));
         Console.WriteLine($"  via IPP: {ippStatus}");

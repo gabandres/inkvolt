@@ -108,19 +108,36 @@ public sealed class PrinterConnection : IDisposable
         Ipp = probe.Ipp is not null ? new IppClient(http, probe.IppEndpoint ?? DefaultIpp(http)) : null;
         Cdm = probe.Cdm is { } cdm ? new CdmClient(http, cdm.Root) : null;
         Snmp = probe.Snmp is { } id && snmp is not null ? new SnmpPrinterClient(snmp, http.Host, id) : null;
+        _reader = new PrinterReader(new ReadingSource?[]
+        {
+            Ledm is null ? null : new ReadingSource.Ledm(Ledm),
+            Cdm is null ? null : new ReadingSource.Cdm(Cdm),
+            Ipp is null ? null : new ReadingSource.Ipp(Ipp),
+            Snmp is null ? null : new ReadingSource.Snmp(Snmp),
+            Scanner is null ? null : new ReadingSource.Escl(Scanner),
+        }.OfType<ReadingSource>().ToList());
     }
+
+    private readonly PrinterReader _reader;
 
     public DeviceHttp Http { get; }
     public ProbeResult Probe { get; }
+
+    /// <summary>HP's LEDM, for what only it does: settings (read and write), firmware updates, maintenance pages.</summary>
     public LedmClient? Ledm { get; }
     public EsclClient? Scanner { get; }
+
+    /// <summary>IPP, for what only it does: Identify-Printer, maintenance. Status and supplies come from <see cref="ReadAsync"/>.</summary>
     public IppClient? Ipp { get; }
 
-    /// <summary>HP CDM, read only, for newer HP printers without LEDM: status, supplies and identity.</summary>
-    public CdmClient? Cdm { get; }
+    /// <summary>HP CDM, read only, for newer HP printers without LEDM: status, supplies and identity (read through <see cref="ReadAsync"/>).</summary>
+    internal CdmClient? Cdm { get; }
 
     /// <summary>SNMP (Printer MIB), read only, for a printer without LEDM, CDM or IPP: status, alerts and supply levels.</summary>
-    public SnmpPrinterClient? Snmp { get; }
+    internal SnmpPrinterClient? Snmp { get; }
+
+    /// <summary>Connected over SNMP only (a printer that answered none of LEDM, CDM and IPP): no UUID, identity by serial number.</summary>
+    public bool OverSnmp => Snmp is not null;
 
     /// <param name="esclHint">eSCL base from DNS-SD (<c>rs</c> TXT + port), tried if <c>http://host/eSCL/</c> fails.</param>
     /// <param name="transport">Replaces the network (e.g. <see cref="FixtureHandler"/> for demo mode); null: real HTTP.</param>
@@ -270,75 +287,27 @@ public sealed class PrinterConnection : IDisposable
         && ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused };
 
     /// <summary>
-    /// LEDM first, then CDM (newer HP printers), IPP as fallback, then SNMP. Network failures mean offline; a printer that answers with an error or
-    /// garbage (common while it wakes up) is reported as <see cref="PrinterStatus.Unavailable"/>, not offline.
+    /// One read of the printer: status, supply levels and usage counters, each from the first interface that gives it (LEDM,
+    /// then CDM for newer HP printers, then IPP, then SNMP), with one error rule (<see cref="PrinterReader"/>): a network failure
+    /// means offline; a printer that answers with an error or garbage (common while it wakes up) passes the part on to the next
+    /// interface, and is <see cref="PrinterStatus.Unavailable"/>, not offline, when none gives it. Never throws for either.
     /// </summary>
-    public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default)
-    {
-        Exception? transient = null;
-        if (Ledm is not null)
-        {
-            try
-            {
-                if (await Ledm.GetStatusAsync(ct).ConfigureAwait(false) is { } s) return s;
-            }
-            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
-            catch (Exception ex) when (IsTransient(ex)) { transient = ex; }
-        }
-        if (Cdm is not null)
-        {
-            try
-            {
-                if (await Cdm.GetStatusAsync(ct).ConfigureAwait(false) is { } s) return s;
-            }
-            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
-            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
-        }
-        if (Ipp is not null)
-        {
-            try
-            {
-                return IppClient.ToStatus(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
-            }
-            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
-            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
-        }
-        if (Snmp is not null)
-        {
-            try
-            {
-                return await Snmp.GetStatusAsync(ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (IsOffline(ex)) { return PrinterStatus.Offline("Printer is not responding"); }
-            catch (Exception ex) when (IsTransient(ex)) { transient ??= ex; }
-        }
-        return transient is not null
-            ? PrinterStatus.Unavailable("The printer is busy; status will update shortly")
-            : new PrinterStatus("unknown", "Status not available", Severity.Info, []);
-    }
+    public Task<PrinterReading> ReadAsync(CancellationToken ct = default) => _reader.ReadAsync(ReadParts.All, ct);
+
+    /// <summary>The status part of <see cref="ReadAsync"/> only.</summary>
+    public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default) =>
+        (await _reader.ReadAsync(ReadParts.Status, ct).ConfigureAwait(false)).Status;
+
+    /// <summary>The supplies part of <see cref="ReadAsync"/> only: empty when they couldn't be read (never throws for that).</summary>
+    public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default) =>
+        (await _reader.ReadAsync(ReadParts.Supplies, ct).ConfigureAwait(false)).Supplies ?? [];
 
     /// <summary>
     /// The UUID the device at this address reports now, from one small read of the interface it was connected over (LEDM product
-    /// config, CDM identity, IPP printer-uuid, eSCL capabilities), falling back to the next when one can't answer. Empty when
-    /// none answered: callers then can't tell and keep going.
+    /// config, CDM identity, IPP printer-uuid, eSCL capabilities), falling back to the next when one answers with an error.
+    /// Empty when none told (or the printer didn't answer): callers then can't tell and keep going.
     /// </summary>
-    public async Task<IReadOnlyList<string?>> ReadUuidsAsync(CancellationToken ct = default)
-    {
-        var reads = new List<Func<Task<string?>>>();
-        if (Ledm is not null) reads.Add(async () => (await Ledm.GetProductInfoAsync(ct).ConfigureAwait(false))?.Uuid);
-        if (Cdm is not null) reads.Add(async () => (await Cdm.GetIdentityAsync(ct).ConfigureAwait(false))?.Uuid);
-        if (Ipp is not null) reads.Add(async () => (await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false)).Str("printer-uuid"));
-        if (Scanner is not null) reads.Add(async () => (await Scanner.GetCapabilitiesAsync(ct).ConfigureAwait(false))?.Uuid);
-        foreach (var read in reads)
-        {
-            try
-            {
-                if (await read().ConfigureAwait(false) is { Length: > 0 } uuid) return [uuid];
-            }
-            catch (Exception ex) when (IsOffline(ex) || IsTransient(ex)) { }
-        }
-        return [];
-    }
+    public Task<IReadOnlyList<string?>> ReadUuidsAsync(CancellationToken ct = default) => _reader.ReadUuidsAsync(ct);
 
     /// <summary>
     /// Over SNMP: who answers at the address now (<see cref="SnmpPrinterClient.ReadIdentityAsync"/>), to compare with the printer
@@ -359,15 +328,6 @@ public sealed class PrinterConnection : IDisposable
         if (richer.Probe.Reachable && known?.Identify(richer.Probe.SerialNumber) != Model.DeviceIdentity.Different) return richer;
         richer.Dispose();
         return null;
-    }
-
-    public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default)
-    {
-        if (Ledm is not null && await Ledm.GetConsumablesAsync(ct).ConfigureAwait(false) is { } c) return c;
-        if (Cdm is not null && await Cdm.GetSuppliesAsync(ct).ConfigureAwait(false) is { Count: > 0 } cdm) return cdm;
-        if (Ipp is not null) return IppClient.ToConsumables(await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false));
-        if (Snmp is not null) return await Snmp.GetSuppliesAsync(ct).ConfigureAwait(false);
-        return [];
     }
 
     /// <summary>

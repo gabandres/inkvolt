@@ -796,7 +796,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return null;
         }
         _identityCheckedAt = DateTime.UtcNow;
-        if (conn.Snmp is not null) _richerTriedAt = DateTime.UtcNow; // HTTP just didn't answer: asked again later
+        if (conn.OverSnmp) _richerTriedAt = DateTime.UtcNow; // HTTP just didn't answer: asked again later
         return conn;
     }
 
@@ -822,7 +822,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task<bool> StillThisPrinterAsync(PrinterConnection conn, CancellationToken ct)
     {
-        if (conn.Snmp is not null)
+        if (conn.OverSnmp)
         {
             // SNMP has no UUID: the serial number, model and name it gave when it was added tell.
             var now = await conn.ReadSnmpIdentityAsync(ct);
@@ -845,7 +845,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task<PrinterConnection?> TryRicherAsync(PrinterConnection conn, CancellationToken ct)
     {
-        if (conn.Snmp is null || Host is null || DateTime.UtcNow - _richerTriedAt < RicherInterval) return null;
+        if (!conn.OverSnmp || Host is null || DateTime.UtcNow - _richerTriedAt < RicherInterval) return null;
         _richerTriedAt = DateTime.UtcNow;
         var richer = await conn.TryRicherAsync(SnmpDevice, EsclRoot, IppUri, new PinStore(_state, Uuid), _transport?.Invoke(), ct);
         if (richer is null) return null;
@@ -931,7 +931,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
-        if (conn.Ledm is not null)
+        if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, IsDemo ? null : OpenWebPage);
             else Settings.Rebind(conn);
@@ -1043,18 +1043,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         var conn = _connection;
         if (conn is null) return;
-        var statusTask = conn.GetStatusAsync(ct);
-        var suppliesTask = conn.GetSuppliesAsync(ct);
-        var usageTask = conn.Ledm?.GetUsageAsync(ct) ?? Task.FromResult<UsageCounters?>(null);
-
-        var status = await statusTask;
-        if (status.Code == "offline")
+        var reading = await conn.ReadAsync(ct);
+        var status = reading.Status;
+        if (reading.IsOffline)
         {
             SetOffline();
-            ObserveQuietly(suppliesTask, usageTask);
             return;
         }
-        IReadOnlyList<Consumable>? read = null;
         IsConnecting = false;
         IsOnline = true;
         if (!status.IsUnavailable)
@@ -1067,33 +1062,23 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         Maintenance.Update(true, status);
 
-        try
+        // Supplies not read this time (null) stay as they were; they refresh on the next event.
+        if (reading.Supplies is { } supplies)
         {
-            var supplies = await suppliesTask;
-            read = supplies;
             Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
             OnPropertyChanged(nameof(SuppliesTitle));
-            if (await usageTask is { } u)
-                Sync(Stats, new InfoRow?[]
-                {
-                    u.TotalImpressions is { } t ? new($"{t:N0}", "pages printed") : null,
-                    u.DuplexSheets is { } d ? new($"{d:N0}", "two-sided sheets") : null,
-                    u.ScanImages is { } sc ? new($"{sc:N0}", "pages scanned") : null,
-                    u.JamEvents is { } j ? new($"{j:N0}", "paper jams") : null,
-                }.OfType<InfoRow>().ToList());
         }
-        catch (Exception ex) when (PrinterConnection.IsOffline(ex) || PrinterConnection.IsTransient(ex))
-        {
-            // Status is what matters; supplies refresh on the next event.
-        }
+        if (reading.Usage is { } u)
+            Sync(Stats, new InfoRow?[]
+            {
+                u.TotalImpressions is { } t ? new($"{t:N0}", "pages printed") : null,
+                u.DuplexSheets is { } d ? new($"{d:N0}", "two-sided sheets") : null,
+                u.ScanImages is { } sc ? new($"{sc:N0}", "pages scanned") : null,
+                u.JamEvents is { } j ? new($"{j:N0}", "paper jams") : null,
+            }.OfType<InfoRow>().ToList());
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, read));
-    }
-
-    private static void ObserveQuietly(params Task[] tasks)
-    {
-        foreach (var t in tasks) _ = t.ContinueWith(x => _ = x.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies));
     }
 
     private void SetOffline() => SetOffline("Can't reach the printer",
