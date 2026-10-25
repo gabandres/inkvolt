@@ -40,11 +40,18 @@ public class Core1EngineTests(Xunit.Abstractions.ITestOutputHelper output)
         var full = Stopwatch.StartNew();
         engine.Render(0, 1);
         full.Stop();
+        if (full.ElapsedMilliseconds < 50) return; // too fast here to cancel midway
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(30));
+        // Cancel a fifth of the way in, from a thread of its own: a CancellationTokenSource timer runs on the thread pool,
+        // which the full suite keeps busy enough that it fired after the render had finished.
+        using var cts = new CancellationTokenSource();
+        var cancelAfter = (int)(full.ElapsedMilliseconds / 5);
+        var canceller = new Thread(() => { Thread.Sleep(cancelAfter); cts.Cancel(); }) { IsBackground = true };
         var cut = Stopwatch.StartNew();
+        canceller.Start();
         Assert.ThrowsAny<OperationCanceledException>(() => engine.Render(0, 1, null, cts.Token));
         cut.Stop();
+        canceller.Join();
         output.WriteLine($"full {full.ElapsedMilliseconds} ms, cancelled after {cut.ElapsedMilliseconds} ms");
         if (full.ElapsedMilliseconds > 400)
             Assert.True(cut.ElapsedMilliseconds < full.ElapsedMilliseconds * 0.6, $"cancelled after {cut.ElapsedMilliseconds} ms; full render {full.ElapsedMilliseconds} ms");

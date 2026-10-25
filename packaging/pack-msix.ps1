@@ -10,6 +10,8 @@
 #                                                                   the output folder; installed nowhere) for sideloading
 #   pwsh -File packaging/pack-msix.ps1 -App Print -IncludeHpCleanup keeps the HP clean-up in the package (sideloading only;
 #                                                                   Store builds leave it out, see print/packaging/README.md)
+#   pwsh -File packaging/pack-msix.ps1 -App Pdf -NoSmoke            skips installing and running this PC's layout
+#                                                                   (packaging/smoke-msix.ps1; needs Developer Mode)
 #
 # Output (<app>\publish\msix): <Name>_<ver>_x64.msix, <Name>_<ver>_arm64.msix, <Name>_<ver>.msixbundle, <Name>_<ver>.msixupload,
 # <Name> being InkvoltPdf or InkvoltPrint. See pdf/packaging/README.md and print/packaging/README.md.
@@ -37,7 +39,9 @@ param(
     [switch]$SignWithTestCert,
     # Inkvolt Print only: keep the HP clean-up (removes HP's apps and services) in the package. Off by default: Store builds
     # leave it out.
-    [switch]$IncludeHpCleanup
+    [switch]$IncludeHpCleanup,
+    # Skip the smoke test (packaging/smoke-msix.ps1), which installs this PC's layout in Developer Mode and runs it
+    [switch]$NoSmoke
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -101,6 +105,54 @@ function Invoke-Tool([string]$exe, [string[]]$arguments) {
 
 function ConvertTo-XmlText([string]$s) { [Security.SecurityElement]::Escape($s) }
 
+# The DLL names a PE file imports (its import directory), or nothing for a file that isn't one.
+function Get-PeImports([string]$path) {
+    $b = [IO.File]::ReadAllBytes($path)
+    if ($b.Length -lt 64 -or $b[0] -ne 0x4D -or $b[1] -ne 0x5A) { return }
+    $pe = [BitConverter]::ToInt32($b, 0x3C)
+    if ($pe -lt 0 -or $pe + 24 -gt $b.Length -or [BitConverter]::ToUInt32($b, $pe) -ne 0x4550) { return }
+    $sections = [BitConverter]::ToUInt16($b, $pe + 6)
+    $opt = $pe + 24
+    $dirs = if ([BitConverter]::ToUInt16($b, $opt) -eq 0x20B) { $opt + 112 } else { $opt + 96 }
+    $importRva = [BitConverter]::ToUInt32($b, $dirs + 8)
+    if ($importRva -eq 0) { return }
+    $sectionTable = $opt + [BitConverter]::ToUInt16($b, $pe + 20)
+    $toOffset = {
+        param([uint32]$rva)
+        for ($i = 0; $i -lt $sections; $i++) {
+            $s = $sectionTable + 40 * $i
+            $va = [BitConverter]::ToUInt32($b, $s + 12)
+            $size = [math]::Max([BitConverter]::ToUInt32($b, $s + 8), [BitConverter]::ToUInt32($b, $s + 16))
+            if ($rva -ge $va -and $rva -lt $va + $size) { return [long]($rva - $va + [BitConverter]::ToUInt32($b, $s + 20)) }
+        }
+        -1
+    }
+    $d = & $toOffset $importRva
+    while ($d -ge 0 -and $d + 20 -le $b.Length) {
+        $nameRva = [BitConverter]::ToUInt32($b, $d + 12)
+        if ($nameRva -eq 0) { break }
+        $n = & $toOffset $nameRva
+        if ($n -lt 0) { break }
+        [Text.Encoding]::ASCII.GetString($b, $n, [Array]::IndexOf($b, [byte]0, [int]$n) - $n)
+        $d += 20
+    }
+}
+
+# A native library that links the Visual C++ runtime starts on a Store PC only if the package ships the runtime or
+# declares the VCLibs framework: Inkvolt PDF 1.0.0.0 failed certification for this (pdf/packaging/README.md, "Visual C++
+# runtime"). A PC with the redistributable installed, like the one packing, never shows it.
+function Assert-VcRuntime([string]$layout, [string]$manifest) {
+    if ($manifest -match 'Microsoft\.VCLibs\.140\.00\.UWPDesktop') { return }
+    $users = Get-ChildItem $layout -Recurse -Include *.dll, *.exe | ForEach-Object {
+        $file = $_
+        Get-PeImports $file.FullName | Where-Object { $_ -match '^(msvcp140|vcruntime140)(_\d+)?\.dll$' } |
+            Where-Object { -not (Test-Path (Join-Path $file.DirectoryName $_)) } | ForEach-Object { "$($file.Name) -> $_" }
+    }
+    if ($users) {
+        throw "The package links the Visual C++ runtime without shipping it or declaring Microsoft.VCLibs.140.00.UWPDesktop in the manifest: $($users -join '; ')"
+    }
+}
+
 # ───── Publish (self-contained folder layout: no single-file extraction, starts faster) ─────
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $template = Get-Content (Join-Path $appPackaging 'AppxManifest.template.xml') -Raw
@@ -160,7 +212,9 @@ foreach ($arch in $Architectures) {
     Copy-Item $assets (Join-Path $layout 'Assets') -Recurse
     Copy-Item $pri $layout
     Copy-Item ($cfg.Extras | ForEach-Object { Join-Path $appRoot $_ }) $layout
-    Set-Content (Join-Path $layout 'AppxManifest.xml') (New-Manifest $arch) -Encoding utf8
+    $manifest = New-Manifest $arch
+    Set-Content (Join-Path $layout 'AppxManifest.xml') $manifest -Encoding utf8
+    Assert-VcRuntime $layout $manifest
 
     $file = Join-Path $packagesDir "${name}_${Version}_$arch.msix"
     Write-Host "Packing $([IO.Path]::GetFileName($file))..."
@@ -215,6 +269,12 @@ if ($SignWithTestCert) {
     foreach ($f in $signed) { Invoke-Tool $signtool @('sign', '/q', '/fd', 'SHA256', '/f', $pfx, $f) }
     Write-Host "Signed with the test certificate. To sideload, trust it yourself first (see $($cfg.Folder)/packaging/README.md, `"Local test install`")."
 }
+
+# ───── Smoke test: install this PC's layout as the Store would and run it ─────
+$smokeArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+if ($NoSmoke) { Write-Warning 'Smoke test skipped (-NoSmoke): this package has not been run installed.' }
+elseif ($Architectures -notcontains $smokeArch) { Write-Warning "Smoke test skipped: no $smokeArch layout to run on this PC." }
+else { & (Join-Path $PSScriptRoot 'smoke-msix.ps1') -App $App -Architecture $smokeArch -Layout (Join-Path $OutDir "layout\$smokeArch") }
 
 Write-Host ''
 Get-ChildItem $OutDir -File | Where-Object Extension -in '.msix', '.msixbundle', '.msixupload', '.pfx', '.cer' |

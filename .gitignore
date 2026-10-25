@@ -490,3 +490,6 @@ $RECYCLE.BIN/
 
 # Scratch build outputs (dotnet build --artifacts-path)
 .artifacts/
+
+# export-corpus downloads and results (pdf/tools/export-corpus)
+.cache/

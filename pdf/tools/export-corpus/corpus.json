@@ -1,0 +1,9 @@
+[
+  { "name": "attn-v7", "url": "https://arxiv.org/pdf/1706.03762v7", "what": "two-column paper, author grid, equations" },
+  { "name": "resnet", "url": "https://arxiv.org/pdf/1512.03385v1", "what": "two-column paper, margin stamp turned sideways, figures" },
+  { "name": "census-p60", "url": "https://www2.census.gov/library/publications/2024/demo/p60-282.pdf", "what": "report: charts, wide tables, landscape pages" },
+  { "name": "f1040-2024", "url": "https://www.irs.gov/pub/irs-prior/f1040--2024.pdf", "what": "dense form: grids, fill-in rules, checkboxes" },
+  { "name": "fw9", "url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf", "what": "form with instructions in columns" },
+  { "name": "nist-sp800-63-3", "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63-3.pdf", "what": "long standard: contents leaders, headings, tables" },
+  { "name": "usgs-fs", "url": "https://pubs.usgs.gov/fs/2008/3062/fs2008-3062.pdf", "what": "fact sheet: photos, sidebars, columns" }
+]

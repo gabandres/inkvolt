@@ -21,6 +21,11 @@ pwsh -File packaging/pack-msix.ps1 -App Print -Version 1.1.0.0   # a later submi
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.
 
+After packing, it installs this PC's layout as a Store install would (Developer Mode), runs it, and removes it
+(`packaging/smoke-msix.ps1 -App Print`). It also refuses a layout whose native libraries link the Visual C++ runtime
+without the VCLibs dependency. Upload only a package that passed both; `-NoSmoke` skips the run (e.g. while a Store
+copy is installed).
+
 Other parameters: `-DisplayName` (default `Inkvolt Print`), `-Architectures x64,arm64`, `-OutDir` (default `print/publish/msix`), `-NoBuild` (reuse the
 last publish), `-SignWithTestCert` (below), `-IncludeHpCleanup` (sideloading only, see "HP clean-up" below).
 

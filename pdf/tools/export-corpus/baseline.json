@@ -1,0 +1,37 @@
+{
+  "attn-v7": {
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+    "pdfPages": 15,
+    "wordPages": 19
+  },
+  "resnet": {
+    "sha256": "1e0651b6810ecba34a3dbc5b5b0209226f889004607c1f203540a48d64e5a93a",
+    "pdfPages": 12,
+    "wordPages": 27
+  },
+  "census-p60": {
+    "sha256": "e6cf145cb10b5d037f5e77fa199d2e558bfe24f76273f385e9767c2eabba1cbf",
+    "pdfPages": 59,
+    "wordPages": 92
+  },
+  "f1040-2024": {
+    "sha256": "0a7a54354283044cb41373c6faabfa50955d44bdf91b4b76fa1ca2bf13f6d718",
+    "pdfPages": 2,
+    "wordPages": 6
+  },
+  "fw9": {
+    "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53",
+    "pdfPages": 6,
+    "wordPages": 10
+  },
+  "nist-sp800-63-3": {
+    "sha256": "915bb812cb705918461e642e84141c6ca2adc2ca0106e1d88f3884c61f07110a",
+    "pdfPages": 76,
+    "wordPages": 76
+  },
+  "usgs-fs": {
+    "sha256": "060afb340a67766144cef63a6c52fc1186c4617dca8cebd3292f122304137ae3",
+    "pdfPages": 4,
+    "wordPages": 12
+  }
+}
