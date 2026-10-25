@@ -8,7 +8,7 @@ public static class Features
     /// <summary>
     /// HP clean-up: finds and removes HP Smart, HP's Print Support App and the services it leaves behind. Removing other
     /// publishers' apps and services may not pass Microsoft Store review, so packaged copies leave it out unless the
-    /// package was built with <c>pack-msix.ps1 -IncludeHpCleanup</c> (sideloading, outside the Store). Unpackaged copies
+    /// package was built with <c>pack-msix.ps1 -App Print -IncludeHpCleanup</c> (sideloading, outside the Store). Unpackaged copies
     /// always have it.
     /// </summary>
     public static bool HpCleanup { get; } =

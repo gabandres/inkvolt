@@ -10,7 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
-    <ProjectReference Include="..\..\src\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

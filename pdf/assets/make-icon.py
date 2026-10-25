@@ -10,7 +10,7 @@
                               logo), named with MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri
                               indexes into resources.pri (packaging/pack-msix.ps1).
 
-Shapes are drawn in a 48-unit grid (assets/iconkit.py, shared with Inkvolt Print) at about 1024 px and box-downsampled
+Shapes are drawn in a 48-unit grid (shared/assets/iconkit.py, shared with Inkvolt Print) at about 1024 px and box-downsampled
 to each size; 24 px and below use bolder shapes.
 Run:  python -I assets/make-icon.py   (needs Pillow)
 """
@@ -19,7 +19,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)  # python -I leaves the script's folder off the path
+sys.path.insert(0, os.path.join(HERE, "..", "..", "shared", "assets"))  # iconkit.py, shared by both apps' icons
 from iconkit import Canvas, Grad, bolt_pts, drop_pts, page_pts  # noqa: E402
 
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]

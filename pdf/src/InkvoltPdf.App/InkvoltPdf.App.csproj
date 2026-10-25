@@ -16,9 +16,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
-    <!-- Inkvolt suite: eSCL scanning, printer status and discovery from Inkvolt Print (no packages: protocols + WinRT only) -->
-    <ProjectReference Include="$(InkvoltPrintRoot)src\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
-    <ProjectReference Include="$(InkvoltPrintRoot)src\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+    <!-- Inkvolt suite: eSCL scanning, printer status and discovery from the libraries shared with Inkvolt Print (shared/; no packages: protocols + WinRT only) -->
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
   </ItemGroup>
   <!-- Publish: our own symbols are embedded (Directory.Build.props); packages' loose .pdb files (e.g. libHarfBuzzSharp.pdb,
        23 MB) would land next to the single-file exe, so leave every .pdb out of the publish output. -->

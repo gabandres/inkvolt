@@ -1,27 +1,32 @@
 # Inkvolt PDF for the Microsoft Store (MSIX)
 
-`pack-msix.ps1` builds Inkvolt PDF as MSIX packages for x64 and ARM64, bundles them, and writes the Store upload file. The
-unpackaged per-user install (`install.ps1`) keeps working unchanged next to it.
+The repository's `packaging/pack-msix.ps1 -App Pdf` (shared with Inkvolt Print) builds Inkvolt PDF as MSIX packages for x64
+and ARM64, bundles them, and writes the Store upload file. This folder holds Inkvolt PDF's manifest template and images. The
+unpackaged per-user install (`install.ps1`) keeps working unchanged next to it. Paths below are in `pdf/` unless they start
+with `packaging/` (the repository root's).
 
 Inkvolt PDF is licensed under the GNU AGPL v3 (`../LICENSE`; MuPDF requires it); dependencies are listed in
-`../THIRD-PARTY-NOTICES.md`. Every Store build must point to its source: https://github.com/gabandres/inkvolt-pdf.
+`../THIRD-PARTY-NOTICES.md`. Every Store build must point to its source: https://github.com/gabandres/inkvolt (Inkvolt PDF is `pdf/`;
+https://github.com/gabandres/inkvolt-pdf, the address before the move, redirects there).
 
 ## Build
 
+From the repository root:
+
 ```powershell
-pwsh -File packaging/pack-msix.ps1                       # Store build with the Partner Center identity, unsigned
-pwsh -File packaging/pack-msix.ps1 -Version 1.1.0.0      # a later submission
+pwsh -File packaging/pack-msix.ps1 -App Pdf                    # Store build with the Partner Center identity, unsigned
+pwsh -File packaging/pack-msix.ps1 -App Pdf -Version 1.1.0.0   # a later submission
 ```
 
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.
 
-Other parameters: `-DisplayName` (default `Inkvolt PDF`), `-Architectures x64,arm64`, `-OutDir`, `-NoBuild` (reuse the last
+Other parameters: `-DisplayName` (default `Inkvolt PDF`), `-Architectures x64,arm64`, `-OutDir` (default `pdf/publish/msix`), `-NoBuild` (reuse the last
 publish), `-SignWithTestCert` (below).
 
 What it does:
 
-1. Restores `Microsoft.Windows.SDK.BuildTools` (version in `tools/BuildTools.csproj`) into the NuGet cache and uses its
+1. Restores `Microsoft.Windows.SDK.BuildTools` (version in `packaging/tools/BuildTools.csproj`) into the NuGet cache and uses its
    `makeappx`, `makepri` and `signtool`. No Windows SDK install.
 2. `dotnet publish` per architecture: Release, self-contained, folder layout (not single-file), version = `-Version`.
    Checks that the MuPDF and HarfBuzz natives are there.
@@ -128,7 +133,7 @@ Description:
 >
 > No account, no ads, no telemetry. Your documents stay on your PC unless you send text to an AI service you set up.
 >
-> Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt-pdf
+> Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt
 
 Keywords (up to 7): PDF, PDF editor, fill and sign, digital signature, annotate, merge PDF, OCR.
 
@@ -154,7 +159,7 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
 
 ### Store listing checklist
 
-- [ ] Source link in the description: "Source code (AGPL-3.0): https://github.com/gabandres/inkvolt-pdf".
+- [ ] Source link in the description: "Source code (AGPL-3.0): https://github.com/gabandres/inkvolt".
 - [ ] Description, short description, feature list (from the README's "Using it").
 - [ ] Screenshots: PNG, at least 1366x768 (1920x1080 recommended), 1-10. Take them off-screen with the dev script, e.g.
       a `steps.txt` of `size 1920 1080`, `wait 1500`, `shot C:\shots\reading.png`, `exit`, then
@@ -173,7 +178,7 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
 The Store signs uploads itself; local installs need a trusted signature or Developer Mode. Both are manual steps on
 purpose: the script never installs certificates or packages.
 
-**Signed bundle.** `pack-msix.ps1 -SignWithTestCert` creates `publish/msix/InkvoltPdf-TestSigning.pfx` (no password) and
+**Signed bundle.** `pack-msix.ps1 -App Pdf -SignWithTestCert` creates `publish/msix/InkvoltPdf-TestSigning.pfx` (no password) and
 `.cer` with subject = `-Publisher`, in memory and files only, then signs the bundle and both `.msix`. To install it,
 trust the certificate, then add the package (elevated PowerShell for the first command):
 

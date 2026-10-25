@@ -1,29 +1,11 @@
 <Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+  <!-- Inkvolt PDF's projects only. The shared libraries (shared/) they reference build with the repo's settings. -->
   <PropertyGroup>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WinTfm>net10.0-windows10.0.22621.0</WinTfm>
     <!-- Release: PDB embedded in the dll/exe, so crash logs get file and line numbers (works with single-file publish) -->
     <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
-    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <!-- Native ARM64 build (MuPDF ships a win-arm64 native library) -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-arm64</RuntimeIdentifier>
     <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
-  </PropertyGroup>
-  <!-- Inkvolt suite: InkvoltPdf.App uses Inkvolt Print's libraries (scanning, printer status) from its own repo. InkvoltPrintRoot
-       is the Inkvolt Print checkout: the InkvoltPrintRoot environment variable if set, else the first folder named
-       inkvolt-print, InkvoltPrint or PrintDesk (its checkout before the rename) that holds InkvoltPrint.slnx, beside this
-       folder or any folder above it (so worktrees find it too). Inkvolt Print's projects build with Inkvolt Print's own
-       Directory.Build.props (MSBuild picks the nearest one above each project). -->
-  <PropertyGroup>
-    <_InkvoltPrintSibling Condition="'$(InkvoltPrintRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildThisFileDirectory)', 'inkvolt-print\InkvoltPrint.slnx'))</_InkvoltPrintSibling>
-    <InkvoltPrintRoot Condition="'$(InkvoltPrintRoot)' == '' and '$(_InkvoltPrintSibling)' != ''">$([System.IO.Path]::Combine('$(_InkvoltPrintSibling)', 'inkvolt-print'))</InkvoltPrintRoot>
-    <_InkvoltPrintSibling Condition="'$(InkvoltPrintRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildThisFileDirectory)', 'InkvoltPrint\InkvoltPrint.slnx'))</_InkvoltPrintSibling>
-    <InkvoltPrintRoot Condition="'$(InkvoltPrintRoot)' == '' and '$(_InkvoltPrintSibling)' != ''">$([System.IO.Path]::Combine('$(_InkvoltPrintSibling)', 'InkvoltPrint'))</InkvoltPrintRoot>
-    <_InkvoltPrintSibling Condition="'$(InkvoltPrintRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildThisFileDirectory)', 'PrintDesk\InkvoltPrint.slnx'))</_InkvoltPrintSibling>
-    <InkvoltPrintRoot Condition="'$(InkvoltPrintRoot)' == '' and '$(_InkvoltPrintSibling)' != ''">$([System.IO.Path]::Combine('$(_InkvoltPrintSibling)', 'PrintDesk'))</InkvoltPrintRoot>
-    <InkvoltPrintRoot>$([MSBuild]::EnsureTrailingSlash('$(InkvoltPrintRoot)'))</InkvoltPrintRoot>
   </PropertyGroup>
 </Project>

@@ -5,6 +5,6 @@
     <AssemblyName>inkvoltprint</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
   </ItemGroup>
 </Project>

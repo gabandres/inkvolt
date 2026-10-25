@@ -10,7 +10,7 @@ namespace InkvoltPrint.App.Views;
 /// <summary>Version, license, source code link and third-party notices (both texts are embedded resources).</summary>
 public partial class AboutDialog : Window
 {
-    public const string SourceUrl = "https://github.com/gabandres/inkvolt-print";
+    public const string SourceUrl = "https://github.com/gabandres/inkvolt";
 
     private AboutDialog()
     {

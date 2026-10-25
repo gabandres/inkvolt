@@ -487,3 +487,6 @@ $RECYCLE.BIN/
 
 # Agent and editor working folders
 .claude/
+
+# Scratch build outputs (dotnet build --artifacts-path)
+.artifacts/

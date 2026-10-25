@@ -3,7 +3,7 @@
 Design ("Vivid Fold", shared with Inkvolt PDF): no tile, per Windows 11 app icon guidance. The suite's folded sheet
 with a white bolt, in electric cyan to volt blue, feeds into an indigo printer with a cyan status light. Small sizes
 (24 px and below) use bolder shapes and drop the printed sheet; 16-20 px also drop the light. Shapes are drawn in a
-48-unit grid (assets/iconkit.py, shared with Inkvolt PDF) at about 1024 px, then box-downsampled to each size.
+48-unit grid (shared/assets/iconkit.py, shared with Inkvolt PDF) at about 1024 px, then box-downsampled to each size.
 
 packaging/Assets/*.png: MSIX images (tiles, Start/taskbar icons per target size, store logo, splash screen), named with
 MRT qualifiers (scale-N, targetsize-N, altform-unplated) that makepri indexes into resources.pri
@@ -22,7 +22,7 @@ import sys
 from PIL import Image, ImageChops, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)  # python -I leaves the script's folder off the path
+sys.path.insert(0, os.path.join(HERE, "..", "..", "shared", "assets"))  # iconkit.py, shared by both apps' icons
 from iconkit import Canvas, Grad, bolt_pts, inter, page_pts, sub  # noqa: E402
 
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]

@@ -10,14 +10,14 @@
     <ApplicationIcon>..\..\assets\InkvoltPrint.ico</ApplicationIcon>
     <!-- ThemeMode (Fluent) is marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
-    <!-- packaging/pack-msix.ps1 -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->
+    <!-- packaging/pack-msix.ps1 -App Print -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->
     <DefineConstants Condition="'$(HpCleanupInPackage)' == 'true'">$(DefineConstants);HP_CLEANUP_IN_PACKAGE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Using Include="System.Net.Http" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

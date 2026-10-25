@@ -3,14 +3,11 @@
 #                                             Start Menu folder "Inkvolt", App Paths (so each app finds the other), Inkvolt PDF "Open with"
 #   pwsh -File install-suite.ps1 -NoBuild     install the existing publish outputs
 #   pwsh -File install-suite.ps1 -Uninstall   remove what this script added, and restore registry values it replaced
-# Each repo's own installer keeps working on its own (Inkvolt PDF: install.ps1 → %LOCALAPPDATA%\Programs\InkvoltPdf).
-# InkvoltPrintRoot: the Inkvolt Print checkout (default: $env:InkvoltPrintRoot, else the first folder named inkvolt-print,
-# InkvoltPrint or PrintDesk (its checkout before the rename) holding InkvoltPrint.slnx beside this script's folder or
-# any folder above it). InstallRoot, StartMenu and RegistryRoot exist for testing on scratch locations.
+# pdf/install.ps1 keeps installing Inkvolt PDF on its own (%LOCALAPPDATA%\Programs\InkvoltPdf).
+# InstallRoot, StartMenu and RegistryRoot exist for testing on scratch locations.
 param(
     [switch]$Uninstall,
     [switch]$NoBuild,
-    [string]$InkvoltPrintRoot,
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\Inkvolt'),
     [string]$StartMenu = (Join-Path ([Environment]::GetFolderPath('Programs')) 'Inkvolt'),
     [string]$RegistryRoot = 'HKCU:\Software'
@@ -147,21 +144,10 @@ if ($Uninstall) {
 }
 
 # --- Build ---
-if (-not $InkvoltPrintRoot) { $InkvoltPrintRoot = $env:InkvoltPrintRoot }
-if (-not $InkvoltPrintRoot) {
-    # Same order as Directory.Build.props: the GitHub repo name, the project name, then the checkout's pre-rename name.
-    :search foreach ($folder in 'inkvolt-print', 'InkvoltPrint', 'PrintDesk') {
-        for ($dir = $PSScriptRoot; $dir; $dir = Split-Path $dir -Parent) {
-            if (Test-Path -LiteralPath (Join-Path $dir "$folder\InkvoltPrint.slnx")) { $InkvoltPrintRoot = Join-Path $dir $folder; break search }
-        }
-    }
-}
-if (-not $InkvoltPrintRoot -or -not (Test-Path -LiteralPath (Join-Path $InkvoltPrintRoot 'InkvoltPrint.slnx'))) {
-    throw "Inkvolt Print not found$(if ($InkvoltPrintRoot) { " at $InkvoltPrintRoot" }) (pass -InkvoltPrintRoot)"
-}
-
-$publish = @{ InkvoltPdf = Join-Path $PSScriptRoot 'publish\win-arm64'; InkvoltPrint = Join-Path $InkvoltPrintRoot 'publish\win-arm64' }
-$projects = @{ InkvoltPdf = Join-Path $PSScriptRoot 'src\InkvoltPdf.App'; InkvoltPrint = Join-Path $InkvoltPrintRoot 'src\InkvoltPrint.App' }
+$pdfRoot = Join-Path $PSScriptRoot 'pdf'
+$printRoot = Join-Path $PSScriptRoot 'print'
+$publish = @{ InkvoltPdf = Join-Path $pdfRoot 'publish\win-arm64'; InkvoltPrint = Join-Path $printRoot 'publish\win-arm64' }
+$projects = @{ InkvoltPdf = Join-Path $pdfRoot 'src\InkvoltPdf.App'; InkvoltPrint = Join-Path $printRoot 'src\InkvoltPrint.App' }
 if (-not $NoBuild) {
     foreach ($name in $apps.Keys) {
         # Start clean, so nothing left over from an older build ends up installed.
@@ -184,7 +170,7 @@ foreach ($name in $apps.Keys) {
 $pdfExe = Join-Path $apps.InkvoltPdf 'InkvoltPdf.exe'
 $printExe = Join-Path $apps.InkvoltPrint 'InkvoltPrint.exe'
 $docIcon = Join-Path $apps.InkvoltPdf 'PdfDocument.ico'
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets\PdfDocument.ico') -Destination $docIcon -Force
+Copy-Item -LiteralPath (Join-Path $pdfRoot 'assets\PdfDocument.ico') -Destination $docIcon -Force
 
 # --- Start Menu folder "Inkvolt" (each shortcut carries its exe's own icon) ---
 New-Item -ItemType Directory -Force $StartMenu | Out-Null

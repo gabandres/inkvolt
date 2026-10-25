@@ -1,0 +1,8 @@
+This repository holds two apps and the libraries they share, under two licenses:
+
+  pdf/     Inkvolt PDF                      GNU Affero General Public License v3 (pdf/LICENSE); MuPDF requires it
+  print/   Inkvolt Print                    MIT License (print/LICENSE)
+  shared/  InkvoltPrint.Core and .Windows   MIT License (shared/LICENSE); used by both apps
+  everything else (build, packaging and install scripts at the top level)   MIT License (shared/LICENSE)
+
+Copyright (c) 2026 Bermudez Systems LLC

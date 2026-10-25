@@ -1,4 +1,6 @@
 <Project>
+  <!-- Every project in the repo. pdf/Directory.Build.props imports this and adds Inkvolt PDF's own settings; print/ and
+       shared/ build with these as they are. -->
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

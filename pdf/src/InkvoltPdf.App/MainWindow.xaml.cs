@@ -2003,7 +2003,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Where this version's source is published (the AGPL requires offering it with every copy).</summary>
-    private const string SourceUrl = "https://github.com/gabandres/inkvolt-pdf";
+    private const string SourceUrl = "https://github.com/gabandres/inkvolt";
 
     private void OnAbout(object sender, RoutedEventArgs e)
     {

@@ -50,7 +50,7 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
   printers and queue associations), `QueueMatch` (Windows queue → printer: stored association, device container, address
   in the port, unambiguous name), `PrinterHealth` (ready/sleeping/error/offline, toner, paper problems), `ScanChoices`
   (sources, colors, resolutions, page sizes → `ScanRequest`; Inkvolt Print's Scan tab uses its page sizes).
-- One installer for both: `install-suite.ps1` in the Inkvolt PDF repo (`%LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf` and
+- One installer for both: `install-suite.ps1` at the repository root (`%LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf` and
   `\InkvoltPrint`, Start Menu folder "Inkvolt", App Paths; `-Uninstall` removes only what it added).
 - `InkvoltPrint.exe --unregister` (no window; exit code 0, or 1 when the registry refused) removes what the app itself writes
   to HKCU: the "Open with" ProgIds for PDFs and pictures, their `OpenWithProgids` entries, `Applications\InkvoltPrint.exe`
@@ -62,17 +62,19 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
 ## Layout
 
 ```
-src/InkvoltPrint.Core      protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, SNMP (Printer MIB), probe, PDF writer, Offline (fixer), Maintenance (printer maintenance actions), Presets (scan presets, file-name templates), Alerts (tray alert rules), Photos (photo layouts), Wia (scanning through Windows: capabilities, settings, matching, a fake), Suite (shared with Inkvolt PDF)
-src/InkvoltPrint.Windows   WinRT bits — discovery, queue install (pairing), OCR, credential store, Offline (spooler probes, repairs), Scanning (WIA over COM on an STA thread), Suite/InkvoltApps
-src/InkvoltPrint.App       WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
-src/InkvoltPrint.Cli       developer CLI over the same code (inkvoltprint discover|probe|status|snmp|watch|settings|scan|spooler|queues|scanners|offline|separator-sheet)
-tests/InkvoltPrint.Tests   parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw (Fixtures/m234dw), demo-only
-                           HP additions written by hand (Fixtures/hp-demo) and a made-up inkjet written from the IPP and eSCL specs
-                           (Fixtures/inkjet-demo; IPP in IppText form); SNMP's BER against bytes written by hand from X.690 and
-                           RFC 1157 / RFC 3416, the demo SNMP agents' objects written from the MIBs (Fixtures/snmp-demo, snmpwalk form)
+../shared/InkvoltPrint.Core    protocols, no Windows dependency (net10.0) — LEDM, eSCL, IPP, SNMP (Printer MIB), probe, PDF writer, Offline (fixer), Maintenance (printer maintenance actions), Presets (scan presets, file-name templates), Alerts (tray alert rules), Photos (photo layouts), Wia (scanning through Windows: capabilities, settings, matching, a fake), Suite (shared with Inkvolt PDF)
+../shared/InkvoltPrint.Windows WinRT bits — discovery, queue install (pairing), OCR, credential store, Offline (spooler probes, repairs), Scanning (WIA over COM on an STA thread), Suite/InkvoltApps
+src/InkvoltPrint.App           WPF (.NET 10, Fluent theme) — MVVM with CommunityToolkit.Mvvm
+src/InkvoltPrint.Cli           developer CLI over the same code (inkvoltprint discover|probe|status|snmp|watch|settings|scan|spooler|queues|scanners|offline|separator-sheet)
+tests/InkvoltPrint.Tests       parser/encoder tests against fixtures captured from an HP LaserJet MFP M234dw (Fixtures/m234dw), demo-only
+                               HP additions written by hand (Fixtures/hp-demo) and a made-up inkjet written from the IPP and eSCL specs
+                               (Fixtures/inkjet-demo; IPP in IppText form); SNMP's BER against bytes written by hand from X.690 and
+                               RFC 1157 / RFC 3416, the demo SNMP agents' objects written from the MIBs (Fixtures/snmp-demo, snmpwalk form)
 ```
 
 ## Build / run
+
+From this folder (`print/`); `dotnet build Inkvolt.slnx` at the repository root builds both apps.
 
 ```
 dotnet build
@@ -112,7 +114,7 @@ and the inkjet Identify printer and its maintenance page; their requests are acc
 to the made-up queue and open neither Inkvolt PDF nor a mail app. The Photos tab offers each demo printer's made-up paper sizes and types (the inkjet: photo paper, borderless except on Legal; the lasers: plain paper in black) and "prints" to the made-up queue; `--photos` draws its sample pictures (a landscape JPEG, a portrait JPEG stored on its side with EXIF orientation 6, a PNG, a two-page TIFF, a small BMP) into `%TEMP%\Inkvolt Print demo photos`: no photos ship with the app. Screenshots:
 `InkvoltPrint.exe --demo --snapshot overview.png --tab Overview --size 1366 860`.
 
-Microsoft Store (MSIX, x64 + ARM64): `pwsh -File packaging/pack-msix.ps1` builds both packages, the bundle and the
+Microsoft Store (MSIX, x64 + ARM64), from the repository root: `pwsh -File packaging/pack-msix.ps1 -App Print` builds both packages, the bundle and the
 `.msixupload`; no Windows SDK install needed. Partner Center values, elevation notes, Store policy, listing text and
 trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX images: `python -I assets/make-icon.py`.
 
@@ -282,5 +284,5 @@ Inkvolt Print is an independent project, not affiliated with or endorsed by HP I
 or Brother Industries, Ltd. HP, LaserJet and HP Smart are trademarks of HP Inc.; Canon, Epson and Brother are trademarks
 of their owners. They are used here only to describe the printers Inkvolt Print works with.
 
-Part of the Inkvolt suite with [Inkvolt PDF](https://github.com/gabandres/inkvolt-pdf) (AGPL-3.0), which uses Inkvolt Print's
-libraries for scanning and printer status.
+Part of the [Inkvolt suite](../README.md) with [Inkvolt PDF](../pdf/README.md) (AGPL-3.0), in the same repository. Both apps
+use the libraries in [`../shared`](../shared) (MIT) for scanning and printer status.

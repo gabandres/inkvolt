@@ -1,27 +1,32 @@
 # Inkvolt Print for the Microsoft Store (MSIX)
 
-`pack-msix.ps1` builds Inkvolt Print as MSIX packages for x64 and ARM64, bundles them, and writes the Store upload file.
+The repository's `packaging/pack-msix.ps1 -App Print` (shared with Inkvolt PDF) builds Inkvolt Print as MSIX packages for
+x64 and ARM64, bundles them, and writes the Store upload file. This folder holds Inkvolt Print's manifest template and
+images. Paths below are in `print/` unless they start with `packaging/` (the repository root's).
 The unpackaged builds (`dotnet publish -p:PublishProfile=win-x64|win-arm64`, the Inkvolt installer) keep working unchanged.
 
 Inkvolt Print is licensed under the MIT License (`../LICENSE`); dependencies are listed in `../THIRD-PARTY-NOTICES.md`
-(both ship in the package and show under "About Inkvolt Print"). Source: https://github.com/gabandres/inkvolt-print.
+(both ship in the package and show under "About Inkvolt Print"). Source: https://github.com/gabandres/inkvolt (Inkvolt Print is `print/`; the libraries it shares with
+Inkvolt PDF are `shared/`).
 
 ## Build
 
+From the repository root:
+
 ```powershell
-pwsh -File packaging/pack-msix.ps1                       # Store build with the Partner Center identity, unsigned
-pwsh -File packaging/pack-msix.ps1 -Version 1.1.0.0      # a later submission
+pwsh -File packaging/pack-msix.ps1 -App Print                    # Store build with the Partner Center identity, unsigned
+pwsh -File packaging/pack-msix.ps1 -App Print -Version 1.1.0.0   # a later submission
 ```
 
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.
 
-Other parameters: `-DisplayName` (default `Inkvolt Print`), `-Architectures x64,arm64`, `-OutDir`, `-NoBuild` (reuse the
+Other parameters: `-DisplayName` (default `Inkvolt Print`), `-Architectures x64,arm64`, `-OutDir` (default `print/publish/msix`), `-NoBuild` (reuse the
 last publish), `-SignWithTestCert` (below), `-IncludeHpCleanup` (sideloading only, see "HP clean-up" below).
 
 What it does:
 
-1. Restores `Microsoft.Windows.SDK.BuildTools` (version in `tools/BuildTools.csproj`) into the NuGet cache and uses its
+1. Restores `Microsoft.Windows.SDK.BuildTools` (version in `packaging/tools/BuildTools.csproj`) into the NuGet cache and uses its
    `makeappx`, `makepri` and `signtool`. No Windows SDK install.
 2. `dotnet publish` per architecture: Release, self-contained, folder layout (not single-file), version = `-Version`.
    Checks that the WinRT projection and CommunityToolkit.Mvvm are there.
@@ -172,7 +177,7 @@ Description:
 > No HP account, no cloud service, no ads, no telemetry, no background services. Inkvolt Print talks only to your printer,
 > on your network.
 >
-> Free and open source (MIT License). Source code: https://github.com/gabandres/inkvolt-print
+> Free and open source (MIT License). Source code: https://github.com/gabandres/inkvolt
 >
 > Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc., Canon, Seiko Epson or Brother.
 > HP and LaserJet are trademarks of HP Inc. Canon, Epson and Brother are trademarks of their owners. They are used only
@@ -196,7 +201,7 @@ Partner Center asks for a privacy policy URL; publish a short page saying:
 
 ### Store listing checklist
 
-- [ ] Source link in the description: "Source code (MIT): https://github.com/gabandres/inkvolt-print".
+- [ ] Source link in the description: "Source code (MIT): https://github.com/gabandres/inkvolt".
 - [ ] Trademark disclaimer in the description; "for HP printers" / "works with Canon, Epson, Brother" wording only
       (above).
 - [ ] Screenshots: PNG, at least 1366x768, 1-10. `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window after
@@ -214,7 +219,7 @@ Partner Center asks for a privacy policy URL; publish a short page saying:
 The Store signs uploads itself; local installs need a trusted signature or Developer Mode. Both are manual steps on
 purpose: the script never installs certificates or packages.
 
-**Signed bundle.** `pack-msix.ps1 -SignWithTestCert` creates `publish/msix/InkvoltPrint-TestSigning.pfx` (no password) and
+**Signed bundle.** `pack-msix.ps1 -App Print -SignWithTestCert` creates `publish/msix/InkvoltPrint-TestSigning.pfx` (no password) and
 `.cer` with subject = `-Publisher`, in memory and files only, then signs the bundle and both `.msix`. To install it,
 trust the certificate, then add the package (elevated PowerShell for the first command):
 

@@ -1,41 +1,70 @@
-# Builds Inkvolt Print as MSIX packages (x64 + ARM64) and a bundle for the Microsoft Store. No Windows SDK install needed:
-# makeappx/makepri/signtool come from the Microsoft.Windows.SDK.BuildTools NuGet package (packaging/tools).
+# Builds Inkvolt PDF or Inkvolt Print as MSIX packages (x64 + ARM64) and a bundle for the Microsoft Store. No Windows SDK
+# install needed: makeappx/makepri/signtool come from the Microsoft.Windows.SDK.BuildTools NuGet package (packaging/tools).
+# Each app's manifest template and images stay in its own folder (pdf/packaging, print/packaging).
 #
-#   pwsh -File packaging/pack-msix.ps1                              Partner Center identity (Store ID 9PNR76HJ62SK), unsigned
+#   pwsh -File packaging/pack-msix.ps1 -App Pdf                     Partner Center identity (Store ID 9MXDTSFJ9W28), unsigned
 #                                                                   (Store signs uploads)
-#   pwsh -File packaging/pack-msix.ps1 -Version 1.2.0.0
-#   pwsh -File packaging/pack-msix.ps1 -SignWithTestCert            also signs with a self-signed test certificate (.pfx in
+#   pwsh -File packaging/pack-msix.ps1 -App Print                   Partner Center identity (Store ID 9PNR76HJ62SK), unsigned
+#   pwsh -File packaging/pack-msix.ps1 -App Pdf -Version 1.2.0.0
+#   pwsh -File packaging/pack-msix.ps1 -App Pdf -SignWithTestCert   also signs with a self-signed test certificate (.pfx in
 #                                                                   the output folder; installed nowhere) for sideloading
-#   pwsh -File packaging/pack-msix.ps1 -IncludeHpCleanup            keeps the HP clean-up in the package (sideloading only;
-#                                                                   Store builds leave it out, see packaging/README.md)
+#   pwsh -File packaging/pack-msix.ps1 -App Print -IncludeHpCleanup keeps the HP clean-up in the package (sideloading only;
+#                                                                   Store builds leave it out, see print/packaging/README.md)
 #
-# Output (publish\msix): InkvoltPrint_<ver>_x64.msix, InkvoltPrint_<ver>_arm64.msix, InkvoltPrint_<ver>.msixbundle, InkvoltPrint_<ver>.msixupload.
-# See packaging/README.md.
+# Output (<app>\publish\msix): <Name>_<ver>_x64.msix, <Name>_<ver>_arm64.msix, <Name>_<ver>.msixbundle, <Name>_<ver>.msixupload,
+# <Name> being InkvoltPdf or InkvoltPrint. See pdf/packaging/README.md and print/packaging/README.md.
 [CmdletBinding()]
 param(
-    # Partner Center > Product identity > Package/Identity/Name
-    [string]$IdentityName = 'BermudezSystems.InkvoltPrint',
+    [Parameter(Mandatory)]
+    [ValidateSet('Pdf', 'Print')]
+    [string]$App,
+    # Partner Center > Product identity > Package/Identity/Name (default: the app's)
+    [string]$IdentityName,
     # Partner Center > Product identity > Package/Identity/Publisher (the full "CN=..." string)
     [string]$Publisher = 'CN=1CC7D6EF-8A48-4BDE-AF19-4FEC30D5613B',
     # Partner Center > Product identity > Package/Properties/PublisherDisplayName
     [string]$PublisherDisplayName = 'Bermudez Systems',
-    # Package/Properties/DisplayName: must be a name reserved in Partner Center
-    [string]$DisplayName = 'Inkvolt Print',
+    # Package/Properties/DisplayName: must be a name reserved in Partner Center (default: the app's)
+    [string]$DisplayName,
     # Four parts; the Store needs the last one to be 0
     [string]$Version = '1.0.0.0',
     [ValidateSet('x64', 'arm64')]
     [string[]]$Architectures = @('x64', 'arm64'),
-    [string]$OutDir = (Join-Path $PSScriptRoot '..\publish\msix'),
+    # Default: <app>\publish\msix
+    [string]$OutDir,
     # Reuse the publish folders from the last run
     [switch]$NoBuild,
     [switch]$SignWithTestCert,
-    # Keep the HP clean-up (removes HP's apps and services) in the package. Off by default: Store builds leave it out.
+    # Inkvolt Print only: keep the HP clean-up (removes HP's apps and services) in the package. Off by default: Store builds
+    # leave it out.
     [switch]$IncludeHpCleanup
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# What differs between the two apps. Folder: the app's folder in the repo (src, packaging, notices). Required: files the
+# publish output must hold (a publish that lacks them would package an app that can't start). Extras: files from the app's
+# folder copied into the package root.
+$apps = @{
+    Pdf   = @{
+        Folder = 'pdf'; Name = 'InkvoltPdf'; IdentityName = 'BermudezSystems.InkvoltPDF'; DisplayName = 'Inkvolt PDF'
+        # MuPDF's and HarfBuzz's native libraries
+        Required = @('MuPDFWrapper.dll', 'libHarfBuzzSharp.dll')
+        Extras = @('THIRD-PARTY-NOTICES.md')
+    }
+    Print = @{
+        Folder = 'print'; Name = 'InkvoltPrint'; IdentityName = 'BermudezSystems.InkvoltPrint'; DisplayName = 'Inkvolt Print'
+        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll')
+        Extras = @('THIRD-PARTY-NOTICES.md', 'LICENSE')
+    }
+}
+$cfg = $apps[$App]
+$name = $cfg.Name
+$appRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\$($cfg.Folder)")).Path
+$appPackaging = Join-Path $appRoot 'packaging'
+if (-not $IdentityName) { $IdentityName = $cfg.IdentityName }
+if (-not $DisplayName) { $DisplayName = $cfg.DisplayName }
+if (-not $OutDir) { $OutDir = Join-Path $appRoot 'publish\msix' }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 
 # ───── Checks ─────
@@ -45,7 +74,8 @@ if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$' -or ($Version.Split('.') | Where-O
 if (-not $Version.EndsWith('.0')) { Write-Warning "The Store rejects packages whose last version number isn't 0 ($Version)." }
 if ($IdentityName -notmatch '^[A-Za-z0-9.\-]{3,50}$') { throw "IdentityName: 3-50 letters, digits, '.' or '-': $IdentityName" }
 if ($Publisher -notmatch '^CN=') { throw "Publisher must be a distinguished name starting with CN= (copy it from Partner Center): $Publisher" }
-if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see packaging/README.md).' }
+if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
+if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }
 
 # ───── Tools ─────
@@ -73,9 +103,9 @@ function ConvertTo-XmlText([string]$s) { [Security.SecurityElement]::Escape($s) 
 
 # ───── Publish (self-contained folder layout: no single-file extraction, starts faster) ─────
 New-Item -ItemType Directory -Force $OutDir | Out-Null
-$template = Get-Content (Join-Path $PSScriptRoot 'AppxManifest.template.xml') -Raw
-$assets = Join-Path $PSScriptRoot 'Assets'
-if (-not (Get-ChildItem $assets -Filter *.png -ErrorAction SilentlyContinue)) { throw "No images in $assets (run: python -I assets/make-icon.py)" }
+$template = Get-Content (Join-Path $appPackaging 'AppxManifest.template.xml') -Raw
+$assets = Join-Path $appPackaging 'Assets'
+if (-not (Get-ChildItem $assets -Filter *.png -ErrorAction SilentlyContinue)) { throw "No images in $assets (run: python -I $($cfg.Folder)/assets/make-icon.py)" }
 
 function New-Manifest([string]$arch) {
     $values = @{
@@ -104,6 +134,9 @@ Invoke-Tool $makepri @('createconfig', '/cf', $priConfig, '/dq', 'en-US', '/pv',
 $pri = Join-Path $OutDir 'resources.pri'
 Invoke-Tool $makepri @('new', '/pr', $priRoot, '/cf', $priConfig, '/mn', (Join-Path $priRoot 'AppxManifest.xml'), '/of', $pri, '/o')
 
+$publishProps = @('-p:PublishSingleFile=false', "-p:Version=$Version", '-p:CopyOutputSymbolsToPublishDirectory=false')
+if ($App -eq 'Print') { $publishProps += "-p:HpCleanupInPackage=$(if ($IncludeHpCleanup) { 'true' } else { 'false' })" }
+
 $msix = @{}
 foreach ($arch in $Architectures) {
     $rid = "win-$arch"
@@ -111,13 +144,12 @@ foreach ($arch in $Architectures) {
     if (-not $NoBuild) {
         Remove-Item $pub -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Publishing $rid..."
-        dotnet publish (Join-Path $root 'src\InkvoltPrint.App') -c Release -r $rid --self-contained true -nologo -v q `
-            -p:PublishSingleFile=false -p:Version=$Version -p:CopyOutputSymbolsToPublishDirectory=false `
-            -p:HpCleanupInPackage=$(if ($IncludeHpCleanup) { 'true' } else { 'false' }) -o $pub | Out-Host
+        dotnet publish (Join-Path $appRoot "src\$name.App") -c Release -r $rid --self-contained true -nologo -v q `
+            @publishProps -o $pub | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Publish failed for $rid." }
     }
-    if (-not (Test-Path (Join-Path $pub 'InkvoltPrint.exe'))) { throw "Not found: $pub\InkvoltPrint.exe (run without -NoBuild)" }
-    foreach ($dll in 'Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll') {
+    if (-not (Test-Path (Join-Path $pub "$name.exe"))) { throw "Not found: $pub\$name.exe (run without -NoBuild)" }
+    foreach ($dll in $cfg.Required) {
         if (-not (Test-Path (Join-Path $pub $dll))) { throw "$rid publish lacks $dll" }
     }
 
@@ -127,22 +159,23 @@ foreach ($arch in $Architectures) {
     Get-ChildItem $pub -Exclude *.pdb | Copy-Item -Destination $layout -Recurse
     Copy-Item $assets (Join-Path $layout 'Assets') -Recurse
     Copy-Item $pri $layout
-    Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md'), (Join-Path $root 'LICENSE') $layout
+    Copy-Item ($cfg.Extras | ForEach-Object { Join-Path $appRoot $_ }) $layout
     Set-Content (Join-Path $layout 'AppxManifest.xml') (New-Manifest $arch) -Encoding utf8
 
-    $file = Join-Path $packagesDir "InkvoltPrint_${Version}_$arch.msix"
+    $file = Join-Path $packagesDir "${name}_${Version}_$arch.msix"
     Write-Host "Packing $([IO.Path]::GetFileName($file))..."
     Invoke-Tool $makeappx @('pack', '/d', $layout, '/p', $file, '/o')
     $msix[$arch] = $file
 }
 
 # ───── Bundle + Store upload file ─────
-$bundle = Join-Path $OutDir "InkvoltPrint_$Version.msixbundle"
+$bundle = Join-Path $OutDir "${name}_$Version.msixbundle"
 Write-Host "Bundling $([IO.Path]::GetFileName($bundle))..."
 Invoke-Tool $makeappx @('bundle', '/d', $packagesDir, '/p', $bundle, '/bv', $Version, '/o')
 
-# .msixupload = a zip holding the bundle (symbol .appxsym files would go beside it; Release builds have no PDBs).
-$upload = Join-Path $OutDir "InkvoltPrint_$Version.msixupload"
+# .msixupload = a zip holding the bundle (symbol .appxsym files would go beside it; Inkvolt PDF embeds its PDBs and
+# Inkvolt Print's Release builds have none).
+$upload = Join-Path $OutDir "${name}_$Version.msixupload"
 $zip = "$upload.zip"
 Remove-Item $upload, $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $bundle -DestinationPath $zip -CompressionLevel NoCompression
@@ -153,8 +186,8 @@ foreach ($f in $msix.Values) { Copy-Item $f $OutDir -Force }
 
 # ───── Optional: test signature for sideloading ─────
 if ($SignWithTestCert) {
-    $pfx = Join-Path $OutDir 'InkvoltPrint-TestSigning.pfx'
-    $cer = Join-Path $OutDir 'InkvoltPrint-TestSigning.cer'
+    $pfx = Join-Path $OutDir "$name-TestSigning.pfx"
+    $cer = Join-Path $OutDir "$name-TestSigning.cer"
     $cert = $null
     if (Test-Path $pfx) {
         $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, [string]$null, 'Exportable')
@@ -178,9 +211,9 @@ if ($SignWithTestCert) {
         [IO.File]::WriteAllBytes($cer, $cert.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
         Write-Host "Created test certificate $([IO.Path]::GetFileName($pfx)) ($Publisher, thumbprint $($cert.Thumbprint))"
     }
-    $signed = @($bundle) + @($msix.Keys | ForEach-Object { Join-Path $OutDir "InkvoltPrint_${Version}_$_.msix" })
+    $signed = @($bundle) + @($msix.Keys | ForEach-Object { Join-Path $OutDir "${name}_${Version}_$_.msix" })
     foreach ($f in $signed) { Invoke-Tool $signtool @('sign', '/q', '/fd', 'SHA256', '/f', $pfx, $f) }
-    Write-Host 'Signed with the test certificate. To sideload, trust it yourself first (see packaging/README.md, "Local test install").'
+    Write-Host "Signed with the test certificate. To sideload, trust it yourself first (see $($cfg.Folder)/packaging/README.md, `"Local test install`")."
 }
 
 Write-Host ''

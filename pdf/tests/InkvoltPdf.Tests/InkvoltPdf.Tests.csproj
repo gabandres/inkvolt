@@ -13,6 +13,6 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
-    <ProjectReference Include="$(InkvoltPrintRoot)src\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/pdf/">
+    <Project Path="pdf/src/InkvoltPdf.App/InkvoltPdf.App.csproj" />
+    <Project Path="pdf/src/InkvoltPdf.Core/InkvoltPdf.Core.csproj" />
+    <Project Path="pdf/tests/InkvoltPdf.Tests/InkvoltPdf.Tests.csproj" />
+  </Folder>
+  <Folder Name="/print/">
+    <Project Path="print/src/InkvoltPrint.App/InkvoltPrint.App.csproj" />
+    <Project Path="print/src/InkvoltPrint.Cli/InkvoltPrint.Cli.csproj" />
+    <Project Path="print/tests/InkvoltPrint.Tests/InkvoltPrint.Tests.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/InkvoltPrint.Core/InkvoltPrint.Core.csproj" />
+    <Project Path="shared/InkvoltPrint.Windows/InkvoltPrint.Windows.csproj" />
+  </Folder>
+</Solution>

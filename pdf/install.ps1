@@ -2,7 +2,7 @@
 #   pwsh -File install.ps1              build the exe for this PC (ARM64 or x64), copy it, add Start Menu + Desktop shortcuts and "Open with" entries
 #   pwsh -File install.ps1 -NoBuild     install the existing publish\win-<arch>\InkvoltPdf.exe
 #   pwsh -File install.ps1 -Uninstall   remove all of the above
-# (Microsoft Store / MSIX builds: packaging/pack-msix.ps1. Their file associations come from the package manifest.)
+# (Microsoft Store / MSIX builds: ../packaging/pack-msix.ps1 -App Pdf. Their file associations come from the package manifest.)
 param([switch]$Uninstall, [switch]$NoBuild)
 $ErrorActionPreference = 'Stop'
 
