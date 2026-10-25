@@ -455,6 +455,60 @@ internal static partial class HbSubset
         }
     }
 
+    /// <summary>
+    /// A font with the glyphs of <paramref name="codePoints"/> and a cmap for them (for a simple TrueType font, which a
+    /// viewer reaches through the cmap); null on failure.
+    /// </summary>
+    public static byte[]? SubsetUnicodes(TrueTypeFont font, IReadOnlyCollection<int> codePoints)
+    {
+        try
+        {
+            var input = hb_subset_input_create_or_fail();
+            if (input == IntPtr.Zero) return null;
+            try
+            {
+                var set = hb_subset_input_unicode_set(input);
+                foreach (var cp in codePoints) hb_set_add(set, (uint)cp);
+                var drop = hb_subset_input_set(input, DropTableTags);
+                foreach (var t in new[] { "GSUB", "GPOS", "GDEF", "BASE", "JSTF", "MATH", "kern", "morx", "mort", "DSIG", "vhea", "vmtx", "VORG" })
+                    hb_set_add(drop, (uint)(t[0] << 24 | t[1] << 16 | t[2] << 8 | t[3]));
+                hb_subset_input_set_flags(input, NoHinting);
+                var result = hb_subset_or_fail(font.HbFace.Handle, input);
+                if (result == IntPtr.Zero) return null;
+                try
+                {
+                    var blob = hb_face_reference_blob(result);
+                    try
+                    {
+                        var data = hb_blob_get_data(blob, out var length);
+                        if (data == IntPtr.Zero || length == 0) return null;
+                        var bytes = new byte[length];
+                        Marshal.Copy(data, bytes, 0, (int)length);
+                        return bytes;
+                    }
+                    finally
+                    {
+                        hb_blob_destroy(blob);
+                    }
+                }
+                finally
+                {
+                    hb_face_destroy(result);
+                }
+            }
+            finally
+            {
+                hb_subset_input_destroy(input);
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    [LibraryImport(Lib)] private static partial IntPtr hb_subset_input_unicode_set(IntPtr input);
+    [LibraryImport(Lib)] private static partial IntPtr hb_subset_or_fail(IntPtr face, IntPtr input);
     [LibraryImport(Lib)] private static partial IntPtr hb_subset_input_create_or_fail();
     [LibraryImport(Lib)] private static partial void hb_subset_input_destroy(IntPtr input);
     [LibraryImport(Lib)] private static partial IntPtr hb_subset_input_glyph_set(IntPtr input);

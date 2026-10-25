@@ -1,0 +1,233 @@
+using System.Buffers.Binary;
+using System.Diagnostics;
+using System.Text;
+using MuPDFCore;
+using InkvoltPdf.Core;
+using PdfSharp.Pdf;
+
+namespace InkvoltPdf.Tests;
+
+public class PdfATests
+{
+    private static string Xmp(byte[] pdf)
+    {
+        using var doc = Core2Pdf.Open(pdf);
+        return Encoding.UTF8.GetString(PdfObj.Dict(doc.Internals.Catalog.Elements["/Metadata"])!.Stream!.Value);
+    }
+
+    private static byte[] ScriptsPdf() =>
+        Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /OpenAction 5 0 R /AA << /WC 5 0 R >> /Names << /JavaScript << /Names [(a) 5 0 R] >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Annots [6 0 R 7 0 R 8 0 R 10 0 R] /AA << /O 5 0 R >> >>",
+            Core2Pdf.Stream("0 0 1 rg 72 72 100 100 re f"),
+            "<< /Type /Action /S /JavaScript /JS (app.alert(1)) >>",
+            "<< /Type /Annot /Subtype /Link /Rect [72 600 200 620] /A << /S /Launch /F (calc.exe) >> >>",
+            "<< /Type /Annot /Subtype /Square /Rect [72 500 200 560] /F 2 /AP << /N 9 0 R >> >>",
+            "<< /Type /Annot /Subtype /Square /Rect [72 400 200 460] /AP << /N 9 0 R /D 9 0 R >> >>",
+            Core2Pdf.Stream("0 0 1 RG 2 w 1 1 126 58 re S", "/Type /XObject /Subtype /Form /BBox [0 0 128 60]"),
+            "<< /Type /Annot /Subtype /Link /Rect [72 300 200 320] /A << /S /Named /N /Print >> >>",
+        ]);
+
+    private static byte[] StandardFontsPdf() =>
+        Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
+            Core2Pdf.Stream("BT /F1 24 Tf 72 700 Td (Archive \\222quote\\222 caf\\351) Tj ET BT /F2 12 Tf 72 650 Td (Courier text) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+        ]);
+
+    [Fact]
+    public void TheSrgbProfileIsAWellFormedIccProfile()
+    {
+        var p = IccProfiles.Srgb();
+        Assert.Equal(p.Length, BinaryPrimitives.ReadInt32BigEndian(p));
+        Assert.Equal("acsp", Encoding.ASCII.GetString(p, 36, 4));
+        Assert.Equal("mntr", Encoding.ASCII.GetString(p, 12, 4));
+        Assert.Equal("RGB ", Encoding.ASCII.GetString(p, 16, 4));
+        Assert.Equal("XYZ ", Encoding.ASCII.GetString(p, 20, 4));
+        Assert.Equal(2, p[8]); // version 2.x
+        var count = BinaryPrimitives.ReadInt32BigEndian(p.AsSpan(128));
+        var tags = Enumerable.Range(0, count).Select(i => Encoding.ASCII.GetString(p, 132 + 12 * i, 4)).ToHashSet();
+        Assert.Superset(new HashSet<string> { "desc", "cprt", "wtpt", "rXYZ", "gXYZ", "bXYZ", "rTRC", "gTRC", "bTRC" }, tags);
+        for (var i = 0; i < count; i++)
+        {
+            var offset = BinaryPrimitives.ReadInt32BigEndian(p.AsSpan(132 + 12 * i + 4));
+            var size = BinaryPrimitives.ReadInt32BigEndian(p.AsSpan(132 + 12 * i + 8));
+            Assert.True(offset % 4 == 0 && offset + size <= p.Length);
+        }
+        // The curve runs from 0 to 1, and mid-grey is about 21.4% light (sRGB 0.5).
+        var trc = Enumerable.Range(0, count).First(i => Encoding.ASCII.GetString(p, 132 + 12 * i, 4) == "rTRC");
+        var at = BinaryPrimitives.ReadInt32BigEndian(p.AsSpan(132 + 12 * trc + 4));
+        Assert.Equal("curv", Encoding.ASCII.GetString(p, at, 4));
+        Assert.Equal(0, BinaryPrimitives.ReadUInt16BigEndian(p.AsSpan(at + 12)));
+        Assert.Equal(65535, BinaryPrimitives.ReadUInt16BigEndian(p.AsSpan(at + 12 + 2 * 1023)));
+        Assert.InRange(BinaryPrimitives.ReadUInt16BigEndian(p.AsSpan(at + 12 + 2 * 512)) / 65535.0, 0.20, 0.23);
+    }
+
+    [Fact]
+    public void ASimplePdfBecomesPdfA2b()
+    {
+        var source = TestPdf.Make(2);
+        Assert.NotEmpty(PdfA.Validate(source)); // no output intent, no pdfaid
+        var result = PdfA.Convert(source, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        var xmp = Xmp(result.Data);
+        Assert.Contains("pdfaid", xmp);
+        Assert.Contains("<pdfaid:part>2</pdfaid:part>", xmp);
+        Assert.Contains("<pdfaid:conformance>B</pdfaid:conformance>", xmp);
+        Assert.Contains("Synthetic", xmp); // dc:title from the document properties
+        using (var doc = Core2Pdf.Open(result.Data))
+        {
+            var intent = PdfObj.Dict(PdfObj.Array(doc.Internals.Catalog.Elements["/OutputIntents"])!.Elements[0])!;
+            Assert.Equal("GTS_PDFA1", PdfObj.Name(intent.Elements["/S"]));
+            Assert.Equal(3, PdfObj.Int(PdfObj.Dict(intent.Elements["/DestOutputProfile"])!.Elements["/N"]));
+        }
+        Assert.Equal(TestPdf.PageNumbers(source), TestPdf.PageNumbers(result.Data));
+        Assert.Contains(result.Changes, c => c.Contains("output intent"));
+    }
+
+    [Fact]
+    public void ScriptsActionsAndHiddenCommentsGo()
+    {
+        var pdf = ScriptsPdf();
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var doc = Core2Pdf.Open(result.Data);
+        var catalog = doc.Internals.Catalog;
+        Assert.False(catalog.Elements.ContainsKey("/AA"));
+        Assert.False(catalog.Elements.ContainsKey("/OpenAction") && PdfObj.Name(PdfObj.Dict(catalog.Elements["/OpenAction"])?.Elements["/S"]) == "JavaScript");
+        var annots = PdfObj.Array(doc.Pages[0].Elements["/Annots"])!.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().ToList();
+        // The hidden square is gone; the link that launched a program went with Sanitize; the rest print.
+        Assert.Single(annots, a => PdfObj.Name(a.Elements["/Subtype"]) == "Square");
+        Assert.All(annots, a => Assert.Equal(4, PdfObj.Int(a.Elements["/F"])! & 4));
+        Assert.All(annots, a => Assert.Null(PdfObj.Dict(a.Elements["/A"]))); // Launch and Named Print removed
+        Assert.False(PdfObj.Dict(annots.Single(a => PdfObj.Name(a.Elements["/Subtype"]) == "Square").Elements["/AP"])!.Elements.ContainsKey("/D"));
+        Assert.Contains(result.Changes, c => c.Contains("hidden comment"));
+    }
+
+    [Fact]
+    public void StandardFontsAreEmbeddedFromWindowsTwins()
+    {
+        var pdf = StandardFontsPdf();
+        var before = Core2Pdf.AllText(pdf);
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        Assert.Equal(before, Core2Pdf.AllText(result.Data));
+        using var doc = Core2Pdf.Open(result.Data);
+        var fonts = PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/Font"])!;
+        foreach (var key in new[] { "/F1", "/F2" })
+        {
+            var f = PdfObj.Dict(fonts.Elements[key])!;
+            Assert.Equal("TrueType", PdfObj.Name(f.Elements["/Subtype"]));
+            Assert.NotNull(PdfObj.Dict(PdfObj.Dict(f.Elements["/FontDescriptor"])!.Elements["/FontFile2"]));
+        }
+        // Courier had no encoding (StandardEncoding): WinAnsi plus differences for the codes it maps elsewhere.
+        var courier = PdfObj.Dict(fonts.Elements["/F2"])!;
+        Assert.Equal("WinAnsiEncoding", PdfObj.Name(PdfObj.Dict(courier.Elements["/Encoding"])!.Elements["/BaseEncoding"]));
+        Assert.Contains(result.Changes, c => c.Contains("2 standard fonts embedded"));
+    }
+
+    [Fact]
+    public void WhatCantBeKeptRefusesTheConversion()
+    {
+        var cmyk = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            Core2Pdf.Stream("0 0 0 1 k 72 72 100 100 re f"),
+        ]);
+        var ex = Assert.Throws<PdfAException>(() => PdfA.Convert(cmyk, null));
+        Assert.Contains(ex.Blockers, b => b.Contains("CMYK"));
+        Assert.NotEmpty(PdfA.Check(cmyk, null));
+
+        var symbol = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            Core2Pdf.Stream("BT /F1 24 Tf 72 700 Td (abc) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>",
+        ]);
+        Assert.Contains(PdfA.Check(symbol, null), b => b.Contains("Symbol"));
+        Assert.Contains(PdfA.Check(Core2SignatureTests.Signed(), null), b => b.Contains("signed"));
+        Assert.Empty(PdfA.Check(TestPdf.Make(1), null));
+    }
+
+    [Fact]
+    public void ProtectedFilesNeedTheirPermissionsPasswordAndComeOutUnencrypted()
+    {
+        var locked = PdfSecurity.Protect(TestPdf.Make(1), null, "open", "owner");
+        Assert.Throws<OwnerPasswordRequiredException>(() => PdfA.Convert(locked, "open"));
+        var result = PdfA.Convert(locked, "owner");
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        Assert.Contains("Page 1", engine.GetText(0).Text);
+        Assert.Contains(result.Changes, c => c.Contains("password"));
+    }
+
+    /// <summary>
+    /// Checked with veraPDF when INKVOLTPDF_VERAPDF names its launcher (verapdf.bat): every converted sample must pass
+    /// PDF/A-2b. Without it this test only converts (veraPDF needs Java; it isn't part of the build).
+    /// </summary>
+    [Fact]
+    public void ConvertedFilesPassVeraPdf()
+    {
+        var samples = new List<(string Name, byte[] Pdf)>
+        {
+            ("synthetic", TestPdf.Make(3)),
+            ("scripts", ScriptsPdf()),
+            ("standard-fonts", StandardFontsPdf()),
+            ("commented", Annotations.AddNote(Annotations.AddTextMarkup(TestPdf.Make(1), null, 0, TextMarkupKind.Highlight, [new RectD(72, 80, 200, 24)],
+                AnnotColor.Yellow, "check", "Ada"), null, 0, 300, 300, "A note", "Ada")),
+            ("form", FormEditor.SetValues(Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]),
+                null, new Dictionary<string, string> { ["name"] = "Ada Lovelace" })),
+            ("export", ExportTestPdf.Make(logo: true)),
+            ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
+                new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),
+        };
+        // INKVOLTPDF_PDFA_INPUTS: more PDFs to convert (a folder); those that can't be converted are skipped.
+        if (Environment.GetEnvironmentVariable("INKVOLTPDF_PDFA_INPUTS") is { Length: > 0 } inputs && Directory.Exists(inputs))
+            foreach (var f in Directory.GetFiles(inputs, "*.pdf"))
+            {
+                try
+                {
+                    if (PdfA.Check(File.ReadAllBytes(f), null).Count == 0) samples.Add((Path.GetFileNameWithoutExtension(f), File.ReadAllBytes(f)));
+                }
+                catch (OwnerPasswordRequiredException)
+                {
+                    // restricted: needs its permissions password
+                }
+            }
+        var dir = Environment.GetEnvironmentVariable("INKVOLTPDF_SAMPLES") is { Length: > 0 } keep
+            ? Directory.CreateDirectory(Path.Combine(keep, "pdfa"))
+            : Directory.CreateTempSubdirectory("inkvolt-pdfa-");
+        try
+        {
+            var files = new List<string>();
+            foreach (var (name, pdf) in samples)
+            {
+                var path = Path.Combine(dir.FullName, name + ".pdf");
+                File.WriteAllBytes(path, PdfA.Convert(pdf, null).Data);
+                files.Add(path);
+            }
+            if (Environment.GetEnvironmentVariable("INKVOLTPDF_VERAPDF") is not { Length: > 0 } vera || !File.Exists(vera)) return;
+            var info = new ProcessStartInfo("cmd.exe") { RedirectStandardOutput = true, UseShellExecute = false };
+            foreach (var a in new[] { "/c", vera, "--flavour", "2b", "--format", "text" }.Concat(files)) info.ArgumentList.Add(a);
+            using var p = Process.Start(info)!;
+            var output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            Assert.DoesNotContain("FAIL", output);
+            Assert.Equal(files.Count, output.Split('\n').Count(l => l.StartsWith("PASS", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            if (Environment.GetEnvironmentVariable("INKVOLTPDF_SAMPLES") is not { Length: > 0 }) dir.Delete(true);
+        }
+    }
+}

@@ -101,6 +101,7 @@
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Save" />
                                     <MenuItem Command="app:Cmd.SaveAs" />
+                                    <MenuItem Command="app:Cmd.SaveAsPdfA" />
                                     <MenuItem Command="app:Cmd.ShowInFolder" />
                                     <MenuItem Command="app:Cmd.ReloadFromDisk" />
                                     <Separator />

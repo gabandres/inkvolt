@@ -24,7 +24,7 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -857,6 +857,7 @@ internal static class DevScript
                 log.Add($"webpage: {pdf.Length} bytes, active '{window.ActiveTab?.Session.DisplayName}' pages={window.ActiveTab?.PageView.PageCount}");
                 break;
             }
+            case "pdfa": await PdfAActions.SaveAs(window, tab!); break; // savepath out.pdf first; answer the prompts with later/prompt
             case "converters":
                 log.Add($"converters: office=[{string.Join(", ", OfficeConverter.InstalledApps)}] webview2={WebCapture.RuntimeVersion ?? "none"} menu={window.OfficeMenu.Visibility}");
                 break;

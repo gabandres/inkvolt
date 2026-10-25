@@ -1188,6 +1188,23 @@ internal static class Xmp
         static string Format(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:sszzz", System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static readonly XNamespace PdfAId = "http://www.aiim.org/pdfa/ns/id/";
+
+    /// <summary>
+    /// A new packet for a PDF/A-2b file: the Info-backed properties, dates and IDs (as <see cref="Build"/> writes them),
+    /// plus pdfaid:part 2 and pdfaid:conformance B. Only schemas PDF/A predefines, so no extension schema is needed.
+    /// </summary>
+    internal static byte[] BuildPdfA(PdfDocumentInformation info)
+    {
+        var xmp = XDocument.Parse(Encoding.UTF8.GetString(Build(info, null)).Split('\n')[1]);
+        xmp.Descendants(Rdf + "RDF").First().Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
+            new XAttribute(XNamespace.Xmlns + "pdfaid", PdfAId), new XElement(PdfAId + "part", "2"), new XElement(PdfAId + "conformance", "B")));
+        return Packet(xmp);
+    }
+
+    /// <summary>The file PDFsharp just saved, with <paramref name="packet"/> as its XMP packet; null if it can't be swapped.</summary>
+    internal static byte[]? ReplacePacket(ReadOnlySpan<byte> saved, byte[] packet) => Replace(saved, packet);
+
     private static byte[] Packet(XDocument xmp)
     {
         var text = "<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" +
