@@ -25,6 +25,10 @@ public static class Prompt
         Show(owner, title, body, warning ? "" : "", warning ? "SystemFillColorCautionBrush" : "AccentTextFillColorPrimaryBrush",
             [(confirm, true), ("Cancel", false)]) == 0;
 
+    /// <summary>The index of the button chosen; Esc or closing picks the last one.</summary>
+    public static int Choose(Window? owner, string title, string body, params (string Text, bool Accent)[] buttons) =>
+        Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", buttons);
+
     public static SaveChoice SaveChanges(Window owner, string name) =>
         Show(owner, $"Save changes to {name}?", "Your page edits will be lost if you don't save them.", "",
             "AccentTextFillColorPrimaryBrush", [("Save", true), ("Don't save", false), ("Cancel", false)]) switch

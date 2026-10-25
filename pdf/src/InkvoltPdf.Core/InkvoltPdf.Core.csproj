@@ -18,6 +18,10 @@
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Inkvolt Print's shared library (MIT): RunFolder, the per-run folder recovery copies are kept in, as Inkvolt Print keeps unsaved scans -->
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
   </ItemGroup>
 </Project>

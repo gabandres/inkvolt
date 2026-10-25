@@ -342,6 +342,8 @@ public sealed class AppSettings
     public bool RestorePosition { get; set; } = true;
     /// <summary>Reopen the documents that were open when Inkvolt PDF was closed.</summary>
     public bool ReopenTabs { get; set; }
+    /// <summary>Keep a recovery copy of documents with unsaved changes, offered back after a crash (<see cref="Autosave"/>).</summary>
+    public bool KeepRecoveryCopies { get; set; } = true;
     public List<string> OpenTabs { get; set; } = [];
     /// <summary>Show pages with inverted colors (night reading).</summary>
     public bool DarkPages { get; set; }

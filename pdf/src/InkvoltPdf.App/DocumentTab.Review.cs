@@ -793,7 +793,7 @@ public partial class DocumentTab
         }
     }
 
-    /// <summary>Opens an attached PDF in a new tab (an unsaved copy; nothing is written to disk).</summary>
+    /// <summary>Opens an attached PDF in a new tab (an unsaved copy: nothing is written but its recovery copy, see Autosave).</summary>
     public async Task OpenAttachment(AttachmentInfo a)
     {
         if (!ReviewIsCurrent() || Window.GetWindow(this) is not MainWindow main) return;

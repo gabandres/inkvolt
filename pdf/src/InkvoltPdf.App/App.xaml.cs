@@ -66,6 +66,20 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+        _ = OpenStartupFilesAsync(window, args);
+    }
+
+    /// <summary>Documents left unsaved by an earlier run first (one may be a file asked for now), then the files asked for.</summary>
+    private async Task OpenStartupFilesAsync(MainWindow window, string[] args)
+    {
+        try
+        {
+            await window.OfferRecoveryAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Recovery offer failed: {ex}");
+        }
         if (args.Length > 0) window.OpenFiles(args);
         else window.ReopenLastSession();
 

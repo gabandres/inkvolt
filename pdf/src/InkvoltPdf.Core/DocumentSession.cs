@@ -41,6 +41,9 @@ public sealed partial class DocumentSession : IDisposable
     public bool IsDirty => _version != _savedVersion;
     public bool IsPdf => FileType == InputFileTypes.PDF;
 
+    /// <summary>The file's size and time when it was opened or last saved (null for a document never saved).</summary>
+    public (long Length, DateTime WriteTimeUtc)? DiskStampWhenRead => _onDisk;
+
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
     public string? UndoLabel => _undo.Last?.Value.Label;
@@ -85,6 +88,25 @@ public sealed partial class DocumentSession : IDisposable
         var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
         var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine);
         session._savedVersion = -1; // never saved
+        return session;
+    }
+
+    /// <summary>
+    /// A document offered back after Inkvolt PDF closed without saving it (<see cref="RecoveryStore"/>): its bytes as they
+    /// were, with unsaved changes, under the file it came from (null for one never saved), so Save writes it back there.
+    /// <paramref name="diskStamp"/> is that file's size and time when the copy was made: a file changed since shows as
+    /// changed on disk, as it would have in the run that made the copy.
+    /// </summary>
+    /// <exception cref="PasswordRequiredException"/>
+    public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
+        string? password = null)
+    {
+        var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
+        var path = originalPath is null ? null : Path.GetFullPath(originalPath);
+        var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
+        var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine) { OpenPassword = openPassword };
+        session._onDisk = path is null ? null : diskStamp ?? DiskStamp(path);
+        session._savedVersion = -1; // unsaved changes
         return session;
     }
 

@@ -97,6 +97,7 @@ public partial class MainWindow : Window
     private bool _closeRunning;
     private bool _closed;
     private bool _finished;
+    private readonly Autosave _autosave;
     private bool _sessionEnded;
     private bool _sessionPromptRunning;
 
@@ -113,6 +114,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _autosave = new Autosave(() => OpenTabs);
         // Shortcuts shown on buttons come from the commands' gestures, so they always match the bindings.
         Cmd.AddShortcutsToTips(this);
         PaletteKeyText.Text = Cmd.GestureText(Cmd.CommandPalette);
@@ -382,6 +384,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnSessionEnding(object? sender, SessionEndingCancelEventArgs e)
     {
+        // Windows may end the app before the questions below are answered: unsaved documents get their recovery copies now.
+        _autosave.Copy(wait: true);
         if (!_tabs.Any(t => t.Tab.Session.IsDirty || t.Tab.HasPendingEdits))
         {
             RememberOpenTabs();
@@ -991,6 +995,7 @@ public partial class MainWindow : Window
         _finished = true;
         RememberOpenTabs();
         foreach (var model in _tabs.ToList()) Discard(model);
+        _autosave.Dispose(); // every document was saved or let go: no recovery copies to keep
         SavePlacement();
     }
 
@@ -1002,6 +1007,82 @@ public partial class MainWindow : Window
         _tabs.Remove(model);
         DocsHost.Children.Remove(model.Tab);
         model.Tab.Dispose();
+    }
+
+    /// <summary>
+    /// On startup: documents a run of Inkvolt PDF left with unsaved changes (it crashed, was ended, or the PC lost power)
+    /// are offered back as tabs with those changes, to save or close. "Not now" keeps them for the next start.
+    /// </summary>
+    public async Task OfferRecoveryAsync()
+    {
+        IReadOnlyList<LeftOverDocument> left;
+        try
+        {
+            RecoveryStore.DiscardEmpty(Autosave.Root);
+            left = RecoveryStore.FindLeftOver(Autosave.Root);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Looking for recovery copies failed: {ex.Message}");
+            return;
+        }
+        if (left.Count == 0) return;
+        var names = string.Join(", ", left.Select(d => d.Info.DisplayName).Take(5)) + (left.Count > 5 ? $" and {left.Count - 5} more" : "");
+        var choice = Prompt.Choose(this,
+            left.Count == 1 ? "Restore a document that wasn't saved?" : $"Restore {left.Count} documents that weren't saved?",
+            $"Inkvolt PDF closed before changes to {names} were saved. Restore opens them with those changes, to save or close.",
+            ("Restore", true), ("Discard", false), ("Not now", false));
+        if (choice == 2) return;
+        if (choice == 1)
+        {
+            RecoveryStore.Discard(left);
+            return;
+        }
+        var restored = new List<LeftOverDocument>();
+        foreach (var document in left.OrderBy(d => d.Info.SavedUtc))
+            if (await RestoreAsync(document)) restored.Add(document);
+        // The old copies go once this run has its own, so a crash right now still finds them.
+        _autosave.Copy(wait: true);
+        foreach (var document in restored) RecoveryStore.Remove(document);
+    }
+
+    /// <summary>Opens a recovery copy as a tab with unsaved changes (asking for its password when it has one). False when it wasn't opened.</summary>
+    private async Task<bool> RestoreAsync(LeftOverDocument document)
+    {
+        var info = document.Info;
+        try
+        {
+            var data = await Task.Run(() => File.ReadAllBytes(document.PdfPath));
+            (long, DateTime)? stamp = info is { OriginalLength: { } length, OriginalWriteTimeUtc: { } time } ? (length, time) : null;
+            string? password = null;
+            var wrong = false;
+            while (true)
+            {
+                try
+                {
+                    var pw = password;
+                    var session = await Task.Run(() => DocumentSession.Recover(data, info.OriginalPath, info.DisplayName, stamp, pw));
+                    OpenSession(session);
+                    if (ActiveTab is { } tab && info.Page > 0 && info.Page < tab.PageView.PageCount)
+                        _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => tab.PageView.GoToPage(info.Page, record: false));
+                    ShowToast(new Toast($"Restored {info.DisplayName} with its unsaved changes. Save to keep them."));
+                    return true;
+                }
+                catch (PasswordRequiredException ex)
+                {
+                    password = PdfFiles.PromptPassword(this, info.DisplayName, wrong || ex.WrongPassword);
+                    if (password is null) return false; // kept for the next start
+                    wrong = true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.Write($"Restoring {info.DisplayName} failed: {ex}");
+            RecoveryStore.Remove(document);
+            ShowToast(new Toast($"Couldn't restore {info.DisplayName}: the copy is damaged.", IsError: true));
+            return false;
+        }
     }
 
     /// <summary>On startup: reopen last session's documents if the user asked for that.</summary>
@@ -1911,6 +1992,7 @@ public partial class MainWindow : Window
         var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], s.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 });
         var restore = dlg.AddCheck("Reopen each file at the page where I left off", s.RestorePosition);
         var reopen = dlg.AddCheck("Reopen the files I had open when I closed Inkvolt PDF", s.ReopenTabs);
+        var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes (offered back if Inkvolt PDF closes unexpectedly)", s.KeepRecoveryCopies);
         var dark = dlg.AddCheck("Dark pages (inverted colors for night reading)", s.DarkPages);
         var author = dlg.AddText("Author name on comments", s.AuthorName is { Length: > 0 } a ? a : Environment.UserName);
         dlg.AddNote("To make Inkvolt PDF your default PDF app: Windows Settings › Apps › Default apps › Inkvolt PDF.");
@@ -1929,6 +2011,7 @@ public partial class MainWindow : Window
         s.Theme = theme.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };
         s.RestorePosition = restore.IsChecked == true;
         s.ReopenTabs = reopen.IsChecked == true;
+        s.KeepRecoveryCopies = recovery.IsChecked == true;
         s.DarkPages = dark.IsChecked == true;
         var name = author.Text.Trim();
         s.AuthorName = name == Environment.UserName ? "" : name; // empty = follow the Windows user name

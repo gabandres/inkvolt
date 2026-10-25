@@ -35,7 +35,7 @@ namespace InkvoltPdf.App;
 /// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· imagesel p i|none · moveimage p i x y w h · imageaction delete|replace file</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
-/// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · mouselog</c>. Prompts and file
+/// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
@@ -588,6 +588,11 @@ internal static class DevScript
             case "menu": log.Add(ClickMenuItem(arg)); break;
             case "tabmenu": window.OpenTabMenu(window.ActiveTabModel!, atMouse: false); break;
             case "tablabels": log.Add($"tabs: {string.Join(" | ", window.TabLabelsShown)}"); break;
+            case "recover":
+                // recover: what a normal start does first: offer the documents a run left unsaved (answer the prompt with "answer").
+                await window.OfferRecoveryAsync();
+                log.Add($"tabs: {string.Join(" | ", window.TabLabelsShown)}; dirty: {string.Join(",", window.OpenTabs.Select(t => t.Session.IsDirty))}");
+                break;
             case "highcontrast":
                 // highcontrast on|off|system: the page view's high-contrast palette without changing Windows' setting.
                 PageViewer.DevForceHighContrast = arg switch { "on" => true, "off" => false, _ => null };

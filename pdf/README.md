@@ -211,6 +211,14 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   other formats Inkvolt PDF opens export too.
 - **Reload** (F5) and an info bar when another program changes the open file. **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page (both panes of a split view); high-contrast aware.
+- **Recovery copies**: every PDF with unsaved changes (edits, a combined or scanned document never saved) gets a copy in
+  `%LOCALAPPDATA%\InkvoltPdf\recovery` at most every 20 seconds after a change, written in the background as Save would
+  write it (a password-protected document stays protected), and at once when Windows signs out. A copy goes when its
+  document is saved, undone back to its saved state or closed, and all of them on a normal exit. After a crash, a killed
+  process or a power cut, the next start asks: **Restore** opens each document with its changes and back at its page
+  (a protected one asks for its password; Save writes it to the file it came from, and a file changed meanwhile shows as
+  changed on disk), **Discard**, or **Not now** (asked again next time). Each run keeps its copies in a folder of its own,
+  locked while it runs (`RecoveryStore`). Settings › "Keep recovery copies of unsaved changes" turns it off.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit.
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
