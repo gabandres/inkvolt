@@ -96,6 +96,8 @@ public sealed class PdfEngine : IDisposable
     private readonly Dictionary<int, PageText> _textCache = [];
     private readonly LinkedList<int> _textLru = [];
     private readonly Dictionary<int, PageLink[]> _links = [];
+    // What a lone accent glyph actually draws ("=" under the name "dotaccent"), by font, text and size: rendered once.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Font, string Text, double Size), string?> _drawnAs = new();
     private IReadOnlyList<OutlineNode>? _outline;
     private volatile bool _disposed;
 
@@ -467,6 +469,7 @@ public sealed class PdfEngine : IDisposable
     {
         cancel.ThrowIfCancellationRequested();
         var lines = new List<ExportLine>();
+        var raw = new List<(List<ExportGlyph> Glyphs, int Turn, bool Sideways)>();
         var pictures = new List<ExportImage>();
         var paths = new List<(RectD Box, bool Stroked)>();
         var tooManyPaths = false;
@@ -486,7 +489,7 @@ public sealed class PdfEngine : IDisposable
                 switch (block)
                 {
                     case MuPDFTextStructuredTextBlock tb:
-                        foreach (var line in tb) lines.AddRange(ReadLine(line, g));
+                        foreach (var line in tb) raw.Add(ReadGlyphs(line, g));
                         break;
                     case MuPDFImageStructuredTextBlock ib when images && ib.Image is { Width: > 0, Height: > 0 } img:
                     {
@@ -519,6 +522,32 @@ public sealed class PdfEngine : IDisposable
         }
 
         IReadOnlyList<RectD> rules = tooManyPaths ? [] : DocLayout.RulesFromPaths(paths);
+        // Accents joined to their letters and leaders found across the page (a capital's accent is a line of its own);
+        // lines split where a table's vertical rule passes between two characters (cells MuPDF read as one line).
+        var composed = ExportGlyphs.Compose([.. raw.Select(r => r.Glyphs)], i => raw[i].Turn == 0 && !raw[i].Sideways);
+        // An accent standing alone may be another shape under an accent's name (a form's "=" named "dotaccent"): what it
+        // draws decides.
+        foreach (var glyphs in composed)
+            for (var k = 0; k < glyphs.Count; k++)
+            {
+                if (!ExportGlyphs.IsLoneAccent(glyphs, k)) continue;
+                // A glyph of one font at one size draws the same everywhere: rendered once.
+                var key = (glyphs[k].Look.Font, glyphs[k].Text, Math.Round(glyphs[k].Look.Size, 1));
+                if (!_drawnAs.TryGetValue(key, out var drawn))
+                {
+                    const double ppp = 8;
+                    if (RenderRegionRgba(page, glyphs[k].Rect, ppp, cancel) is not { } r) continue;
+                    var alpha = new byte[r.Width * r.Height];
+                    for (var p = 0; p < alpha.Length; p++) alpha[p] = r.Rgba[p * 4 + 3];
+                    drawn = ExportGlyphs.DrawnAs(alpha, r.Width, r.Height, r.Width / Math.Max(0.01, glyphs[k].Rect.Width), glyphs[k].Look.Size);
+                    _drawnAs[key] = drawn;
+                }
+                if (drawn is not null && !(drawn == "−" && glyphs[k].Text == "¯")) glyphs[k] = glyphs[k] with { Text = drawn };
+            }
+        var verticals = rules.Where(r => r.Width <= 3 && r.Height > 6).ToList();
+        for (var i = 0; i < composed.Count; i++)
+            if (composed[i].Count > 0) lines.AddRange(LinesOf(composed[i], raw[i].Turn, raw[i].Sideways, verticals));
+
         var figures = DocLayout.FigureRegions(paths, lines, g.Width, g.Height);
         if (figures.Count > 0)
         {
@@ -610,14 +639,10 @@ public sealed class PdfEngine : IDisposable
         }
     }
 
-    /// <summary>
-    /// A structured-text line as spans of one look each, split where a left-to-right line has a gap wide enough to be
-    /// a column gap: over 2.5 times the type size, or over its size between two numbers (table columns set close
-    /// together, which MuPDF reads as one line). Empty when it holds no characters.
-    /// </summary>
-    private static List<ExportLine> ReadLine(MuPDFStructuredTextLine line, PageGeometry g)
+    /// <summary>A structured-text line's characters (page space), with which way it reads.</summary>
+    private static (List<ExportGlyph> Glyphs, int Turn, bool Sideways) ReadGlyphs(MuPDFStructuredTextLine line, PageGeometry g)
     {
-        var chars = new List<(string Text, RectD Rect, ExportSpan Look)>();
+        var glyphs = new List<ExportGlyph>();
         foreach (var ch in line)
         {
             var q = ch.BoundingQuad;
@@ -629,11 +654,25 @@ public sealed class PdfEngine : IDisposable
             var font = ch.Font;
             var name = font?.Name ?? "";
             var look = new ExportSpan("", name, ch.Size, (font?.IsBold ?? false) || FontNames.LooksBold(name),
-                (font?.IsItalic ?? false) || FontNames.LooksItalic(name), ch.Color & 0xFFFFFF, rect);
-            chars.Add((ch.Character, rect, look));
+                (font?.IsItalic ?? false) || FontNames.LooksItalic(name), ch.Color & 0xFFFFFF, rect)
+            {
+                Serif = font?.IsSerif ?? false, Mono = font?.IsMonospaced ?? false,
+            };
+            glyphs.Add(new ExportGlyph(ch.Character, rect, look));
         }
         var turn = ExportLine.TurnOf(line.Direction.X, line.Direction.Y);
         var sideways = Math.Abs(line.Direction.Y) > 0.1 || line.Direction.X <= 0;
+        return (glyphs, turn, sideways);
+    }
+
+    /// <summary>
+    /// A line's characters as spans of one look each, split where a left-to-right line has a gap wide enough to be a
+    /// column gap: over 2.5 times the type size, or over its size between two numbers (table columns set close together,
+    /// which MuPDF reads as one line), and where one of <paramref name="verticals"/> (a table's rules) passes between two
+    /// characters. A leader is a span of its own. Empty when it holds no characters.
+    /// </summary>
+    private static List<ExportLine> LinesOf(List<ExportGlyph> chars, int turn, bool sideways, List<RectD> verticals)
+    {
         var result = new List<ExportLine>();
         // Positions along the reading direction, whichever way the line runs.
         var along = chars.Select(c => turn switch
@@ -643,16 +682,20 @@ public sealed class PdfEngine : IDisposable
             2 => (c.Text, -c.Rect.Right, -c.Rect.X, c.Look.Size),
             _ => (c.Text, -c.Rect.Bottom, -c.Rect.Y, c.Look.Size),
         }).ToList();
-        foreach (var part in ExportLine.SplitAtColumnGaps(along))
+        var parts = ExportLine.SplitAtColumnGaps(along);
+        if (turn == 0 && verticals.Count > 0) parts = [.. parts.SelectMany(p => SplitAtRules(chars, p, verticals))];
+        foreach (var part in parts)
         {
             var spans = new List<ExportSpan>();
             var text = new System.Text.StringBuilder();
             ExportSpan? look = null;
             RectD box = default;
+            var leader = false;
             for (var i = part.Start; i < part.End; i++)
             {
                 var (s, rect, c) = chars[i];
-                if (look is null || !look.SameLook(c))
+                var isLeader = s.Length == 1 && ExportGlyphs.IsLeader(s[0]);
+                if (look is null || !look.SameLook(c) || isLeader || leader)
                 {
                     if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
                     text.Clear();
@@ -660,12 +703,36 @@ public sealed class PdfEngine : IDisposable
                     box = rect;
                 }
                 else box = box.Union(rect);
+                leader = isLeader;
                 text.Append(s);
             }
             if (look is not null && text.Length > 0) spans.Add(look with { Text = text.ToString(), Box = box });
             if (spans.Count > 0) result.Add(ExportLine.Of(spans, sideways) with { Turn = turn });
         }
         return result;
+    }
+
+    /// <summary>A left-to-right part of a line cut where a vertical rule runs between two of its characters, at their height.</summary>
+    private static IEnumerable<(int Start, int End)> SplitAtRules(List<ExportGlyph> chars, (int Start, int End) part, List<RectD> verticals)
+    {
+        var start = part.Start;
+        var lastInk = -1;
+        for (var i = part.Start; i < part.End; i++)
+        {
+            if (string.IsNullOrWhiteSpace(chars[i].Text)) continue;
+            if (lastInk >= 0)
+            {
+                var (a, b) = (chars[lastInk].Rect, chars[i].Rect);
+                var cy = (a.CenterY + b.CenterY) / 2;
+                if (verticals.Any(v => v.CenterX >= a.CenterX && v.CenterX <= b.CenterX && v.Y <= cy && v.Bottom >= cy))
+                {
+                    yield return (start, lastInk + 1);
+                    start = i;
+                }
+            }
+            lastInk = i;
+        }
+        yield return (start, part.End);
     }
 
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the links were read.</exception>

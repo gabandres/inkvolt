@@ -23,7 +23,23 @@ public sealed record DocParagraph(IReadOnlyList<ExportSpan> Runs, RectD Box) : D
     public double Indent { get; init; }
     public double FirstLine { get; init; }
     public bool AllBold => Runs.Where(r => !string.IsNullOrWhiteSpace(r.Text)).All(r => r.Bold);
+
+    /// <summary>Where each tab in the text goes, in order (points from the left of the column).</summary>
+    public IReadOnlyList<DocTab> Tabs { get; init; } = [];
+
+    /// <summary>The distance from one line's top to the next's in the PDF (0 for one line).</summary>
+    public double LinePitch { get; init; }
+
+    /// <summary>Space above and below (points), as the page leaves it; null: the writer's usual spacing.</summary>
+    public double? SpaceBefore { get; init; }
+    public double? SpaceAfter { get; init; }
 }
+
+/// <summary>
+/// A tab stop: its position (points from the left of the column), whether text ends there (a leader up to it) or starts
+/// there, and what fills the space before it: '.', '_', '-' or nothing ('\0').
+/// </summary>
+public sealed record DocTab(double Position, bool Right, char Leader);
 
 /// <summary>A table cell: its paragraphs, and any pictures in it (icons, logos).</summary>
 public sealed record DocCell(IReadOnlyList<DocParagraph> Paragraphs, int ColSpan = 1)
@@ -33,7 +49,11 @@ public sealed record DocCell(IReadOnlyList<DocParagraph> Paragraphs, int ColSpan
 }
 
 /// <summary>A table: rows of cells (a cell may span columns), column widths in points, drawn with lines or not.</summary>
-public sealed record DocTable(IReadOnlyList<IReadOnlyList<DocCell>> Rows, IReadOnlyList<double> ColumnWidths, bool Ruled, RectD Box) : DocBlock(Box);
+public sealed record DocTable(IReadOnlyList<IReadOnlyList<DocCell>> Rows, IReadOnlyList<double> ColumnWidths, bool Ruled, RectD Box) : DocBlock(Box)
+{
+    /// <summary>Each row's height on the page (points), when its rules give it; null: as tall as the text needs.</summary>
+    public IReadOnlyList<double>? RowHeights { get; init; }
+}
 
 public sealed record DocPicture(ExportImage Image, RectD Box) : DocBlock(Box);
 
@@ -109,19 +129,27 @@ public static partial class DocLayout
         return counts.Count == 0 ? 11 : counts.MaxBy(kv => kv.Value).Key;
     }
 
-    /// <summary>Thin paths become rules; outlined boxes give their four edges (cell borders are often drawn as rectangles).</summary>
+    /// <summary>
+    /// Thin paths become rules; outlined boxes give their four edges (cell borders are often drawn as rectangles). MuPDF
+    /// bounds an outlined box with room for mitered corners (up to the miter limit times the line width, some 11 pt for a
+    /// 1 pt frame), so a frame's edges stand off the rules drawn inside it: when rules inside reach equally close to both
+    /// sides, the frame is taken in by that much all round.
+    /// </summary>
     public static IReadOnlyList<RectD> RulesFromPaths(IEnumerable<(RectD Box, bool Stroked)> paths)
     {
         var rules = new List<RectD>();
-        foreach (var (b, stroked) in paths)
+        var list = paths.Where(p => p.Box.Width >= 0 && p.Box.Height >= 0 && double.IsFinite(p.Box.Width) && double.IsFinite(p.Box.Height)).ToList();
+        var thin = list.Where(p => p.Box.Width <= Thin || p.Box.Height <= Thin).Select(p => p.Box).ToList();
+        foreach (var (box, stroked) in list)
         {
-            if (b.Width < 0 || b.Height < 0 || !double.IsFinite(b.Width) || !double.IsFinite(b.Height)) continue;
+            var b = box;
             if (b.Width <= Thin || b.Height <= Thin)
             {
                 if (Math.Max(b.Width, b.Height) >= 4) rules.Add(b);
             }
             else if (stroked)
             {
+                if (FramePadding(b, thin) is { } pad) b = b.Inflate(-pad);
                 rules.Add(new RectD(b.X, b.Y, b.Width, 0));
                 rules.Add(new RectD(b.X, b.Bottom, b.Width, 0));
                 rules.Add(new RectD(b.X, b.Y, 0, b.Height));
@@ -129,6 +157,31 @@ public static partial class DocLayout
             }
         }
         return rules;
+    }
+
+    /// <summary>
+    /// How far an outlined box's bounds stand off the frame actually drawn: the rules inside it that run across (or down)
+    /// it end the same distance (0.5 to 15 pt) short of both sides, two of them at least and all alike. Null otherwise.
+    /// </summary>
+    private static double? FramePadding(RectD box, List<RectD> thin)
+    {
+        var pads = new List<double>();
+        foreach (var r in thin)
+        {
+            double a, b;
+            if (r.Height <= Thin && r.Width > 0.5 * box.Width && r.CenterY > box.Y && r.CenterY < box.Bottom)
+                (a, b) = (r.X - box.X, box.Right - r.Right);
+            else if (r.Width <= Thin && r.Height > 0.5 * box.Height && r.CenterX > box.X && r.CenterX < box.Right)
+                (a, b) = (r.Y - box.Y, box.Bottom - r.Bottom);
+            else continue;
+            if (a is >= 0.5 and <= 15 && b is >= 0.5 and <= 15 && Math.Abs(a - b) <= 2.5) pads.Add((a + b) / 2);
+        }
+        // Two rules at least (a single line inset in a box may be inset on purpose).
+        if (pads.Count < 2) return null;
+        pads.Sort();
+        if (pads[^1] - pads[0] > 2.5) return null;
+        var pad = pads[pads.Count / 2];
+        return pad < Math.Min(box.Width, box.Height) / 4 ? pad : null;
     }
 
     // ---- one page ----
@@ -153,7 +206,7 @@ public static partial class DocLayout
     {
         var lines = page.Lines.Where(l => !l.Sideways && l.Text.Any(c => !char.IsWhiteSpace(c))).ToList();
         if (page.FromOcr) lines = SnapOcrSizes(lines);
-        lines = MergeRows(lines);
+        lines = MergeRows(lines, [.. page.Rules.Where(r => r.Width <= Thin && r.Height > 6)]);
 
         var items = new List<Item>();
         var images = page.Images.Where(i => Keeps(page, i)).ToList();
@@ -180,7 +233,45 @@ public static partial class DocLayout
             if (at < 0) blocks.AddRange(inserted);
             else blocks.InsertRange(at, inserted);
         }
-        return new DocPage(page.Width, page.Height, content, blocks, page.FromOcr);
+        return new DocPage(page.Width, page.Height, content, Spaced(blocks), page.FromOcr);
+    }
+
+    /// <summary>Word's line height for one line of type (single spacing), as a share of the size.</summary>
+    private const double WordLine = 1.17;
+
+    /// <summary>
+    /// The space the page leaves above each paragraph, so the export keeps its vertical layout (a form's rows, a gap before
+    /// a signature): from the line before's top, one Word line per line it had, the rest as space before; after a table
+    /// or picture, the gap under it. A paragraph before a table keeps the gap under it as space after (a table has no
+    /// space of its own). The first block, and one placed higher than the block before (a new column), get none. The
+    /// gap is measured from the paragraph before's last line, so its line spacing doesn't add to it.
+    /// </summary>
+    private static List<DocBlock> Spaced(List<DocBlock> blocks)
+    {
+        var result = new List<DocBlock>(blocks.Count);
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            var b = blocks[i];
+            if (b is DocParagraph p)
+            {
+                var before = 0.0;
+                if (i > 0)
+                {
+                    var prev = blocks[i - 1];
+                    // From the top of the paragraph before's last line (its line spacing is its own, not a gap).
+                    before = prev is DocParagraph q
+                        ? p.Box.Y - (q.Box.Y + (q.LineCount - 1) * q.LinePitch) - WordLine * q.Size
+                        : p.Box.Y - prev.Box.Bottom;
+                    // Sideways text placed where it starts has no height: no gap to measure.
+                    if (prev.Box.Height <= 0 || p.Box.Height <= 0) before = 0;
+                }
+                var after = i + 1 < blocks.Count && blocks[i + 1] is DocTable t && t.Box.Y >= p.Box.Bottom
+                    ? Math.Min(200, t.Box.Y - p.Box.Bottom) : 0;
+                b = p with { SpaceBefore = Math.Clamp(before, 0, 200), SpaceAfter = after };
+            }
+            result.Add(b);
+        }
+        return result;
     }
 
     /// <summary>OCR sizes are estimates: those within a fifth of the page's usual size are taken as that size.</summary>
@@ -196,9 +287,10 @@ public static partial class DocLayout
 
     /// <summary>
     /// Joins pieces of one visual line that MuPDF split (a bullet and its text, words spread by justification): same row,
-    /// close together. A lone list marker joins its text even across a wide gap.
+    /// close together. A lone list marker joins its text even across a wide gap. Not across one of
+    /// <paramref name="verticals"/> (a table's rule between two cells).
     /// </summary>
-    private static List<ExportLine> MergeRows(List<ExportLine> lines)
+    private static List<ExportLine> MergeRows(List<ExportLine> lines, List<RectD> verticals)
     {
         var sorted = lines.OrderBy(l => l.Box.X).ToList();
         var result = new List<ExportLine>();
@@ -217,6 +309,8 @@ public static partial class DocLayout
                 var size = Math.Max(prev.Size, line.Size);
                 var maxGap = IsMarkerOnly(prev.Text) ? 4 * size : 1.2 * size;
                 if (gap < -1 || gap > maxGap) continue;
+                var cy = (prev.Box.CenterY + line.Box.CenterY) / 2;
+                if (verticals.Any(v => v.CenterX >= prev.Box.Right - 1 && v.CenterX <= line.Box.X + 1 && v.Y <= cy && v.Bottom >= cy)) continue;
                 // Two numbers apart are two table columns, not one line.
                 if (gap > 0.8 * size && ExportLine.NumberLike(prev.Text) && ExportLine.NumberLike(line.Text)) continue;
                 result[k] = Join(prev, line);
@@ -234,7 +328,9 @@ public static partial class DocLayout
         static ExportLine Join(ExportLine a, ExportLine b)
         {
             var spans = a.Spans.ToList();
-            var needsSpace = !char.IsWhiteSpace(a.Text.LastOrDefault(' ')) && !char.IsWhiteSpace(b.Text.FirstOrDefault(' '));
+            // Pieces that touch are one word split by MuPDF (at a capital's accent: "PREDICACIÓ" "N"): no space between.
+            var touching = b.Box.X - a.Box.Right < 0.15 * Math.Max(a.Size, b.Size);
+            var needsSpace = !touching && !char.IsWhiteSpace(a.Text.LastOrDefault(' ')) && !char.IsWhiteSpace(b.Text.FirstOrDefault(' '));
             if (needsSpace) spans[^1] = spans[^1] with { Text = spans[^1].Text + " " };
             spans.AddRange(b.Spans);
             return ExportLine.Of(spans);
@@ -257,8 +353,8 @@ public static partial class DocLayout
                 {
                     if (UnruledTable(pieces, body) is { } table)
                         return [new Item(table.Box, null, table)];
-                    columns = pieces;
-                    if (ReadAsColumns(pieces, body))
+                    columns = FormRows(pieces) ? null : pieces;
+                    if (columns is not null && ReadAsColumns(pieces, body))
                     {
                         // Text under the columns that sits in one of them only (a list after a two-column part) comes after both.
                         var below = TextUnderColumns(items, pieces, body);
@@ -292,6 +388,18 @@ public static partial class DocLayout
             }
             return result;
         }
+    }
+
+    /// <summary>
+    /// Pieces side by side that line up row for row and fill in a form (a fill-in line in each, with its label under it:
+    /// "Signature ......" beside "Date ......"): read across, row by row, not one piece after the other.
+    /// </summary>
+    private static bool FormRows(List<List<Item>> pieces)
+    {
+        if (pieces.Any(p => p.Any(i => i.Line is null))) return false;
+        var lines = pieces.SelectMany((p, k) => p.Select(i => (Line: i.Line!, Col: k))).ToList();
+        if (!lines.Any(x => x.Line.Text.Any(ExportGlyphs.IsLeader))) return false;
+        return Rows(lines).All(r => r.Select(x => x.Col).Distinct().Count() >= 2);
     }
 
     /// <summary>
@@ -520,7 +628,7 @@ public static partial class DocLayout
             // Labels are short; a form or a text box has sentences.
             var labels = inside.Count > 0 && wordCount <= 4.0 * inside.Count;
             if (textArea >= 0.2 * box.Width * box.Height || wordCount > (labels ? 400 : 80)) continue;
-            if (IsRuledTable(clusterPaths, inside) || RowsOfText(inside)) continue;
+            if (IsRuledTable(clusterPaths, inside) || RowsOfText(inside) || IsFormGrid(clusterPaths, box)) continue;
             // The labels around the drawing go with it.
             var region = inside.Aggregate(box, (r, l) => r.Union(l.Box)).Intersect(new RectD(0, 0, width, height));
             if (!region.IsEmpty) figures.Add(region);
@@ -538,6 +646,30 @@ public static partial class DocLayout
         var rows = Rows([.. lines.Where(l => !l.Sideways).Select(l => (l, 0))]);
         var multi = rows.Count(r => r.Count >= 3 || (r.Count == 2 && r.Any(x => x.Line.Text.Count(char.IsLetter) >= 2)));
         return multi >= 4 && multi >= 0.5 * rows.Count;
+    }
+
+    /// <summary>
+    /// The paths are only rules and outlined boxes that no rule crosses, in a grid covering most of the cluster:
+    /// a form's boxes (a table to fill in, mostly empty), not a chart (bars are filled, gridlines cross a data line).
+    /// </summary>
+    private static bool IsFormGrid(List<(RectD Box, bool Stroked)> paths, RectD cluster)
+    {
+        if (!paths.All(p => p.Stroked || p.Box.Width <= Thin || p.Box.Height <= Thin)) return false;
+        var thin = paths.Where(p => p.Box.Width <= Thin || p.Box.Height <= Thin).Select(p => p.Box).ToList();
+        foreach (var g in Grids(RulesFromPaths(paths)))
+        {
+            if ((g.Xs[^1] - g.Xs[0]) * (g.Ys[^1] - g.Ys[0]) < 0.5 * cluster.Width * cluster.Height) continue;
+            // Each outlined shape holds the rules that reach it (a frame, a cell); a chart's gridlines run through its data
+            // line's bounds and out the other side.
+            var boxes = paths.Where(p => p.Box.Width > Thin && p.Box.Height > Thin).Select(p =>
+                FramePadding(p.Box, thin) is { } pad ? p.Box.Inflate(-pad) : p.Box);
+            static bool Crossed(RectD b, List<RectD> rules) => rules.Any(r =>
+                r.Height <= Thin
+                    ? r.CenterY > b.Y + 3 && r.CenterY < b.Bottom - 3 && (r.X < b.X - 3 && r.Right > b.X + 3 || r.X < b.Right - 3 && r.Right > b.Right + 3)
+                    : r.CenterX > b.X + 3 && r.CenterX < b.Right - 3 && (r.Y < b.Y - 3 && r.Bottom > b.Y + 3 || r.Y < b.Bottom - 3 && r.Bottom > b.Bottom + 3));
+            if (!boxes.Any(b => Crossed(b, thin))) return true;
+        }
+        return false;
     }
 
     /// <summary>The paths draw a grid with text in at least half its cells.</summary>
@@ -679,13 +811,16 @@ public static partial class DocLayout
             }
             docRows.Add(row);
         }
-        return new DocTable(docRows, [.. Enumerable.Range(0, cols).Select(c => xs[c + 1] - xs[c])], true, bounds);
+        return new DocTable(docRows, [.. Enumerable.Range(0, cols).Select(c => xs[c + 1] - xs[c])], true, bounds)
+        {
+            RowHeights = [.. Enumerable.Range(0, rows).Select(r => ys[r + 1] - ys[r])],
+        };
     }
 
     private static List<DocParagraph> CellParagraphs(List<ExportLine> lines, RectD cell, double body)
     {
         var items = lines.OrderBy(l => Math.Round(l.Box.Y)).ThenBy(l => l.Box.X).Select(l => new Item(l.Box, l, null) { Column = cell }).ToList();
-        return [.. Flow(items, body).OfType<DocParagraph>()];
+        return [.. Spaced(Flow(items, body)).OfType<DocParagraph>()];
     }
 
     // ---- paragraphs ----
@@ -693,6 +828,7 @@ public static partial class DocLayout
     /// <summary>Lines in reading order joined into paragraphs; tables and pictures pass through.</summary>
     private static List<DocBlock> Flow(List<Item> ordered, double body)
     {
+        ordered = JoinRows(ordered);
         var blocks = new List<DocBlock>();
         var cur = new List<ExportLine>();
         RectD column = default;
@@ -725,6 +861,68 @@ public static partial class DocLayout
         Flush();
         return blocks;
     }
+
+    /// <summary>
+    /// Pieces of text side by side on one row of a column (a form's labels under their fill-in lines, choices with their
+    /// boxes, a label and its value) as one line, a tab before each piece after the first: they export as one paragraph
+    /// with tab stops where the pieces started, instead of a staircase of paragraphs. Not two pieces of prose (several
+    /// words each, both wide): blocks of text side by side stay apart.
+    /// </summary>
+    private static List<Item> JoinRows(List<Item> ordered)
+    {
+        var result = new List<Item>(ordered.Count);
+        for (var i = 0; i < ordered.Count;)
+        {
+            var item = ordered[i];
+            if (item.Line is null)
+            {
+                result.Add(item);
+                i++;
+                continue;
+            }
+            var group = new List<Item> { item };
+            double top = item.Box.Y, bottom = item.Box.Bottom;
+            var j = i + 1;
+            for (; j < ordered.Count; j++)
+            {
+                var next = ordered[j];
+                if (next.Line is null || next.Column != item.Column || next.Box.CenterY < top || next.Box.CenterY > bottom) break;
+                group.Add(next);
+                (top, bottom) = (Math.Min(top, next.Box.Y), Math.Max(bottom, next.Box.Bottom));
+            }
+            group.Sort((a, b) => a.Box.X.CompareTo(b.Box.X));
+            var width = (item.Column ?? item.Box).Width;
+            var overlapping = group.Zip(group.Skip(1)).Any(p => p.Second.Box.X < p.First.Box.Right - 1);
+            var prose = group.Count(g => g.Box.Width >= 0.3 * width && Letters().Matches(g.Line!.Text).Count >= 4
+                                          && !g.Line.Text.Any(ExportGlyphs.IsLeader) && InParagraph(ordered, g, group)) >= 2;
+            if (group.Count == 1 || overlapping || prose)
+            {
+                result.AddRange(ordered.Skip(i).Take(j - i));
+                i = j;
+                continue;
+            }
+            var spans = new List<ExportSpan>(group[0].Line!.Spans);
+            foreach (var g in group.Skip(1))
+            {
+                var first = g.Line!.Spans[0];
+                spans.Add(first with { Text = "\t", Box = new RectD(g.Box.X, g.Box.Y, 0, g.Box.Height) });
+                spans.AddRange(g.Line.Spans);
+            }
+            var line = ExportLine.Of(spans);
+            result.Add(new Item(line.Box, line, null) { Column = item.Column });
+            i = j;
+        }
+        return result;
+    }
+
+    /// <summary>A line of the same size right above or below the piece, under it: the piece is a line of a paragraph.</summary>
+    private static bool InParagraph(List<Item> ordered, Item piece, List<Item> row) => ordered.Any(o =>
+            o.Line is { } l && !row.Contains(o) && Math.Abs(l.Size - piece.Line!.Size) <= 0.12 * piece.Line.Size
+            && Math.Min(o.Box.Right, piece.Box.Right) - Math.Max(o.Box.X, piece.Box.X) > 0.5 * Math.Min(o.Box.Width, piece.Box.Width)
+            && Math.Max(o.Box.Y - piece.Box.Bottom, piece.Box.Y - o.Box.Bottom) is var gap && gap > -0.5 * l.Size && gap < 0.65 * l.Size);
+
+    /// <summary>A line laid out with tabs (pieces of a row, a leader): it is a paragraph of its own.</summary>
+    private static bool Tabbed(ExportLine line) => line.Text.Any(c => c == '\t' || ExportGlyphs.IsLeader(c));
 
     /// <summary>
     /// Where each line's block of text ends on the right. A block is a run of lines one under the other, close together
@@ -781,6 +979,7 @@ public static partial class DocLayout
     {
         var prev = cur[^1];
         var size = prev.Size;
+        if (Tabbed(prev) || Tabbed(line)) return false;
         if (Math.Abs(size - line.Size) > Math.Max(1, 0.12 * size)) return false;
         if (ListMarker(line.Text) is not null) return false;
         if (line.Box.Y < prev.Box.Y + 0.5 * prev.Box.Height) return false;          // not below
@@ -806,9 +1005,28 @@ public static partial class DocLayout
     private static DocParagraph Paragraph(List<ExportLine> lines, RectD column, double body)
     {
         var runs = new List<ExportSpan>();
+        var tabs = new List<DocTab>();
         foreach (var line in lines)
         {
-            var spans = line.Spans;
+            // Tabs between a row's pieces start text where the piece did; a leader is a tab filled up to where it ended
+            // (a right stop), or, with text after it in the same piece ("Signature ____ Date ____"), up to where that
+            // text starts (a left stop), so the text stays where it was and the rule keeps its length. A number after it
+            // (a page number after dots) ends at the right edge as it did.
+            var spans = line.Spans.Select((sp, k) =>
+            {
+                if (sp.Text == "\t") tabs.Add(new DocTab(sp.Box.X - column.X, false, '\0'));
+                else if (sp.Text.Length == 1 && ExportGlyphs.IsLeader(sp.Text[0]))
+                {
+                    var fill = sp.Text[0] switch { ExportGlyphs.LineLeader => '_', ExportGlyphs.DashLeader => '-', _ => '.' };
+                    // What follows: text, a row's next piece (a tab) or another leader end the rule where it ended.
+                    var next = line.Spans.Skip(k + 1).FirstOrDefault(n => n.Text == "\t" || !string.IsNullOrWhiteSpace(n.Text));
+                    tabs.Add(next is null || next.Text == "\t" || ExportGlyphs.IsLeader(next.Text[0]) || ExportLine.NumberLike(next.Text)
+                        ? new DocTab(sp.Box.Right - column.X, true, fill)
+                        : new DocTab(next.Box.X - column.X, false, fill));
+                    return sp with { Text = "\t" };
+                }
+                return sp;
+            }).ToList();
             if (runs.Count > 0)
             {
                 var last = runs[^1].Text.TrimEnd();
@@ -825,13 +1043,14 @@ public static partial class DocLayout
         // Soft hyphens inside a line are invisible break points: not text.
         for (var i = 0; i < runs.Count; i++)
             if (runs[i].Text.Contains(SoftHyphen)) runs[i] = runs[i] with { Text = runs[i].Text.Replace(SoftHyphen.ToString(), "") };
-        // Trim the ends.
-        while (runs.Count > 0 && string.IsNullOrWhiteSpace(runs[0].Text)) runs.RemoveAt(0);
-        while (runs.Count > 0 && string.IsNullOrWhiteSpace(runs[^1].Text)) runs.RemoveAt(runs.Count - 1);
+        // Trim the ends (spaces only: a leader at the end is a tab that stays).
+        static bool Blank(ExportSpan r) => r.Text.All(c => c != '\t' && char.IsWhiteSpace(c));
+        while (runs.Count > 0 && Blank(runs[0])) runs.RemoveAt(0);
+        while (runs.Count > 0 && Blank(runs[^1])) runs.RemoveAt(runs.Count - 1);
         if (runs.Count > 0)
         {
-            runs[0] = runs[0] with { Text = runs[0].Text.TrimStart() };
-            runs[^1] = runs[^1] with { Text = runs[^1].Text.TrimEnd() };
+            runs[0] = runs[0] with { Text = runs[0].Text.TrimStart(Spaces) };
+            runs[^1] = runs[^1] with { Text = runs[^1].Text.TrimEnd(Spaces) };
         }
 
         var box = lines.Select(l => l.Box).Aggregate((a, b) => a.Union(b));
@@ -847,7 +1066,7 @@ public static partial class DocLayout
         var first = lines[0].Box.X - column.X;
         var rest = lines.Count > 1 ? lines.Skip(1).Min(l => l.Box.X) - column.X : first;
         var align = TextAlign.Left;
-        if (list == ListKind.None && column.Width > 0)
+        if (list == ListKind.None && column.Width > 0 && tabs.Count == 0)
         {
             var tol = Math.Max(3, 0.03 * column.Width);
             if (lines.All(l => Math.Abs(l.Box.CenterX - column.CenterX) <= tol) && first > 2 * size) align = TextAlign.Center;
@@ -870,9 +1089,13 @@ public static partial class DocLayout
         }
         return new DocParagraph(runs, box)
         {
-            Size = size, LineCount = lines.Count, List = list, Align = align, Indent = indent, FirstLine = firstLine,
+            Size = size, LineCount = lines.Count, List = list, Align = align, Indent = indent, FirstLine = firstLine, Tabs = tabs,
+            LinePitch = lines.Count > 1 ? (lines[^1].Box.Y - lines[0].Box.Y) / (lines.Count - 1) : 0,
         };
     }
+
+    /// <summary>Whitespace to trim at a paragraph's ends: all but the tab (a leader or a row's piece may end it).</summary>
+    private static readonly char[] Spaces = [' ', '\u00A0', '\u2002', '\u2003', '\u2009', '\u202F', '\r', '\n'];
 
     private static void Add(List<ExportSpan> runs, ExportSpan s)
     {
@@ -942,7 +1165,8 @@ public static partial class DocLayout
 
     /// <summary>
     /// Lines in the top or bottom tenth of the page that repeat (digits and roman numerals aside) on at least half the
-    /// pages, two at least: taken off the pages and returned as header and footer rows. A number that changes from page
+    /// pages, two at least, with no other page text on their row: taken off the pages and returned as header and footer
+    /// rows. A number that changes from page
     /// to page becomes <see cref="PageField"/>.
     /// </summary>
     private static (List<ExportPage> Pages, DocRunning? Header, DocRunning? Footer) Running(IReadOnlyList<ExportPage> pages)
@@ -975,6 +1199,14 @@ public static partial class DocLayout
         }
         var need = Math.Max(2, (int)Math.Ceiling(pages.Count / 2.0));
         var running = seen.Where(kv => kv.Value.Count >= need).ToDictionary(kv => kv.Key, kv => kv.Value);
+        // A line with page text beside it on its row (an item number at the top of a form) is part of the page.
+        // Lines repeated on two pages or more (a chapter title on odd pages, the book's on even ones) are header-like too.
+        var candidates = seen.Values.Where(v => v.Count >= 2).SelectMany(v => v).Select(x => x.Line).ToHashSet(ReferenceEqualityComparer.Instance);
+        bool Alone(int page, ExportLine line) => !pages[page].Lines.Any(o =>
+            !ReferenceEquals(o, line) && !o.Sideways && !string.IsNullOrWhiteSpace(o.Text) && !candidates.Contains(o)
+            && Math.Min(o.Box.Bottom, line.Box.Bottom) - Math.Max(o.Box.Y, line.Box.Y) > 0.5 * Math.Min(o.Box.Height, line.Box.Height));
+        running = running.Select(kv => (kv.Key, Value: kv.Value.Where(x => Alone(x.Page, x.Line)).ToList()))
+            .Where(kv => kv.Value.Count >= need).ToDictionary(kv => kv.Key, kv => kv.Value);
         var runningPictures = seenPictures.Where(kv => kv.Value.Count >= need).ToDictionary(kv => kv.Key, kv => kv.Value);
         if (running.Count == 0 && runningPictures.Count == 0) return ([.. pages], null, null);
 

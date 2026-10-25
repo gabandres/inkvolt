@@ -26,6 +26,10 @@ public sealed class DocxWriter : IDisposable
     private readonly Dictionary<string, string> _targets = [];    // id -> media part
     private int _media;
     private int _drawing;
+    // The fonts the runs name, with what kind of font each is (for Word's font table, so a missing one is replaced well).
+    private readonly Dictionary<string, (bool Serif, bool Mono)> _fonts = new(StringComparer.OrdinalIgnoreCase);
+    // The share of the page's spacing the page being written keeps (less than 1 when it wouldn't fit on one Word page).
+    private double _spacing = 1;
     private bool _finished;
 
     public DocxWriter(Stream output) => _zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
@@ -60,6 +64,7 @@ public sealed class DocxWriter : IDisposable
         _rels.Add(("rIdStyles", RelBase + "styles", "styles.xml"));
         _rels.Add(("rIdNumbering", RelBase + "numbering", "numbering.xml"));
         _rels.Add(("rIdSettings", RelBase + "settings", "settings.xml"));
+        _rels.Add(("rIdFontTable", RelBase + "fontTable", "fontTable.xml"));
 
         var parts = new List<(string Part, string Type)>();
         var textWidth = pages.Count > 0 ? new Section(pages[0]).TextWidth : 468;
@@ -84,6 +89,7 @@ public sealed class DocxWriter : IDisposable
         Entry("word/styles.xml", w => Styles(w, body));
         Entry("word/numbering.xml", Numbering);
         Entry("word/settings.xml", Settings);
+        Entry("word/fontTable.xml", FontTable);
         Entry("word/_rels/document.xml.rels", w => Relationships(w, _rels));
         Entry("_rels/.rels", w => Relationships(w,
         [
@@ -99,6 +105,7 @@ public sealed class DocxWriter : IDisposable
             ("/word/styles.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"),
             ("/word/numbering.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"),
             ("/word/settings.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"),
+            ("/word/fontTable.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"),
             .. parts,
         ]));
     }
@@ -145,6 +152,7 @@ public sealed class DocxWriter : IDisposable
             };
             var last = i == pages.Count - 1;
             var blocks = page.Blocks;
+            _spacing = SpacingToFit(page, section);
             for (var b = 0; b < blocks.Count; b++)
             {
                 // A page's last paragraph carries its section (size, margins); the last page's section closes the body.
@@ -158,6 +166,22 @@ public sealed class DocxWriter : IDisposable
                         Picture(w, pic, page, section, carries);
                         break;
                     case DocTable t:
+                        if (b > 0 && blocks[b - 1] is DocTable above)
+                        {
+                            // Word joins two tables with nothing between them into one: a paragraph keeps them apart,
+                            // as tall as the gap the page leaves.
+                            var gap = Math.Max(0, t.Box.Y - above.Box.Bottom) * _spacing;
+                            w.WriteStartElement("p", W);
+                            w.WriteStartElement("pPr", W);
+                            w.WriteStartElement("spacing", W);
+                            w.WriteAttributeString("w", "before", W, "0");
+                            w.WriteAttributeString("w", "after", W, "0");
+                            w.WriteAttributeString("w", "line", W, Twips(Math.Clamp(gap, 1, 200)));
+                            w.WriteAttributeString("w", "lineRule", W, "exact");
+                            w.WriteEndElement();
+                            w.WriteEndElement();
+                            w.WriteEndElement();
+                        }
                         Table(w, t, section);
                         break;
                 }
@@ -172,6 +196,46 @@ public sealed class DocxWriter : IDisposable
         if (pages.Count == 0) SectionProperties(w, new Section(new DocPage(612, 792, default, [])));
         w.WriteEndElement();
         w.WriteEndElement();
+    }
+
+    /// <summary>Word's line height for one line of type (single spacing), as a share of the size, rounded up.</summary>
+    private const double LineHeight = 1.2;
+
+    /// <summary>
+    /// How much of the page's spacing to keep so that it fits on one Word page as it did in the PDF: 1 when it fits,
+    /// less when the lines (as tall as Word makes them, which is often taller than the PDF set them), tables and
+    /// pictures leave less room than the page's gaps need; 1 too when they overflow the page whatever the spacing. Text
+    /// that wraps differently in Word isn't known here.
+    /// </summary>
+    private static double SpacingToFit(DocPage page, Section section)
+    {
+        var available = (section.Height - section.Top - section.Bottom) * 0.97;
+        double content = 0, space = 0;
+        static double Lines(DocParagraph p) => p.LineCount * LineHeight * Math.Max(1, p.Size);
+        for (var b = 0; b < page.Blocks.Count; b++)
+        {
+            switch (page.Blocks[b])
+            {
+                case DocParagraph p:
+                    content += Lines(p);
+                    space += p.SpaceBefore is null ? 6 : p.SpaceBefore.Value + (p.SpaceAfter ?? 0);
+                    break;
+                case DocTable t:
+                    for (var r = 0; r < t.Rows.Count; r++)
+                    {
+                        var text = t.Rows[r].Select(c => c.Paragraphs.Sum(p => Lines(p) + (p.SpaceBefore ?? 0))).DefaultIfEmpty(0).Max();
+                        content += Math.Max(text, t.RowHeights is { } h && r < h.Count ? h[r] : 0);
+                    }
+                    if (b > 0 && page.Blocks[b - 1] is DocTable above) space += Math.Max(0, t.Box.Y - above.Box.Bottom);
+                    break;
+                case DocPicture pic:
+                    content += Math.Min(pic.Box.Height, section.Height - section.Top - section.Bottom);
+                    break;
+            }
+        }
+        // Fits, or can't fit whatever the spacing (columns run into one, a long table): the page's spacing stays.
+        if (content + space <= available || space <= 0 || content >= available) return 1;
+        return Math.Clamp((available - content) / space, 0, 1);
     }
 
     /// <summary>A PDF page as a Word section: its size, and margins from where its content sits (between 0.25 and 1 inch).</summary>
@@ -245,11 +309,12 @@ public sealed class DocxWriter : IDisposable
     }
 
     /// <summary>A paragraph (null: an empty one), optionally ending a section. <paramref name="width"/>: the text width, to cap indents.</summary>
-    private static void Paragraph(XmlWriter w, DocParagraph? p, Section? endsSection, double width, bool inCell = false)
+    private void Paragraph(XmlWriter w, DocParagraph? p, Section? endsSection, double width, bool inCell = false)
     {
         w.WriteStartElement("p", W);
         var style = p is null ? null : p.HeadingLevel > 0 ? $"Heading{p.HeadingLevel}" : p.List != ListKind.None ? "ListParagraph" : null;
-        var hasPPr = style is not null || endsSection is not null || inCell || (p is not null && (p.Align != TextAlign.Left || p.Indent > 0 || p.FirstLine != 0 || p.List != ListKind.None));
+        var hasPPr = style is not null || endsSection is not null || inCell || (p is not null && (p.Align != TextAlign.Left || p.Indent > 0
+            || p.FirstLine != 0 || p.List != ListKind.None || p.Tabs.Count > 0 || p.SpaceBefore is not null));
         if (hasPPr)
         {
             w.WriteStartElement("pPr", W);
@@ -261,10 +326,31 @@ public sealed class DocxWriter : IDisposable
                 Val(w, "numId", "1");
                 w.WriteEndElement();
             }
-            if (inCell)
+            if (p is { Tabs.Count: > 0 })
+            {
+                // Positions from the margin (or the cell's edge), within the text width.
+                w.WriteStartElement("tabs", W);
+                var last = -1.0;
+                foreach (var tab in p.Tabs)
+                {
+                    // Stops in order, none twice (one clamped to the width stands for all past it).
+                    var pos = Math.Clamp(tab.Position, 0, Math.Max(0, width));
+                    if (pos <= last + 0.5) continue;
+                    last = pos;
+                    w.WriteStartElement("tab", W);
+                    w.WriteAttributeString("w", "val", W, tab.Right ? "right" : "left");
+                    if (tab.Leader != '\0')
+                        w.WriteAttributeString("w", "leader", W, tab.Leader switch { '_' => "underscore", '-' => "hyphen", _ => "dot" });
+                    w.WriteAttributeString("w", "pos", W, Twips(pos));
+                    w.WriteEndElement();
+                }
+                w.WriteEndElement();
+            }
+            if (inCell || p?.SpaceBefore is not null)
             {
                 w.WriteStartElement("spacing", W);
-                w.WriteAttributeString("w", "after", W, "0");
+                if (p?.SpaceBefore is { } before) w.WriteAttributeString("w", "before", W, Twips(before * _spacing));
+                w.WriteAttributeString("w", "after", W, Twips(inCell ? 0 : (p?.SpaceAfter ?? 0) * _spacing));
                 w.WriteEndElement();
             }
             if (p is not null && (p.Indent > 0 || p.FirstLine != 0 || p.List != ListKind.None))
@@ -286,6 +372,8 @@ public sealed class DocxWriter : IDisposable
                 }
                 w.WriteEndElement();
             }
+            // The page's spacing applies between list items too (List Paragraph's style would drop it).
+            if (p?.SpaceBefore is not null && style == "ListParagraph") Val(w, "contextualSpacing", "0");
             if (p?.Align == TextAlign.Center) Val(w, "jc", "center");
             else if (p?.Align == TextAlign.Right) Val(w, "jc", "right");
             if (endsSection is not null) SectionProperties(w, endsSection);
@@ -296,7 +384,7 @@ public sealed class DocxWriter : IDisposable
         w.WriteEndElement();
     }
 
-    private static void Run(XmlWriter w, ExportSpan s)
+    private void Run(XmlWriter w, ExportSpan s)
     {
         var text = OpenXmlParts.Clean(s.Text);
         if (text.Length == 0) return;
@@ -306,6 +394,7 @@ public sealed class DocxWriter : IDisposable
         font = OpenXmlParts.Cut(font, 31); // Windows font names are at most 31 characters
         if (font.Length > 0)
         {
+            _fonts.TryAdd(font, (s.Serif, s.Mono));
             w.WriteStartElement("rFonts", W);
             w.WriteAttributeString("w", "ascii", W, font);
             w.WriteAttributeString("w", "hAnsi", W, font);
@@ -475,9 +564,21 @@ public sealed class DocxWriter : IDisposable
             w.WriteEndElement();
         }
         w.WriteEndElement();
+        var rowIndex = 0;
         foreach (var row in t.Rows)
         {
             w.WriteStartElement("tr", W);
+            if (t.RowHeights is { } heights && rowIndex < heights.Count && heights[rowIndex] > 1)
+            {
+                // At least as tall as on the page (a form's empty boxes keep their room to write in).
+                w.WriteStartElement("trPr", W);
+                w.WriteStartElement("trHeight", W);
+                w.WriteAttributeString("w", "val", W, Twips(heights[rowIndex]));
+                w.WriteAttributeString("w", "hRule", W, "atLeast");
+                w.WriteEndElement();
+                w.WriteEndElement();
+            }
+            rowIndex++;
             var col = 0;
             foreach (var cell in row)
             {
@@ -725,6 +826,26 @@ public sealed class DocxWriter : IDisposable
         w.WriteAttributeString("w", "numId", W, "1");
         Val(w, "abstractNumId", "0");
         w.WriteEndElement();
+        w.WriteEndElement();
+    }
+
+    /// <summary>
+    /// The fonts the document names, each with its kind (serif, sans serif, monospaced) and a typical shape, so Word
+    /// shows a PDF's own fonts it can't find (often embedded subsets) with a like font rather than any.
+    /// </summary>
+    private void FontTable(XmlWriter w)
+    {
+        w.WriteStartElement("w", "fonts", W);
+        foreach (var (name, (serif, mono)) in _fonts)
+        {
+            w.WriteStartElement("font", W);
+            w.WriteAttributeString("w", "name", W, name);
+            // PANOSE of Courier New, Times New Roman and Arial.
+            Val(w, "panose1", mono ? "02070309020205020404" : serif ? "02020603050405020304" : "020B0604020202020204");
+            Val(w, "family", mono ? "modern" : serif ? "roman" : "swiss");
+            Val(w, "pitch", mono ? "fixed" : "variable");
+            w.WriteEndElement();
+        }
         w.WriteEndElement();
     }
 

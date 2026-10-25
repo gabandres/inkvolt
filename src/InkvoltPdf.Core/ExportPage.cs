@@ -3,6 +3,12 @@ namespace InkvoltPdf.Core;
 /// <summary>A run of text in one look: font family as the PDF names it, size in points, bold, italic, color (0xRRGGBB).</summary>
 public sealed record ExportSpan(string Text, string Font, double Size, bool Bold, bool Italic, uint Color, RectD Box)
 {
+    /// <summary>The font is a serif one (from the PDF's font flags), so a reader without it gets a serif in its place.</summary>
+    public bool Serif { get; init; }
+
+    /// <summary>The font is monospaced.</summary>
+    public bool Mono { get; init; }
+
     /// <summary>Same look as <paramref name="other"/> (text and position aside).</summary>
     public bool SameLook(ExportSpan other) =>
         Font == other.Font && Math.Abs(Size - other.Size) < 0.25 && Bold == other.Bold && Italic == other.Italic && Color == other.Color;

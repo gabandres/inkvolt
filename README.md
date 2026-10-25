@@ -207,7 +207,16 @@ Manager. The installers don't remove an install made under the old names: uninst
   stored once); charts and diagrams drawn with lines and shapes as a picture of the figure; two-column pages in
   reading order; a page whose text is turned sideways (a wide table set on its side) as a landscape page, and a few
   sideways lines (a margin stamp) as a paragraph; lines and logos repeated at the top or bottom of the pages become
-  the header and footer, page numbers Word's own; each page its own section with its size and orientation. **Excel
+  the header and footer, page numbers Word's own (not an item number beside the page's text); each page its own section
+  with its size and orientation, its vertical spacing kept (the gap above each paragraph, taken in a little when the
+  page would otherwise spill onto a second Word page). Forms: pieces of text side by side on a row (labels under a
+  fill-in line, choices with their boxes) are one line with tab stops where they stood, and fill-in dots, rules or
+  dashes are tabs with a dot, underline or dash leader up to where they ended; boxed tables keep their row heights (room
+  to write in), boxes one under another stay separate tables, text in two cells set close together stays in its own
+  cell, and a form's grid of boxes is a table, not a picture. Accents a typesetter draws as separate characters (TeX
+  and older drivers) are joined to their letters ("Dirección", "ÁREAS"), and an accent standing alone whose shape is
+  another sign (a font that names its "=" "dotaccent") is read as that sign. Fonts that aren't on the PC are listed
+  with their kind (serif, sans serif, monospaced), so Word shows a like font in their place. **Excel
   (.xlsx)**: every table found (number columns set close together kept apart, a long table split into row groups kept
   as one, dot leaders dropped),
   one sheet per table named after its page, plain numbers as numbers, merged cells merged. **Plain text (.txt)**: the
@@ -452,8 +461,10 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Export to Word rebuilds the layout from what the pages draw, so it is a starting point for editing, not a copy:
   text flows in one column (multi-column pages become their columns one after another, not Word columns); text boxes,
   callouts and text over pictures become ordinary paragraphs where they fall; a paragraph split across pages or
-  columns stays split; line spacing and paragraph spacing are Word's defaults, not the PDF's; fonts are named as the
-  PDF names them (a font not installed on the PC is substituted by Word); headings are found by size only (bold
+  columns stays split; line spacing is Word's (single) and the space between paragraphs the PDF's, so a page set
+  tighter than Word sets its font can still run onto a second page; text set wider in Word's stand-in font than in the
+  PDF can pass the next tab stop on a form row; fonts are named as the PDF names them (a font not installed on the PC
+  is substituted by Word, with a serif, sans serif or monospaced one as the PDF's was); headings are found by size only (bold
   body-size headings stay body text); bullets drawn as shapes rather than characters aren't recognized, and numbered
   lists keep their numbers as typed text; tables without lines need three or more rows lined up in columns, a cell
   wrapped over several lines can become extra rows, cells merged down a column are split, and two-column text with
