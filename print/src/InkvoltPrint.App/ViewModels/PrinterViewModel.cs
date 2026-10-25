@@ -37,7 +37,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private readonly PcEnvironment _pc;
     private CancellationTokenSource? _loop;
     private CancellationTokenSource? _watch;
-    private PrinterConnection? _connection;
+    private readonly PrinterSession _session;
     private bool _discoveredQueue;
     private bool _windowsQueue;
     private readonly List<string> _previousHosts = [];
@@ -60,6 +60,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _state = state;
         _remember = remember;
         _pc = pc;
+        _session = new PrinterSession(uuid, new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid)),
+            () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids));
         Print = new PrintViewModel(FindQueueAsync, state);
         Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
         Copy = new CopyViewModel(FindQueueAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
@@ -148,7 +150,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// Scanning through Windows would help: a queue printer, a scanner on its own, or a network printer that answered without
     /// eSCL. A network printer not connected yet isn't (it may well have eSCL).
     /// </summary>
-    public bool WantsWindowsScanner => IsQueuePrinter || IsScannerOnly || (_connection is { } c && c.Scanner is null);
+    public bool WantsWindowsScanner => IsQueuePrinter || IsScannerOnly || (_session.Connection is { } c && c.Scanner is null);
 
     /// <summary>The Windows queue this printer is known by (<see cref="IsQueuePrinter"/>); null for a network printer.</summary>
     public SpoolerQueue? WindowsQueue { get; }
@@ -449,6 +451,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _suspended = true;
         _loop?.Cancel();
         _loop = null;
+        _session.AskIdentityFirst(); // between two checks (minutes apart) another device may take the address
         Jobs.SetVisible(false);
     }
 
@@ -459,9 +462,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _suspended = false;
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
-        _identityCheckedAt = DateTime.MinValue; // time passed: the reused connection is asked who it is first
+        _session.AskIdentityFirst(); // time passed: the reused connection is asked who it is first
         _ = IsScannerOnly ? RunScannerAsync(_loop.Token)
-            : IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
+            : IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token, IsOnline && !_reprobe ? _session.Connection : null);
         _reprobe = false;
         UpdateJobsVisibility();
     }
@@ -477,19 +480,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 await ReadQueueAsync(ct);
                 return IsOnline;
             }
-            if (_connection is null || !IsOnline || _reprobe)
+            if (_session.Connection is null || !IsOnline || _reprobe)
             {
                 _reprobe = false;
-                if (await ConnectAsync(ct) is not { } conn) return false;
-                Attach(conn);
+                if (!await ConnectAsync(ct)) return false;
             }
-            // Between two checks (minutes apart) the printer may have left and another device taken its address.
-            else if (!await StillThisPrinterAsync(_connection, ct))
-            {
-                return false;
-            }
-            await RefreshAsync(ct);
-            return IsOnline;
+            // The session asks who answers before reading (another device may have taken the address since the last check).
+            return await RefreshAsync(ct) && IsOnline;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -522,43 +519,26 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             Restart(); // mDNS just saw it again; don't wait for the retry timer
     }
 
-    private string? _checkingHost;
-    private (string Host, DateTime At)? _refusedHost;
-
     /// <summary>
     /// mDNS announces the printer at another address: DHCP may have moved it, or the announcement is of an address this PC
     /// can't use (a VM's or VPN's). It reconnects there (the old address still identifies its Windows queue's port) when the
-    /// new address answers with this printer's UUID, or when it can't tell and the address in use no longer answers as this
-    /// kind of printer (<see cref="PrinterId.ShouldMove"/>); an address the user typed that still works is kept.
+    /// session finds the new address is this printer, or can't tell and the address in use no longer answers as this kind of
+    /// printer (<see cref="PrinterSession.CheckAddressAsync"/>); an address the user typed that still works is kept.
     /// </summary>
     private async Task MoveIfSameDeviceAsync(DiscoveredPrinter d)
     {
         var host = d.Host!;
-        if (string.Equals(_checkingHost, host, StringComparison.OrdinalIgnoreCase)) return;
-        if (_refusedHost is { } refused && string.Equals(refused.Host, host, StringComparison.OrdinalIgnoreCase)
-            && DateTime.UtcNow - refused.At < RetryDelay * 3)
-            return; // announced again and again: that address is asked again only now and then
-        _checkingHost = host;
         try
         {
-            DeviceIdentity identity;
-            bool answers;
-            using (var http = new DeviceHttp(host, _pc.DeviceTransport()))
+            var check = await _session.CheckAddressAsync(Reach(Host ?? host), new PrinterWhere(host, d.EsclRoot, d.IppUri), IsOnline && !IsElsewhere, d.Model);
+            if (check == AddressCheck.Skipped) return;
+            if (check != AddressCheck.Move)
             {
-                var probe = await PrinterConnection.ProbeAsync(http, d.EsclRoot, ippHint: d.IppUri);
-                answers = probe.Reachable;
-                identity = answers ? Identify(host, probe.ReportedUuids) : DeviceIdentity.Unknown;
-            }
-            // No UUID to go by there: the address in use is kept only while it answers as this kind of printer.
-            if (!PrinterId.ShouldMove(identity, IsOnline && !IsElsewhere, _connection?.Probe.Model, d.Model))
-            {
-                _refusedHost = (host, DateTime.UtcNow);
                 Log.Write($"[{Name}] announced at another address that " +
-                          $"{(identity == DeviceIdentity.Different ? "is another device" : answers ? "reports no ID" : "doesn't answer")}; " +
+                          $"{check switch { AddressCheck.AnotherDevice => "is another device", AddressCheck.NoId => "reports no ID", _ => "doesn't answer" }}; " +
                           "keeping its address, which still answers");
                 return;
             }
-            _refusedHost = null;
             if (string.Equals(host, Host, StringComparison.OrdinalIgnoreCase)) return;
             if (Host is { } old && !_previousHosts.Contains(old, StringComparer.OrdinalIgnoreCase)) _previousHosts.Add(old);
             Host = host;
@@ -568,12 +548,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            _refusedHost = (host, DateTime.UtcNow);
             Log.Write($"[{Name}] announced at another address that couldn't be checked: {ex.Message}");
-        }
-        finally
-        {
-            _checkingHost = null;
         }
     }
 
@@ -646,26 +621,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 if (conn is null)
                 {
                     IsConnecting = true;
-                    conn = await ConnectAsync(ct);
-                    if (conn is null)
+                    if (!await ConnectAsync(ct))
                     {
                         await Task.Delay(RetryDelay, ct);
                         continue;
                     }
-                    Attach(conn);
+                    conn = _session.Connection!;
                 }
                 await foreach (var _ in conn.WatchAsync(FallbackRefresh, ct))
                 {
-                    // Still this printer? Asked before reading (a reused connection at once, then every IdentityInterval), so
-                    // another device that took the address never has its status or alerts read under this printer's name.
-                    if (DateTime.UtcNow - _identityCheckedAt > IdentityInterval && !await StillThisPrinterAsync(conn, ct)) break;
-                    if (await TryRicherAsync(conn, ct) is { } richer)
+                    if (await _session.TryUpgradeAsync(Reach(), ct) is { } upgraded)
                     {
-                        Attach(richer); // closes the SNMP connection
-                        reuse = richer; // watched from here on (its event feed, if it has one)
+                        Upgrade(upgraded.Connection); // the session closed the SNMP connection
+                        reuse = upgraded.Connection;  // watched from here on (its event feed, if it has one)
                         break;
                     }
-                    await RefreshAsync(ct);
+                    // Still this printer? The session asks before reading (a reused connection at once, then every 30 s), so
+                    // another device that took the address never has its status or alerts read under this printer's name.
+                    if (!await RefreshAsync(ct)) break;
                     // Gone: connect again after a pause, which checks it's still this printer (DHCP may give its address to another device).
                     if (!IsOnline) break;
                 }
@@ -742,114 +715,61 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Probes the printer's address. Null, with the status set, when nothing answers there or another device does (it reports
-    /// other UUIDs): that device's status, supplies and alerts are never shown or alerted under this printer's name.
+    /// Connects through the session. False, with the status set, when nothing answers there or another device does: that device's
+    /// status, supplies and alerts are never shown or alerted under this printer's name.
     /// </summary>
-    private async Task<PrinterConnection?> ConnectAsync(CancellationToken ct)
+    private async Task<bool> ConnectAsync(CancellationToken ct)
     {
-        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _pc.DeviceTransport(), IppUri,
-            SnmpDevice.TransportFor(SnmpDevice, _pc.Snmp));
-        if (!conn.Probe.Reachable)
+        switch (await _session.ConnectAsync(Reach(), ct))
         {
-            conn.Dispose();
-            SetOffline();
-            return null;
+            case SessionStep.Connected connected:
+                Attach(connected.Connection);
+                return true;
+            case SessionStep.Elsewhere elsewhere:
+                SetElsewhere(elsewhere);
+                return false;
+            default:
+                SetOffline();
+                return false;
         }
-        if (Identify(Host!, conn.Probe.ReportedUuids) == DeviceIdentity.Different)
-        {
-            SetElsewhere(conn, conn.Probe.ReportedUuids);
-            return null;
-        }
-        if (conn.Probe.Snmp is { } snmp && SnmpDevice?.Identify(snmp) == DeviceIdentity.Different)
-        {
-            SetElsewhere(conn, [], snmp);
-            return null;
-        }
-        _identityCheckedAt = DateTime.UtcNow;
-        if (conn.OverSnmp) _richerTriedAt = DateTime.UtcNow; // HTTP just didn't answer: asked again later
-        return conn;
     }
 
-    private static readonly TimeSpan IdentityInterval = TimeSpan.FromSeconds(30);
-    private DateTime _identityCheckedAt = DateTime.MinValue;
+    /// <summary>Where the session reaches the printer: its address and hints as remembered now.</summary>
+    private PrinterWhere Reach(string? host = null) => new(host ?? Host!, EsclRoot, IppUri, SnmpDevice);
+
     private IReadOnlyList<string> _foreignUuids = [];
     private SnmpIdentity? _foreignSnmp;
-
-    /// <summary>How often a printer read over SNMP is asked whether it answers LEDM, CDM or IPP now.</summary>
-    private static readonly TimeSpan RicherInterval = TimeSpan.FromMinutes(2);
-    private DateTime _richerTriedAt = DateTime.MinValue;
-
-    private DeviceIdentity Identify(string host, IEnumerable<string?> reported) =>
-        PrinterId.Identify(Uuid, _state.GetAcceptedUuids(Uuid), host, reported);
 
     /// <summary>The device a printer may answer to: its id, or a UUID the user accepted for it ("This is my printer").</summary>
     public bool IsKnownAs(string uuid) =>
         string.Equals(uuid, Uuid, StringComparison.OrdinalIgnoreCase) || _state.GetAcceptedUuids(Uuid).Contains(uuid, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Asks the connected device who it is (one small read). False, with everything unbound, when another device now answers;
-    /// true when it's this printer or it can't tell (no answer: the status read then says offline).
+    /// A printer read over SNMP answers LEDM, CDM or IPP now (<see cref="PrinterSession.TryUpgradeAsync"/>): it's connected over
+    /// them (scanning, settings and the rest come with it) and isn't an SNMP-only printer any more.
     /// </summary>
-    private async Task<bool> StillThisPrinterAsync(PrinterConnection conn, CancellationToken ct)
+    private void Upgrade(PrinterConnection richer)
     {
-        if (conn.OverSnmp)
-        {
-            // SNMP has no UUID: the serial number, model and name it gave when it was added tell.
-            var now = await conn.ReadSnmpIdentityAsync(ct);
-            _identityCheckedAt = DateTime.UtcNow;
-            if (now is null || SnmpDevice?.Identify(now) != DeviceIdentity.Different) return true;
-            SetElsewhere(conn, [], now);
-            return false;
-        }
-        var reported = await conn.ReadUuidsAsync(ct);
-        _identityCheckedAt = DateTime.UtcNow;
-        if (Host is null || Identify(Host, reported) != DeviceIdentity.Different) return true;
-        SetElsewhere(conn, reported);
-        return false;
-    }
-
-    /// <summary>
-    /// A printer read over SNMP is asked now and then (<see cref="RicherInterval"/>) whether it answers LEDM, CDM or IPP: one that
-    /// was asleep when it was added does once it wakes. Then it's connected over them (scanning, settings and the rest come with
-    /// it) and isn't an SNMP-only printer any more. The UUIDs it reports count as this printer's, so discovery knows it too.
-    /// </summary>
-    private async Task<PrinterConnection?> TryRicherAsync(PrinterConnection conn, CancellationToken ct)
-    {
-        if (!conn.OverSnmp || Host is null || DateTime.UtcNow - _richerTriedAt < RicherInterval) return null;
-        _richerTriedAt = DateTime.UtcNow;
-        var richer = await conn.TryRicherAsync(SnmpDevice, EsclRoot, IppUri, new PinStore(_state, Uuid), _pc.DeviceTransport(), ct);
-        if (richer is null) return null;
-        if (Identify(Host, richer.Probe.ReportedUuids) == DeviceIdentity.Different)
-        {
-            richer.Dispose();
-            return null;
-        }
         Log.Write($"[{Name}] answers more than SNMP now: connected over {string.Join(", ", richer.Probe.Interfaces)}");
-        if (PrinterId.Valid(richer.Probe.ReportedUuids, Host) is { Count: > 0 } uuids) _state.AcceptUuids(Uuid, uuids);
         SnmpDevice = null;
         EsclRoot = richer.Probe.EsclRoot ?? EsclRoot;
-        _identityCheckedAt = DateTime.UtcNow;
-        return richer;
+        Attach(richer);
     }
 
     /// <summary>
-    /// Another device answers at the printer's address. Its connection and the printer's own (if any) are closed, and the
+    /// Another device answers at the printer's address. The session has closed its connection and the printer's own, and the
     /// scanner, copy, settings and maintenance let go of them, so nothing (a jump-list preset scan included) reaches that
     /// device; scanned pages stay. The card says so and offers Fix it… and "This is my printer".
     /// </summary>
-    private void SetElsewhere(PrinterConnection conn, IReadOnlyList<string?> reported, SnmpIdentity? snmp = null)
+    private void SetElsewhere(SessionStep.Elsewhere elsewhere)
     {
         Log.Write($"[{Name}] a different device answers at its address; not connecting"); // never the UUIDs or serial numbers themselves
-        _foreignUuids = PrinterId.Valid(reported, Host ?? "");
-        _foreignSnmp = snmp;
+        _foreignUuids = elsewhere.Uuids;
+        _foreignSnmp = elsewhere.Snmp;
         const string blocked = "Another device now answers at this printer's address, so Inkvolt Print doesn't scan or copy with it.";
         Scan?.Detach(blocked);
         Copy.Detach(blocked);
         Settings = null;
-        var old = _connection;
-        _connection = null;
-        if (!ReferenceEquals(conn, old)) conn.Dispose();
-        old?.Dispose();
         IsElsewhere = true;
         SetOffline("A different device answers at this address",
             $"Another device now has {Host}, so its status isn't shown here. The printer probably got a new address: " +
@@ -873,10 +793,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Restart();
     }
 
+    /// <summary>Binds the overview, scanner, settings and maintenance to the session's new connection (it closed the one before).</summary>
     private void Attach(PrinterConnection conn)
     {
-        var old = _connection;
-        _connection = conn;
         IsElsewhere = false;
         var p = conn.Probe;
         if (p.Product?.MakeAndModel is { } mm) Name = mm;
@@ -912,7 +831,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             conn.Http.SetCredentials("admin", pw);
 
         _remember(this);
-        old?.Dispose();
     }
 
     /// <summary>
@@ -925,7 +843,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         IScanner? scanner = null;
         ScannerCapabilities? caps = null;
-        if (_connection is { Scanner: { } escl, Probe.Scanner: { } offered } && offered.Sources.Any()) (scanner, caps) = (escl, offered);
+        if (_session.Connection is { Scanner: { } escl, Probe.Scanner: { } offered } && offered.Sources.Any()) (scanner, caps) = (escl, offered);
         else if (_wia is { } wia && wia.Capabilities.Sources.Any()) (scanner, caps) = (wia, wia.Capabilities);
         if (IsNetworkPrinter || scanner is not null) Copy.Attach(scanner, caps);
         else Copy.HasScanner = false;
@@ -1009,16 +927,22 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private async Task RefreshAsync(CancellationToken ct)
+    /// <summary>One read through the session, shown. False when another device answers at the address now (nothing of it is read).</summary>
+    private async Task<bool> RefreshAsync(CancellationToken ct)
     {
-        var conn = _connection;
-        if (conn is null) return;
-        var reading = await conn.ReadAsync(ct);
+        if (_session.Connection is null) return true;
+        var step = await _session.ReadAsync(Reach(), ct);
+        if (step is SessionStep.Elsewhere elsewhere)
+        {
+            SetElsewhere(elsewhere);
+            return false;
+        }
+        var reading = ((SessionStep.Read)step).Reading;
         var status = reading.Status;
         if (reading.IsOffline)
         {
             SetOffline();
-            return;
+            return true;
         }
         IsConnecting = false;
         IsOnline = true;
@@ -1049,6 +973,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
         Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies));
+        return true;
     }
 
     private void SetOffline() => SetOffline("Can't reach the printer",
@@ -1274,8 +1199,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _watch?.Cancel();
         _watch = null;
         Fixer.CloseCommand.Execute(null);
-        _connection?.Dispose();
-        _connection = null;
+        _session.Dispose();
     }
 
     /// <summary>Certificate fingerprint remembered per printer UUID in the app state.</summary>
