@@ -29,7 +29,7 @@ public sealed record Option<T>(T Value, string Label)
 public sealed record ScanArea(string Key, int? Width, int? Height);
 
 /// <summary>
-/// Scan straight from the device over eSCL. Each page lands as a JPEG (no re-encode), is checked for being blank or
+/// Scan straight from the device over eSCL, or through the scanner's Windows driver (WIA) when it has no eSCL. Each page lands as a JPEG (no re-encode), is checked for being blank or
 /// crooked, and OCR runs in the background while the next page scans. Before saving, the pages can be reviewed:
 /// turned, cropped, reordered (drag, or Alt+Shift+arrows), deleted, and more scanned onto the end. Save assembles a
 /// searchable PDF locally; pages nobody edited keep the scanner's own JPEG. A preset (one click) scans with its own
@@ -41,7 +41,7 @@ public sealed record ScanArea(string Key, int? Width, int? Height);
 public sealed partial class ScanViewModel : ObservableObject
 {
     private readonly AppState _state;
-    private EsclClient _client;
+    private IScanner _client;
     private CancellationTokenSource? _scanCts;
     private bool _dirty;
     private readonly ScannerCapabilities _caps;
@@ -53,7 +53,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private static readonly Option<ScanArea>[] AllPageSizes =
         [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
-    public ScanViewModel(EsclClient client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
+    public ScanViewModel(IScanner client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
         Func<Task<string?>> findQueue, Action<string, int>? demoPrint = null)
     {
         _client = client;
@@ -479,10 +479,23 @@ public sealed partial class ScanViewModel : ObservableObject
         _state.Save();
     }
 
-    public void Rebind(EsclClient client)
+    /// <summary>What the scanner offers (from eSCL, or from its Windows driver).</summary>
+    public ScannerCapabilities Capabilities => _caps;
+
+    /// <summary>Scanning goes through the scanner's Windows driver (WIA), not eSCL: the tab says so.</summary>
+    public bool ViaWindows => _client is Core.Wia.WiaScanner;
+
+    /// <summary>The line under the tab's settings for a scanner reached through Windows; null over eSCL.</summary>
+    public string? ScannerNote => _client is Core.Wia.WiaScanner wia
+        ? $"Scanning through Windows with the scanner's own driver ({wia.Device.Name})."
+        : null;
+
+    public void Rebind(IScanner client)
     {
         _client = client;
         _blocked = null;
+        OnPropertyChanged(nameof(ViaWindows));
+        OnPropertyChanged(nameof(ScannerNote));
     }
 
     /// <summary>Why scanning is off for now (another device answers at the printer's address); null when it may scan.</summary>

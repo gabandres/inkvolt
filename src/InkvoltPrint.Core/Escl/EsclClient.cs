@@ -8,7 +8,7 @@ using InkvoltPrint.Core.Net;
 namespace InkvoltPrint.Core.Escl;
 
 /// <summary>eSCL (AirScan / Mopria scan) client. <paramref name="root"/> is the eSCL base, e.g. <c>http://host/eSCL/</c>.</summary>
-public sealed class EsclClient(DeviceHttp http, Uri root)
+public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
 {
     private static readonly TimeSpan PageTimeout = TimeSpan.FromMinutes(3);
     private ScannerCapabilities? _caps;

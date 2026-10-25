@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Alerts;
+using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
@@ -13,6 +14,7 @@ using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Queues;
 using InkvoltPrint.Core.Snmp;
+using InkvoltPrint.Core.Wia;
 using InkvoltPrint.Windows.Discovery;
 using InkvoltPrint.Windows.Offline;
 using InkvoltPrint.Windows.Printing;
@@ -43,6 +45,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private bool _windowsQueue;
     private readonly List<string> _previousHosts = [];
     private readonly IQueueStatusSource? _queueSource;
+    private readonly IWiaSystem? _wiaSystem;
+    private WiaDeviceInfo? _wiaDevice;
+    private WiaScanner? _wia;
+    private bool _wiaConnecting;
 
     /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
     public PrinterViewModel(string uuid, string name, string? model, string? host, Uri? esclRoot, AppState state, ScanPresetLibrary presets,
@@ -96,6 +102,60 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }.OfType<InfoRow>().ToList());
     }
 
+    /// <summary>The id a scanner listed on its own goes by: never a UUID or a queue's id.</summary>
+    public static string ScannerIdFor(string deviceId) => ScannerIdPrefix + deviceId.Trim().ToLowerInvariant();
+
+    public static bool IsScannerId(string? id) => id?.StartsWith(ScannerIdPrefix, StringComparison.Ordinal) == true;
+
+    private const string ScannerIdPrefix = "windows-scanner:";
+
+    /// <summary>
+    /// A scanner Windows has a driver for (WIA) that belongs to no printer on the list: a USB flatbed, a sheet-fed scanner, an
+    /// all-in-one whose printer part isn't here. Overview and Scan only (no queue: no Print, Copy or Photos). It's connected in the
+    /// background, and again every 30 s while it doesn't answer. <paramref name="transport"/>: demo mode.
+    /// </summary>
+    public PrinterViewModel(WiaDeviceInfo scanner, IWiaSystem wia, AppState state, ScanPresetLibrary presets,
+        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
+        : this(ScannerIdFor(scanner.Id), scanner.Name, scanner.Description, null, null, state, presets, remember, transport)
+    {
+        _wiaSystem = wia;
+        ScannerDevice = scanner;
+        QueueInstalled = false;
+        Jobs.CanFix = false;
+        Sync(About, new InfoRow?[]
+        {
+            new("Windows scanner", scanner.Name),
+            scanner.Manufacturer is { Length: > 0 } maker ? new("Driver from", maker) : null,
+            scanner.ConnectionText is { } via ? new("Connected via", scanner.IsEscl ? $"{via} (Windows' eSCL driver)" : via) : null,
+        }.OfType<InfoRow>().ToList());
+    }
+
+    /// <summary>A scanner listed on its own (<see cref="ScannerDevice"/>), not a printer.</summary>
+    public bool IsScannerOnly => ScannerDevice is not null;
+
+    /// <summary>The WIA scanner this entry is (<see cref="IsScannerOnly"/>); null for printers.</summary>
+    public WiaDeviceInfo? ScannerDevice { get; }
+
+    /// <summary>A printer found on the network or added by address (not a Windows queue or a scanner on its own).</summary>
+    public bool IsNetworkPrinter => !IsQueuePrinter && !IsScannerOnly;
+
+    /// <summary>The icon when there's no product photo: a printer, or a scanner for a scanner on its own (Segoe Fluent Icons).</summary>
+    public string Glyph => IsScannerOnly ? "" : "";
+
+    public string AboutTitle => IsScannerOnly ? "About this scanner" : "About this printer";
+
+    /// <summary>Print a PDF, Print photos and the print queue: every printer, not a scanner on its own.</summary>
+    public bool CanPrint => !IsScannerOnly;
+
+    /// <summary>The WIA scanner in use for this entry (its id), when there is one.</summary>
+    public string? WiaDeviceId => _wiaDevice?.Id;
+
+    /// <summary>
+    /// Scanning through Windows would help: a queue printer, a scanner on its own, or a network printer that answered without
+    /// eSCL. A network printer not connected yet isn't (it may well have eSCL).
+    /// </summary>
+    public bool WantsWindowsScanner => IsQueuePrinter || IsScannerOnly || (_connection is { } c && c.Scanner is null);
+
     /// <summary>The Windows queue this printer is known by (<see cref="IsQueuePrinter"/>); null for a network printer.</summary>
     public SpoolerQueue? WindowsQueue { get; }
 
@@ -103,20 +163,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool IsQueuePrinter => _queueSource is not null;
 
     /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
-    public string? StatusSourceNote => _queueSource is not { } source ? null
+    public string? StatusSourceNote => IsScannerOnly
+        ? "A scanner Windows has a driver for: Inkvolt Print scans with it through Windows (WIA). Scanners report no status " +
+          "this way, so a problem (no paper in the feeder, a jam) shows when you scan."
+        : _queueSource is not { } source ? null
         : source.HasSupplyLevels
-        ? $"Status and supply levels from {source.Origin}. No scanning, settings or maintenance for this printer here."
+        ? $"Status and supply levels from {source.Origin}. No settings or maintenance for this printer here" +
+          (_wia is null ? ", and no scanning." : "; it scans through Windows.")
         : $"Status from {source.Origin}. That's less than Inkvolt Print reads from a printer it reaches over the network: " +
-          "no ink or toner levels, and problems only as the driver reports them.";
+          "no ink or toner levels, and problems only as the driver reports them." + (_wia is null ? "" : " Scanning goes through Windows too.");
 
     /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
-    public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : null);
+    public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : ScannerDevice?.ConnectionText);
 
     /// <summary>The offline fixer works on network printers (it finds them by their ID on the network).</summary>
-    public bool CanFix => !IsQueuePrinter;
+    public bool CanFix => IsNetworkPrinter;
 
     /// <summary>The Copy tab: always for network printers (it says when there's no scanner); for a queue printer once it has a scanner.</summary>
-    public bool ShowCopy => !IsQueuePrinter || Copy.HasScanner;
+    public bool ShowCopy => IsNetworkPrinter || (IsQueuePrinter && Copy.HasScanner);
 
     /// <summary>The Overview's Maintenance card: configuration page, cleaning, alignment, Identify, where the printer offers them.</summary>
     public MaintenanceViewModel Maintenance { get; }
@@ -190,7 +254,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     partial void OnIsShownChanged(bool value) => UpdateJobsVisibility();
 
-    private void UpdateJobsVisibility() => Jobs.SetVisible(IsShown && SelectedSection == OverviewSection);
+    private void UpdateJobsVisibility() => Jobs.SetVisible(IsShown && SelectedSection == OverviewSection && CanPrint);
 
     /// <summary>Print a PDF. Works through the Windows queue, so it doesn't need the device connection.</summary>
     public PrintViewModel Print { get; }
@@ -345,7 +409,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public partial int SelectedSection { get; set; }
 
     public bool ShowScanShortcut => Scan is not null && SelectedSection != ScanSection;
-    public bool ShowPrintShortcut => SelectedSection != PrintSection;
+    public bool ShowPrintShortcut => SelectedSection != PrintSection && CanPrint;
 
     partial void OnSelectedSectionChanged(int value)
     {
@@ -368,8 +432,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (_loop is not null || _suspended) return;
         _loop = new CancellationTokenSource();
-        _ = IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token);
-        if (!IsDemo && !IsQueuePrinter) _ = RefreshQueueAsync();
+        _ = IsScannerOnly ? RunScannerAsync(_loop.Token) : IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token);
+        if (!IsDemo && IsNetworkPrinter) _ = RefreshQueueAsync();
     }
 
     /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
@@ -407,7 +471,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
         _identityCheckedAt = DateTime.MinValue; // time passed: the reused connection is asked who it is first
-        _ = IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
+        _ = IsScannerOnly ? RunScannerAsync(_loop.Token)
+            : IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
         _reprobe = false;
         UpdateJobsVisibility();
     }
@@ -417,6 +482,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         try
         {
+            if (IsScannerOnly) return IsOnline; // nothing to read: a scanner has no status over WIA
             if (IsQueuePrinter)
             {
                 await ReadQueueAsync(ct);
@@ -801,15 +867,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (Image is null && !IsDemo) _ = LoadImageAsync(conn);
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
-        // A scanner offering neither glass nor feeder (only a camera, say) has nothing Inkvolt Print can scan from.
-        var scanner = conn.Scanner is not null && p.Scanner?.Sources.Any() == true ? conn.Scanner : null;
-        Copy.Attach(scanner, scanner is null ? null : p.Scanner);
-        // Rebind rather than replace, so scanned-but-unsaved pages survive a reconnect.
-        if (scanner is not null && p.Scanner is not null)
-        {
-            if (Scan is null) Scan = new ScanViewModel(scanner, p.Scanner, _state, _presets, Name, FindQueueAsync, IsDemo ? Demo.PrintJobs.Add : null);
-            else Scan.Rebind(scanner);
-        }
+        BindScanner();
         if (conn.Ledm is not null)
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, IsDemo ? null : OpenWebPage);
@@ -822,6 +880,100 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
         _remember(this);
         old?.Dispose();
+    }
+
+    /// <summary>
+    /// The Scan and Copy tabs get this printer's scanner: eSCL when the connection has it, else the Windows (WIA) scanner that
+    /// belongs to it. A scanner offering neither glass nor feeder (only a camera, say) has nothing Inkvolt Print can scan from.
+    /// The Scan tab is rebound rather than replaced, so scanned-but-unsaved pages survive a reconnect; it's made anew only when
+    /// the kind of scanner changes and nothing is left unsaved.
+    /// </summary>
+    private void BindScanner()
+    {
+        IScanner? scanner = null;
+        ScannerCapabilities? caps = null;
+        if (_connection is { Scanner: { } escl, Probe.Scanner: { } offered } && offered.Sources.Any()) (scanner, caps) = (escl, offered);
+        else if (_wia is { } wia && wia.Capabilities.Sources.Any()) (scanner, caps) = (wia, wia.Capabilities);
+        if (IsNetworkPrinter || scanner is not null) Copy.Attach(scanner, caps);
+        else Copy.HasScanner = false;
+        OnPropertyChanged(nameof(StatusSourceNote));
+        if (scanner is null || caps is null)
+        {
+            Scan?.Detach("The scanner isn't connected now. Check that it's on and connected, then try again.");
+            return;
+        }
+        if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
+            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, FindQueueAsync, IsDemo ? Demo.PrintJobs.Add : null);
+        else Scan.Rebind(scanner);
+    }
+
+    /// <summary>
+    /// The WIA scanner that belongs to this entry now (null: none). Connecting reads what it offers, in the background; one that
+    /// doesn't answer (off, unplugged) is tried again the next time this is called. A scanner on its own gets its status from it.
+    /// </summary>
+    public async Task UseWiaScannerAsync(WiaDeviceInfo? device, IWiaSystem system)
+    {
+        if (device is null)
+        {
+            if (_wiaDevice is null) return;
+            _wiaDevice = null;
+            _wia = null;
+            BindScanner();
+            return;
+        }
+        if (_wiaConnecting || (_wia is not null && string.Equals(_wia.Device.Id, device.Id, StringComparison.OrdinalIgnoreCase))) return;
+        _wiaDevice = device;
+        _wiaConnecting = true;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var scanner = await WiaScanner.OpenAsync(system, device, timeout.Token);
+            if (!string.Equals(_wiaDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase)) return; // let go meanwhile
+            _wia = scanner;
+            BindScanner();
+            if (IsScannerOnly)
+            {
+                IsConnecting = false;
+                IsOnline = true;
+                StatusSeverity = Severity.Info;
+                StatusMessage = "Ready to scan";
+                StatusDetail = null;
+            }
+        }
+        catch (Exception ex) when (ex is WiaException or OperationCanceledException)
+        {
+            Log.Write($"[{Name}] Windows scanner not connected: {ex.Message}");
+            if (IsScannerOnly)
+            {
+                // Not SetOffline: a scanner that's off isn't a printer problem to alert about from the notification area.
+                IsConnecting = false;
+                IsOnline = false;
+                StatusSeverity = Severity.Info;
+                StatusMessage = "Scanner not answering";
+                StatusDetail = (ex is WiaException w ? WiaErrors.Message(w.Code, false) : "The scanner didn't answer in time.") +
+                               " Inkvolt Print tries again every 30 seconds.";
+            }
+        }
+        finally
+        {
+            _wiaConnecting = false;
+        }
+    }
+
+    private static readonly TimeSpan ScannerRetry = TimeSpan.FromSeconds(30);
+
+    /// <summary>A scanner on its own: connect, and again every 30 s while it doesn't answer.</summary>
+    private async Task RunScannerAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_wia is null) await UseWiaScannerAsync(ScannerDevice, _wiaSystem!);
+                await Task.Delay(ScannerRetry, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     private async Task RefreshAsync(CancellationToken ct)

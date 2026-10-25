@@ -20,7 +20,8 @@ namespace InkvoltPrint.App;
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address, 5 a printer that answers SNMP only, 6 a USB laser, 7 a printer shared from another PC and 8 a color MFP on a TCP/IP
-/// port read over SNMP, the last three listed from the made-up PC's Windows queues); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
+/// port read over SNMP, the last three listed from the made-up PC's Windows queues, the USB laser scanning through its made-up WIA
+/// scanner, and 9 a made-up WIA photo flatbed listed as a scanner of its own); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
 /// offers, answering yes to its questions, <c>--fix waiting</c> starts the first repair needing permission and leaves the made-up
 /// prompt unanswered, <c>--fix cancel</c> then presses its Cancel (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);

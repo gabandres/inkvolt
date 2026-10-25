@@ -94,6 +94,26 @@ switch (cmd)
                               $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
         }
         break;
+    case "scanners":
+        // Read-only: the WIA scanners Windows has drivers for; --caps connects to each and prints what it offers (never scans).
+        foreach (var d in await InkvoltPrint.Windows.Scanning.WindowsWia.Instance.ListScannersAsync(ct))
+        {
+            Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : "")}");
+            if (!args.Contains("--caps")) continue;
+            try
+            {
+                var w = await InkvoltPrint.Core.Wia.WiaScanner.OpenAsync(InkvoltPrint.Windows.Scanning.WindowsWia.Instance, d, ct);
+                var c = w.Capabilities;
+                Console.WriteLine($"  sources: {string.Join(", ", c.Sources)}; colors: {string.Join(", ", (c.Platen ?? c.Adf)!.ColorModes)}; " +
+                                  $"resolutions: {string.Join(", ", (c.Platen ?? c.Adf)!.Resolutions)}; formats: {string.Join(", ", w.Info.Formats)}");
+                Console.WriteLine($"  handling=0x{w.Info.Handling ?? 0:X} glass={w.Info.BedWidth}x{w.Info.BedHeight} feeder={w.Info.FeederWidth}x{w.Info.FeederHeight} (1/1000 in)");
+            }
+            catch (InkvoltPrint.Core.Wia.WiaException ex)
+            {
+                Console.WriteLine($"  can't connect: {InkvoltPrint.Core.Wia.WiaErrors.Message(ex.Code, false)} (0x{ex.Code:X8})");
+            }
+        }
+        break;
     case "ocr" when host is not null && args.Length >= 3:
         await Ocr(host, args[2], int.TryParse(Opt("--dpi"), out var odpi) ? odpi : 300);
         break;
@@ -116,6 +136,7 @@ switch (cmd)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
             inkvoltprint queues                            (read-only: installed queues as the sidebar sees them)
+            inkvoltprint scanners [--caps]                 (read-only: WIA scanners; --caps connects and reads what each offers)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)

@@ -207,6 +207,29 @@ internal static class Demo
             { PortMonitor = "WSD Port Monitor", ContainerId = Uuid },
     ];
 
+    /// <summary>
+    /// The made-up PC's scanners (WIA), so the Scan and Copy tabs of printers without eSCL can be tried: the scanner part of the
+    /// USB laser (glass and a feeder, color or grey, its own driver's resolutions; Windows lists it apart from the print queue, and
+    /// its model number matches it to the queue's driver) and a USB photo flatbed that belongs to no printer, listed on its own.
+    /// Pages are the demo's generated ones; nothing on this PC is asked.
+    /// </summary>
+    public static Core.Wia.FakeWiaSystem Wia { get; } = new(
+    [
+        new(new Core.Wia.WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0000", "Demo Laser 2100", "Demo", "Demo Laser 2100 scanner", @"\\.\Usbscan0"),
+            new Core.Wia.WiaScannerInfo(Core.Wia.WiaIds.CapFeed | Core.Wia.WiaIds.CapFlat | Core.Wia.WiaIds.CapDetectFeedAvailable, 8500, 11690, 8500, 14000,
+                Core.Wia.WiaValues.Of(300, 100, 150, 200, 300, 600), [0, Core.Wia.WiaIds.DataGrayscale, Core.Wia.WiaIds.DataColor], [Core.Wia.WiaIds.FormatBmp]),
+            WiaPage) { FeederStack = () => FeederBatch ? Batch.Value.Count : 3, HandlingStatus = Core.Wia.WiaIds.FeedReady },
+        new(new Core.Wia.WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0001", "Demo Photo Scanner 40", "Demo", "Demo Photo Scanner 40", @"\\.\Usbscan1"),
+            new Core.Wia.WiaScannerInfo(null, 8500, 11700, null, null, Core.Wia.WiaValues.Range(300, 50, 2400, 1),
+                [Core.Wia.WiaIds.DataGrayscale, Core.Wia.WiaIds.DataColor], [Core.Wia.WiaIds.FormatJpeg, Core.Wia.WiaIds.FormatBmp]),
+            WiaPage),
+    ]);
+
+    /// <summary>A demo WIA page: the feeder batch's next page when the scan splits into files, else what an eSCL demo scan of that area gives.</summary>
+    private static byte[] WiaPage(Core.Wia.WiaScanSettings s, int page) =>
+        s.Feeder && FeederBatch ? Batch.Value[page % Batch.Value.Count]
+            : Scan((int)((long)s.Width * 300 / s.Resolution), (int)((long)s.Height * 300 / s.Resolution));
+
     /// <summary>A demo queue's status: what <see cref="Core.Queues.SpoolerStatus"/> makes of its made-up bits (no spooler is asked).</summary>
     public static Core.Queues.IQueueStatusSource QueueStatus(Core.Queues.SpoolerQueue queue) => new DemoQueueStatus(queue);
 

@@ -14,7 +14,7 @@ using InkvoltPrint.Windows.Printing;
 namespace InkvoltPrint.App.ViewModels;
 
 /// <summary>
-/// Copy: scan over eSCL, then print what was scanned through the printer's Windows queue at actual size, in one step.
+/// Copy: scan (over eSCL, or through the scanner's Windows driver), then print what was scanned through the printer's Windows queue at actual size, in one step.
 /// ID card copy scans the front from the glass, asks for the card to be turned over, scans the back and prints both on
 /// one sheet (top and bottom halves). Needs a scanner and a Windows queue; says which one is missing otherwise.
 /// </summary>
@@ -24,7 +24,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     private const int CopyDpi = 300;
     private const double PreviewHeight = 520;
 
-    private EsclClient? _client;
+    private IScanner? _client;
     private ScannerCapabilities? _caps;
     private CancellationTokenSource? _cts;
     private RenderedPage? _front;
@@ -156,7 +156,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [RelayCommand] private void FewerCopies() => Copies--;
 
     /// <summary>The printer connected: its scanner (null when it has none).</summary>
-    public void Attach(EsclClient? client, ScannerCapabilities? caps)
+    public void Attach(IScanner? client, ScannerCapabilities? caps)
     {
         ScannerChecked = true;
         Blocked = null;

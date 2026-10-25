@@ -29,11 +29,12 @@
         <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
         <ContextMenu x:Key="PrinterMenu" x:Shared="False">
             <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
-            <MenuItem Header="Print photos…" Command="{Binding GoToPhotosCommand}" />
+            <MenuItem Header="Print photos…" Command="{Binding GoToPhotosCommand}"
+                      Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}"
                       Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}"
-                      Visibility="{Binding IsQueuePrinter, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                      Visibility="{Binding IsNetworkPrinter, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Remove from InkvoltPrint…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />
@@ -481,7 +482,7 @@
                     <!-- About -->
                     <Border Visibility="{Binding About.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
-                            <TextBlock Text="About this printer" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="{Binding AboutTitle}" Style="{StaticResource CardTitle}" />
                             <ItemsControl ItemsSource="{Binding About}">
                                 <ItemsControl.ItemContainerStyle>
                                     <Style TargetType="ContentPresenter">
@@ -515,7 +516,8 @@
                             <WrapPanel Margin="0,8,0,0">
                                 <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
                                         Visibility="{Binding Host, Converter={StaticResource VisibleWhen}}" />
-                                <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}" />
+                                <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}"
+                                        Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>
@@ -575,6 +577,9 @@
                 <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
+                        <!-- A scanner without eSCL, reached through its Windows driver (WIA): say so -->
+                        <TextBlock Text="{Binding ScannerNote}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"
+                                   Visibility="{Binding ScannerNote, Converter={StaticResource VisibleWhen}}" />
                         <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
                         <ComboBox AutomationProperties.Name="Source" ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
@@ -1495,7 +1500,7 @@
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center"
+                                    <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="22" HorizontalAlignment="Center"
                                                Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                     <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
                                     <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="{DynamicResource SolidBackgroundFillColorBaseBrush}" StrokeThickness="1.5"
@@ -1555,7 +1560,7 @@
                                 <!-- Hero -->
                                 <DockPanel DockPanel.Dock="Top" Margin="0,0,16,20">
                                     <Grid DockPanel.Dock="Left" Width="88" Height="88" Margin="0,0,20,0">
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="48" HorizontalAlignment="Center"
+                                        <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="48" HorizontalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                    Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                         <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -1615,12 +1620,14 @@
 
                                 <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}">
                                     <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
-                                    <TabItem Header="Print" Content="{Binding Print}" />
+                                    <TabItem Header="Print" Content="{Binding Print}"
+                                             Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Copy" Content="{Binding Copy}"
                                              Visibility="{Binding ShowCopy, Converter={StaticResource VisibleWhen}}" />
-                                    <TabItem Header="Photos" Content="{Binding Photos}" />
+                                    <TabItem Header="Photos" Content="{Binding Photos}"
+                                             Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
                                              Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />
                                 </TabControl>
