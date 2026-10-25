@@ -634,9 +634,11 @@ internal static class DevScript
             }
             case "time": log.Add($"time: {Environment.TickCount64 - Started} ms since start"); break;
             case "xps":
+            case "xpsjob":
             {
                 // xps <file> [fill | nup <n> [down] [borders] | booklet [right] | poster <percent> [overlap DIPs] [nomarks]]:
                 // the print pipeline into an XPS file (Letter), with a page handling; each sheet also as <file>.<n>.png.
+                // xpsjob: the same through the Windows 11 dialog's job writer (ModernPrint: a sheet at a time, XPS object model).
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var setup = a.Length < 2 ? new Core.PrintSetup() : a[1] switch
@@ -648,10 +650,23 @@ internal static class DevScript
                     _ => new Core.PrintSetup(),
                 };
                 var all = setup.Handling == Core.PrintHandling.Fit ? Math.Min(6, v!.PageCount) : v!.PageCount;
-                var n = await FileActions.WriteXps(tab!.Session.Engine, [.. Enumerable.Range(0, all)], a[0], setup);
+                var n = cmd.Equals("xpsjob", StringComparison.OrdinalIgnoreCase)
+                    ? await ModernPrint.WriteJobXps(tab!.Session.Engine, [.. Enumerable.Range(0, all)], a[0], setup)
+                    : await FileActions.WriteXps(tab!.Session.Engine, [.. Enumerable.Range(0, all)], a[0], setup);
                 log.Add($"xps: {n} sheets, {new FileInfo(a[0]).Length / 1024} KB in {sw.ElapsedMilliseconds} ms");
                 using (var xps = Core.PdfEngine.Open(File.ReadAllBytes(a[0]), MuPDFCore.InputFileTypes.XPS, null))
                     for (var i = 0; i < xps.PageCount; i++) xps.SaveImage(i, 40, $"{a[0]}.{i + 1}.png", jpeg: false);
+                break;
+            }
+            case "printdialog":
+            {
+                // printdialog [options]: brings the window on screen and runs Print (with Options): the Windows 11 print
+                // dialog when it can be used; drive it from outside (UI Automation), the step returns once it is up.
+                window.Left = 80;
+                window.Top = 40;
+                window.Activate();
+                await FileActions.Print(window, tab!, arg.Contains("options"));
+                log.Add($"printdialog: modern={ModernPrint.Available}");
                 break;
             }
             case "printhandling":

@@ -14,14 +14,54 @@ namespace InkvoltPdf.App;
 public static class FileActions
 {
     /// <summary>
-    /// Print: the Windows dialog, then straight to the printer, each page fit to the paper the way the last
-    /// Page Sizing &amp; Handling chose (actual size or fit to paper). <paramref name="withOptions"/> asks for
-    /// Page Sizing &amp; Handling (pages per sheet, booklet, poster) once the printer and paper are known.
+    /// Print: the Windows 11 print dialog with its preview (<see cref="ModernPrint"/>), each page fit to the paper the way
+    /// the last Page Sizing &amp; Handling chose (actual size or fit to paper, also in the dialog's More settings).
+    /// <paramref name="withOptions"/> asks for Page Sizing &amp; Handling (pages per sheet, booklet, poster) first, on the
+    /// default printer's paper; the dialog's preview shows the sheets on the paper chosen there. Where that dialog can't be
+    /// used: the classic one, then straight to the printer.
     /// </summary>
     public static async Task Print(Window owner, DocumentTab tab, bool withOptions = false)
     {
         // Let a value still being typed land first: the dialog takes focus, which would commit it mid-print.
         if (!await tab.SettleAsync()) return;
+        PrintSetup? chosen = null;
+        if (ModernPrint.Available)
+        {
+            chosen = withOptions ? AskHandling(owner, tab) : DefaultSetup();
+            if (chosen is null || !await tab.SettleAsync()) return;
+            if (await ModernPrint.PrintAsync(owner, tab, chosen, Organize.CurrentPage(tab))) return;
+        }
+        await PrintClassic(owner, tab, withOptions, chosen);
+    }
+
+    private static PrintSetup DefaultSetup() =>
+        new() { Sizing = AppSettings.Current.PrintFitToPaper ? PrintSizing.FitToPaper : PrintSizing.ActualSize };
+
+    /// <summary>Page Sizing &amp; Handling before the Windows dialog: the default printer's paper stands in for the one chosen there.</summary>
+    private static PrintSetup? AskHandling(Window owner, DocumentTab tab)
+    {
+        var paper = new Size(816, 1056);
+        var printable = new RectD(24, 24, 768, 1008);
+        var duplex = false;
+        try
+        {
+            var dlg = new PrintDialog();
+            var (origin, area) = ImageableArea(dlg);
+            paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
+            printable = new RectD(origin.X, origin.Y, area.Width, area.Height);
+            duplex = CanPrintBothSides(dlg);
+        }
+        catch (Exception ex) when (ex is PrintQueueException or PrintSystemException or InvalidOperationException)
+        {
+            Log.Write($"Default printer unavailable: {ex.Message}");
+        }
+        var pages = Enumerable.Range(0, tab.PageView.PageCount).ToArray();
+        return PrintHandlingDialog.Ask(owner, pages, SizesOf(tab.ViewEngine), paper, printable, duplex);
+    }
+
+    /// <summary>The classic Windows print dialog; <paramref name="chosen"/> is the page handling already asked for, if any.</summary>
+    private static async Task PrintClassic(Window owner, DocumentTab tab, bool withOptions, PrintSetup? chosen)
+    {
         var count = tab.PageView.PageCount;
         var selection = tab.SelectedPages;
         var current = Organize.CurrentPage(tab);
@@ -55,9 +95,9 @@ public static class FileActions
         var paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
         var printable = new RectD(origin.X, origin.Y, area.Width, area.Height);
         var duplex = CanPrintBothSides(dlg);
-        var setup = withOptions
+        var setup = chosen ?? (withOptions
             ? PrintHandlingDialog.Ask(owner, pages, SizesOf(tab.ViewEngine), paper, printable, duplex)
-            : new PrintSetup { Sizing = AppSettings.Current.PrintFitToPaper ? PrintSizing.FitToPaper : PrintSizing.ActualSize };
+            : DefaultSetup());
         if (setup is null || !await tab.SettleAsync()) return;
         if (pages.Any(p => p >= tab.PageView.PageCount)) return; // the document changed meanwhile
         if (setup.Handling == PrintHandling.Booklet && duplex) dlg.PrintTicket.Duplexing = Duplexing.TwoSidedShortEdge;
@@ -186,9 +226,81 @@ public static class FileActions
         return (new Point(24, 24), new Size(Math.Max(1, paper.Width - 48), Math.Max(1, paper.Height - 48)));
     }
 
+    /// <summary>A sheet's pages rendered, ready to draw (<see cref="DrawSheet"/>).</summary>
+    internal sealed record RenderedSheet(PrintSheet Sheet, BitmapSource[] Images);
+
     /// <summary>
-    /// Renders each sheet of a <see cref="PrintPlan"/> at print resolution when the printer asks for it (one page, several,
-    /// two booklet pages or a poster tile: only the part of the page that sheet shows), so memory stays bounded by a sheet.
+    /// Renders the pages of one sheet of a <see cref="PrintPlan"/> at <paramref name="dpi"/> pixels per inch of paper (one
+    /// page, several, two booklet pages or a poster tile: only the part of the page that sheet shows). Any thread.
+    /// </summary>
+    internal static RenderedSheet RenderSheet(PdfEngine engine, PrintPlan plan, int sheetNumber, double dpi, CancellationToken cancel = default)
+    {
+        cancel.ThrowIfCancellationRequested();
+        var sheet = plan.Sheet(sheetNumber);
+        var images = new BitmapSource[sheet.Pages.Count];
+        for (var i = 0; i < images.Length; i++)
+        {
+            var p = sheet.Pages[i];
+            var g = engine.GetPage(p.Page);
+            // The part of the page shown, in points (the plan works in DIPs).
+            var region = p.Source is { } src ? new RectD(src.X * 0.75, src.Y * 0.75, src.Width * 0.75, src.Height * 0.75) : new RectD(0, 0, g.Width, g.Height);
+            // Its size on paper (DIPs) over its size on the page (points), at the resolution asked for.
+            var across = p.Turns == 1 ? p.Box.Height : p.Box.Width;
+            var pxScale = dpi / 96 * across / region.Width;
+            while (region.Width * region.Height * pxScale * pxScale > 60_000_000) pxScale *= 0.85;
+            images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
+        }
+        return new RenderedSheet(sheet, images);
+    }
+
+    /// <summary>Draws a rendered sheet in paper DIPs; <paramref name="content"/> is the part drawn on. UI thread.</summary>
+    internal static DrawingVisual DrawSheet(RenderedSheet r, out Rect content)
+    {
+        var visual = new DrawingVisual();
+        content = Rect.Empty;
+        using (var dc = visual.RenderOpen())
+        {
+            var border = new Pen(Brushes.Gray, 0.75);
+            for (var i = 0; i < r.Images.Length; i++)
+            {
+                var p = r.Sheet.Pages[i];
+                var box = new Rect(p.Box.X, p.Box.Y, p.Box.Width, p.Box.Height);
+                content.Union(box);
+                if (p.Turns == 1)
+                {
+                    // Turn the page 90° clockwise into the (W × H) box.
+                    dc.PushTransform(new TranslateTransform(box.X + box.Width, box.Y));
+                    dc.PushTransform(new RotateTransform(90));
+                    dc.DrawImage(r.Images[i], new Rect(0, 0, box.Height, box.Width));
+                    dc.Pop();
+                    dc.Pop();
+                }
+                else
+                {
+                    dc.DrawImage(r.Images[i], box);
+                }
+                if (r.Sheet.Borders) dc.DrawRectangle(null, border, box);
+            }
+            var mark = new Pen(Brushes.Black, 0.75);
+            foreach (var m in r.Sheet.Marks)
+            {
+                dc.DrawLine(mark, new Point(m.X1, m.Y1), new Point(m.X2, m.Y2));
+                content.Union(new Rect(new Point(m.X1, m.Y1), new Point(m.X2, m.Y2)));
+            }
+        }
+        return visual;
+    }
+
+    /// <summary>A rendered sheet as a printable page of <paramref name="paper"/> (DIPs). UI thread.</summary>
+    internal static DocumentPage SheetPage(RenderedSheet r, Size paper)
+    {
+        var visual = DrawSheet(r, out var content);
+        return new DocumentPage(visual, paper, new Rect(paper), content.IsEmpty ? new Rect(paper) : content);
+    }
+
+    /// <summary>
+    /// Renders each sheet of a <see cref="PrintPlan"/> at print resolution when the printer asks for it, so memory stays
+    /// bounded by a sheet.
     /// </summary>
     private sealed class PdfPaginator(PdfEngine engine, PrintPlan plan, Size paper, CancellationToken cancel = default) : DocumentPaginator
     {
@@ -199,75 +311,16 @@ public static class FileActions
         public override Size PageSize { get => paper; set { } }
         public override IDocumentPaginatorSource? Source => null;
 
-        private sealed record Rendered(PrintSheet Sheet, BitmapSource[] Images);
-
-        public override DocumentPage GetPage(int pageNumber) => Build(Render(pageNumber));
+        public override DocumentPage GetPage(int pageNumber) => SheetPage(RenderSheet(engine, plan, pageNumber, Dpi, cancel), paper);
 
         /// <summary>Renders on a worker thread and completes on the UI thread (used by XpsDocumentWriter.WriteAsync).</summary>
         public override void GetPageAsync(int pageNumber, object userState)
         {
-            Task.Run(() => Render(pageNumber), cancel).ContinueWith(t => OnGetPageCompleted(
+            Task.Run(() => RenderSheet(engine, plan, pageNumber, Dpi, cancel), cancel).ContinueWith(t => OnGetPageCompleted(
                     t.IsCanceled || cancel.IsCancellationRequested ? new GetPageCompletedEventArgs(null, pageNumber, null, true, userState)
                     : t.IsFaulted ? new GetPageCompletedEventArgs(null, pageNumber, t.Exception!.InnerException, false, userState)
-                    : new GetPageCompletedEventArgs(Build(t.Result), pageNumber, null, false, userState)),
+                    : new GetPageCompletedEventArgs(SheetPage(t.Result, paper), pageNumber, null, false, userState)),
                 CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.FromCurrentSynchronizationContext());
-        }
-
-        private Rendered Render(int sheetNumber)
-        {
-            cancel.ThrowIfCancellationRequested();
-            var sheet = plan.Sheet(sheetNumber);
-            var images = new BitmapSource[sheet.Pages.Count];
-            for (var i = 0; i < images.Length; i++)
-            {
-                var p = sheet.Pages[i];
-                var g = engine.GetPage(p.Page);
-                // The part of the page shown, in points (the plan works in DIPs).
-                var region = p.Source is { } src ? new RectD(src.X * 0.75, src.Y * 0.75, src.Width * 0.75, src.Height * 0.75) : new RectD(0, 0, g.Width, g.Height);
-                // Its size on paper (DIPs) over its size on the page (points), at printer resolution.
-                var across = p.Turns == 1 ? p.Box.Height : p.Box.Width;
-                var pxScale = Dpi / 96 * across / region.Width;
-                while (region.Width * region.Height * pxScale * pxScale > 60_000_000) pxScale *= 0.85;
-                images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
-            }
-            return new Rendered(sheet, images);
-        }
-
-        private DocumentPage Build(Rendered r)
-        {
-            var visual = new DrawingVisual();
-            var content = Rect.Empty;
-            using (var dc = visual.RenderOpen())
-            {
-                var border = new Pen(Brushes.Gray, 0.75);
-                for (var i = 0; i < r.Images.Length; i++)
-                {
-                    var p = r.Sheet.Pages[i];
-                    var box = new Rect(p.Box.X, p.Box.Y, p.Box.Width, p.Box.Height);
-                    content.Union(box);
-                    if (p.Turns == 1)
-                    {
-                        // Turn the page 90° clockwise into the (W × H) box.
-                        dc.PushTransform(new TranslateTransform(box.X + box.Width, box.Y));
-                        dc.PushTransform(new RotateTransform(90));
-                        dc.DrawImage(r.Images[i], new Rect(0, 0, box.Height, box.Width));
-                        dc.Pop();
-                        dc.Pop();
-                    }
-                    else
-                    {
-                        dc.DrawImage(r.Images[i], box);
-                    }
-                    if (r.Sheet.Borders) dc.DrawRectangle(null, border, box);
-                }
-                var mark = new Pen(Brushes.Black, 0.75);
-                foreach (var m in r.Sheet.Marks)
-                {
-                    dc.DrawLine(mark, new Point(m.X1, m.Y1), new Point(m.X2, m.Y2));
-                    content.Union(new Rect(new Point(m.X1, m.Y1), new Point(m.X2, m.Y2)));
-                }
-            }
-            return new DocumentPage(visual, paper, new Rect(paper), content.IsEmpty ? new Rect(paper) : content);
         }
     }
 

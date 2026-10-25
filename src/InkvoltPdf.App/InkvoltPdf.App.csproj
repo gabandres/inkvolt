@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>$(WinTfm)</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- ModernPrint: the print dialog's COM document source (ComWrappers vtables, function-pointer calls) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>InkvoltPdf</AssemblyName>
     <RootNamespace>InkvoltPdf.App</RootNamespace>
     <ApplicationIcon>..\..\assets\InkvoltPdf.ico</ApplicationIcon>
