@@ -1346,9 +1346,9 @@ public partial class MainWindow : Window
         Bind(Cmd.PrintWithOptions, t => _ = FileActions.Print(this, t, withOptions: true), t => t.PageView.PageCount > 0);
         BindAlways(Cmd.Scan, () => Scanning.ScanToNewTab(this));
         Bind(Cmd.ExportImages, t => _ = FileActions.ExportImages(this, t, this), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportWord, t => _ = ExportActions.Export(this, t, this, ExportActions.Format.Word), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportExcel, t => _ = ExportActions.Export(this, t, this, ExportActions.Format.Excel), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportText, t => _ = ExportActions.Export(this, t, this, ExportActions.Format.Text), t => t.PageView.PageCount > 0);
+        Bind(Cmd.ExportWord, t => _ = ExportActions.Export(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
+        Bind(Cmd.ExportExcel, t => _ = ExportActions.Export(this, t, this, ExportFormat.Excel), t => t.PageView.PageCount > 0);
+        Bind(Cmd.ExportText, t => _ = ExportActions.Export(this, t, this, ExportFormat.Text), t => t.PageView.PageCount > 0);
         Bind(Cmd.Properties, t => _ = FileActions.ShowProperties(this, t));
 
         Bind(Cmd.Undo, t => t.Undo(), t => t.Session.CanUndo);

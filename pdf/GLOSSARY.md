@@ -17,5 +17,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   permissions, through an edit.
 - **Signed edit** (`Core/SignedEdits.cs`): an edit of a signed document is appended after the signed bytes when it can
   be; otherwise it needs the user's consent to rewrite the file.
+- **Document export** (`Core/DocumentExport.cs`): a document's pages to Word, Excel (the tables found) or plain text:
+  reads each page (a damaged page exports empty, a page without text goes to the recognizer when one is given), lays the
+  document out (`DocLayout`) and writes the format, or reports that nothing was extracted and saves nothing. Used by
+  File › Export, Batch and `tools/export-corpus`.
+- **Recognizer**: text recognition (OCR) of a page without text; Windows' OCR in the app (`App/PageOcr.cs`), passed to
+  Core as a function.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

@@ -80,7 +80,7 @@ public sealed record DocPage(double Width, double Height, RectD Content, IReadOn
 /// tables from ruled grids, or from text aligned in columns over several rows; headings from font sizes larger than
 /// the document's body text.
 /// </summary>
-public static partial class DocLayout
+internal static partial class DocLayout
 {
     private const double Thin = 3; // a path this thin (pt) is a rule
 

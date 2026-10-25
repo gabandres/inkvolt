@@ -11,10 +11,10 @@ switch (args)
     case ["export", var pdf, var docx]:
     {
         using var engine = PdfEngine.Open(File.ReadAllBytes(pdf), InputFileTypes.PDF, null);
-        var pages = Enumerable.Range(0, engine.PageCount).Select(i => engine.GetExportPage(i, true)).ToList();
-        using (var fs = File.Create(docx)) DocumentExport.WriteDocx(fs, pages, Path.GetFileNameWithoutExtension(pdf));
-        File.WriteAllText(Path.ChangeExtension(docx, ".txt"), DocumentExport.PlainText(pages));
-        Console.WriteLine($"{Path.GetFileName(pdf)}: {pages.Count} page(s) -> {docx}");
+        var options = new ExportOptions { Title = Path.GetFileNameWithoutExtension(pdf) };
+        var report = DocumentExport.ExportToFile(engine, ExportFormat.Word, docx, options);
+        DocumentExport.ExportToFile(engine, ExportFormat.Text, Path.ChangeExtension(docx, ".txt"), options);
+        Console.WriteLine($"{Path.GetFileName(pdf)}: {report.Pages} page(s) -> {docx}");
         return 0;
     }
     case ["glyphs", var pdf, var txt]:

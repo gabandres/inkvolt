@@ -723,61 +723,28 @@ public static class BatchRunner
                 return;
             }
 
-            var pages = new List<(int Number, ExportPage Page)>();
-            for (var p = 0; p < engine.PageCount; p++)
+            var format = step.Format switch
             {
-                cancel.ThrowIfCancellationRequested();
-                try
-                {
-                    pages.Add((p + 1, engine.GetExportPage(p, step.Format == BatchExportFormat.Word, cancel)));
-                }
-                catch (MuPDFException)
-                {
-                    var g = engine.GetPage(p);
-                    pages.Add((p + 1, new ExportPage(g.Width, g.Height, [], [], [])));
-                    _notes.Add($"Page {p + 1} couldn't be read");
-                }
-            }
-            var title = Path.GetFileNameWithoutExtension(file.Path);
-            var withText = pages.Any(p => p.Page.HasText);
-            switch (step.Format)
-            {
-                case BatchExportFormat.Word:
-                    if (!withText && pages.All(p => p.Page.Images.Count == 0))
-                    {
-                        _notes.Add("Word: no text or pictures, nothing saved");
-                        return;
-                    }
-                    Save(".docx", s => DocumentExport.WriteDocx(s, pages.Select(p => p.Page), title));
-                    break;
-                case BatchExportFormat.Excel:
-                    var tables = DocumentExport.Tables(pages);
-                    if (tables.Count == 0)
-                    {
-                        _notes.Add("Excel: no tables found, nothing saved");
-                        return;
-                    }
-                    Save(".xlsx", s => XlsxWriter.Write(s, tables, title));
-                    break;
-                default:
-                    if (!withText)
-                    {
-                        _notes.Add("Text: no text found, nothing saved");
-                        return;
-                    }
-                    var text = DocumentExport.PlainText(pages.Select(p => p.Page));
-                    Save(".txt", s => s.Write([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(text)]));
-                    break;
-            }
-        }
-
-        private void Save(string extension, Action<Stream> write)
-        {
+                BatchExportFormat.Word => ExportFormat.Word,
+                BatchExportFormat.Excel => ExportFormat.Excel,
+                _ => ExportFormat.Text,
+            };
             using var ms = new MemoryStream();
-            write(ms);
+            var report = DocumentExport.Export(engine, format, ms, new ExportOptions { Title = Path.GetFileNameWithoutExtension(file.Path) }, cancel);
+            foreach (var problem in report.Unreadable) _notes.Add($"Page {problem.Page + 1} couldn't be read");
+            if (!report.Saved)
+            {
+                _notes.Add(format switch
+                {
+                    ExportFormat.Word => "Word: no text or pictures, nothing saved",
+                    ExportFormat.Excel => "Excel: no tables found, nothing saved",
+                    _ => "Text: no text found, nothing saved",
+                });
+                return;
+            }
             cancel.ThrowIfCancellationRequested();
             var bytes = ms.ToArray();
-            _outputs.Add(names.Place(_folder, _baseName + extension, temp => File.WriteAllBytes(temp, bytes)));
+            _outputs.Add(names.Place(_folder, _baseName + DocumentExport.Extension(format), temp => File.WriteAllBytes(temp, bytes)));
         }
     }
 

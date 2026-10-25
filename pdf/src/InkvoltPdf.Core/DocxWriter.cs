@@ -11,7 +11,7 @@ namespace InkvoltPdf.Core;
 /// inline; each PDF page its own section (its size and orientation), so pages break where the PDF's did. Pictures are
 /// stored as they are added (<see cref="AddImage"/>), so a long document's images needn't all be held in memory.
 /// </summary>
-public sealed class DocxWriter : IDisposable
+internal sealed class DocxWriter : IDisposable
 {
     private const string W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     private const string R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";

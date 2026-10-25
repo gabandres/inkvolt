@@ -10,7 +10,7 @@ namespace InkvoltPdf.Core;
 /// numbers shown as they were (decimal places, thousands separator, percent, currency sign); everything else stays text
 /// as shown; cells spanning columns are merged; a cell in bold type is bold; column widths follow the table's.
 /// </summary>
-public static partial class XlsxWriter
+internal static partial class XlsxWriter
 {
     private const string S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private const string R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";

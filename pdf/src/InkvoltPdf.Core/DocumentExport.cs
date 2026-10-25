@@ -1,15 +1,200 @@
 using System.Text;
+using MuPDFCore;
 
 namespace InkvoltPdf.Core;
 
+/// <summary>What <see cref="DocumentExport"/> makes: a Word document, an Excel workbook of the tables found, or plain text.</summary>
+public enum ExportFormat { Word, Excel, Text }
+
+public enum ExportStage { Reading, Recognizing, Writing }
+
+/// <summary>Where an export is (<see cref="ExportOptions.Progress"/>).</summary>
+/// <param name="Page">The page being read or recognized (0-based; -1 while writing).</param>
+/// <param name="Index">How many pages were read before it.</param>
+public readonly record struct ExportProgress(ExportStage Stage, int Page, int Index, int Count)
+{
+    public double Fraction => Count == 0 ? 1 : (double)Index / Count;
+}
+
+/// <summary>How to export (see <see cref="DocumentExport.Export"/>).</summary>
+public sealed record ExportOptions
+{
+    /// <summary>The pages to export (0-based, in this order); null exports every page.</summary>
+    public IReadOnlyList<int>? Pages { get; init; }
+
+    /// <summary>The document's title in the Word and Excel file.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>
+    /// Text recognition for pages without text (scans): the words on a page of the engine. Null reads only the text the
+    /// pages have. The app passes Windows' OCR.
+    /// </summary>
+    public Func<PdfEngine, int, CancellationToken, IReadOnlyList<OcrWord>>? Recognize { get; init; }
+
+    /// <summary>Called as each page is read or recognized, and once before the file is written (on the exporting thread).</summary>
+    public Action<ExportProgress>? Progress { get; init; }
+}
+
+/// <summary>A page an export couldn't read, or couldn't recognize (0-based), and why.</summary>
+public readonly record struct ExportProblem(int Page, string Message);
+
+/// <summary>What an export did.</summary>
+/// <param name="Saved">
+/// False when nothing was extracted, so there is nothing to save: no text at all (and, for Word, no pictures either),
+/// or, for Excel, no tables.
+/// </param>
+/// <param name="Pages">Pages exported.</param>
+/// <param name="Recognized">Pages whose text came from <see cref="ExportOptions.Recognize"/>.</param>
+/// <param name="NoText">Pages without text (after recognition).</param>
+/// <param name="NoTextWithPictures">Of those, pages with pictures (Word keeps them).</param>
+/// <param name="Tables">Excel: the tables found (one sheet each).</param>
+/// <param name="Unreadable">Damaged pages: exported empty.</param>
+/// <param name="RecognitionFailed">Pages whose recognition failed: exported without text.</param>
+public sealed record ExportReport(bool Saved, int Pages, int Recognized, int NoText, int NoTextWithPictures, int Tables,
+    IReadOnlyList<ExportProblem> Unreadable, IReadOnlyList<ExportProblem> RecognitionFailed);
+
 /// <summary>
-/// Export to Word, Excel and plain text. Pages come in one at a time (read from the PDF, or recognized by OCR); each
-/// format lays the whole document out once all pages are in (body size and heading levels are document-wide).
+/// Export to Word, Excel and plain text. <see cref="Export"/> (to a stream) and <see cref="ExportToFile"/> read the pages
+/// (a damaged page exports empty; a page without text is recognized when the caller gives a recognizer), lay out the
+/// document and write the format, or report that there was nothing to save. Pages come in one at a time; each format
+/// lays the whole document out once all pages are in (body size and heading levels are document-wide).
 /// </summary>
 public static class DocumentExport
 {
+    /// <summary>The file extension of <paramref name="format"/> (".docx", ".xlsx", ".txt").</summary>
+    public static string Extension(ExportFormat format) => format switch
+    {
+        ExportFormat.Word => ".docx",
+        ExportFormat.Excel => ".xlsx",
+        _ => ".txt",
+    };
+
+    /// <summary>
+    /// Exports the pages of <paramref name="engine"/> to <paramref name="output"/>. When the report says nothing was
+    /// <see cref="ExportReport.Saved"/>, discard the output: Excel and text wrote nothing, Word may have written part of a
+    /// file. <see cref="ExportToFile"/> handles that.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
+    public static ExportReport Export(PdfEngine engine, ExportFormat format, Stream output, ExportOptions? options = null, CancellationToken cancel = default)
+    {
+        options ??= new ExportOptions();
+        var pages = options.Pages ?? [.. Enumerable.Range(0, engine.PageCount)];
+        var run = new Run(engine, pages, format == ExportFormat.Word, options, cancel);
+        var tables = 0;
+        bool saved;
+        switch (format)
+        {
+            case ExportFormat.Word:
+                WriteDocx(output, run.Read().Select(x => x.Page), options.Title);
+                saved = run.NoText < pages.Count || run.NoTextWithPictures > 0;
+                break;
+            case ExportFormat.Excel:
+            {
+                var found = Tables(run.Read());
+                tables = found.Count;
+                saved = found.Count > 0;
+                if (saved) XlsxWriter.Write(output, found, options.Title);
+                break;
+            }
+            default:
+            {
+                var text = PlainText(run.Read().Select(x => x.Page));
+                saved = run.NoText < pages.Count;
+                if (saved) output.Write([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(text)]);
+                break;
+            }
+        }
+        return new ExportReport(saved, pages.Count, run.Recognized, run.NoText, run.NoTextWithPictures, tables, run.Unreadable, run.RecognitionFailed);
+    }
+
+    /// <summary>
+    /// <see cref="Export"/> to <paramref name="path"/>, through a temporary file in the same folder that is swapped in at the
+    /// end: a failed or cancelled export, or one with nothing to save, leaves the folder as it was.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
+    /// <exception cref="IOException">The file can't be written (open in another program, say).</exception>
+    public static ExportReport ExportToFile(PdfEngine engine, ExportFormat format, string path, ExportOptions? options = null, CancellationToken cancel = default)
+    {
+        var full = Path.GetFullPath(path);
+        var tmp = Path.Combine(Path.GetDirectoryName(full)!, $"~inkvoltpdf-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            ExportReport report;
+            using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                report = Export(engine, format, fs, options, cancel);
+                fs.Flush(flushToDisk: true);
+            }
+            cancel.ThrowIfCancellationRequested();
+            if (report.Saved) File.Move(tmp, full, overwrite: true);
+            else File.Delete(tmp);
+            return report;
+        }
+        catch
+        {
+            try { File.Delete(tmp); } catch (Exception) { }
+            throw;
+        }
+    }
+
+    /// <summary>Reads the pages one at a time (lazily: Word stores each page's pictures as it arrives), counting as it goes.</summary>
+    private sealed class Run(PdfEngine engine, IReadOnlyList<int> pages, bool images, ExportOptions options, CancellationToken cancel)
+    {
+        public int Recognized, NoText, NoTextWithPictures;
+        public readonly List<ExportProblem> Unreadable = [], RecognitionFailed = [];
+
+        public IEnumerable<(int Number, ExportPage Page)> Read()
+        {
+            for (var i = 0; i < pages.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var p = pages[i];
+                options.Progress?.Invoke(new ExportProgress(ExportStage.Reading, p, i, pages.Count));
+                ExportPage page;
+                var readable = true;
+                try
+                {
+                    page = engine.GetExportPage(p, images, cancel);
+                }
+                catch (MuPDFException ex)
+                {
+                    // A damaged page: export the rest (it stays empty, and the report says so).
+                    Unreadable.Add(new ExportProblem(p, ex.Message));
+                    readable = false;
+                    var g = engine.GetPage(p);
+                    page = new ExportPage(g.Width, g.Height, [], [], []);
+                }
+                if (readable && !page.HasText && options.Recognize is { } recognize)
+                {
+                    options.Progress?.Invoke(new ExportProgress(ExportStage.Recognizing, p, i, pages.Count));
+                    try
+                    {
+                        var words = recognize(engine, p, cancel);
+                        if (words.Count > 0)
+                        {
+                            page = page with { Lines = ExportPage.LinesFromOcr(words), FromOcr = true };
+                            Recognized++;
+                        }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // Rendering or the recognizer failed on this page: go on without its text.
+                        RecognitionFailed.Add(new ExportProblem(p, ex.Message));
+                    }
+                }
+                if (!page.HasText)
+                {
+                    NoText++;
+                    if (page.Images.Count > 0) NoTextWithPictures++;
+                }
+                yield return (p + 1, page);
+            }
+            options.Progress?.Invoke(new ExportProgress(ExportStage.Writing, -1, pages.Count, pages.Count));
+        }
+    }
+
     /// <summary>Writes a .docx. Pictures are stored as each page arrives; only the text is kept until the end.</summary>
-    public static void WriteDocx(Stream output, IEnumerable<ExportPage> pages, string? title)
+    internal static void WriteDocx(Stream output, IEnumerable<ExportPage> pages, string? title)
     {
         using var writer = new DocxWriter(output);
         var kept = new List<ExportPage>();
@@ -22,7 +207,7 @@ public static class DocumentExport
     }
 
     /// <summary>The tables found on the pages, named after their page ("Page 3", "Page 3 (2)"); page numbers are 1-based.</summary>
-    public static List<(string Name, DocTable Table)> Tables(IEnumerable<(int PageNumber, ExportPage Page)> pages)
+    internal static List<(string Name, DocTable Table)> Tables(IEnumerable<(int PageNumber, ExportPage Page)> pages)
     {
         var list = pages.Select(p => (p.PageNumber, Page: p.Page.WithoutImages())).ToList();
         var laid = DocLayout.Analyze([.. list.Select(p => p.Page)]);
@@ -40,7 +225,7 @@ public static class DocumentExport
     /// Plain text in reading order: one paragraph per line with a blank line between paragraphs, table rows as
     /// tab-separated cells, list items with a bullet ("• ").
     /// </summary>
-    public static string PlainText(IEnumerable<ExportPage> pages)
+    internal static string PlainText(IEnumerable<ExportPage> pages)
     {
         var laid = DocLayout.Analyze([.. pages.Select(p => p.WithoutImages())]);
         var sb = new StringBuilder();
