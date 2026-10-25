@@ -153,6 +153,7 @@ public static class RepairRunner
     public static async Task<RepairOutcome> RunAsync(Repair repair, IOfflineRepairs repairs, bool canElevate, CancellationToken ct = default)
     {
         if (repair.ManualOnly) return new(RepairOutcomeKind.Manual, "Do this in Windows:", repair.ManualSteps);
+        var doneAsUser = 0; // jobs the user-level pass already changed, before any permission prompt
         if (!repair.AdminOnly)
         {
             var user = await repairs.AsUserAsync(repair, ct).ConfigureAwait(false);
@@ -164,26 +165,58 @@ public static class RepairRunner
                 case AttemptResult.Unknown: return Unknown;
             }
             // Jobs the user could change are done; only the refused ones go to the administrator.
-            if (user.DeniedJobIds is { Count: > 0 } denied) repair = repair with { JobIds = denied };
+            if (user.DeniedJobIds is { Count: > 0 } denied)
+            {
+                doneAsUser = repair.JobIds.Count(id => !denied.Contains(id));
+                repair = repair with { JobIds = denied };
+            }
         }
         if (!canElevate)
             return new(RepairOutcomeKind.Manual,
                 "Windows needs an administrator for this, and the Microsoft Store version of Inkvolt Print doesn't ask for that. Do it in Windows:",
                 repair.ManualSteps);
-        var admin = await repairs.ElevatedAsync(repair, ct).ConfigureAwait(false);
+        Attempt admin;
+        try
+        {
+            admin = await repairs.ElevatedAsync(repair, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            admin = new Attempt(AttemptResult.Stopped); // stopped before the prompt even showed
+        }
         return admin.Result switch
         {
             AttemptResult.Done => RepairOutcome.Fixed("Done."),
-            AttemptResult.Cancelled => new(RepairOutcomeKind.Cancelled, "Cancelled: Windows needs administrator permission for this.", []),
-            AttemptResult.Stopped => Stopped,
+            AttemptResult.Cancelled => new(RepairOutcomeKind.Cancelled,
+                AlreadyDone(repair.Kind, doneAsUser) + "Cancelled: Windows needs administrator permission for " +
+                (doneAsUser > 0 ? $"the other {Jobs(repair.JobIds.Count)}." : "this."), []),
+            AttemptResult.Stopped => StoppedAfter(repair.Kind, doneAsUser, repair.JobIds.Count),
             AttemptResult.Unknown => Unknown,
             _ => new(RepairOutcomeKind.Failed, admin.Message ?? "Windows couldn't do it.", repair.ManualSteps),
         };
     }
 
-    /// <summary>The user stopped waiting (Cancel) while Windows' permission prompt was unanswered.</summary>
-    public static readonly RepairOutcome Stopped = new(RepairOutcomeKind.Stopped,
-        "Stopped waiting for Windows' permission, so nothing was changed. If the prompt is still open, answering it now does nothing.", []);
+    /// <summary>The user stopped waiting (Cancel) while Windows' permission prompt was unanswered, before anything was done.</summary>
+    public static readonly RepairOutcome Stopped = StoppedAfter(RepairKind.CancelStuckJobs, 0, 0);
+
+    /// <summary>
+    /// Stopped waiting for the prompt: says what the user-level pass already did (jobs Windows let the user cancel or restart),
+    /// and that the rest wasn't touched.
+    /// </summary>
+    public static RepairOutcome StoppedAfter(RepairKind kind, int doneAsUser, int left) => new(RepairOutcomeKind.Stopped,
+        doneAsUser == 0
+            ? "Stopped waiting for Windows' permission, so nothing was changed. If the prompt is still open, answering it now does nothing."
+            : AlreadyDone(kind, doneAsUser) +
+              $"Stopped waiting for Windows' permission for the other {Jobs(left)}, so they weren't changed. If the prompt is still open, answering it now does nothing.",
+        []);
+
+    private static string AlreadyDone(RepairKind kind, int n) =>
+        n == 0 ? "" : $"{Capital(Jobs(n))} {(n == 1 ? "was" : "were")} {(kind == RepairKind.RestartStuckJobs ? "restarted" : "cancelled")} " +
+                      "without administrator permission. ";
+
+    private static string Jobs(int n) => n == 1 ? "1 job" : $"{n} jobs";
+
+    private static string Capital(string s) => char.ToUpperInvariant(s[0]) + s[1..];
 
     private static readonly RepairOutcome Unknown = new(RepairOutcomeKind.Unknown,
         "Windows hasn't finished yet, so whether it worked isn't known. Checking again; if it still shows the problem, try again in a minute.", []);

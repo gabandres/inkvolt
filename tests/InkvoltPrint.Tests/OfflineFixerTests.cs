@@ -506,6 +506,53 @@ public class OfflineFixerTests
         Assert.Contains("nothing was changed", outcome.Message);
     }
 
+    /// <summary>The user-level pass cancels the user's own jobs and is refused the rest; the elevated pass gives <paramref name="elevated"/>.</summary>
+    private sealed class UserPassThenAdmin(IReadOnlyList<int> denied, Func<CancellationToken, Task<Attempt>> elevated) : IOfflineRepairs
+    {
+        public Task<Attempt> AsUserAsync(Repair repair, CancellationToken ct) =>
+            Task.FromResult(new Attempt(AttemptResult.AccessDenied) { DeniedJobIds = denied });
+
+        public Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct) => elevated(ct);
+    }
+
+    [Fact]
+    public async Task Stopping_after_the_user_pass_says_what_it_already_did()
+    {
+        var cancel = new Repair(RepairKind.CancelStuckJobs, "Cancel", "") { Queue = "Office", JobIds = [1, 2, 3] };
+
+        var outcome = await RepairRunner.RunAsync(cancel, new UserPassThenAdmin([3], _ => Task.FromResult(new Attempt(AttemptResult.Stopped))), canElevate: true);
+
+        Assert.Equal(RepairOutcomeKind.Stopped, outcome.Kind);
+        Assert.StartsWith("2 jobs were cancelled without administrator permission.", outcome.Message);
+        Assert.Contains("the other 1 job, so they weren't changed", outcome.Message);
+        Assert.DoesNotContain("nothing was changed", outcome.Message);
+    }
+
+    [Fact]
+    public async Task Stopping_before_the_prompt_showed_is_stopped_too()
+    {
+        var restart = new Repair(RepairKind.RestartStuckJobs, "Restart", "") { Queue = "Office", JobIds = [1, 2] };
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var outcome = await RepairRunner.RunAsync(restart,
+            new UserPassThenAdmin([2], ct => Task.FromCanceled<Attempt>(ct)), canElevate: true, cts.Token);
+
+        Assert.Equal(RepairOutcomeKind.Stopped, outcome.Kind);
+        Assert.StartsWith("1 job was restarted without administrator permission.", outcome.Message);
+    }
+
+    [Fact]
+    public async Task Declining_after_the_user_pass_says_what_it_already_did()
+    {
+        var cancel = new Repair(RepairKind.CancelStuckJobs, "Cancel", "") { Queue = "Office", JobIds = [1, 2] };
+
+        var outcome = await RepairRunner.RunAsync(cancel, new UserPassThenAdmin([2], _ => Task.FromResult(new Attempt(AttemptResult.Cancelled))), canElevate: true);
+
+        Assert.Equal("1 job was cancelled without administrator permission. Cancelled: Windows needs administrator permission for the other 1 job.",
+            outcome.Message);
+    }
+
     [Fact]
     public async Task Timed_out_elevation_is_unknown_not_failed()
     {
