@@ -134,6 +134,28 @@ public class RobustnessTests
         Assert.DoesNotContain('.', PrinterId.FileName(@"..\..\evil"));
     }
 
+    private const string Known = "12345678-1234-4abc-8def-123456789abc", Other = "87654321-4321-4cba-8fed-cba987654321";
+
+    [Fact]
+    public void Same_device_when_any_interface_reports_its_uuid() =>
+        Assert.Equal(DeviceIdentity.Same, PrinterId.Identify(Known, "192.0.2.10", [null, null, Other, "urn:uuid:12345678-1234-4ABC-8DEF-123456789ABC"]));
+
+    [Fact]
+    public void Different_device_when_it_reports_only_other_uuids() =>
+        Assert.Equal(DeviceIdentity.Different, PrinterId.Identify(Known, "192.0.2.10", [Other, null, "", Other]));
+
+    [Fact]
+    public void Unknown_when_the_device_reports_no_usable_uuid() =>
+        Assert.Equal(DeviceIdentity.Unknown, PrinterId.Identify(Known, "192.0.2.10", [null, " ", "not-a-uuid"]));
+
+    [Fact]
+    public void Unknown_for_a_printer_remembered_by_its_address()
+    {
+        var byAddress = PrinterId.Normalize(null, "192.0.2.10");
+
+        Assert.Equal(DeviceIdentity.Unknown, PrinterId.Identify(byAddress, "192.0.2.10", [Other]));
+    }
+
     private static X509Certificate2 SelfSigned(string subject)
     {
         using var key = ECDsa.Create();

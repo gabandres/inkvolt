@@ -351,13 +351,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             if (_connection is null || !IsOnline || _reprobe)
             {
                 _reprobe = false;
-                var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
-                if (!conn.Probe.Reachable)
-                {
-                    conn.Dispose();
-                    SetOffline();
-                    return false;
-                }
+                if (await ConnectAsync(ct) is not { } conn) return false;
                 Attach(conn);
             }
             await RefreshAsync(ct);
@@ -383,18 +377,67 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         ScanEndpointId = d.ScanEndpointId;
         ScannerInstalled = d.ScannerInstalled;
         Model ??= d.Model;
+        if (d.Host is not null && !string.Equals(d.Host, Host, StringComparison.OrdinalIgnoreCase))
+        {
+            _ = MoveIfSameDeviceAsync(d);
+            return;
+        }
         if (d.EsclRoot is not null) EsclRoot = d.EsclRoot;
         if (d.IppUri is not null) IppUri = d.IppUri;
-        if (d.Host is not null && d.Host != Host)
+        if (!IsOnline && !IsConnecting && d.Host is not null)
+            Restart(); // mDNS just saw it again; don't wait for the retry timer
+    }
+
+    private string? _checkingHost;
+    private (string Host, DateTime At)? _refusedHost;
+
+    /// <summary>
+    /// mDNS announces the printer at another address: DHCP may have moved it, or the announcement is of an address this PC
+    /// can't use (a VM's or VPN's). The address in use, perhaps typed by the user, is kept unless the new one answers with
+    /// this printer's UUID; then it reconnects there (the old one still identifies its Windows queue's port).
+    /// </summary>
+    private async Task MoveIfSameDeviceAsync(DiscoveredPrinter d)
+    {
+        var host = d.Host!;
+        if (string.Equals(_checkingHost, host, StringComparison.OrdinalIgnoreCase)) return;
+        if (_refusedHost is { } refused && string.Equals(refused.Host, host, StringComparison.OrdinalIgnoreCase)
+            && DateTime.UtcNow - refused.At < RetryDelay * 3)
+            return; // announced again and again: that address is asked again only now and then
+        _checkingHost = host;
+        try
         {
-            // DHCP moved it: reconnect at the new address (the old one still identifies its Windows queue's port).
+            DeviceIdentity identity;
+            bool answers;
+            using (var http = new DeviceHttp(host, _transport?.Invoke()))
+            {
+                var probe = await PrinterConnection.ProbeAsync(http, d.EsclRoot, ippHint: d.IppUri);
+                answers = probe.Reachable;
+                identity = answers ? PrinterId.Identify(Uuid, host, probe.ReportedUuids) : DeviceIdentity.Unknown;
+            }
+            // A printer that reports no UUID over HTTP is taken at its word (mDNS) only when the old address no longer works.
+            if (identity != DeviceIdentity.Same && !(identity == DeviceIdentity.Unknown && answers && !IsOnline))
+            {
+                _refusedHost = (host, DateTime.UtcNow);
+                Log.Write($"[{Name}] announced at another address that " +
+                          $"{(identity == DeviceIdentity.Different ? "is another device" : "doesn't answer as this printer")}; keeping its address");
+                return;
+            }
+            _refusedHost = null;
+            if (string.Equals(host, Host, StringComparison.OrdinalIgnoreCase)) return;
             if (Host is { } old && !_previousHosts.Contains(old, StringComparer.OrdinalIgnoreCase)) _previousHosts.Add(old);
-            Host = d.Host;
+            Host = host;
+            if (d.EsclRoot is not null) EsclRoot = d.EsclRoot;
+            if (d.IppUri is not null) IppUri = d.IppUri;
             Restart();
         }
-        else if (!IsOnline && !IsConnecting && d.Host is not null)
+        catch (Exception ex)
         {
-            Restart(); // mDNS just saw it again; don't wait for the retry timer
+            _refusedHost = (host, DateTime.UtcNow);
+            Log.Write($"[{Name}] announced at another address that couldn't be checked: {ex.Message}");
+        }
+        finally
+        {
+            _checkingHost = null;
         }
     }
 
@@ -478,18 +521,21 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 if (conn is null)
                 {
                     IsConnecting = true;
-                    conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
-                    if (!conn.Probe.Reachable)
+                    conn = await ConnectAsync(ct);
+                    if (conn is null)
                     {
-                        conn.Dispose();
-                        SetOffline();
                         await Task.Delay(RetryDelay, ct);
                         continue;
                     }
                     Attach(conn);
                 }
                 await foreach (var _ in conn.WatchAsync(FallbackRefresh, ct))
+                {
                     await RefreshAsync(ct);
+                    // Gone: connect again after a pause, which checks it's still this printer (DHCP may give its address to another device).
+                    if (!IsOnline) break;
+                }
+                if (!IsOnline) await Task.Delay(RetryDelay, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -503,6 +549,31 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 catch (OperationCanceledException) { return; }
             }
         }
+    }
+
+    /// <summary>
+    /// Probes the printer's address. Null, with the status set, when nothing answers there or another device does (it reports
+    /// other UUIDs): that device's status, supplies and alerts are never shown or alerted under this printer's name.
+    /// </summary>
+    private async Task<PrinterConnection?> ConnectAsync(CancellationToken ct)
+    {
+        var conn = await PrinterConnection.OpenAsync(Host!, EsclRoot, ct, new PinStore(_state, Uuid), _transport?.Invoke(), IppUri);
+        if (!conn.Probe.Reachable)
+        {
+            conn.Dispose();
+            SetOffline();
+            return null;
+        }
+        if (PrinterId.Identify(Uuid, Host!, conn.Probe.ReportedUuids) == DeviceIdentity.Different)
+        {
+            conn.Dispose();
+            Log.Write($"[{Name}] a different device answers at its address; not connecting"); // never the UUIDs themselves
+            SetOffline("A different device answers at this address",
+                $"Another device now has {Host}, so its status isn't shown here. The printer probably got a new address: " +
+                "Inkvolt Print watches for it on the network, or choose Fix it… to find it.");
+            return null;
+        }
+        return conn;
     }
 
     private void Attach(PrinterConnection conn)
@@ -549,8 +620,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (!IsDemo && CredentialStore.Get(Uuid) is { } pw && _state.GetCertificatePin(Uuid) is not null)
             conn.Http.SetCredentials("admin", pw);
 
-        if (p.Uuid is not null && !string.Equals(p.Uuid, Uuid, StringComparison.OrdinalIgnoreCase))
-            Log.Write($"[{Name}] reports a different UUID than the one it was added with"); // never the UUIDs themselves
         _remember(this);
         old?.Dispose();
     }
@@ -612,12 +681,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         foreach (var t in tasks) _ = t.ContinueWith(x => _ = x.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
 
-    private void SetOffline()
+    private void SetOffline() => SetOffline("Can't reach the printer",
+        $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. Inkvolt Print keeps trying in the background.");
+
+    private void SetOffline(string message, string detail)
     {
         IsConnecting = false;
         IsOnline = false;
-        StatusMessage = "Can't reach the printer";
-        StatusDetail = $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. Inkvolt Print keeps trying in the background.";
+        StatusMessage = message;
+        StatusDetail = detail;
         StatusSeverity = Severity.Error;
         Alerts.Clear();
         Maintenance.Update(false, null);

@@ -28,6 +28,9 @@ public sealed record ProbeResult(
     public string? Uuid =>
         Product?.Uuid ?? Scanner?.Uuid ?? Ipp?.Str("printer-uuid")?.Replace("urn:uuid:", "", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Every UUID the printer reports, one per interface (they normally agree; a scanner may have its own).</summary>
+    public IReadOnlyList<string?> ReportedUuids => [Product?.Uuid, Cdm?.Identity.Uuid, Scanner?.Uuid, Ipp?.Str("printer-uuid")];
+
     public string? Model => Product?.MakeAndModel ?? Scanner?.MakeAndModel ?? Ipp?.Str("printer-make-and-model");
 
     public FirmwareInfo? Firmware => FirmwareInfo.From(Product, Ipp);
