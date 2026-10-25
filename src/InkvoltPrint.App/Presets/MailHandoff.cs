@@ -10,8 +10,8 @@ namespace InkvoltPrint.App.Presets;
 /// or server. When a Simple MAPI mail client is registered (<c>Software\Clients\Mail</c>, e.g. classic Outlook or
 /// Thunderbird), <c>MAPISendMailW</c> opens a new message with the files attached for the user to address and send.
 /// Otherwise (or if that fails) the folder opens with the file selected and a <c>mailto:</c> link starts a message, since
-/// mailto can't carry attachments. MAPI isn't tried when it can't work (<see cref="MailRoute"/>): the new Outlook as the
-/// default mail app, or classic Outlook without a mail profile (which would ask to create one first).
+/// mailto can't carry attachments. MAPI isn't tried when it can't work (<see cref="MailRoute"/>): classic Outlook without a
+/// mail profile as the MAPI client (it would ask to create one first).
 /// </summary>
 public static class MailHandoff
 {
@@ -37,14 +37,7 @@ public static class MailHandoff
         return Result.FolderAndMailto;
     }
 
-    private static MailSetup ReadSetup()
-    {
-        var progId = ReadString(Registry.CurrentUser, @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\mailto\UserChoice", "ProgId");
-        var appId = progId is { Length: > 0 } && !progId.Contains('\\')
-            ? ReadString(Registry.ClassesRoot, $@"{progId}\Application", "AppUserModelID")
-            : null;
-        return new MailSetup(DefaultMapiClient(), progId, appId, OutlookHasProfile());
-    }
+    private static MailSetup ReadSetup() => new(DefaultMapiClient(), OutlookHasProfile());
 
     /// <summary>
     /// Classic Outlook has a mail profile (Office 2016 and later, then 2013). No Profiles key, or an empty one, means Outlook
@@ -60,19 +53,6 @@ public static class MailHandoff
                 if (key?.SubKeyCount > 0) return true;
             }
             return false;
-        }
-        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
-        {
-            return null;
-        }
-    }
-
-    private static string? ReadString(RegistryKey hive, string path, string? name)
-    {
-        try
-        {
-            using var key = hive.OpenSubKey(path);
-            return key?.GetValue(name) as string;
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
         {
