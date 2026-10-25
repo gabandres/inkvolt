@@ -153,7 +153,14 @@ public partial class MainWindow : Window
         CommandBar.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, new RoutedEventHandler((_, e) =>
         {
             if (e.OriginalSource is System.Windows.Controls.Primitives.ButtonBase && Mouse.LeftButton == MouseButtonState.Released)
-                Dispatcher.BeginInvoke(DispatcherPriority.Input, FocusDocument);
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+                {
+                    // A button that moved focus on purpose keeps it there: a menu it opened (taking focus back closes it),
+                    // a dialog, the find box.
+                    if (Keyboard.FocusedElement is DependencyObject f
+                        && (PresentationSource.FromDependencyObject(f)?.RootVisual != this || !IsInside(f, CommandBar))) return;
+                    FocusDocument();
+                });
         }));
         KeyDown += OnWindowKey;
         TabStrip.PreviewMouseWheel += (_, e) =>
@@ -651,10 +658,22 @@ public partial class MainWindow : Window
         if (FindChild<System.Windows.Controls.Primitives.ButtonBase>(CommandBar) is { } first) first.Focus();
     }
 
+    /// <summary>
+    /// A menu dropping from an icon button. It would inherit the button's icon font and size from its placement target,
+    /// drawing its text as boxes, so it takes the window's.
+    /// </summary>
+    private ContextMenu IconButtonMenu(FrameworkElement button) => new()
+    {
+        PlacementTarget = button,
+        Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        FontFamily = FontFamily,
+        FontSize = FontSize,
+    };
+
     /// <summary>The "More" (…) button at the end of the command bar: the commands that didn't fit, as a menu.</summary>
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var menu = IconButtonMenu(MoreButton);
         foreach (var item in DocCommands.OverflowItems)
         {
             if (item == DrawButton)
@@ -1768,7 +1787,7 @@ public partial class MainWindow : Window
     private void OnAppearanceClick(object sender, RoutedEventArgs e)
     {
         var s = AppSettings.Current;
-        var menu = new ContextMenu { PlacementTarget = AppearanceButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var menu = IconButtonMenu(AppearanceButton);
         MenuItem Item(string header, bool check, Action run)
         {
             var mi = new MenuItem { Header = header, IsCheckable = true, IsChecked = check };
