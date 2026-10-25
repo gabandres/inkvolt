@@ -134,6 +134,15 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   `PrinterStatus.ListLine`). On the Scan tab the Scan button stays in view under the settings, which scroll on a short window.
 - One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
 - Unhandled errors are logged to `%LOCALAPPDATA%\InkvoltPrint\logs\inkvoltprint.log` and shown; the app keeps running. Closing with unsaved scans asks first.
+- Unsaved scans are kept on disk while the app runs (`%LOCALAPPDATA%\InkvoltPrint\recovery`; demo runs under `%TEMP%`):
+  every 3 seconds, in the background, each printer's new pages (the scanner's JPEGs, once) and its page list with the
+  review's turns, crops, skips and file starts; a scan saved or cleared is forgotten, and a normal exit removes them all.
+  After a crash, a killed process or a power cut, the next start puts the pages back in the Scan tab of the printer they
+  were scanned on, once its scanner is connected (another printer's after a minute when that one is no longer listed),
+  shows that printer and says so. Windows signing out doesn't wait on the "unsaved scans" question any more: the pages
+  are written then and come back the same way. Photo boxes found on the glass and separator sheets found by patch code
+  aren't kept (Find again, or mark the split by hand). Each run keeps them in a folder of its own, locked while it runs
+  (`Core/Suite/RunFolder`, shared with Inkvolt PDF's recovery copies; `Core/Imaging/ScanRecovery`).
 - TLS: printer certificates are pinned on first use (per printer UUID and port; pins from before ports were told apart stay the 443 pin); a changed certificate blocks password-bearing writes until the user trusts it (which also forgets the saved password). Inherent to trust-on-first-use: the very first encrypted connection is trusted as-is, so set the admin password up on a network you trust; the password dialog shows the pinned fingerprint.
 - Elevated actions (add printer by IP, HP clean-up) run a constant PowerShell script; every value is passed Base64-encoded and results return as exit codes (no temp files).
 - Printers added by IP get a Windows queue via `Add-Printer -IppURL` (Windows requires admin: one UAC prompt).

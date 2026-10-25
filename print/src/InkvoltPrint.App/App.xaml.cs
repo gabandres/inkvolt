@@ -21,6 +21,14 @@ public partial class App : Application
     /// <summary>Quit from the tray menu or Windows signing out: the window really closes instead of going to the tray.</summary>
     public bool Quitting { get; private set; }
 
+    /// <summary>Windows is signing out: unsaved scans stay on disk for the next start instead of being asked about.</summary>
+    public bool SigningOut { get; private set; }
+
+    /// <summary>Unsaved scans are kept on disk (<see cref="ScanKeeper"/>): normal runs, and demo runs that aren't snapshots.</summary>
+    public bool KeepsScans => _keeper is not null;
+
+    private ScanKeeper? _keeper;
+
     /// <summary>OnStartup got to its end: later errors keep the app running (even with the window in the tray).</summary>
     private bool _started;
 
@@ -111,6 +119,17 @@ public partial class App : Application
         else MainWindow.Show();
 
         _instance?.Listen(args => Dispatcher.InvokeAsync(() => HandleForwarded(args)));
+        // Demo runs keep theirs apart, under %TEMP% like their scans; the --try window and snapshots keep none.
+        if (!devRun || (demo && !tryDemo && !e.Args.Contains("--snapshot")))
+        {
+            _keeper = new ScanKeeper(_vm, demo ? Path.Combine(Path.GetTempPath(), "Inkvolt Print demo recovery") : Path.Combine(AppState.DataDirectory, "recovery"));
+            SessionEnding += (_, _) =>
+            {
+                SigningOut = true;
+                Quitting = true;
+                _keeper?.KeepForNextStart();
+            };
+        }
         if (!devRun)
         {
             _ = Task.Run(ShellIntegration.RegisterOpenWith);
@@ -232,6 +251,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (!SigningOut) _keeper?.Dispose(); // signing out: KeepForNextStart left the scans for next time
         Tray?.Dispose();
         _vm?.Dispose();
         _instance?.Dispose();

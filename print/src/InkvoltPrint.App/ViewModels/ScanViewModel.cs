@@ -749,6 +749,27 @@ public sealed partial class ScanViewModel : ObservableObject
         DropPages();
     }
 
+    /// <summary>
+    /// Pages a run of Inkvolt Print left unsaved (it crashed, was ended, or Windows signed out), put back as they were in the
+    /// review: added after any pages here, unsaved.
+    /// </summary>
+    public void Restore(IReadOnlyList<(byte[] Jpeg, KeptPage Kept)> pages)
+    {
+        CancelCrop();
+        CancelPhotos();
+        foreach (var (jpeg, kept) in pages)
+        {
+            var page = new ScanPageViewModel(jpeg, kept.Dpi, kept.Ocr) { Edits = kept.Edits, IsSkipped = kept.Skipped, StartsFile = kept.StartsFile, IsAnalysed = true };
+            page.PropertyChanged += PageChanged;
+            Pages.Add(page);
+        }
+        RefreshFiles();
+        Message = pages.Count == 1
+            ? "Restored 1 scanned page that wasn't saved when Inkvolt Print closed."
+            : $"Restored {pages.Count} scanned pages that weren't saved when Inkvolt Print closed.";
+        Prompt.Announce(Message);
+    }
+
     private void DropPages()
     {
         CancelCrop();
@@ -1202,6 +1223,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     public byte[] Original { get; }
     public int Dpi { get; }
+
+    /// <summary>Gets an OCR text layer when saved as PDF.</summary>
+    public bool Ocr => _ocr;
 
     [ObservableProperty] public partial BitmapSource Thumbnail { get; private set; }
 

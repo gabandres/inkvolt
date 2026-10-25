@@ -44,7 +44,8 @@ public partial class MainWindow : Window
             base.OnClosing(e);
             return;
         }
-        if (Vm?.PrintersWithUnsavedScans is { Count: > 0 } printers)
+        // Signing out: the scans are on disk and come back next start, so Windows isn't held up by a question.
+        if (Application.Current is not App { SigningOut: true, KeepsScans: true } && Vm?.PrintersWithUnsavedScans is { Count: > 0 } printers)
         {
             var pages = printers.Sum(p => p.Scan!.Pages.Count);
             if (!ConfirmDialog.Ask(this, $"You have {pages} scanned page{(pages == 1 ? "" : "s")} that you haven't saved. Close Inkvolt Print anyway?",
