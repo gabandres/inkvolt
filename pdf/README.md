@@ -42,7 +42,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   command bar stays one row: on a narrow window labels give way to icons, then the rest goes into the "…" menu.
 - **Tabs**: next / previous with Ctrl+Tab / Ctrl+Shift+Tab or Ctrl+PgDn / Ctrl+PgUp, Ctrl+Alt+1…9 picks one,
   Ctrl+Shift+T reopens the last closed tab at its page (the last 10). A file opened from Explorer while Inkvolt PDF is
-  asking about unsaved changes before closing waits, and keeps the window open for itself.
+  asking about unsaved changes before closing waits, and keeps the window open for itself. Right-click a tab (or Shift+F10)
+  for Close, Close Others, Close Tabs to the Right, Copy Path, Show in Folder and Reopen Closed Tab; middle-click closes it.
+  Tabs that would read the same (two documents with the same title, or files of the same name) add the file name or folder
+  ("report.pdf · 2026"); the tooltip has the full path.
 - **Start page**: open or combine files, or drop them anywhere; recent files show a first-page preview.
 - **New PDFs from images**: File › New from Images… (JPEG, PNG, BMP, GIF, TIFF; page size: fit each image, Letter or
   A4) or New from Clipboard (Ctrl+Alt+N: a copied image such as a screenshot, or copied image files). Image files

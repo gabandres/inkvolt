@@ -43,13 +43,13 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type app:TabModel}">
-                            <DockPanel ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding Title}" Background="Transparent">
+                            <DockPanel ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding Label}" Background="Transparent">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" FontSize="10" Height="24" MinWidth="24" Padding="4"
                                         Content="&#xE711;" ToolTip="{x:Static app:Cmd.CloseTabTip}" Click="OnTabCloseClick" Margin="6,0,0,0" />
                                 <TextBlock DockPanel.Dock="Left" Text="&#xE915;" FontFamily="{StaticResource Icons}" FontSize="9" Margin="0,0,6,0"
                                            VerticalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                            Visibility="{Binding DirtyVisibility}" ToolTip="Unsaved changes" />
-                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

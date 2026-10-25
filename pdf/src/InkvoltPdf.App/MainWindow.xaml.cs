@@ -23,6 +23,19 @@ public sealed class TabModel(DocumentTab tab) : INotifyPropertyChanged
     public override string ToString() => Title;
     /// <summary>The file name, or the document title when the file asks to show it (the tooltip keeps the path).</summary>
     public string Title => Tab.DisplayTitle;
+
+    /// <summary>What the tab shows: <see cref="Title"/>, plus the file name or folder when another tab has the same title (<see cref="TabLabels"/>).</summary>
+    public string Label
+    {
+        get => _label ?? Title;
+        set
+        {
+            if (value == _label) return;
+            _label = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
+        }
+    }
+    private string? _label;
     public string ToolTip => Tab.Session.FilePath ?? $"{Tab.Session.DisplayName} (not saved yet)";
     public Visibility DirtyVisibility => Tab.Session.IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
@@ -124,6 +137,9 @@ public partial class MainWindow : Window
         };
 
         TabStrip.SelectionChanged += (_, _) => ShowActiveTab();
+        _tabs.CollectionChanged += (_, _) => RelabelTabs();
+        TabStrip.ContextMenu = new ContextMenu(); // stand-in so ContextMenuOpening is raised; the real menu is made per tab
+        TabStrip.ContextMenuOpening += OnTabMenuOpening;
         TabStrip.PreviewMouseUp += (_, e) =>
         {
             if (e.ChangedButton == MouseButton.Middle && ItemUnder(e.OriginalSource) is { } t) _ = CloseTabAsync(t);
@@ -193,11 +209,79 @@ public partial class MainWindow : Window
     }
 
     public DocumentTab? ActiveTab => (TabStrip.SelectedItem as TabModel)?.Tab;
+    internal TabModel? ActiveTabModel => TabStrip.SelectedItem as TabModel;
+    internal IReadOnlyList<string> TabLabelsShown => [.. _tabs.Select(t => t.Label)];
     public int TabCount => _tabs.Count;
     private IEnumerable<DocumentTab> Tabs => _tabs.Select(t => t.Tab);
 
     /// <summary>The open documents, in tab order.</summary>
     public IReadOnlyList<DocumentTab> OpenTabs => [.. Tabs];
+
+    /// <summary>Tabs that would read the same get their file name or folder added (a title from the document can repeat).</summary>
+    private void RelabelTabs()
+    {
+        var labels = TabLabels.For([.. _tabs.Select(t => (t.Title, t.Tab.Session.FilePath))]);
+        for (var i = 0; i < _tabs.Count; i++) _tabs[i].Label = labels[i];
+    }
+
+    /// <summary>Right-click on a tab (or Shift+F10 / the menu key on the selected one): close it or others, its file's path and folder.</summary>
+    private void OnTabMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        e.Handled = true;
+        var under = ItemUnder(e.OriginalSource);
+        if ((under ?? TabStrip.SelectedItem as TabModel) is { } model) OpenTabMenu(model, atMouse: under is not null && e.CursorLeft >= 0); // from the keyboard the cursor is -1
+    }
+
+    /// <summary>The tab menu (DevScript's <c>tabmenu</c> opens it on the selected tab, as Shift+F10 does).</summary>
+    internal void OpenTabMenu(TabModel model, bool atMouse)
+    {
+        var path = model.Tab.Session.FilePath;
+        var index = _tabs.IndexOf(model);
+        MenuItem Item(string header, Action run, bool enabled = true, string? gesture = null)
+        {
+            var item = new MenuItem { Header = header, IsEnabled = enabled, InputGestureText = gesture ?? "" };
+            item.Click += (_, _) => run();
+            return item;
+        }
+        var menu = new ContextMenu
+        {
+            // From the keyboard: under the tab, not at the mouse
+            PlacementTarget = atMouse ? null : TabStrip.ItemContainerGenerator.ContainerFromItem(model) as UIElement ?? TabStrip,
+            Placement = !atMouse ? System.Windows.Controls.Primitives.PlacementMode.Bottom : System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+            Items =
+            {
+                Item("_Close", () => _ = CloseTabAsync(model), gesture: "Ctrl+W"),
+                Item("Close _Others", () => _ = CloseTabsAsync(_tabs.Where(t => t != model).ToList()), _tabs.Count > 1),
+                Item("Close Tabs to the _Right", () => _ = CloseTabsAsync(_tabs.Skip(index + 1).ToList()), index < _tabs.Count - 1),
+                new Separator(),
+                Item("Copy _Path", () => CopyPath(path!), path is not null),
+                Item("Show in _Folder", () => Shell.ShowInFolder(path!), path is not null),
+                new Separator(),
+                Item("Reopen Closed _Tab", () => _ = ReopenClosedAsync(), gesture: "Ctrl+Shift+T"),
+            },
+        };
+        menu.IsOpen = true;
+    }
+
+    private void CopyPath(string path)
+    {
+        try
+        {
+            Clipboard.SetText(path);
+            ShowStatus("Path copied.");
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            ShowStatus("Another program is using the clipboard. Try again.");
+        }
+    }
+
+    /// <summary>Closes the tabs one after another, each asking to save as usual; stops at the first the user keeps open.</summary>
+    private async Task CloseTabsAsync(IReadOnlyList<TabModel> models)
+    {
+        foreach (var m in models)
+            if (_tabs.Contains(m) && !await CloseTabAsync(m)) return;
+    }
 
     private static TabModel? ItemUnder(object source)
     {
@@ -565,6 +649,7 @@ public partial class MainWindow : Window
         tab.StateChanged += (_, _) =>
         {
             model.Refresh();
+            RelabelTabs();
             if (ActiveTab == tab) UpdateUi();
         };
         tab.Toast += (_, t) => ShowToast(t);
