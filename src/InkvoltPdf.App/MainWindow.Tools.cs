@@ -8,6 +8,8 @@ public partial class MainWindow
         BindAlways(Cmd.NewFromImages, () => _ = FileTools.NewFromImages(this));
         BindAlways(Cmd.NewFromClipboard, () => _ = FileTools.NewFromClipboard(this));
         BindAlways(Cmd.Compare, () => _ = Comparing.Start(this));
+        BindAlways(Cmd.CreateFromOffice, () => _ = Converting.FromOfficeFile(this));
+        BindAlways(Cmd.CreateFromWeb, () => _ = Converting.FromWebPage(this));
         BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
         BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.Engine.IsEncrypted);

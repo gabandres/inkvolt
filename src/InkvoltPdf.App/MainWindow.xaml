@@ -96,6 +96,8 @@
                                     <MenuItem Command="app:Cmd.Batch" />
                                     <MenuItem Command="app:Cmd.NewFromImages" />
                                     <MenuItem Command="app:Cmd.NewFromClipboard" />
+                                    <MenuItem x:Name="OfficeMenu" Command="app:Cmd.CreateFromOffice" Visibility="Collapsed" />
+                                    <MenuItem Command="app:Cmd.CreateFromWeb" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Save" />
                                     <MenuItem Command="app:Cmd.SaveAs" />

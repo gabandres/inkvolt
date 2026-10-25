@@ -90,7 +90,8 @@ needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDeskt
 > Inkvolt PDF is a classic Win32 desktop application (.NET / WPF) packaged with the Desktop Bridge. `runFullTrust` is
 > required for every packaged desktop app: Inkvolt PDF runs as a regular full-trust process to render documents with its
 > bundled native PDF engine (MuPDF), read and save files the user opens anywhere on disk, print through the Windows
-> print system, use Windows OCR, and sign documents with certificates from the user's Windows certificate store and
+> print system, use Windows OCR, make PDFs from Office files through the user's own installed Microsoft Office
+> (automation of a separate, hidden Office instance) and from web pages through the system WebView2 runtime, and sign documents with certificates from the user's Windows certificate store and
 > smart cards. It installs no services or drivers, needs no administrator rights, and changes no system settings.
 
 ### Draft Store description
@@ -131,6 +132,8 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
   hash of the signature goes to the chosen timestamp server, default DigiCert); certificate revocation checks when
   verifying a signature on request (Windows fetches CRL/OCSP from the certificate's issuer); and links in documents,
   which open in the default browser after the user clicks (and confirms for anything but http/https/mailto).
+- PDF from Web Page loads the address the user types (or a local file) in a private WebView2 session, as a browser
+  would; nothing else is sent. PDF from Office File uses the Office installed on the PC; the file stays on the PC.
 - Settings, recent files and logs stay in the user's local app data folder.
 
 ### Store listing checklist

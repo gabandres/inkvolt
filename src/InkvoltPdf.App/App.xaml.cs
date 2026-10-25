@@ -22,6 +22,12 @@ public partial class App : Application
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
 
         var args = e.Args;
+        // The Office conversion helper (see OfficeConverter): no window, no single-instance check, exits when done.
+        if (args.Length > 0 && args[0] == OfficeConverter.ChildSwitch)
+        {
+            Shutdown(OfficeConverter.RunChild(args));
+            return;
+        }
         var script = Array.IndexOf(args, "--script");
         if (script >= 0 && script + 1 < args.Length)
         {

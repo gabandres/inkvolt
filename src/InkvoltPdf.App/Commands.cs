@@ -197,6 +197,8 @@ public static class Cmd
     public static readonly RoutedUICommand ReloadFromDisk = Make("Re_load from Disk", nameof(ReloadFromDisk), K(Key.F5));
 
     // File: create, protect, reduce (see FileTools, SecurityActions)
+    public static readonly RoutedUICommand CreateFromOffice = Make("PDF from _Office File (Word, Excel, PowerPoint)…", nameof(CreateFromOffice));
+    public static readonly RoutedUICommand CreateFromWeb = Make("PDF from _Web Page…", nameof(CreateFromWeb));
     public static readonly RoutedUICommand NewFromImages = Make("New from _Images…", nameof(NewFromImages));
     public static readonly RoutedUICommand NewFromClipboard = Make("New from Clip_board", nameof(NewFromClipboard), K(Key.N, ModifierKeys.Control | ModifierKeys.Alt));
     public static readonly RoutedUICommand ProtectPassword = Make("Protect with Pass_word…", nameof(ProtectPassword));

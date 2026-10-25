@@ -110,6 +110,7 @@ public partial class MainWindow : Window
         FillDrawMenu(DrawMenu);
         RefreshRecent();
         _ = ShowInkvoltPrintMenuAsync();
+        _ = ShowConvertMenuAsync();
 
         TabArea.SizeChanged += (_, _) => LayoutTabs();
         _tabs.CollectionChanged += (_, _) => LayoutTabs();
@@ -481,6 +482,20 @@ public partial class MainWindow : Window
             return;
         }
         if (!_opening.Add(full)) return; // already on its way (e.g. double-clicked twice)
+
+        // Office files and web pages are converted into a new, unsaved PDF tab (the file itself isn't changed).
+        if (Converting.Handles(full))
+        {
+            try
+            {
+                await Converting.OpenConverted(this, full);
+            }
+            finally
+            {
+                _opening.Remove(full);
+            }
+            return;
+        }
 
         SetOpenBusy(true);
         try
@@ -1094,7 +1109,7 @@ public partial class MainWindow : Window
         var dlg = new OpenFileDialog
         {
             Title = "Open",
-            Filter = PdfFiles.OpenFilter,
+            Filter = Converting.OpenFilter(),
             Multiselect = true,
             InitialDirectory = AppSettings.Current.LastFolder,
         };
@@ -1418,6 +1433,13 @@ public partial class MainWindow : Window
     {
         var installed = await Task.Run(() => Inkvolt.InkvoltPrintPath is not null);
         InkvoltPrintMenu.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>File › Create PDF › From Office File: shown only when Word, Excel or PowerPoint is installed (checked off the UI thread).</summary>
+    private async Task ShowConvertMenuAsync()
+    {
+        var any = await Task.Run(() => OfficeConverter.InstalledApps.Count > 0);
+        OfficeMenu.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnOpenInkvoltPrint(object sender, RoutedEventArgs e)

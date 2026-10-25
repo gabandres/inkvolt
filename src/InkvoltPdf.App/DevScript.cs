@@ -24,7 +24,7 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -842,6 +842,24 @@ internal static class DevScript
                 break;
             }
             case "batchclose": OpenBatch().Close(); break;
+            // Create PDF: convert path (an Office file or a saved web page, as File › Open does) · webpage address|file
+            // (Create PDF from Web Page with the saved options) · converters (what is installed)
+            case "convert":
+                await Converting.OpenConverted(window, arg);
+                log.Add($"convert: tabs {window.TabCount}, active '{window.ActiveTab?.Session.DisplayName}' pages={window.ActiveTab?.PageView.PageCount}");
+                break;
+            case "webpage":
+            {
+                var source = File.Exists(arg) ? new Uri(Path.GetFullPath(arg)) : Core.WebFiles.TryParseAddress(arg, out var u, out var err) ? u! : throw new ArgumentException(err);
+                var pdf = await WebCapture.PrintAsync(source, new Core.WebPdfOptions(), s => log.Add($"  webpage: {s}"), CancellationToken.None);
+                window.OpenSession(Core.DocumentSession.FromBytes(pdf, source.IsFile ? Path.GetFileNameWithoutExtension(source.LocalPath) + ".pdf" : Core.WebFiles.PdfName(source)));
+                await Task.Delay(800);
+                log.Add($"webpage: {pdf.Length} bytes, active '{window.ActiveTab?.Session.DisplayName}' pages={window.ActiveTab?.PageView.PageCount}");
+                break;
+            }
+            case "converters":
+                log.Add($"converters: office=[{string.Join(", ", OfficeConverter.InstalledApps)}] webview2={WebCapture.RuntimeVersion ?? "none"} menu={window.OfficeMenu.Visibility}");
+                break;
             case "dropimages": log.Add($"dropimages handled: {FileTools.HandleWindowDrop(window, arg.Split(';'))}"); break; // as if dropped on the window
             case "exit": break;
             default: log.Add($"unknown step: {line}"); break;

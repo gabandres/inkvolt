@@ -65,6 +65,18 @@ Manager. The installers don't remove an install made under the old names: uninst
   A4) or New from Clipboard (Ctrl+Alt+N: a copied image such as a screenshot, or copied image files). Image files
   dropped on the window ask: a new PDF of them, pages at the end of the open document, or just view them; dropped on
   the thumbnails or the organizer they become pages right there. The result opens as an unsaved "Untitled.pdf".
+- **PDF from Office files and web pages** (File › PDF from Office File… / PDF from Web Page…, command palette; File ›
+  Open and dropping a .docx, .xlsx, .pptx, .html or .mht do it too): Word, Excel and PowerPoint files (also .doc, .rtf,
+  .odt, .xls, .ods, .ppt, .odp and the macro-enabled kinds) are made into PDFs by the Microsoft Office installed on the
+  PC (no converter of Inkvolt PDF's own, no service): it opens the file read-only and hidden, with its macros disabled,
+  saves it as PDF and closes it without saving. Word and Excel run as a new copy of their own, never the one you work
+  in; PowerPoint runs one copy at a time, so it is asked to be closed first. The work runs in a helper process with a
+  3-minute limit, and Cancel or the limit ends it and the Office it started. Shown only when Office is installed; a
+  file protected with a password is refused (save it as PDF from Office). Web pages: an address, or a saved .html /
+  .mht, loads in Microsoft Edge WebView2 (part of Windows) in a private session that keeps no cookies or history, with
+  pop-ups, downloads and permission requests blocked, then prints to PDF with the chosen paper (Letter, A4, Legal),
+  orientation, margins, background colors and pictures, and optionally the browser's header and footer. The PDF opens
+  as a new unsaved tab; the original isn't changed.
 - **Reading**: continuous / single / two pages / two pages with cover; a floating pill for page and zoom; Ctrl+wheel or
   touchpad pinch zooms at the pointer, touch screens pinch and pan; fit width / fit page; dark pages for night reading
   (hue-preserving); full screen (F11 or Ctrl+L); go to page (Ctrl+G or Ctrl+Shift+N); **rotate view** (View menu, Ctrl+Shift+Plus / Ctrl+Shift+Minus) turns the pages
@@ -323,7 +335,7 @@ Manager. The installers don't remove an install made under the old names: uninst
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
 | `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction`, `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
@@ -347,6 +359,7 @@ Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `Exp
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
 `key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).
+PDF from Office and web: `converters` (what is installed), `convert file.docx|page.html` (as File › Open), `webpage address|file`.
 Batch: `batch folder;file` (opens the window), `batchstep watermark DRAFT|bates CASE- continue|export text|…`, `batchout folder [template]`,
 `batchoption signed=edit passwords=skip …`, `batchpw password|skip`, `batchrun`, `batchshot out.png`, `batchask headerfooter out.png` (an
 action's dialog), `batchstate`. Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
@@ -429,6 +442,14 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   (two at least) in the top or bottom tenth. On scanned pages only the recognized text is kept (the pictures on
   them are not cut out), sizes are estimated and fonts are Word's default. Excel gets only the tables; numbers with
   currency signs, percents or thousands separators other than "," stay text.
+- PDF from Office files: needs Microsoft Office on the PC (any recent desktop version; not the web or Store-only
+  apps); the PDF is what Office's own Save as PDF makes (Word adds bookmarks from headings and tags). Files protected
+  with a password, and files that make Office stop to ask something (repair, a missing link), aren't converted (the
+  first is refused, the second stops at the 3-minute limit). PowerPoint must be closed first. Excel prints each sheet's
+  print area as Excel would. Not in batches. PDF from web pages: what Edge would print, so pages built for screens may
+  break across pages oddly; content that loads only on scrolling or after a delay may be missing (the page is scrolled
+  once); pages behind a login can't be reached (the session is private). Needs the WebView2 Runtime (Windows 11, or
+  installed on Windows 10).
 - Batch: printing isn't one of its actions (print a file from its tab); nor are page edits that need a page range or a
   choice per file (delete, extract, split, crop, insert). Actions run on every page of each file. Bates numbers that
   continue from file to file make the batch run one file at a time. A file is read whole into memory, and very large
@@ -463,6 +484,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   lacks a character, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
+- PDF from Office and web: Office files in batches, LibreOffice when Office isn't installed, a whole website or
+  several pages into one PDF, a page's own print-friendly mode or reader view.
 - Batch: saved action lists (presets), print as an action, split and combine, page ranges per action, running a batch
   from the command line or a watched folder.
 - Split view: edit in either pane; more than two panes; two open tabs side by side; remember the split per file.

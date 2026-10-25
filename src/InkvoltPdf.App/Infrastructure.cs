@@ -371,6 +371,12 @@ public sealed class AppSettings
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;
     /// <summary>Print: page sizing &amp; handling last chosen (<see cref="Core.PrintHandling"/> and its options).</summary>
+    public string WebPaper { get; set; } = "";
+    public bool WebLandscape { get; set; }
+    public string WebMargins { get; set; } = "";
+    public bool WebBackgrounds { get; set; } = true;
+    public bool WebHeaderFooter { get; set; }
+
     public string BatchFolder { get; set; } = "";
     public string BatchTemplate { get; set; } = "";
     public bool BatchNeverOverwrite { get; set; } = true;

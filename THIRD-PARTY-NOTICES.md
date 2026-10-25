@@ -13,6 +13,7 @@ package's metadata).
 | Acornima (used by Jint) | 1.7.0 | BSD-3-Clause | Adam Simon | https://github.com/adams85/acornima |
 | HarfBuzzSharp (incl. native libHarfBuzzSharp) | 14.2.1.301 | MIT | Microsoft Corporation; Xamarin, Inc. | https://github.com/mono/SkiaSharp |
 | HarfBuzz (inside libHarfBuzzSharp) | | MIT ("Old MIT") | HarfBuzz contributors | https://github.com/harfbuzz/harfbuzz |
+| Microsoft.Web.WebView2 (WebView2 SDK: Core, WPF and WinForms assemblies, WebView2Loader.dll; Create PDF from Web Page) | 1.0.4314.35 | BSD-3-Clause | Microsoft Corporation | https://aka.ms/webview2 |
 | System.Security.Cryptography.Pkcs | 10.0.13 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime |
 | Microsoft.Extensions.Logging.Abstractions (used by PDFsharp) | 8.0.3 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime |
 | Microsoft.Extensions.DependencyInjection.Abstractions (used by PDFsharp) | 8.0.2 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime |
@@ -39,6 +40,10 @@ MuPDFWrapper.dll statically links MuPDF and its third-party libraries. Those fou
 | libarchive | BSD-2-Clause |
 
 The complete list and license texts are in the MuPDF 1.25.2 source distribution (`thirdparty/` and `COPYING`).
+
+Not shipped, used when present on the PC: the Microsoft Edge WebView2 Runtime (part of Windows 11; renders web pages
+for Create PDF from Web Page) and Microsoft Office (Word, Excel, PowerPoint: Create PDF from Office File), each under
+its own Microsoft license.
 
 ## Used only to build and test (not shipped)
 
