@@ -42,31 +42,62 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
     /// <summary>Document handling status the scanner reports; null: none.</summary>
     public int? HandlingStatus { get; set; }
 
+    /// <summary>During a job, the status says whether sheets are left (<see cref="WiaIds.FeedReady"/> or 0) instead of <see cref="HandlingStatus"/>.</summary>
+    public bool DetectsFeed { get; set; }
+
+    /// <summary>The driver refuses the feeder without an error (reads back the glass) and scans the glass for every page.</summary>
+    public bool RefusesFeeder { get; set; }
+
+    /// <summary>Once the feeder is empty the driver scans the glass instead of saying so (the same page every time).</summary>
+    public bool GlassWhenEmpty { get; set; }
+
+    /// <summary>Calls never return (a hung driver); they end only when the caller cancels.</summary>
+    public bool Hangs { get; set; }
+
     /// <summary>The settings of each page transferred, in order (tests read them).</summary>
     public List<WiaScanSettings> Transfers { get; } = [];
 
-    private int _page;
+    /// <summary>The settings applied for each job.</summary>
+    public List<WiaScanSettings> Applied { get; } = [];
+
+    private int _page, _sides;
+    private bool _duplex;
 
     public Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         if (ConnectError is { } error) return Task.FromException<T>(new WiaException(error, "Not connected."));
+        if (Hangs) return Task.Delay(Timeout.Infinite, ct).ContinueWith<T>(_ => throw new OperationCanceledException(ct), TaskScheduler.Default);
         try { return Task.FromResult(work(this)); }
         catch (Exception ex) { return Task.FromException<T>(ex); }
     }
 
-    public int? ReadHandlingStatus() => HandlingStatus;
+    public int? ReadHandlingStatus() =>
+        DetectsFeed && Applied.Count > 0 ? ((_duplex && _sides % 2 == 1 ? _left > 1 : _left > 0) ? WiaIds.FeedReady : 0) : HandlingStatus;
 
-    public byte[]? TransferPage(WiaScanSettings settings, bool first)
+    public int? Apply(WiaScanSettings settings)
     {
-        if (first)
-        {
-            _page = 0;
-            _left = settings.Feeder ? FeederStack?.Invoke() ?? FeederPages : 1;
-        }
+        Applied.Add(settings);
+        _page = 0;
+        _sides = 0;
+        _duplex = settings.Duplex;
+        // Sides left to scan: two per sheet for both sides.
+        _left = settings.Feeder ? (FeederStack?.Invoke() ?? FeederPages) * (settings.Duplex ? 2 : 1) : 1;
+        return RefusesFeeder ? WiaIds.SelectFlatbed : settings.Handling;
+    }
+
+    public byte[]? TransferPage(WiaScanSettings settings)
+    {
         if (FailAtPage == _page) throw new WiaException(PageErrorCode, "Failed.");
-        if (_left-- <= 0) throw new WiaException(WiaErrors.PaperEmpty, "Feeder empty.");
         Transfers.Add(settings);
+        if (RefusesFeeder && settings.Feeder) return draw(settings with { Feeder = false }, 0);
+        if (_left-- <= 0)
+        {
+            if (GlassWhenEmpty) return draw(settings with { Feeder = false }, 255);
+            Transfers.RemoveAt(Transfers.Count - 1);
+            throw new WiaException(WiaErrors.PaperEmpty, "Feeder empty.");
+        }
+        _sides++;
         return draw(settings, _page++);
     }
 }

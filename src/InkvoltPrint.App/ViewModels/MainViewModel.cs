@@ -503,13 +503,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         new[] { p.Name, p.Model, p.WindowsQueue?.Name, p.WindowsQueue?.DriverName }.OfType<string>().Where(n => n.Length > 0).ToList(),
         new[] { p.Host, p.WindowsQueue?.PortAddress }.OfType<string>().Where(h => h.Length > 0).ToList());
 
-    /// <summary>Which printer on the list each WIA scanner belongs to (<see cref="WiaMatch"/>); null for one no printer claims.</summary>
+    /// <summary>
+    /// Which printer on the list each WIA scanner belongs to (<see cref="WiaMatch.Assign"/>); null for one no printer claims, and for
+    /// a second one matching a printer that already takes one through Windows (listed on its own instead).
+    /// </summary>
     private IEnumerable<(WiaDeviceInfo Device, PrinterViewModel? Owner)> Owners()
     {
-        var targets = Printers.Where(p => !p.IsScannerOnly).Select(Target).ToList();
-        foreach (var d in _scanners)
-            yield return (d, WiaMatch.Match(d, targets) is { } id
-                ? Printers.FirstOrDefault(p => !p.IsScannerOnly && string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase)) : null);
+        var printers = Printers.Where(p => !p.IsScannerOnly).ToList();
+        PrinterViewModel? ById(string id) => printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase));
+        foreach (var (d, id) in WiaMatch.Assign(_scanners, printers.Select(Target).ToList(), id => ById(id)?.WantsWindowsScanner == true))
+            yield return (d, id is null ? null : ById(id));
     }
 
     /// <summary>
@@ -524,7 +527,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var owners = Owners().ToList();
         var given = new Dictionary<PrinterViewModel, WiaDeviceInfo>();
         foreach (var (device, owner) in owners)
-            if (owner is { WantsWindowsScanner: true } && !given.ContainsKey(owner)) given[owner] = device;
+            if (owner is { WantsWindowsScanner: true }) given.TryAdd(owner, device);
         foreach (var p in Printers.Where(p => !p.IsScannerOnly).ToList())
             _ = p.UseWiaScannerAsync(given.GetValueOrDefault(p), _wia);
 

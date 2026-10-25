@@ -15,13 +15,23 @@ public interface IWiaDevice
     int? ReadHandlingStatus();
 
     /// <summary>
-    /// Scans one page as JPEG. <paramref name="first"/>: the first page of the job, when the settings are applied; later calls
-    /// take the next page from the feeder. Null when the driver gave no image (some say "no more pages" that way).
+    /// Sets a job's settings on the device (before its first page). Returns the document handling select the driver has then
+    /// (read back: a driver may refuse the feeder without an error), or null when it has no such property.
     /// </summary>
-    byte[]? TransferPage(WiaScanSettings settings, bool first);
+    int? Apply(WiaScanSettings settings);
+
+    /// <summary>
+    /// Scans one page as JPEG with the settings applied: the next page from the feeder, or the glass. Null when the driver gave
+    /// no image (some say "no more pages" that way).
+    /// </summary>
+    byte[]? TransferPage(WiaScanSettings settings);
 }
 
-/// <summary>Runs work on a WIA device's thread, connecting first when needed. Cancelling stops waiting, not a page in progress.</summary>
+/// <summary>
+/// Runs work on a WIA device's thread, connecting first when needed. Cancelling stops waiting at once and skips work that hasn't
+/// started; a call already in the driver runs to its end (and the device takes no more work until it returns:
+/// <see cref="WiaErrors.NotAnswering"/>).
+/// </summary>
 public interface IWiaDeviceHost
 {
     Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct);
@@ -61,6 +71,9 @@ public sealed class WiaScanner : IScanner
     public WiaScannerInfo Info { get; }
     public ScannerCapabilities Capabilities { get; }
 
+    /// <summary>The longest one page may take (a slow scanner at its highest resolution); past it the driver is taken as hung.</summary>
+    public TimeSpan PageTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Connects (reads what the scanner offers). <see cref="WiaException"/> when it can't (off, unplugged).</summary>
     public static async Task<WiaScanner> OpenAsync(IWiaSystem system, WiaDeviceInfo device, CancellationToken ct)
     {
@@ -75,34 +88,104 @@ public sealed class WiaScanner : IScanner
         return WiaCapabilities.Status(Info.Handling, status);
     }
 
+    /// <summary>
+    /// The pages of one job. A feeder job takes pages until the driver says the feeder is empty, and also stops (see
+    /// <see cref="WiaFeeder"/>) when the driver didn't take the feeder (scans nothing), when it says no paper is ready before the
+    /// next sheet, when a page is byte for byte the one before (a driver scanning the glass again), and at
+    /// <see cref="MaxFeederPages"/>. A page that takes longer than <see cref="PageTimeout"/> ends the job (the driver hung).
+    /// </summary>
     public async IAsyncEnumerable<byte[]> ScanAsync(ScanRequest request, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var settings = WiaCapabilities.Plan(request, Capabilities, Info);
+        byte[]? last = null;
         for (var page = 0; page < (settings.Feeder ? MaxFeederPages : 1); page++)
         {
             ct.ThrowIfCancellationRequested();
-            var first = page == 0;
-            byte[]? jpeg;
-            try
-            {
-                jpeg = await _host.UseAsync(d => d.TransferPage(settings, first), ct).ConfigureAwait(false);
-            }
-            catch (WiaException ex) when (ex.Code == WiaErrors.PaperEmpty && settings.Feeder && !first)
-            {
-                jpeg = null; // the feeder ran out: that's the end of the job
-            }
-            catch (WiaException ex)
-            {
-                throw new ScanException(WiaErrors.Message(ex.Code, settings.Feeder));
-            }
-            if (jpeg is null)
-            {
-                if (first) throw new ScanException(settings.Feeder ? WiaErrors.Message(WiaErrors.PaperEmpty, true) : "The scanner returned no image.");
-                yield break;
-            }
-            yield return jpeg;
+            var (jpeg, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
+            if (end) yield break;
+            if (WiaFeeder.Repeats(last, jpeg!)) yield break; // the glass scanned again, not a new sheet
+            last = jpeg;
+            yield return jpeg!;
         }
     }
+
+    /// <summary>One page of a job: (its JPEG, false), or (null, true) when the feeder job is over. <see cref="ScanException"/> when it fails.</summary>
+    private async Task<(byte[]? Jpeg, bool End)> PageAsync(WiaScanSettings settings, int page, CancellationToken ct)
+    {
+        var first = page == 0;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(PageTimeout);
+        byte[]? jpeg;
+        try
+        {
+            if (first && !WiaFeeder.FeederTaken(settings, await _host.UseAsync(d => d.Apply(settings), limit.Token).ConfigureAwait(false)))
+                throw new ScanException(WiaFeeder.NotTakenMessage);
+            if (WiaFeeder.ChecksBefore(settings, page) && WiaFeeder.Empty(Info.Handling, await StatusAsync(limit.Token).ConfigureAwait(false)))
+            {
+                if (first) throw new ScanException(WiaErrors.Message(WiaErrors.PaperEmpty, true)); // load the pages first (some drivers would scan the glass)
+                return (null, true);
+            }
+            jpeg = await _host.UseAsync(d => d.TransferPage(settings), limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new ScanException(WiaErrors.Message(WiaErrors.NotAnswering, settings.Feeder));
+        }
+        catch (WiaException ex) when (ex.Code == WiaErrors.PaperEmpty && settings.Feeder && !first)
+        {
+            return (null, true); // the feeder ran out: that's the end of the job
+        }
+        catch (WiaException ex)
+        {
+            throw new ScanException(WiaErrors.Message(ex.Code, settings.Feeder));
+        }
+        if (jpeg is not null) return (jpeg, false);
+        if (first) throw new ScanException(settings.Feeder ? WiaErrors.Message(WiaErrors.PaperEmpty, true) : "The scanner returned no image.");
+        return (null, true);
+    }
+
+    /// <summary>The feeder's status bits; null when the driver can't say (a failed read doesn't stop the job).</summary>
+    private async Task<int?> StatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await _host.UseAsync(d => d.ReadHandlingStatus(), ct).ConfigureAwait(false);
+        }
+        catch (WiaException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>
+/// When a feeder job stops, beyond the driver's "feeder empty": a WIA driver that doesn't take the feeder, or falls back to the
+/// glass once the feeder is empty, scans the glass again for every page and never says it's empty.
+/// </summary>
+public static class WiaFeeder
+{
+    public const string NotTakenMessage = "The scanner's driver didn't switch to the document feeder, so nothing was scanned. " +
+                                          "Scan from the glass, or use the scanner's own app.";
+
+    /// <summary>
+    /// The driver took the feeder (read back after setting it), or the job is from the glass, or the driver has no document handling
+    /// select to read back (the other checks still apply).
+    /// </summary>
+    public static bool FeederTaken(WiaScanSettings settings, int? selectReadBack) =>
+        !settings.Feeder || selectReadBack is not { } s || (s & WiaIds.SelectFeeder) != 0;
+
+    /// <summary>
+    /// Whether to read the feeder's status before this page (0-based): before each sheet, so every page, or every second one for
+    /// both sides (the last sheet's back comes when the feeder is already empty).
+    /// </summary>
+    public static bool ChecksBefore(WiaScanSettings settings, int page) => settings.Feeder && (!settings.Duplex || page % 2 == 0);
+
+    /// <summary>The driver can tell whether paper is in the feeder and says none is ready.</summary>
+    public static bool Empty(int? handlingCapabilities, int? status) =>
+        handlingCapabilities is { } caps && (caps & WiaIds.CapDetectFeedAvailable) != 0 && status is { } s && (s & WiaIds.FeedReady) == 0;
+
+    /// <summary>A page byte for byte the one before: no two sheets scan that alike, a driver sending the glass again does.</summary>
+    public static bool Repeats(byte[]? previous, byte[] page) => previous is not null && previous.AsSpan().SequenceEqual(page);
 }
 
 /// <summary>The pure part of WIA scanning: capabilities, scan settings and feeder state from the driver's properties.</summary>
@@ -151,8 +234,9 @@ public static class WiaCapabilities
     }
 
     /// <summary>
-    /// What to set for <paramref name="request"/>: the source, color (24-bit) or grey (8-bit) as offered, the offered resolution
-    /// nearest the one asked for, and the area (the source's whole area when none is asked) in pixels at that resolution.
+    /// What to set for <paramref name="request"/>: the source (both sides front first), color (24-bit) or grey (8-bit) as offered,
+    /// the offered resolution nearest the one asked for, the area (the source's whole area when none is asked) in pixels at that
+    /// resolution, and the pages per transfer (<see cref="WiaScanSettings.Pages"/>).
     /// </summary>
     public static WiaScanSettings Plan(ScanRequest request, ScannerCapabilities caps, WiaScannerInfo info)
     {
@@ -167,11 +251,12 @@ public static class WiaCapabilities
             : source switch
             {
                 ScanSource.Adf => WiaIds.SelectFeeder,
-                ScanSource.AdfDuplex => WiaIds.SelectFeeder | WiaIds.SelectDuplex,
+                ScanSource.AdfDuplex => WiaIds.SelectFeeder | WiaIds.SelectDuplex | WiaIds.SelectFrontFirst,
                 _ => WiaIds.SelectFlatbed,
             };
+        int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
         return new WiaScanSettings(handling, feeder, grey ? WiaIds.DataGrayscale : WiaIds.DataColor, grey ? 8 : 24, res,
-            Pixels(width, res), Pixels(height, res));
+            Pixels(width, res), Pixels(height, res), pages);
     }
 
     private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, (int)((long)threeHundredths * dpi / 300));

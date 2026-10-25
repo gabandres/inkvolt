@@ -82,9 +82,15 @@ public sealed record WiaScannerInfo(
     IReadOnlyList<string> Formats);
 
 /// <summary>What one scan sets on the device and item before transferring pages.</summary>
-/// <param name="Handling">Document handling select: glass, feeder, or feeder with both sides; null for a glass-only driver (left alone).</param>
+/// <param name="Handling">Document handling select: glass, feeder, or feeder with both sides (front first); null for a glass-only driver (left alone).</param>
 /// <param name="Width">Area in pixels at <paramref name="Resolution"/> (the driver's own limit applies too).</param>
-public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height);
+/// <param name="Pages">WIA_DPS_PAGES to set: 1 for one side from the feeder (one page per transfer), 0 (all pages) for both sides,
+/// since a sheet is two pages then and 1 would give the front only; null for the glass (left alone).</param>
+public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height, int? Pages = null)
+{
+    /// <summary>Both sides of each sheet: two pages per sheet, front first.</summary>
+    public bool Duplex => Feeder && Handling is { } h && (h & WiaIds.SelectDuplex) != 0;
+}
 
 /// <summary>A WIA call failed with this HRESULT (<see cref="WiaErrors"/>).</summary>
 public sealed class WiaException(int hresult, string message) : Exception(message)
@@ -101,13 +107,45 @@ public static class WiaErrors
         DeviceCommunication = unchecked((int)0x8021000A), InvalidCommand = unchecked((int)0x8021000B),
         IncorrectHardwareSetting = unchecked((int)0x8021000C), DeviceLocked = unchecked((int)0x8021000D),
         ExceptionInDriver = unchecked((int)0x8021000E), InvalidDriverResponse = unchecked((int)0x8021000F),
-        NoDeviceAvailable = unchecked((int)0x80210015);
+        NoDeviceAvailable = unchecked((int)0x80210015), CoverOpen = unchecked((int)0x80210016), LampOff = unchecked((int)0x80210017);
+
+    /// <summary>
+    /// Not from WIA: the scanner's thread hasn't finished an earlier call its caller stopped waiting for (a driver that hangs, or a
+    /// page still coming after Cancel), so nothing more is sent to it. HRESULT_FROM_WIN32(ERROR_TIMEOUT).
+    /// </summary>
+    public const int NotAnswering = unchecked((int)0x800705B4);
+
+    // COM failures that aren't WIA's: the WIA service restarted or stopped (RPC), access denied, out of memory.
+    public const int RpcServerUnavailable = unchecked((int)0x800706BA), RpcCallFailed = unchecked((int)0x800706BE),
+        RpcDisconnected = unchecked((int)0x80010108), AccessDenied = unchecked((int)0x80070005), OutOfMemory = unchecked((int)0x8007000E);
 
     /// <summary>A WIA error (facility 33), not some other COM failure.</summary>
     public static bool IsWia(int hresult) => (hresult & 0xFFFF0000) == 0x80210000;
 
     /// <summary>The device can't be reached now: connecting again later may work.</summary>
     public static bool IsUnreachable(int hresult) => hresult is Offline or DeviceCommunication or NoDeviceAvailable or ItemDeleted;
+
+    /// <summary>
+    /// Whether a connected scanner should be let go after this failure and connected again on the next call. Kept only for errors
+    /// about the paper or the scanner's state (jam, empty feeder, busy, warming up, cover open, lock…), which the same connection
+    /// reports again once fixed; any other failure, and every non-WIA one (the WIA service restarted: RPC errors), may mean the COM
+    /// object is dead, and a fresh connection costs little.
+    /// </summary>
+    public static bool NeedsReconnect(int hresult) => hresult is not (PaperJam or PaperEmpty or PaperProblem or Busy or WarmingUp
+        or UserIntervention or DeviceLocked or IncorrectHardwareSetting or CoverOpen or LampOff or NotAnswering);
+
+    /// <summary>
+    /// Any failure of a WIA call as a <see cref="WiaException"/>: COM errors keep their HRESULT, also those .NET turned into other
+    /// exception types (E_ACCESSDENIED as UnauthorizedAccessException, E_OUTOFMEMORY, E_NOTIMPL, Win32 errors as IO exceptions);
+    /// late-binding and other .NET failures (facility 0x13, or no failure code) are <see cref="GeneralError"/>.
+    /// </summary>
+    public static WiaException From(Exception ex)
+    {
+        if (ex is WiaException w) return w;
+        var code = ex.HResult;
+        var mapped = code < 0 && ((code >> 16) & 0x1FFF) != 0x13 || ex is System.Runtime.InteropServices.COMException;
+        return new WiaException(mapped ? code : GeneralError, ex.Message);
+    }
 
     /// <summary>In plain words; <paramref name="feeder"/>: the scan was from the document feeder.</summary>
     public static string Message(int hresult, bool feeder) => hresult switch
@@ -120,6 +158,14 @@ public static class WiaErrors
         WarmingUp => "The scanner is warming up. Try again in a moment.",
         UserIntervention => "The scanner needs attention: check its panel or display, then try again.",
         DeviceCommunication or ItemDeleted => "Windows lost contact with the scanner. Check its connection and try again.",
+        CoverOpen => "The scanner's cover is open. Close it and try again.",
+        LampOff => "The scanner's lamp is off. Turn the scanner off and on again, then try again.",
+        NotAnswering => "The scanner hasn't finished its last request (its driver may have stopped answering). Wait a moment and try " +
+                        "again; if it still doesn't answer, turn the scanner off and on, or restart Inkvolt Print.",
+        RpcServerUnavailable or RpcCallFailed or RpcDisconnected =>
+            "Windows' scanning service stopped answering (it may have restarted). Try again: Inkvolt Print connects to the scanner again.",
+        AccessDenied => "Windows didn't allow Inkvolt Print to use the scanner. Close other scanning apps and try again.",
+        OutOfMemory => "There wasn't enough memory for this scan. Try a lower resolution or fewer pages.",
         DeviceLocked => "The scanner is locked (some have a lock switch for moving them). Unlock it and try again.",
         IncorrectHardwareSetting => "The scanner's settings or switches don't allow this scan. Check the scanner, or try other settings.",
         InvalidCommand or ExceptionInDriver or InvalidDriverResponse =>

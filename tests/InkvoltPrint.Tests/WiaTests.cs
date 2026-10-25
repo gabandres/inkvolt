@@ -81,7 +81,10 @@ public class WiaTests
         Assert.Equal(new WiaScanSettings(WiaIds.SelectFlatbed, false, WiaIds.DataGrayscale, 8, 200, 1700, 2200), glass);
 
         var feeder = WiaCapabilities.Plan(new ScanRequest(ScanSource.AdfDuplex, ScanColor.Color, 300), caps, info);
-        Assert.Equal(WiaIds.SelectFeeder | WiaIds.SelectDuplex, feeder.Handling);
+        Assert.Equal(WiaIds.SelectFeeder | WiaIds.SelectDuplex | WiaIds.SelectFrontFirst, feeder.Handling); // both sides, front first
+        Assert.Equal(0, feeder.Pages); // all pages: a sheet is two, and 1 would give the front only
+        Assert.Null(glass.Pages);
+        Assert.Equal(1, WiaCapabilities.Plan(new ScanRequest(ScanSource.Adf), caps, info).Pages);
         Assert.True(feeder.Feeder);
         Assert.Equal((WiaIds.DataColor, 24, 300), (feeder.DataType, feeder.Depth, feeder.Resolution));
         Assert.Equal((2550, 4200), (feeder.Width, feeder.Height)); // the whole feeder area at 300 dpi
@@ -285,7 +288,211 @@ public class WiaTests
     public void Normalizing_leaves_out_driver_words_and_suffixes()
     {
         Assert.Equal("hp laserjet m234dw", WiaMatch.Normalize("HP LaserJet MFP M234dw (1A2B3C)"));
-        Assert.Equal(["mfcl2710dw", "l2710dw"], WiaMatch.Models("Brother MFC-L2710DW series"));
-        Assert.Equal(["2100"], WiaMatch.Models("Example Laser 2100 PCL6"));
+        Assert.Equal(["mfcl2710dw"], WiaMatch.Models("Brother MFC-L2710DW series"));
+        Assert.Equal(["laser2100"], WiaMatch.Models("Example Laser 2100 PCL6"));
+    }
+
+    // ------------------------------------------------------------------ review fixes: feeder safeguards, errors, hung drivers
+
+    [Fact]
+    public async Task A_driver_that_refuses_the_feeder_scans_nothing()
+    {
+        var fake = Fake(Mfp());
+        fake.RefusesFeeder = true;
+        var scanner = await Open(fake);
+        var ex = await Assert.ThrowsAsync<ScanException>(() => All(scanner.ScanAsync(new ScanRequest(ScanSource.Adf))));
+        Assert.Equal(WiaFeeder.NotTakenMessage, ex.Message);
+        Assert.Empty(fake.Transfers); // the glass isn't scanned 500 times, nor once
+    }
+
+    [Fact]
+    public async Task A_driver_that_scans_the_glass_once_the_feeder_is_empty_stops_when_it_says_none_is_ready()
+    {
+        var fake = Fake(Mfp(WiaIds.CapFeed | WiaIds.CapFlat | WiaIds.CapDetectFeedAvailable));
+        fake.FeederPages = 3;
+        fake.GlassWhenEmpty = true;
+        fake.DetectsFeed = true;
+        var pages = await All((await Open(fake)).ScanAsync(new ScanRequest(ScanSource.Adf)));
+        Assert.Equal([0, 1, 2], pages.Select(p => (int)p[2]));
+        Assert.Equal(3, fake.Transfers.Count);
+    }
+
+    [Fact]
+    public async Task A_page_the_same_as_the_one_before_ends_the_job()
+    {
+        var fake = Fake(Mfp()); // can't tell whether paper is in the feeder
+        fake.FeederPages = 3;
+        fake.GlassWhenEmpty = true;
+        var pages = await All((await Open(fake)).ScanAsync(new ScanRequest(ScanSource.Adf)));
+        Assert.Equal([0, 1, 2, 255], pages.Select(p => (int)p[2])); // one glass page gets through, its repeat ends the job
+        Assert.Equal(5, fake.Transfers.Count);
+    }
+
+    [Fact]
+    public async Task An_empty_feeder_read_before_the_first_page_says_to_load_pages_without_scanning()
+    {
+        var fake = Fake(Mfp(WiaIds.CapFeed | WiaIds.CapFlat | WiaIds.CapDetectFeedAvailable));
+        fake.FeederPages = 0;
+        fake.GlassWhenEmpty = true;
+        fake.DetectsFeed = true;
+        var scanner = await Open(fake);
+        var ex = await Assert.ThrowsAsync<ScanException>(() => All(scanner.ScanAsync(new ScanRequest(ScanSource.Adf))));
+        Assert.Equal("Load the pages into the document feeder first.", ex.Message);
+        Assert.Empty(fake.Transfers);
+    }
+
+    [Fact]
+    public async Task Both_sides_take_the_last_sheets_back_though_the_feeder_is_empty_by_then()
+    {
+        var fake = Fake(Mfp(WiaIds.CapFeed | WiaIds.CapFlat | WiaIds.CapDuplex | WiaIds.CapDetectFeedAvailable));
+        fake.FeederPages = 2; // sheets
+        fake.DetectsFeed = true;
+        var pages = await All((await Open(fake)).ScanAsync(new ScanRequest(ScanSource.AdfDuplex)));
+        Assert.Equal(4, pages.Count);
+        Assert.Equal(WiaIds.SelectFeeder | WiaIds.SelectDuplex | WiaIds.SelectFrontFirst, fake.Applied.Single().Handling);
+        Assert.Equal(0, fake.Applied.Single().Pages);
+    }
+
+    [Fact]
+    public void The_feeder_is_checked_before_each_sheet()
+    {
+        var simplex = new WiaScanSettings(WiaIds.SelectFeeder, true, WiaIds.DataColor, 24, 300, 1, 1, 1);
+        var duplex = simplex with { Handling = WiaIds.SelectFeeder | WiaIds.SelectDuplex | WiaIds.SelectFrontFirst, Pages = 0 };
+        var glass = simplex with { Handling = WiaIds.SelectFlatbed, Feeder = false, Pages = null };
+        Assert.Equal([true, true, true, true], Enumerable.Range(0, 4).Select(p => WiaFeeder.ChecksBefore(simplex, p)));
+        Assert.Equal([true, false, true, false], Enumerable.Range(0, 4).Select(p => WiaFeeder.ChecksBefore(duplex, p)));
+        Assert.False(WiaFeeder.ChecksBefore(glass, 0));
+
+        Assert.True(WiaFeeder.Empty(WiaIds.CapFeed | WiaIds.CapDetectFeedAvailable, 0));
+        Assert.False(WiaFeeder.Empty(WiaIds.CapFeed | WiaIds.CapDetectFeedAvailable, WiaIds.FeedReady));
+        Assert.False(WiaFeeder.Empty(WiaIds.CapFeed, 0));                              // can't tell: go on
+        Assert.False(WiaFeeder.Empty(WiaIds.CapFeed | WiaIds.CapDetectFeedAvailable, null));
+
+        Assert.True(WiaFeeder.FeederTaken(simplex, WiaIds.SelectFeeder));
+        Assert.True(WiaFeeder.FeederTaken(duplex, WiaIds.SelectFeeder | WiaIds.SelectDuplex)); // front first dropped: still the feeder
+        Assert.False(WiaFeeder.FeederTaken(simplex, WiaIds.SelectFlatbed));
+        Assert.True(WiaFeeder.FeederTaken(simplex, null));                             // no property to read back
+        Assert.True(WiaFeeder.FeederTaken(glass, WiaIds.SelectFlatbed));
+
+        Assert.True(WiaFeeder.Repeats([1, 2, 3], [1, 2, 3]));
+        Assert.False(WiaFeeder.Repeats([1, 2, 3], [1, 2, 4]));
+        Assert.False(WiaFeeder.Repeats(null, [1]));
+    }
+
+    [Fact]
+    public async Task A_page_that_never_comes_ends_the_scan_with_a_message()
+    {
+        var fake = Fake(Mfp());
+        var scanner = await Open(fake);
+        fake.Hangs = true;
+        scanner.PageTimeout = TimeSpan.FromMilliseconds(50);
+        var ex = await Assert.ThrowsAsync<ScanException>(() => All(scanner.ScanAsync(new ScanRequest(ScanSource.Platen))));
+        Assert.Equal(WiaErrors.Message(WiaErrors.NotAnswering, false), ex.Message);
+    }
+
+    [Theory]
+    [InlineData(unchecked((int)0x800706BA), true)]  // RPC server unavailable: the WIA service restarted
+    [InlineData(unchecked((int)0x80010108), true)]  // RPC_E_DISCONNECTED
+    [InlineData(unchecked((int)0x80004005), true)]  // E_FAIL
+    [InlineData(unchecked((int)0x80210001), true)]  // WIA general error
+    [InlineData(unchecked((int)0x80210005), true)]  // offline
+    [InlineData(unchecked((int)0x8021000F), true)]  // invalid driver response
+    [InlineData(unchecked((int)0x80210002), false)] // paper jam
+    [InlineData(unchecked((int)0x80210003), false)] // feeder empty
+    [InlineData(unchecked((int)0x80210006), false)] // busy
+    [InlineData(unchecked((int)0x80210007), false)] // warming up
+    [InlineData(unchecked((int)0x80210016), false)] // cover open
+    public void A_connection_is_dropped_after_any_failure_but_the_paper_or_the_scanners_state(int hresult, bool reconnect) =>
+        Assert.Equal(reconnect, WiaErrors.NeedsReconnect(hresult));
+
+    [Fact]
+    public void Failures_of_every_kind_become_wia_exceptions_with_their_hresult()
+    {
+        Assert.Equal(WiaErrors.AccessDenied, WiaErrors.From(new UnauthorizedAccessException()).Code);
+        Assert.Equal(WiaErrors.OutOfMemory, WiaErrors.From(new OutOfMemoryException()).Code);
+        Assert.Equal(unchecked((int)0x80004001), WiaErrors.From(new NotImplementedException()).Code); // E_NOTIMPL
+        Assert.Equal(WiaErrors.Busy, WiaErrors.From(new System.Runtime.InteropServices.COMException("busy", WiaErrors.Busy)).Code);
+        Assert.Equal(WiaErrors.RpcDisconnected, WiaErrors.From(new System.Runtime.InteropServices.COMException("gone", WiaErrors.RpcDisconnected)).Code);
+        Assert.Equal(WiaErrors.GeneralError, WiaErrors.From(new Exception("late binding")).Code); // COR_E_EXCEPTION, facility 0x13
+        var wia = new WiaException(WiaErrors.PaperJam, "jam");
+        Assert.Same(wia, WiaErrors.From(wia));
+    }
+
+    [Fact]
+    public void Newer_errors_read_in_plain_words()
+    {
+        Assert.Contains("cover is open", WiaErrors.Message(WiaErrors.CoverOpen, false));
+        Assert.Contains("lamp", WiaErrors.Message(WiaErrors.LampOff, false));
+        Assert.Contains("scanning service", WiaErrors.Message(WiaErrors.RpcServerUnavailable, false));
+        Assert.Contains("didn't allow", WiaErrors.Message(WiaErrors.AccessDenied, false));
+        Assert.Contains("hasn't finished", WiaErrors.Message(WiaErrors.NotAnswering, true));
+    }
+
+    [Fact]
+    public async Task Work_runs_on_a_single_threaded_apartment_when_asked()
+    {
+        var thread = new WorkThread("test", singleThreadedApartment: true);
+        Assert.Equal(ApartmentState.STA, await thread.RunAsync(() => Thread.CurrentThread.GetApartmentState(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Queued_work_its_caller_cancelled_never_runs()
+    {
+        var thread = new WorkThread("test", false);
+        using var gate = new ManualResetEventSlim();
+        var busy = thread.RunAsync(() => gate.Wait(TimeSpan.FromSeconds(10)), CancellationToken.None);
+        using var cts = new CancellationTokenSource();
+        var ran = false;
+        var queued = thread.RunAsync(() => ran = true, cts.Token);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued); // the caller stops waiting at once
+        gate.Set();
+        await busy;
+        Assert.Equal(7, await thread.RunAsync(() => 7, CancellationToken.None)); // the cancelled one has been dequeued by now
+        Assert.False(ran); // a page queued behind a slow call isn't pulled after Cancel
+    }
+
+    [Fact]
+    public async Task A_call_its_caller_gave_up_on_stops_new_work_until_it_returns()
+    {
+        var thread = new WorkThread("test", false);
+        using var gate = new ManualResetEventSlim();
+        using var cts = new CancellationTokenSource();
+        var started = new TaskCompletionSource();
+        var hung = thread.RunAsync(() => { started.SetResult(); return gate.Wait(TimeSpan.FromSeconds(10)); }, cts.Token);
+        await started.Task;
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => hung);
+        Assert.True(thread.IsStuck);
+        var ran = false;
+        await Assert.ThrowsAsync<WorkThreadStuckException>(() => thread.RunAsync(() => ran = true, CancellationToken.None)); // not queued
+        gate.Set();
+        var until = DateTime.UtcNow.AddSeconds(5);
+        while (thread.IsStuck && DateTime.UtcNow < until) await Task.Delay(10);
+        Assert.False(thread.IsStuck);
+        Assert.Equal(1, await thread.RunAsync(() => 1, CancellationToken.None));
+        Assert.False(ran);
+    }
+
+    [Fact]
+    public void Hyphenated_model_numbers_are_kept_whole()
+    {
+        Assert.Equal(["et2850"], WiaMatch.Models("EPSON ET-2850 Series"));
+        Assert.Equal(["inkjet3700"], WiaMatch.Models("Example Inkjet 3700"));
+        Assert.Null(WiaMatch.Match(new WiaDeviceInfo("d", "EPSON ET-2850 Series"), [Target("wf", ["EPSON WF-2850 Series"])]));
+        Assert.Equal("et", WiaMatch.Match(new WiaDeviceInfo("d", "EPSON ET-2850"), [Target("wf", ["EPSON WF-2850 Series"]), Target("et", ["EPSON ET-2850 Series"])]));
+    }
+
+    [Fact]
+    public void A_second_scanner_for_a_printer_that_takes_one_is_listed_on_its_own()
+    {
+        var usb = new WiaDeviceInfo("u", "Example MFP 4400", Port: @"\\.\Usbscan0");
+        var wsd = new WiaDeviceInfo("w", "Example MFP 4400", Port: "http://192.0.2.16:80/wsd/scan");
+        var targets = new[] { Target("q", ["Example MFP 4400"], "192.0.2.16") };
+        var queue = WiaMatch.Assign([usb, wsd], targets, _ => true);
+        Assert.Equal([("u", "q"), ("w", (string?)null)], queue.Select(a => (a.Device.Id, a.Owner)));
+
+        var escl = WiaMatch.Assign([usb, wsd], targets, _ => false); // the printer scans over eSCL: both left alone
+        Assert.All(escl, a => Assert.Equal("q", a.Owner));
     }
 }

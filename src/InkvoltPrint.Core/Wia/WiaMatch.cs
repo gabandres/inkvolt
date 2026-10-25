@@ -43,15 +43,45 @@ public static partial class WiaMatch
     }
 
     /// <summary>
+    /// Each device's printer (<see cref="Match"/>), at most one device per printer that takes a Windows scanner
+    /// (<paramref name="takesScanner"/>, by id): a second device matching such a printer (its USB and its network driver, say) is
+    /// left unclaimed, so it's listed as a scanner of its own instead of being neither used nor listed. Devices matching a printer
+    /// that doesn't take one (it scans over eSCL) all stay with it, unused.
+    /// </summary>
+    public static IReadOnlyList<(WiaDeviceInfo Device, string? Owner)> Assign(
+        IReadOnlyList<WiaDeviceInfo> devices, IReadOnlyList<ScanTarget> targets, Func<string, bool> takesScanner)
+    {
+        var given = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<(WiaDeviceInfo, string?)>(devices.Count);
+        foreach (var device in devices)
+        {
+            var owner = Match(device, targets);
+            if (owner is not null && takesScanner(owner) && !given.Add(owner)) owner = null;
+            result.Add((device, owner));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Model numbers in a name, inside parentheses too (Windows names network queues "NPI1A2B3C (Maker Model)"): words with a digit
-    /// and at least three characters, a hyphenated one both joined and as its parts (MFC-L2710DW → mfcl2710dw and l2710dw;
-    /// Inkjet-3700 → inkjet3700 and 3700).
+    /// and at least three characters, a hyphenated one joined (MFC-L2710DW → mfcl2710dw; ET-2850 → et2850, never a bare 2850 that
+    /// WF-2850 has too), and a number on its own joined to the word before it (Inkjet 3700 → inkjet3700, as Inkjet-3700 gives).
     /// </summary>
     public static HashSet<string> Models(string name)
     {
         var plain = name.Replace('(', ' ').Replace(')', ' ').Replace('[', ' ').Replace(']', ' ');
-        return Normalize(Hyphenated().Replace(plain, "$1$2")).Split(' ').Concat(Normalize(plain).Split(' '))
-            .Where(w => w.Length >= 3 && w.Any(char.IsDigit) && !Noise.Contains(w)).ToHashSet();
+        var words = Normalize(Hyphenated().Replace(plain, "$1$2")).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var models = new HashSet<string>();
+        for (var i = 0; i < words.Length; i++)
+        {
+            var w = words[i];
+            if (w.All(char.IsDigit))
+            {
+                if (i > 0 && w.Length >= 2 && words[i - 1].All(char.IsLetter)) models.Add(words[i - 1] + w);
+            }
+            else if (w.Length >= 3 && w.Any(char.IsDigit) && !Noise.Contains(w)) models.Add(w);
+        }
+        return models;
     }
 
     /// <summary>The first word of letters only ("hp", "canon"), when the name starts with one.</summary>

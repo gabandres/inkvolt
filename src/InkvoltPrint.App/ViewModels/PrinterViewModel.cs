@@ -1003,7 +1003,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 StatusDetail = null;
             }
         }
-        catch (Exception ex) when (ex is WiaException or OperationCanceledException)
+        catch (Exception ex) // any failure: this runs unobserved (fire and forget), and must not leave the scanner "connecting"
         {
             Log.Write($"[{Name}] Windows scanner not connected: {ex.Message}");
             if (IsScannerOnly)
@@ -1013,7 +1013,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 IsOnline = false;
                 StatusSeverity = Severity.Info;
                 StatusMessage = "Scanner not answering";
-                StatusDetail = (ex is WiaException w ? WiaErrors.Message(w.Code, false) : "The scanner didn't answer in time.") +
+                StatusDetail = (ex is OperationCanceledException ? "The scanner didn't answer in time." : WiaErrors.Message(WiaErrors.From(ex).Code, false)) +
                                " Inkvolt Print tries again every 30 seconds.";
             }
         }
