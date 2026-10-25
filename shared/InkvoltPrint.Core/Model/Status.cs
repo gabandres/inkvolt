@@ -13,6 +13,21 @@ public sealed record PrinterStatus(string Code, string Message, Severity Severit
     public static PrinterStatus Unavailable(string why) => new("unavailable", why, Severity.Info, []);
 
     public bool IsUnavailable => Code == "unavailable";
+
+    /// <summary>
+    /// One line for a list of printers: the state, then for a warning or error the worst alert's words ("Ready · Yellow ink
+    /// is low") and how many more there are, so an amber or red dot is never left unexplained. An alert that repeats or
+    /// extends the state's words takes its place.
+    /// </summary>
+    public static string ListLine(string message, Severity severity, IReadOnlyList<PrinterAlert> alerts)
+    {
+        if (severity == Severity.Info) return message;
+        var shown = alerts.Where(a => a.Severity != Severity.Info).OrderByDescending(a => a.Severity).ToList();
+        if (shown.Count == 0) return message;
+        var reason = shown[0].Message.Trim().TrimEnd('.');
+        var line = reason.StartsWith(message.Trim().TrimEnd('.'), StringComparison.OrdinalIgnoreCase) ? reason : $"{message} · {reason}";
+        return shown.Count > 1 ? $"{line} · +{shown.Count - 1}" : line;
+    }
 }
 
 public sealed record Consumable(

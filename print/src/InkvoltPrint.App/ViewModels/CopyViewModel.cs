@@ -97,6 +97,13 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [NotifyPropertyChangedFor(nameof(Summary))]
     public partial bool TwoSided { get; set; }
 
+    /// <summary>Enlarge or shrink each page to fill the paper (a receipt made readable, an A4 page on Letter), instead of actual size.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    public partial bool FitToPaper { get; set; }
+
+    private PageSizing Sizing => FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowTwoSided))]
     public partial bool CanTwoSided { get; set; }
@@ -134,7 +141,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
 
     public string Summary => IdCard
         ? $"Front and back on one sheet{(Copies > 1 ? $", {Copies} copies" : "")}, actual size."
-        : $"{(Copies == 1 ? "1 copy" : $"{Copies} copies")}, actual size{(TwoSided && CanTwoSided ? ", both sides of the paper" : "")}.";
+        : $"{(Copies == 1 ? "1 copy" : $"{Copies} copies")}, {(FitToPaper ? "fit to the paper" : "actual size")}{(TwoSided && CanTwoSided ? ", both sides of the paper" : "")}.";
 
     partial void OnIdCardChanged(bool value)
     {
@@ -194,13 +201,14 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var dpi = Dpi(source);
         var size = ScanChoices.DefaultPageSize(ScanChoices.PageSizesFor(_caps, source), null, RegionInfo.CurrentRegion.IsMetric);
         Sheets.Clear();
+        var sizing = Sizing;
         var pages = await ScanAsync(ScanChoices.ToRequest(source, Color, dpi, size), dpi, page =>
-            Sheets.Add(Sheet(CopyLayout.Page(page.WidthInches * 96, page.HeightInches * 96, PreviewPaper.W, PreviewPaper.H), page.Image)));
+            Sheets.Add(Sheet(CopyLayout.Page(page.WidthInches * 96, page.HeightInches * 96, PreviewPaper.W, PreviewPaper.H, sizing), page.Image)));
         if (pages is not { Count: > 0 }) return;
         var copies = Copies;
         var twoSided = TwoSided && CanTwoSided;
         var sheets = (twoSided ? (pages.Count + 1) / 2 : pages.Count) * copies;
-        await PrintAsync("Copy", sheets, queue => QueuePrinter.PrintPagesAsync(queue, pages, copies, twoSided, "Copy"),
+        await PrintAsync("Copy", sheets, queue => QueuePrinter.PrintPagesAsync(queue, pages, copies, twoSided, "Copy", sizing),
             $"{(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}{(copies > 1 ? $" × {copies} copies" : "")}");
     }
 

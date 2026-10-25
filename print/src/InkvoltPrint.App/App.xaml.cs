@@ -58,9 +58,6 @@ public partial class App : Application
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Write($"FATAL: {args.ExceptionObject}");
 
-        if (Array.IndexOf(e.Args, "--theme") is var t and >= 0 && t + 1 < e.Args.Length)
-            ThemeMode = new ThemeMode(e.Args[t + 1]);
-
         base.OnStartup(e);
         Log.Write($"Inkvolt Print started ({Environment.ProcessPath})");
         if (AppState.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
@@ -80,7 +77,14 @@ public partial class App : Application
 
         var pc = demo ? Demo.Pc : PcEnvironment.Real; // chosen once: every view model takes its adapters from it
         _vm = new MainViewModel(pc.LoadState(), pc);
+        WindowFrame.FollowAllWindows();
+        WindowFrame.ApplyTheme(Array.IndexOf(e.Args, "--theme") is var t and >= 0 && t + 1 < e.Args.Length ? e.Args[t + 1] : _vm.State.Theme);
         MainWindow = new MainWindow { DataContext = _vm };
+        if (!devRun)
+        {
+            WindowFrame.Restore(MainWindow, _vm.State.Window);
+            ((MainWindow)MainWindow).RemembersPlacement = true;
+        }
         if (tryDemo)
         {
             MainWindow.Title = "Inkvolt Print (demo printer)";

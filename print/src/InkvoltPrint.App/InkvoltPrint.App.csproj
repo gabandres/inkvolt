@@ -8,6 +8,8 @@
     <AssemblyTitle>Inkvolt Print</AssemblyTitle>
     <Product>Inkvolt Print</Product>
     <ApplicationIcon>..\..\assets\InkvoltPrint.ico</ApplicationIcon>
+    <!-- Per-monitor DPI (v2), as Inkvolt PDF: sharp text when moved between screens of different scales -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- ThemeMode (Fluent) is marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <!-- packaging/pack-msix.ps1 -App Print -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->

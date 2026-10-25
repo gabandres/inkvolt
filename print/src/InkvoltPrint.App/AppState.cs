@@ -7,6 +7,9 @@ using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App;
 
+/// <summary>A window's normal (not maximized) rectangle in DIPs, and whether it was maximized.</summary>
+public sealed record WindowPlacement(double Left, double Top, double Width, double Height, bool Maximized);
+
 /// <param name="IppUri">The IPP URL the printer answered on last time (DNS-SD <c>rp</c>, IPPS), tried first on the next start.</param>
 /// <param name="Snmp">
 /// Set for a printer that answered only SNMP when it was added: what it said about itself (serial number, model, name), which
@@ -82,6 +85,12 @@ public sealed class AppState
 
     /// <summary>Notification-area icon and alerts (null in older files: off).</summary>
     public TraySettings? Tray { get; set; }
+
+    /// <summary>"System" (follow Windows' light or dark mode, the default), "Light" or "Dark".</summary>
+    public string? Theme { get; set; }
+
+    /// <summary>The main window's place and size last time (DIPs), put back on start when it still fits a monitor.</summary>
+    public WindowPlacement? Window { get; set; }
 
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }

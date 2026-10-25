@@ -29,11 +29,11 @@ public static class CopyLayout
         new(ScanSource.Platen, color, dpi, Width: IdCardScanWidth, Height: IdCardScanHeight);
 
     /// <summary>
-    /// A copied page centred on the paper at its own size, turned to the paper's orientation as it prints; only pages
-    /// larger than the paper shrink to fit.
+    /// A copied page centred on the paper, turned to the paper's orientation as it prints: at its own size (only pages
+    /// larger than the paper shrink to fit), or enlarged or shrunk to fill the paper.
     /// </summary>
-    public static PagePlacement Page(double pageW, double pageH, double paperW, double paperH) =>
-        PageFit.Place(pageW, pageH, paperW, paperH, PageSizing.ActualSize);
+    public static PagePlacement Page(double pageW, double pageH, double paperW, double paperH, PageSizing sizing = PageSizing.ActualSize) =>
+        PageFit.Place(pageW, pageH, paperW, paperH, sizing);
 
     /// <summary>
     /// ID card copy: <paramref name="front"/> centred in the top half, <paramref name="back"/> in the bottom half, both at

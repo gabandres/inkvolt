@@ -574,7 +574,21 @@
                     </ItemsControl>
                 </DockPanel>
 
+                <!-- The Scan button stays in view under the settings, which scroll when the window is short -->
                 <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
+                    <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding ScanButtonText}"
+                                HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding ScanButtonText}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
                     <StackPanel>
                         <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
                         <!-- A scanner without eSCL, reached through its Windows driver (WIA): say so -->
@@ -636,16 +650,9 @@
                             </StackPanel>
                         </CheckBox>
 
-                        <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding ScanButtonText}"
-                                HorizontalAlignment="Stretch" Padding="0,10" Margin="0,20,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
-                                <TextBlock Text="{Binding ScanButtonText}" FontWeight="SemiBold" />
-                            </StackPanel>
-                        </Button>
-                        <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
+                    </ScrollViewer>
+                    </DockPanel>
                 </Border>
 
                 <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="0">
@@ -892,7 +899,15 @@
                                 </Button>
                             </StackPanel>
 
-                            <CheckBox Content="Color scan" IsChecked="{Binding IsColor}" Margin="0,16,0,0"
+                            <StackPanel Visibility="{Binding IsDocument, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="Size" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <RadioButton Content="Actual size" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="copysize"
+                                             ToolTip="The copy is the size of the original. Pages larger than the paper shrink to fit." />
+                                <RadioButton Content="Fit to paper" IsChecked="{Binding FitToPaper}" GroupName="copysize" Margin="0,6,0,0"
+                                             ToolTip="Enlarges or shrinks each page to fill the paper, such as a receipt made easier to read" />
+                            </StackPanel>
+
+                            <CheckBox Content="Color copy" IsChecked="{Binding IsColor}" Margin="0,16,0,0"
                                       ToolTip="Scans in color. Black-and-white printers print it in shades of grey either way." />
                             <CheckBox Content="Print on both sides" IsChecked="{Binding TwoSided}" Margin="0,4,0,0"
                                       Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
@@ -1467,6 +1482,8 @@
                 <Button Style="{StaticResource LinkButton}" Content="Notification area and alerts" Click="Alerts_Click" HorizontalAlignment="Left"
                         Margin="10,12,0,0" FontSize="12" x:Name="AlertsLink"
                         ToolTip="Keep Inkvolt Print in the notification area and get told about low supplies and printer problems" />
+                <Button Style="{StaticResource LinkButton}" Content="Settings" Click="Settings_Click" HorizontalAlignment="Left"
+                        Margin="10,8,0,0" FontSize="12" ToolTip="Inkvolt Print's own settings, such as light or dark" />
                 <Button Style="{StaticResource LinkButton}" Content="About Inkvolt Print" Click="About_Click" HorizontalAlignment="Left"
                         Margin="10,8,0,0" FontSize="12" />
             </StackPanel>
@@ -1494,6 +1511,7 @@
                             <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}" />
                             <Setter Property="ContextMenu" Value="{StaticResource PrinterMenu}" />
                             <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            <Setter Property="AutomationProperties.HelpText" Value="{Binding ListStatus}" />
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
@@ -1508,7 +1526,7 @@
                                 </Grid>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Caption}" FontSize="12"
+                                    <TextBlock Text="{Binding ListStatus}" Style="{StaticResource Caption}" FontSize="12" ToolTip="{Binding ListStatus}"
                                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                 </StackPanel>
                             </DockPanel>

@@ -318,10 +318,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public partial bool IsConnecting { get; set; } = true;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(IsStale), nameof(StaleSuffix))]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(IsStale), nameof(StaleSuffix), nameof(ListStatus))]
     public partial bool IsOnline { get; set; }
 
-    [ObservableProperty] public partial string StatusMessage { get; set; } = "Connecting…";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ListStatus))]
+    public partial string StatusMessage { get; set; } = "Connecting…";
+
+    /// <summary>The printer list's line: the state and, for a warning or error, its reason ("Ready · Yellow ink is low").</summary>
+    public string ListStatus => IsOnline ? PrinterStatus.ListLine(StatusMessage, StatusSeverity, Alerts) : StatusMessage;
 
     /// <summary>
     /// Another device answers at this printer's address (it reports other UUIDs): nothing of it is shown, the scanner, copy
@@ -330,7 +335,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool IsElsewhere { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusKind))]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(ListStatus))]
     public partial Severity StatusSeverity { get; set; } = Severity.Info;
 
     /// <summary>For the status dot: connecting, offline, ok, warning, error.</summary>
@@ -707,6 +712,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         StatusDetail = read.Status.Detail;
         StatusSeverity = read.Status.Severity;
         Sync(Alerts, read.Status.Alerts);
+        OnPropertyChanged(nameof(ListStatus));
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
         Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies));
@@ -951,6 +957,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             StatusDetail = status.Detail;
             StatusSeverity = status.Severity;
             Sync(Alerts, status.Alerts);
+            OnPropertyChanged(nameof(ListStatus));
         }
         Maintenance.Update(true, status);
 
@@ -985,6 +992,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         StatusDetail = detail;
         StatusSeverity = Severity.Error;
         Alerts.Clear();
+        OnPropertyChanged(nameof(ListStatus));
         Maintenance.Update(false, null);
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));

@@ -79,9 +79,10 @@ public static class QueuePrinter
         await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, (paper, images) => new RenderedPaginator(pages, paper, options.Sizing, images));
     }
 
-    /// <summary>Copies: scanned pages, each centred on its own sheet at actual size (larger pages shrink to fit).</summary>
-    public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName) =>
-        SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, PageSizing.ActualSize, images));
+    /// <summary>Copies: scanned pages, each centred on its own sheet at actual size (larger pages shrink to fit) or fit to the paper.</summary>
+    public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName,
+        PageSizing sizing = PageSizing.ActualSize) =>
+        SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, sizing, images));
 
     /// <summary>ID card copy: front on the top half of one sheet, back on the bottom half, actual size (<see cref="CopyLayout.IdCard"/>).</summary>
     public static Task PrintIdCardAsync(string queueName, RenderedPage front, RenderedPage back, int copies, string jobName) =>

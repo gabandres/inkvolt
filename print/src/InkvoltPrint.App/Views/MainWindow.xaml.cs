@@ -11,7 +11,15 @@ public partial class MainWindow : Window
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
+    /// <summary>Normal runs keep the window's place and size for next time (never dev snapshots or demos).</summary>
+    public bool RemembersPlacement { get; set; }
+
     private void About_Click(object sender, RoutedEventArgs e) => AboutDialog.Open(this);
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm?.State is { } state) AppSettingsDialog.Open(this, state);
+    }
 
     private void Alerts_Click(object sender, RoutedEventArgs e)
     {
@@ -24,6 +32,11 @@ public partial class MainWindow : Window
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
+        if (RemembersPlacement && Vm?.State is { } state && WindowFrame.Placement(this) is { } placement && placement != state.Window)
+        {
+            state.Window = placement;
+            state.Save();
+        }
         if (Application.Current is App { Quitting: false, Tray.KeepsRunning: true } app)
         {
             e.Cancel = true;
