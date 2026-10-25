@@ -158,10 +158,11 @@ Description:
 > Brother and other AirPrint, Mopria or IPP Everywhere printers. It finds your printer on the network and shows what
 > matters: ready or sleeping, ink or toner levels, paper problems, and usage counts, updated live.
 >
-> - Find printers automatically, or add one by IP address.
+> - Find printers automatically, or add one by IP address. Printers already set up in Windows show up too, USB ones
+>   included, with the status their driver reports. Older network printers get status and toner over SNMP.
 > - Set the printer up in Windows with one click, using Windows' own driver: no driver download.
-> - Scan from the glass or the document feeder, several pages at a time, review and crop the pages, skip blank ones,
->   and save as JPEG or as a searchable PDF (text recognition runs on your PC). One-click scan presets.
+> - Scan from the glass or the document feeder (AirScan, or the scanner's own Windows driver), several pages at a time,
+>   review and crop the pages, skip blank ones, and save as JPEG or as a searchable PDF (text recognition runs on your PC). One-click scan presets.
 > - Copy, including ID card copies on one sheet, and print photos in standard sizes.
 > - Print PDFs with copies, page ranges and two-sided printing. Drag a PDF onto the window, or right-click a PDF in
 >   File Explorer and open it with Inkvolt Print.
