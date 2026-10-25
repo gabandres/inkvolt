@@ -109,7 +109,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
                 var body = LedmSettingCatalog.BuildPut(_dyn[group.Key], group.Select(i => (i.Setting.Def, i.Value)));
                 await PutWithAuthAsync(() => ledm.PutAsync(group.Key, body));
             }
-            string? firmwareNote = null;
+            (string Text, bool IsError)? firmwareNote = null;
             if (Firmware is { IsDirty: true, Settings: { ConfigPath: { } path } fw, Selected: { } mode })
             {
                 await PutWithAuthAsync(() => ledm.PutPathAsync(path, fw.BuildPut(mode.Value)));
@@ -117,7 +117,11 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             }
             IsBusy = false;
             await LoadAsync(); // read back what the printer actually stored
-            if (!MessageIsError) Message = firmwareNote ?? "Saved.";
+            if (!MessageIsError)
+            {
+                Message = firmwareNote?.Text ?? "Saved.";
+                MessageIsError = firmwareNote?.IsError == true;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -194,12 +198,16 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
 
     /// <summary>
     /// Reads the firmware switches back after a write. A printer that ties the check to installs (Notify read back as
-    /// Automatic) is set back to what it was before, remembered, and no longer offered Notify. Returns what to tell the user,
-    /// or null when the printer kept the choice.
+    /// Automatic) is set back to what it was before, remembered, and no longer offered Notify. Returns what to tell the user
+    /// (and whether it's a problem), or null when the printer kept the choice. Never throws: the settings are read again
+    /// afterwards whatever happened here.
     /// </summary>
-    private async Task<string?> CheckFirmwareKeptAsync(LedmClient ledm, FirmwareUpdateSettings before, FirmwareUpdateMode chosen)
+    private async Task<(string Text, bool IsError)?> CheckFirmwareKeptAsync(LedmClient ledm, FirmwareUpdateSettings before, FirmwareUpdateMode chosen)
     {
-        if (await TryGetFirmwareUpdateAsync(ledm) is not { } back) return null;
+        var notify = FirmwareViewModel.Label(FirmwareUpdateMode.Notify);
+        if (await ReadBackFirmwareAsync(ledm) is not { } back)
+            return ("Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. " +
+                    "Check again in a moment (Reload from printer) or on its web page.", true);
         switch (FirmwareUpdateSettings.Judge(chosen, back.Mode))
         {
             case FirmwareUpdateWriteResult.Kept:
@@ -207,18 +215,43 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             case FirmwareUpdateWriteResult.NotifyInstalls:
                 Log.Write("Firmware: the printer read back Automatic after Notify was written; setting it back and no longer offering Notify");
                 state.SetNoFirmwareNotify(uuid);
-                if (back.Mode != before.Mode && back.ConfigPath is { } path)
+                if (back.Mode == before.Mode || back.ConfigPath is not { } path)
+                    return ($"This printer can't check for updates without installing them, so \"{notify}\" is no longer offered for it.",
+                        back.Mode != before.Mode);
+                const string tied = "This printer can't check for updates without installing them: it turned on automatic installs";
+                try
                 {
                     await PutWithAuthAsync(() => ledm.PutPathAsync(path, back.BuildPut(before.Mode)));
-                    if (await TryGetFirmwareUpdateAsync(ledm) is not { } restored || restored.Mode != before.Mode)
-                        return "This printer can't check for updates without installing them: it turned on automatic installs, and " +
-                               "it didn't take the old setting back. Check automatic updates on its web page.";
                 }
-                return "This printer can't check for updates without installing them (it turned on automatic installs), so " +
-                       $"automatic updates were set back to \"{FirmwareViewModel.Label(before.Mode)}\". \"{FirmwareViewModel.Label(FirmwareUpdateMode.Notify)}\" " +
-                       "is no longer offered for it.";
+                catch (Exception ex)
+                {
+                    Log.Write($"Firmware: setting the previous mode back failed: {ex.Message}");
+                    return ($"{tied}. The printer kept automatic updates on (\"{FirmwareViewModel.Label(back.Mode)}\") and the previous setting " +
+                            $"(\"{FirmwareViewModel.Label(before.Mode)}\") couldn't be restored. Change it here or on its web page.", true);
+                }
+                if (await ReadBackFirmwareAsync(ledm) is not { } restored)
+                    return ($"{tied}. The previous setting was sent back, but the printer didn't say whether it took it. Check it " +
+                            "in a moment (Reload from printer) or on its web page.", true);
+                if (restored.Mode != before.Mode)
+                    return ($"{tied}, and it didn't take the previous setting back. Check automatic updates on its web page.", true);
+                return ($"{tied}, so automatic updates were set back to \"{FirmwareViewModel.Label(before.Mode)}\". \"{notify}\" " +
+                        "is no longer offered for it.", false);
             default:
-                return $"Saved, but the printer reads back automatic updates as \"{FirmwareViewModel.Label(back.Mode)}\".";
+                return ($"Saved, but the printer reads back automatic updates as \"{FirmwareViewModel.Label(back.Mode)}\".", true);
+        }
+    }
+
+    /// <summary>The firmware settings as the printer now reports them; null when it couldn't be asked (for any reason).</summary>
+    private static async Task<FirmwareUpdateSettings?> ReadBackFirmwareAsync(LedmClient ledm)
+    {
+        try
+        {
+            return await ledm.GetFirmwareUpdateAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Firmware read-back failed: {ex.Message}");
+            return null;
         }
     }
 
