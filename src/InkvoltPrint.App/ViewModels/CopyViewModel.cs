@@ -54,8 +54,21 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
     public partial bool HasQueue { get; set; }
 
+    /// <summary>Another device answers at the printer's address: copying is off until the printer is back (<see cref="Attach"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnavailableReason), nameof(IsAvailable))]
+    [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
+    public partial string? Blocked { get; set; }
+
+    public void Detach(string reason)
+    {
+        _client = null;
+        Blocked = reason;
+    }
+
     public string? UnavailableReason =>
-        !ScannerChecked ? "Connecting to the printer…"
+        Blocked is { } blocked ? blocked
+        : !ScannerChecked ? "Connecting to the printer…"
         : !HasScanner ? "This printer has no scanner, so it can't copy. You can still print PDFs."
         : !HasQueue && demoPrint is null ? "Copies print through this printer's Windows queue, and it isn't set up in Windows yet. Use Set up at the top of the page."
         : null;
@@ -146,6 +159,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     public void Attach(EsclClient? client, ScannerCapabilities? caps)
     {
         ScannerChecked = true;
+        Blocked = null;
         HasScanner = client is not null && caps is not null;
         _client = client;
         if (caps is null || ReferenceEquals(caps, _caps)) return;

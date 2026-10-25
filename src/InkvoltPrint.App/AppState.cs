@@ -93,6 +93,28 @@ public sealed class AppState
     /// <summary>Queue name → whether its driver reports two-sided printing (cached: the query is slow).</summary>
     public Dictionary<string, bool> TwoSidedQueues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Printer id → other UUIDs the user confirmed are that printer ("This is my printer": a repair, reset or new network board
+    /// gave it a new one). The printer keeps its id (pins, password, queue); these just count as it.
+    /// </summary>
+    public Dictionary<string, List<string>> AcceptedUuids { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyList<string> GetAcceptedUuids(string printerId)
+    {
+        lock (_gate) return AcceptedUuids.TryGetValue(printerId, out var list) ? list.ToList() : [];
+    }
+
+    public void AcceptUuids(string printerId, IEnumerable<string> uuids)
+    {
+        lock (_gate)
+        {
+            if (!AcceptedUuids.TryGetValue(printerId, out var list)) AcceptedUuids[printerId] = list = [];
+            foreach (var u in uuids)
+                if (!list.Contains(u, StringComparer.OrdinalIgnoreCase)) list.Add(u);
+        }
+        Save();
+    }
+
     /// <summary>Printers seen turning on automatic firmware installs when only the update check was enabled (no Notify for them).</summary>
     public List<string> NoFirmwareNotify { get; set; } = [];
 
@@ -137,6 +159,7 @@ public sealed class AppState
             if (QueueNames.Remove(oldId, out var queue)) QueueNames.TryAdd(newId, queue);
             for (var i = 0; i < ForgottenUuids.Count; i++)
                 if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
+            if (AcceptedUuids.Remove(oldId, out var accepted)) AcceptedUuids.TryAdd(newId, accepted);
             for (var i = 0; i < NoFirmwareNotify.Count; i++)
                 if (string.Equals(NoFirmwareNotify[i], oldId, StringComparison.OrdinalIgnoreCase)) NoFirmwareNotify[i] = newId;
             if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
@@ -191,6 +214,7 @@ public sealed class AppState
             state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
             state.NoFirmwareNotify ??= [];
+            state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);

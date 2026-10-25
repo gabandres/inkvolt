@@ -317,7 +317,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var d in found)
         {
             if (!PrinterId.IsValid(d.Uuid)) continue; // mDNS TXT is untrusted text: only real UUIDs become printers
-            var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, d.Uuid, StringComparison.OrdinalIgnoreCase));
+            var vm = Printers.FirstOrDefault(p => p.IsKnownAs(d.Uuid));
             if (vm is null)
             {
                 if (d.Host is null || _state.ForgottenUuids.Contains(d.Uuid, StringComparer.OrdinalIgnoreCase)) continue;

@@ -211,6 +211,9 @@
                                     <Button Content="Fix it…" Command="{Binding OpenFixerCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
                                             AutomationProperties.Name="Fix printer offline" />
                                     <Button Content="Try again now" Command="{Binding ReconnectCommand}" />
+                                    <Button Content="This is my printer…" Command="{Binding AcceptDeviceCommand}" Margin="8,0,0,0"
+                                            AutomationProperties.HelpText="Accept the device that now answers at this address as this printer, after a repair or reset gave it a new ID"
+                                            Visibility="{Binding IsElsewhere, Converter={StaticResource VisibleWhen}}" />
                                 </StackPanel>
                             </StackPanel>
                         </DockPanel>

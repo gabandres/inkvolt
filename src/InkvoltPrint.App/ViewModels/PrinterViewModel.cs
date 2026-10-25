@@ -213,6 +213,12 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] public partial string StatusMessage { get; set; } = "Connecting…";
 
+    /// <summary>
+    /// Another device answers at this printer's address (it reports other UUIDs): nothing of it is shown, the scanner, copy
+    /// and settings are unbound, and "This is my printer" lets the user accept it (a repair or reset gave the printer a new UUID).
+    /// </summary>
+    [ObservableProperty] public partial bool IsElsewhere { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusKind))]
     public partial Severity StatusSeverity { get; set; } = Severity.Info;
@@ -338,6 +344,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _suspended = false;
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
+        _identityCheckedAt = DateTime.MinValue; // time passed: the reused connection is asked who it is first
         _ = RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
         _reprobe = false;
         UpdateJobsVisibility();
@@ -353,6 +360,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 _reprobe = false;
                 if (await ConnectAsync(ct) is not { } conn) return false;
                 Attach(conn);
+            }
+            // Between two checks (minutes apart) the printer may have left and another device taken its address.
+            else if (!await StillThisPrinterAsync(_connection, ct))
+            {
+                return false;
             }
             await RefreshAsync(ct);
             return IsOnline;
@@ -393,8 +405,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// mDNS announces the printer at another address: DHCP may have moved it, or the announcement is of an address this PC
-    /// can't use (a VM's or VPN's). The address in use, perhaps typed by the user, is kept unless the new one answers with
-    /// this printer's UUID; then it reconnects there (the old one still identifies its Windows queue's port).
+    /// can't use (a VM's or VPN's). It reconnects there (the old address still identifies its Windows queue's port) when the
+    /// new address answers with this printer's UUID, or when it can't tell and the address in use no longer answers as this
+    /// kind of printer (<see cref="PrinterId.ShouldMove"/>); an address the user typed that still works is kept.
     /// </summary>
     private async Task MoveIfSameDeviceAsync(DiscoveredPrinter d)
     {
@@ -412,14 +425,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             {
                 var probe = await PrinterConnection.ProbeAsync(http, d.EsclRoot, ippHint: d.IppUri);
                 answers = probe.Reachable;
-                identity = answers ? PrinterId.Identify(Uuid, host, probe.ReportedUuids) : DeviceIdentity.Unknown;
+                identity = answers ? Identify(host, probe.ReportedUuids) : DeviceIdentity.Unknown;
             }
-            // A printer that reports no UUID over HTTP is taken at its word (mDNS) only when the old address no longer works.
-            if (identity != DeviceIdentity.Same && !(identity == DeviceIdentity.Unknown && answers && !IsOnline))
+            // No UUID to go by there: the address in use is kept only while it answers as this kind of printer.
+            if (!PrinterId.ShouldMove(identity, IsOnline && !IsElsewhere, _connection?.Probe.Model, d.Model))
             {
                 _refusedHost = (host, DateTime.UtcNow);
                 Log.Write($"[{Name}] announced at another address that " +
-                          $"{(identity == DeviceIdentity.Different ? "is another device" : "doesn't answer as this printer")}; keeping its address");
+                          $"{(identity == DeviceIdentity.Different ? "is another device" : answers ? "reports no ID" : "doesn't answer")}; " +
+                          "keeping its address, which still answers");
                 return;
             }
             _refusedHost = null;
@@ -531,6 +545,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 }
                 await foreach (var _ in conn.WatchAsync(FallbackRefresh, ct))
                 {
+                    // Still this printer? Asked before reading (a reused connection at once, then every IdentityInterval), so
+                    // another device that took the address never has its status or alerts read under this printer's name.
+                    if (DateTime.UtcNow - _identityCheckedAt > IdentityInterval && !await StillThisPrinterAsync(conn, ct)) break;
                     await RefreshAsync(ct);
                     // Gone: connect again after a pause, which checks it's still this printer (DHCP may give its address to another device).
                     if (!IsOnline) break;
@@ -564,22 +581,83 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             SetOffline();
             return null;
         }
-        if (PrinterId.Identify(Uuid, Host!, conn.Probe.ReportedUuids) == DeviceIdentity.Different)
+        if (Identify(Host!, conn.Probe.ReportedUuids) == DeviceIdentity.Different)
         {
-            conn.Dispose();
-            Log.Write($"[{Name}] a different device answers at its address; not connecting"); // never the UUIDs themselves
-            SetOffline("A different device answers at this address",
-                $"Another device now has {Host}, so its status isn't shown here. The printer probably got a new address: " +
-                "Inkvolt Print watches for it on the network, or choose Fix it… to find it.");
+            SetElsewhere(conn, conn.Probe.ReportedUuids);
             return null;
         }
+        _identityCheckedAt = DateTime.UtcNow;
         return conn;
+    }
+
+    private static readonly TimeSpan IdentityInterval = TimeSpan.FromSeconds(30);
+    private DateTime _identityCheckedAt = DateTime.MinValue;
+    private IReadOnlyList<string> _foreignUuids = [];
+
+    private DeviceIdentity Identify(string host, IEnumerable<string?> reported) =>
+        PrinterId.Identify(Uuid, _state.GetAcceptedUuids(Uuid), host, reported);
+
+    /// <summary>The device a printer may answer to: its id, or a UUID the user accepted for it ("This is my printer").</summary>
+    public bool IsKnownAs(string uuid) =>
+        string.Equals(uuid, Uuid, StringComparison.OrdinalIgnoreCase) || _state.GetAcceptedUuids(Uuid).Contains(uuid, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Asks the connected device who it is (one small read). False, with everything unbound, when another device now answers;
+    /// true when it's this printer or it can't tell (no answer: the status read then says offline).
+    /// </summary>
+    private async Task<bool> StillThisPrinterAsync(PrinterConnection conn, CancellationToken ct)
+    {
+        var reported = await conn.ReadUuidsAsync(ct);
+        _identityCheckedAt = DateTime.UtcNow;
+        if (Host is null || Identify(Host, reported) != DeviceIdentity.Different) return true;
+        SetElsewhere(conn, reported);
+        return false;
+    }
+
+    /// <summary>
+    /// Another device answers at the printer's address. Its connection and the printer's own (if any) are closed, and the
+    /// scanner, copy, settings and maintenance let go of them, so nothing (a jump-list preset scan included) reaches that
+    /// device; scanned pages stay. The card says so and offers Fix it… and "This is my printer".
+    /// </summary>
+    private void SetElsewhere(PrinterConnection conn, IReadOnlyList<string?> reported)
+    {
+        Log.Write($"[{Name}] a different device answers at its address; not connecting"); // never the UUIDs themselves
+        _foreignUuids = PrinterId.Valid(reported, Host ?? "");
+        const string blocked = "Another device now answers at this printer's address, so Inkvolt Print doesn't scan or copy with it.";
+        Scan?.Detach(blocked);
+        Copy.Detach(blocked);
+        Settings = null;
+        var old = _connection;
+        _connection = null;
+        if (!ReferenceEquals(conn, old)) conn.Dispose();
+        old?.Dispose();
+        IsElsewhere = true;
+        SetOffline("A different device answers at this address",
+            $"Another device now has {Host}, so its status isn't shown here. The printer probably got a new address: " +
+            "Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset " +
+            "and this really is it, choose This is my printer.");
+    }
+
+    /// <summary>"This is my printer": the device at the address is accepted as this printer from now on (its UUIDs remembered).</summary>
+    [RelayCommand]
+    private void AcceptDevice()
+    {
+        if (!IsElsewhere || _foreignUuids.Count == 0) return;
+        if (!Prompt.Ask($"Use the device that now answers at {Host} as {Name}?\n\nOnly do this if it really is this printer, for example " +
+                        "after a repair, a reset or a new network board gave it a new ID. Otherwise it's another device that took the " +
+                        "printer's address, and Fix it… can find the printer.", "This is my printer"))
+            return;
+        _state.AcceptUuids(Uuid, _foreignUuids);
+        Log.Write($"[{Name}] the user accepted the device at its address as this printer");
+        IsElsewhere = false;
+        Restart();
     }
 
     private void Attach(PrinterConnection conn)
     {
         var old = _connection;
         _connection = conn;
+        IsElsewhere = false;
         var p = conn.Probe;
         if (p.Product?.MakeAndModel is { } mm) Name = mm;
         Model = p.Model ?? Model;
@@ -867,6 +945,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public async Task RunPresetAsync(ScanPreset? preset)
     {
         if (Scan is not { } scan || preset is null) return;
+        if (IsElsewhere)
+        {
+            Prompt.Tell($"Another device now answers at {Name}'s address, so \"{preset.Name}\" didn't scan. Use Fix it… on its Overview to find the printer.");
+            return;
+        }
         SelectedSection = ScanSection;
         if (scan.RunPresetCommand.CanExecute(preset)) await scan.RunPresetCommand.ExecuteAsync(preset);
     }

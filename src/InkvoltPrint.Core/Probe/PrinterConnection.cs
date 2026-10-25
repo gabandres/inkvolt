@@ -282,6 +282,29 @@ public sealed class PrinterConnection : IDisposable
             : new PrinterStatus("unknown", "Status not available", Severity.Info, []);
     }
 
+    /// <summary>
+    /// The UUID the device at this address reports now, from one small read of the interface it was connected over (LEDM product
+    /// config, CDM identity, IPP printer-uuid, eSCL capabilities), falling back to the next when one can't answer. Empty when
+    /// none answered: callers then can't tell and keep going.
+    /// </summary>
+    public async Task<IReadOnlyList<string?>> ReadUuidsAsync(CancellationToken ct = default)
+    {
+        var reads = new List<Func<Task<string?>>>();
+        if (Ledm is not null) reads.Add(async () => (await Ledm.GetProductInfoAsync(ct).ConfigureAwait(false))?.Uuid);
+        if (Cdm is not null) reads.Add(async () => (await Cdm.GetIdentityAsync(ct).ConfigureAwait(false))?.Uuid);
+        if (Ipp is not null) reads.Add(async () => (await Ipp.GetPrinterAttributesAsync(ct: ct).ConfigureAwait(false)).Str("printer-uuid"));
+        if (Scanner is not null) reads.Add(async () => (await Scanner.GetCapabilitiesAsync(ct).ConfigureAwait(false))?.Uuid);
+        foreach (var read in reads)
+        {
+            try
+            {
+                if (await read().ConfigureAwait(false) is { Length: > 0 } uuid) return [uuid];
+            }
+            catch (Exception ex) when (IsOffline(ex) || IsTransient(ex)) { }
+        }
+        return [];
+    }
+
     public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default)
     {
         if (Ledm is not null && await Ledm.GetConsumablesAsync(ct).ConfigureAwait(false) is { } c) return c;

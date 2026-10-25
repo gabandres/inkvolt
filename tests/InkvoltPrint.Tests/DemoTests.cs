@@ -1,4 +1,5 @@
 using InkvoltPrint.Core.Escl;
+using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Probe;
 
@@ -38,6 +39,26 @@ public class DemoTests
         var pages = new List<byte[]>();
         await foreach (var p in conn.Scanner!.ScanAsync(new ScanRequest())) pages.Add(p);
         Assert.Equal([Page], pages);
+    }
+
+    [Fact]
+    public async Task A_connection_notices_another_device_taking_the_address()
+    {
+        // The same address, first the remembered printer, then (DHCP) another device of the same kind with its own UUID.
+        const string printer = "12345678-1234-4abc-8def-123456789abc", other = "87654321-4321-4cba-8fed-cba987654321";
+        var current = printer;
+        using var transport = new FixtureHandler(name =>
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", name);
+            if (!File.Exists(path)) return null;
+            var bytes = File.ReadAllBytes(path);
+            return name == "DevMgmt_ProductConfigDyn.xml" ? System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(bytes).Replace(printer, current)) : bytes;
+        });
+        using var conn = await PrinterConnection.OpenAsync(FixtureHandler.DemoHost, transport: transport);
+
+        Assert.Equal(DeviceIdentity.Same, PrinterId.Identify(printer, conn.Http.Host, await conn.ReadUuidsAsync()));
+        current = other;
+        Assert.Equal(DeviceIdentity.Different, PrinterId.Identify(printer, conn.Http.Host, await conn.ReadUuidsAsync()));
     }
 
     [Fact]

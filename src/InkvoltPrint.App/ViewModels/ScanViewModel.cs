@@ -479,7 +479,20 @@ public sealed partial class ScanViewModel : ObservableObject
         _state.Save();
     }
 
-    public void Rebind(EsclClient client) => _client = client;
+    public void Rebind(EsclClient client)
+    {
+        _client = client;
+        _blocked = null;
+    }
+
+    /// <summary>Why scanning is off for now (another device answers at the printer's address); null when it may scan.</summary>
+    private string? _blocked;
+
+    /// <summary>
+    /// Another device answers at the printer's address: no scan (a preset from the jump list included) reaches it. Pages
+    /// already scanned stay, to be saved; <see cref="Rebind"/> lifts it when the printer is back.
+    /// </summary>
+    public void Detach(string reason) => _blocked = reason;
 
     private bool NotBusy() => !IsBusy;
     private bool CanSave(string? format) => !IsBusy && Pages.Any(p => !p.IsSkipped && !p.IsSeparator);
@@ -511,6 +524,12 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>Scans with the job <paramref name="makeJob"/> gives (it may ask the scanner first). Returns the pages added; -1 when it failed or was cancelled.</summary>
     private async Task<int> ScanPagesAsync(Func<Task<ScanJob>> makeJob)
     {
+        if (_blocked is { } why)
+        {
+            Message = why;
+            Prompt.Announce(why);
+            return -1;
+        }
         IsBusy = true;
         IsScanning = true;
         LastSavedPath = null;

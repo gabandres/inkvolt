@@ -156,6 +156,34 @@ public class RobustnessTests
         Assert.Equal(DeviceIdentity.Unknown, PrinterId.Identify(byAddress, "192.0.2.10", [Other]));
     }
 
+    [Fact]
+    public void A_uuid_the_user_accepted_counts_as_the_printer()
+    {
+        Assert.Equal(DeviceIdentity.Same, PrinterId.Identify(Known, [Other], "192.0.2.10", ["urn:uuid:" + Other.ToUpperInvariant()]));
+        Assert.Equal(DeviceIdentity.Different, PrinterId.Identify(Known, [], "192.0.2.10", [Other]));
+    }
+
+    [Theory]
+    // The announced address answers with the printer's UUID: move; as another device: never.
+    [InlineData(DeviceIdentity.Same, true, "HP LaserJet MFP M234dw", "HP LaserJet MFP M234dw", true)]
+    [InlineData(DeviceIdentity.Different, false, null, "HP LaserJet MFP M234dw", false)]
+    // Can't tell there (no answer, or no UUID): a typed address still answering as this kind of printer is kept...
+    [InlineData(DeviceIdentity.Unknown, true, "HP LaserJet MFP M234dw", "HP LaserJet MFP M234dw", false)]
+    [InlineData(DeviceIdentity.Unknown, true, "HP LaserJet MFP M234dw", null, false)]
+    // ...otherwise the printer moves, as discovery always did.
+    [InlineData(DeviceIdentity.Unknown, false, null, "HP LaserJet MFP M234dw", true)]
+    [InlineData(DeviceIdentity.Unknown, true, "Example Inkjet 300", "HP LaserJet MFP M234dw", true)]
+    public void Moving_to_an_announced_address(DeviceIdentity atNew, bool currentAnswers, string? currentModel, string? announced, bool move) =>
+        Assert.Equal(move, PrinterId.ShouldMove(atNew, currentAnswers, currentModel, announced));
+
+    [Theory]
+    [InlineData("HP LaserJet MFP M234dw", "hp laserjet mfp m234dw", true)]
+    [InlineData("HP LaserJet MFP M234dw", "LaserJet MFP M234dw", true)]
+    [InlineData("Example Inkjet 300", "HP LaserJet MFP M234dw", false)]
+    [InlineData(null, "HP LaserJet MFP M234dw", false)]
+    [InlineData("Anything", "", true)]
+    public void Same_kind_of_device(string? model, string? announced, bool expected) => Assert.Equal(expected, PrinterId.SameKind(model, announced));
+
     private static X509Certificate2 SelfSigned(string subject)
     {
         using var key = ECDsa.Create();
