@@ -98,13 +98,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }.OfType<InfoRow>().ToList());
     }
 
-    /// <summary>The id a scanner listed on its own goes by: never a UUID or a queue's id.</summary>
-    public static string ScannerIdFor(string deviceId) => ScannerIdPrefix + deviceId.Trim().ToLowerInvariant();
-
-    public static bool IsScannerId(string? id) => id?.StartsWith(ScannerIdPrefix, StringComparison.Ordinal) == true;
-
-    private const string ScannerIdPrefix = "windows-scanner:";
-
     /// <summary>
     /// A scanner Windows has a driver for (WIA) that belongs to no printer on the list: a USB flatbed, a sheet-fed scanner, an
     /// all-in-one whose printer part isn't here. Overview and Scan only (no queue: no Print, Copy or Photos). It's connected in the
@@ -112,7 +105,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     public PrinterViewModel(WiaDeviceInfo scanner, IWiaSystem wia, AppState state, ScanPresetLibrary presets,
         Action<PrinterViewModel> remember, PcEnvironment pc)
-        : this(ScannerIdFor(scanner.Id), scanner.Name, scanner.Description, null, null, state, presets, remember, pc)
+        : this(PrinterList.ScannerIdFor(scanner.Id), scanner.Name, scanner.Description, null, null, state, presets, remember, pc)
     {
         _wiaSystem = wia;
         ScannerDevice = scanner;

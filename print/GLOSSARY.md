@@ -13,6 +13,11 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   certificate pins (`PrinterRecipe`).
 - **Identity before data**: a printer's status is read only after the device at its address has said it is that printer
   (its UUID, or over SNMP its serial number); another device that took the address is never read under its name.
+- **Printer list**: the printers in the sidebar: network printers, queue printers (known only by a Windows queue no network
+  printer stands for) and scanners on their own (a Windows scanner no printer claims), and which one is selected
+  (`PrinterList` in `shared/InkvoltPrint.Core/Queues`).
+- **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
+  network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and
   scanners, the offline fixer's checks and repairs, saved passwords, the browser. Chosen once at start-up: the real PC or
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).

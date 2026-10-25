@@ -86,7 +86,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             });
         // A queue printer chosen last time is listed a moment later (after the queues are read): selected then.
         _wantedSelection = QueueKinds.IsQueueId(state.SelectedUuid) ? state.SelectedUuid : null;
-        _wantedScanner = PrinterViewModel.IsScannerId(state.SelectedUuid) ? state.SelectedUuid : null;
+        _wantedScanner = PrinterList.IsScannerId(state.SelectedUuid) ? state.SelectedUuid : null;
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
         foreach (var p in Printers) p.Start();
 
@@ -95,10 +95,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             IsSearching = false;
             _sweepDone = true;
             _queues = queues;
-            ReconcileQueues();
             _scanners = scanners;
             _scannersRead = true;
-            ReconcileScanners();
+            Reconcile(queues: true);
             return;
         }
         _ = WatchQueuesAsync(_queueWatch.Token);
@@ -111,7 +110,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             IsSearching = false;
             if (_sweepDone || _queueWatch.IsCancellationRequested) return;
             _sweepDone = true;
-            ReconcileQueues(); // network queues no network printer claimed after the first sweep show now
+            Reconcile(queues: true); // network queues no network printer claimed after the first sweep show now
         });
         _discovery.Start();
     }
@@ -352,7 +351,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var vm = Printers.FirstOrDefault(p => p.IsKnownAs(d.Uuid));
             if (vm is null)
             {
-                if (d.Host is null || _state.ForgottenUuids.Contains(d.Uuid, StringComparer.OrdinalIgnoreCase)) continue;
+                if (d.Host is null || _state.IsForgotten(d.Uuid)) continue;
                 vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember, _pc);
                 Printers.Add(vm);
                 vm.Start();
@@ -361,7 +360,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             vm.ApplyDiscovery(d);
         }
-        ReconcileQueues(); // a printer found on the network takes the place of its Windows queue's entry
+        Reconcile(queues: true); // a printer found on the network takes the place of its Windows queue's entry
     }
 
     // ---------------------------------------------------------------- printers known only by their Windows queue
@@ -386,13 +385,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 try
                 {
-                    var claims = Claims(Printers);
+                    var claims = PrinterList.Claims(Printers.Select(Listed));
                     var before = _queues;
                     var queues = await InstalledQueues.ListAsync(q => QueueKinds.NeedsPresence(q, claims));
                     ct.ThrowIfCancellationRequested(); // closed meanwhile: no printers made after Dispose
                     _queues = queues;
                     if (DateTime.UtcNow - started > SweepLimit) _sweepDone = true;
-                    ReconcileQueues(QueueKinds.Renamed(before, queues));
+                    Reconcile(queues: true, QueueKinds.Renamed(before, queues));
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -402,7 +401,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 {
                     _scanners = await _wia.ListScannersAsync(ct);
                     _scannersRead = true;
-                    ReconcileScanners();
+                    Reconcile(queues: false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -424,147 +423,68 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex) when (ex is SemaphoreFullException or ObjectDisposedException) { }
     }
 
-    /// <summary>The network printers on the list, as queue matching sees them (accepted UUIDs count as theirs too, without a name).</summary>
-    private InkvoltPrinters Claims(IEnumerable<PrinterViewModel> printers)
-    {
-        var list = new List<InkvoltPrinter>();
-        var queueNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var p in printers.Where(p => p.IsNetworkPrinter))
+    /// <summary>A printer on the list as the list module (<see cref="PrinterList"/>) sees it.</summary>
+    private ListedPrinter Listed(PrinterViewModel p) =>
+        p.IsScannerOnly ? new(p.Uuid, ListedKind.Scanner, p.Name, p.Model) { HasUnsavedScans = p.Scan?.HasUnsavedPages == true }
+        : p.IsQueuePrinter ? new(p.Uuid, ListedKind.Queue, p.Name, p.Model) { Queue = p.WindowsQueue, WantsWindowsScanner = p.WantsWindowsScanner }
+        : new(p.Uuid, ListedKind.Network, p.Name, p.Model, p.Host, p.EsclRoot)
         {
-            list.Add(new InkvoltPrinter(p.Uuid, p.Name, p.Model, p.Host ?? "", p.EsclRoot));
-            list.AddRange(_state.GetAcceptedUuids(p.Uuid).Select(u => new InkvoltPrinter(u, "", null, "", null)));
-            if (_state.GetQueueName(p.Uuid) is { } q) queueNames[p.Uuid] = q;
-        }
-        return new InkvoltPrinters(list, queueNames);
-    }
+            WantsWindowsScanner = p.WantsWindowsScanner,
+            AcceptedUuids = _state.GetAcceptedUuids(p.Uuid),
+            QueueName = _state.GetQueueName(p.Uuid),
+        };
 
     /// <summary>
-    /// The queue printers on the list follow Windows' real queues that no network printer here already stands for: new ones are
-    /// added, ones Windows removed or a network printer now covers go (the selection moves to that printer). Queues the user
-    /// removed from the list stay hidden until Windows no longer has them. A queue renamed in Windows (<paramref name="renamed"/>:
-    /// old id, the queue now) keeps the selection, and stays hidden if it was.
+    /// The list follows Windows (<see cref="PrinterList.Reconcile"/>): queue printers follow Windows' real queues that no network
+    /// printer here stands for (the selection moves to the printer that now does, or follows a renamed queue); Windows' scanners
+    /// go to the printer they belong to when it would take one (its Scan and Copy tabs then work through Windows), else are listed
+    /// on their own; entries the user removed stay hidden until Windows no longer has them.
     /// </summary>
-    private void ReconcileQueues(IReadOnlyDictionary<string, SpoolerQueue>? renamed = null)
+    /// <param name="queues">The queue printers too, from the last listing (else only the scanners).</param>
+    /// <param name="renamed">Queues renamed in Windows since the listing before: old id → the queue now.</param>
+    private void Reconcile(bool queues, IReadOnlyDictionary<string, SpoolerQueue>? renamed = null)
     {
-        if (_queueWatch.IsCancellationRequested) return; // closed: nothing new is made or started
-        var claims = Claims(Printers);
-        foreach (var (oldId, now) in renamed ?? new Dictionary<string, SpoolerQueue>())
-            if (_state.ForgottenUuids.Contains(oldId, StringComparer.OrdinalIgnoreCase)
-                && !_state.ForgottenUuids.Contains(QueueKinds.IdFor(now.Name), StringComparer.OrdinalIgnoreCase))
+        if (queues ? _queueWatch.IsCancellationRequested : !_scannersRead) return; // closed: nothing new is made or started
+        var change = PrinterList.Reconcile(new PrinterListInput(Printers.Select(Listed).ToList(), Selected?.Uuid, queues ? _queues : null, _sweepDone,
+            _scannersRead ? _scanners : null, _state.GetForgotten()) { Renamed = renamed, WantedQueue = _wantedSelection, WantedScanner = _wantedScanner });
+        _state.Forget(change.Forget);
+        _state.Unforget(change.Unforget);
+        foreach (var id in change.Removed)
+            if (Printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase)) is { } gone)
             {
-                _state.ForgottenUuids.Add(QueueKinds.IdFor(now.Name));
-                _state.Save();
+                Printers.Remove(gone);
+                gone.Dispose();
             }
-        var wanted = QueueKinds.Unclaimed(_queues, claims)
-            .Where(q => _sweepDone || QueueKinds.Connection(q) != QueueConnection.Network)
-            .Where(q => !_state.ForgottenUuids.Contains(QueueKinds.IdFor(q.Name), StringComparer.OrdinalIgnoreCase))
-            .DistinctBy(q => QueueKinds.IdFor(q.Name)).ToList();
-        var ids = wanted.Select(q => QueueKinds.IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var gone in Printers.Where(p => p.IsQueuePrinter && !ids.Contains(p.Uuid)).ToList())
+        foreach (var q in change.AddedQueues)
         {
-            var wasSelected = Selected == gone;
-            Printers.Remove(gone);
-            gone.Dispose();
-            if (wasSelected && renamed?.GetValueOrDefault(gone.Uuid) is { } to)
-            {
-                _wantedSelection = QueueKinds.IdFor(to.Name); // selected again under its new name, below
-                Selected = null;
-            }
-            else if (wasSelected)
-                Selected = (QueueMatch.Match(new QueueInfo(gone.WindowsQueue!.Name, gone.WindowsQueue.PortName, gone.WindowsQueue.ContainerId), claims) is { } owner
-                    ? Printers.FirstOrDefault(p => string.Equals(p.Uuid, owner.Uuid, StringComparison.OrdinalIgnoreCase)) : null) ?? Printers.FirstOrDefault();
-        }
-        foreach (var q in wanted)
-        {
-            var id = QueueKinds.IdFor(q.Name);
-            if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
             var vm = new PrinterViewModel(q, _pc.QueueStatus(q), _state, Presets, Remember, _pc);
             vm.QueueMissing += RelistQueues;
             Printers.Add(vm);
             vm.Start();
-            if (Selected is null || string.Equals(id, _wantedSelection, StringComparison.OrdinalIgnoreCase)) Selected = vm;
         }
-        Selected ??= Printers.FirstOrDefault(); // a renamed queue that's hidden isn't listed again
-        if (_queues.Count > 0)
+        foreach (var d in change.AddedScanners)
         {
-            if (_sweepDone) _wantedSelection = null; // a network queue chosen last time is listed after the sweep
-            // Hidden queues come back once Windows no longer has them (set up again later, they show again).
-            var present = _queues.Select(q => QueueKinds.IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (_state.ForgottenUuids.RemoveAll(f => QueueKinds.IsQueueId(f) && !present.Contains(f)) > 0) _state.Save();
-        }
-        ReconcileScanners(); // a printer that came or went may own one of the scanners
-        NotifyEmpty();
-    }
-
-    // ---------------------------------------------------------------- scanners Windows has a driver for (WIA)
-
-    /// <summary>A printer on the list as WIA matching sees it: its names (and its queue's and driver's) and addresses.</summary>
-    private static ScanTarget Target(PrinterViewModel p) => new(p.Uuid,
-        new[] { p.Name, p.Model, p.WindowsQueue?.Name, p.WindowsQueue?.DriverName }.OfType<string>().Where(n => n.Length > 0).ToList(),
-        new[] { p.Host, p.WindowsQueue?.PortAddress }.OfType<string>().Where(h => h.Length > 0).ToList());
-
-    /// <summary>
-    /// Which printer on the list each WIA scanner belongs to (<see cref="WiaMatch.Assign"/>); null for one no printer claims, and for
-    /// a second one matching a printer that already takes one through Windows (listed on its own instead).
-    /// </summary>
-    private IEnumerable<(WiaDeviceInfo Device, PrinterViewModel? Owner)> Owners()
-    {
-        var printers = Printers.Where(p => !p.IsScannerOnly).ToList();
-        PrinterViewModel? ById(string id) => printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase));
-        foreach (var (d, id) in WiaMatch.Assign(_scanners, printers.Select(Target).ToList(), id => ById(id)?.WantsWindowsScanner == true))
-            yield return (d, id is null ? null : ById(id));
-    }
-
-    /// <summary>
-    /// Windows' scanners (WIA) follow the list: one that belongs to a printer without eSCL (a queue printer, or a network printer
-    /// that answered without it) becomes that printer's scanner, so its Scan and Copy tabs work through Windows; one that belongs
-    /// to a printer with eSCL is left alone (eSCL is used); one no printer claims is listed as a scanner of its own. Scanners the
-    /// user removed stay hidden until Windows no longer has them; one with unsaved scans stays until they're saved.
-    /// </summary>
-    private void ReconcileScanners()
-    {
-        if (!_scannersRead) return;
-        var owners = Owners().ToList();
-        var given = new Dictionary<PrinterViewModel, WiaDeviceInfo>();
-        foreach (var (device, owner) in owners)
-            if (owner is { WantsWindowsScanner: true }) given.TryAdd(owner, device);
-        foreach (var p in Printers.Where(p => !p.IsScannerOnly).ToList())
-            _ = p.UseWiaScannerAsync(given.GetValueOrDefault(p), _wia);
-
-        var wanted = owners.Where(o => o.Owner is null).Select(o => o.Device)
-            .Where(d => !_state.ForgottenUuids.Contains(PrinterViewModel.ScannerIdFor(d.Id), StringComparer.OrdinalIgnoreCase))
-            .DistinctBy(d => PrinterViewModel.ScannerIdFor(d.Id)).ToList();
-        var ids = wanted.Select(d => PrinterViewModel.ScannerIdFor(d.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var gone in Printers.Where(p => p.IsScannerOnly && !ids.Contains(p.Uuid) && p.Scan?.HasUnsavedPages != true).ToList())
-        {
-            var wasSelected = Selected == gone;
-            Printers.Remove(gone);
-            gone.Dispose();
-            if (wasSelected)
-                Selected = owners.FirstOrDefault(o => PrinterViewModel.ScannerIdFor(o.Device.Id) == gone.Uuid).Owner ?? Printers.FirstOrDefault();
-        }
-        foreach (var d in wanted)
-        {
-            var id = PrinterViewModel.ScannerIdFor(d.Id);
-            if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
             var vm = new PrinterViewModel(d, _wia, _state, Presets, Remember, _pc);
             Printers.Add(vm);
             vm.Start();
-            if (Selected is null || string.Equals(id, _wantedScanner, StringComparison.OrdinalIgnoreCase)) Selected = vm;
         }
-        _wantedScanner = null;
-        var present = _scanners.Select(d => PrinterViewModel.ScannerIdFor(d.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (_state.ForgottenUuids.RemoveAll(f => PrinterViewModel.IsScannerId(f) && !present.Contains(f)) > 0) _state.Save();
+        if (change.WindowsScanners is { } windowsScanners)
+        {
+            foreach (var p in Printers.Where(p => !p.IsScannerOnly).ToList())
+                _ = p.UseWiaScannerAsync(windowsScanners.GetValueOrDefault(p.Uuid), _wia);
+            _wantedScanner = null;
+        }
+        _wantedSelection = change.WantedQueue;
+        var selected = Printers.FirstOrDefault(p => string.Equals(p.Uuid, change.Selected, StringComparison.OrdinalIgnoreCase));
+        if (selected != Selected) Selected = selected;
         NotifyEmpty();
     }
 
     private void Remember(PrinterViewModel p)
     {
         if (p.Host is null || !Printers.Contains(p)) return;
-        ReconcileScanners(); // it just connected: with no eSCL, a scanner Windows has for it may stand in
-        _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
-        _state.Printers.Add(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice));
-        _state.Save();
+        Reconcile(queues: false); // it just connected: with no eSCL, a scanner Windows has for it may stand in
+        _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice));
     }
 
     private bool CanAddByAddress() => !string.IsNullOrWhiteSpace(ManualAddress) && !IsAdding;
@@ -597,7 +517,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
             var uuid = PrinterId.Normalize(probe.Uuid, host);
-            _state.ForgottenUuids.RemoveAll(f => string.Equals(f, uuid, StringComparison.OrdinalIgnoreCase));
+            _state.Unforget([uuid]);
             var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
             // Answering only SNMP now makes it an SNMP-only printer (it's asked over HTTP again later, in case it was asleep).
             var snmpOnly = probe.Snmp is { } snmp ? SnmpDevice.From(snmp) : null;
@@ -614,7 +534,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Selected = vm;
             ManualAddress = "";
             IsAddOpen = false;
-            ReconcileQueues();
+            Reconcile(queues: true);
         }
         catch (Exception ex)
         {
@@ -637,15 +557,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : "To see it again, add it by address.";
         if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. {again}", "Remove"))
             return;
-        _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
-        // A network printer's own Windows queues go with it, so they don't show up again as separate entries.
-        IEnumerable<string> hidden = !p.IsNetworkPrinter ? [p.Uuid]
-            : QueueKinds.Unclaimed(_queues, InkvoltPrinters.Empty).Where(q => QueueMatch.Match(new QueueInfo(q.Name, q.PortName, q.ContainerId), Claims([p])) is not null)
-                .Select(q => QueueKinds.IdFor(q.Name)).Prepend(p.Uuid);
-        // Its Windows scanner goes with it too, so it doesn't show up again as a scanner of its own.
-        hidden = hidden.Concat(Owners().Where(o => o.Owner == p).Select(o => PrinterViewModel.ScannerIdFor(o.Device.Id))).ToList();
-        foreach (var id in hidden)
-            if (!_state.ForgottenUuids.Contains(id, StringComparer.OrdinalIgnoreCase)) _state.ForgottenUuids.Add(id);
+        _state.RemovePrinter(p.Uuid);
+        // A network printer's own Windows queues and its Windows scanner go with it, so they don't show up again as entries of their own.
+        _state.Forget(PrinterList.HiddenWith(Listed(p), Printers.Select(Listed).ToList(), _queues, _scanners));
         _state.Save();
         p.Dispose();
         Printers.Remove(p);

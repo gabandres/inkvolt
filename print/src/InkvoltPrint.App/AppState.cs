@@ -86,8 +86,61 @@ public sealed class AppState
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }
 
-    /// <summary>Printers the user removed; discovery won't add them back until they're added again by address.</summary>
+    /// <summary>
+    /// Printers the user removed; discovery won't add them back until they're added again by address. Read and changed through
+    /// <see cref="GetForgotten"/>, <see cref="Forget"/> and <see cref="Unforget"/> (under the lock a save from a TLS handshake takes).
+    /// </summary>
     public List<string> ForgottenUuids { get; set; } = [];
+
+    public IReadOnlyCollection<string> GetForgotten()
+    {
+        lock (_gate) return ForgottenUuids.ToList();
+    }
+
+    public bool IsForgotten(string id)
+    {
+        lock (_gate) return ForgottenUuids.Contains(id, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Hides these ids from the list (saved when any is new).</summary>
+    public void Forget(IEnumerable<string> ids)
+    {
+        var changed = false;
+        lock (_gate)
+            foreach (var id in ids)
+                if (!ForgottenUuids.Contains(id, StringComparer.OrdinalIgnoreCase))
+                {
+                    ForgottenUuids.Add(id);
+                    changed = true;
+                }
+        if (changed) Save();
+    }
+
+    /// <summary>Lists these ids again (saved when any was hidden).</summary>
+    public void Unforget(IEnumerable<string> ids)
+    {
+        var set = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        int removed;
+        lock (_gate) removed = set.Count == 0 ? 0 : ForgottenUuids.RemoveAll(set.Contains);
+        if (removed > 0) Save();
+    }
+
+    /// <summary>Remembers a printer (replacing what was remembered under its id) and saves.</summary>
+    public void RememberPrinter(KnownPrinter printer)
+    {
+        lock (_gate)
+        {
+            Printers.RemoveAll(k => string.Equals(k.Uuid, printer.Uuid, StringComparison.OrdinalIgnoreCase));
+            Printers.Add(printer);
+        }
+        Save();
+    }
+
+    /// <summary>Forgets the remembered printer with this id (not saved: the caller saves with the rest of the change).</summary>
+    public void RemovePrinter(string id)
+    {
+        lock (_gate) Printers.RemoveAll(k => string.Equals(k.Uuid, id, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>Printer UUID → SHA-256 of its TLS certificate (trust on first use).</summary>
     public Dictionary<string, string> CertificatePins { get; set; } = new(StringComparer.OrdinalIgnoreCase);
