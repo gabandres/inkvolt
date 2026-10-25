@@ -129,7 +129,7 @@ Version: four numbers, the last one 0 (the Store reserves it), higher than every
 
 > Inkvolt Print is a classic Win32 desktop application (.NET / WPF) packaged with the Desktop Bridge. `runFullTrust` is
 > required for every packaged desktop app: Inkvolt Print runs as a regular full-trust process to find network printers with
-> Windows' device discovery, read their status and settings over the local network (HP LEDM, eSCL and IPP), scan,
+> Windows' device discovery, read their status and settings over the local network (HP LEDM and CDM, eSCL and IPP), scan,
 > render PDFs with Windows' PDF engine and print them through the Windows print system, run Windows OCR on scans, keep
 > an optional printer admin password in Windows Credential Manager, and save files where the user chooses. It installs
 > no services or drivers and changes no system settings on its own.
@@ -149,19 +149,23 @@ Inkvolt Print is not an HP product. In every Store text and image:
 
 Short description:
 
-> Printer status, toner, scanning and PDF printing for HP network printers. No account, no cloud, no telemetry.
+> Printer status, ink and toner, scanning, copying and printing for HP, Canon, Epson, Brother and other network
+> printers. No account, no cloud, no telemetry.
 
 Description:
 
-> Inkvolt Print is a lean, private app for HP network printers. It finds your printer on the network and shows what
-> matters: ready or sleeping, toner level and pages left, paper problems, and usage counts, updated live.
+> Inkvolt Print is a lean, private app for network printers. Made for HP printers, it also works with Canon, Epson,
+> Brother and other AirPrint, Mopria or IPP Everywhere printers. It finds your printer on the network and shows what
+> matters: ready or sleeping, ink or toner levels, paper problems, and usage counts, updated live.
 >
 > - Find printers automatically, or add one by IP address.
 > - Set the printer up in Windows with one click, using Windows' own driver: no driver download.
-> - Scan from the glass or the document feeder, several pages at a time, and save as JPEG or as a searchable PDF (text
->   recognition runs on your PC).
+> - Scan from the glass or the document feeder, several pages at a time, review and crop the pages, skip blank ones,
+>   and save as JPEG or as a searchable PDF (text recognition runs on your PC). One-click scan presets.
+> - Copy, including ID card copies on one sheet, and print photos in standard sizes.
 > - Print PDFs with copies, page ranges and two-sided printing. Drag a PDF onto the window, or right-click a PDF in
 >   File Explorer and open it with Inkvolt Print.
+> - See and cancel jobs in the print queue, and fix common problems such as a paused or offline printer.
 > - Change the printer's own settings, with the admin password kept in Windows Credential Manager if you choose.
 >
 > No HP account, no cloud service, no ads, no telemetry, no background services. Inkvolt Print talks only to your printer,
@@ -169,8 +173,9 @@ Description:
 >
 > Free and open source (MIT License). Source code: https://github.com/gabandres/inkvolt-print
 >
-> Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc. HP and LaserJet are trademarks of
-> HP Inc., used only to describe the printers Inkvolt Print works with.
+> Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc., Canon, Seiko Epson or Brother.
+> HP and LaserJet are trademarks of HP Inc. Canon, Epson and Brother are trademarks of their owners. They are used only
+> to describe the printers Inkvolt Print works with.
 
 Partner Center sits behind a web firewall that rejects a listing save (403 "Access Denied", shown as "We are unable to
 save listing") when the text looks like SQL: "; drop a PDF" did. Keep semicolons away from words like drop, delete,
@@ -191,15 +196,17 @@ Partner Center asks for a privacy policy URL; publish a short page saying:
 ### Store listing checklist
 
 - [ ] Source link in the description: "Source code (MIT): https://github.com/gabandres/inkvolt-print".
-- [ ] Trademark disclaimer in the description; "for HP printers" wording only (above).
+- [ ] Trademark disclaimer in the description; "for HP printers" / "works with Canon, Epson, Brother" wording only
+      (above).
 - [ ] Screenshots: PNG, at least 1366x768, 1-10. `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window after
       connecting; redact device identifiers.
 - [ ] Privacy policy URL; support URL or email.
 - [ ] Age rating questionnaire; pricing and availability.
 - [ ] `runFullTrust` justification.
-- [ ] Notes for certification: "Needs an HP network printer (LEDM/eSCL/IPP, e.g. LaserJet MFP M234dw) on the same
-      network for status, scanning and printing. Without one, the 'No printers found' screen has "No printer here? Try a
-      demo printer", which opens a second window with a made-up printer (no network). No sign-in."
+- [ ] Notes for certification: "Needs a network printer (HP LEDM/CDM, or any IPP Everywhere / AirPrint / Mopria
+      printer, with eSCL for scanning, e.g. HP LaserJet MFP M234dw) on the same network for status, scanning and
+      printing. Without one, the 'No printers found' screen has "No printer here? Try a demo printer", which opens a second
+      window with a made-up printer (no network). No sign-in."
 
 ## Local test install (optional)
 
