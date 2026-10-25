@@ -70,6 +70,11 @@
                         </TextBlock>
 
                         <ItemsControl ItemsSource="{Binding Checks}" Margin="0,16,0,0" Focusable="False">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:FixerCheckViewModel}">
                                     <DockPanel Margin="0,0,0,12" AutomationProperties.Name="{Binding AccessibleText}">
@@ -94,6 +99,11 @@
                                    Text="Windows only lets an administrator change some of these, and the Microsoft Store version of Inkvolt Print never asks for that: for those, it shows the steps to take in Windows."
                                    Visibility="{Binding ShowStoreNote, Converter={StaticResource VisibleWhen}}" />
                         <ItemsControl ItemsSource="{Binding Repairs}" Focusable="False">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:FixerRepairViewModel}">
                                     <Border CornerRadius="6" Padding="14,10" Margin="0,0,0,8" BorderThickness="1"
@@ -174,6 +184,11 @@
                                 <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Caption}" Margin="0,4,0,0"
                                            Visibility="{Binding StatusDetail, Converter={StaticResource VisibleWhen}}" />
                                 <ItemsControl ItemsSource="{Binding Alerts}" Margin="0,8,0,0">
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding Message}" />
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -203,6 +218,11 @@
                                 <TextBlock Text="Scan" Style="{StaticResource CardTitle}" Margin="0" />
                             </DockPanel>
                             <ItemsControl ItemsSource="{Binding Scan.Presets}" AlternationCount="100" Focusable="False" AutomationProperties.Name="Scan presets">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Command="{Binding DataContext.RunPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -238,6 +258,11 @@
                                 <Run Text="{Binding SuppliesTitle, Mode=OneWay}" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </TextBlock>
                             <ItemsControl ItemsSource="{Binding Supplies}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:SupplyViewModel}">
                                         <StackPanel Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleText}">
@@ -284,6 +309,18 @@
                                 </StackPanel>
                             </DockPanel>
                             <ItemsControl ItemsSource="{Binding Jobs}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name">
+                                            <Setter.Value>
+                                                <MultiBinding StringFormat="{}{0}: {1}">
+                                                    <Binding Path="Name" />
+                                                    <Binding Path="Status" />
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:PrintJobViewModel}">
                                         <DockPanel Margin="0,0,0,10">
@@ -340,6 +377,11 @@
                         <StackPanel>
                             <TextBlock Text="Maintenance" Style="{StaticResource CardTitle}" />
                             <ItemsControl ItemsSource="{Binding Items}" Focusable="False" AutomationProperties.Name="Maintenance actions">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:MaintenanceItemViewModel}">
                                         <StackPanel Margin="0,0,0,6">
@@ -391,6 +433,18 @@
                                 <Run Text="Usage" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </TextBlock>
                             <ItemsControl ItemsSource="{Binding Stats}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name">
+                                            <Setter.Value>
+                                                <MultiBinding StringFormat="{}{0} {1}">
+                                                    <Binding Path="Label" />
+                                                    <Binding Path="Value" />
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <UniformGrid Columns="2" />
@@ -413,6 +467,18 @@
                         <StackPanel>
                             <TextBlock Text="About this printer" Style="{StaticResource CardTitle}" />
                             <ItemsControl ItemsSource="{Binding About}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name">
+                                            <Setter.Value>
+                                                <MultiBinding StringFormat="{}{0}: {1}">
+                                                    <Binding Path="Label" />
+                                                    <Binding Path="Value" />
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:InfoRow}">
                                         <Grid Margin="0,0,0,6">
@@ -421,7 +487,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" />
-                                            <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                            <TextBox AutomationProperties.Name="{Binding Label}" Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
                                                      Background="Transparent" Padding="0" MinHeight="0" TextWrapping="Wrap" />
                                         </Grid>
                                     </DataTemplate>
@@ -461,6 +527,11 @@
                     <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False"
                                   AutomationProperties.Name="Scan presets"
                                   AutomationProperties.HelpText="Each button scans with that preset and saves the file. Ctrl+1 to Ctrl+9 run the first nine.">
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -488,33 +559,33 @@
                     <StackPanel>
                         <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
                         <TextBlock Text="Source" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
-                        <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
+                        <ComboBox AutomationProperties.Name="Source" ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
                         <TextBlock Text="Page size" Margin="0,0,0,4" />
                         <ComboBox ItemsSource="{Binding PageSizes}" SelectedItem="{Binding PageSize}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   AutomationProperties.Name="Page size" />
                         <TextBlock Text="Quality" Margin="0,0,0,4" />
-                        <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
+                        <ComboBox AutomationProperties.Name="Quality" ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
                         <CheckBox Content="Color" IsChecked="{Binding IsColor}" Margin="0,0,0,4" />
-                        <CheckBox IsChecked="{Binding UseOcr}" IsEnabled="{Binding OcrAvailable}">
+                        <CheckBox AutomationProperties.Name="Searchable text (OCR)" AutomationProperties.HelpText="Find and copy text in saved PDFs" IsChecked="{Binding UseOcr}" IsEnabled="{Binding OcrAvailable}">
                             <StackPanel>
                                 <TextBlock Text="Searchable text (OCR)" />
                                 <TextBlock Text="Find and copy text in saved PDFs" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding SkipBlank}" Margin="0,4,0,0">
+                        <CheckBox AutomationProperties.Name="Skip blank pages" AutomationProperties.HelpText="Left out when saving" IsChecked="{Binding SkipBlank}" Margin="0,4,0,0">
                             <StackPanel>
                                 <TextBlock Text="Skip blank pages" />
                                 <TextBlock Text="Left out when saving" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding Straighten}" Margin="0,4,0,0">
+                        <CheckBox AutomationProperties.Name="Straighten pages" AutomationProperties.HelpText="Fixes pages scanned a little crooked" IsChecked="{Binding Straighten}" Margin="0,4,0,0">
                             <StackPanel>
                                 <TextBlock Text="Straighten pages" />
                                 <TextBlock Text="Fixes pages scanned a little crooked" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding FindPhotos}" Margin="0,4,0,0">
+                        <CheckBox AutomationProperties.Name="Several photos on the glass" AutomationProperties.HelpText="Each saved by itself, cut out straight" IsChecked="{Binding FindPhotos}" Margin="0,4,0,0">
                             <StackPanel>
                                 <TextBlock Text="Several photos on the glass" />
                                 <TextBlock Text="Each saved by itself, cut out straight" Style="{StaticResource Caption}" FontSize="12" />
@@ -525,7 +596,7 @@
                         <ComboBox ItemsSource="{Binding SplitChoices}" SelectedItem="{Binding SplitMode}" HorizontalAlignment="Stretch"
                                   AutomationProperties.Name="Split into files at"
                                   AutomationProperties.HelpText="Saves one feeder run as several files, a new one after each separator sheet" />
-                        <CheckBox IsChecked="{Binding KeepSeparators}" Margin="0,8,0,0" Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}">
+                        <CheckBox AutomationProperties.Name="Keep separator sheets" AutomationProperties.HelpText="As the first page of the next file" IsChecked="{Binding KeepSeparators}" Margin="0,8,0,0" Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
                                 <TextBlock Text="Keep separator sheets" />
                                 <TextBlock Text="As the first page of the next file" Style="{StaticResource Caption}" FontSize="12" />
@@ -535,7 +606,7 @@
                                 HorizontalAlignment="Left" Margin="0,6,0,4"
                                 ToolTip="Saves a Patch T sheet as a PDF to print at actual size"
                                 Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}" />
-                        <CheckBox IsChecked="{Binding OpenInInkvoltPdf}" Margin="0,4,0,0"
+                        <CheckBox AutomationProperties.Name="Open scans in Inkvolt PDF" AutomationProperties.HelpText="Each PDF you save opens there automatically" IsChecked="{Binding OpenInInkvoltPdf}" Margin="0,4,0,0"
                                   Visibility="{Binding InkvoltPdfInstalled, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
                                 <TextBlock Text="Open scans in Inkvolt PDF" />
@@ -616,7 +687,7 @@
                 <Border Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="Document" Style="{StaticResource CardTitle}" />
-                        <Button Command="{Binding BrowseCommand}" HorizontalAlignment="Stretch" Padding="0,8"
+                        <Button AutomationProperties.Name="Choose a PDF…" Command="{Binding BrowseCommand}" HorizontalAlignment="Stretch" Padding="0,8"
                                 Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8E5;" Margin="0,0,8,0" />
@@ -674,7 +745,7 @@
 
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
 
-                            <Button Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
+                            <Button AutomationProperties.Name="Print" Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
                                     HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
@@ -718,6 +789,11 @@
                                       Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
                                 <ItemsControl ItemsSource="{Binding Thumbnails}">
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding Number, StringFormat=Page {0}}" />
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel />
@@ -767,7 +843,7 @@
                         <StackPanel IsEnabled="{Binding IsAvailable}">
                             <RadioButton Content="Document" IsChecked="{Binding IdCard, Converter={StaticResource Not}}" GroupName="copymode"
                                          IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" />
-                            <RadioButton IsChecked="{Binding IdCard}" GroupName="copymode" Margin="0,6,0,0"
+                            <RadioButton AutomationProperties.Name="ID card" AutomationProperties.HelpText="Both sides on one page" IsChecked="{Binding IdCard}" GroupName="copymode" Margin="0,6,0,0"
                                          IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
                                 <StackPanel>
                                     <TextBlock Text="ID card" />
@@ -865,6 +941,11 @@
                         </StackPanel>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                             <ItemsControl ItemsSource="{Binding Sheets}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="AutomationProperties.Name" Value="Copy preview" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel />
@@ -886,6 +967,7 @@
                                                         <Style TargetType="ContentPresenter">
                                                             <Setter Property="Canvas.Left" Value="{Binding X}" />
                                                             <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                                            <Setter Property="AutomationProperties.Name" Value="{Binding Label, TargetNullValue=Scanned image}" />
                                                         </Style>
                                                     </ItemsControl.ItemContainerStyle>
                                                     <ItemsControl.ItemTemplate>
@@ -929,7 +1011,7 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="Print photos" Style="{StaticResource CardTitle}" />
-                        <Button Command="{Binding AddPhotosCommand}" HorizontalAlignment="Stretch" Padding="0,8">
+                        <Button AutomationProperties.Name="Add photos…" Command="{Binding AddPhotosCommand}" HorizontalAlignment="Stretch" Padding="0,8">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xEB9F;" Margin="0,0,8,0" />
                                 <TextBlock Text="Add photos…" />
@@ -980,7 +1062,7 @@
                                    Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                    Visibility="{Binding Warning, Converter={StaticResource VisibleWhen}}" />
 
-                        <Button Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
+                        <Button AutomationProperties.Name="Print" Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
                                 HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
@@ -1128,6 +1210,11 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
                                 <StackPanel>
                                     <ItemsControl ItemsSource="{Binding Sheets}" Focusable="False">
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />
@@ -1201,6 +1288,11 @@
                         </ScrollViewer.Resources>
                         <StackPanel MaxWidth="820" HorizontalAlignment="Left">
                         <ItemsControl ItemsSource="{Binding Source={StaticResource Grouped}}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
                             <ItemsControl.GroupStyle>
                                 <GroupStyle>
                                     <GroupStyle.ContainerStyle>
@@ -1321,7 +1413,7 @@
 
             <!-- Add a printer that discovery can't see -->
             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                <Button Command="{Binding ToggleAddCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
+                <Button AutomationProperties.Name="Add a printer by address" Command="{Binding ToggleAddCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
                         Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" Margin="0,0,10,0" />
@@ -1452,14 +1544,14 @@
                                         <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Grid>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Command="{Binding GoToPrintCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8" Margin="0,0,8,0"
+                                        <Button AutomationProperties.Name="Print a PDF" Command="{Binding GoToPrintCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8" Margin="0,0,8,0"
                                                 Visibility="{Binding ShowPrintShortcut, Converter={StaticResource VisibleWhen}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
                                                 <TextBlock Text="Print a PDF" />
                                             </StackPanel>
                                         </Button>
-                                        <Button Command="{Binding GoToScanCommand}" Padding="16,8"
+                                        <Button AutomationProperties.Name="Scan" Command="{Binding GoToScanCommand}" Padding="16,8"
                                                 Visibility="{Binding ShowScanShortcut, Converter={StaticResource VisibleWhen}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />

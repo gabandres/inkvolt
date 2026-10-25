@@ -106,19 +106,19 @@
                         </StackPanel>
                     </Grid>
                     <WrapPanel Margin="0,12,0,0">
-                        <CheckBox IsChecked="{Binding Review}" Margin="0,0,24,6">
+                        <CheckBox AutomationProperties.Name="Review before saving" AutomationProperties.HelpText="Turn, crop or reorder first" IsChecked="{Binding Review}" Margin="0,0,24,6">
                             <StackPanel>
                                 <TextBlock Text="Review before saving" />
                                 <TextBlock Text="Turn, crop or reorder first" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding SkipBlank}" Margin="0,0,24,6">
+                        <CheckBox AutomationProperties.Name="Skip blank pages" AutomationProperties.HelpText="Left out when saving" IsChecked="{Binding SkipBlank}" Margin="0,0,24,6">
                             <StackPanel>
                                 <TextBlock Text="Skip blank pages" />
                                 <TextBlock Text="Left out when saving" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding Straighten}" Margin="0,0,0,6">
+                        <CheckBox AutomationProperties.Name="Straighten pages" AutomationProperties.HelpText="Fixes pages scanned a little crooked" IsChecked="{Binding Straighten}" Margin="0,0,0,6">
                             <StackPanel>
                                 <TextBlock Text="Straighten pages" />
                                 <TextBlock Text="Fixes pages scanned a little crooked" Style="{StaticResource Caption}" FontSize="12" />
@@ -137,7 +137,7 @@
                                       AutomationProperties.Name="Split into files at"
                                       AutomationProperties.HelpText="Saves one feeder run as several files, a new one after each separator sheet" />
                         </StackPanel>
-                        <CheckBox Grid.Column="2" IsChecked="{Binding KeepSeparators}" VerticalAlignment="Bottom"
+                        <CheckBox AutomationProperties.Name="Keep separator sheets" AutomationProperties.HelpText="As the first page of the next file" Grid.Column="2" IsChecked="{Binding KeepSeparators}" VerticalAlignment="Bottom"
                                   Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
                                 <TextBlock Text="Keep separator sheets" />
@@ -145,7 +145,7 @@
                             </StackPanel>
                         </CheckBox>
                     </Grid>
-                    <CheckBox IsChecked="{Binding FindPhotos}" Margin="0,12,0,0">
+                    <CheckBox AutomationProperties.Name="Several photos on the glass" AutomationProperties.HelpText="Each photo saved by itself, cut out straight (glass scans only)" IsChecked="{Binding FindPhotos}" Margin="0,12,0,0">
                         <StackPanel>
                             <TextBlock Text="Several photos on the glass" />
                             <TextBlock Text="Each photo saved by itself, cut out straight (glass scans only)" Style="{StaticResource Caption}" FontSize="12" />
