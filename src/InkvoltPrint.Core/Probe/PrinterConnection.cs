@@ -340,6 +340,27 @@ public sealed class PrinterConnection : IDisposable
         return [];
     }
 
+    /// <summary>
+    /// Over SNMP: who answers at the address now (<see cref="SnmpPrinterClient.ReadIdentityAsync"/>), to compare with the printer
+    /// as it was added (<see cref="SnmpDevice"/>). Null for other connections and when nothing answers.
+    /// </summary>
+    public async Task<SnmpIdentity?> ReadSnmpIdentityAsync(CancellationToken ct = default) =>
+        Snmp is null ? null : await Snmp.ReadIdentityAsync(ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// For a connection over SNMP: LEDM, CDM, IPP and eSCL asked again (never SNMP), since a printer that was asleep or busy
+    /// when it was added may have them. A new connection when one answers now and it is the same device (its serial number,
+    /// when both tell, agrees with <paramref name="known"/>); null otherwise. The caller switches to it and closes this one.
+    /// </summary>
+    public async Task<PrinterConnection?> TryRicherAsync(SnmpDevice? known, Uri? esclHint = null, Uri? ippHint = null, ICertificatePin? pin = null,
+        HttpMessageHandler? transport = null, CancellationToken ct = default)
+    {
+        var richer = await OpenAsync(Http.Host, esclHint, ct, pin, transport, ippHint).ConfigureAwait(false);
+        if (richer.Probe.Reachable && known?.Identify(richer.Probe.SerialNumber) != Model.DeviceIdentity.Different) return richer;
+        richer.Dispose();
+        return null;
+    }
+
     public async Task<IReadOnlyList<Consumable>> GetSuppliesAsync(CancellationToken ct = default)
     {
         if (Ledm is not null && await Ledm.GetConsumablesAsync(ct).ConfigureAwait(false) is { } c) return c;

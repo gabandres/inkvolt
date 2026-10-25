@@ -15,7 +15,7 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
 
     public string Host { get; } = host;
     public SnmpVersion Version { get; } = version;
-    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(1.5);
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(1);
     public int Retries { get; init; } = 1;
 
     /// <summary>Rows a walk reads at most per column (a printer's alert or supply table is far shorter).</summary>
@@ -69,7 +69,9 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
     /// <summary>
     /// Walks table columns side by side (GetBulk on v2c, GetNext on v1): for each prefix in <paramref name="columns"/>, every
     /// object under it, as (arcs after the prefix, value), in order. A column ends when the agent moves past it, reports the
-    /// end of its MIB, or doesn't move forward (a broken agent never loops the walk).
+    /// end of its MIB, or doesn't move forward (a broken agent never loops the walk). When GetBulk fails with an error the walk
+    /// goes on with GetNext; an error on GetNext ends the column it names (all of them when it names none), so a table the agent
+    /// can't read is empty rather than the whole read failing. No reply at all is still a <see cref="TimeoutException"/>.
     /// </summary>
     public async Task<IReadOnlyList<IReadOnlyList<(uint[] Index, SnmpValue Value)>>> WalkAsync(IReadOnlyList<Oid> columns, CancellationToken ct = default)
     {
@@ -77,12 +79,13 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
         var at = columns.ToArray();
         var done = new bool[columns.Count];
         var repetitions = 16;
+        var bulk = Version == SnmpVersion.V2c;
         for (var request = 0; request < MaxRows * 2 && done.Contains(false); request++)
         {
             var active = Enumerable.Range(0, columns.Count).Where(i => !done[i]).ToList();
             var names = active.Select(i => at[i]).ToList();
             IReadOnlyList<SnmpVarBind> reply;
-            if (Version == SnmpVersion.V2c)
+            if (bulk)
             {
                 var r = await SendAsync(SnmpPduType.GetBulkRequest, 0, repetitions, names, ct).ConfigureAwait(false);
                 if (r.ErrorStatus == SnmpMessage.TooBig && repetitions > 1)
@@ -90,13 +93,26 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
                     repetitions /= 2; // the reply wouldn't fit a datagram: fewer rows per request
                     continue;
                 }
-                ThrowOnError(r);
+                if (r.ErrorStatus != SnmpMessage.NoError)
+                {
+                    bulk = false; // some agents fail GetBulk on a table they answer GetNext for
+                    continue;
+                }
                 reply = r.VarBinds;
                 if (reply.Count == 0) break;
             }
             else
             {
-                reply = await GetNextAsync(names, ct).ConfigureAwait(false);
+                try
+                {
+                    reply = await GetNextAsync(names, ct).ConfigureAwait(false);
+                }
+                catch (SnmpErrorException ex)
+                {
+                    if (ex.Index >= 1 && ex.Index <= active.Count) done[active[ex.Index - 1]] = true;
+                    else foreach (var i in active) done[i] = true;
+                    continue;
+                }
             }
             // Replies come row by row: the successors of every active column, then theirs, and so on (RFC 3416 §4.2.3).
             for (var k = 0; k < reply.Count; k++)
@@ -119,7 +135,7 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
     private static void ThrowOnError(SnmpMessage reply)
     {
         if (reply.ErrorStatus != SnmpMessage.NoError)
-            throw new SnmpErrorException(reply.ErrorStatus, $"SNMP error-status {reply.ErrorStatus} (index {reply.ErrorIndex}).");
+            throw new SnmpErrorException(reply.ErrorStatus, $"SNMP error-status {reply.ErrorStatus} (index {reply.ErrorIndex}).", reply.ErrorIndex);
     }
 
     /// <summary>Sends a request and waits for its Response (same request-id), trying again on silence. Never anything but a read.</summary>
@@ -132,7 +148,9 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
         for (var attempt = 0; attempt <= Retries; attempt++)
         {
             if (await transport.SendAsync(Host, request, Timeout, ct).ConfigureAwait(false) is not { } bytes) continue;
-            var reply = SnmpMessage.Decode(bytes);
+            SnmpMessage reply;
+            try { reply = SnmpMessage.Decode(bytes); }
+            catch (FormatException) { continue; } // not an SNMP message (garbage, or something else on the port): no answer
             // Another reply on this socket (a duplicate, or someone else's): not an answer to this request.
             if (reply.Type != SnmpPduType.Response || reply.RequestId != id || reply.Version != Version) continue;
             return reply;

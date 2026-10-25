@@ -279,4 +279,113 @@ public class QueuePrinterTests
         var queues = new[] { Queue("Example Inkjet 3700", "USB001"), Queue("Office laser", "IP_192.0.2.40") };
         Assert.Equal(2, QueueKinds.Unclaimed(queues, InkvoltPrinters.Empty).Count);
     }
+
+    // ------------------------------------------------------------------ queues Windows can't read right now (review fixes)
+
+    [Theory]
+    [InlineData(1801, true)]   // ERROR_INVALID_PRINTER_NAME: Windows no longer has it
+    [InlineData(1722, false)]  // RPC_S_SERVER_UNAVAILABLE: the print server is off, or the spooler is restarting
+    [InlineData(1726, false)]  // RPC_S_CALL_FAILED
+    [InlineData(5, false)]     // ERROR_ACCESS_DENIED
+    [InlineData(0, false)]     // no answer in time
+    public void Only_an_invalid_printer_name_means_the_queue_was_removed(int error, bool removed) =>
+        Assert.Equal(removed, SpoolerStatus.IsRemoved(error));
+
+    [Fact]
+    public void A_shared_printer_whose_pc_is_off_is_offline_not_removed()
+    {
+        var shared = new SpoolerQueue(@"\\print-server\Front desk", @"\\print-server\Front desk", null, 0, SpoolerFlags.AttributeNetwork, 0);
+        var s = SpoolerStatus.Unreadable(shared, 1722);
+        Assert.True(s.Offline);
+        Assert.Equal(("offline", "Can't reach the PC sharing it"), (s.Status.Code, s.Status.Message));
+        Assert.Contains("print-server", s.Status.Detail);
+        Assert.DoesNotContain("removed", s.Status.Detail);
+    }
+
+    [Fact]
+    public void A_local_queue_the_spooler_doesnt_answer_for_says_so()
+    {
+        var s = SpoolerStatus.Unreadable(Queue("Example", "USB001"), 1722);
+        Assert.True(s.Offline);
+        Assert.Contains("Print Spooler", s.Status.Detail);
+        Assert.Equal(SpoolerStatus.Unreadable(Queue("Example", "USB001"), 0).Status.Message, s.Status.Message); // a hung call reads the same
+    }
+
+    [Fact]
+    public void Access_denied_is_unknown_status_not_offline()
+    {
+        var s = SpoolerStatus.Unreadable(Queue("Example", "USB001"), 5);
+        Assert.False(s.Offline);
+        Assert.Equal(("unknown", Severity.Warning), (s.Status.Code, s.Status.Severity));
+        var shared = SpoolerStatus.Unreadable(new SpoolerQueue(@"\\print-server\Front desk", "x", null, 0, SpoolerFlags.AttributeNetwork, 0), 5);
+        Assert.Contains("PC sharing", shared.Status.Detail);
+    }
+
+    [Fact]
+    public void Server_unknown_is_offline_too()
+    {
+        Assert.Equal(0x800000u, SpoolerFlags.StatusServerUnknown);
+        Assert.True(SpoolerStatus.Describe(Queue("Example", "USB001", status: SpoolerFlags.StatusServerUnknown)).Offline);
+    }
+
+    // ------------------------------------------------------------------ calls that may hang (review fix)
+
+    [Fact]
+    public async Task A_hung_call_times_out_and_isnt_started_again_while_it_runs()
+    {
+        using var release = new ManualResetEventSlim();
+        var started = 0;
+        var calls = new TimedCalls<string, int>(TimeSpan.FromMilliseconds(50));
+        int Hang()
+        {
+            Interlocked.Increment(ref started);
+            release.Wait(TimeSpan.FromSeconds(10));
+            return 42;
+        }
+        Assert.Equal((false, 0), await calls.RunAsync(@"\\print-server\Front desk", Hang));
+        Assert.Equal((false, 0), await calls.RunAsync(@"\\print-server\Front desk", Hang));
+        Assert.Equal(1, started); // the second read waits on the first instead of blocking another thread
+        Assert.Equal((true, 7), await calls.RunAsync("USB laser", () => 7)); // other queues aren't held up
+        release.Set();
+        var next = (false, 0);
+        for (var i = 0; i < 100 && !next.Item1; i++) next = await calls.RunAsync(@"\\print-server\Front desk", Hang);
+        Assert.Equal((true, 42), next); // the slow call's answer goes to the next read
+        Assert.Equal(1, started);
+    }
+
+    // ------------------------------------------------------------------ presence only where it tells something (review fix)
+
+    [Fact]
+    public void Device_presence_is_looked_up_only_for_unclaimed_usb_and_wsd_queues()
+    {
+        const string uuid = "0e1f2a3b-0000-4000-8000-000000000003";
+        var known = Network(new InkvoltPrinter(uuid, "Example Laser 2100", "Example Laser 2100", "192.0.2.10", null));
+        Assert.True(QueueKinds.NeedsPresence(Queue("Example Inkjet 3700", "USB001", container: "0e1f2a3b-0000-4000-8000-0000000000aa"), known));
+        Assert.True(QueueKinds.NeedsPresence(Queue("Example (WSD)", "WSD-0001", monitor: "WSD Port Monitor", container: "0e1f2a3b-0000-4000-8000-0000000000bb"), known));
+        Assert.False(QueueKinds.NeedsPresence(Queue("Example Laser 2100 (WSD)", "WSD-0000", container: uuid), known)); // a network printer has it
+        Assert.False(QueueKinds.NeedsPresence(Queue("Office laser", "IP_192.0.2.40", monitor: "Standard TCP/IP Port", container: "0e1f2a3b-0000-4000-8000-0000000000cc"), known));
+        Assert.False(QueueKinds.NeedsPresence(Queue("Example", "USB001"), known)); // no container: nothing to ask
+        Assert.False(QueueKinds.NeedsPresence(Queue("Example", "USB001", container: QueueKinds.ThisPcContainer), known));
+        Assert.False(QueueKinds.NeedsPresence(Queue("Microsoft Print to PDF", "PORTPROMPT:", "Microsoft Print To PDF", container: "0e1f2a3b-0000-4000-8000-0000000000dd"), known));
+    }
+
+    // ------------------------------------------------------------------ renamed queues (review fix)
+
+    [Fact]
+    public void A_queue_renamed_in_windows_is_the_same_printer()
+    {
+        const string container = "0e1f2a3b-0000-4000-8000-0000000000ee";
+        var before = new[] { Queue("Example Inkjet 3700", "USB001", container: container), Queue("Office laser", "IP_192.0.2.40") };
+        var after = new[] { Queue("Upstairs inkjet", "USB001", container: container), Queue("Office laser", "IP_192.0.2.40") };
+        var renamed = QueueKinds.Renamed(before, after);
+        Assert.Equal("Upstairs inkjet", Assert.Single(renamed, kv => kv.Key == QueueKinds.IdFor("Example Inkjet 3700")).Value.Name);
+        Assert.Single(renamed);
+
+        // By port when there's no container; never when it's ambiguous or the old name is still there.
+        Assert.Single(QueueKinds.Renamed([Queue("Old", "IP_192.0.2.41")], [Queue("New", "IP_192.0.2.41")]));
+        Assert.Empty(QueueKinds.Renamed([Queue("Old", "USB002")], [Queue("New A", "USB002"), Queue("New B", "USB002")]));
+        Assert.Empty(QueueKinds.Renamed([Queue("Old", "USB002")], [Queue("Old", "USB002"), Queue("New", "USB002")]));
+        Assert.Empty(QueueKinds.Renamed([Queue("Old", "USB002")], [Queue("New", "USB003")]));
+        Assert.Empty(QueueKinds.Renamed([Queue("Old", "nul:", container: QueueKinds.ThisPcContainer)], [Queue("New", "LPT1:", container: QueueKinds.ThisPcContainer)]));
+    }
 }

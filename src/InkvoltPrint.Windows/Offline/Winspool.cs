@@ -34,22 +34,28 @@ internal static class Winspool
         return list;
     }
 
-    /// <summary>Every queue on this PC, connections to other PCs' shared printers included, as the spooler describes them.</summary>
-    public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues() =>
-        Enumerate<PrinterInfo2>((buf, cb, out needed, out count) => EnumPrinters(EnumLocal | EnumConnections, null, 2, buf, cb, out needed, out count))
-            .Where(p => p.pPrinterName is not null).Select(ToQueue).ToList();
+    /// <summary>
+    /// The name and attributes of every queue on this PC, connections to other PCs' shared printers included (PRINTER_INFO_4:
+    /// read from the registry, so a print server that's off doesn't hold the list up as level 2 would while RPC times out).
+    /// </summary>
+    public static IReadOnlyList<(string Name, uint Attributes)> QueueNames() =>
+        Enumerate<PrinterInfo4>((buf, cb, out needed, out count) => EnumPrinters(EnumLocal | EnumConnections, null, 4, buf, cb, out needed, out count))
+            .Where(p => p.pPrinterName is not null).Select(p => (p.pPrinterName!, p.Attributes)).ToList();
 
-    /// <summary>One queue now (GetPrinter level 2, as the user). Null when it doesn't exist (any more) or can't be opened.</summary>
-    public static Core.Queues.SpoolerQueue? Queue(string printer)
+    /// <summary>
+    /// One queue now (GetPrinter level 2, as the user), or the Win32 error that stopped it (<see cref="Core.Queues.SpoolerStatus.IsRemoved"/>
+    /// tells which mean the queue is gone). For a printer shared from a PC that's off this waits for RPC to time out: callers bound it.
+    /// </summary>
+    public static (Core.Queues.SpoolerQueue? Queue, int Error) Queue(string printer)
     {
         using var h = Open(printer, PrinterAccessUse);
-        if (h is null) return null;
+        if (h is null) return (null, Marshal.GetLastWin32Error());
         GetPrinter(h, 2, IntPtr.Zero, 0, out var needed);
-        if (needed == 0) return null;
+        if (needed == 0) return (null, Marshal.GetLastWin32Error());
         var buf = Marshal.AllocHGlobal((int)needed);
         try
         {
-            return GetPrinter(h, 2, buf, needed, out _) ? ToQueue(Marshal.PtrToStructure<PrinterInfo2>(buf)) : null;
+            return GetPrinter(h, 2, buf, needed, out _) ? (ToQueue(Marshal.PtrToStructure<PrinterInfo2>(buf)), 0) : (null, Marshal.GetLastWin32Error());
         }
         finally
         {
@@ -81,9 +87,11 @@ internal static class Winspool
         var buf = Marshal.AllocHGlobal(size);
         try
         {
-            if (!XcvData(h, command, IntPtr.Zero, 0, buf, size, out _, out var status) || status != 0) return null;
-            Marshal.WriteInt16(buf, size - 2, 0); // never read past the buffer
-            return Marshal.PtrToStringUni(buf)?.Trim() is { Length: > 0 } s ? s : null;
+            if (!XcvData(h, command, IntPtr.Zero, 0, buf, size, out var needed, out var status) || status != 0) return null;
+            // Only the bytes TCPMON wrote (never past the buffer), up to the first NUL.
+            var text = Marshal.PtrToStringUni(buf, (int)Math.Min(needed, size) / 2);
+            var nul = text.IndexOf('\0');
+            return (nul >= 0 ? text[..nul] : text).Trim() is { Length: > 0 } s ? s : null;
         }
         finally
         {
@@ -233,6 +241,13 @@ internal static class Winspool
         public string? pSepFile, pPrintProcessor, pDatatype, pParameters;
         public IntPtr pSecurityDescriptor;
         public uint Attributes, Priority, DefaultPriority, StartTime, UntilTime, Status, cJobs, AveragePPM;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct PrinterInfo4
+    {
+        public string? pPrinterName, pServerName;
+        public uint Attributes;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

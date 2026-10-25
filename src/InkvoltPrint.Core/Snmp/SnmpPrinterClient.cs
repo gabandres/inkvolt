@@ -17,6 +17,7 @@ public sealed record SnmpIdentity(SnmpVersion Version, uint DeviceIndex, string?
 public sealed class SnmpPrinterClient
 {
     private readonly SnmpClient _client;
+    private readonly ISnmpTransport _transport;
     private readonly object _gate = new();
     private Task<SnmpReading>? _read;
     private DateTime _readAt;
@@ -28,6 +29,7 @@ public sealed class SnmpPrinterClient
     public SnmpPrinterClient(ISnmpTransport transport, string host, SnmpIdentity identity, TimeSpan? timeout = null)
     {
         Identity = identity;
+        _transport = transport;
         _client = new SnmpClient(transport, host, identity.Version, identity.Community) { Timeout = timeout ?? ProbeTimeout };
     }
 
@@ -85,16 +87,31 @@ public sealed class SnmpPrinterClient
         }
     }
 
-    /// <summary>The printer's status objects now (or from a read a moment ago).</summary>
+    /// <summary>
+    /// The printer's status objects now (or from a read a moment ago). The shared read isn't tied to any one caller's token
+    /// (its requests time out on their own); each caller stops waiting when its own token is cancelled.
+    /// </summary>
     public Task<SnmpReading> ReadAsync(CancellationToken ct = default)
     {
+        Task<SnmpReading> read;
         lock (_gate)
         {
-            if (_read is not null && DateTime.UtcNow - _readAt < Shared && !_read.IsFaulted && !_read.IsCanceled) return _read;
-            _readAt = DateTime.UtcNow;
-            return _read = ReadNowAsync(ct);
+            if (_read is null || DateTime.UtcNow - _readAt >= Shared || _read.IsFaulted || _read.IsCanceled)
+            {
+                _readAt = DateTime.UtcNow;
+                _read = ReadNowAsync(CancellationToken.None);
+            }
+            read = _read;
         }
+        return read.WaitAsync(ct);
     }
+
+    /// <summary>
+    /// Who answers SNMP at the printer's address now (asked as <see cref="ProbeAsync"/> does, with this printer's community), to
+    /// tell whether it is still this printer (<see cref="SnmpDevice.Identify(SnmpIdentity)"/>). Null when nothing answers.
+    /// </summary>
+    public async Task<SnmpIdentity?> ReadIdentityAsync(CancellationToken ct = default) =>
+        (await ProbeAsync(_transport, Host, Identity.Community, ct).ConfigureAwait(false))?.Identity;
 
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default) => SnmpPrinterStatus.ToStatus(await ReadAsync(ct).ConfigureAwait(false));
 

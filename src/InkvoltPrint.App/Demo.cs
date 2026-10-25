@@ -59,7 +59,8 @@ internal static class Demo
             new KnownPrinter(OfficeUuid, "Demo office laser", null, OfficeOldHost, $"http://{OfficeOldHost}/eSCL/"),
             new KnownPrinter(CdmUuid, "Demo color laser (CDM)", null, CdmHost, null),
             // Added by address, as an SNMP-only printer is (no UUID: its id comes from the address).
-            new KnownPrinter(Core.Model.PrinterId.Normalize(null, SnmpHost), "Demo Laser 5200 Series", null, SnmpHost, null),
+            new KnownPrinter(Core.Model.PrinterId.Normalize(null, SnmpHost), "Demo Laser 5200 Series", null, SnmpHost, null,
+                Snmp: new Core.Snmp.SnmpDevice("DEMO0005200", "Demo Laser 5200 Series", "demo-laser")), // as its made-up agent says
         ],
         SelectedUuid = Uuid,
     };

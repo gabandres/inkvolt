@@ -632,6 +632,8 @@ public class SnmpTests
 
         snmp.To = null; // turned off
         now += TimeSpan.FromSeconds(16);
+        Assert.False((await source.ReadAsync(default))!.Offline); // one read without a reply could be a dropped datagram
+        now += TimeSpan.FromSeconds(5);
         var off = (await source.ReadAsync(default))!;
         Assert.Equal(("Can't reach the printer", true), (off.Status.Message, off.Offline));
         Assert.EndsWith("1 job is waiting.", off.Status.Detail);
@@ -655,5 +657,179 @@ public class SnmpTests
         public string Origin => "Windows";
         public bool HasSupplyLevels => false;
         public Task<QueueStatusRead?> ReadAsync(CancellationToken ct) => Task.FromResult<QueueStatusRead?>(null);
+    }
+
+    // ------------------------------------------------------------------------------------------------ review fixes
+
+    /// <summary>Passes requests to <paramref name="inner"/> unless <paramref name="answer"/> replies for it (an error, garbage).</summary>
+    private sealed class Tampered(ISnmpTransport inner, Func<SnmpMessage, byte[]?> answer) : ISnmpTransport
+    {
+        public bool On { get; set; } = true;
+
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct) =>
+            On && answer(SnmpMessage.Decode(request)) is { } reply ? Task.FromResult<byte[]?>(reply) : inner.SendAsync(host, request, timeout, ct);
+    }
+
+    private static byte[] ErrorReply(SnmpMessage request, int status, int index = 1) =>
+        new SnmpMessage(request.Version, request.Community, SnmpPduType.Response, request.RequestId, status, index, request.VarBinds).Encode();
+
+    [Fact]
+    public async Task AnUndecodableDatagramIsIgnoredLikeAStrayReply()
+    {
+        var sent = 0;
+        var agent = new Tampered(Rfc3416Agent(), _ => sent++ == 0 ? Hex("3003020100") : null); // the first reply isn't SNMP
+        var got = await new SnmpClient(agent, "192.0.2.50", SnmpVersion.V2c).GetAsync([Oid.Parse("1.3.6.1.2.1.1.3.0")]);
+        Assert.Equal(123456L, got[0].Value.Number);
+    }
+
+    [Fact]
+    public void UnknownValueTypesAreKeptAsOpaqueBytes()
+    {
+        // A Response whose one binding is 0x47 (UInteger32 of RFC 1442's SMI), which a GetBulk running past a table may meet.
+        var bytes = Hex("3022 020101 0406 7075626C6963 A215 020101 020100 020100 300A 3008 0603 2B0601 470105");
+        var m = SnmpMessage.Decode(bytes);
+        Assert.Equal(0x47, m.VarBinds[0].Value.Tag);
+        Assert.Equal(new byte[] { 5 }, m.VarBinds[0].Value.Bytes);
+        Assert.Null(m.VarBinds[0].Value.Int);
+        Assert.Equal(bytes, m.Encode());
+    }
+
+    [Fact]
+    public async Task AWalkFallsBackToGetNextWhenGetBulkFails()
+    {
+        var agent = new Tampered(Rfc3416Agent(), m => m.Type == SnmpPduType.GetBulkRequest ? ErrorReply(m, SnmpMessage.GenErr) : null);
+        var columns = await new SnmpClient(agent, "192.0.2.50", SnmpVersion.V2c).WalkAsync([PhysAddress, MediaType]);
+        Assert.Equal(3, columns[0].Count);
+        Assert.Equal([3L, 4L, 3L], columns[1].Select(r => r.Value.Number));
+    }
+
+    [Fact]
+    public async Task AColumnTheAgentFailsOnIsEmptyAndTheOthersAreRead()
+    {
+        var alertTable = PrinterMib.AlertSeverity.ToString();
+        alertTable = alertTable[..alertTable.LastIndexOf('.')];
+        var agent = new Tampered(DemoAgent("color-mfp.txt"),
+            m => m.VarBinds.Any(v => v.Name.ToString().StartsWith(alertTable + ".", StringComparison.Ordinal)) ? ErrorReply(m, SnmpMessage.GenErr) : null);
+        var printer = await SnmpPrinterClient.ProbeAsync(agent, "192.0.2.15");
+        var reading = await printer!.ReadAsync();
+        Assert.Empty(reading.Alerts); // genErr on prtAlertTable: no alerts, not a failed read
+        Assert.Equal(5, reading.Supplies.Count);
+    }
+
+    [Fact]
+    public async Task OneMissedReplyOrAnErrorDoesntMakeAQueuePrinterUnreachable()
+    {
+        var off = new Switchable(DemoAgent("color-mfp.txt"));
+        var errors = new Tampered(off, m => ErrorReply(m, SnmpMessage.GenErr)) { On = false };
+        var now = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var source = new SnmpQueueStatusSource(new FixedQueue(Queue("IP_192.0.2.15", "Standard TCP/IP Port")), "192.0.2.15", errors) { Now = () => now };
+        Assert.Equal(5, (await source.ReadAsync(default))!.Supplies.Count);
+
+        errors.On = true; // the agent answers, with genErr: it is there
+        now += TimeSpan.FromSeconds(16);
+        var answered = (await source.ReadAsync(default))!;
+        Assert.False(answered.Offline);
+        Assert.Equal(5, answered.Supplies.Count); // the last reading stays
+        errors.On = false;
+
+        off.To = null; // one read without a reply (a dropped datagram, or the printer just turned off)
+        now += TimeSpan.FromSeconds(16);
+        var once = (await source.ReadAsync(default))!;
+        Assert.False(once.Offline);
+        now += TimeSpan.FromSeconds(5);
+        Assert.True((await source.ReadAsync(default))!.Offline); // the second in a row: unreachable
+    }
+
+    [Fact]
+    public void CriticalAlertsWithOtherOrUnknownCodesAreKeptWithTheirWords()
+    {
+        SnmpAlert[] alerts =
+        [
+            new(1, 3, 5, -1, 1, "Fuser error, call for service"), // critical, code other
+            new(2, 4, 5, -1, 2, null), // warning, code unknown, no words
+            new(3, 1, 5, -1, 1, "Something"), // severity other: not a problem
+            new(4, 5, 5, -1, 2, "Changed"), // a change event
+        ];
+        var s = SnmpPrinterStatus.ToStatus(Reading(alerts: alerts));
+        Assert.Equal(2, s.Alerts.Count);
+        Assert.Equal((Severity.Error, "Fuser error, call for service."), (s.Alerts[0].Severity, s.Alerts[0].Message));
+        Assert.Equal((Severity.Warning, "The printer reports a problem"), (s.Alerts[1].Severity, s.Alerts[1].Message));
+    }
+
+    [Fact]
+    public void ServiceRequestedIsLeftOutBesideAWarningToo()
+    {
+        var s = SnmpPrinterStatus.ToStatus(Reading(2, 3, [0x21])); // lowToner + serviceRequested
+        Assert.Equal(("toner-low", Severity.Warning), (Assert.Single(s.Alerts).Id, s.Severity));
+    }
+
+    [Fact]
+    public void AWasteBoxReportedAsConsumedIsntFullAtLevelZero()
+    {
+        var consumed = Assert.Single(SnmpPrinterStatus.ToConsumables(Reading(supplies: [new SnmpSupply(1, 3, 4, "Waste Toner Box", 100, 0, 0)])));
+        Assert.Equal((true, "ok"), (consumed.IsWaste, consumed.State));
+        var other = Assert.Single(SnmpPrinterStatus.ToConsumables(Reading(supplies: [new SnmpSupply(1, 1, 4, "Waste Toner Box", 100, 0, 0)])));
+        Assert.Equal("full", other.State); // class other: a waste box's level is the room left
+    }
+
+    // A printer that answered only SNMP when it was added, and the rest.
+
+    private static HttpMessageHandler IppAt(string host) => new HostRouter(new Dictionary<string, HttpMessageHandler>
+    {
+        [host] = new FixtureHandler(name => name == "ipp_print.ipp.txt"
+            ? File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inkjet-demo", name)) : null),
+    });
+
+    [Fact]
+    public async Task OnlyAPrinterAddedAsSnmpOnlyIsReadOverSnmp()
+    {
+        var agent = DemoAgent("workgroup-laser.txt");
+        // An IPP printer waking up answers SNMP before HTTP: it is offline for a moment, not an SNMP-only printer.
+        using var waking = await PrinterConnection.OpenAsync("192.0.2.14", transport: NothingOverHttp(), snmp: SnmpDevice.TransportFor(null, agent));
+        Assert.False(waking.Probe.Reachable);
+        Assert.Equal(0, agent.Requests);
+
+        var added = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, "192.0.2.14"))!.Identity);
+        using var snmpOnly = await PrinterConnection.OpenAsync("192.0.2.14", transport: NothingOverHttp(), snmp: SnmpDevice.TransportFor(added, agent));
+        Assert.Equal(["SNMP"], snmpOnly.Probe.Interfaces);
+    }
+
+    [Fact]
+    public async Task AnSnmpConnectionMovesToIppWhenThePrinterAnswersIt()
+    {
+        var agent = DemoAgent("color-mfp.txt");
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, "192.0.2.11"))!.Identity);
+        using var conn = await PrinterConnection.OpenAsync("192.0.2.11", transport: NothingOverHttp(), snmp: agent);
+        Assert.Null(await conn.TryRicherAsync(known, transport: NothingOverHttp()));
+        using var richer = await conn.TryRicherAsync(known, transport: IppAt("192.0.2.11"));
+        Assert.NotNull(richer);
+        Assert.Contains("IPP", richer.Probe.Interfaces);
+        Assert.DoesNotContain("SNMP", richer.Probe.Interfaces);
+    }
+
+    [Fact]
+    public void ASerialNumberThatDisagreesIsAnotherDevice()
+    {
+        var known = new SnmpDevice("DEMO0005200", "Demo Laser 5200 Series", "demo-laser");
+        Assert.Equal(DeviceIdentity.Same, known.Identify("DEMO0005200"));
+        Assert.Equal(DeviceIdentity.Different, known.Identify("DEMO0004400"));
+        Assert.Equal(DeviceIdentity.Unknown, known.Identify((string?)null));
+        Assert.Equal(DeviceIdentity.Unknown, new SnmpDevice(null, null, null).Identify("DEMO0005200"));
+    }
+
+    [Fact]
+    public async Task AnotherSnmpPrinterAtTheAddressIsADifferentDevice()
+    {
+        var snmp = new Switchable(DemoAgent("workgroup-laser.txt"));
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(snmp, "192.0.2.14"))!.Identity);
+        using var conn = await PrinterConnection.OpenAsync("192.0.2.14", transport: NothingOverHttp(), snmp: snmp);
+        Assert.Equal(DeviceIdentity.Same, known.Identify((await conn.ReadSnmpIdentityAsync())!));
+
+        snmp.To = DemoAgent("color-mfp.txt"); // DHCP gave the address to another printer
+        Assert.Equal(DeviceIdentity.Different, known.Identify((await conn.ReadSnmpIdentityAsync())!));
+        snmp.To = null;
+        Assert.Null(await conn.ReadSnmpIdentityAsync()); // no answer: can't tell
+        Assert.Equal(DeviceIdentity.Different, known.Identify(new SnmpIdentity(SnmpVersion.V2c, 1, "Demo Laser 5200 Series", null, "demo-laser", null, "DEMO0009999")));
+        Assert.Equal(DeviceIdentity.Unknown, known.Identify(new SnmpIdentity(SnmpVersion.V2c, 1, null, null, null, null, null)));
     }
 }

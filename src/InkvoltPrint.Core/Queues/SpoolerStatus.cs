@@ -30,7 +30,36 @@ public static class SpoolerStatus
     /// <summary>The headline while Windows' "Use Printer Offline" holds the jobs.</summary>
     public const string UsePrinterOfflineMessage = "Use Printer Offline is on";
 
-    private const uint OfflineBits = SpoolerFlags.StatusOffline | SpoolerFlags.StatusNotAvailable | SpoolerFlags.StatusServerOffline;
+    private const uint OfflineBits = SpoolerFlags.StatusOffline | SpoolerFlags.StatusNotAvailable | SpoolerFlags.StatusServerOffline
+                                     | SpoolerFlags.StatusServerUnknown;
+
+    /// <summary>Win32 errors from opening a queue (winerror.h).</summary>
+    public const int ErrorAccessDenied = 5, ErrorInvalidPrinterName = 1801;
+
+    /// <summary>
+    /// Whether a failure to open a queue means Windows no longer has it: only ERROR_INVALID_PRINTER_NAME. A print server that's
+    /// off or a spooler restarting (RPC errors such as 1722 and 1726), access denied, or no answer in time say nothing about that.
+    /// </summary>
+    public static bool IsRemoved(int win32Error) => win32Error == ErrorInvalidPrinterName;
+
+    /// <summary>
+    /// The status of a queue Windows has but couldn't read now (<paramref name="win32Error"/> from opening it, 0 when the call didn't
+    /// return in time): access denied leaves the status unknown; anything else is offline, for a printer shared from another PC
+    /// because that PC can't be reached, for one of this PC's because the Print Spooler isn't answering.
+    /// </summary>
+    public static QueueReading Unreadable(SpoolerQueue q, int win32Error)
+    {
+        var server = QueueKinds.Connection(q) == QueueConnection.Shared ? QueueKinds.ServerOf(q.Name) ?? "another PC" : null;
+        if (win32Error == ErrorAccessDenied)
+            return new(new PrinterStatus("unknown", "Status not available", Severity.Warning, [], server is not null
+                ? $"The PC sharing this printer ({server}) doesn't let this PC read its status."
+                : "Windows doesn't let Inkvolt Print read this printer's status."), false);
+        return server is not null
+            ? new(new PrinterStatus("offline", "Can't reach the PC sharing it", Severity.Error, [],
+                $"Windows can't reach {server}, the PC sharing this printer. Check that it's on and on the same network as this PC."), true)
+            : new(new PrinterStatus("offline", "Windows isn't answering", Severity.Error, [],
+                "The Print Spooler isn't answering about this printer (it may be restarting). Inkvolt Print keeps asking."), true);
+    }
 
     public static QueueReading Describe(SpoolerQueue q)
     {

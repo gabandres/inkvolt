@@ -36,7 +36,7 @@ public sealed class SnmpValue
     /// <summary>INTEGER, Counter32, Gauge32, TimeTicks, Counter64 (a Counter64 above 2^63 wraps; nothing here reads one).</summary>
     public long Number { get; }
 
-    /// <summary>OCTET STRING, IpAddress, Opaque.</summary>
+    /// <summary>OCTET STRING, IpAddress, Opaque, and the content of a type Inkvolt Print doesn't know.</summary>
     public byte[]? Bytes { get; }
 
     public Oid? ObjectId { get; }
@@ -87,6 +87,7 @@ public sealed class SnmpValue
         Ber.Counter32 or Ber.Gauge32 or Ber.TimeTicks or Ber.Counter64 => Ber.Tlv(Tag, Ber.UnsignedContent(unchecked((ulong)Number))),
         Ber.OctetString or Ber.IpAddress or Ber.Opaque => Ber.Tlv(Tag, Bytes),
         Ber.ObjectIdentifier => Ber.ObjectId(ObjectId!),
+        _ when Bytes is not null => Ber.Tlv(Tag, Bytes), // a type kept as it came (see Decode)
         _ => [Tag, 0x00], // NULL and the SNMPv2 exceptions carry no content
     };
 
@@ -103,7 +104,9 @@ public sealed class SnmpValue
             Ber.EndOfMibView => EndOfMibView,
             _ => Null,
         },
-        _ => throw new FormatException($"SNMP: unknown value type 0x{tag:X2}."),
+        // Another type (NsapAddress 0x45, UInteger32 0x47 of RFC 1442's SMI, a vendor's): kept as opaque bytes, so one odd
+        // value a GetBulk ran into doesn't lose the whole reply.
+        _ => new(tag, bytes: content.ToArray()),
     };
 
     /// <summary>As net-snmp prints values ("INTEGER: 3", "STRING: \"Ready\""), for the developer CLI and logs.</summary>
@@ -198,7 +201,10 @@ public sealed record SnmpMessage(
 }
 
 /// <summary>The agent answered with an error-status (RFC 3416 §3) the client can't work around, or with an unexpected PDU.</summary>
-public sealed class SnmpErrorException(int status, string message) : Exception(message)
+public sealed class SnmpErrorException(int status, string message, int index = 0) : Exception(message)
 {
     public int Status { get; } = status;
+
+    /// <summary>The error-index: which object (from 1) the error is about; 0 when the agent didn't say.</summary>
+    public int Index { get; } = index;
 }

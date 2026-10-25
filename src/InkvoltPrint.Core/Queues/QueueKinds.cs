@@ -114,7 +114,46 @@ public static partial class QueueKinds
         return q.PortMonitor is "Standard TCP/IP Port" or "LPR Port" && hosts.FirstOrDefault(h => h.Contains('.')) is { } name ? name : null;
     }
 
-    private static string? ServerOf(string name) =>
+    /// <summary>The device container Windows gives queues without a device of their own (and some virtual ones): the PC itself.</summary>
+    public const string ThisPcContainer = "00000000-0000-0000-ffff-ffffffffffff";
+
+    /// <summary>
+    /// Whether to ask Windows if a queue's printer is connected (<see cref="DevicePresence"/>, a PnP query per queue): only for a
+    /// real USB or WSD queue with a container of its own that no network printer here stands for, since presence tells nothing
+    /// for TCP/IP and IPP queues, and a claimed queue isn't listed.
+    /// </summary>
+    public static bool NeedsPresence(SpoolerQueue q, InkvoltPrinters known)
+    {
+        if (q.ContainerId is not { Length: > 0 } container || string.Equals(container, ThisPcContainer, StringComparison.OrdinalIgnoreCase) || IsVirtual(q))
+            return false;
+        var wsd = q.PortName.Trim().StartsWith("WSD", StringComparison.OrdinalIgnoreCase) || q.PortMonitor == "WSD Port Monitor";
+        return (Connection(q) == QueueConnection.Usb || wsd) && Unclaimed([q], known).Count > 0;
+    }
+
+    /// <summary>
+    /// Queues renamed in Windows between two listings: old id → the queue under its new name. A queue counts as renamed when its
+    /// name is gone, exactly one new name appeared with the same device container (not the PC's) or, without one, the same port.
+    /// </summary>
+    public static IReadOnlyDictionary<string, SpoolerQueue> Renamed(IReadOnlyList<SpoolerQueue> before, IReadOnlyList<SpoolerQueue> after)
+    {
+        var oldIds = before.Select(q => IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newIds = after.Select(q => IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var appeared = after.Where(q => !oldIds.Contains(IdFor(q.Name))).ToList();
+        var renamed = new Dictionary<string, SpoolerQueue>(StringComparer.OrdinalIgnoreCase);
+        foreach (var gone in before.Where(q => !newIds.Contains(IdFor(q.Name))))
+        {
+            var container = gone.ContainerId is { Length: > 0 } c && !string.Equals(c, ThisPcContainer, StringComparison.OrdinalIgnoreCase) ? c : null;
+            var same = container is not null
+                ? appeared.Where(q => string.Equals(q.ContainerId, container, StringComparison.OrdinalIgnoreCase)).ToList()
+                : gone.PortName.Trim() is { Length: > 0 } port && !VirtualPorts.Contains(port, StringComparer.OrdinalIgnoreCase)
+                    ? appeared.Where(q => string.Equals(q.PortName.Trim(), port, StringComparison.OrdinalIgnoreCase)).ToList()
+                    : [];
+            if (same is [var only]) renamed[IdFor(gone.Name)] = only;
+        }
+        return renamed;
+    }
+
+    internal static string? ServerOf(string name) =>
         name.StartsWith(@"\\", StringComparison.Ordinal) && name[2..].Split('\\') is [{ Length: > 0 } server, ..] ? server : null;
 
     /// <summary>

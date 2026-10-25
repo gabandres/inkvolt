@@ -61,7 +61,10 @@ public static class SnmpPrinterStatus
     ];
 
     /// <summary>Alert codes that report a change, not a problem (cover closed, powered up, media changed, added or removed…).</summary>
-    private static readonly HashSet<int> Events = [1, 2, 4, 6, 7, 19, 20, 23, 24, 25, 26, 27, 28, 502, 503, 504, 505, 506, 507, 802, 803, 804, 805, 806];
+    private static readonly HashSet<int> Events = [4, 6, 7, 19, 20, 23, 24, 25, 26, 27, 28, 502, 503, 504, 505, 506, 507, 802, 803, 804, 805, 806];
+
+    /// <summary>PrtAlertCodeTC other(1) and unknown(2): the printer's description is all that says what the alert is.</summary>
+    private const int CodeOther = 1, CodeUnknown = 2;
 
     /// <summary>Codes PWG 5100.9 has no printer-alert mapping for that still mean an IPP reason (RFC 3805's newer marker codes, jams).</summary>
     private static readonly Dictionary<int, string> MoreReasons = new()
@@ -84,7 +87,7 @@ public static class SnmpPrinterStatus
         {
             if (Classify(a, r.Supplies) is not { } x) continue;
             var existing = alerts.FindIndex(p => p.Id == x.Id);
-            if (existing < 0) alerts.Add(new PrinterAlert(x.Id, x.Severity, IppStatusText.Describe(x.Id)));
+            if (existing < 0) alerts.Add(new PrinterAlert(x.Id, x.Severity, x.Id is "other" or "unknown" ? "The printer reports a problem" : IppStatusText.Describe(x.Id)));
             else if (x.Severity > alerts[existing].Severity) alerts[existing] = alerts[existing] with { Severity = x.Severity };
             if (Words(a.Description) is { } d)
             {
@@ -100,7 +103,7 @@ public static class SnmpPrinterStatus
         foreach (var (bit, id, severity, message) in ErrorBits)
         {
             if (!IsSet(r.DetectedErrorState, bit) || Covered(alerts, id)) continue;
-            if (id == "service-requested" && alerts.Any(a => a.Severity == Severity.Error)) continue; // set alongside the real problem
+            if (id == "service-requested" && alerts.Count > 0) continue; // set alongside the real problem (a jam, low toner…)
             alerts.Add(new PrinterAlert(id, severity, message));
         }
 
@@ -143,7 +146,8 @@ public static class SnmpPrinterStatus
             if (s.IsReceptacle)
             {
                 if (!kind.StartsWith("waste", StringComparison.Ordinal)) kind = "waste-" + kind;
-                var full = s.Level == 0 || reasons.Any(x => x.EndsWith("-full", StringComparison.Ordinal) && !x.EndsWith("almost-full", StringComparison.Ordinal));
+                // A waste box the printer calls consumed (class 3) doesn't say its level is the room left: only alerts make it full.
+                var full = (s.Level == 0 && s.Class != PrinterMib.ClassConsumed) || reasons.Any(x => x.EndsWith("-full", StringComparison.Ordinal) && !x.EndsWith("almost-full", StringComparison.Ordinal));
                 var state = full ? "full" : reasons.Any(x => x.EndsWith("almost-full", StringComparison.Ordinal)) ? "almostFull" : s.Level == -2 ? "unknown" : "ok";
                 list.Add(new Consumable(name, kind, null, null, state, null, null, null, null, null));
                 continue;
@@ -172,14 +176,15 @@ public static class SnmpPrinterStatus
     };
 
     /// <summary>
-    /// An alert as an IPP reason with a severity; null for change events, "other"/"unknown" codes and alerts that need no
-    /// attention. Codes PWG 5100.9 maps (by their PrtAlertCodeTC label) use its reason; the generic sub-unit codes take the
+    /// An alert as an IPP reason with a severity; null for change events and alerts that need no attention (an "other" or
+    /// "unknown" code counts only as a critical or warning alert, named by the printer's description). Codes PWG 5100.9 maps (by their PrtAlertCodeTC label) use its reason; the generic sub-unit codes take the
     /// meaning of their group (a supply, a tray, an output bin). A warning or critical alert with no known meaning is kept
     /// under its own label, so nothing the printer flags is dropped.
     /// </summary>
     internal static (string Id, Severity Severity)? Classify(SnmpAlert a, IReadOnlyList<SnmpSupply> supplies)
     {
         if (a.Severity == PrinterMib.SeverityBinaryChangeEvent || Events.Contains(a.Code)) return null;
+        if (a.Code is CodeOther or CodeUnknown && a.Severity is not (PrinterMib.SeverityCritical or PrinterMib.SeverityWarning)) return null;
         var label = PrinterMib.AlertLabel(a.Code);
         var reason = (label is null ? null : IppStatusText.ReasonForAlert(label)) ?? MoreReasons.GetValueOrDefault(a.Code) ?? FromGroup(a, supplies);
         Severity? severity = a.Severity switch

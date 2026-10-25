@@ -8,7 +8,9 @@ namespace InkvoltPrint.Core.Queues;
 /// <paramref name="windows"/>: paused, Use Printer Offline, jobs waiting) joined with what the printer itself says over SNMP
 /// (state, paper and jam problems, supply levels; <see cref="SnmpPrinterStatus"/>). A printer that never answered SNMP
 /// (switched off in it, another community) gets Windows' status alone and is asked again a minute later; one that answered
-/// and stops is taken as unreachable (Windows keeps saying "ready" for a TCP/IP printer that's off) and asked every 20 s.
+/// and stops (no reply to two reads in a row: one may be a dropped datagram) is taken as unreachable (Windows keeps saying
+/// "ready" for a TCP/IP printer that's off) and asked every 20 s. A reply with an error or that can't be read means the printer
+/// is there: its last reading stays and it's asked again at the next read.
 /// </summary>
 public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string host, ISnmpTransport transport, string? community = null)
     : IQueueStatusSource
@@ -27,6 +29,10 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
     private SnmpReading? _last;
     private DateTime _lastAt;
     private bool _answered, _lost;
+    private int _silent;
+
+    /// <summary>Reads in a row without a reply before a printer that answered counts as unreachable.</summary>
+    internal const int SilentReadsLost = 2;
 
     /// <summary>Clock for tests.</summary>
     internal Func<DateTime> Now { get; init; } = () => DateTime.UtcNow;
@@ -46,6 +52,7 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
         var now = Now();
         if (_last is null || now - _lastAt >= ReadInterval)
         {
+            var previous = _last;
             _last = null;
             if (_client is null && now >= _nextProbe)
             {
@@ -61,11 +68,21 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
                     _lastAt = now;
                     _answered = true;
                     _lost = false;
+                    _silent = 0;
                 }
-                catch (Exception ex) when (ex is TimeoutException or FormatException or SnmpErrorException)
+                catch (TimeoutException) when (++_silent < SilentReadsLost)
+                {
+                    _last = previous; // one read without a reply: the last reading stands until the next read says more
+                }
+                catch (TimeoutException)
                 {
                     _client = null; // gone, or turned off
+                    _silent = 0;
                     Missed(now);
+                }
+                catch (Exception ex) when (ex is FormatException or SnmpErrorException)
+                {
+                    _last = previous; // it answered, oddly: still there; asked again at the next read
                 }
             }
         }

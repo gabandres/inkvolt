@@ -86,7 +86,7 @@ switch (cmd)
         break;
     case "queues":
         // Read-only: each installed queue as the app's sidebar sees it (virtual or not, connection, status from the spooler).
-        foreach (var q in await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync())
+        foreach (var q in await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync(_ => true))
         {
             var status = InkvoltPrint.Core.Queues.SpoolerStatus.Describe(q).Status;
             Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
