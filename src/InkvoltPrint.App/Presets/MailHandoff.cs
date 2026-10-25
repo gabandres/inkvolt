@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using InkvoltPrint.Core.Presets;
 using Microsoft.Win32;
 
 namespace InkvoltPrint.App.Presets;
@@ -9,7 +10,8 @@ namespace InkvoltPrint.App.Presets;
 /// or server. When a Simple MAPI mail client is registered (<c>Software\Clients\Mail</c>, e.g. classic Outlook or
 /// Thunderbird), <c>MAPISendMailW</c> opens a new message with the files attached for the user to address and send.
 /// Otherwise (or if that fails) the folder opens with the file selected and a <c>mailto:</c> link starts a message, since
-/// mailto can't carry attachments.
+/// mailto can't carry attachments. MAPI isn't tried when it can't work (<see cref="MailRoute"/>): the new Outlook as the
+/// default mail app, or classic Outlook without a mail profile (which would ask to create one first).
 /// </summary>
 public static class MailHandoff
 {
@@ -17,16 +19,65 @@ public static class MailHandoff
 
     public static async Task<Result> SendAsync(IReadOnlyList<string> files, string subject)
     {
-        if (DefaultMapiClient() is { } client)
+        var setup = ReadSetup();
+        var (route, why) = MailRoute.Choose(setup);
+        if (route == MailRouteKind.Mapi)
         {
             var code = await RunStaAsync(() => SendMail(files, subject));
             if (code == SuccessSuccess) return Result.Attached;
             if (code == MapiUserAbort) return Result.Cancelled;
-            Log.Write($"MAPISendMailW ({client}) returned {code}; falling back to mailto");
+            Log.Write($"MAPISendMailW ({setup.MapiClient}) returned {code}; falling back to mailto");
+        }
+        else
+        {
+            Log.Write($"Email: {why}; opening the folder and a mailto message");
         }
         Shell.ShowInFolder(files[0]);
-        Shell.Open($"mailto:?subject={Uri.EscapeDataString(subject)}");
+        Shell.Open(MailRoute.MailtoUri(subject, files.Select(Path.GetFileName).OfType<string>().ToList()));
         return Result.FolderAndMailto;
+    }
+
+    private static MailSetup ReadSetup()
+    {
+        var progId = ReadString(Registry.CurrentUser, @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\mailto\UserChoice", "ProgId");
+        var appId = progId is { Length: > 0 } && !progId.Contains('\\')
+            ? ReadString(Registry.ClassesRoot, $@"{progId}\Application", "AppUserModelID")
+            : null;
+        return new MailSetup(DefaultMapiClient(), progId, appId, OutlookHasProfile());
+    }
+
+    /// <summary>
+    /// Classic Outlook has a mail profile (Office 2016 and later, then 2013). No Profiles key, or an empty one, means Outlook
+    /// was never set up: MAPI would ask to create a profile. Null when the registry couldn't be read.
+    /// </summary>
+    private static bool? OutlookHasProfile()
+    {
+        try
+        {
+            foreach (var version in new[] { "16.0", "15.0" })
+            {
+                using var key = Registry.CurrentUser.OpenSubKey($@"Software\Microsoft\Office\{version}\Outlook\Profiles");
+                if (key?.SubKeyCount > 0) return true;
+            }
+            return false;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadString(RegistryKey hive, string path, string? name)
+    {
+        try
+        {
+            using var key = hive.OpenSubKey(path);
+            return key?.GetValue(name) as string;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The registered Simple MAPI client's name (per user, then per machine), or null when there's none.</summary>

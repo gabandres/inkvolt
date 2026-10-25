@@ -1096,7 +1096,9 @@ public sealed partial class ScanViewModel : ObservableObject
                 {
                     MailHandoff.Result.Attached => " The file was attached to a new message in your mail app.",
                     MailHandoff.Result.Cancelled => " The email was cancelled; the file is saved.",
-                    _ => " Your mail app has no attachment hand-off, so a new message and the file's folder opened: drag the file into the message.",
+                    _ => saved.Count == 1
+                        ? " Your mail app can't take attachments from other apps, so a new message and the file's folder opened: attach the selected file to the message (drag it in)."
+                        : $" Your mail app can't take attachments from other apps, so a new message and the files' folder opened: attach the {saved.Count} files to the message (drag them in).",
                 };
                 // The tab may have moved on (another scan) while the message window was open: don't write over that.
                 if (Message == said) Message = before + note;
