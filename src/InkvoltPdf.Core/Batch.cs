@@ -266,6 +266,9 @@ public sealed record BatchPlan
     /// <summary>The PDF itself is saved: something changes it, or the file was an image made into one.</summary>
     public bool WritesPdf(BatchFile file) => file.IsImage || Steps.Any(s => s.ChangesPdf);
 
+    /// <summary>Some action renders pages (page images, OCR), which takes far more memory than the file's size says.</summary>
+    public bool RendersPages => Steps.Any(s => s is OcrStep or ExportStep { IsImages: true });
+
     /// <summary>Bates numbers run on across files, so the files are done one at a time, in order.</summary>
     public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null);
 
@@ -389,7 +392,7 @@ public static class BatchRunner
             long weight;
             try
             {
-                weight = Math.Max(MinWeight, new FileInfo(file.Path).Length * MemoryPerByte);
+                weight = Weight(new FileInfo(file.Path).Length, plan.RendersPages ? LargestPage(file) : null, plan);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -436,6 +439,49 @@ public static class BatchRunner
         return new BatchSummary([.. results.Select(r => r!)]);
     }
 
+    /// <summary>OCR renders pages at this resolution (see the app's recognizer), within this many pixels.</summary>
+    private const double OcrDpi = 300, OcrMaxPixels = 60_000_000;
+
+    /// <summary>
+    /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
+    /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each.
+    /// </summary>
+    /// <param name="largestPage">The largest page in points (null: unknown, a Letter page is assumed).</param>
+    internal static long Weight(long fileSize, (double Width, double Height)? largestPage, BatchPlan plan)
+    {
+        var weight = Math.Max(MinWeight, fileSize * MemoryPerByte);
+        if (!plan.RendersPages) return weight;
+        var (w, h) = largestPage ?? (612, 792);
+        double pixels = 0;
+        foreach (var step in plan.Steps)
+        {
+            var (dpi, max) = step switch
+            {
+                ExportStep { IsImages: true } e => ((double)e.Dpi, PageImages.MaxPixels),
+                OcrStep => (OcrDpi, OcrMaxPixels),
+                _ => (0d, 0d),
+            };
+            pixels = Math.Max(pixels, Math.Min(max, w / 72 * dpi * (h / 72 * dpi)));
+        }
+        return weight + (long)(pixels * 4);
+    }
+
+    /// <summary>The largest page of a file (points), read in place; null when it can't be told (encrypted, damaged).</summary>
+    private static (double, double)? LargestPage(BatchFile file)
+    {
+        try
+        {
+            using var engine = PdfEngine.OpenPreview(file.Path);
+            if (engine is null || engine.PageCount == 0) return null;
+            var max = Enumerable.Range(0, engine.PageCount).Select(engine.GetPage).MaxBy(g => g.Width * g.Height);
+            return (max.Width, max.Height);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The file is left out, with the reason (a password not given, a signed file).</summary>
     private sealed class SkipException(string reason) : Exception(reason);
 
@@ -476,14 +522,18 @@ public static class BatchRunner
                     if (PdfSecurity.NeedsOpenPassword(data)) await UnlockAsync(data).ConfigureAwait(false);
                 }
                 var changes = plan.Steps.Any(s => s.ChangesPdf);
-                if (changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password))
+                // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
+                var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password);
+                if (keepSigned && plan.Steps.All(s => s.ChangesPdf))
                     return Result(BatchItemState.Skipped, "Signed: left as it is so its signatures stay valid");
+                if (keepSigned) _notes.Add("Signed: only exported, the PDF left as it is so its signatures stay valid");
                 PageCount = Pages(data);
 
                 for (var s = 0; s < plan.Steps.Count; s++)
                 {
                     cancel.ThrowIfCancellationRequested();
                     var step = plan.Steps[s];
+                    if (keepSigned && step.ChangesPdf) continue;
                     Report($"{step.Title}…", (double)s / plan.Steps.Count);
                     switch (step)
                     {
@@ -501,12 +551,8 @@ public static class BatchRunner
                     }
                 }
                 cancel.ThrowIfCancellationRequested();
-                if (plan.WritesPdf(file))
-                {
-                    var path = names.Reserve(_folder, _baseName + ".pdf");
-                    WriteAtomic(path, data);
-                    _outputs.Insert(0, path);
-                }
+                if (plan.WritesPdf(file) && !keepSigned)
+                    _outputs.Insert(0, names.Place(_folder, _baseName + ".pdf", temp => File.WriteAllBytes(temp, data)));
                 return Result(BatchItemState.Done, _outputs.Count == 0 ? "Done (nothing to save)" : "Done");
             }
             catch (OperationCanceledException)
@@ -670,17 +716,9 @@ public static class BatchRunner
                 {
                     cancel.ThrowIfCancellationRequested();
                     Report($"Saving page {p + 1} of {engine.PageCount}…", (double)p / engine.PageCount);
-                    var path = names.Reserve(_folder, $"{_baseName} - page {p + 1}.{(jpeg ? "jpg" : "png")}");
-                    try
-                    {
-                        engine.SaveImage(p, PageImages.ClampDpi(engine.GetPage(p), step.Dpi), path, jpeg, cancel);
-                    }
-                    catch
-                    {
-                        TryDelete(path); // no half an image
-                        throw;
-                    }
-                    _outputs.Add(path);
+                    var dpi = PageImages.ClampDpi(engine.GetPage(p), step.Dpi);
+                    _outputs.Add(names.Place(_folder, $"{_baseName} - page {p + 1}.{(jpeg ? "jpg" : "png")}",
+                        temp => engine.SaveImage(p, dpi, temp, jpeg, cancel)));
                 }
                 return;
             }
@@ -738,9 +776,8 @@ public static class BatchRunner
             using var ms = new MemoryStream();
             write(ms);
             cancel.ThrowIfCancellationRequested();
-            var path = names.Reserve(_folder, _baseName + extension);
-            WriteAtomic(path, ms.ToArray());
-            _outputs.Add(path);
+            var bytes = ms.ToArray();
+            _outputs.Add(names.Place(_folder, _baseName + extension, temp => File.WriteAllBytes(temp, bytes)));
         }
     }
 
@@ -774,23 +811,7 @@ public static class BatchRunner
         _ => ex.Message,
     };
 
-    /// <summary>Writes through a temporary file next to <paramref name="path"/>, so a failure leaves no half-written file.</summary>
-    private static void WriteAtomic(string path, byte[] bytes)
-    {
-        var temp = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
-        try
-        {
-            File.WriteAllBytes(temp, bytes);
-            File.Move(temp, path, overwrite: true);
-        }
-        catch
-        {
-            TryDelete(temp);
-            throw;
-        }
-    }
-
-    private static void TryDelete(string path)
+    internal static void TryDelete(string path)
     {
         try { File.Delete(path); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
@@ -806,6 +827,38 @@ internal sealed class OutputNames(bool overwrite, IEnumerable<string> inputs)
     private readonly Lock _gate = new();
     private readonly HashSet<string> _taken = new(inputs.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _inputs = new(inputs.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Writes a result: <paramref name="write"/> fills a temporary file next to it, which is then moved to a free name for
+    /// <paramref name="fileName"/>. Without overwriting, the move never replaces a file: one that appeared since the name was
+    /// picked (another program) makes it take the next name. Returns where it went; nothing is left behind on failure.
+    /// </summary>
+    public string Place(string folder, string fileName, Action<string> write)
+    {
+        Directory.CreateDirectory(folder);
+        var temp = Path.Combine(folder, $".{Path.GetFileName(fileName)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            write(temp);
+            for (var attempt = 0; ; attempt++)
+            {
+                var path = Reserve(folder, fileName);
+                try
+                {
+                    File.Move(temp, path, overwrite);
+                    return path;
+                }
+                catch (IOException) when (!overwrite && File.Exists(path) && attempt < 100)
+                {
+                    // taken in the meantime: Reserve skips it now
+                }
+            }
+        }
+        finally
+        {
+            BatchRunner.TryDelete(temp);
+        }
+    }
 
     /// <summary>A free path for <paramref name="fileName"/> in <paramref name="folder"/> (created if missing).</summary>
     public string Reserve(string folder, string fileName)

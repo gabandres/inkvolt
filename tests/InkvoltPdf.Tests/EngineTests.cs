@@ -20,6 +20,14 @@ public class EngineTests
     }
 
     [Fact]
+    public void RunningOutOfMemoryWhileOpeningLeavesTheDocumentUnusableNotTheProcess()
+    {
+        using var ctx = new MuPDFContext();
+        var ex = Assert.Throws<InsufficientMemoryException>(() => PdfEngine.NewDocument(ctx, () => throw new OutOfMemoryException()));
+        Assert.IsType<OutOfMemoryException>(ex.InnerException);
+    }
+
+    [Fact]
     public void RendersPageAtScale()
     {
         using var engine = PdfEngine.Open(TestPdf.Make(2), InputFileTypes.PDF, null);

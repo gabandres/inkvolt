@@ -825,29 +825,33 @@ public sealed class PdfEngine : IDisposable
     }
 
     /// <summary>
-    /// MuPDFCore throws from a finalizer (crashing the process) if a page outlives its context, so pages must be
-    /// disposed explicitly, before the document and the context.
+    /// Makes a MuPDF document. MuPDFCore's constructor can throw after the object exists (a file MuPDF can't repair, or
+    /// memory running out while it reads); that object's finalizer throws, ending the process, if it runs after its
+    /// context was disposed. So on any failure it is finalized here, while <paramref name="ctx"/> is still alive. Out of
+    /// memory becomes <see cref="InsufficientMemoryException"/>: that document can't be used, the process goes on.
+    /// Every MuPDFDocument is made through this.
     /// </summary>
-    /// <summary>
-    /// Makes a MuPDF document. MuPDFCore's constructor can throw after the object exists (a file MuPDF can't repair);
-    /// that object's finalizer throws, ending the process, if it runs after its context was disposed. So on failure it
-    /// is finalized here, while <paramref name="ctx"/> is still alive. Every MuPDFDocument is made through this.
-    /// </summary>
+    /// <exception cref="InsufficientMemoryException">Memory ran out while the document was read.</exception>
     internal static MuPDFDocument NewDocument(MuPDFContext ctx, Func<MuPDFDocument> create)
     {
         try
         {
             return create();
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.KeepAlive(ctx);
+            if (ex is OutOfMemoryException) throw new InsufficientMemoryException("There isn't enough memory to open this document.", ex);
             throw;
         }
     }
 
+    /// <summary>
+    /// MuPDFCore throws from a finalizer (crashing the process) if a page outlives its context, so pages must be
+    /// disposed explicitly, before the document and the context.
+    /// </summary>
     internal static void DisposeDocument(MuPDFDocument doc)
     {
         doc.Pages.Dispose();

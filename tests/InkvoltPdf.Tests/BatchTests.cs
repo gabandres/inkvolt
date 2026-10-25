@@ -322,6 +322,47 @@ public sealed class BatchTests : IDisposable
 
         var edited = await Run([signed], Plan(new FlattenStep(new FlattenOptions())) with { SignedFiles = SignedFilePolicy.Edit });
         Assert.Equal(1, edited.Done);
+
+        // Changes and exports together: the changes are skipped, the exports still made, no changed copy written.
+        Directory.Delete(Out, true);
+        var mixed = await Run([signed], Plan(new RotateStep(90), new ExportStep(BatchExportFormat.Text)));
+        Assert.Equal(1, mixed.Done);
+        Assert.Contains("Hello contract", File.ReadAllText(Path.Combine(Out, "signed.txt")));
+        Assert.False(File.Exists(Path.Combine(Out, "signed.pdf")));
+        Assert.Contains(mixed.Items[0].Notes, n => n.Contains("Signed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RenderingActionsWeighTheirPages()
+    {
+        var plain = Plan(new RotateStep(90));
+        Assert.Equal(32L << 20, BatchRunner.Weight(1000, (612, 792), plain)); // small file, no rendering: the minimum
+        // A small vector PDF exported at 600 dpi: a Letter page is 5100 x 6600 pixels, 4 bytes each.
+        var images = Plan(new ExportStep(BatchExportFormat.Png, 600));
+        Assert.Equal((32L << 20) + 4L * 5100 * 6600, BatchRunner.Weight(1000, (612, 792), images));
+        // Four of them don't fit a 256 MB budget together.
+        Assert.True(4 * BatchRunner.Weight(1000, (612, 792), images) > 256L << 20);
+        // OCR renders at 300 dpi; a huge page is capped as the renderers cap it.
+        Assert.Equal((32L << 20) + 4L * 2550 * 3300, BatchRunner.Weight(1000, null, Plan(new OcrStep())));
+        Assert.Equal((32L << 20) + 4L * 64_000_000, BatchRunner.Weight(1000, (14400, 14400), images));
+    }
+
+    [Fact]
+    public void AFileThatAppearsMeanwhileIsNeverOverwritten()
+    {
+        var names = new OutputNames(overwrite: false, []);
+        var path = names.Place(Out, "a.pdf", temp =>
+        {
+            File.WriteAllBytes(temp, [1]);
+            File.WriteAllBytes(Path.Combine(Out, "a.pdf"), [9]); // another program, between picking the name and the move
+        });
+        Assert.Equal(Path.Combine(Out, "a (2).pdf"), path);
+        Assert.Equal([9], File.ReadAllBytes(Path.Combine(Out, "a.pdf")));
+        Assert.Equal([1], File.ReadAllBytes(path));
+        Assert.DoesNotContain(Directory.GetFiles(Out), f => f.EndsWith(".tmp", StringComparison.Ordinal));
+        // A failed write leaves nothing behind.
+        Assert.Throws<InvalidOperationException>(() => names.Place(Out, "b.pdf", _ => throw new InvalidOperationException()));
+        Assert.Equal(2, Directory.GetFiles(Out).Length);
     }
 
     [Fact]
