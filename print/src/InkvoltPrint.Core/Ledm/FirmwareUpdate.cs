@@ -1,0 +1,152 @@
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+
+namespace InkvoltPrint.Core.Ledm;
+
+/// <summary>What the printer does about new HP firmware.</summary>
+public enum FirmwareUpdateMode
+{
+    /// <summary>Never checks.</summary>
+    Off,
+
+    /// <summary>Checks and reports an available update; nothing installs until someone installs it.</summary>
+    Notify,
+
+    /// <summary>Checks and installs updates by itself.</summary>
+    Automatic,
+}
+
+/// <summary>How a firmware update mode write turned out, from the printer's read-back.</summary>
+public enum FirmwareUpdateWriteResult
+{
+    /// <summary>The printer reads back the mode written.</summary>
+    Kept,
+
+    /// <summary>Notify was written and the printer reads back Automatic: it ties the check to installs.</summary>
+    NotifyInstalls,
+
+    /// <summary>The printer reads back some other mode.</summary>
+    Other,
+}
+
+/// <summary>
+/// HP LEDM web firmware update (<c>FirmwareUpdate</c> interface, found through its manifest): the automatic check and
+/// automatic update switches, read from <c>FirmwareUpdateDyn</c> and offered only as far as <c>FirmwareUpdateCap</c>
+/// marks them writable. <see cref="ConfigPath"/> is where a change is PUT (<c>/FirmwareUpdate/WebFWUpdate/Config</c>).
+/// <see cref="CheckWritable"/>: the printer has an automatic check switch and lets us write it (a change never writes a read-only one).
+/// </summary>
+public sealed record FirmwareUpdateSettings(
+    FirmwareUpdateMode Mode,
+    IReadOnlyList<FirmwareUpdateMode> Choices,
+    string? Status,
+    string? ConfigPath,
+    XNamespace Namespace,
+    bool CheckWritable)
+{
+    public const string WebClass = "WebFWUpdate";
+
+    public bool CanChange => Choices.Count > 1 && ConfigPath is not null;
+
+    /// <summary>Null when the printer has no web firmware update settings.</summary>
+    public static FirmwareUpdateSettings? Parse(XDocument dyn, XDocument? cap, string? configPath)
+    {
+        if (Pick(dyn) is not { } fw || fw.Kid("Config") is not { } config) return null;
+        var check = config.KidValue("AutomaticCheck");
+        var update = config.KidValue("AutomaticUpdate");
+        if (check is null && update is null) return null;
+        var mode = update == "enabled" ? FirmwareUpdateMode.Automatic
+            : check == "enabled" ? FirmwareUpdateMode.Notify
+            : FirmwareUpdateMode.Off;
+
+        // Choices: the switches the Cap lets us flip both ways. Updating needs checking, so Notify needs both.
+        var capConfig = cap is null ? null : Pick(cap)?.Kid("ConfigSupport");
+        var updateWritable = update is not null && Writable(capConfig?.Kid("AutomaticUpdateSupport"));
+        var checkWritable = check is not null && Writable(capConfig?.Kid("AutomaticCheckSupport"));
+        var choices = new List<FirmwareUpdateMode>();
+        if (updateWritable)
+        {
+            choices.Add(FirmwareUpdateMode.Automatic);
+            if (checkWritable) choices.Add(FirmwareUpdateMode.Notify);
+            choices.Add(FirmwareUpdateMode.Off);
+        }
+        return new FirmwareUpdateSettings(mode, choices, fw.Kid("State")?.KidValue("Status"), configPath, config.Name.Namespace, checkWritable);
+    }
+
+    /// <summary>
+    /// These settings without <see cref="FirmwareUpdateMode.Notify"/>: for a printer that doesn't keep it (enabling only the check
+    /// turns on automatic installs too, as the LaserJet MFP M234dw does: it reads back <c>AutomaticUpdate</c> enabled).
+    /// </summary>
+    public FirmwareUpdateSettings WithoutNotify() =>
+        Choices.Contains(FirmwareUpdateMode.Notify) ? this with { Choices = Choices.Where(m => m != FirmwareUpdateMode.Notify).ToList() } : this;
+
+    /// <summary>
+    /// Printers known not to keep Notify, by model: the LaserJet MFP M232–M237 series (one firmware for the series; the M234dw
+    /// was seen turning installs on). Others are learned the first time a Notify write reads back as Automatic.
+    /// </summary>
+    public static bool KnownNotToKeepNotify(string? model) =>
+        model is not null && Regex.IsMatch(model, @"\bLaserJet\s+MFP\s+M23[2-7]", RegexOptions.IgnoreCase);
+
+    /// <summary>What the printer did with a written <paramref name="chosen"/> mode, judged from its read-back.</summary>
+    public static FirmwareUpdateWriteResult Judge(FirmwareUpdateMode chosen, FirmwareUpdateMode readBack) =>
+        readBack == chosen ? FirmwareUpdateWriteResult.Kept
+        : chosen == FirmwareUpdateMode.Notify && readBack == FirmwareUpdateMode.Automatic ? FirmwareUpdateWriteResult.NotifyInstalls
+        : FirmwareUpdateWriteResult.Other;
+
+    /// <summary>
+    /// The <c>FirmwareUpdateConfig</c> document for <paramref name="mode"/>, in the printer's own namespace: only the switches the
+    /// Cap marks writable (a printer may refuse the whole PUT over one read-only element).
+    /// </summary>
+    public XDocument BuildPut(FirmwareUpdateMode mode)
+    {
+        var (check, update) = mode switch
+        {
+            FirmwareUpdateMode.Automatic => ("enabled", "enabled"),
+            FirmwareUpdateMode.Notify => ("enabled", "disabled"),
+            _ => ("disabled", "disabled"),
+        };
+        var root = new XElement(Namespace + "FirmwareUpdateConfig", new XAttribute(XNamespace.Xmlns + "fwudyn", Namespace));
+        if (CheckWritable) root.Add(new XElement(Namespace + "AutomaticCheck", check));
+        root.Add(new XElement(Namespace + "AutomaticUpdate", update));
+        return new XDocument(new XDeclaration("1.0", "UTF-8", null), root);
+    }
+
+    /// <summary>The update state in words, or null when there is nothing to say (idle).</summary>
+    public string? StatusMessage => Status switch
+    {
+        null or "idle" => null,
+        "available" => "A firmware update is available.",
+        "notAvailable" => "The firmware is up to date.",
+        "checkFailed" => "The printer's last update check failed.",
+        "checking" => "Checking for updates…",
+        "downloadPreparation" or "downloading" => "Downloading an update…",
+        "installing" => "Installing an update…",
+        "cancelling" => "Cancelling the update…",
+        _ => StatusText.Humanize(Status),
+    };
+
+    /// <summary>
+    /// Where the web update's Config is PUT: the <c>FirmwareUpdateConfig</c> under the manifest's <c>/WebFWUpdate</c> node (a
+    /// printer may list several update classes, each with its own Config), else the first one listed.
+    /// </summary>
+    public static string? ConfigPathIn(IReadOnlyList<(string Type, string Path)> manifest)
+    {
+        var configs = manifest.Where(e => e.Type == "FirmwareUpdateConfig").Select(e => e.Path).ToList();
+        return configs.FirstOrDefault(p => p.Split('/', StringSplitOptions.RemoveEmptyEntries) is [.., var parent, _] && parent == WebClass)
+               ?? configs.FirstOrDefault();
+    }
+
+    /// <summary>The web-update entry (a printer may list several update classes), else the first.</summary>
+    private static XElement? Pick(XDocument doc)
+    {
+        var root = doc.Root!;
+        var all = root.All("FirmwareUpdate").Where(e => e.Kid("Class") is not null).ToList();
+        return all.FirstOrDefault(e => e.KidValue("Class") == WebClass) ?? all.FirstOrDefault()
+            ?? (root.Kid("Config") is not null ? root : null); // the bare /WebFWUpdate resource
+    }
+
+    private static bool Writable(XElement? support) =>
+        support is not null
+        && (string?)support.Attribute("access") is "readWrite" or null
+        && support.Elements().Select(e => e.Value.Trim()).ToHashSet() is var values
+        && values.Contains("enabled") && values.Contains("disabled");
+}

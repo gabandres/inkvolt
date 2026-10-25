@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "makeAndModel": {
+    "base": "HP Color LaserJet Pro MFP 3302",
+    "family": "HP Color LaserJet Pro MFP 3301-3304 3388",
+    "name": "HP Color LaserJet Pro MFP 3302"
+  },
+  "manufacturer": "HP",
+  "productNumber": "499Q7A",
+  "skuIdentifier": "3302fdn",
+  "serialNumber": "CNC0X00000",
+  "firmwareVersion": "6.28.3.30-202606111700",
+  "firmwareRelease": "6.28.3",
+  "firmwareDateCode": "202607240158",
+  "deviceUuid": "4d1e2c3b-0a9f-4e8d-b7c6-5a4b3c2d1e0f",
+  "countryRegion": "US"
+}

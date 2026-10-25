@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<prncfgcap2:PrintConfigCap xmlns:prncfgcap="http://www.hp.com/schemas/imaging/con/ledm/printconfigcap/2007/11/2" xmlns:prncfgcap2="http://www.hp.com/schemas/imaging/con/ledm/printconfigcap/2009/05/06" xmlns:prncfgdyn="http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2007/11/02" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ledm="http://www.hp.com/schemas/imaging/con/ledm/2007/09/21" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/printconfigcap/2007/11/2 ../schemas/PrintConfigCap.xsd                                      http://www.hp.com/schemas/imaging/con/ledm/printconfigdyn/2007/11/02 ../schemas/PrintConfigDyn.xsd                                      http://www.hp.com/schemas/imaging/con/ledm/printconfigcap/2009/05/06 ../schemas/ledm2/PrintConfigCap.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.371</dd:Revision>
+	</dd:Version>
+	<prncfgcap:DefaultPrintCopies typeof="dd:NonNegativeInteger" min="1" max="999" step="1" elementXPath="dd:DefaultPrintCopies" access="readWrite"></prncfgcap:DefaultPrintCopies>
+	<prncfgcap:ResolutionSettingSupport access="readOnly">
+		<dd:ResolutionSetting>600x600x8dpi</dd:ResolutionSetting>
+	</prncfgcap:ResolutionSettingSupport>
+	<prncfgcap2:PrintOptionAutoContinueSupport access="readWrite">
+		<dd:AutoContinue >off</dd:AutoContinue>
+		<dd:AutoContinue >on</dd:AutoContinue>
+	</prncfgcap2:PrintOptionAutoContinueSupport>
+	<prncfgcap2:PJLCommandsSupport elementXPath="prncfgdyn2:PrintConfigDyn/prncfgdyn2:PJLCommands" access="readWrite">
+		<prncfgcap:PJLCommands >disabled</prncfgcap:PJLCommands>
+		<prncfgcap:PJLCommands >enabled</prncfgcap:PJLCommands>
+	</prncfgcap2:PJLCommandsSupport>
+</prncfgcap2:PrintConfigCap>

@@ -1,0 +1,222 @@
+<UserControl x:Class="InkvoltPrint.App.Views.ScanPages"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels"
+             xmlns:views="clr-namespace:InkvoltPrint.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ScanViewModel}">
+    <UserControl.Resources>
+        <!-- One menu per page (x:Shared=False); Tag carries the ScanViewModel, since a menu isn't in the page's visual tree. -->
+        <ContextMenu x:Key="PageMenu" x:Shared="False">
+            <MenuItem Header="Turn left" Command="{Binding PlacementTarget.Tag.RotateLeftCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Turn right" Command="{Binding PlacementTarget.Tag.RotateRightCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Crop…" Command="{Binding PlacementTarget.Tag.CropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
+                      Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+            <MenuItem Header="Photos…" Command="{Binding PlacementTarget.Tag.EditPhotosCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
+                      Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}}" />
+            <Separator />
+            <MenuItem Header="Move earlier" InputGestureText="Alt+Shift+Left"
+                      Command="{Binding PlacementTarget.Tag.MovePageEarlierCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Move later" InputGestureText="Alt+Shift+Right"
+                      Command="{Binding PlacementTarget.Tag.MovePageLaterCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <Separator />
+            <MenuItem Header="{Binding FileStartMenuText}" InputGestureText="S"
+                      Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
+                      Command="{Binding PlacementTarget.Tag.ToggleFileStartCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Use as a separator sheet"
+                      Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
+                      Command="{Binding PlacementTarget.Tag.MarkSeparatorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Not a separator (keep as a page)" Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}}"
+                      Command="{Binding PlacementTarget.Tag.NotSeparatorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Keep this page" Visibility="{Binding IsSkipped, Converter={StaticResource VisibleWhen}}"
+                      Command="{Binding PlacementTarget.Tag.KeepPageCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Delete" InputGestureText="Del"
+                      Command="{Binding PlacementTarget.Tag.RemovePageCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+        </ContextMenu>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Empty state -->
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320"
+                    Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+            <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" FontSize="48" HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <TextBlock Text="{Binding EmptyHint}" Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,12,0,0" />
+        </StackPanel>
+
+        <!-- Pages: drag to reorder; Alt+Shift+arrows move the selected page, Delete removes it -->
+        <ListBox x:Name="PagesList" ItemsSource="{Binding Pages}" SelectionMode="Single" AllowDrop="True"
+                 Background="Transparent" BorderThickness="0" Padding="12,0,12,12"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 AutomationProperties.Name="Scanned pages"
+                 AutomationProperties.HelpText="Alt+Shift+arrow keys move the selected page. Delete removes it. S starts a new file at it. Shift+F10 for more."
+                 Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}"
+                 PreviewMouseLeftButtonDown="Pages_PreviewMouseLeftButtonDown" PreviewMouseMove="Pages_PreviewMouseMove"
+                 DragOver="Pages_DragOver" Drop="Pages_Drop" PreviewKeyDown="Pages_PreviewKeyDown">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                    <Setter Property="Padding" Value="8" />
+                    <Setter Property="Margin" Value="2" />
+                    <Setter Property="VerticalAlignment" Value="Top" />
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                    <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                    <Setter Property="ContextMenu" Value="{StaticResource PageMenu}" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ScanPageViewModel}">
+                    <StackPanel Width="220">
+                        <Grid Height="285">
+                            <Border CornerRadius="4" BorderThickness="1" Background="White" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxWidth="218" MaxHeight="283">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSkipped}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsSeparator}" Value="True" />
+                                                        <Condition Binding="{Binding SeparatorKept}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                            </Border>
+                            <!-- Found blank: left out of what's saved -->
+                            <Border CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="1"
+                                    Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Visibility="{Binding IsSkipped, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel>
+                                    <TextBlock Text="Blank: won't be saved" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                    <Button Content="Keep this page" Style="{StaticResource LinkButton}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                            Command="{Binding DataContext.KeepPageCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                            <!-- Saved as several files: where each one starts -->
+                            <Border CornerRadius="4" Padding="8,2" Margin="-4,-4,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    Visibility="{Binding ShowsFileStart, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{Binding FileStartText}" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Border>
+                            <!-- A separator sheet: the next file starts after it -->
+                            <Border CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="1"
+                                    Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SeparatorText}" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+                                    <TextBlock Text="{Binding SeparatorStatus}" Style="{StaticResource Caption}" FontSize="12" HorizontalAlignment="Center" />
+                                    <Button Content="Not a separator" Style="{StaticResource LinkButton}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                            Command="{Binding DataContext.NotSeparatorCommand, ElementName=PagesList}" CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <DockPanel Margin="2,6,2,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Delete page (Del)" AutomationProperties.Name="Delete page"
+                                    Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding FileStartMenuText}" AutomationProperties.Name="{Binding FileStartMenuText}"
+                                    Command="{Binding DataContext.ToggleFileStartCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0"
+                                    Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" />
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding CropText}" AutomationProperties.Name="{Binding CropText}"
+                                    Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" />
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn right" AutomationProperties.Name="Turn page right"
+                                    Command="{Binding DataContext.RotateRightCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" />
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn left" AutomationProperties.Name="Turn page left"
+                                    Command="{Binding DataContext.RotateLeftCommand, ElementName=PagesList}" CommandParameter="{Binding}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" RenderTransformOrigin="0.5,0.5">
+                                    <TextBlock.RenderTransform>
+                                        <ScaleTransform ScaleX="-1" />
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
+                            </Button>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Number, StringFormat='Page {0}'}" Style="{StaticResource Caption}" TextWrapping="NoWrap" />
+                                <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Note}" Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Photos on the glass: the scan, large, with a box over each photo -->
+        <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                   Visibility="{Binding IsEditingPhotos, Converter={StaticResource VisibleWhen}}">
+            <DockPanel DockPanel.Dock="Top" Margin="20,4,14,10">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Cancel" Command="{Binding CancelPhotosCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Done" Command="{Binding ApplyPhotosCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding PhotoPage.Number, StringFormat='Photos on page {0}'}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                               Text="Each box is saved as its own picture. Drag a box, its corners, or its round handle (the photo's top) to turn it; drag on the glass to mark a photo. Tab picks a box; arrows move it, Shift+arrows resize, Ctrl+arrows turn, Delete removes." />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button Content="Add photo" Command="{Binding AddPhotoCommand}" Margin="0,0,8,0" />
+                        <Button Content="Remove photo" Command="{Binding RemovePhotoCommand}" Margin="0,0,8,0" />
+                        <Button Content="Turn saved photo" Command="{Binding TurnPhotoCommand}" Margin="0,0,8,0"
+                                ToolTip="Saves the selected photo turned a quarter clockwise" />
+                        <Button Content="Find again" Command="{Binding FindPhotosAgainCommand}" Style="{StaticResource LinkButton}" VerticalAlignment="Center"
+                                ToolTip="Looks for the photos again, dropping the changes made here" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding PhotoStatus}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+            <Grid Margin="20,0,20,20">
+                <TextBlock Text="Loading the scan…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding PhotoImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <views:PhotoBoxesView x:Name="PhotoBoxes" Source="{Binding PhotoImage}" Boxes="{Binding EditedPhotos}" SelectedIndex="{Binding SelectedPhoto}"
+                                      AutomationProperties.Name="Photos on the glass"
+                                      AutomationProperties.HelpText="Tab picks a photo. Arrow keys move it, Shift+arrow keys resize it, Ctrl+arrow keys turn it, Delete removes it." />
+            </Grid>
+        </DockPanel>
+
+        <!-- Crop: one page, large, with the box to keep -->
+        <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                   Visibility="{Binding IsCropping, Converter={StaticResource VisibleWhen}}">
+            <DockPanel DockPanel.Dock="Top" Margin="20,4,14,10">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Whole page" Command="{Binding ResetCropCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
+                    <Button Content="Cancel" Command="{Binding CancelCropCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Crop" Command="{Binding ApplyCropCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CropPage.Number, StringFormat='Crop page {0}'}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                               Text="Drag over the part to keep, or drag the box and its corners. Arrow keys move it; Shift+arrows resize it." />
+                </StackPanel>
+            </DockPanel>
+            <Grid Margin="20,0,20,20">
+                <TextBlock Text="Loading the page…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding CropImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <views:CropView x:Name="Cropper" Source="{Binding CropImage}" Box="{Binding CropBox}"
+                                AutomationProperties.Name="Crop box"
+                                AutomationProperties.HelpText="Arrow keys move the box; Shift+arrow keys resize it." />
+            </Grid>
+        </DockPanel>
+    </Grid>
+</UserControl>

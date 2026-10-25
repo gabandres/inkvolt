@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(WinTfm)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>InkvoltPrint</AssemblyName>
+    <!-- File description and product name: what Windows shows as the sender of the notification-area alerts and in Task Manager -->
+    <AssemblyTitle>Inkvolt Print</AssemblyTitle>
+    <Product>Inkvolt Print</Product>
+    <ApplicationIcon>..\..\assets\InkvoltPrint.ico</ApplicationIcon>
+    <!-- ThemeMode (Fluent) is marked experimental in WPF -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- packaging/pack-msix.ps1 -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->
+    <DefineConstants Condition="'$(HpCleanupInPackage)' == 'true'">$(DefineConstants);HP_CLEANUP_IN_PACKAGE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\InkvoltPrint.ico" Link="InkvoltPrint.ico" />
+    <!-- Notification-area icon with a status badge (assets/make-icon.py, tray option) -->
+    <Resource Include="..\..\assets\tray\*.ico" Link="Tray\%(Filename)%(Extension)" />
+    <!-- Shown by "About Inkvolt Print" -->
+    <Resource Include="..\..\LICENSE" Link="LICENSE" />
+    <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\m234dw\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
+                      Link="Demo\%(Filename)%(Extension)" />
+    <!-- Demo-only additions to the HP laser (maintenance pages the real M234dw doesn't list), written by hand -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\hp-demo\*.xml" LogicalName="Demo.%(Filename)%(Extension)"
+                      Link="Demo\%(Filename)%(Extension)" />
+    <!-- The demo inkjet (not HP): IPP and eSCL documents written from the public specs -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\inkjet-demo\*" LogicalName="DemoInkjet.%(Filename)%(Extension)"
+                      Link="DemoInkjet\%(Filename)%(Extension)" />
+    <!-- The demo HP color laser with CDM only (no LEDM): JSON written from public sources' captures -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\cdm-laser\*.json" LogicalName="DemoCdm.%(Filename)%(Extension)"
+                      Link="DemoCdm\%(Filename)%(Extension)" />
+    <!-- The demo SNMP agents (an SNMP-only laser, a color MFP behind a TCP/IP queue): objects written from the MIBs -->
+    <EmbeddedResource Include="..\..\tests\InkvoltPrint.Tests\Fixtures\snmp-demo\*.txt" LogicalName="DemoSnmp.%(Filename)%(Extension)"
+                      Link="DemoSnmp\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

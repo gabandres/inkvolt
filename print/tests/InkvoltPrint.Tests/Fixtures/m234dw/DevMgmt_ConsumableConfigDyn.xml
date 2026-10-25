@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<ccdyn:ConsumableConfigDyn xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ccdyn="http://www.hp.com/schemas/imaging/con/ledm/consumableconfigdyn/2007/11/19" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/consumableconfigdyn/2007/11/19 ConsumableConfigDyn.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.1103</dd:Revision>
+	</dd:Version>
+	<ccdyn:ProductConsumableInfo>
+		<ccdyn:AtVeryLowSettings>
+			<ccdyn:ConsumableSetting>
+				<dd:ConsumableLabelCode>K</dd:ConsumableLabelCode>
+				<dd:ConsumableStateAction>continue</dd:ConsumableStateAction>
+			</ccdyn:ConsumableSetting>
+		</ccdyn:AtVeryLowSettings>
+		<dd:StoreUsageData>enabled</dd:StoreUsageData>
+		<ccdyn:GenuineHPSuppliesOnly>disabled</ccdyn:GenuineHPSuppliesOnly>
+	</ccdyn:ProductConsumableInfo>
+	<ccdyn:ConsumableInfo>
+		<dd:CartridgeModelInformation>6200</dd:CartridgeModelInformation>
+		<dd:CartridgeModelLife>0046</dd:CartridgeModelLife>
+		<dd:ConsumableLabelCode>K</dd:ConsumableLabelCode>
+		<dd:ConsumableLastUsedDate>2026-01-15</dd:ConsumableLastUsedDate>
+		<dd:ConsumableLifeState>
+			<dd:ConsumableState>ok</dd:ConsumableState>
+			<dd:MeasuredQuantityState>ok</dd:MeasuredQuantityState>
+			<dd:Brand>HP</dd:Brand>
+		</dd:ConsumableLifeState>
+		<dd:ConsumableLowThreshold>10</dd:ConsumableLowThreshold>
+		<dd:ConsumablePercentageLevelRemaining>20</dd:ConsumablePercentageLevelRemaining>
+		<dd:ConsumableSelectibilityNumber>134A</dd:ConsumableSelectibilityNumber>
+		<dd:ConsumableStation>0</dd:ConsumableStation>
+		<dd:ConsumableTypeEnum>toner</dd:ConsumableTypeEnum>
+		<dd:Installation>
+			<dd:Date>2025-01-15</dd:Date>
+		</dd:Installation>
+		<dd:Manufacturer>
+			<dd:Name>HP    </dd:Name>
+			<dd:Date>2025-01-01</dd:Date>
+		</dd:Manufacturer>
+		<dd:ProductNumber>W1340A</dd:ProductNumber>
+		<dd:SerialNumber>10000001</dd:SerialNumber>
+		<dd:ConsumableManufacturingSignature>000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000</dd:ConsumableManufacturingSignature>
+		<ccdyn:DataCollectionValid>false</ccdyn:DataCollectionValid>
+		<ccdyn:PreviousCartridgeData>
+			<dd:CartridgeModelInformation>6200</dd:CartridgeModelInformation>
+			<dd:CartridgeModelLife>00f0</dd:CartridgeModelLife>
+			<dd:ProductNumber>W1340A</dd:ProductNumber>
+			<dd:Manufacturer>
+				<dd:Name>HP    </dd:Name>
+				<dd:Date>2022-01-01</dd:Date>
+			</dd:Manufacturer>
+			<dd:SerialNumber>10000002</dd:SerialNumber>
+			<ccdyn:DrumLifeAtVeryLow>127</ccdyn:DrumLifeAtVeryLow>
+			<ccdyn:PageCountLetterAreaConvertedAtVeryLow>0</ccdyn:PageCountLetterAreaConvertedAtVeryLow>
+			<ccdyn:FormatterDesignatedRemainingToner>0</ccdyn:FormatterDesignatedRemainingToner>
+			<ccdyn:FormatterDesignatedPixelAtVeryLow>127</ccdyn:FormatterDesignatedPixelAtVeryLow>
+			<ccdyn:FormatterPagesAtOut>0</ccdyn:FormatterPagesAtOut>
+		</ccdyn:PreviousCartridgeData>
+		<ccdyn:CartridgeDataCreator>(c) Hewlett Packard Dev Co LP, 2020      </ccdyn:CartridgeDataCreator>
+	</ccdyn:ConsumableInfo>
+</ccdyn:ConsumableConfigDyn>

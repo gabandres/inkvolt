@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<pscap:ProductStatusCap xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ad="http://www.hp.com/schemas/imaging/con/ledm/alertdetails/2007/10/31" xmlns:pscat="http://www.hp.com/schemas/imaging/con/ledm/productstatuscategories/2007/10/31" xmlns:locid="http://www.hp.com/schemas/imaging/con/ledm/localizationids/2007/10/31" xmlns:pscap="http://www.hp.com/schemas/imaging/con/ledm/productstatuscap/2007/10/31" xmlns:ledm="http://www.hp.com/schemas/imaging/con/ledm/2007/09/21" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ ../schemas/dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/alertdetails/2007/10/31 ../schemas/AlertDetails.xsd http://www.hp.com/schemas/imaging/con/ledm/productstatuscategories/2007/10/31 ../schemas/ProductStatusCategories.xsd http://www.hp.com/schemas/imaging/con/ledm/localizationids/2007/10/31 ../schemas/LocalizationIds.xsd http://www.hp.com/schemas/imaging/con/ledm/productstatuscap/2007/10/31 ../schemas/ProductStatusCap.xsd http://www.hp.com/schemas/imaging/con/ledm/2007/09/21 ../schemas/LEDM.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.175</dd:Revision>
+	</dd:Version>
+	<pscap:StatusCap>
+		<pscap:StatusCategorySupport access="readOnly">
+			<pscat:StatusCategory>initializing</pscat:StatusCategory>
+			<pscat:StatusCategory>ready</pscat:StatusCategory>
+			<pscat:StatusCategory>cancelJob</pscat:StatusCategory>
+			<pscat:StatusCategory>shuttingDown</pscat:StatusCategory>
+			<pscat:StatusCategory>processing</pscat:StatusCategory>
+			<pscat:StatusCategory>copying</pscat:StatusCategory>
+			<pscat:StatusCategory>coolDownMode</pscat:StatusCategory>
+			<pscat:StatusCategory>inPowerSave</pscat:StatusCategory>
+			<pscat:StatusCategory>trayEmptyOrOpen</pscat:StatusCategory>
+			<pscat:StatusCategory>mediaPrompt</pscat:StatusCategory>
+			<pscat:StatusCategory>unexpectedSizeInTray</pscat:StatusCategory>
+			<pscat:StatusCategory>manualDuplex</pscat:StatusCategory>
+			<pscat:StatusCategory>manuallyFeed</pscat:StatusCategory>
+			<pscat:StatusCategory>closeDoorOrCover</pscat:StatusCategory>
+			<pscat:StatusCategory>cartridgeLow</pscat:StatusCategory>
+			<pscat:StatusCategory>cartridgeVeryLow</pscat:StatusCategory>
+			<pscat:StatusCategory>replaceCartridgeOut</pscat:StatusCategory>
+			<pscat:StatusCategory>cartridgeMissing</pscat:StatusCategory>
+			<pscat:StatusCategory>lightPipeBlocked</pscat:StatusCategory>
+			<pscat:StatusCategory>usedConsumable</pscat:StatusCategory>
+			<pscat:StatusCategory>nonHPSupplyDetected</pscat:StatusCategory>
+			<pscat:StatusCategory>antiTheftEnabledSupplyDetected</pscat:StatusCategory>
+			<pscat:StatusCategory>incompatibleConsumable</pscat:StatusCategory>
+			<pscat:StatusCategory>defectiveMemory</pscat:StatusCategory>
+			<pscat:StatusCategory>missingMemory</pscat:StatusCategory>
+			<pscat:StatusCategory>tonerSealInPlace</pscat:StatusCategory>
+			<pscat:StatusCategory>jamInPrinter</pscat:StatusCategory>
+			<pscat:StatusCategory>printerMispick</pscat:StatusCategory>
+			<pscat:StatusCategory>scannerAdfJam</pscat:StatusCategory>
+			<pscat:StatusCategory>scannerAdfMispick</pscat:StatusCategory>
+			<pscat:StatusCategory>scannerAdfDoorOpen</pscat:StatusCategory>
+			<pscat:StatusCategory>misprint</pscat:StatusCategory>
+			<pscat:StatusCategory>insufficientMemory</pscat:StatusCategory>
+			<pscat:StatusCategory>printFailure</pscat:StatusCategory>
+			<pscat:StatusCategory>scanProcessing</pscat:StatusCategory>
+			<pscat:StatusCategory>printerError</pscat:StatusCategory>
+			<pscat:StatusCategory>upgradeFailed</pscat:StatusCategory>
+			<pscat:StatusCategory>upgrading</pscat:StatusCategory>
+			<pscat:StatusCategory>deviceInteraction</pscat:StatusCategory>
+			<pscat:StatusCategory>connectingToWeb</pscat:StatusCategory>
+			<pscat:StatusCategory>printerNeedsWSRegistrationNow</pscat:StatusCategory>
+			<pscat:StatusCategory>subscribedPagesOut</pscat:StatusCategory>
+			<pscat:StatusCategory>subscribedPagesVeryLow</pscat:StatusCategory>
+			<pscat:StatusCategory>orderCartridge</pscat:StatusCategory>
+			<pscat:StatusCategory>waitingForSupplyAssessment</pscat:StatusCategory>
+			<pscat:StatusCategory>subscribedPagesVeryLow</pscat:StatusCategory>
+			<pscat:StatusCategory>subscribedPagesVeryLow</pscat:StatusCategory>
+			<pscat:StatusCategory>dynamicSecurityCheckFailed</pscat:StatusCategory>
+		</pscap:StatusCategorySupport>
+		<pscap:LocString elementXPath="psdyn:Status/psdyn:LocString" length="128" typeof="dd:String" access="readOnly"></pscap:LocString>
+		<pscap:EnglishString elementXPath="psdyn:Status/psdyn:EnglishString" length="128" typeof="dd:String" access="readOnly"></pscap:EnglishString>
+	</pscap:StatusCap>
+	<pscap:AlertTableCap>
+		<pscap:ModificationNumber step="1" max="4294967295" min="0" elementXPath="psdyn:AlertTable/dd:ModificationNumber" typeof="dd:Integer" access="readOnly"></pscap:ModificationNumber>
+		<pscap:AlertCap>
+			<pscap:ProductStatusAlertIDSupport>
+				<pscap:DeviceCategory>
+					<pscap:Warnings access="readOnly">
+						<ad:ProductStatusAlertID>coolDownMode</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>subscribedPagesLow</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>subscribedPagesVeryLow</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>subscriptionNeedToConnect</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>orderCartridge</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>printerNeedsWSRegistrationSoon</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>waitingForSupplyAssessment</ad:ProductStatusAlertID>
+					</pscap:Warnings>
+					<pscap:Errors access="readOnly">
+						<ad:ProductStatusAlertID>closeDoorOrCover</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>printerError</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>printFailure</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>lightPipeBlocked</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>insufficientMemory</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>jamInPrinter</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>manualDuplex</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>manuallyFeed</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>misprint</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>mediaPrompt</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>printerMispick</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>trayEmptyOrOpen</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>unexpectedSizeInTray</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>upgradeFailed</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>subscribedPagesOut</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>printerNeedsWSRegistrationNow</ad:ProductStatusAlertID>
+					</pscap:Errors>
+				</pscap:DeviceCategory>
+				<pscap:ConsumableCategory>
+					<pscap:Warnings access="readOnly">
+						<ad:ProductStatusAlertID>cartridgeLow</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>cartridgeVeryLow</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>replaceCartridgeOut</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>usedConsumable</ad:ProductStatusAlertID>
+					</pscap:Warnings>
+					<pscap:Errors access="readOnly">
+						<ad:ProductStatusAlertID>cartridgeMissing</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>defectiveMemory</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>incompatibleConsumable</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>incorrectCartridge</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>missingMemory</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>tonerSealInPlace</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>usedConsumable</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>nonHPSupplyDetected</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>antiTheftEnabledSupplyDetected</ad:ProductStatusAlertID>
+						<ad:ProductStatusAlertID>dynamicSecurityCheckFailed</ad:ProductStatusAlertID>
+					</pscap:Errors>
+				</pscap:ConsumableCategory>
+			</pscap:ProductStatusAlertIDSupport>
+			<pscap:StringId step="1" max="4294967295" min="1" elementXPath="psdyn:AlertTable/psdyn:Alert/locid:StringId" typeof="dd:Integer" access="readOnly"></pscap:StringId>
+			<pscap:SequenceNumber step="1" max="4294967295" min="0" elementXPath="psdyn:AlertTable/psdyn:Alert/dd:SequenceNumber" typeof="dd:Integer" access="readOnly"></pscap:SequenceNumber>
+			<pscap:SeveritySupport access="readOnly">
+				<ad:Severity>Info</ad:Severity>
+				<ad:Severity>Warning</ad:Severity>
+				<ad:Severity>StrictWarning</ad:Severity>
+				<ad:Severity>Error</ad:Severity>
+			</pscap:SeveritySupport>
+			<pscap:AlertDetailsCap>
+				<pscap:AlertDetailsMarkerColorSupport access="readOnly">
+					<ad:AlertDetailsMarkerColor>Black</ad:AlertDetailsMarkerColor>
+				</pscap:AlertDetailsMarkerColorSupport>
+				<pscap:AlertDetailsConsumableTypeEnumSupport access="readOnly">
+					<ad:AlertDetailsConsumableTypeEnum>toner</ad:AlertDetailsConsumableTypeEnum>
+				</pscap:AlertDetailsConsumableTypeEnumSupport>
+				<pscap:AlertDetailsMarkerLocation step="1" max="4294967295" min="0" elementXPath="psdyn:AlertTable/psdyn:Alert/ad:AlertDetails/ad:AlertDetailsMarkerLocation" typeof="dd:Integer" access="readOnly"></pscap:AlertDetailsMarkerLocation>
+				<pscap:AlertDetailsInputBinSupport access="readOnly">
+					<ad:AlertDetailsInputBin>Tray1</ad:AlertDetailsInputBin>
+				</pscap:AlertDetailsInputBinSupport>
+				<pscap:AlertDetailsMediaTypeSupport access="readOnly">
+					<ad:AlertDetailsMediaType>auto</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>plain</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>light</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>heavy</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>extraHeavy</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>labels</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>envelope</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>stationery-preprinted</ad:AlertDetailsMediaType>
+					<ad:AlertDetailsMediaType>bond</ad:AlertDetailsMediaType>
+				</pscap:AlertDetailsMediaTypeSupport>
+				<pscap:AlertDetailsMediaSizeSupport access="readOnly">
+					<ad:AlertDetailsMediaSize>na_letter_8.5x11in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_legal_8.5x14in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_executive_7.25x10.5in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_foolscap_8.5x13in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_index-4x6_4x6in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_5x7_5x7in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_a4_210x297mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_a5_148x210mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_a6_105x148mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jis_b5_182x257mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jis_b6_128x182mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>om_small-photo_100x150mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_legal_216x340mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>prc_16k_195x270mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>prc_16k_184x260mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>prc_16k_197x273mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jpn_hagaki_100x148mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jpn_oufuku_148x200mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>na_number-10_4.125x9.5in</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_c5_162x229mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_c6_114x162mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_b5_176x250mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>iso_dl_110x220mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jpn_chou3_120x235mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>jpn_chou4_90x205mm</ad:AlertDetailsMediaSize>
+					<ad:AlertDetailsMediaSize>custom</ad:AlertDetailsMediaSize>
+				</pscap:AlertDetailsMediaSizeSupport>
+				<pscap:AlertDetailsErrorCode elementXPath="psdyn:AlertTable/psdyn:Alert/ad:AlertDetails/ad:AlertDetailsErrorCode" length="7" typeof="dd:String" access="readOnly"></pscap:AlertDetailsErrorCode>
+				<pscap:AlertDetailsDoorCoverLocationSupport access="readOnly">
+					<ad:AlertDetailsDoorCoverLocation>frontDoor</ad:AlertDetailsDoorCoverLocation>
+					<ad:AlertDetailsDoorCoverLocation>cover</ad:AlertDetailsDoorCoverLocation>
+					<ad:AlertDetailsDoorCoverLocation>rearDoor</ad:AlertDetailsDoorCoverLocation>
+				</pscap:AlertDetailsDoorCoverLocationSupport>
+				<pscap:AlertDetailsJamLocationSupport access="readOnly">
+					<ad:AlertDetailsJamLocation>outputBin</ad:AlertDetailsJamLocation>
+					<ad:AlertDetailsJamLocation>tray1</ad:AlertDetailsJamLocation>
+					<ad:AlertDetailsJamLocation>cartridgeArea</ad:AlertDetailsJamLocation>
+					<ad:AlertDetailsJamLocation>printPaperPath</ad:AlertDetailsJamLocation>
+					<ad:AlertDetailsJamLocation>unknownJamLocation</ad:AlertDetailsJamLocation>
+				</pscap:AlertDetailsJamLocationSupport>
+				<pscap:AlertDetailsJamClearAccessLocationSupport access="readOnly">
+					<ad:AlertDetailsJamClearAccessLocation>frontDoor</ad:AlertDetailsJamClearAccessLocation>
+					<ad:AlertDetailsJamClearAccessLocation>cover</ad:AlertDetailsJamClearAccessLocation>
+					<ad:AlertDetailsJamClearAccessLocation>rearDoor</ad:AlertDetailsJamClearAccessLocation>
+					<ad:AlertDetailsJamClearAccessLocation>tray1</ad:AlertDetailsJamClearAccessLocation>
+					<ad:AlertDetailsJamClearAccessLocation>tray1AndRearDoor</ad:AlertDetailsJamClearAccessLocation>
+				</pscap:AlertDetailsJamClearAccessLocationSupport>
+				<pscap:AlertDetailsUserActionSupport>
+					<ad:AlertDetailsUserAction>acknowledgeConsumableState</ad:AlertDetailsUserAction>
+				</pscap:AlertDetailsUserActionSupport>
+			</pscap:AlertDetailsCap>
+			<pscap:ResourceURI elementXPath="psdyn:AlertTable/psdyn:Alert/dd:ResourceURI" length="256" typeof="dd:String" access="readOnly"></pscap:ResourceURI>
+			<pscap:ResourceType elementXPath="psdyn:AlertTable/psdyn:Alert/dd:ResourceType" length="256" typeof="dd:String" access="readOnly"></pscap:ResourceType>
+		</pscap:AlertCap>
+	</pscap:AlertTableCap>
+</pscap:ProductStatusCap>

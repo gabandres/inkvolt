@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN.-->
+<mhdyn:MediaHandlingDyn xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:mhdyn="http://www.hp.com/schemas/imaging/con/ledm/mediahandlingdyn/2007/11/21" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/mediahandlingdyn/2007/11/21 MediaHandlingDyn.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.683</dd:Revision>
+	</dd:Version>
+	<mhdyn:MediaHandlingInfo>
+		<dd:NumOfInputTrays>1</dd:NumOfInputTrays>
+		<dd:NumOfOutputBins>0</dd:NumOfOutputBins>
+		<dd:DefaultInputTray>Tray1</dd:DefaultInputTray>
+		<dd:DefaultOutputBin>OutputBin1</dd:DefaultOutputBin>
+		<dd:MediaOutTime>-1</dd:MediaOutTime>
+		<dd:MediaOutActionType>waitForPaperToBeLoaded</dd:MediaOutActionType>
+	</mhdyn:MediaHandlingInfo>
+	<mhdyn:InputTray>
+		<dd:InputBin>Tray1</dd:InputBin>
+		<dd:MediaType>auto</dd:MediaType>
+		<dd:MediaSizeName>any</dd:MediaSizeName>
+	</mhdyn:InputTray>
+	<mhdyn:OutputBin>
+		<dd:HPOutputBin>OutputBin1</dd:HPOutputBin>
+		<dd:MediaHandlingDeviceFunctionType>print</dd:MediaHandlingDeviceFunctionType>
+	</mhdyn:OutputBin>
+</mhdyn:MediaHandlingDyn>

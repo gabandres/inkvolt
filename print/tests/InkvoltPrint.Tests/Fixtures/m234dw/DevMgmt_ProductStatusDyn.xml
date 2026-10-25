@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<psdyn:ProductStatusDyn xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ad="http://www.hp.com/schemas/imaging/con/ledm/alertdetails/2007/10/31" xmlns:pscat="http://www.hp.com/schemas/imaging/con/ledm/productstatuscategories/2007/10/31" xmlns:locid="http://www.hp.com/schemas/imaging/con/ledm/localizationids/2007/10/31" xmlns:psdyn="http://www.hp.com/schemas/imaging/con/ledm/productstatusdyn/2007/10/31" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ ../schemas/dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/alertdetails/2007/10/31 ../schemas/AlertDetails.xsd http://www.hp.com/schemas/imaging/con/ledm/productstatuscategories/2007/10/31 ../schemas/ProductStatusCategories.xsd http://www.hp.com/schemas/imaging/con/ledm/localizationids/2007/10/31 ../schemas/LocalizationIds.xsd http://www.hp.com/schemas/imaging/con/ledm/productstatusdyn/2007/10/31 ../schemas/ProductStatusDyn.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.216</dd:Revision>
+	</dd:Version>
+	<psdyn:Status>
+		<pscat:StatusCategory>inPowerSave</pscat:StatusCategory>
+		<psdyn:LocString lang="en">Sleep mode is on.</psdyn:LocString>
+	</psdyn:Status>
+	<psdyn:AlertTable>
+		<dd:ModificationNumber>0</dd:ModificationNumber>
+	</psdyn:AlertTable>
+</psdyn:ProductStatusDyn>

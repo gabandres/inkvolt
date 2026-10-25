@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only (Inkvolt Print's demo HP laser): written by hand from HPLIP's base/maint.py and other public LEDM
+     clients, never captured from a device. The real LaserJet MFP M234dw answers 404 here, so on it Inkvolt Print offers
+     no HP maintenance actions; the demo shows what a printer that lists these internal pages gets. -->
+<ipcap:InternalPrintCap xmlns:ipcap="http://www.hp.com/schemas/imaging/con/ledm/internalprintcap/2008/03/21" xmlns:ipdyn="http://www.hp.com/schemas/imaging/con/ledm/internalprintdyn/2008/03/21">
+  <ipdyn:JobType>configurationPage</ipdyn:JobType>
+  <ipdyn:JobType>pqDiagnosticsPage</ipdyn:JobType>
+  <ipdyn:JobType>networkSummary</ipdyn:JobType>
+  <ipdyn:JobType>cleaningPage</ipdyn:JobType>
+</ipcap:InternalPrintCap>

@@ -1,0 +1,171 @@
+using System.Buffers.Binary;
+using System.Text;
+
+namespace InkvoltPrint.Core.Ipp;
+
+/// <summary>Minimal IPP encoding (RFC 8010): enough for Get-Printer-Attributes and Identify-Printer.</summary>
+public static class IppCodec
+{
+    public const ushort GetPrinterAttributes = 0x000B;
+
+    /// <summary>PWG 5100.13 §4.1 (IPP Job and Printer Extensions, Set 3): the printer shows where it is (lights, sound, panel).</summary>
+    public const ushort IdentifyPrinter = 0x003C;
+
+    private const byte OperationTag = 0x01, PrinterTag = 0x04, EndTag = 0x03;
+    internal const byte Integer = 0x21, Boolean = 0x22, Enum = 0x23, OctetString = 0x30;
+    internal const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44, Name = 0x42;
+
+    public static byte[] EncodeGetPrinterAttributes(string printerUri, IEnumerable<string> requested, int requestId = 1)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = 1; head[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], GetPrinterAttributes);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        WriteAttr(ms, Uri, "printer-uri", printerUri);
+        var first = true;
+        foreach (var r in requested)
+        {
+            WriteAttr(ms, Keyword, first ? "requested-attributes" : "", r);
+            first = false;
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// An Identify-Printer request (PWG 5100.13 §4.1.1): the operation attributes in the order the spec lists them,
+    /// <c>requesting-user-name</c> when given (SHOULD) and <c>identify-actions</c> when any are chosen (the printer's
+    /// <c>identify-actions-default</c> otherwise). Sent as IPP/2.0: JPS3 extends IPP/2.0, which IPP Everywhere printers support.
+    /// </summary>
+    public static byte[] EncodeIdentifyPrinter(string printerUri, string? userName, IEnumerable<string> actions, int requestId = 1)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = 2; head[1] = 0;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], IdentifyPrinter);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        WriteAttr(ms, Uri, "printer-uri", printerUri);
+        if (!string.IsNullOrEmpty(userName)) WriteAttr(ms, Name, "requesting-user-name", userName);
+        var first = true;
+        foreach (var a in actions)
+        {
+            WriteAttr(ms, Keyword, first ? "identify-actions" : "", a);
+            first = false;
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    /// <summary>Decodes the printer-attributes group. Values: string, int, bool, or byte[] for unknown types.</summary>
+    public static IppResponse Decode(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 9) throw new FormatException("IPP response too short");
+        var status = BinaryPrimitives.ReadUInt16BigEndian(b[2..]);
+        var attrs = new Dictionary<string, List<object>>(StringComparer.Ordinal);
+        var i = 8;
+        string? last = null;
+        byte group = 0;
+        while (i < b.Length)
+        {
+            var tag = b[i++];
+            if (tag == EndTag) break;
+            if (tag < 0x10) { group = tag; last = null; continue; }
+            // A truncated or corrupt reply must surface as FormatException, never IndexOutOfRange.
+            if (i + 2 > b.Length) throw new FormatException("IPP response truncated");
+            var nameLen = BinaryPrimitives.ReadUInt16BigEndian(b[i..]); i += 2;
+            if (i + nameLen + 2 > b.Length) throw new FormatException("IPP response truncated");
+            var name = Encoding.UTF8.GetString(b.Slice(i, nameLen)); i += nameLen;
+            var valLen = BinaryPrimitives.ReadUInt16BigEndian(b[i..]); i += 2;
+            if (i + valLen > b.Length) throw new FormatException("IPP response truncated");
+            var val = b.Slice(i, valLen); i += valLen;
+            if (nameLen > 0) last = name;
+            if (last is null || group != PrinterTag) continue;
+            object value = tag switch
+            {
+                Integer or Enum when valLen == 4 => BinaryPrimitives.ReadInt32BigEndian(val),
+                Boolean when valLen == 1 => val[0] != 0,
+                >= 0x40 and <= 0x4F => Encoding.UTF8.GetString(val),
+                // printer-alert (PWG 5100.9) is an octetString of US-ASCII "code=…;severity=…" text.
+                OctetString => Encoding.UTF8.GetString(val),
+                _ => val.ToArray(),
+            };
+            if (!attrs.TryGetValue(last, out var list)) attrs[last] = list = [];
+            list.Add(value);
+        }
+        return new IppResponse(status, attrs);
+    }
+
+    /// <summary>Operation id and request id of an IPP request (for <see cref="Net.FixtureHandler"/>).</summary>
+    public static (ushort Operation, int RequestId) ReadRequestHeader(ReadOnlySpan<byte> b) =>
+        b.Length < 8 ? throw new FormatException("IPP request too short")
+            : (BinaryPrimitives.ReadUInt16BigEndian(b[2..]), BinaryPrimitives.ReadInt32BigEndian(b[4..]));
+
+    /// <summary>
+    /// A Get-Printer-Attributes response carrying <paramref name="printerAttributes"/> (consecutive values with the same
+    /// name form one multi-valued attribute). Demo mode and tests serve printers written in <see cref="IppText"/> with it.
+    /// </summary>
+    public static byte[] EncodeResponse(ushort status, int requestId, IEnumerable<IppValue> printerAttributes)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = 1; head[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], status);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        ms.WriteByte(PrinterTag);
+        string? previous = null;
+        foreach (var a in printerAttributes)
+        {
+            var name = a.Name == previous ? "" : a.Name;
+            previous = a.Name;
+            WriteAttr(ms, a.Tag, name, a.Tag switch
+            {
+                Integer or Enum => Int32(int.Parse(a.Value, System.Globalization.CultureInfo.InvariantCulture)),
+                Boolean => [a.Value == "true" ? (byte)1 : (byte)0],
+                _ => Encoding.UTF8.GetBytes(a.Value),
+            });
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    private static byte[] Int32(int v)
+    {
+        var b = new byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(b, v);
+        return b;
+    }
+
+    private static void WriteAttr(Stream s, byte tag, string name, string value) => WriteAttr(s, tag, name, Encoding.UTF8.GetBytes(value));
+
+    private static void WriteAttr(Stream s, byte tag, string name, byte[] v)
+    {
+        var n = Encoding.UTF8.GetBytes(name);
+        Span<byte> len = stackalloc byte[2];
+        s.WriteByte(tag);
+        BinaryPrimitives.WriteUInt16BigEndian(len, (ushort)n.Length); s.Write(len); s.Write(n);
+        BinaryPrimitives.WriteUInt16BigEndian(len, (ushort)v.Length); s.Write(len); s.Write(v);
+    }
+}
+
+public sealed record IppResponse(ushort StatusCode, IReadOnlyDictionary<string, List<object>> Attributes)
+{
+    public bool Ok => StatusCode < 0x0100;
+    public string? Str(string name) => Attributes.TryGetValue(name, out var v) ? v.FirstOrDefault() as string : null;
+    public int? Int(string name) => Attributes.TryGetValue(name, out var v) && v.FirstOrDefault() is int i ? i : null;
+    public IEnumerable<string> Strs(string name) => Attributes.TryGetValue(name, out var v) ? v.OfType<string>() : [];
+    public IEnumerable<int> Ints(string name) => Attributes.TryGetValue(name, out var v) ? v.OfType<int>() : [];
+}
+

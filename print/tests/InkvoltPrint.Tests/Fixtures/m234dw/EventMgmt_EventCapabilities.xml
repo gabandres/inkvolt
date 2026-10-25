@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<ev:EventCapabilities xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:ev="http://www.hp.com/schemas/imaging/con/ledm/events/2007/09/16" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/ dd/DataDictionaryMasterLEDM.xsd http://www.hp.com/schemas/imaging/con/ledm/events/2007/09/16 LedmEvents.xsd">
+	<dd:Version>
+		<dd:Revision>SVN-IPG-LEDM.29</dd:Revision>
+	</dd:Version>
+	<ev:SupportedEventList>
+		<dd:UnqualifiedEventCategory>PowerUpEvent</dd:UnqualifiedEventCategory>
+		<dd:UnqualifiedEventCategory>AlertTableChanged</dd:UnqualifiedEventCategory>
+	</ev:SupportedEventList>
+	<ev:KickDeliveryOptionList>
+		<ev:DeliveryOption>
+			<dd:ConnectionInitiator>Device</dd:ConnectionInitiator>
+			<ev:ProtocolType>USBRaw</ev:ProtocolType>
+			<dd:USBInterface>ff#04#01</dd:USBInterface>
+		</ev:DeliveryOption>
+		<ev:DeliveryOption>
+			<dd:ConnectionInitiator>Device</dd:ConnectionInitiator>
+			<ev:ProtocolType>UDP</ev:ProtocolType>
+			<dd:DevicePort>8080</dd:DevicePort>
+		</ev:DeliveryOption>
+	</ev:KickDeliveryOptionList>
+	<ev:MaxRetryDuration>86400</ev:MaxRetryDuration>
+	<ev:MaxPersistentSubscriptions>0</ev:MaxPersistentSubscriptions>
+	<ev:ClientURLMaxSize>16</ev:ClientURLMaxSize>
+	<ev:EventFeaturesSupported>
+		<ev:EventFeature>DelayedReplyResponse</ev:EventFeature>
+	</ev:EventFeaturesSupported>
+	<ev:EventFeaturesEnabled>
+		<ev:EventFeature>DelayedReplyResponse</ev:EventFeature>
+	</ev:EventFeaturesEnabled>
+</ev:EventCapabilities>

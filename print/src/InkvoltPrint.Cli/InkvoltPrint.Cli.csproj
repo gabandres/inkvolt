@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(WinTfm)</TargetFramework>
+    <AssemblyName>inkvoltprint</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+  </ItemGroup>
+</Project>
