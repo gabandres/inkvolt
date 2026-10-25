@@ -110,6 +110,9 @@ public enum AttemptResult
 
     /// <summary>Windows hadn't finished when Inkvolt Print stopped waiting; it may still be doing it.</summary>
     Unknown,
+
+    /// <summary>The user stopped waiting for the permission prompt before it was answered: nothing ran.</summary>
+    Stopped,
 }
 
 /// <summary>How one try at a repair went. <see cref="Message"/> says why it failed (shown to the user).</summary>
@@ -132,7 +135,7 @@ public interface IOfflineRepairs
     Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct);
 }
 
-public enum RepairOutcomeKind { Fixed, Cancelled, Manual, Failed, Unknown }
+public enum RepairOutcomeKind { Fixed, Cancelled, Manual, Failed, Unknown, Stopped }
 
 /// <summary>Result of <see cref="RepairRunner"/>; <see cref="Steps"/> is set when the user has to do it by hand.</summary>
 public sealed record RepairOutcome(RepairOutcomeKind Kind, string Message, IReadOnlyList<string> Steps)
@@ -172,10 +175,15 @@ public static class RepairRunner
         {
             AttemptResult.Done => RepairOutcome.Fixed("Done."),
             AttemptResult.Cancelled => new(RepairOutcomeKind.Cancelled, "Cancelled: Windows needs administrator permission for this.", []),
+            AttemptResult.Stopped => Stopped,
             AttemptResult.Unknown => Unknown,
             _ => new(RepairOutcomeKind.Failed, admin.Message ?? "Windows couldn't do it.", repair.ManualSteps),
         };
     }
+
+    /// <summary>The user stopped waiting (Cancel) while Windows' permission prompt was unanswered.</summary>
+    public static readonly RepairOutcome Stopped = new(RepairOutcomeKind.Stopped,
+        "Stopped waiting for Windows' permission, so nothing was changed. If the prompt is still open, answering it now does nothing.", []);
 
     private static readonly RepairOutcome Unknown = new(RepairOutcomeKind.Unknown,
         "Windows hasn't finished yet, so whether it worked isn't known. Checking again; if it still shows the problem, try again in a minute.", []);

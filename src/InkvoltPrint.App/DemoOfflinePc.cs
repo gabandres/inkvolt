@@ -85,9 +85,13 @@ internal sealed class DemoOfflinePc : IOfflineProbes, IOfflineRepairs
         return Attempt.Done;
     }
 
+    /// <summary>Snapshot aid: the made-up permission prompt is never answered (only Cancel ends the wait).</summary>
+    public static bool PermissionWaits { get; set; }
+
     public async Task<Attempt> ElevatedAsync(Repair repair, CancellationToken ct)
     {
-        await Task.Delay(800, ct); // where Windows would show its permission prompt
+        // Where Windows would show its permission prompt; the snapshot aid's --fix waiting leaves it unanswered.
+        await Task.Delay(PermissionWaits ? Timeout.InfiniteTimeSpan : TimeSpan.FromMilliseconds(800), ct);
         switch (repair.Kind)
         {
             case RepairKind.PointPortAt when repair.Target is { } target:

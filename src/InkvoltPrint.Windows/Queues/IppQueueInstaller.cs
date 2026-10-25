@@ -27,7 +27,7 @@ public static partial class IppQueueInstaller
 
         switch (code)
         {
-            case Elevated.Cancelled:
+            case Elevated.Cancelled or Elevated.StoppedWaiting:
                 return new(InstallOutcome.Failed, "Setup was cancelled. Windows needs administrator permission to add a printer by address.");
             case Elevated.TimedOut:
                 return new(InstallOutcome.Failed, "Windows did not finish adding the printer in time.");

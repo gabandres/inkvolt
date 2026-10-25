@@ -58,6 +58,7 @@ public sealed class WindowsOfflineRepairs : IOfflineRepairs
         return code switch
         {
             Elevated.Cancelled => new Attempt(AttemptResult.Cancelled),
+            Elevated.StoppedWaiting => new Attempt(AttemptResult.Stopped),
             // The elevated process can't be stopped from here and may still finish: say so, and let the fixer look again.
             Elevated.TimedOut => new Attempt(AttemptResult.Unknown),
             RepairScripts.Done => Attempt.Done,

@@ -141,12 +141,21 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         var manual = repair.ManualOnly || (!CanElevate && repair.AdminOnly);
         if (!manual && repair.Question is { } question && !Prompt.Ask(question, repair.Confirm)) return;
         row.IsBusy = true;
-        row.Message = CanElevate && repair.AdminOnly ? "Approve the Windows permission prompt…" : "Working…";
+        row.MessageIsError = false;
+        // A repair that may ask for administrator permission can be cancelled while the prompt waits (unanswered, or the PC
+        // locked): Cancel stops waiting, a late "Yes" then changes nothing, and the fixer looks again.
+        using var cancel = new CancellationTokenSource();
+        row.Cancellation = CanElevate && !manual ? cancel : null;
+        row.Message = CanElevate && repair.AdminOnly ? "Waiting for permission… Approve the Windows prompt, or Cancel." : "Working…";
         row.Steps = null;
         RepairOutcome outcome;
         try
         {
-            outcome = await RepairRunner.RunAsync(repair, _repairs, CanElevate);
+            outcome = await RepairRunner.RunAsync(repair, _repairs, CanElevate, cancel.Token);
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            outcome = RepairRunner.Stopped;
         }
         catch (Exception ex)
         {
@@ -155,6 +164,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         }
         finally
         {
+            row.Cancellation = null;
             row.IsBusy = false;
         }
 
@@ -165,6 +175,12 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
                 LastResultIsError = false;
                 row.Message = null;
                 await RunAsync(); // see what's left
+                break;
+            case RepairOutcomeKind.Stopped:
+                LastResult = $"{repair.Title}: {outcome.Message}";
+                LastResultIsError = false;
+                Prompt.Announce(outcome.Message);
+                await RunAsync(); // see where things stand
                 break;
             case RepairOutcomeKind.Unknown:
                 // Timed out waiting for Windows; it may still be working. Say so and look again rather than call it a failure.
@@ -292,4 +308,20 @@ public sealed partial class FixerRepairViewModel(Repair repair, OfflineFixerView
 
     [RelayCommand(CanExecute = nameof(CanFix))]
     private Task FixAsync() => owner.FixAsync(this);
+
+    /// <summary>Set while a repair that may wait on Windows' permission prompt runs: Cancel stops waiting.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancel))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    public partial CancellationTokenSource? Cancellation { get; set; }
+
+    public bool CanCancel => Cancellation is not null;
+
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    private void Cancel()
+    {
+        try { Cancellation?.Cancel(); }
+        catch (ObjectDisposedException) { } // finished meanwhile
+        Message = "Stopping…";
+    }
 }

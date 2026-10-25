@@ -498,6 +498,15 @@ public class OfflineFixerTests
     }
 
     [Fact]
+    public async Task Stopping_the_wait_for_permission_is_its_own_outcome()
+    {
+        var port = new Repair(RepairKind.PointPortAt, "Point", "") { AdminOnly = true, Target = NewIp };
+        var outcome = await RepairRunner.RunAsync(port, new FakeRepairs(AttemptResult.Done, AttemptResult.Stopped), canElevate: true);
+        Assert.Equal(RepairOutcomeKind.Stopped, outcome.Kind);
+        Assert.Contains("nothing was changed", outcome.Message);
+    }
+
+    [Fact]
     public async Task Timed_out_elevation_is_unknown_not_failed()
     {
         var port = new Repair(RepairKind.PointPortAt, "Point", "") { AdminOnly = true, Target = NewIp };

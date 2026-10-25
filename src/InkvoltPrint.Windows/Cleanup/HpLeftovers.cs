@@ -77,7 +77,7 @@ public static class HpLeftovers
         var wrapped = "try { " + script + " } catch { exit 64 }";
         var code = await Elevated.RunAsync(wrapped,
             [$@"HKLM:\{MetadataKey}", Services[0], Services[1], Queue, Folder], TimeSpan.FromMinutes(2), ct);
-        if (code == Elevated.Cancelled) return "Cancelled: Windows needs administrator permission to remove HP's background services.";
+        if (code is Elevated.Cancelled or Elevated.StoppedWaiting) return "Cancelled: Windows needs administrator permission to remove HP's background services.";
         if (code == Elevated.TimedOut) return "Windows did not finish removing HP's services in time.";
 
         if (code is 64 or 1) return "Windows couldn't run the clean-up. Nothing may have been removed; try again.";

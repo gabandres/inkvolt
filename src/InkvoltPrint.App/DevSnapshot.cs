@@ -20,7 +20,8 @@ namespace InkvoltPrint.App;
 /// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
-/// offers, answering yes to its questions (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
+/// offers, answering yes to its questions, <c>--fix waiting</c> starts the first repair needing permission and leaves the made-up
+/// prompt unanswered, <c>--fix cancel</c> then presses its Cancel (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
@@ -108,6 +109,22 @@ internal static class DevSnapshot
         if (fix is not null && window.DataContext is ViewModels.MainViewModel { Selected: { } fixing })
         {
             await fixing.OpenFixerCommand.ExecuteAsync(null);
+            if (fix is "waiting" or "cancel" && fixing.IsDemo
+                && fixing.Fixer.Repairs.FirstOrDefault(r => r.Repair.AdminOnly && !r.Repair.ManualOnly) is { } elevated)
+            {
+                // The first repair needing permission, its prompt left unanswered; "cancel" then presses Cancel.
+                DemoOfflinePc.PermissionWaits = true;
+                var ask = ViewModels.Prompt.Confirm;
+                ViewModels.Prompt.Confirm = (_, _) => true;
+                var running = elevated.FixCommand.ExecuteAsync(null);
+                ViewModels.Prompt.Confirm = ask;
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                if (fix == "cancel")
+                {
+                    elevated.CancelCommand.Execute(null);
+                    await running;
+                }
+            }
             if (fix == "all" && fixing.IsDemo)
             {
                 var ask = ViewModels.Prompt.Confirm;

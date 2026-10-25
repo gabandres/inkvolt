@@ -129,18 +129,25 @@
                                             </DockPanel>
                                             <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
                                                          Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
-                                                       Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding MessageIsError}" Value="True">
-                                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <DockPanel Margin="0,8,0,0" Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}">
+                                                <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCommand}" Padding="16,5" Margin="16,0,0,0"
+                                                        VerticalAlignment="Top" AutomationProperties.Name="{Binding Title, StringFormat=Stop waiting: {0}}" />
+                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                            <Grid Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                                           Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
                                             <TextBox Text="{Binding StepsText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
                                                      Padding="0" Margin="0,4,0,0" TextWrapping="Wrap" AutomationProperties.Name="Steps"
                                                      Visibility="{Binding HasSteps, Converter={StaticResource VisibleWhen}}" />

@@ -133,7 +133,8 @@ public partial class App : Application
                 copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
                 crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
                 printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
-                fix: !e.Args.Contains("--fix") ? null : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() == "all" ? "all" : "check",
+                fix: !e.Args.Contains("--fix") ? null
+                    : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() is { } how && how is "all" or "waiting" or "cancel" ? how : "check",
                 preset: PresetArg(e.Args),
                 then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
                 editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
