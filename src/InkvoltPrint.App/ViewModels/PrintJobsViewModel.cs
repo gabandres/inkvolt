@@ -41,7 +41,10 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
     public partial bool HasProblem { get; set; }
 
     /// <summary>"Fix printing problems…" on the card: a stuck job, or a queue that can't be read (spooler stopped).</summary>
-    public bool ShowFixLink => HasProblem || LoadError is not null;
+    public bool ShowFixLink => CanFix && (HasProblem || LoadError is not null);
+
+    /// <summary>The printer has the offline fixer (network printers); a queue printer's card offers Windows' queue instead.</summary>
+    public bool CanFix { get; set; } = true;
 
     [ObservableProperty] public partial string Summary { get; set; } = "";
     [ObservableProperty] public partial string? Message { get; set; }

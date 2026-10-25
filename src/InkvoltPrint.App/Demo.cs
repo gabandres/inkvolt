@@ -23,7 +23,8 @@ namespace InkvoltPrint.App;
 /// at <see cref="OfficeOldHost"/>, where nothing answers, while the made-up network (<see cref="OfflinePc"/>) finds it at
 /// <see cref="OfficeNewHost"/> and its made-up Windows queue still prints to the old address with "Use Printer Offline" on.
 /// A fourth, at <see cref="CdmHost"/>, is a newer HP color laser that answers HP's CDM only (<c>Fixtures/cdm-laser</c>, JSON
-/// written from public sources): status, toner and details without LEDM.
+/// written from public sources): status, toner and details without LEDM. Two more come from the made-up PC's Windows queues
+/// (<see cref="Queues"/>): a USB laser and a printer shared from another PC, with status as Windows and the driver report it.
 /// </summary>
 internal static class Demo
 {
@@ -164,6 +165,33 @@ internal static class Demo
         using var ms = new MemoryStream();
         s.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    /// <summary>
+    /// The made-up PC's Windows queues: a USB laser that discovery can't see (listed from its queue, toner low as its driver
+    /// reports it), a printer shared from another PC that is off, and two that stay out of the list: Microsoft Print to PDF
+    /// (virtual) and the demo HP laser's own WSD queue (its device container is the printer's UUID, so it isn't listed twice).
+    /// </summary>
+    public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues { get; } =
+    [
+        new("Demo USB laser", "USB001", "Demo Laser 2100 PCL6", Core.Queues.SpoolerFlags.StatusTonerLow, Core.Queues.SpoolerFlags.AttributeLocal, 0)
+            { PortMonitor = "USB Monitor" },
+        new(@"\\demo-pc\Front desk", @"\\demo-pc\Front desk", "Demo Inkjet 3700 Series", Core.Queues.SpoolerFlags.StatusOffline,
+            Core.Queues.SpoolerFlags.AttributeNetwork, 0),
+        new("Microsoft Print to PDF", "PORTPROMPT:", "Microsoft Print To PDF", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0) { PortMonitor = "Local Monitor" },
+        new("HP LaserJet MFP M234dw (demo)", "WSD-00000000-0000-4000-8000-000000000000", "Microsoft IPP Class Driver", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0)
+            { PortMonitor = "WSD Port Monitor", ContainerId = Uuid },
+    ];
+
+    /// <summary>A demo queue's status: what <see cref="Core.Queues.SpoolerStatus"/> makes of its made-up bits (no spooler is asked).</summary>
+    public static Core.Queues.IQueueStatusSource QueueStatus(Core.Queues.SpoolerQueue queue) => new DemoQueueStatus(queue);
+
+    private sealed class DemoQueueStatus(Core.Queues.SpoolerQueue queue) : Core.Queues.IQueueStatusSource
+    {
+        public string Origin => "Windows and the printer's driver";
+        public bool HasSupplyLevels => false;
+        public Task<Core.Queues.QueueStatusRead?> ReadAsync(CancellationToken ct) =>
+            Task.FromResult<Core.Queues.QueueStatusRead?>(Core.Queues.QueueStatusRead.From(Core.Queues.SpoolerStatus.Describe(queue)));
     }
 
     /// <summary>The demo printers' made-up Windows queue (shared: nothing is printed anyway).</summary>

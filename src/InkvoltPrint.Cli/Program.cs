@@ -82,7 +82,14 @@ switch (cmd)
         foreach (var q in await InkvoltPrint.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"  {q.Name} | container={q.ContainerId}");
         break;
     case "queues":
-        foreach (var q in await InkvoltPrint.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"{q.Name} | container={q.ContainerId}");
+        // Read-only: each installed queue as the app's sidebar sees it (virtual or not, connection, status from the spooler).
+        foreach (var q in await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync())
+        {
+            var status = InkvoltPrint.Core.Queues.SpoolerStatus.Describe(q).Status;
+            Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
+                              $"{status.Message}{string.Concat(status.Alerts.Select(a => $"; {a.Message}"))} | port={q.PortName} monitor={q.PortMonitor} " +
+                              $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
+        }
         break;
     case "ocr" when host is not null && args.Length >= 3:
         await Ocr(host, args[2], int.TryParse(Opt("--dpi"), out var odpi) ? odpi : 300);
@@ -105,6 +112,7 @@ switch (cmd)
             inkvoltprint offline <uuid> [last-host]        (read-only: the offline fixer's diagnosis and repairs it would offer)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
+            inkvoltprint queues                            (read-only: installed queues as the sidebar sees them)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
             inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)

@@ -11,6 +11,7 @@ using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
 using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Probe;
+using InkvoltPrint.Core.Queues;
 using InkvoltPrint.Windows.Discovery;
 using InkvoltPrint.Windows.Offline;
 using InkvoltPrint.Windows.Printing;
@@ -40,9 +41,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private bool _discoveredQueue;
     private bool _windowsQueue;
     private readonly List<string> _previousHosts = [];
+    private readonly IQueueStatusSource? _queueSource;
 
     /// <param name="transport">Demo mode: the printer's web server (no network, no Windows queue, no cached image).</param>
-    public PrinterViewModel(string uuid, string name, string? model, string host, Uri? esclRoot, AppState state, ScanPresetLibrary presets,
+    public PrinterViewModel(string uuid, string name, string? model, string? host, Uri? esclRoot, AppState state, ScanPresetLibrary presets,
         Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
     {
         _presets = presets;
@@ -64,7 +66,54 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             new FixerRepairs(IsDemo ? Demo.OfflinePc : new WindowsOfflineRepairs(), this),
             AdoptAddress, canElevate: Features.ElevatedRepairs); // the demo PC's "elevation" is made up too
         Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, IsDemo);
+        Copy.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CopyViewModel.HasScanner)) OnPropertyChanged(nameof(ShowCopy));
+        };
     }
+
+    /// <summary>
+    /// A printer known only by its Windows queue (USB, WSD, an older network printer, one shared from another PC): status from
+    /// <paramref name="source"/> (the spooler and driver), the print queue card, Print a PDF and Print photos through the queue.
+    /// No device connection, so no scanning, settings, maintenance or offline fixer. <paramref name="transport"/>: demo mode
+    /// (the queue is made up and nothing is printed).
+    /// </summary>
+    public PrinterViewModel(SpoolerQueue queue, IQueueStatusSource source, AppState state, ScanPresetLibrary presets,
+        Action<PrinterViewModel> remember, Func<HttpMessageHandler>? transport = null)
+        : this(QueueKinds.IdFor(queue.Name), QueueKinds.DisplayName(queue), queue.DriverName, null, null, state, presets, remember, transport)
+    {
+        _queueSource = source;
+        WindowsQueue = queue;
+        Jobs.CanFix = false;
+        Sync(About, new InfoRow?[]
+        {
+            new("Windows printer", queue.Name),
+            queue.DriverName is { Length: > 0 } driver ? new("Driver", driver) : null,
+            new("Connected via", QueueKinds.ConnectionDetail(queue)),
+            queue.Location is { Length: > 0 } where ? new("Location", where) : null,
+            queue.Comment is { Length: > 0 } comment ? new("Comment", comment) : null,
+        }.OfType<InfoRow>().ToList());
+    }
+
+    /// <summary>The Windows queue this printer is known by (<see cref="IsQueuePrinter"/>); null for a network printer.</summary>
+    public SpoolerQueue? WindowsQueue { get; }
+
+    /// <summary>Listed from its Windows queue, not found on the network: status comes from Windows and the driver.</summary>
+    public bool IsQueuePrinter => _queueSource is not null;
+
+    /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
+    public string? StatusSourceNote => _queueSource is not { } source ? null
+        : $"Status from {source.Origin}. That's less than Inkvolt Print reads from a printer it reaches over the network" +
+          (source.HasSupplyLevels ? "." : ": no ink or toner levels, and problems only as the driver reports them.");
+
+    /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
+    public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : null);
+
+    /// <summary>The offline fixer works on network printers (it finds them by their ID on the network).</summary>
+    public bool CanFix => !IsQueuePrinter;
+
+    /// <summary>The Copy tab: always for network printers (it says when there's no scanner); for a queue printer once it has a scanner.</summary>
+    public bool ShowCopy => !IsQueuePrinter || Copy.HasScanner;
 
     /// <summary>The Overview's Maintenance card: configuration page, cleaning, alignment, Identify, where the printer offers them.</summary>
     public MaintenanceViewModel Maintenance { get; }
@@ -101,7 +150,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _remember(this);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanFix))]
     private async Task OpenFixerAsync()
     {
         SelectedSection = OverviewSection;
@@ -193,7 +242,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] public partial string Name { get; set; }
     [ObservableProperty] public partial string? Model { get; set; }
-    [ObservableProperty] public partial string? Host { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Where))]
+    public partial string? Host { get; set; }
     [ObservableProperty] public partial BitmapSource? Image { get; set; }
     [ObservableProperty] public partial string? StatusDetail { get; set; }
 
@@ -306,8 +357,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (_loop is not null || _suspended) return;
         _loop = new CancellationTokenSource();
-        _ = RunAsync(_loop.Token);
-        if (!IsDemo) _ = RefreshQueueAsync();
+        _ = IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token);
+        if (!IsDemo && !IsQueuePrinter) _ = RefreshQueueAsync();
     }
 
     /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
@@ -345,7 +396,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (_loop is not null) return;
         _loop = new CancellationTokenSource();
         _identityCheckedAt = DateTime.MinValue; // time passed: the reused connection is asked who it is first
-        _ = RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
+        _ = IsQueuePrinter ? RunQueueAsync(_loop.Token) : RunAsync(_loop.Token, IsOnline && !_reprobe ? _connection : null);
         _reprobe = false;
         UpdateJobsVisibility();
     }
@@ -355,6 +406,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         try
         {
+            if (IsQueuePrinter)
+            {
+                await ReadQueueAsync(ct);
+                return IsOnline;
+            }
             if (_connection is null || !IsOnline || _reprobe)
             {
                 _reprobe = false;
@@ -462,6 +518,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public async Task<string?> FindQueueAsync()
     {
         if (IsDemo) return null; // never print to a real queue
+        if (WindowsQueue is { } queue) return queue.Name;
         if (await QueueFinder.FindQueueNameAsync(Uuid) is { } byContainer) return byContainer;
         if (_state.GetQueueName(Uuid) is { } created
             && (await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, created, StringComparison.OrdinalIgnoreCase)))
@@ -566,6 +623,57 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 catch (OperationCanceledException) { return; }
             }
         }
+    }
+
+    private static readonly TimeSpan QueueRefresh = TimeSpan.FromSeconds(5);
+
+    /// <summary>A queue printer's loop: the spooler is local and cheap to ask, so its status is read every few seconds.</summary>
+    private async Task RunQueueAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await ReadQueueAsync(ct);
+                await Task.Delay(QueueRefresh, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"[{Name}] queue status: {ex.Message}");
+                try { await Task.Delay(RetryDelay, ct); }
+                catch (OperationCanceledException) { return; }
+            }
+        }
+    }
+
+    private async Task ReadQueueAsync(CancellationToken ct)
+    {
+        var read = await _queueSource!.ReadAsync(ct);
+        if (read is null)
+        {
+            SetOffline("Not found in Windows", "Windows no longer has this printer: it was probably removed in Settings.");
+            return;
+        }
+        Sync(Supplies, read.Supplies.Select(s => new SupplyViewModel(s)).ToList());
+        OnPropertyChanged(nameof(SuppliesTitle));
+        if (read.Offline)
+        {
+            SetOffline(read.Status.Message, read.Status.Detail ?? "");
+            return;
+        }
+        IsConnecting = false;
+        IsOnline = true;
+        StatusMessage = read.Status.Message;
+        StatusDetail = read.Status.Detail;
+        StatusSeverity = read.Status.Severity;
+        Sync(Alerts, read.Status.Alerts);
+        OnPropertyChanged(nameof(IsStale));
+        OnPropertyChanged(nameof(StaleSuffix));
+        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies));
     }
 
     /// <summary>

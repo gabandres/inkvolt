@@ -30,8 +30,10 @@
         <ContextMenu x:Key="PrinterMenu" x:Shared="False">
             <MenuItem Header="Reconnect" Command="{Binding ReconnectCommand}" />
             <MenuItem Header="Print photos…" Command="{Binding GoToPhotosCommand}" />
-            <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}" />
-            <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}" />
+            <MenuItem Header="Fix printing problems…" Command="{Binding OpenFixerCommand}"
+                      Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
+            <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}"
+                      Visibility="{Binding IsQueuePrinter, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
             <MenuItem Header="Remove from InkvoltPrint…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />
@@ -206,10 +208,14 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- A printer listed from its Windows queue: say where the status comes from, and what that leaves out -->
+                                <TextBlock Text="{Binding StatusSourceNote}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding StatusSourceNote, Converter={StaticResource VisibleWhen}}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
                                             Visibility="{Binding IsOnline, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                     <Button Content="Fix it…" Command="{Binding OpenFixerCommand}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
-                                            AutomationProperties.Name="Fix printer offline" />
+                                            AutomationProperties.Name="Fix printer offline"
+                                            Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
                                     <Button Content="Try again now" Command="{Binding ReconnectCommand}" />
                                     <Button Content="This is my printer…" Command="{Binding AcceptDeviceCommand}" Margin="8,0,0,0"
                                             AutomationProperties.HelpText="Accept the device that now answers at this address as this printer, after a repair or reset gave it a new ID"
@@ -507,7 +513,8 @@
                             <TextBlock Text="{Binding HpOnlyNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="420"
                                        HorizontalAlignment="Left" Visibility="{Binding HpOnlyNote, Converter={StaticResource VisibleWhen}}" />
                             <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0" />
+                                <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
+                                        Visibility="{Binding Host, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Windows printer settings" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}" />
                             </WrapPanel>
                         </StackPanel>
@@ -1575,7 +1582,7 @@
                                             <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
                                                      Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
                                             <TextBlock Text="{Binding StatusMessage}" />
-                                            <TextBlock Text="{Binding Host, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding Where, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </DockPanel>
@@ -1611,7 +1618,8 @@
                                     <TabItem Header="Print" Content="{Binding Print}" />
                                     <TabItem Header="Scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
-                                    <TabItem Header="Copy" Content="{Binding Copy}" />
+                                    <TabItem Header="Copy" Content="{Binding Copy}"
+                                             Visibility="{Binding ShowCopy, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="Photos" Content="{Binding Photos}" />
                                     <TabItem Header="Printer settings" Content="{Binding Settings}" Tag="settings"
                                              Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />

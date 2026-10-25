@@ -5,8 +5,11 @@ using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Probe;
+using InkvoltPrint.Core.Queues;
+using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Windows.Cleanup;
 using InkvoltPrint.Windows.Discovery;
+using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -37,6 +40,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly AppState _state;
     private readonly PrinterDiscovery? _discovery;
     private readonly Func<HttpMessageHandler>? _transport;
+    private readonly CancellationTokenSource _queueWatch = new();
+    private IReadOnlyList<SpoolerQueue> _queues = [];
+    private string? _wantedSelection;
 
     /// <param name="transport">Demo mode (<c>--demo</c>): every printer talks to this instead of the network, and
     /// discovery, adding by address and the HP software check are off.</param>
@@ -69,14 +75,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
             });
+        // A queue printer chosen last time is listed a moment later (after the queues are read): selected then.
+        _wantedSelection = QueueKinds.IsQueueId(state.SelectedUuid) ? state.SelectedUuid : null;
         Selected = Printers.FirstOrDefault(p => p.Uuid == state.SelectedUuid) ?? Printers.FirstOrDefault();
         foreach (var p in Printers) p.Start();
 
         if (transport is not null)
         {
             IsSearching = false;
+            _queues = Demo.Queues;
+            ReconcileQueues();
             return;
         }
+        _ = WatchQueuesAsync(_queueWatch.Token);
         _discovery = new PrinterDiscovery();
         _discovery.Changed += list => Application.Current?.Dispatcher.InvokeAsync(() => Merge(list));
         _discovery.InitialSweepCompleted += () => Application.Current?.Dispatcher.InvokeAsync(() => IsSearching = false);
@@ -329,6 +340,92 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             vm.ApplyDiscovery(d);
         }
+        ReconcileQueues(); // a printer found on the network takes the place of its Windows queue's entry
+    }
+
+    // ---------------------------------------------------------------- printers known only by their Windows queue
+
+    private static readonly TimeSpan QueueListInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Reads Windows' queues now and then (local and cheap), so a USB printer plugged in, or a queue added in Settings, shows up.
+    /// The first read waits a few seconds: discovery usually finds network printers by then, so their queues don't flash up as
+    /// separate entries first.
+    /// </summary>
+    private async Task WatchQueuesAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), ct);
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    _queues = await InstalledQueues.ListAsync();
+                    ReconcileQueues();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Log.Write($"Reading Windows' printers failed: {ex.Message}");
+                }
+                await Task.Delay(QueueListInterval, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary>The network printers on the list, as queue matching sees them (accepted UUIDs count as theirs too, without a name).</summary>
+    private InkvoltPrinters Claims(IEnumerable<PrinterViewModel> printers)
+    {
+        var list = new List<InkvoltPrinter>();
+        var queueNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in printers.Where(p => !p.IsQueuePrinter))
+        {
+            list.Add(new InkvoltPrinter(p.Uuid, p.Name, p.Model, p.Host ?? "", p.EsclRoot));
+            list.AddRange(_state.GetAcceptedUuids(p.Uuid).Select(u => new InkvoltPrinter(u, "", null, "", null)));
+            if (_state.GetQueueName(p.Uuid) is { } q) queueNames[p.Uuid] = q;
+        }
+        return new InkvoltPrinters(list, queueNames);
+    }
+
+    /// <summary>
+    /// The queue printers on the list follow Windows' real queues that no network printer here already stands for: new ones are
+    /// added, ones Windows removed or a network printer now covers go (the selection moves to that printer). Queues the user
+    /// removed from the list stay hidden until Windows no longer has them.
+    /// </summary>
+    private void ReconcileQueues()
+    {
+        var claims = Claims(Printers);
+        var wanted = QueueKinds.Unclaimed(_queues, claims)
+            .Where(q => !_state.ForgottenUuids.Contains(QueueKinds.IdFor(q.Name), StringComparer.OrdinalIgnoreCase))
+            .DistinctBy(q => QueueKinds.IdFor(q.Name)).ToList();
+        var ids = wanted.Select(q => QueueKinds.IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var gone in Printers.Where(p => p.IsQueuePrinter && !ids.Contains(p.Uuid)).ToList())
+        {
+            var wasSelected = Selected == gone;
+            Printers.Remove(gone);
+            gone.Dispose();
+            if (wasSelected)
+                Selected = (QueueMatch.Match(new QueueInfo(gone.WindowsQueue!.Name, gone.WindowsQueue.PortName, gone.WindowsQueue.ContainerId), claims) is { } owner
+                    ? Printers.FirstOrDefault(p => string.Equals(p.Uuid, owner.Uuid, StringComparison.OrdinalIgnoreCase)) : null) ?? Printers.FirstOrDefault();
+        }
+        foreach (var q in wanted)
+        {
+            var id = QueueKinds.IdFor(q.Name);
+            if (Printers.Any(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))) continue;
+            var vm = new PrinterViewModel(q, _transport is null ? new SpoolerStatusSource(q) : Demo.QueueStatus(q), _state, Presets, Remember, _transport);
+            Printers.Add(vm);
+            vm.Start();
+            if (Selected is null || string.Equals(id, _wantedSelection, StringComparison.OrdinalIgnoreCase)) Selected = vm;
+        }
+        if (_queues.Count > 0)
+        {
+            _wantedSelection = null;
+            // Hidden queues come back once Windows no longer has them (set up again later, they show again).
+            var present = _queues.Select(q => QueueKinds.IdFor(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (_state.ForgottenUuids.RemoveAll(f => QueueKinds.IsQueueId(f) && !present.Contains(f)) > 0) _state.Save();
+        }
+        NotifyEmpty();
     }
 
     private void Remember(PrinterViewModel p)
@@ -382,6 +479,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Selected = vm;
             ManualAddress = "";
             IsAddOpen = false;
+            ReconcileQueues();
         }
         catch (Exception ex)
         {
@@ -399,10 +497,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (p is null) return;
         var warning = p.Scan?.HasUnsavedPages == true ? $"\n\nYou'll lose {p.Scan.PageCountText.ToLowerInvariant()} you scanned and haven't saved." : "";
-        if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. To see it again, add it by address.", "Remove"))
+        var again = p.IsQueuePrinter
+            ? "It stays hidden here while Windows has it; if it's removed from Windows and set up again, it shows again."
+            : "To see it again, add it by address.";
+        if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. {again}", "Remove"))
             return;
         _state.Printers.RemoveAll(k => string.Equals(k.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase));
-        if (!_state.ForgottenUuids.Contains(p.Uuid, StringComparer.OrdinalIgnoreCase)) _state.ForgottenUuids.Add(p.Uuid);
+        // A network printer's own Windows queues go with it, so they don't show up again as separate entries.
+        IEnumerable<string> hidden = p.IsQueuePrinter ? [p.Uuid]
+            : QueueKinds.Unclaimed(_queues, InkvoltPrinters.Empty).Where(q => QueueMatch.Match(new QueueInfo(q.Name, q.PortName, q.ContainerId), Claims([p])) is not null)
+                .Select(q => QueueKinds.IdFor(q.Name)).Prepend(p.Uuid);
+        foreach (var id in hidden)
+            if (!_state.ForgottenUuids.Contains(id, StringComparer.OrdinalIgnoreCase)) _state.ForgottenUuids.Add(id);
         _state.Save();
         p.Dispose();
         Printers.Remove(p);
@@ -433,6 +539,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _queueWatch.Cancel();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
     }

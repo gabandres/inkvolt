@@ -14,7 +14,7 @@ internal static class Winspool
 {
     public const int ErrorAccessDenied = 5;
 
-    private const uint EnumLocal = 0x2;
+    private const uint EnumLocal = 0x2, EnumConnections = 0x4;
     private const uint PrinterAccessAdminister = 0x4, PrinterAccessUse = 0x8;
     private const uint ControlResume = 2;
     private const uint JobControlRestart = 4, JobControlDelete = 5;
@@ -33,6 +33,32 @@ internal static class Winspool
             if (p.pPrinterName is { } name) list.Add(new PrinterInfo(name, p.pPortName ?? "", p.Status, p.Attributes, p.cJobs));
         return list;
     }
+
+    /// <summary>Every queue on this PC, connections to other PCs' shared printers included, as the spooler describes them.</summary>
+    public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues() =>
+        Enumerate<PrinterInfo2>((buf, cb, out needed, out count) => EnumPrinters(EnumLocal | EnumConnections, null, 2, buf, cb, out needed, out count))
+            .Where(p => p.pPrinterName is not null).Select(ToQueue).ToList();
+
+    /// <summary>One queue now (GetPrinter level 2, as the user). Null when it doesn't exist (any more) or can't be opened.</summary>
+    public static Core.Queues.SpoolerQueue? Queue(string printer)
+    {
+        using var h = Open(printer, PrinterAccessUse);
+        if (h is null) return null;
+        GetPrinter(h, 2, IntPtr.Zero, 0, out var needed);
+        if (needed == 0) return null;
+        var buf = Marshal.AllocHGlobal((int)needed);
+        try
+        {
+            return GetPrinter(h, 2, buf, needed, out _) ? ToQueue(Marshal.PtrToStructure<PrinterInfo2>(buf)) : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    private static Core.Queues.SpoolerQueue ToQueue(PrinterInfo2 p) =>
+        new(p.pPrinterName!, p.pPortName ?? "", p.pDriverName, p.Status, p.Attributes, (int)p.cJobs) { Location = p.pLocation, Comment = p.pComment };
 
     public static IReadOnlyList<PortInfo> Ports() =>
         Enumerate<PortInfo2>((buf, cb, out needed, out count) => EnumPorts(null, 2, buf, cb, out needed, out count))
