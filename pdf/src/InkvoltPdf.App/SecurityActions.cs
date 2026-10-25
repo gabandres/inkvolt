@@ -187,7 +187,6 @@ public static class SecurityActions
     /// </summary>
     public static OpenPasswordAnswer? PromptOpenPassword(Window? owner, string name, byte[] data)
     {
-        if (DevScript.TakeOpenPassword(out var scripted)) return scripted;
         var dlg = new FormDialog(owner!, "Keep the open password?", "Keep it", 480);
         dlg.AddNote($"\"{name}\" needs a password to open. You opened it with its permissions password, which can't reveal the open " +
                     "password, so enter it once to keep it on the edited file.");

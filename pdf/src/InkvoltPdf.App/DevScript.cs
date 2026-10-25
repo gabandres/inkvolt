@@ -756,10 +756,10 @@ internal static class DevScript
                 timer.Start();
                 break;
             }
-            // File tools, bookmarks, Read Aloud: openpw pw|drop|cancel (answers the next open-password prompt) · security ·
+            // File tools, bookmarks, Read Aloud: openpw pw|drop|cancel (answers the active tab's next open-password prompt) · security ·
             // bookmarks · bookmark add Title | child path Title | rename path Title | delete path | move path parent index |
             // dest path (paths are 0-based, dotted: 1.0) · readaloud (toggle) · readaloud-state · readaloud-skip 1|-1
-            case "openpw": OpenPasswords.Enqueue(arg == "cancel" ? null : arg == "drop" ? new OpenPasswordAnswer(null, true) : new OpenPasswordAnswer(arg, false)); break;
+            case "openpw": ScriptOpenPassword(tab!, arg == "cancel" ? null : arg == "drop" ? new OpenPasswordAnswer(null, true) : new OpenPasswordAnswer(arg, false)); break;
             case "security": log.Add($"security: {SecurityActions.Describe(tab!.Session)} password={(tab.Session.Password is null ? "none" : "set")} open={(tab.Session.OpenPassword is null ? "none" : "set")}"); break;
             case "bookmarks": log.Add($"bookmarks: {tab!.DevBookmarks()}"); break;
             case "bookmark": log.Add($"bookmark: {await tab!.DevBookmark(arg)}"); break;
@@ -998,8 +998,24 @@ internal static class DevScript
 
     private static readonly Queue<OpenPasswordAnswer?> OpenPasswords = new();
 
-    /// <summary>The scripted answer to the next open-password prompt (<c>openpw</c>), if any (a null answer = cancel).</summary>
-    internal static bool TakeOpenPassword(out OpenPasswordAnswer? answer) => OpenPasswords.TryDequeue(out answer);
+    /// <summary>
+    /// <c>openpw</c>: the active tab's edit transaction takes the next open-password answer (a null answer = cancel) from
+    /// the script while it has one; every other question still shows its dialog.
+    /// </summary>
+    private sealed class ScriptedEditPrompts(IEditPrompts dialogs) : IEditPrompts
+    {
+        public bool ConfirmSignedEdit() => dialogs.ConfirmSignedEdit();
+        public OpenPasswordAnswer? AskOpenPassword(byte[] data) => OpenPasswords.TryDequeue(out var answer) ? answer : dialogs.AskOpenPassword(data);
+        public string? AskOwnerPassword(bool wrong) => dialogs.AskOwnerPassword(wrong);
+        public bool ConfirmSignatureRewrite(string label, int signatures, string reason) => dialogs.ConfirmSignatureRewrite(label, signatures, reason);
+        public bool ConfirmBreakingEdit(string label, IReadOnlyList<SignatureInfo> broken) => dialogs.ConfirmBreakingEdit(label, broken);
+    }
+
+    private static void ScriptOpenPassword(DocumentTab tab, OpenPasswordAnswer? answer)
+    {
+        OpenPasswords.Enqueue(answer);
+        if (tab.EditPrompts is not ScriptedEditPrompts) tab.EditPrompts = new ScriptedEditPrompts(tab.EditPrompts);
+    }
 
     /// <summary>
     /// <c>mouse move|down|up|click|dbl|right page x y</c>: mouse messages at a page point (points, top-left origin; scrolled

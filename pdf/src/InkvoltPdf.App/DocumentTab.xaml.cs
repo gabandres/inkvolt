@@ -127,7 +127,8 @@ public partial class DocumentTab : UserControl, IDisposable
     private InsertionAdorner? _insertion;
 
     public DocumentSession Session { get; }
-    private readonly TabEditPrompts _editPrompts;
+    /// <summary>Where the edit transaction asks its questions: dialogs, or a dev script's answers (<see cref="DevScript"/>).</summary>
+    internal IEditPrompts EditPrompts { get; set; }
     public PageViewer PageView => Viewer;
     /// <summary>True while any long operation (edit, print, export, save, reload, a warning prompt) holds the tab.</summary>
     public bool IsBusy => _busy.Count > 0;
@@ -145,7 +146,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         InitializeComponent();
         Session = session;
-        _editPrompts = new TabEditPrompts(this);
+        EditPrompts = new TabEditPrompts(this);
         _scheduler = new RenderScheduler(Dispatcher);
 
         // Shortcuts in tooltips come from the commands' gestures (never typed by hand, so they can't drift).
@@ -763,7 +764,7 @@ public partial class DocumentTab : UserControl, IDisposable
         try
         {
             var request = new EditRequest(label, edit) { ContentOnly = contentOnly, SignaturesWarned = signaturesWarned, NewPasswords = newPasswords };
-            var result = await Session.EditAsync(request, _editPrompts, () =>
+            var result = await Session.EditAsync(request, EditPrompts, () =>
             {
                 if (veil) work = BeginBusy($"{label}…");
                 BeginWrite();

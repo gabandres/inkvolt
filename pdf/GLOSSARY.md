@@ -12,7 +12,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Undo step**: one committed edit; its id (`UndoStepId`) stays with it through undo and redo, so a toast's Undo acts
   only on the edit it announced.
 - **Edit prompts** (`IEditPrompts`): the questions an edit transaction asks the user (signed file, open password,
-  permissions password, signature rewrite, breaking edit). WPF adapter: `App/EditPrompts.cs`; tests answer from a script.
+  permissions password, signature rewrite, breaking edit). WPF adapter: `App/EditPrompts.cs`; the dev script's adapter
+  answers open passwords (`openpw`) and passes the rest on; tests answer from a script.
 - **Kept protection** (`Core/KeptProtection.cs`): an encrypted document stays encrypted, with the same passwords and
   permissions, through an edit.
 - **Signed edit** (`Core/SignedEdits.cs`): an edit of a signed document is appended after the signed bytes when it can
