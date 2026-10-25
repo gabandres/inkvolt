@@ -18,7 +18,7 @@ public sealed record AiReply(string Text, string? FinishReason)
 /// </summary>
 public sealed record AiTimeouts(TimeSpan Connect, TimeSpan FirstByte, TimeSpan Idle)
 {
-    public static readonly AiTimeouts Default = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(2));
+    public static readonly AiTimeouts Default = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(2));
 }
 
 /// <summary>
@@ -77,17 +77,87 @@ public sealed class AiClient : IDisposable
                 ? $"Couldn't find {host}. Check the address, and that this PC is online."
                 : $"{host} leads to {resolved[0]}, outside {(endpoint.Reach == AiReach.ThisPc ? "this PC" : "your network")}, so nothing was sent. " +
                   "If the endpoint is on the internet, enter its public https:// address.");
-        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        return new NetworkStream(await ConnectFirst(allowed, target.Port, cancel), ownsSocket: true);
+    }
+
+    /// <summary>
+    /// Connects to all the addresses at once and keeps the first that answers ("happy eyeballs"): "localhost" is ::1 and
+    /// 127.0.0.1, and a refused ::1 alone costs Windows about 2 seconds when the server listens on IPv4 only.
+    /// </summary>
+    private static async Task<Socket> ConnectFirst(IPAddress[] addresses, int port, CancellationToken cancel)
+    {
+        using var race = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        var attempts = addresses.Select(async ip =>
+        {
+            var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(ip, port, race.Token);
+                return socket;
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        }).ToList();
+        Exception? failure = null;
+        while (attempts.Count > 0)
+        {
+            var done = await Task.WhenAny(attempts);
+            attempts.Remove(done);
+            if (!done.IsCompletedSuccessfully)
+            {
+                failure ??= done.Exception?.InnerException;
+                continue;
+            }
+            race.Cancel();
+            foreach (var late in attempts) // a slower attempt that connects anyway is closed
+                _ = late.ContinueWith(t => t.Result.Dispose(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+            return done.Result;
+        }
+        cancel.ThrowIfCancellationRequested();
+        throw failure ?? new SocketException((int)SocketError.ConnectionRefused);
+    }
+
+    /// <summary>The answer's limit sent as <c>max_tokens</c>, or null to send none (see <see cref="AiProtocol.ChatRequestJson"/>).</summary>
+    public int? MaxAnswerTokens { get; init; }
+
+    /// <summary>
+    /// Ollama only: how much context the model really gets, asked from Ollama's own API on the same server (only the model
+    /// name is sent). <c>/api/ps</c> gives the context of the model as loaded; else <c>/api/show</c> gives its num_ctx
+    /// parameter; else null (Ollama then uses its server default, OLLAMA_CONTEXT_LENGTH or 4,096 on most PCs). Both are
+    /// capped at the context the model was trained for. Its OpenAI-compatible endpoint takes no context size per request.
+    /// </summary>
+    public async Task<(int? Context, string Source)> OllamaContextAsync(CancellationToken cancel = default)
+    {
+        int? trained = null, numCtx = null, loaded = null;
         try
         {
-            await socket.ConnectAsync(allowed, target.Port, cancel);
-            return new NetworkStream(socket, ownsSocket: true);
+            loaded = AiProtocol.OllamaLoadedContext(await NativeAsync(HttpMethod.Get, "/api/ps", null, cancel), _model);
+            var model = System.Text.Json.JsonSerializer.Serialize(new { model = _model });
+            (numCtx, trained) = AiProtocol.OllamaShowContext(await NativeAsync(HttpMethod.Post, "/api/show", model, cancel));
         }
-        catch
+        catch (AiException)
         {
-            socket.Dispose();
-            throw;
+            // Not Ollama, or not answering: the request itself will say why.
         }
+        var (context, source) = loaded is { } l ? (l, "as Ollama loaded it")
+            : numCtx is { } n ? (n, "the model's num_ctx in Ollama")
+            : ((int?)null, "");
+        if (context is { } c && trained is { } t && t < c) (context, source) = (t, "the model's own limit");
+        return (context, source);
+    }
+
+    private async Task<string> NativeAsync(HttpMethod method, string path, string? json, CancellationToken cancel)
+    {
+        using var request = new HttpRequestMessage(method, new Uri(_endpoint.BaseUrl, path));
+        if (json is not null) request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+        using var response = await Send(request, cts, cancel, TimeSpan.FromSeconds(5));
+        var body = await ReadBody(response, cts, cancel, truncate: true);
+        return response.IsSuccessStatusCode ? body : "";
     }
 
     /// <summary>The models the endpoint offers (<c>GET /models</c>). Empty when it doesn't list them (404).</summary>
@@ -110,7 +180,7 @@ public sealed class AiClient : IDisposable
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint.ChatUrl)
         {
-            Content = new StringContent(AiProtocol.ChatRequestJson(_model, messages), Encoding.UTF8, "application/json"),
+            Content = new StringContent(AiProtocol.ChatRequestJson(_model, messages, maxTokens: MaxAnswerTokens), Encoding.UTF8, "application/json"),
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
         Authorize(request);
@@ -164,7 +234,7 @@ public sealed class AiClient : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException && !cancel.IsCancellationRequested)
         {
-            throw new AiException($"The connection to {_endpoint.Host} broke off during the answer: {ex.Message}", ex);
+            throw new AiException(ClosedEarly(_endpoint), ex);
         }
         if (!parser.SawData) throw new AiException($"{_endpoint.Host} answered with an empty stream. Is the model name right?");
         return new AiReply(text.ToString(), parser.FinishReason);
@@ -232,7 +302,7 @@ public sealed class AiClient : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException && !cancel.IsCancellationRequested)
         {
-            throw new AiException($"The connection to {_endpoint.Host} broke off: {ex.Message}", ex);
+            throw new AiException(ClosedEarly(_endpoint), ex);
         }
     }
 
@@ -289,6 +359,9 @@ public sealed class AiClient : IDisposable
             return $"Couldn't find {endpoint.BaseUrl.Host}. Check the address, and that this PC is online.";
         if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<AuthenticationException>(ex) is not null)
             return $"Couldn't make a secure connection to {endpoint.Host}: its certificate isn't trusted by Windows, or it doesn't speak https.";
+        if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.ResponseEnded ||
+            socket?.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted or SocketError.Shutdown)
+            return ClosedEarly(endpoint);
         if (socket?.SocketErrorCode == SocketError.ConnectionRefused || (ex as HttpRequestException)?.HttpRequestError == HttpRequestError.ConnectionError)
             return $"Couldn't connect to {endpoint.Host}: nothing is listening there. " + endpoint.ServerName switch
             {
@@ -296,8 +369,13 @@ public sealed class AiClient : IDisposable
                 "LM Studio" => "Is LM Studio's local server running? Start it in LM Studio (Developer › Start server) and try again.",
                 _ => "Is the server running, and is the port right?",
             };
-        return $"Couldn't reach {endpoint.Host}: {ex.Message}";
+        return $"The request to {endpoint.Host} failed ({ex.Message.Trim().TrimEnd('.')}).";
     }
+
+    /// <summary>The server was reached but the connection ended before the answer did (the server stopped or crashed).</summary>
+    public static string ClosedEarly(AiEndpoint endpoint) =>
+        $"The connection to {endpoint.Host} closed before the answer finished" +
+        (endpoint.ServerName is { } name ? $": did {name} stop or crash?" : ".") + "";
 
     private static T? FindInner<T>(Exception? ex) where T : Exception
     {

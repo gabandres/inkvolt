@@ -124,7 +124,7 @@ public partial class DocumentTab
         if (await AiPrepare() is not { } config) return;
         var texts = await AiReadPages(pages);
         if (texts is null) return;
-        var chunks = AiText.Chunk(texts, config.InputChars);
+        var chunks = AiText.Chunk(texts, config.InputTokens);
         if (chunks.Count == 0)
         {
             _aiPane!.ShowStatus($"Not sent: {AiText.PagesText(pages)} {(pages.Length == 1 ? "has" : "have")} no text. Scanned pages need Recognize Text (OCR) first.");
@@ -143,7 +143,7 @@ public partial class DocumentTab
         {
             string? finish = null;
             var declined = false;
-            var text = await AiPrompts.SummarizeAsync(chunks, config.InputChars, async (messages, step, c) =>
+            var text = await AiPrompts.SummarizeAsync(chunks, config.InputTokens, async (messages, step, c) =>
             {
                 onStep(step);
                 var reply = await client.ChatAsync(messages, step.IsFinal ? onFinal : null, c);
@@ -181,7 +181,7 @@ public partial class DocumentTab
         }
         var texts = await AiReadPages(pages);
         if (texts is null) return;
-        var request = AiPrompts.Ask(question, _aiTurns, texts, config.InputChars);
+        var request = AiPrompts.Ask(question, _aiTurns, texts, config.InputTokens);
         if (request.Pages.Count == 0)
         {
             _aiPane.ShowStatus($"Not sent: {AiText.PagesText(pages)} {(pages.Length == 1 ? "has" : "have")} no text to ask about.");
@@ -217,7 +217,7 @@ public partial class DocumentTab
         IReadOnlyList<AiMessage> messages;
         try
         {
-            messages = AiPrompts.Explain(selection, page, config.InputChars);
+            messages = AiPrompts.Explain(selection, page, config.InputTokens);
         }
         catch (AiException ex)
         {
@@ -250,6 +250,29 @@ public partial class DocumentTab
         {
             _aiPane!.ShowStatus("Wait for the current answer, or Stop it first.");
             return null;
+        }
+        if (config.IsOllama)
+        {
+            // Ollama cuts a prompt longer than its context without a word: ask it how much this model gets.
+            using var cts = new CancellationTokenSource();
+            _aiCancel = cts;
+            _aiPane!.SetBusy(true);
+            _aiPane.ShowStatus("Asking Ollama how much text the model reads at once…");
+            try
+            {
+                config = await AiService.ResolveAsync(config, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                _aiPane.ShowStatus("Stopped. Nothing was sent.");
+                return null;
+            }
+            finally
+            {
+                _aiCancel = null;
+                if (!_disposed) _aiPane.SetBusy(false);
+            }
+            _aiPane.ShowStatus($"{config.Model} reads {config.ContextTokens:N0} tokens at once ({config.ContextSource}).");
         }
         await Task.Yield();
         return config;
@@ -358,7 +381,7 @@ public partial class DocumentTab
         }
         try
         {
-            using var client = AiService.CreateClient(config.Endpoint, config.Model);
+            using var client = AiService.CreateClient(config);
             var reply = await job(client,
                 piece => Ui(() => card.Append(piece)),
                 step => Ui(() =>

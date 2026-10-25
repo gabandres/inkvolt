@@ -79,9 +79,25 @@ public static class AiActions
         var keyNote = dlg.AddNote("");
 
         var sizes = AiText.ContextSizes.Select(n => n.ToString("N0")).ToList();
-        var context = dlg.Add("Context size (tokens the model reads at once)", new ComboBox { IsEditable = true, ItemsSource = sizes, Text = s.AiContextTokens.ToString("N0"), Width = 160, HorizontalAlignment = HorizontalAlignment.Left });
+        // Ollama is asked for the model's context before each use; other servers can't be asked, so the size is set here.
+        var context = new ComboBox { IsEditable = true, ItemsSource = sizes, Text = s.AiContextTokens.ToString("N0"), Width = 160, HorizontalAlignment = HorizontalAlignment.Left };
         AutomationProperties.SetName(context, "Context size in tokens");
-        dlg.AddNote("Match the model's own context length (Ollama: its settings, or OLLAMA_CONTEXT_LENGTH). Longer documents are summarized in parts.");
+        var contextPanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        contextPanel.Children.Add(new TextBlock { Text = "Context size (tokens the model reads at once)", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        contextPanel.Children.Add(context);
+        contextPanel.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 6, 0, 0),
+            Style = (Style)Application.Current.FindResource("Caption"),
+            Text = "Set it to the context the server runs the model with (LM Studio: Context Length when loading the model; " +
+                   "4,096 by default). Larger than that, the server cuts the text and answers go wrong; smaller, long documents " +
+                   "are summarized in more parts.",
+        });
+        dlg.Add(null, contextPanel);
+        var ollamaContext = dlg.AddNote("Context size: asked from Ollama before each use (the model as loaded, or its num_ctx; 4,096 when " +
+                                        "Ollama can't tell, its usual default). To give the model more, set OLLAMA_CONTEXT_LENGTH or the " +
+                                        "context length in Ollama's settings.");
 
         var trusted = s.AiNoPreview.ToList();
         var trustNote = dlg.AddNote("");
@@ -113,6 +129,8 @@ public static class AiActions
             var on = enabled.IsChecked == true;
             foreach (var c in new UIElement[] { preset, url, model, key, context, test, forgetKey }) c.IsEnabled = on;
             url.IsReadOnly = preset.SelectedIndex != 2;
+            contextPanel.Visibility = preset.SelectedIndex == 0 ? Visibility.Collapsed : Visibility.Visible;
+            ollamaContext.Visibility = preset.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
             var ep = Parsed(out var error);
             if (ep is null)
             {
@@ -191,6 +209,14 @@ public static class AiActions
                     : typed.Length > 0 && !models.Contains(typed, StringComparer.OrdinalIgnoreCase)
                         ? $"Connected: {Plural(models.Count, "model")}, but not \"{typed}\". Pick one from the list."
                         : $"Connected to {ep.Host}: {Plural(models.Count, "model")} available.";
+                if (preset.SelectedIndex == 0 && model.Text.Trim() is { Length: > 0 } chosen)
+                {
+                    using var probe = AiService.CreateClient(ep, chosen, apiKey);
+                    var (ctx, source) = await probe.OllamaContextAsync(mine.Token);
+                    if (!mine.IsCancellationRequested)
+                        testResult.Text += ctx is { } n ? $" {chosen} reads {n:N0} tokens at once ({source})."
+                            : $" Ollama didn't say how much {chosen} reads at once (it isn't loaded yet): Inkvolt PDF assumes {AiText.DefaultContextTokens:N0} tokens, its usual default.";
+                }
             }
             catch (AiException ex)
             {

@@ -60,7 +60,7 @@ public static partial class AiPrompts
     /// <paramref name="confirmCombine"/> gets that round's requests exactly as they will be sent (they carry the model's
     /// own partial summaries); when it declines, nothing more is sent and the answer is the partial summaries as they are.
     /// </summary>
-    public static async Task<string> SummarizeAsync(IReadOnlyList<AiChunk> chunks, int inputChars,
+    public static async Task<string> SummarizeAsync(IReadOnlyList<AiChunk> chunks, int inputTokens,
         Func<IReadOnlyList<AiMessage>, AiStep, CancellationToken, Task<string>> ask, CancellationToken cancel = default,
         Func<IReadOnlyList<IReadOnlyList<AiMessage>>, CancellationToken, Task<bool>>? confirmCombine = null)
     {
@@ -81,14 +81,15 @@ public static partial class AiPrompts
         while (true)
         {
             cancel.ThrowIfCancellationRequested();
-            var groups = Group(parts, inputChars);
+            var groups = Group(parts, inputTokens);
             var round = groups.Count == 1
                 ? [CombineRequest(parts, final: true)]
                 : groups.Where(g => g.Count > 1).Select(g => CombineRequest(g, final: false)).ToList();
-            if (confirmCombine is not null && !await confirmCombine(round, cancel)) return PartsAsAnswer(parts);
+            // A round where every summary is alone in its group sends nothing: no question, straight to shortening them.
+            if (round.Count > 0 && confirmCombine is not null && !await confirmCombine(round, cancel)) return PartsAsAnswer(parts);
             if (groups.Count == 1)
                 return await ask(round[0], new AiStep(++done, total, true, "Combining the parts into one summary"), cancel);
-            total += groups.Count;
+            total += round.Count; // the requests this round really makes (the final combine is already counted)
             var next = new List<(AiChunk Part, string Summary)>();
             var r = 0;
             foreach (var g in groups)
@@ -99,7 +100,7 @@ public static partial class AiPrompts
                 next.Add((span, summary));
             }
             if (next.Count >= parts.Count) // no progress: the summaries alone are too long; keep the start of each
-                next = [.. next.Select(p => (p.Part, AiProtocol.Shorten(p.Summary, Math.Max(200, inputChars / (next.Count + 1)))))];
+                next = [.. next.Select(p => (p.Part, AiText.Truncate(p.Summary, Math.Max(60, inputTokens / (next.Count + 1)))))];
             parts = next;
         }
     }
@@ -109,15 +110,15 @@ public static partial class AiPrompts
         string.Join("\n\n", parts.Select(p => $"### {Capital(p.Part.PagesText)}\n{p.Summary.Trim()}"));
 
     /// <summary>Consecutive partial summaries grouped so each group fits one request.</summary>
-    private static List<List<(AiChunk Part, string Summary)>> Group(List<(AiChunk Part, string Summary)> parts, int inputChars)
+    private static List<List<(AiChunk Part, string Summary)>> Group(List<(AiChunk Part, string Summary)> parts, int inputTokens)
     {
         var groups = new List<List<(AiChunk, string)>>();
         var current = new List<(AiChunk, string)>();
         var size = 0;
         foreach (var p in parts)
         {
-            var len = p.Summary.Length + 40;
-            if (current.Count > 0 && size + len > inputChars)
+            var len = AiText.EstimateTokens(p.Summary) + 12; // plus its "### Pages …" heading
+            if (current.Count > 0 && size + len > inputTokens)
             {
                 groups.Add(current);
                 current = [];
@@ -133,24 +134,24 @@ public static partial class AiPrompts
     /// <summary>
     /// A question about the document. The pages' text goes in the system message, whole when it fits; else only the parts
     /// that share the most words with the question (and the earlier questions), in page order, so the request fits
-    /// <paramref name="inputChars"/>. Earlier turns are kept, oldest dropped first, within a third of the budget.
+    /// <paramref name="inputTokens"/>. Earlier turns are kept, oldest dropped first, within a third of the budget.
     /// </summary>
-    public static AiAskRequest Ask(string question, IReadOnlyList<AiTurn> history, IReadOnlyList<AiPageText> pages, int inputChars)
+    public static AiAskRequest Ask(string question, IReadOnlyList<AiTurn> history, IReadOnlyList<AiPageText> pages, int inputTokens)
     {
         question = question.Trim();
         var turns = new List<AiTurn>();
         var historySize = 0;
         foreach (var t in history.Reverse())
         {
-            var len = t.Question.Length + t.Answer.Length;
-            if (historySize + len > inputChars / 3) break;
+            var len = AiText.EstimateTokens(t.Question) + AiText.EstimateTokens(t.Answer) + 8;
+            if (historySize + len > inputTokens / 3) break;
             turns.Insert(0, t);
             historySize += len;
         }
 
-        var room = Math.Max(500, inputChars - historySize - question.Length);
-        var all = AiText.Chunk(pages, Math.Max(room / 6, 600)); // small pieces, so relevant ones can be picked
-        var whole = all.Sum(c => c.Text.Length + 2);
+        var room = Math.Max(150, inputTokens - historySize - AiText.EstimateTokens(question));
+        var all = AiText.Chunk(pages, Math.Max(room / 6, 150)); // small pieces, so relevant ones can be picked
+        var whole = all.Sum(c => AiText.EstimateTokens(c.Text) + 1);
         List<AiChunk> chosen;
         var trimmed = false;
         if (whole <= room) chosen = [.. all];
@@ -162,9 +163,10 @@ public static partial class AiPrompts
             var size = 0;
             foreach (var x in all.Select((c, i) => (c, i, score: Score(c.Text, words))).OrderByDescending(x => x.score).ThenBy(x => x.i))
             {
-                if (size + x.c.Text.Length + 2 > room) continue;
+                var tokens = AiText.EstimateTokens(x.c.Text) + 1;
+                if (size + tokens > room) continue;
                 picked.Add((x.c, x.i));
-                size += x.c.Text.Length + 2;
+                size += tokens;
             }
             chosen = [.. picked.OrderBy(p => p.Index).Select(p => p.Chunk)]; // back in reading order
         }
@@ -185,12 +187,12 @@ public static partial class AiPrompts
 
     /// <summary>"Explain this passage" for a selection on <paramref name="page"/> (0-based).</summary>
     /// <exception cref="AiException">The selection is longer than one request can carry.</exception>
-    public static IReadOnlyList<AiMessage> Explain(string selection, int page, int inputChars)
+    public static IReadOnlyList<AiMessage> Explain(string selection, int page, int inputTokens)
     {
         var text = AiText.Clean(selection);
         if (text.Length == 0) throw new AiException("The selection has no text to explain.");
-        if (text.Length > inputChars)
-            throw new AiException($"The selection is too long to explain at once ({text.Length:N0} characters; the model's context fits about {inputChars:N0}). " +
+        if (AiText.EstimateTokens(text) is var tokens && tokens > inputTokens)
+            throw new AiException($"The selection is too long to explain at once (about {tokens:N0} tokens; the model's context leaves room for about {inputTokens:N0}). " +
                                   "Select less, or use Summarize for whole pages.");
         return [AiMessage.System(ExplainSystem), AiMessage.User($"Explain this passage from page {page + 1}:\n\n\"\"\"\n{text}\n\"\"\"")];
     }

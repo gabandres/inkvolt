@@ -21,8 +21,9 @@ public enum AiReach
 /// </summary>
 public sealed record AiEndpoint
 {
-    public const string OllamaUrl = "http://localhost:11434/v1";
-    public const string LmStudioUrl = "http://localhost:1234/v1";
+    // 127.0.0.1, not localhost: both servers listen on IPv4 loopback only, and Windows tries ::1 first.
+    public const string OllamaUrl = "http://127.0.0.1:11434/v1";
+    public const string LmStudioUrl = "http://127.0.0.1:1234/v1";
 
     private AiEndpoint(Uri baseUrl, AiReach reach)
     {

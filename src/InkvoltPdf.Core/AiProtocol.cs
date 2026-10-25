@@ -20,8 +20,12 @@ public sealed class AiException(string message, Exception? inner = null) : Excep
 /// </summary>
 public static class AiProtocol
 {
-    /// <summary>The request body: model, messages and stream, nothing else (no user id, no metadata).</summary>
-    public static string ChatRequestJson(string model, IReadOnlyList<AiMessage> messages, bool stream = true)
+    /// <summary>
+    /// The request body: model, messages and stream, nothing else (no user id, no metadata), plus the answer's limit
+    /// (<c>max_tokens</c>) when given: only for servers known to honour it (Ollama maps it to num_predict), since some
+    /// cloud models refuse it.
+    /// </summary>
+    public static string ChatRequestJson(string model, IReadOnlyList<AiMessage> messages, bool stream = true, int? maxTokens = null)
     {
         using var ms = new MemoryStream();
         using (var w = new Utf8JsonWriter(ms))
@@ -38,6 +42,7 @@ public static class AiProtocol
             }
             w.WriteEndArray();
             w.WriteBoolean("stream", stream);
+            if (maxTokens is { } max) w.WriteNumber("max_tokens", max);
             w.WriteEndObject();
         }
         return Encoding.UTF8.GetString(ms.ToArray());
@@ -91,6 +96,64 @@ public static class AiProtocol
                 return Shorten(m.GetString()!, 300);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Ollama's <c>/api/ps</c>: the context length the running model was loaded with, or null when that model isn't
+    /// loaded (or the answer doesn't say). "llama3.2" and "llama3.2:latest" are the same model.
+    /// </summary>
+    public static int? OllamaLoadedContext(string json, string model)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array) return null;
+            foreach (var m in models.EnumerateArray())
+            {
+                if (m.ValueKind != JsonValueKind.Object) continue;
+                var names = new[] { "name", "model" }.Select(n => m.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null);
+                if (!names.Any(n => n is not null && SameModel(n, model))) continue;
+                if (m.TryGetProperty("context_length", out var ctx) && ctx.ValueKind == JsonValueKind.Number && ctx.TryGetInt32(out var n2) && n2 > 0) return n2;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Ollama's <c>/api/show</c>: the model's own <c>num_ctx</c> parameter (set in its Modelfile; it overrides the server's
+    /// default) and the context it was trained for (<c>model_info</c>'s "…context_length"), each null when absent.
+    /// </summary>
+    public static (int? NumCtx, int? Trained) OllamaShowContext(string json)
+    {
+        int? numCtx = null, trained = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return (null, null);
+            if (root.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String &&
+                System.Text.RegularExpressions.Regex.Match(p.GetString()!, @"(?m)^\s*num_ctx\s+(\d+)") is { Success: true } m &&
+                int.TryParse(m.Groups[1].Value, out var n) && n > 0)
+                numCtx = n;
+            if (root.TryGetProperty("model_info", out var info) && info.ValueKind == JsonValueKind.Object)
+                foreach (var prop in info.EnumerateObject())
+                    if (prop.Name.EndsWith(".context_length", StringComparison.Ordinal) && prop.Value.ValueKind == JsonValueKind.Number &&
+                        prop.Value.TryGetInt32(out var t) && t > 0)
+                        trained = t;
+        }
+        catch (JsonException)
+        {
+        }
+        return (numCtx, trained);
+    }
+
+    private static bool SameModel(string a, string b)
+    {
+        static string Norm(string s) => (s.Contains(':') ? s : s + ":latest").ToLowerInvariant();
+        return Norm(a.Trim()) == Norm(b.Trim());
     }
 
     /// <summary>What an HTTP error status means for the user, with the server's own message when it gives one.</summary>

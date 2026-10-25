@@ -276,8 +276,12 @@ Manager. The installers don't remove an install made under the old names: uninst
 - **AI assistant (bring your own, off by default)** (Review › AI Assistant, command palette; right-click selected text ›
   Explain with AI): Inkvolt PDF has no AI of its own. In Settings › AI assistant you can connect one you choose: Ollama
   or LM Studio running on this PC (presets), or any OpenAI-compatible endpoint (`/v1/chat/completions`), on your network
-  or a cloud service with your own API key. Pick the model from the endpoint's list (Test connection) or type it; set
-  the context size the model reads at once. **Summarize** a page range (a long document is summarized in parts that
+  or a cloud service with your own API key. Pick the model from the endpoint's list (Test connection) or type it. The
+  context (how much the model reads at once) is asked from Ollama before each use (`/api/ps` for the model as loaded,
+  else its `num_ctx` from `/api/show`; 4,096, Ollama's usual default, when it can't tell; only the model's name is sent),
+  and Ollama gets the answer's limit (`max_tokens`) so the prompt and the answer fit together: Ollama silently cuts a
+  longer prompt, instructions first. For other endpoints set the context size as the server runs the model (LM Studio:
+  Context Length when loading it; 4,096 by default). **Summarize** a page range (a long document is summarized in parts that
   fit the context, then combined; Stop cancels), **Ask about this document** in a pane at the right (follow-up
   questions keep the conversation; a Pages box limits what a question is about; when the pages don't fit, only the
   parts that share the most words with the question go), **Explain selection**. Answers stream in, are marked
@@ -423,9 +427,10 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
 - AI assistant: answers are only as good as the model; small local models miss things and may invent them, so check
-  the cited pages. Sizes are estimated (about 4 characters per token), so set the context size a little below the
-  model's. Ollama's OpenAI-compatible endpoint uses the model's own context length (its settings or
-  OLLAMA_CONTEXT_LENGTH), whatever Inkvolt PDF's setting says. Scanned pages need Recognize Text first; pictures, charts
+  the cited pages. Sizes are estimated cautiously (about 3 letters per token, a token for every digit, mark and CJK
+  character; tables of figures cost far more than prose), with a 10% margin. Ollama's OpenAI-compatible endpoint takes no
+  context size per request: to give a model more, set OLLAMA_CONTEXT_LENGTH or its context length in Ollama; a model
+  not loaded yet is assumed to get 4,096 tokens. Scanned pages need Recognize Text first; pictures, charts
   and the look of the page aren't sent (text only). Answers show simple formatting (headings, bullets, bold); tables
   and code in an answer show as plain text. Ask picks the related parts of a long document by shared words, not by
   meaning. Endpoints are classified by the address as written (a public name that points to a private address still

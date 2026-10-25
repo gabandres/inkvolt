@@ -7,13 +7,19 @@ using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
-/// <summary>The AI assistant's configuration as saved: where to send, which model, how much it reads at once.</summary>
-public sealed record AiConfig(AiEndpoint Endpoint, string Preset, string Model, int ContextTokens)
+/// <summary>
+/// The AI assistant's configuration: where to send, which model, how much it reads at once. For the Ollama preset the
+/// context is asked from Ollama before each use (<see cref="AiService.ResolveAsync"/>), <see cref="ContextSource"/> says how.
+/// </summary>
+public sealed record AiConfig(AiEndpoint Endpoint, string Preset, string Model, int ContextTokens, string? ContextSource = null)
 {
     /// <summary>"Ollama", "LM Studio", or the host for a custom endpoint.</summary>
     public string ServerLabel => Preset switch { "Ollama" => "Ollama", "LMStudio" => "LM Studio", _ => Endpoint.Host };
 
-    public int InputChars => AiText.InputChars(ContextTokens);
+    public bool IsOllama => Preset == "Ollama";
+
+    /// <summary>Estimated tokens of document text one request may carry.</summary>
+    public int InputTokens => AiText.InputTokens(ContextTokens);
 }
 
 /// <summary>
@@ -57,8 +63,31 @@ public static class AiService
             problem = "Choose a model for the AI assistant.";
             return null;
         }
-        return new AiConfig(ep!, s.AiPreset, s.AiModel.Trim(), Math.Clamp(s.AiContextTokens, 1024, 2_000_000));
+        // Ollama: until it is asked (ResolveAsync), the size it uses unless told otherwise on most PCs.
+        var context = s.AiPreset == "Ollama" ? AiText.DefaultContextTokens : Math.Clamp(s.AiContextTokens, 1024, 2_000_000);
+        return new AiConfig(ep!, s.AiPreset, s.AiModel.Trim(), context);
     }
+
+    /// <summary>
+    /// For the Ollama preset, the context Ollama really gives the model (as loaded, or its num_ctx; else 4,096, Ollama's
+    /// usual default), since a longer prompt is silently cut by Ollama. Other endpoints keep the size set in Settings.
+    /// </summary>
+    public static async Task<AiConfig> ResolveAsync(AiConfig config, CancellationToken cancel = default)
+    {
+        if (!config.IsOllama) return config;
+        using var client = CreateClient(config.Endpoint, config.Model, AiKeyStore.Get(config.Endpoint.Key));
+        var (context, source) = await client.OllamaContextAsync(cancel);
+        return context is { } n
+            ? config with { ContextTokens = Math.Max(n, 1024), ContextSource = source }
+            : config with { ContextTokens = AiText.DefaultContextTokens, ContextSource = "Ollama's usual default (it didn't say)" };
+    }
+
+    /// <summary>A client for a configuration: for Ollama with the answer's limit, so the prompt and the answer fit its context.</summary>
+    public static AiClient CreateClient(AiConfig config) =>
+        new(config.Endpoint, config.Model, AiKeyStore.Get(config.Endpoint.Key), DevHandler?.Invoke(config.Endpoint))
+        {
+            MaxAnswerTokens = config.IsOllama ? AiText.AnswerTokens(config.ContextTokens) : null,
+        };
 
     public static AiClient CreateClient(AiEndpoint endpoint, string model) =>
         new(endpoint, model, AiKeyStore.Get(endpoint.Key), DevHandler?.Invoke(endpoint));

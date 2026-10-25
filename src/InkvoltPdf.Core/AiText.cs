@@ -22,23 +22,48 @@ public static partial class AiText
     /// <summary>Context sizes offered in Settings (tokens).</summary>
     public static readonly int[] ContextSizes = [2048, 4096, 8192, 16384, 32768, 65536, 131072];
 
-    public const int DefaultContextTokens = 8192;
+    /// <summary>
+    /// The context assumed when nothing better is known: Ollama's default on a PC without a large GPU, and LM Studio's
+    /// default when it loads a model. A model given more reads more once the size is set (or, for Ollama, asked).
+    /// </summary>
+    public const int DefaultContextTokens = 4096;
 
-    /// <summary>A rough token count: about 4 characters per token for English text (other scripts use more tokens).</summary>
-    public static int EstimateTokens(string text) => (text.Length + 3) / 4;
+    /// <summary>
+    /// A cautious token count (the real one depends on the model's tokenizer): about 3.3 letters per token, every digit,
+    /// punctuation mark and symbol a token of its own (many tokenizers split numbers into single digits, so tables of
+    /// figures cost about one token per character), each CJK character a token, spaces almost nothing. Rounds up.
+    /// </summary>
+    public static int EstimateTokens(string text)
+    {
+        double tokens = 0;
+        foreach (var c in text)
+        {
+            if (char.IsWhiteSpace(c)) tokens += 0.1;
+            else if (c >= 0x2E80 && !char.IsSurrogate(c)) tokens += 1; // CJK, kana, Hangul and later scripts
+            else if (char.IsLetter(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.NonSpacingMark) tokens += 0.3;
+            else tokens += 1; // digits, punctuation, symbols, emoji halves
+        }
+        return (int)Math.Ceiling(tokens);
+    }
 
     /// <summary>The tokens of a whole request: the messages' text plus a few per message for the chat format.</summary>
     public static int EstimateTokens(IEnumerable<AiMessage> messages) => messages.Sum(m => EstimateTokens(m.Content) + 4);
 
     /// <summary>
-    /// How many characters of document text one request may carry for a model reading <paramref name="contextTokens"/>:
-    /// the context minus room for the answer and the instructions, at a cautious 3 characters per token.
+    /// The room for the answer in a model reading <paramref name="contextTokens"/>: a quarter of it, from 256 to 2,048
+    /// tokens. Sent as the answer's limit where the server is known to honour it (Ollama).
     /// </summary>
-    public static int InputChars(int contextTokens)
+    public static int AnswerTokens(int contextTokens) => Math.Clamp(Math.Max(contextTokens, 1024) / 4, 256, 2048);
+
+    /// <summary>
+    /// How many (estimated) tokens of document text one request may carry for a model reading
+    /// <paramref name="contextTokens"/>: the context minus the answer's room and the instructions and chat format, less
+    /// 10% for the estimate's error, so the prompt and the answer stay under the context together.
+    /// </summary>
+    public static int InputTokens(int contextTokens)
     {
         contextTokens = Math.Max(contextTokens, 1024);
-        var answer = Math.Min(2048, contextTokens / 4);
-        return Math.Max(1500, (contextTokens - answer - 400) * 3);
+        return Math.Max(300, (int)((contextTokens - AnswerTokens(contextTokens) - 400) * 0.9));
     }
 
     /// <summary>"[Page 3]": the marker before each page's text, which the model cites as [p. 3].</summary>
@@ -75,15 +100,16 @@ public static partial class AiText
     }
 
     /// <summary>
-    /// Splits pages into chunks of at most <paramref name="maxChars"/> characters, whole pages where they fit, each page
-    /// headed by its marker. A page longer than a chunk is cut at a paragraph, line, sentence or word break (its pieces
-    /// keep the page's marker). Pages without text are left out.
+    /// Splits pages into chunks of at most <paramref name="maxTokens"/> (estimated) tokens, whole pages where they fit,
+    /// each page headed by its marker. A page longer than a chunk is cut at a paragraph, line, sentence or word break
+    /// (its pieces keep the page's marker). Pages without text are left out.
     /// </summary>
-    public static IReadOnlyList<AiChunk> Chunk(IReadOnlyList<AiPageText> pages, int maxChars)
+    public static IReadOnlyList<AiChunk> Chunk(IReadOnlyList<AiPageText> pages, int maxTokens)
     {
-        maxChars = Math.Max(maxChars, 200);
+        maxTokens = Math.Max(maxTokens, 60);
         var chunks = new List<AiChunk>();
         var sb = new StringBuilder();
+        var size = 0;
         int first = -1, last = -1;
 
         void Close()
@@ -91,6 +117,7 @@ public static partial class AiText
             if (sb.Length == 0) return;
             chunks.Add(new AiChunk(first, last, sb.ToString()));
             sb.Clear();
+            size = 0;
             first = last = -1;
         }
 
@@ -99,12 +126,19 @@ public static partial class AiText
             var text = Clean(p.Text);
             if (text.Length == 0) continue;
             var marker = PageMarker(p.Page);
-            foreach (var piece in Pieces(text, maxChars - marker.Length - 2))
+            var markerTokens = EstimateTokens(marker) + 1;
+            foreach (var piece in Pieces(text, maxTokens - markerTokens - 1))
             {
                 var block = $"{marker}\n{piece}";
-                if (sb.Length > 0 && sb.Length + 2 + block.Length > maxChars) Close();
-                if (sb.Length > 0) sb.Append("\n\n");
+                var tokens = EstimateTokens(block);
+                if (sb.Length > 0 && size + 1 + tokens > maxTokens) Close();
+                if (sb.Length > 0)
+                {
+                    sb.Append("\n\n");
+                    size += 1;
+                }
                 sb.Append(block);
+                size += tokens;
                 if (first < 0) first = p.Page;
                 last = p.Page;
             }
@@ -113,26 +147,45 @@ public static partial class AiText
         return chunks;
     }
 
-    /// <summary>Cuts text into pieces of at most <paramref name="max"/> characters at the nicest break available.</summary>
-    internal static IEnumerable<string> Pieces(string text, int max)
+    /// <summary>Cuts text into pieces of at most <paramref name="maxTokens"/> (estimated) tokens at the nicest break available.</summary>
+    internal static IEnumerable<string> Pieces(string text, int maxTokens)
     {
-        max = Math.Max(max, 50);
-        while (text.Length > max)
+        maxTokens = Math.Max(maxTokens, 20);
+        while (EstimateTokens(text) > maxTokens)
         {
-            var cut = BreakBefore(text, max);
+            var cut = BreakBefore(text, CharsWithin(text, maxTokens));
             yield return text[..cut].TrimEnd();
             text = text[cut..].TrimStart();
         }
         if (text.Length > 0) yield return text;
     }
 
+    /// <summary>The start of <paramref name="text"/> that fits <paramref name="maxTokens"/>, with "…" when cut.</summary>
+    public static string Truncate(string text, int maxTokens) =>
+        EstimateTokens(text) <= maxTokens || text.Length == 0 ? text : text[..BreakBefore(text, CharsWithin(text, Math.Max(1, maxTokens - 1)))].TrimEnd() + "…";
+
+    /// <summary>How many characters from the start of <paramref name="text"/> fit in <paramref name="maxTokens"/> (at least one).</summary>
+    private static int CharsWithin(string text, int maxTokens)
+    {
+        var lo = 1;
+        var hi = text.Length;
+        while (lo < hi) // the estimate only grows with length: binary search
+        {
+            var mid = (lo + hi + 1) / 2;
+            if (EstimateTokens(text[..mid]) <= maxTokens) lo = mid;
+            else hi = mid - 1;
+        }
+        return lo;
+    }
+
     private static int BreakBefore(string text, int max)
     {
+        if (max < 2) return Math.Min(text.Length, char.IsHighSurrogate(text[0]) ? 2 : 1);
         var floor = max / 2; // don't make tiny pieces just to break nicely
         foreach (var sep in new[] { "\n\n", "\n", ". ", "? ", "! ", "; ", " " })
         {
             var i = text.LastIndexOf(sep, max - 1, max - floor, StringComparison.Ordinal);
-            if (i > 0) return i + sep.Length;
+            if (i > 0) return Math.Min(i + sep.Length, max);
         }
         // No break at all (a long run of letters, or CJK text without spaces): cut, but not inside a surrogate pair.
         return char.IsHighSurrogate(text[max - 1]) ? max - 1 : max;

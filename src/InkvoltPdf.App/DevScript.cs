@@ -58,7 +58,7 @@ internal static class DevScript
                 if (line.Length == 0 || line.StartsWith('#')) continue;
                 await Step(window, line, log);
                 log.Add($"ok: {line}");
-                await File.WriteAllLinesAsync(scriptPath + ".log", log); // so far, in case a later step hangs
+                await File.WriteAllLinesAsync(scriptPath + ".log", log.ToArray()); // so far, in case a later step hangs
                 await Task.Delay(150);
             }
         }
@@ -66,7 +66,7 @@ internal static class DevScript
         {
             log.Add($"FAILED: {ex}");
         }
-        await File.WriteAllLinesAsync(scriptPath + ".log", log);
+        await File.WriteAllLinesAsync(scriptPath + ".log", log.ToArray());
         Application.Current.Shutdown();
     }
 
@@ -1212,7 +1212,14 @@ internal static class DevScript
             if (mode[0] == "refused")
                 throw new System.Net.Http.HttpRequestException(System.Net.Http.HttpRequestError.ConnectionError, "No connection could be made",
                     new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused));
-            if (request.RequestUri!.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
+            if (request.RequestUri!.AbsolutePath == "/api/ps") // Ollama's own API: the model as loaded
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new System.Net.Http.StringContent("""{"models":[{"name":"llama3.2:latest","context_length":4096}]}""") { Headers = { ContentType = json } },
+                };
+            if (request.RequestUri.AbsolutePath.StartsWith("/api/", StringComparison.Ordinal))
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { Content = new System.Net.Http.StringContent("{}") };
+            if (request.RequestUri.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
                 return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
                 {
                     Content = new System.Net.Http.StringContent("""{"object":"list","data":[{"id":"llama3.2:latest"},{"id":"qwen3:8b"},{"id":"gemma3:4b"}]}""") { Headers = { ContentType = json } },

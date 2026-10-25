@@ -289,7 +289,7 @@ public class AiClientTests
         Assert.False(reply.WasCutOff);
         var (request, body) = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Equal("http://localhost:11434/v1/chat/completions", request.RequestUri!.AbsoluteUri);
+        Assert.Equal("http://127.0.0.1:11434/v1/chat/completions", request.RequestUri!.AbsoluteUri);
         Assert.Null(request.Headers.Authorization);
         Assert.Contains("\"stream\":true", body);
         Assert.Contains("\"model\":\"llama3.2\"", body);
@@ -471,9 +471,9 @@ public class AiTextTests
     {
         var para = string.Join(" ", Enumerable.Repeat("Some words make a sentence.", 40)); // ~1100 chars
         var pages = Pages(para, para, para);
-        var chunks = AiText.Chunk(pages, 500);
+        var chunks = AiText.Chunk(pages, 150);
         Assert.True(chunks.Count >= 6);
-        Assert.All(chunks, c => Assert.True(c.Text.Length <= 500, $"{c.Text.Length}"));
+        Assert.All(chunks, c => Assert.True(AiText.EstimateTokens(c.Text) <= 150, $"{AiText.EstimateTokens(c.Text)}"));
         Assert.All(chunks, c => Assert.StartsWith("[Page ", c.Text));
         Assert.All(chunks, c => Assert.EndsWith(".", c.Text)); // cut after a sentence
         // Nothing lost: every word comes through once.
@@ -516,10 +516,11 @@ public class AiTextTests
     [Fact]
     public void BudgetGrowsWithTheContext()
     {
-        Assert.True(AiText.InputChars(2048) >= 1500);
-        Assert.True(AiText.InputChars(8192) > AiText.InputChars(4096));
-        Assert.True(AiText.InputChars(4096) / 3 + 2048 / 2 < 4096); // the text plus room for the answer fits
-        Assert.Equal(3, AiText.EstimateTokens("123456789012"));
+        Assert.True(AiText.InputTokens(2048) >= 300);
+        Assert.True(AiText.InputTokens(8192) > AiText.InputTokens(4096));
+        foreach (var ctx in AiText.ContextSizes) // the text, the instructions and the answer fit together
+            Assert.True(AiText.InputTokens(ctx) + 400 + AiText.AnswerTokens(ctx) <= ctx, $"{ctx}");
+        Assert.Equal(4096, AiText.DefaultContextTokens);
         Assert.Equal("pages 1–3, 5", AiText.PagesText([0, 1, 2, 4]));
         Assert.Equal("page 4", AiText.PagesText([3]));
     }
@@ -551,10 +552,10 @@ public class AiPromptTests
     public async Task LongDocumentsAreMappedThenCombined()
     {
         var page = string.Join(" ", Enumerable.Repeat("Words in a sentence.", 60));
-        var chunks = AiText.Chunk(Pages(page, page, page, page), 1500);
+        var chunks = AiText.Chunk(Pages(page, page, page, page), 400);
         Assert.True(chunks.Count >= 4);
         var steps = new List<AiStep>();
-        var result = await AiPrompts.SummarizeAsync(chunks, 1500, (m, s, _) =>
+        var result = await AiPrompts.SummarizeAsync(chunks, 400, (m, s, _) =>
         {
             steps.Add(s);
             return Task.FromResult(s.IsFinal ? "Final" : $"Part summary {s.Index}");
@@ -570,9 +571,9 @@ public class AiPromptTests
     public async Task LongPartialSummariesAreCombinedInRounds()
     {
         var page = string.Join(" ", Enumerable.Repeat("Words in a sentence.", 60));
-        var chunks = AiText.Chunk(Pages(page, page, page, page, page, page), 1500);
+        var chunks = AiText.Chunk(Pages(page, page, page, page, page, page), 400);
         var combine = 0;
-        var result = await AiPrompts.SummarizeAsync(chunks, 1500, (m, s, _) =>
+        var result = await AiPrompts.SummarizeAsync(chunks, 400, (m, s, _) =>
         {
             if (m[1].Content.StartsWith("These are summaries", StringComparison.Ordinal)) combine++;
             return Task.FromResult(s.IsFinal ? "Final" : new string('x', 600)); // wordy parts: three don't fit one request
@@ -586,10 +587,10 @@ public class AiPromptTests
     {
         await Assert.ThrowsAsync<AiException>(() => AiPrompts.SummarizeAsync([], 1000, (_, _, _) => Task.FromResult("")));
         var page = string.Join(" ", Enumerable.Repeat("Words in a sentence.", 60));
-        var chunks = AiText.Chunk(Pages(page, page, page), 1500);
+        var chunks = AiText.Chunk(Pages(page, page, page), 400);
         using var cts = new CancellationTokenSource();
         var calls = 0;
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AiPrompts.SummarizeAsync(chunks, 1500, (_, _, _) =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AiPrompts.SummarizeAsync(chunks, 400, (_, _, _) =>
         {
             calls++;
             cts.Cancel();
@@ -614,11 +615,11 @@ public class AiPromptTests
     {
         var filler = string.Join(" ", Enumerable.Repeat("General background about the company and its history.", 40));
         var pages = Pages(filler, filler, "The security deposit is two months of rent, returned within 30 days.", filler, filler);
-        var r = AiPrompts.Ask("How much is the security deposit?", [], pages, 3000);
+        var r = AiPrompts.Ask("How much is the security deposit?", [], pages, 800);
         Assert.True(r.Trimmed);
         Assert.Contains(2, r.Pages);
         Assert.Contains("security deposit is two months", r.Messages[0].Content);
-        Assert.True(r.Messages.Sum(m => m.Content.Length) < 3000 + AiPrompts.AskSystem.Length + 200);
+        Assert.True(r.Messages.Sum(m => AiText.EstimateTokens(m.Content)) < 800 + AiText.EstimateTokens(AiPrompts.AskSystem) + 100);
         Assert.Contains("most related", r.Messages[0].Content);
     }
 
@@ -639,7 +640,7 @@ public class AiPromptTests
         var m = AiPrompts.Explain("  Force   majeure clause ", 4, 5000);
         Assert.Contains("page 5", m[1].Content);
         Assert.Contains("Force majeure clause", m[1].Content);
-        Assert.Throws<AiException>(() => AiPrompts.Explain(new string('x', 6000), 0, 5000));
+        Assert.Throws<AiException>(() => AiPrompts.Explain(new string('x', 6000), 0, 1000));
         Assert.Throws<AiException>(() => AiPrompts.Explain("   ", 0, 5000));
     }
 

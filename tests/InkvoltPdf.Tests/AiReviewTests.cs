@@ -186,7 +186,7 @@ public class AiReviewTests
             Content = new StreamContent(new BrokenStream()),
         }));
         using var client = new AiClient(Endpoint(AiEndpoint.OllamaUrl), "m", null, handler);
-        Assert.Contains("broke off", (await Assert.ThrowsAsync<AiException>(() => client.ChatAsync([AiMessage.User("Q")]))).Message);
+        Assert.Contains("closed before the answer finished", (await Assert.ThrowsAsync<AiException>(() => client.ChatAsync([AiMessage.User("Q")]))).Message);
         using var models = new AiClient(Endpoint(AiEndpoint.OllamaUrl), "m", null, handler);
         await Assert.ThrowsAsync<AiException>(() => models.ListModelsAsync());
     }
@@ -210,7 +210,7 @@ public class AiReviewTests
     // ── 4. Combining requests are shown before they go ──
 
     private static IReadOnlyList<AiChunk> LongChunks() =>
-        AiText.Chunk([.. Enumerable.Range(0, 4).Select(i => new AiPageText(i, string.Join(" ", Enumerable.Repeat("Words in a sentence.", 60))))], 1500);
+        AiText.Chunk([.. Enumerable.Range(0, 4).Select(i => new AiPageText(i, string.Join(" ", Enumerable.Repeat("Words in a sentence.", 60))))], 400);
 
     [Fact]
     public async Task CombiningRequestsAreConfirmedWithTheirExactText()
@@ -218,7 +218,7 @@ public class AiReviewTests
         var chunks = LongChunks();
         var shown = new List<IReadOnlyList<IReadOnlyList<AiMessage>>>();
         var sent = new List<IReadOnlyList<AiMessage>>();
-        var result = await AiPrompts.SummarizeAsync(chunks, 1500, (m, s, _) =>
+        var result = await AiPrompts.SummarizeAsync(chunks, 400, (m, s, _) =>
         {
             sent.Add(m);
             return Task.FromResult(s.IsFinal ? "Final" : $"Partial {s.Index}");
@@ -238,7 +238,7 @@ public class AiReviewTests
     {
         var chunks = LongChunks();
         var calls = 0;
-        var result = await AiPrompts.SummarizeAsync(chunks, 1500, (_, s, _) =>
+        var result = await AiPrompts.SummarizeAsync(chunks, 400, (_, s, _) =>
         {
             calls++;
             return Task.FromResult($"Partial {s.Index}");
