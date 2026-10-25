@@ -174,6 +174,38 @@ public class MeasurementTests
     }
 
     [Fact]
+    public void APageWithAUserUnitMeasuresTrue()
+    {
+        // /UserUnit 2: each unit of the page's coordinates is 2 points, so a 72-unit line is 2 in long.
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /UserUnit 2 >>",
+        ]);
+        var scale = MeasureScale.From(1, "in", 10, "ft");
+        pdf = Measurements.SetPageScale(pdf, null, [0], scale);
+        var read = Measurements.PageScale(pdf, null, 0, new PointD(10, 10))!;
+        Assert.Equal(2, read.UserUnit);
+        Assert.Equal(10.0 / 72, read.PerPoint, 9);
+        Assert.Equal(20, read.Value(MeasureKind.Distance, [new(0, 0), new(72, 0)]), 9);
+        Assert.Equal(2, Measurements.UserUnits(pdf, null)[0]);
+        using (var doc = Core2Pdf.Open(pdf))
+        {
+            // /X /C converts from user space units: 20 ft per 72 units.
+            var vp = PdfObj.Dict(PdfObj.Array(doc.Pages[0].Elements["/VP"])!.Elements[0])!;
+            var x = PdfObj.Dict(PdfObj.Array(PdfObj.Dict(vp.Elements["/Measure"])!.Elements["/X"])!.Elements[0])!;
+            Assert.Equal(20.0 / 72, PdfObj.Num(x.Elements["/C"]), 4);
+        }
+        pdf = Measurements.Add(pdf, null, 0, MeasureKind.Distance, [new(100, 100), new(172, 100)], read, "Ada", "u1");
+        var m = Assert.Single(Measurements.Read(pdf, null, 0));
+        Assert.Equal("20.00 ft", m.Text);
+        // A real-size measurement there too: 72 units are 2 in.
+        var plain = Measurements.Add(pdf, null, 0, MeasureKind.Distance, [new(100, 200), new(172, 200)], MeasureScale.Default, "Ada", "u2");
+        Assert.Contains(Measurements.Read(plain, null, 0), x => x.Text == "2.00 in");
+    }
+
+    [Fact]
     public void MeasuringOnATurnedPageReadsUpright()
     {
         var pdf = PageEditor.Rotate(TestPdf.Make(1), null, [0], 90);

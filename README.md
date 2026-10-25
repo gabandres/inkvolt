@@ -469,7 +469,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   currency signs, percents or thousands separators other than "," stay text.
 - Measure: straight segments only (no arcs, curves or counts), and rectilinear scales (not geospatial maps, whose
   measure dictionaries are left alone). Labels use Helvetica, so units are written plain ("sq ft", not ft²); a label
-  sits by the line and isn't moved apart from it. A page's /UserUnit (rare: very large drawings) isn't applied. A
+  sits by the line and isn't moved apart from it. A page's /UserUnit (very large drawings) is applied. A
   measurement made before the page was turned keeps its label's angle (as other comments do). Not tested in Acrobat
   itself: the dictionaries follow the PDF standard and Acrobat's own measurements.
 - PDF/A: level 2b only (not 1, 3, or the accessible "a" level: no tagging is added). Fonts that aren't embedded are

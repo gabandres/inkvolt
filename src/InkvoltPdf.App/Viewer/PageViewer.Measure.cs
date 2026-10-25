@@ -135,7 +135,7 @@ public sealed partial class PageViewer
         var scale = MeasureScaleAt?.Invoke(_measurePage, pts[0]) ?? MeasureScale.Default;
         var kind = KindOf(_tool);
         if (kind == MeasureKind.Area && pts.Count >= 3)
-            return $"{scale.Format(MeasureKind.Area, pts)} · perimeter {scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerPoint)}";
+            return $"{scale.Format(MeasureKind.Area, pts)} · perimeter {scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerUnit)}";
         return scale.Format(MeasureKind.Distance, pts);
     }
 

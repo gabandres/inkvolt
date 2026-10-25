@@ -13,7 +13,7 @@ namespace InkvoltPdf.App;
 /// </summary>
 public partial class DocumentTab
 {
-    private (byte[] Data, Dictionary<int, IReadOnlyList<(RectD Area, MeasureScale Scale)>> Pages)? _viewports;
+    private (byte[] Data, Dictionary<int, IReadOnlyList<(RectD Area, MeasureScale Scale)>> Pages, Dictionary<int, double> Units)? _viewports;
 
     private void InitMeasure()
     {
@@ -30,15 +30,16 @@ public partial class DocumentTab
         {
             try
             {
-                _viewports = cached = (data, Measurements.Viewports(data, Session.Password));
+                _viewports = cached = (data, Measurements.Viewports(data, Session.Password), Measurements.UserUnits(data, Session.Password));
             }
             catch (Exception ex) when (ex is InvalidOperationException or OwnerPasswordRequiredException or PdfSharp.PdfSharpException)
             {
                 Log.Write($"Measure: viewports unreadable: {ex.Message}");
-                _viewports = cached = (data, []);
+                _viewports = cached = (data, [], []);
             }
         }
-        return Measurements.ScaleAt(cached.Pages.GetValueOrDefault(page), at) ?? MeasureScale.Default;
+        return Measurements.ScaleAt(cached.Pages.GetValueOrDefault(page), at)
+               ?? MeasureScale.Default with { UserUnit = cached.Units.GetValueOrDefault(page, 1) };
     }
 
     private static string KindName(MeasureKind kind) => kind switch
@@ -62,7 +63,7 @@ public partial class DocumentTab
         var text = scale.Format(kind, pts);
         if (await RunEdit($"Measure {KindName(kind).ToLowerInvariant()}", (d, pw) => Measurements.Add(d, pw, page, kind, pts, scale, author, id), quiet: true))
         {
-            var extra = kind == MeasureKind.Area ? $", perimeter {scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerPoint)}" : "";
+            var extra = kind == MeasureKind.Area ? $", perimeter {scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerUnit)}" : "";
             Notify($"{KindName(kind)}: {text}{extra} (scale {scale.Ratio}).", "Undo", () => { if (!IsBusy && Session.UndoLabel?.StartsWith("Measure", StringComparison.Ordinal) == true) Undo(); });
         }
     }
@@ -71,13 +72,13 @@ public partial class DocumentTab
     private async Task Calibrate(MeasureRequest r)
     {
         if (Window.GetWindow(this) is not { } owner) return;
-        var points = MeasureGeometry.Distance(r.Points[0], r.Points[^1]);
+        var current = ScaleAt(r.PageIndex, r.Points[0]);
+        var points = MeasureGeometry.Distance(r.Points[0], r.Points[^1]) * current.UserUnit; // in points, whatever the page's unit
         if (points < 1)
         {
             Notify("That line is too short to calibrate from. Click two points further apart.");
             return;
         }
-        var current = ScaleAt(r.PageIndex, r.Points[0]);
         var dlg = new FormDialog(owner, "Calibrate Scale", "Set Scale", 460);
         dlg.AddNote($"The line you drew is {points / 72:0.###} in long on the page. How long is it really?");
         var (row, length, unit) = LengthRow(current.Unit);

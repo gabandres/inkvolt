@@ -64,6 +64,15 @@ public static class MeasureGeometry
 /// </summary>
 public sealed record MeasureScale(double PerPoint, string Unit, string Ratio, int Decimals = 2)
 {
+    /// <summary>
+    /// Points per unit of the page's user space (its /UserUnit; 1 normally): page coordinates are multiplied by it
+    /// before <see cref="PerPoint"/> applies, so a drawing on a page with /UserUnit 2 measures true.
+    /// </summary>
+    public double UserUnit { get; init; } = 1;
+
+    /// <summary>Real units per unit of page coordinates (what a PDF's /X /C conversion factor is).</summary>
+    public double PerUnit => PerPoint * UserUnit;
+
     /// <summary>Points per unit (1 in = 72 pt).</summary>
     private static readonly Dictionary<string, double> PointsPer = new(StringComparer.Ordinal)
     {
@@ -147,8 +156,8 @@ public sealed record MeasureScale(double PerPoint, string Unit, string Ratio, in
     /// <summary>The real length (distance, perimeter: the path as drawn) or area of a page-space path.</summary>
     public double Value(MeasureKind kind, IReadOnlyList<PointD> points) => kind switch
     {
-        MeasureKind.Area => MeasureGeometry.Area(points) * PerPoint * PerPoint,
-        _ => MeasureGeometry.Length(points) * PerPoint,
+        MeasureKind.Area => MeasureGeometry.Area(points) * PerUnit * PerUnit,
+        _ => MeasureGeometry.Length(points) * PerUnit,
     };
 
     /// <summary>"12.50 ft", "1,000.00 sq ft".</summary>
@@ -211,12 +220,22 @@ public static class Measurements
             if (PdfObj.Array(page.Elements["/VP"]) is not { } vps) continue;
             var list = new List<(RectD, MeasureScale)>();
             foreach (var vp in vps.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
-                if (PdfObj.Array(vp.Elements["/BBox"]) is { Elements.Count: 4 } b && PdfObj.Dict(vp.Elements["/Measure"]) is { } m && ScaleOf(m) is { } s)
+                if (PdfObj.Array(vp.Elements["/BBox"]) is { Elements.Count: 4 } b && PdfObj.Dict(vp.Elements["/Measure"]) is { } m && ScaleOf(m, PageMarks.UserUnit(page)) is { } s)
                     list.Add((FormEditor.ToPageSpace(page, Math.Min(PdfObj.Num(b, 0), PdfObj.Num(b, 2)), Math.Min(PdfObj.Num(b, 1), PdfObj.Num(b, 3)),
                         Math.Max(PdfObj.Num(b, 0), PdfObj.Num(b, 2)), Math.Max(PdfObj.Num(b, 1), PdfObj.Num(b, 3))), s));
             if (list.Count > 0) all[i] = list;
         }
         return all;
+    }
+
+    /// <summary>The /UserUnit of every page that has one other than 1 (points per unit of its coordinates).</summary>
+    public static Dictionary<int, double> UserUnits(byte[] data, string? password)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
+        var units = new Dictionary<int, double>();
+        for (var i = 0; i < doc.PageCount; i++)
+            if (PageMarks.UserUnit(doc.Pages[i]) is var u && u != 1) units[i] = u;
+        return units;
     }
 
     /// <summary>The scale at <paramref name="at"/> among <paramref name="viewports"/> (page space; the last that contains it), else null.</summary>
@@ -234,7 +253,7 @@ public static class Measurements
             double x1 = Math.Min(PdfObj.Num(b, 0), PdfObj.Num(b, 2)), x2 = Math.Max(PdfObj.Num(b, 0), PdfObj.Num(b, 2));
             double y1 = Math.Min(PdfObj.Num(b, 1), PdfObj.Num(b, 3)), y2 = Math.Max(PdfObj.Num(b, 1), PdfObj.Num(b, 3));
             if (x < x1 || x > x2 || y < y1 || y > y2) continue;
-            if (PdfObj.Dict(vp.Elements["/Measure"]) is { } m && ScaleOf(m) is { } s) found = s;
+            if (PdfObj.Dict(vp.Elements["/Measure"]) is { } m && ScaleOf(m, PageMarks.UserUnit(page)) is { } s) found = s;
         }
         return found;
     }
@@ -267,7 +286,7 @@ public static class Measurements
                 vp.Elements["/Type"] = new PdfName("/Viewport");
                 vp.Elements["/BBox"] = PdfObj.Reals(doc, box.X1, box.Y1, box.X2, box.Y2);
                 vp.Elements["/Name"] = new PdfString(ViewportName);
-                vp.Elements["/Measure"] = MeasureDict(doc, scale);
+                vp.Elements["/Measure"] = MeasureDict(doc, scale with { UserUnit = PageMarks.UserUnit(page) });
                 vps.Elements.Insert(0, vp);
             }
             if (vps.Elements.Count == 0) page.Elements.Remove("/VP");
@@ -291,7 +310,7 @@ public static class Measurements
         var list = new List<MeasurementInfo>();
         foreach (var a in PdfObj.Array(page.Elements["/Annots"])?.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>() ?? [])
         {
-            if (PdfObj.Dict(a.Elements["/Measure"]) is not { } m || ScaleOf(m) is not { } scale) continue;
+            if (PdfObj.Dict(a.Elements["/Measure"]) is not { } m || ScaleOf(m, PageMarks.UserUnit(page)) is not { } scale) continue;
             if (KindOf(PdfObj.Name(a.Elements["/Subtype"])) is not { } kind) continue;
             var pts = Points(page, PdfObj.Array(a.Elements[kind == MeasureKind.Distance ? "/L" : "/Vertices"]));
             if (pts.Count < (kind == MeasureKind.Area ? 3 : 2)) continue;
@@ -340,14 +359,17 @@ public static class Measurements
         m.Elements["/Type"] = new PdfName("/Measure");
         m.Elements["/Subtype"] = new PdfName("/RL");
         m.Elements["/R"] = new PdfString(scale.Ratio);
-        m.Elements["/X"] = Format(scale.Unit, scale.PerPoint);
+        m.Elements["/X"] = Format(scale.Unit, scale.PerUnit); // from the page's user space units
         m.Elements["/D"] = Format(scale.Unit, 1);
         m.Elements["/A"] = Format(scale.AreaUnit, 1);
         return m;
     }
 
-    /// <summary>The scale of a rectilinear measure dictionary (null for geospatial ones or without a conversion factor).</summary>
-    internal static MeasureScale? ScaleOf(PdfDictionary measure)
+    /// <summary>
+    /// The scale of a rectilinear measure dictionary on a page with <paramref name="userUnit"/> (null for geospatial ones
+    /// or without a conversion factor). /X /C converts from user space units, so per point it is /C ÷ /UserUnit.
+    /// </summary>
+    internal static MeasureScale? ScaleOf(PdfDictionary measure, double userUnit)
     {
         if (PdfObj.Name(measure.Elements["/Subtype"]) is { } st && st != "RL") return null;
         if (PdfObj.Dict(PdfObj.Array(measure.Elements["/X"])?.Elements.FirstOrDefault()) is not { } x) return null;
@@ -356,10 +378,11 @@ public static class Measurements
         var unit = PdfObj.Text(x.Elements["/U"]) is { Length: > 0 } u ? u.Trim() : "units";
         var d = PdfObj.Num(x.Elements["/D"], 100);
         var decimals = d >= 1 ? Math.Clamp((int)Math.Round(Math.Log10(d)), 0, 6) : 2;
-        var ratio = PdfObj.Text(measure.Elements["/R"]) is { Length: > 0 } r ? r.Trim() : $"1 pt = {c.ToString("0.######", CultureInfo.InvariantCulture)} {unit}";
+        var perPoint = c / userUnit;
+        var ratio = PdfObj.Text(measure.Elements["/R"]) is { Length: > 0 } r ? r.Trim() : $"1 pt = {perPoint.ToString("0.######", CultureInfo.InvariantCulture)} {unit}";
         // /C is written with a few digits: when the ratio says the same, take its exact value.
-        if (MeasureScale.TryParse(ratio, out var exact) && exact!.Unit == unit && Math.Abs(exact.PerPoint - c) <= c * 1e-4) c = exact.PerPoint;
-        return new MeasureScale(c, unit, ratio, decimals);
+        if (MeasureScale.TryParse(ratio, out var exact) && exact!.Unit == unit && Math.Abs(exact.PerPoint - perPoint) <= perPoint * 1e-4) perPoint = exact.PerPoint;
+        return new MeasureScale(perPoint, unit, ratio, decimals) { UserUnit = userUnit };
     }
 
     // ───────────── the label in a measurement's appearance ─────────────
@@ -371,7 +394,7 @@ public static class Measurements
     internal static (string Ops, List<(double X, double Y)> Corners, string Text, MeasureKind Kind)? Label(PdfPage page, PdfDictionary annot, string subtype,
         IReadOnlyList<PointD> points, AnnotStyle style)
     {
-        if (PdfObj.Dict(annot.Elements["/Measure"]) is not { } m || ScaleOf(m) is not { } scale || KindOf(subtype) is not { } kind) return null;
+        if (PdfObj.Dict(annot.Elements["/Measure"]) is not { } m || ScaleOf(m, PageMarks.UserUnit(page)) is not { } scale || KindOf(subtype) is not { } kind) return null;
         var text = scale.Format(kind, points);
         const double size = 9;
         var width = StdFont.Helvetica.Measure(text) * size;

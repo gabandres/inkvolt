@@ -202,7 +202,7 @@ public static partial class Annotations
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         var page = doc.Pages[pageIndex];
         var annot = NewAnnot(doc, page, subtype, 0, 0, 0, 0, id, "", author, s.Color ?? AnnotStyle.Black);
-        annot.Elements["/Measure"] = Measurements.MeasureDict(doc, scale);
+        annot.Elements["/Measure"] = Measurements.MeasureDict(doc, scale with { UserUnit = PageMarks.UserUnit(page) });
         Apply(doc, page, annot, subtype, g, s);
         return PdfObj.Save(doc);
     }
