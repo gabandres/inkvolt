@@ -109,7 +109,9 @@ internal static class PdfObj
     /// <summary>
     /// Saves an edited document. PDFsharp replaces the XMP metadata packet on every save, so the document's own packet
     /// (read just before saving) is written back, updated from the Info dictionary (see <see cref="Xmp"/>).
-    /// Every Core path that saves with PDFsharp goes through here (PageEditor has its own Save doing the same).
+    /// Every Core path that saves an edit with PDFsharp goes through here (PageEditor has its own Save doing the same);
+    /// PDF/A conversion (<see cref="PdfA.Convert"/>) saves on its own, as it writes its own XMP packet to an unencrypted,
+    /// unsigned copy (it removes the protection and refuses signed files first).
     /// A signed document opened through <see cref="Open"/> is saved as an incremental update instead, which keeps its
     /// signatures valid (see <see cref="Incremental"/>), unless <paramref name="rewrite"/> asks for a full rewrite
     /// (redaction, which must not leave the removed content in the file).
