@@ -61,6 +61,18 @@ public class OtherBrandsTests
 
     // ------------------------------------------------------------------ status
 
+    [Theory]
+    [InlineData("Idle.", "Ready", "Ready")] // ippeveprinter, CUPS
+    [InlineData("idle", "Ready", "Ready")]
+    [InlineData(" Ready to print. ", "Ready", "Ready")]
+    [InlineData("Printing.", "Printing", "Printing")]
+    [InlineData("", "Ready", "Ready")]
+    [InlineData(null, "Stopped", "Stopped")]
+    [InlineData("Warming up.", "Printing", "Warming up")]
+    [InlineData("Sleep mode. Press any key.", "Ready", "Sleep mode. Press any key.")] // several sentences stay as written
+    public void Status_headline_from_the_state_message(string? message, string label, string expected) =>
+        Assert.Equal(expected, IppClient.Headline(message, label));
+
     [Fact]
     public void Inkjet_status_humanizes_reasons_and_uses_the_alert_description()
     {

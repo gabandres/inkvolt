@@ -103,8 +103,25 @@ public sealed class IppClient
         };
         var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : code == "stopped" ? Severity.Error : Severity.Info;
         var detail = alerts.Where(a => a.Severity == severity).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);
-        return new PrinterStatus(code, r.Str("printer-state-message") is { Length: > 0 } m ? m : label, severity, alerts, detail);
+        return new PrinterStatus(code, Headline(r.Str("printer-state-message"), label), severity, alerts, detail);
     }
+
+    /// <summary>
+    /// The status line: the printer's <c>printer-state-message</c> when it says something, else the state in the app's
+    /// words. A message that only restates the state ("Idle.", "Ready", "Printing") reads as the app's label, so every
+    /// brand says "Ready" as HP does; a one-sentence message loses its final period, like the app's other headlines.
+    /// </summary>
+    public static string Headline(string? message, string label)
+    {
+        var m = message?.Trim() ?? "";
+        if (m.EndsWith('.') && m.IndexOf('.') == m.Length - 1) m = m[..^1].TrimEnd();
+        return m.Length == 0 || GenericStates.Contains(m) ? label : m;
+    }
+
+    private static readonly HashSet<string> GenericStates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "idle", "ready", "ready to print", "online", "printer is idle", "printing", "processing", "stopped", "none",
+    };
 
     private static readonly (string Suffix, Severity Severity)[] Suffixes =
         [("-error", Severity.Error), ("-warning", Severity.Warning), ("-report", Severity.Info)];
