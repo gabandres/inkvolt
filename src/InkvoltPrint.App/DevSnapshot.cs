@@ -329,11 +329,30 @@ internal static class DevSnapshot
         var enc = new PngBitmapEncoder();
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
-        if (menu is not null) menu.IsOpen = false;
+        if (menu is not null)
+        {
+            // Shutting down while the just-closed menu's capture is being released hung in WPF's pen/touch thread
+            // (HwndSource.Dispose → ReleaseCapture → PenThreadWorker): let the close finish first.
+            menu.IsOpen = false;
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
         host?.Close();
+        ExitSoon();
         Application.Current.Shutdown();
         return true;
     }
+
+    /// <summary>
+    /// Dev aid only: the PNG is written, so if WPF's shutdown still hangs (the pen/touch thread has, after a menu), end the
+    /// process a few seconds later rather than leave it running.
+    /// </summary>
+    private static void ExitSoon() =>
+        new Thread(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(10));
+            Log.Write("Snapshot: shutdown didn't finish in 10 s; exiting");
+            Environment.Exit(0);
+        }) { IsBackground = true, Name = "Snapshot exit" }.Start();
 
     /// <summary>
     /// The last alert laid out like a Windows notification (app name, badge icon, title, text). Windows draws the real one,
