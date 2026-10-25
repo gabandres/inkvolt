@@ -48,6 +48,20 @@ public static class OfficeFiles
     public static bool IsEncryptedOpenXml(ReadOnlySpan<byte> head, string path) =>
         OpenXml.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase) && head.StartsWith((ReadOnlySpan<byte>)[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
 
+    /// <summary>
+    /// The ZoneId in a Zone.Identifier stream's text (Windows' mark of the web: 0 this PC, 1 intranet, 2 trusted, 3
+    /// internet, 4 untrusted), or null when it has none.
+    /// </summary>
+    public static int? ZoneId(string zoneIdentifier)
+    {
+        foreach (var raw in zoneIdentifier.Split('\n'))
+        {
+            var pair = raw.Split('=', 2);
+            if (pair.Length == 2 && pair[0].Trim().Equals("ZoneId", StringComparison.OrdinalIgnoreCase) && int.TryParse(pair[1].Trim(), out var zone)) return zone;
+        }
+        return null;
+    }
+
     /// <summary>The PDF's name: the file's own name with .pdf.</summary>
     public static string PdfName(string path) => Path.GetFileNameWithoutExtension(path) + ".pdf";
 }

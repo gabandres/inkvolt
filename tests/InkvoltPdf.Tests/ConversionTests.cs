@@ -102,5 +102,14 @@ public class ConversionTests
     public void WebPagesGetAFileName(string address, string name) => Assert.Equal(name, WebFiles.PdfName(new Uri(address)));
 
     [Fact]
+    public void TheMarkOfTheWebIsRead()
+    {
+        Assert.Equal(3, OfficeFiles.ZoneId("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.com/\r\n"));
+        Assert.Equal(4, OfficeFiles.ZoneId("[ZoneTransfer]\nzoneid = 4"));
+        Assert.Null(OfficeFiles.ZoneId("[ZoneTransfer]\r\nHostUrl=about:internet"));
+        Assert.Null(OfficeFiles.ZoneId(""));
+    }
+
+    [Fact]
     public void ConvertedFilesKeepTheirName() => Assert.Equal("Quarterly report.pdf", OfficeFiles.PdfName(@"C:\a\Quarterly report.docx"));
 }

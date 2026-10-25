@@ -60,6 +60,23 @@ internal static class OfficeConverter
 
     public static IReadOnlyList<OfficeApp> InstalledApps => [.. Enum.GetValues<OfficeApp>().Where(IsInstalled)];
 
+    /// <summary>
+    /// The file's security zone from its Zone.Identifier stream (Windows' mark of the web), or null when it has none.
+    /// 3 is the internet, 4 untrusted sites: such a file needs the user's OK first, as automation opens it without
+    /// Protected View (macros stay off, but the file could still fetch linked content or a remote template).
+    /// </summary>
+    public static int? ZoneOf(string path)
+    {
+        try
+        {
+            return OfficeFiles.ZoneId(File.ReadAllText(path + ":Zone.Identifier"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            return null; // no mark of the web (or a file system without alternate streams)
+        }
+    }
+
     /// <summary>What stops <paramref name="path"/> from being converted before Office is started, or null.</summary>
     public static string? Precheck(string path, OfficeApp app)
     {
@@ -84,11 +101,13 @@ internal static class OfficeConverter
     /// Converts <paramref name="path"/> to PDF bytes through a helper process. Cancelling (or the timeout) ends the helper
     /// and the Office instance it started.
     /// </summary>
+    /// <param name="fromInternetConfirmed">The user agreed to convert a file marked as from the internet (<see cref="ZoneOf"/>).</param>
     /// <exception cref="InvalidOperationException">Office couldn't convert the file (the message says why).</exception>
     /// <exception cref="OperationCanceledException">Cancelled.</exception>
-    public static async Task<byte[]> ConvertAsync(string path, OfficeApp app, CancellationToken cancel)
+    public static async Task<OfficeResult> ConvertAsync(string path, OfficeApp app, bool fromInternetConfirmed, CancellationToken cancel)
     {
         if (Precheck(path, app) is { } problem) throw new InvalidOperationException(problem);
+        if (ZoneOf(path) >= 3 && !fromInternetConfirmed) throw new InvalidOperationException("This file came from the internet: confirm before it is opened in Office.");
         var dir = Directory.CreateTempSubdirectory("inkvolt-office-");
         var output = Path.Combine(dir.FullName, "out.pdf");
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("The app's own path is unknown.");
@@ -101,7 +120,7 @@ internal static class OfficeConverter
         };
         foreach (var a in new[] { ChildSwitch, app.ToString(), Path.GetFullPath(path), output }) info.ArgumentList.Add(a);
         int officePid = 0;
-        string? error = null;
+        string? error = null, note = null;
         var before = Pids(app);
         using var child = Process.Start(info) ?? throw new InvalidOperationException("The conversion helper didn't start.");
         try
@@ -112,8 +131,11 @@ internal static class OfficeConverter
                 {
                     if (line.StartsWith("pid ", StringComparison.Ordinal) && int.TryParse(line[4..], out var pid)) Volatile.Write(ref officePid, pid);
                     else if (line.StartsWith("error ", StringComparison.Ordinal)) error = line[6..];
+                    else if (line.StartsWith("note ", StringComparison.Ordinal)) note = line[5..];
                 }
             }, CancellationToken.None);
+            // Read too, so a helper writing to it never blocks on a full pipe; its first line explains a crash.
+            var errors = child.StandardError.ReadToEndAsync(CancellationToken.None);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             timeout.CancelAfter(Timeout);
             try
@@ -123,13 +145,20 @@ internal static class OfficeConverter
             }
             catch (OperationCanceledException)
             {
-                await StopAsync(child, () => Volatile.Read(ref officePid), before, app);
-                cancel.ThrowIfCancellationRequested();
-                throw new InvalidOperationException($"{OfficeFiles.AppName(app)} didn't finish within {Timeout.TotalMinutes:0} minutes (it may have stopped to ask something), so it was closed.");
+                var left = await StopAsync(child, () => Volatile.Read(ref officePid), before, app);
+                var leftNote = left ? $" {OfficeFiles.AppName(app)} was left running because it shows a window (it may be asking something, or a document you opened is in it): close it yourself." : "";
+                if (cancel.IsCancellationRequested)
+                {
+                    if (left) Log.Write($"Office conversion cancelled; {ProcessName(app)} left running (it shows a window)");
+                    throw new OperationCanceledException(leftNote.Trim(), cancel);
+                }
+                throw new InvalidOperationException($"{OfficeFiles.AppName(app)} didn't finish within {Timeout.TotalMinutes:0} minutes (it may have stopped to ask something)." +
+                    (left ? leftNote : " It was closed.") + Reason(await TakeAsync(errors)));
             }
+            var stderr = await TakeAsync(errors);
             if (child.ExitCode != 0 || !File.Exists(output))
-                throw new InvalidOperationException(error ?? $"{OfficeFiles.AppName(app)} couldn't save this file as PDF.");
-            return await File.ReadAllBytesAsync(output, CancellationToken.None);
+                throw new InvalidOperationException(error ?? $"{OfficeFiles.AppName(app)} couldn't save this file as PDF.{Reason(stderr)}");
+            return new OfficeResult(await File.ReadAllBytesAsync(output, CancellationToken.None), note);
         }
         finally
         {
@@ -138,12 +167,35 @@ internal static class OfficeConverter
         }
     }
 
+    /// <summary>The helper's error output, if it finished writing it within a moment (empty otherwise).</summary>
+    private static async Task<string> TakeAsync(Task<string> errors)
+    {
+        try
+        {
+            return await errors.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex) when (ex is TimeoutException or IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            return "";
+        }
+    }
+
+    /// <summary>" (first line of the helper's error output)", short; empty when there is none.</summary>
+    internal static string Reason(string stderr)
+    {
+        var first = stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
+        if (first.Length == 0) return "";
+        if (first.Length > 160) first = first[..160] + "…";
+        return $" ({first})";
+    }
+
     /// <summary>
-    /// Ends the helper and the Office instance it started. Office may still be starting (its process not known yet): wait
-    /// for the helper to name it, a while; else take the hidden instances of that app that appeared since the helper
-    /// started (one the user starts has a window). Never one that was running before.
+    /// Ends the helper and the hidden Office instance it started. Office may still be starting (its process not known
+    /// yet): wait for the helper to name it, a while; else take the instances of that app that appeared since the helper
+    /// started. Never one that was running before, and never one showing a window (a user's document may be in it, as a
+    /// PowerPoint opened meanwhile joins the running one): that one is left running. True when one was left so.
     /// </summary>
-    private static async Task StopAsync(Process child, Func<int> reportedPid, HashSet<int> before, OfficeApp app)
+    private static async Task<bool> StopAsync(Process child, Func<int> reportedPid, HashSet<int> before, OfficeApp app)
     {
         for (var i = 0; i < 200 && reportedPid() <= 0 && !child.HasExited; i++) await Task.Delay(100, CancellationToken.None);
         var exitedByItself = child.HasExited;
@@ -152,7 +204,8 @@ internal static class OfficeConverter
             if (!exitedByItself) child.Kill(entireProcessTree: true);
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
-        if (exitedByItself) return; // it closed Office itself
+        if (exitedByItself) return false; // it closed Office itself
+        var left = false;
         var pids = reportedPid() is > 0 and var known ? [known] : Pids(app).Except(before).ToList();
         foreach (var pid in pids)
         {
@@ -160,12 +213,35 @@ internal static class OfficeConverter
             {
                 using var office = Process.GetProcessById(pid);
                 if (!string.Equals(office.ProcessName, ProcessName(app), StringComparison.OrdinalIgnoreCase) || before.Contains(pid)) continue;
-                if (reportedPid() <= 0 && office.MainWindowHandle != IntPtr.Zero) continue; // not known to be ours, and visible: the user's
+                if (HasVisibleWindow(pid))
+                {
+                    left = true;
+                    continue;
+                }
                 office.Kill();
                 Log.Write($"Office conversion: {ProcessName(app)} stopped");
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
         }
+        return left;
+    }
+
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+
+    /// <summary>A top-level window of <paramref name="pid"/> is visible.</summary>
+    private static bool HasVisibleWindow(int pid)
+    {
+        var found = false;
+        EnumWindows((hwnd, _) =>
+        {
+            if (GetWindowThreadProcessId(hwnd, out var owner) != 0 && owner == (uint)pid && IsWindowVisible(hwnd)) found = true;
+            return !found;
+        }, IntPtr.Zero);
+        return found;
     }
 
     // ───────────────────────────── helper process ─────────────────────────────
@@ -251,10 +327,29 @@ internal static class OfficeConverter
             word.Visible = false;
             word.DisplayAlerts = WdAlertsNone;
             word.AutomationSecurity = MsoAutomationSecurityForceDisable; // no macros run in the file
+            // Links aren't updated on open. The option is the user's own setting, so it is put back right after.
+            dynamic options = word.Options;
+            bool? updateLinks = null;
+            try
+            {
+                updateLinks = (bool)options.UpdateLinksAtOpen;
+                options.UpdateLinksAtOpen = false;
+            }
+            catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
             dynamic documents = word.Documents;
-            dynamic doc = documents.Open(FileName: input, ConfirmConversions: false, ReadOnly: true, AddToRecentFiles: false,
+            dynamic doc;
+            try
+            {
+                doc = documents.Open(FileName: input, ConfirmConversions: false, ReadOnly: true, AddToRecentFiles: false,
                 PasswordDocument: NoPassword, PasswordTemplate: NoPassword, Revert: false, WritePasswordDocument: NoPassword,
                 WritePasswordTemplate: NoPassword, Visible: false, OpenAndRepair: false, NoEncodingDialog: true);
+            }
+            finally
+            {
+                if (updateLinks is { } was)
+                    try { options.UpdateLinksAtOpen = was; }
+                    catch (COMException) { }
+            }
             try
             {
                 doc.ExportAsFixedFormat(OutputFileName: output, ExportFormat: WdExportFormatPdf, OpenAfterExport: false,
@@ -270,8 +365,32 @@ internal static class OfficeConverter
         }
         finally
         {
-            word.Quit(SaveChanges: WdDoNotSaveChanges);
+            QuitIfIdle((object)word, () => (int)word.Documents.Count, () => word.Quit(SaveChanges: WdDoNotSaveChanges), OfficeApp.Word);
         }
+    }
+
+    /// <summary>
+    /// Quits the Office instance unless it holds other documents or shows itself (someone works in it now): then it is
+    /// left running and the parent is told ("note ...").
+    /// </summary>
+    private static void QuitIfIdle(object instance, Func<int> openDocuments, Action quit, OfficeApp which)
+    {
+        bool busy;
+        try
+        {
+            dynamic app = instance;
+            busy = openDocuments() > 0 || which != OfficeApp.PowerPoint && (bool)app.Visible || which == OfficeApp.PowerPoint && (int)app.Visible == MsoTrue;
+        }
+        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException)
+        {
+            busy = false;
+        }
+        if (busy)
+        {
+            Console.Out.WriteLine($"note {OfficeFiles.AppName(which)} was left running: other documents are open in it.");
+            return;
+        }
+        quit();
     }
 
     private static void Excel(dynamic excel, string input, string output)
@@ -282,7 +401,6 @@ internal static class OfficeConverter
             excel.DisplayAlerts = false;
             excel.ScreenUpdating = false;
             excel.EnableEvents = false;
-            excel.AskToUpdateLinks = false;
             excel.AutomationSecurity = MsoAutomationSecurityForceDisable;
             dynamic books = excel.Workbooks;
             // Just started, Excel can refuse its first Open ("Unable to get the Open property"): wait until it is ready,
@@ -293,8 +411,11 @@ internal static class OfficeConverter
             {
                 try
                 {
-                    // Positional: Filename, UpdateLinks, ReadOnly, Format, Password, WriteResPassword, IgnoreReadOnlyRecommended.
-                    book = books.Open(input, 0, true, Type.Missing, NoPassword, NoPassword, true);
+                    // Positional (named arguments fail here): Filename, UpdateLinks 0 (external links aren't updated),
+                    // ReadOnly, Format, Password, WriteResPassword, IgnoreReadOnlyRecommended, Origin, Delimiter, Editable,
+                    // Notify, Converter, AddToMru false.
+                    var m = Type.Missing;
+                    book = books.Open(input, 0, true, m, NoPassword, NoPassword, true, m, m, false, false, m, false);
                 }
                 catch (COMException) when (attempt < 4)
                 {
@@ -314,7 +435,7 @@ internal static class OfficeConverter
         }
         finally
         {
-            excel.Quit();
+            QuitIfIdle((object)excel, () => (int)excel.Workbooks.Count, () => excel.Quit(), OfficeApp.Excel);
         }
     }
 
@@ -341,9 +462,13 @@ internal static class OfficeConverter
         }
         finally
         {
-            powerPoint.Quit();
+            // PowerPoint runs one copy at a time: a presentation the user opened meanwhile is in this one; then it stays.
+            QuitIfIdle((object)powerPoint, () => (int)powerPoint.Presentations.Count, () => powerPoint.Quit(), OfficeApp.PowerPoint);
         }
     }
+
+    /// <summary>A converted Office file, and what the user should know (Office left running).</summary>
+    internal sealed record OfficeResult(byte[] Pdf, string? Note);
 
     private static string Describe(Exception ex, OfficeApp app)
     {

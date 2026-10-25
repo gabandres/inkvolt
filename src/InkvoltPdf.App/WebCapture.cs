@@ -18,6 +18,9 @@ internal static class WebCapture
     /// <summary>How long a page may take to load before giving up.</summary>
     private static readonly TimeSpan LoadTimeout = TimeSpan.FromSeconds(60);
 
+    /// <summary>How long a script call into the page, and printing it, may take.</summary>
+    private static readonly TimeSpan ScriptTimeout = TimeSpan.FromSeconds(10), PrintTimeout = TimeSpan.FromSeconds(120);
+
     private static string? _version;
     private static bool _checked;
 
@@ -101,11 +104,21 @@ internal static class WebCapture
             // Let late content arrive: wait for the document to be complete, then scroll to the end and back so pictures
             // that load as they come into view are fetched.
             status?.Invoke("Waiting for the page to settle…");
-            for (var i = 0; i < 30 && await web.ExecuteScriptAsync("document.readyState") != "\"complete\""; i++) await Task.Delay(250, cancel);
-            await web.ExecuteScriptAsync("window.scrollTo(0, document.documentElement.scrollHeight)");
-            await Task.Delay(700, cancel);
-            await web.ExecuteScriptAsync("window.scrollTo(0, 0)");
-            await Task.Delay(500, cancel);
+            // A page whose own scripts never let go (a busy loop) would never answer: every call has a time limit and
+            // Cancel, and the WebView is torn down when this ends (finally).
+            Task<string> Script(string js) => web.ExecuteScriptAsync(js).WaitAsync(ScriptTimeout, cancel);
+            try
+            {
+                for (var i = 0; i < 30 && await Script("document.readyState") != "\"complete\""; i++) await Task.Delay(250, cancel);
+                await Script("window.scrollTo(0, document.documentElement.scrollHeight)");
+                await Task.Delay(700, cancel);
+                await Script("window.scrollTo(0, 0)");
+                await Task.Delay(500, cancel);
+            }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException("The page stopped answering (its own scripts keep it busy), so it can't be printed.");
+            }
 
             status?.Invoke("Making the PDF…");
             var print = env.CreatePrintSettings();
@@ -118,7 +131,16 @@ internal static class WebCapture
             print.ShouldPrintBackgrounds = options.Backgrounds;
             print.ShouldPrintHeaderAndFooter = options.HeaderAndFooter;
             print.ScaleFactor = 1;
-            if (!await web.PrintToPdfAsync(temp, print)) throw new InvalidOperationException("The page couldn't be printed to PDF.");
+            bool printed;
+            try
+            {
+                printed = await web.PrintToPdfAsync(temp, print).WaitAsync(PrintTimeout, cancel);
+            }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException($"Printing the page didn't finish within {PrintTimeout.TotalSeconds:0} seconds.");
+            }
+            if (!printed) throw new InvalidOperationException("The page couldn't be printed to PDF.");
             cancel.ThrowIfCancellationRequested();
             return await File.ReadAllBytesAsync(temp, CancellationToken.None);
         }
@@ -128,6 +150,9 @@ internal static class WebCapture
         }
         finally
         {
+            // Stop whatever the page still does, then close the WebView (its browser processes end with it).
+            try { controller?.CoreWebView2?.Stop(); }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException) { }
             controller?.Close();
             host.Close();
             try { File.Delete(temp); }

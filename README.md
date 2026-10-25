@@ -71,7 +71,9 @@ Manager. The installers don't remove an install made under the old names: uninst
   PC (no converter of Inkvolt PDF's own, no service): it opens the file read-only and hidden, with its macros disabled,
   saves it as PDF and closes it without saving. Word and Excel run as a new copy of their own, never the one you work
   in; PowerPoint runs one copy at a time, so it is asked to be closed first. The work runs in a helper process with a
-  3-minute limit, and Cancel or the limit ends it and the Office it started. Shown only when Office is installed; a
+  3-minute limit, and Cancel or the limit ends it and the Office it started (never an Office showing a window, which
+  may hold a document you opened meanwhile: that one is left running and you are told). Links aren't updated on open,
+  and a file Windows marks as downloaded from the internet asks first, since automation opens it without Protected View. Shown only when Office is installed; a
   file protected with a password is refused (save it as PDF from Office). Web pages: an address, or a saved .html /
   .mht, loads in Microsoft Edge WebView2 (part of Windows) in a private session that keeps no cookies or history, with
   pop-ups, downloads and permission requests blocked, then prints to PDF with the chosen paper (Letter, A4, Legal),

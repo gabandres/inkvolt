@@ -40,8 +40,22 @@ internal static class Converting
                 Prompt.Info(host, $"Can't open {name}", problem);
                 return false;
             }
-            return await Run(host, $"Opening {name}", $"Converting with {appName}…", OfficeFiles.PdfName(path),
-                token => OfficeConverter.ConvertAsync(path, app, token), $"Made from {name} with {appName}. Save it to keep it.");
+            // Automation opens files without Office's Protected View: one marked as from the internet needs an OK first.
+            var internet = OfficeConverter.ZoneOf(path) >= 3;
+            if (internet && !Prompt.Confirm(host, $"{name} came from the internet",
+                    $"Windows marks this file as downloaded from the internet. {appName} opens it here without Protected View: its macros stay off, " +
+                    "but it could still fetch content linked from elsewhere (a template, pictures, linked data). Convert it only if you trust where it came from.",
+                    "Convert Anyway", warning: true))
+                return false;
+            string? note = null;
+            var ok = await Run(host, $"Opening {name}", $"Converting with {appName}…", OfficeFiles.PdfName(path), async token =>
+            {
+                var r = await OfficeConverter.ConvertAsync(path, app, internet, token);
+                note = r.Note;
+                return r.Pdf;
+            }, $"Made from {name} with {appName}. Save it to keep it.");
+            if (note is not null) host.ShowStatus(note);
+            return ok;
         }
         if (WebCapture.RuntimeVersion is null)
         {
@@ -168,10 +182,10 @@ internal static class Converting
             Log.Write($"Converted to {Log.Name(pdfName)}");
             return true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             progress.Dispose();
-            host.ShowStatus("Cancelled. Nothing was opened.");
+            host.ShowStatus("Cancelled. Nothing was opened." + (ex.Message.Contains("left running", StringComparison.Ordinal) ? " " + ex.Message : ""));
             return false;
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or ArgumentException)
