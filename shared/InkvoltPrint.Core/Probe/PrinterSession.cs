@@ -124,14 +124,18 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
 
     /// <summary>
     /// A printer read over SNMP is asked now and then (<see cref="UpgradeInterval"/>) whether it answers LEDM, CDM or IPP: one that
-    /// was asleep when it was added does once it wakes. When it does, as the same device (its serial number and UUIDs), the
-    /// session switches to that connection (<see cref="SessionStep.Connected"/> with Upgraded) and the UUIDs it reports count as
-    /// this printer's from now on. Null otherwise.
+    /// was asleep when it was added does once it wakes. Identity before data holds here too: the device at the address is first
+    /// asked over SNMP who it is (its serial number, model and name), and another device there ends it
+    /// (<see cref="SessionStep.Elsewhere"/>), since an upgrade makes the UUIDs it reports this printer's for good and the HTTP
+    /// probe of a printer added by address often can't tell. When it answers more, as the same device (its serial number and
+    /// UUIDs), the session switches to that connection (<see cref="SessionStep.Connected"/> with Upgraded) and the UUIDs it
+    /// reports count as this printer's from now on. Null when nothing changed.
     /// </summary>
-    public async Task<SessionStep.Connected?> TryUpgradeAsync(PrinterWhere where, CancellationToken ct)
+    public async Task<SessionStep?> TryUpgradeAsync(PrinterWhere where, CancellationToken ct)
     {
         if (Connection is not { OverSnmp: true } conn || _clock.GetUtcNow() - _upgradeTriedAt < UpgradeInterval) return null;
         _upgradeTriedAt = _clock.GetUtcNow();
+        if (await StillThisPrinterAsync(conn, where, ct).ConfigureAwait(false) is { } elsewhere) return elsewhere;
         var richer = await conn.TryRicherAsync(where.Snmp, where.EsclHint, where.IppHint, recipe.Pin, recipe.Transport(), ct).ConfigureAwait(false);
         if (richer is null) return null;
         if (Identify(where.Host, richer.Probe.ReportedUuids) == DeviceIdentity.Different)

@@ -623,12 +623,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 }
                 await foreach (var _ in conn.WatchAsync(FallbackRefresh, ct))
                 {
-                    if (await _session.TryUpgradeAsync(Reach(), ct) is { } upgraded)
+                    switch (await _session.TryUpgradeAsync(Reach(), ct)) // asks who answers first
                     {
-                        Upgrade(upgraded.Connection); // the session closed the SNMP connection
-                        reuse = upgraded.Connection;  // watched from here on (its event feed, if it has one)
-                        break;
+                        case SessionStep.Elsewhere elsewhere:
+                            SetElsewhere(elsewhere);
+                            break;
+                        case SessionStep.Connected upgraded:
+                            Upgrade(upgraded.Connection); // the session closed the SNMP connection
+                            reuse = upgraded.Connection;  // watched from here on (its event feed, if it has one)
+                            break;
                     }
+                    if (IsElsewhere || reuse is not null) break;
                     // Still this printer? The session asks before reading (a reused connection at once, then every 30 s), so
                     // another device that took the address never has its status or alerts read under this printer's name.
                     if (!await RefreshAsync(ct)) break;

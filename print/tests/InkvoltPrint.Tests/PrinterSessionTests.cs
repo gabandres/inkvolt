@@ -190,11 +190,54 @@ public class PrinterSessionTests
         Assert.Null(await session.TryUpgradeAsync(where, default)); // asked again only after a while
 
         clock.Now += PrinterSession.UpgradeInterval;
-        var upgraded = await session.TryUpgradeAsync(where, default);
+        var upgraded = Assert.IsType<SessionStep.Connected>(await session.TryUpgradeAsync(where, default));
 
-        Assert.True(upgraded?.Upgraded);
-        Assert.Same(upgraded!.Connection, session.Connection);
+        Assert.True(upgraded.Upgraded);
+        Assert.Same(upgraded.Connection, session.Connection);
         Assert.False(session.Connection!.OverSnmp);
         Assert.Equal(["2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"], accepted);
+    }
+
+    /// <summary>SNMP at the address: one agent, then (DHCP) another.</summary>
+    private sealed class Switchable(ISnmpTransport to) : ISnmpTransport
+    {
+        public ISnmpTransport To { get; set; } = to;
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct) => To.SendAsync(host, request, timeout, ct);
+    }
+
+    [Fact]
+    public async Task Another_device_that_answers_IPP_at_an_SNMP_only_printer_s_address_is_never_upgraded_to()
+    {
+        // An SNMP-only printer added by address (no UUID: its id comes from the address); the window was hidden for a while,
+        // and DHCP gave the address to an IPP device with another SNMP serial number, whose IPP reports no serial at all.
+        const string host = "192.0.2.50";
+        var printer = Agent("workgroup-laser.txt");
+        var other = Agent("color-mfp.txt");
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(printer, host))!.Identity);
+        Assert.Equal(Core.Model.DeviceIdentity.Different, known.Identify((await SnmpPrinterClient.ProbeAsync(other, host))!.Identity));
+        var snmp = new Switchable(printer);
+        var ippThere = false;
+        HttpMessageHandler Network() => ippThere
+            ? new HostRouter(new Dictionary<string, HttpMessageHandler>
+            {
+                [host] = new FixtureHandler(name => name == "ipp_print.ipp.txt"
+                    ? File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inkjet-demo", name)) : null),
+            })
+            : NothingOverHttp();
+        var clock = new Clock();
+        var accepted = new List<string>();
+        using var session = new PrinterSession(Core.Model.PrinterId.Normalize(null, host), new PrinterRecipe(Network, snmp, Clock: clock),
+            () => accepted, accepted.AddRange);
+        var where = new PrinterWhere(host, Snmp: known);
+        Assert.True(Assert.IsType<SessionStep.Connected>(await session.ConnectAsync(where, default)).Connection.OverSnmp);
+
+        session.AskIdentityFirst(); // hidden, then shown again
+        clock.Now += PrinterSession.UpgradeInterval + TimeSpan.FromMinutes(1);
+        (snmp.To, ippThere) = (other, true);
+        var step = await session.TryUpgradeAsync(where, default);
+
+        Assert.IsType<SessionStep.Elsewhere>(step);
+        Assert.Empty(accepted); // its UUIDs never became this printer's
+        Assert.Null(session.Connection);
     }
 }
