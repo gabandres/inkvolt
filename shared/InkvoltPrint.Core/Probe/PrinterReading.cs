@@ -40,8 +40,9 @@ internal enum ReadParts
 /// <item>An interface that hasn't a part (null, "not supported") passes it to the next.</item>
 /// <item>An interface that answers with an error or garbage (<see cref="PrinterConnection.IsTransient"/>: common while a printer
 /// wakes up) passes it to the next too; when none gives it, status is Unavailable and supplies unknown.</item>
-/// <item>A network failure (<see cref="PrinterConnection.IsOffline"/>) reading status or supplies ends the read: the next
-/// interface is the same host, so nothing more is asked (no stack of timeouts); status is Offline unless it was read already.</item>
+/// <item>A network failure (<see cref="PrinterConnection.IsOffline"/>) reading status ends the read: the next interface is the
+/// same host, so nothing more is asked (no stack of timeouts), and status is Offline. One reading supplies leaves them unknown
+/// (not asked of the next interface) and ends nothing: status alone decides online or offline.</item>
 /// <item>Usage counters are extra: when they fail they are just missing.</item>
 /// </list>
 /// Every part an interface gives comes from one request where its protocol allows (IPP: one Get-Printer-Attributes).
@@ -67,12 +68,15 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
             if (c.Result.Value is { } gotSupplies) (supplies, need) = (gotSupplies, need & ~ReadParts.Supplies);
             if (u.Result.Value is { } gotUsage) (usage, need) = (gotUsage, need & ~ReadParts.Usage);
             statusMissed |= s.Result.Missed;
-            suppliesMissed |= c.Result.Missed;
-            if (s.Result.Offline || c.Result.Offline) // usage counters are extra: their failure ends nothing
+            suppliesMissed |= c.Result.Missed || c.Result.Offline;
+            if (s.Result.Offline) // status decides: the printer isn't there
             {
                 offline = true;
                 break;
             }
+            // Supplies that timed out aren't asked of the next interface (the same host), but they end nothing: status still
+            // comes from whichever interface gives it. Usage counters are extra: their failure ends nothing either.
+            if (c.Result.Offline) need &= ~ReadParts.Supplies;
         }
         if (status is null && offline) return new PrinterReading(PrinterStatus.Offline("Printer is not responding"), null, null); // nothing else counts
         return new PrinterReading(

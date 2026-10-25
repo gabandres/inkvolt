@@ -141,6 +141,21 @@ public class PrinterReadingTests
     }
 
     [Fact]
+    public async Task Supplies_that_time_out_while_LEDM_status_errs_leave_the_status_to_IPP_and_the_printer_online()
+    {
+        var network = new Network(LedmAndIpp(), r => Is(r, "/ProductStatusDyn.xml") ? Network.Status(HttpStatusCode.ServiceUnavailable)
+            : Is(r, "/ConsumableConfigDyn.xml") ? Network.Refuse() : null);
+        using var conn = await PrinterConnection.OpenAsync(FixtureHandler.DemoHost, transport: network);
+        network.Fail = true;
+
+        var reading = await conn.ReadAsync();
+
+        Assert.False(reading.IsOffline);
+        Assert.Equal("Yellow ink is low.", Assert.Single(reading.Status.Alerts).Message); // IPP's status
+        Assert.Null(reading.Supplies); // unknown this time: the last known levels stay
+    }
+
+    [Fact]
     public async Task Usage_counters_that_fail_are_just_missing()
     {
         var network = new Network(LedmAndIpp(), r => Is(r, "/ProductUsageDyn.xml") ? Network.Refuse() : null);
