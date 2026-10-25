@@ -777,17 +777,26 @@ public partial class DocumentTab : UserControl, IDisposable
             }
             if (result.Outcome != EditOutcome.Done) return result.Outcome;
             var id = result.StepId;
-            if (goToPage is { } p) Viewer.GoToPage(Math.Clamp(p, 0, Viewer.PageCount - 1), record: false);
-            if (!quiet)
+            try
             {
-                Notify(label, "Undo", () =>
+                if (goToPage is { } p) Viewer.GoToPage(Math.Clamp(p, 0, Viewer.PageCount - 1), record: false);
+                if (!quiet)
                 {
-                    // Only while this very edit is still the newest undo step (not an older or newer one at the same depth).
-                    if (_disposed || IsBusy || Session.UndoStepId != id) return;
-                    Undo();
-                });
+                    Notify(label, "Undo", () =>
+                    {
+                        // Only while this very edit is still the newest undo step (not an older or newer one at the same depth).
+                        if (_disposed || IsBusy || Session.UndoStepId != id) return;
+                        Undo();
+                    });
+                }
+                if (result.RemovedItemKept) NotifyRemovedItemKept();
             }
-            if (result.RemovedItemKept) NotifyRemovedItemKept();
+            catch (Exception shown) // the edit is committed (and undoable); report a failure showing it, as before
+            {
+                Log.Write($"{label} failed: {shown}");
+                Prompt.Error(Window.GetWindow(this), $"{label} didn't work", shown.Message);
+                return EditOutcome.Failed;
+            }
             return EditOutcome.Done;
         }
         finally
