@@ -80,7 +80,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | Done: 22 tests (LEDM documents and manifest, CDM identity, supplies and status, brands, the hardened XML and JSON readers). The connection, eSCL and web-page tests wait for P4 and P8 |
 | P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | Done: 78 tests (device HTTP, pins per port, the fixture transport, LEDM, CDM, IPP and eSCL clients, the connection probe, printer reader and printer session, printer ids; with the connection tests SnmpTests, CdmTests and OtherBrandsTests left for here, and eSCL from P8). The TLS handshake tests wait for PrintMac |
 | P5 | Alerts, status lines | AlertTests, StatusLineTests | Done: 35 tests (conditions, the tracker's holds, quiet hours, pause, memory across restarts, polling, menu bar text, list lines) |
-| P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | |
+| P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | Done: 21 tests (typed addresses, the search's addresses, SNMP question, reporting once, stopping; DNS-SD join and endpoints from OtherBrandsTests). The socket scanner is PrintMac's |
 | P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | |
 | P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
@@ -104,6 +104,8 @@ mac/InkvoltPrintKit --build-system native`.
   SHA-256, since CryptoKit is Apple's).
 - Quiet hours are minutes after midnight on a given time zone (the tracker takes one; tests pass UTC-4 as the .NET tests'
   offset). Polling backs off on battery and on a constrained network (macOS's Low Data Mode) rather than Windows' metered one.
+- Network search addresses are dotted IPv4 strings; the scanner protocol is async (`NetworkScanner`), and the sweep runs
+  64 addresses at a time in a task group, the SNMP question beside it and awaited when the search stops.
 - `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
