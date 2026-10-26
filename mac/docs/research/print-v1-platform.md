@@ -96,9 +96,21 @@ not granted) unless said otherwise. These replace the matching UNVERIFIED items 
 | 9. ATS | Not tested yet: blocked as Local Network denied (`NSURLErrorDomain -1009`). |
 | 10. SMAppService | `mainApp.status` is `notFound` for the ad-hoc signed probe in /Applications; retest with a Developer ID or App Store signature. |
 
-Still to do on the Mac: everything with Local Network allowed (unicast SNMP, TCP sweep, Bonjour results, ATS, the
-localhost:631 POST, recovery without restart), the Printers & Scanners links (3, needs someone at the screen), item 8,
-and the protected operations as a standard user.
+**With Local Network allowed** (the owner clicked Allow; the next launch, same binary):
+
+| Item | Result |
+|---|---|
+| Unicast SNMP | Works over a BSD socket and over Network framework (reply 134 bytes). |
+| TCP sweep | 759 connections, 96 at a time, 1.5 s timeout: 12.7 s for a /24; the printer's 515, 631 and 9100 open. |
+| 5. Bonjour | Each listed type finds the printer; unlisted types still `NoAuth`. |
+| 9. ATS | With `NSAllowsLocalNetworking`, `http://<IPv4>/` and `/eSCL/ScannerCapabilities` answer 200, and `https://<IPv4>/` with a trust handler accepting the self-signed certificate. |
+| localhost:631 | Still EPERM: the sandbox doesn't let the app reach cupsd over TCP. Use libcups (its socket) for local queues. |
+| CUPS | `cupsGetDests2` also lists the printer's Bonjour (temporary) destination once Local Network is allowed, without state until it's used. |
+| 4. ImageCaptureCore | The network scanner was added and removed again about every second for 15 s while Bonjour browsing ran in the same app: the app must debounce ICC's device list. |
+| 10. SMAppService | Still `notFound` (ad-hoc signature). |
+
+Still to do: which pane each Printers & Scanners link opens (3), recovery without relaunching after Allow (7), item 8, the
+protected operations as a standard user, and launch at login with a real signature.
 
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
