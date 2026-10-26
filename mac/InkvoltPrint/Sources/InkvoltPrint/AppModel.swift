@@ -7,7 +7,11 @@ import PrintMac
 /// (`shared`) whether or not a window ever shows. Its environment (this Mac's, or demo mode's made-up one) is chosen once.
 @MainActor @Observable
 final class AppModel {
-    static let shared = AppModel(arguments: CommandLine.arguments)
+    static let shared = AppModel(demo: CommandLine.arguments.contains("--demo"))
+
+    /// "Try the Demo": the made-up printers in a window of their own, in this process (a sandboxed app can't pass
+    /// arguments to a second copy of itself). The app itself when it was started with `--demo`.
+    static let demo: AppModel = shared.isDemo ? shared : AppModel(demo: true)
 
     /// How long the first Bonjour sweep counts as "searching" (the empty list says so rather than "no printers").
     static let firstSweep: Duration = .seconds(30)
@@ -23,8 +27,10 @@ final class AppModel {
     @ObservationIgnored private var searching: Task<Void, Never>?
     @ObservationIgnored private var ticking: Task<Void, Never>?
     @ObservationIgnored private var started = false
-    /// Opens the main window or brings it forward; set by the menu bar item, which SwiftUI shows at launch.
+    /// Open the main window or the demo window, or bring it forward; set by the menu bar item, which SwiftUI shows at
+    /// launch.
     @ObservationIgnored var openMainWindow: (() -> Void)?
+    @ObservationIgnored var openDemoWindow: (() -> Void)?
 
     private(set) var printers: [PrinterModel] = []
     var selectedID: String? {
@@ -35,8 +41,8 @@ final class AppModel {
     /// Bumped whenever the alert tracker changes (it isn't observable itself).
     private var alertRevision = 0
 
-    init(arguments: [String]) {
-        isDemo = arguments.contains("--demo")
+    init(demo: Bool) {
+        isDemo = demo
         let signal = LocalNetworkSignal()
         self.signal = signal
         if isDemo, let fixtures = Bundle.main.resourceURL?.appendingPathComponent("Demo") {
@@ -156,12 +162,11 @@ final class AppModel {
         alertRevision += 1
     }
 
-    /// A second copy of the app with the made-up printers.
+    /// The made-up printers in a window beside this one.
     func openDemo() {
-        let config = NSWorkspace.OpenConfiguration()
-        config.arguments = ["--demo"]
-        config.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config)
+        AppModel.demo.start()
+        NSApp.activate()
+        AppModel.shared.openDemoWindow?()
     }
 
     // MARK: Alerts and the menu bar
@@ -169,7 +174,7 @@ final class AppModel {
     func observe(_ snapshot: PrinterSnapshot) { show(tracker.observe(snapshot, now: Date())) }
 
     private func show(_ notices: [AlertNotice]) {
-        if !notices.isEmpty {
+        if !notices.isEmpty && !(isDemo && self !== AppModel.shared) { // the demo window's made-up printers don't notify
             let (title, text) = TrayText.notice(notices)
             Notifier.post(title: title, body: text, printer: notices[0].uuid)
         }

@@ -55,3 +55,87 @@ enum Report {
 
     private static func mask(_ text: String, host: String) -> String { text.replacingOccurrences(of: host, with: mask(host)) }
 }
+
+#if DEBUG
+import ScreenCaptureKit
+
+/// Debug builds only (`build.sh debug`): `open "Inkvolt Print.app" --args --demo --snapshot laser:0,inkjet:1
+/// [--size 1180x720] [--dark] [--wait <seconds>]`. After `--wait` seconds (8 by default) shows the main window at
+/// `--size` points and, for each `name:index`, selects the index-th printer and captures the window with ScreenCaptureKit
+/// (as the screen shows it, at its scale, without the shadow) to `Application Support/InkvoltPrint/snapshot-<name>.png` in
+/// the container, then quits. For the App Store screenshots. Needs Screen Recording permission for this build (macOS asks
+/// the first time) and the Mac's screen unlocked. Release builds have none of this.
+@MainActor
+enum Snapshot {
+    static func runIfAsked(_ model: AppModel) {
+        let args = CommandLine.arguments
+        func value(_ name: String) -> String? { args.firstIndex(of: name).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } }
+        if args.contains("--open-demo") { // what "Try the Demo" does, from the sandbox
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                model.openDemo()
+            }
+        }
+        guard let list = value("--snapshot") else { return }
+        let shots = list.split(separator: ",").map { item -> (String, Int) in
+            let parts = item.split(separator: ":")
+            return (String(parts[0]), parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
+        }
+        let size = value("--size").map { $0.split(separator: "x").compactMap { Double($0) } } ?? [1180, 720]
+        let wait = value("--wait").flatMap(Double.init) ?? 8
+        if args.contains("--dark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
+        Task {
+            try? await Task.sleep(for: .seconds(wait))
+            MainWindow.bringForward()
+            try? await Task.sleep(for: .seconds(1))
+            let folder = AppModel.dataFolder
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            var log: [String] = []
+            for (name, index) in shots {
+                if index < model.printers.count { model.selectedID = model.printers[index].id }
+                guard let window = mainWindow() else {
+                    log.append("\(name): no window")
+                    break
+                }
+                if size.count == 2 { window.setContentSize(NSSize(width: size[0], height: size[1])) }
+                window.center()
+                window.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .seconds(1.5))
+                do {
+                    let png = try await capture(window)
+                    try png.write(to: folder.appendingPathComponent("snapshot-\(name).png"))
+                    log.append("\(name): ok")
+                } catch {
+                    log.append("\(name): \(error)")
+                }
+            }
+            try? Data(log.joined(separator: "\n").utf8).write(to: folder.appendingPathComponent("snapshot-log.txt"))
+            NSApp.terminate(nil)
+        }
+    }
+
+    private static func capture(_ window: NSWindow) async throws -> Data {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let config = SCStreamConfiguration()
+        let scale = window.backingScaleFactor
+        config.width = Int(target.frame.width * scale)
+        config.height = Int(target.frame.height * scale)
+        config.ignoreShadowsSingleWindow = true
+        config.showsCursor = false
+        let image = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: target),
+                                                               configuration: config)
+        guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return png
+    }
+
+    private static func mainWindow() -> NSWindow? {
+        NSApp.windows.first { $0.identifier?.rawValue.contains(MainWindow.id) == true && $0.isVisible }
+            ?? NSApp.windows.first { $0.isVisible && $0.frame.width > 400 && !($0 is NSPanel) }
+    }
+}
+#endif

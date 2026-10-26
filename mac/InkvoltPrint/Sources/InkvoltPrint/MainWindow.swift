@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The main window: the printer list beside the selected printer's pane.
 struct MainWindow: View {
-    static let id = "main"
+    static let id = "main", demoID = "demo"
 
     @Environment(AppModel.self) private var model
 
@@ -19,6 +19,7 @@ struct MainWindow: View {
         @Bindable var model = model
         NavigationSplitView {
             VStack(spacing: 0) {
+                SidebarHeader()
                 if model.localNetwork == .denied { LocalNetworkBanner() }
                 List(selection: $model.selectedID) {
                     ForEach(model.printers) { p in
@@ -35,6 +36,8 @@ struct MainWindow: View {
                 ContentUnavailableView("No printer selected", systemImage: "printer")
             }
         }
+        // The demo window may come back by itself (window restoration): its printers start with it. Idempotent.
+        .onAppear { model.start() }
     }
 }
 
@@ -110,13 +113,17 @@ struct EmptyList: View {
 
     var body: some View {
         if model.isSearching {
-            VStack(spacing: 10) {
-                ProgressView()
+            VStack(spacing: 12) {
+                AppIconImage(size: 64)
+                ProgressView().controlSize(.small)
                 Text("Looking for printers…").foregroundStyle(.secondary)
             }
         } else {
             ContentUnavailableView {
-                Label("No printers found", systemImage: "printer")
+                VStack(spacing: 10) {
+                    AppIconImage(size: 64)
+                    Text("No printers found")
+                }
             } description: {
                 Text("Make sure your printer is on and connected to the same network as this Mac.")
             } actions: {
@@ -126,5 +133,39 @@ struct EmptyList: View {
                 }
             }
         }
+    }
+}
+
+/// The app's name and icon at the top of the sidebar, as the Windows app has them.
+struct SidebarHeader: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AppIconImage(size: 26)
+            Text("Inkvolt Print").font(.headline)
+            if model.isDemo {
+                Text("Demo").font(.caption.weight(.medium)).padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(.orange.opacity(0.2), in: .capsule)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The app icon (the bundle's, from the asset catalog), drawn at a size.
+struct AppIconImage: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }

@@ -20,6 +20,8 @@
 	<string>public.app-category.utilities</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Bermudez Systems LLC</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSPrincipalClass</key>

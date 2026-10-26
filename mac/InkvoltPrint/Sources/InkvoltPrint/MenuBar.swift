@@ -42,6 +42,7 @@ struct MenuBarLabel: View {
             .onAppear {
                 let open = openWindow
                 model.openMainWindow = { open(id: MainWindow.id) }
+                model.openDemoWindow = { open(id: MainWindow.demoID) }
             }
     }
 }
@@ -67,9 +68,12 @@ enum MenuBarIcon {
         case .warning: (description, badgeName) = ("Inkvolt Print: a printer needs attention", "exclamationmark.circle.fill")
         case .error: (description, badgeName) = ("Inkvolt Print: a printer has a problem", "xmark.circle.fill")
         }
-        guard let base = NSImage(systemSymbolName: "printer", accessibilityDescription: description)?.withSymbolConfiguration(config) else {
+        // The Inkvolt mark as a template (assets/make-icon.py), the printer symbol where the asset catalog is missing.
+        guard let base = NSImage(named: "MenuBarIcon")?.copy() as? NSImage
+            ?? NSImage(systemSymbolName: "printer", accessibilityDescription: description)?.withSymbolConfiguration(config) else {
             return NSImage()
         }
+        base.accessibilityDescription = description
         guard let badgeName, let badge = NSImage(systemSymbolName: badgeName, accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)) else {
             base.isTemplate = true

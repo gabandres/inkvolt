@@ -89,7 +89,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | Done: 52 tests (file-name templates and sets, the preset list and its JSON, the plan for a scanner, summaries; blank pages, skew, crop, rotation; scan recovery and run folders). Mail and sync-folder routes, batch separators and glass photos stay with "Later" |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
 | P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | First slice done (2026-10-26): the printer list from Bonjour and the state file, the printer pane (status, alerts, supplies, details, This is my printer), the menu bar item with alerts as notifications, the Local Network banner, demo mode, `--report`. PrintCore: `PrinterMonitor`, `DiscoveredPrinters`, `StateStore`, `SupplyText`, `Demo`, menu lines (15 tests, 287 in all); PrintMac: URLSession and UDP SNMP transports, Bonjour, Local Network signal (7 tests). Checked on `ignia-mac` with the owner's M234dw. Next: Add a printer, the window-closed polling, P7 |
-| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | Started 2026-10-26, beside P10: the App Store Connect record (macOS, "Inkvolt Print"), the Xcode project, the icon, release.sh with cloud signing and the preflight; build 1.0 (1) uploaded and VALID (TestFlight). Review waits for the v1 scope. Still to do: privacy label, review notes, screenshots, description, privacy policy URL |
+| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | Started 2026-10-26, beside P10: the App Store Connect record (macOS, "Inkvolt Print"), the Xcode project, the icon, release.sh with cloud signing and the preflight; builds 1-4 uploaded and VALID. The owner chose (2026-10-26) to submit 1.0 now with the status slice: the listing, screenshots, age rating, price and review notes go through the API (asc-listing.mjs); App Privacy on the website; the privacy policy page covers the Mac app. 1.0 requests only the sandbox and network client and server entitlements (print, USB and user-selected files come back with their features) |
 
 ## Mac differences
 
@@ -136,7 +136,12 @@ mac/InkvoltPrintKit --build-system native`.
   state is in memory.
 - URLSession sends `Authorization` as given (PrintMacTests checks it against a loopback server). `Host` isn't checked yet
   (the Epson eSCL quirk, with scanning).
-- Demo mode reads the fixtures from the app bundle (`Contents/Resources/Demo`, copied by build.sh), not embedded resources.
+- Demo mode reads the fixtures from the app bundle (`Contents/Resources/Demo`, copied by a build phase), not embedded resources.
+  "Try the Demo" opens the made-up printers in a second window of the same process (`AppModel.demo`): macOS drops the
+  arguments a sandboxed app passes when it opens a second copy of itself, so the Windows app's second process can't work.
+- The app icon shows where the Windows app has it: the sidebar's header, the About panel (macOS's standard one, with
+  credits), plus the empty list. The menu bar item is the Inkvolt mark as a template glyph with a status badge, not the
+  colour icon (menu bar items are monochrome).
 
 Decided 2026-10-26, starting the app: Inkvolt Print's bundle ID is `com.bermudezsystems.InkvoltPrint`, on the Inkvolt
 mobile apps' team (AE6TTXW92K); development builds are ad-hoc signed; App Store builds are signed by Xcode with the

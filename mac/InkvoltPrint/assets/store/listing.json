@@ -1,0 +1,43 @@
+{
+  "locale": "en-US",
+  "name": "Inkvolt Print",
+  "subtitle": "Printer status, ink and toner",
+  "privacyPolicyUrl": "https://bermudezsystems.com/products/inkvolt/privacy/",
+  "supportUrl": "https://bermudezsystems.com/products/inkvolt/",
+  "marketingUrl": "https://bermudezsystems.com/products/inkvolt/",
+  "primaryCategory": "UTILITIES",
+  "secondaryCategory": "PRODUCTIVITY",
+  "copyright": "2026 Bermudez Systems LLC",
+  "promotionalText": "See every printer's status, ink and toner levels and alerts at a glance, in its window or from the menu bar. No account, no cloud, no tracking.",
+  "keywords": "printer,ink,toner,status,supplies,cartridge,airprint,ipp,ink level,toner level,menu bar,office",
+  "description": [
+    "Inkvolt Print keeps an eye on your printers. It finds them on your network and shows what matters: ready or asleep, ink and toner levels, paper and cover problems, and how many pages they've printed, kept up to date while it runs.",
+    "",
+    "• Finds the printers on your network by itself.",
+    "• Ink and toner levels with the pages left, and the cartridge to buy when one runs low.",
+    "• Paper jams, empty trays, open covers and other problems, in plain words.",
+    "• A menu bar item shows at a glance whether every printer is fine, and a notification tells you when one needs you.",
+    "• Made for HP printers and works with Canon, Epson, Brother and other AirPrint, Mopria or IPP Everywhere printers. Older network printers get status and toner over SNMP.",
+    "• Before it shows anything, it checks that the device at a printer's address is still your printer, so another device that took the address is never shown under its name.",
+    "• A demo with made-up printers, to try it without one.",
+    "",
+    "Private by design: no account, no cloud service, no ads, no analytics, no tracking. Inkvolt Print talks only to the printers on your network.",
+    "",
+    "Free and open source (MIT License). Source code: https://github.com/gabandres/inkvolt",
+    "",
+    "Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc., Canon, Seiko Epson or Brother. HP is a trademark of HP Inc. Canon, Epson and Brother are trademarks of their owners. They are used only to describe the printers Inkvolt Print works with."
+  ],
+  "reviewNotes": [
+    "Inkvolt Print reads the status, alerts and ink or toner levels of printers on the user's local network. There is no account or sign-in.",
+    "",
+    "Without a printer: when none is found (after about 30 seconds of looking), the window says \"No printers found\" and offers \"Try the Demo\", which opens a second window with five made-up printers that answer from data built into the app (nothing goes to the network).",
+    "",
+    "Local Network: macOS asks for Local Network access at first launch. The app uses it to find printers with Bonjour (the service types listed in NSBonjourServices) and to read them over HTTP and HTTPS (IPP, and HP's own LEDM and CDM interfaces) and over SNMP. If access is denied, the app says so and links to System Settings.",
+    "",
+    "Entitlements: com.apple.security.network.client for those connections; com.apple.security.network.server only to receive the UDP replies to the SNMP questions the app sends to printers. The app runs no server and listens for no connections.",
+    "",
+    "The app collects no data. Everything it remembers stays in its container on the Mac."
+  ],
+  "screenshots": ["01-laser.png", "02-dark-cdm.png", "03-inkjet.png", "04-office.png", "05-snmp.png"],
+  "reviewContactFrom": "com.bermudezsystems.inkvolt"
+}

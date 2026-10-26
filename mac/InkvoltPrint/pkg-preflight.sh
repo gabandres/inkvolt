@@ -2,7 +2,8 @@
 # The checks every Mac App Store package of Inkvolt Print passes before upload (release.sh runs it; exit 1 on any failure):
 #   pkg-preflight.sh <pkg> <build number>
 # - the installer and the app are signed for the App Store, and the app carries its provisioning profile;
-# - the sandbox is on, get-task-allow is off, and the entitlements are exactly the research file's App Store set;
+# - the sandbox is on, get-task-allow is off, and the entitlements are only those v1 uses (the sandbox, network client and
+#   server; print, USB and user-selected files come back with the features that need them: App Review refuses unused ones);
 # - Info.plist has the bundle ID, the build number, the category, the Local Network text, Bonjour types and the icon;
 # - the icon, the privacy manifest and demo mode's fixtures are in the bundle (App Review has no printer);
 # - it was built by the release Xcode at DEVELOPER_DIR (a beta's builds reach TestFlight but never review);
@@ -29,10 +30,10 @@ codesign --verify --strict --deep "$APP" 2>/dev/null || bad "app signature doesn
 ents=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null)
 echo "$ents" | grep -q "com.apple.security.app-sandbox" || bad "sandbox entitlement missing"
 echo "$ents" | grep -q "get-task-allow" && bad "get-task-allow is on (a development build)"
-for e in network.client network.server print device.usb files.user-selected.read-write; do
+for e in network.client network.server; do
   echo "$ents" | grep -q "com.apple.security.$e" || bad "entitlement com.apple.security.$e missing"
 done
-extra=$(echo "$ents" | grep -oE "com\.apple\.security\.[a-z.-]+" | grep -vE "app-sandbox|network\.client|network\.server|^com\.apple\.security\.print$|device\.usb|files\.user-selected\.read-write|application-groups" | sort -u)
+extra=$(echo "$ents" | grep -oE "com\.apple\.security\.[a-z.-]+" | grep -vE "app-sandbox|network\.client|network\.server|application-groups" | sort -u)
 [ -z "$extra" ] || bad "entitlements beyond the App Store set: $extra"
 
 [ "$(value CFBundleIdentifier)" = "com.bermudezsystems.InkvoltPrint" ] || bad "bundle ID is $(value CFBundleIdentifier)"

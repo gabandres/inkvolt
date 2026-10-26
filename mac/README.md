@@ -47,8 +47,15 @@ node mac/InkvoltPrint/asc-builds.mjs 2 --wait            # until App Store Conne
 
 `release.sh` archives, exports a signed `.pkg`, runs `pkg-preflight.sh` (App Store signatures, the sandbox and exactly
 the App Store entitlements, Info.plist keys, icon, privacy manifest, demo fixtures, the release Xcode, no crash or
-analytics SDK), then validates and uploads with `altool`. The icon comes from `assets/make-icon.py` (the Windows
-artwork on a macOS tile).
+analytics SDK), then validates and uploads with `altool`. The icon and the menu bar glyph come from
+`assets/make-icon.py` (the Windows artwork on a macOS tile).
+
+The listing is `assets/store/listing.json` (texts, URLs, categories, review notes) and the screenshots beside it.
+`node mac/InkvoltPrint/asc-listing.mjs apply <build>` sets all of it (and the age rating, the free price, every
+territory, the review contact, the build) on the version being prepared; `asc-listing.mjs submit` sends it to App
+Review. App Privacy ("Data Not Collected") can only be published on the App Store Connect website. Screenshots: a Debug
+build's `--snapshot` (ScreenCaptureKit, needs Screen Recording permission for that build) in demo mode, then
+`assets/make-screenshots.py <captures folder>`.
 
 The `mac` CI job (`.github/workflows/mac.yml`) builds the probe and the Xcode project and tests the package on macOS 15,
 warnings as errors.
