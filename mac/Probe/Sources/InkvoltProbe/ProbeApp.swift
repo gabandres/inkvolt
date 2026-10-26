@@ -3,7 +3,8 @@ import SwiftUI
 
 @main
 struct ProbeApp: App {
-    @StateObject private var log = ProbeLog()
+    @NSApplicationDelegateAdaptor(LaunchDelegate.self) private var launch
+    @StateObject private var log = ProbeLog.shared
 
     var body: some Scene {
         WindowGroup("Inkvolt Probe") {
@@ -14,14 +15,29 @@ struct ProbeApp: App {
 
 /// The report: one check at a time, each under a heading. Addresses are masked to their last octet, so a report can
 /// be pasted into a chat without the network's addresses.
+/// Starts the automatic run at launch, whether or not a window ever shows (a locked or sleeping screen).
+final class LaunchDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in await AutoRun.runIfAsked(ProbeLog.shared) }
+    }
+}
+
 @MainActor
 final class ProbeLog: ObservableObject {
+    static let shared = ProbeLog()
+
+    /// Where an automatic run writes each line as it goes.
+    var reportFile: URL?
+
     @Published private(set) var lines: [String] = []
     @Published private(set) var busy = false
 
     var text: String { lines.joined(separator: "\n") }
 
-    func add(_ line: String) { lines.append(line) }
+    func add(_ line: String) {
+        lines.append(line)
+        if let reportFile { try? Data(text.utf8).write(to: reportFile) }
+    }
     func clear() { lines.removeAll() }
 
     func run(_ title: String, _ check: @escaping @MainActor (ProbeLog) async -> Void) {

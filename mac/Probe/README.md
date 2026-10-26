@@ -19,6 +19,15 @@ entitlement is a `com.apple.security.*` one.
 
 ## Run
 
+Over SSH, without anyone at the screen: `open -n /Applications/InkvoltProbe.app --args --auto --name full --address <printer IP>
+--queue <CUPS queue> [--protected] [--stay]` runs every check that needs no one looking, writing the report as it goes to
+`~/Library/Containers/com.bermudezsystems.InkvoltProbe/Data/Library/Application Support/InkvoltProbe/report-<name>.txt`.
+`--protected` adds Resume and Accept-Jobs; `--stay` keeps the window (and an unanswered Local Network alert) open. With no
+signing identity in the keychain, `SIGN_IDENTITY=- sh build.sh` signs it ad hoc.
+
+By hand:
+
+
 1. **First run, before allowing anything.** Click Entitlements, networks, then TCP sweep straight away: the Local
    Network alert appears. Note what the sweep reports while the alert is open (item 7), then click Allow and run the
    sweep again without restarting.

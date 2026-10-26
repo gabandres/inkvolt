@@ -78,6 +78,28 @@ Keep Report a problem user-initiated, for example a mail draft the user sends.
 **IPv6-only networks (2.5.5):** App Review tests on one. The IPv4 subnet probe finds nothing there, so the app must
 still work through Bonjour and typed addresses, and say "no IPv4 network" instead of failing.
 
+## Probe results on a Mac (2026-10-26)
+
+InkvoltProbe's automatic run (`--auto`, `mac/Probe/README.md`) on the owner's MacBook Air M1: macOS 27.0.1, Xcode 27.1,
+ad-hoc signed, sandboxed with the six entitlements above. Printer: an HP LaserJet MFP M234dw on the same LAN, and a CUPS
+queue for it made with `lpadmin -m everywhere` (by an admin user). Local Network not answered yet (the alert open, then
+not granted) unless said otherwise. These replace the matching UNVERIFIED items below.
+
+| Item | Result |
+|---|---|
+| 1. cupsd from the sandbox | **Works with `com.apple.security.print`**: `cupsGetDests2`, NSPrinter and Get-Printer-Attributes over cupsd's socket all answer. **Without it**, nothing: no destinations, `Bad file descriptor` (0x502). `marker-*` were missing for the idle IPP Everywhere queue. A POST to `localhost:631` failed with EPERM (to retest once Local Network is allowed). |
+| 2. Protected operations | **Resume-Printer and CUPS-Accept-Jobs succeeded** from the sandbox, for an admin user (in `_lpadmin`, gid 98; `_lpoperator` is gid 100). This contradicts the research's reading of macOS's cupsd policy. Untested: a standard (non-admin) user. The offline fixer may resume and re-enable queues for admins after all. |
+| 4. ImageCaptureCore | **Finds the network scanner** (the M234dw, `ICTransportTypeTCPIP`) **even without Local Network permission**: browsing runs in a system service. |
+| 5. NSBonjourServices | **Restricts browsing on macOS too**: the six listed types browse ("ready"); unlisted types fail at once with `-65555 NoAuth`. Without Local Network permission, the listed types find nothing. |
+| 6. SNMP broadcast | **A subnet broadcast goes out and the printer's reply arrives even without Local Network permission** (BSD socket, `SO_BROADCAST`). **Without `com.apple.security.network.server`** the reply can't be received: `recvfrom` fails with EPERM. Unicast SNMP is blocked as Local Network denied (BSD socket: `EHOSTUNREACH`; Network framework: waiting, `localNetworkDenied`). |
+| 7. First run | While the alert is open, every unicast connection fails at once (`localNetworkDenied`, 756 of 759 in 0.2 s), so the app must wait for the answer and retry. Recovery after Allow: still to test. |
+| 9. ATS | Not tested yet: blocked as Local Network denied (`NSURLErrorDomain -1009`). |
+| 10. SMAppService | `mainApp.status` is `notFound` for the ad-hoc signed probe in /Applications; retest with a Developer ID or App Store signature. |
+
+Still to do on the Mac: everything with Local Network allowed (unicast SNMP, TCP sweep, Bonjour results, ATS, the
+localhost:631 POST, recovery without restart), the Printers & Scanners links (3, needs someone at the screen), item 8,
+and the protected operations as a standard user.
+
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
 ### Printing
