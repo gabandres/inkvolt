@@ -193,7 +193,8 @@ struct SnmpTests {
     func walkReadsColumnsSideBySideOverBothVersions(_ version: SnmpVersion) async throws {
         let agent = try Self.rfc3416Agent(v1Only: version == .v1)
         let columns = try await SnmpClient(transport: agent, host: "192.0.2.50", version: version).walk([Self.physAddress, Self.mediaType])
-        #expect(columns[0].map { $0.index.map(String.init).joined(separator: ".") } == ["1.9.2.3.4", "1.10.0.0.51", "2.10.0.0.15"])
+        let indexes: [String] = columns[0].map { $0.index.map(String.init).joined(separator: ".") }
+        #expect(indexes == ["1.9.2.3.4", "1.10.0.0.51", "2.10.0.0.15"])
         #expect(columns[1].map(\.value.number) == [3, 4, 3])
         #expect(agent.received.allSatisfy { $0.type == (version == .v1 ? .getNextRequest : .getBulkRequest) })
     }

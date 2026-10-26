@@ -318,3 +318,18 @@ public enum TrayText {
         return head + "…"
     }
 }
+
+extension TrayText {
+    /// A printer's line in the menu: the tracker's level, except that a printer not answering right now shows grey at once
+    /// (the icon waits for the offline hold); its worst ongoing problem, else its status.
+    public static func line(name: String, tracked: AlertLevel, problem: String?, view: PrinterView) -> PrinterLine {
+        let notAnswering = view.phase == .offline || view.phase == .elsewhere
+        return PrinterLine(name: name, level: max(tracked, notAnswering ? .offline : .ok), text: problem ?? view.statusMessage)
+    }
+
+    /// One alert: its own title and text. Several at once: a line each.
+    public static func notice(_ notices: [AlertNotice]) -> (title: String, text: String) {
+        notices.count == 1 ? (notices[0].title, notices[0].body)
+            : ("\(notices.count) printer alerts", notices.map { "\($0.printerName): \($0.title)" }.joined(separator: "\n"))
+    }
+}

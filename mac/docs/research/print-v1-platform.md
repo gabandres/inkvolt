@@ -112,6 +112,13 @@ not granted) unless said otherwise. These replace the matching UNVERIFIED items 
 
 Still to do: recovery without relaunching after Allow (7), item 8, and the protected operations as a standard user.
 
+**Inkvolt Print's first build** (`com.bermudezsystems.InkvoltPrint`, ad-hoc signed, the same entitlements and Info.plist
+keys): macOS asked for Local Network access at the first launch (a new bundle ID), and the owner allowed it. Within 25 s
+`dns_sd` browsing (`DNSServiceBrowse`, `DNSServiceResolve`, `DNSServiceGetAddrInfo`) found the M234dw's services from the
+sandbox, and the app read it over LEDM through URLSession (status, toner, page count) with no further prompt. URLSession
+sends an `Authorization` header set on the request as given (PrintMacTests, against a loopback server). Still untested in
+the app: the denied banner, and recovery when access is allowed while it runs.
+
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
 ### Printing

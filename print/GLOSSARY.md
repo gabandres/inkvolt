@@ -9,6 +9,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   interface" (`PrinterReader` in `shared/InkvoltPrint.Core/Probe`).
 - **Printer session**: one remembered network printer's connection life cycle: connect, ask who answers before reading,
   upgrade a printer read over SNMP when it answers more, check an address it is announced at (`PrinterSession`).
+- **Printer monitor** (Mac): keeps one network printer's state current through its printer session: reads on the
+  printer's events or every 30 s, retries every 20 s, follows an announced address, and tells the app what the printer
+  pane shows (`PrinterMonitor`; the Windows app does this in `PrinterViewModel`).
 - **Connection recipe**: what every connection to a printer carries: the network (or demo transport), SNMP, its
   certificate pins (`PrinterRecipe`).
 - **Identity before data**: a printer's status is read only after the device at its address has said it is that printer
@@ -23,3 +26,5 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).
 - **Made-up PC**: demo mode's environment. Nothing it does reaches the network or this PC; nothing prints for real.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
+- **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
+  from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".

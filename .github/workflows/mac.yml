@@ -1,5 +1,5 @@
-# Builds the macOS code on pushes that touch it. Nothing on the Windows PC can compile Swift, so this is the first check
-# that mac/ builds at all.
+# Builds the macOS code on pushes that touch it: the probe, the package (PrintCore and PrintMac, tested) and the app.
+# The Windows PC builds PrintCore only, so this is the first check of everything that imports an Apple framework.
 name: mac
 
 on:
@@ -26,3 +26,4 @@ jobs:
           swift --version
       - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors
+      - run: swift build --package-path mac/InkvoltPrint -Xswiftc -warnings-as-errors

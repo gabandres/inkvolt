@@ -10,6 +10,11 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
   what it flags before pushing.
+- **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the clone is `~/Repos/inkvolt` (pull, or copy changed files
+  over with LF endings: a CRLF entitlements file fails `codesign`). `SIGN_IDENTITY=- sh mac/InkvoltPrint/build.sh` installs
+  `/Applications/Inkvolt Print.app`; `open -n` it with `--report <name> [--wait s] [--stay] [--demo]` and read the report
+  from its container (README). Start automatic work from the app delegate, never a view (a locked screen shows no
+  window). `screencapture` doesn't work over SSH: ask the owner what the screen shows.
 - **The .NET code is the spec.** Port a module by porting its tests first, with the same names, then the code. Read
   fixtures in place from `print/tests/InkvoltPrint.Tests/Fixtures` (and `pdf/tools/export-corpus` later); never copy or
   edit them for the Mac. Where the Mac must behave differently, write it down in `docs/PLAN.md`.

@@ -39,10 +39,13 @@ mac/
   Probe/                         InkvoltProbe: throwaway sandboxed app that settles the open platform questions (P0)
   InkvoltPrintKit/               Swift package (from P1)
     Sources/PrintCore/           protocols and rules; Foundation only, so it also builds off the Mac
-    Sources/PrintMac/            adapters: URLSession, BSD-socket SNMP, NWBrowser, subnet scanner, libcups,
-                                 ImageCaptureCore, Keychain, Core Image, PDFKit, Vision
+    Sources/PrintMac/            adapters: URLSession, BSD-socket SNMP, Bonjour (dns_sd), Local Network access; later
+                                 the subnet scanner, libcups, ImageCaptureCore, Keychain, Core Image, PDFKit, Vision.
+                                 Declared only when Package.swift is read on a Mac
     Tests/PrintCoreTests/        Swift Testing; reads print/tests/InkvoltPrint.Tests/Fixtures in place
-  InkvoltPrint/                  Xcode app project (made on the Mac; folder-synced groups), SwiftUI, uses the package
+    Tests/PrintMacTests/         the transports against loopback servers (Mac and CI only)
+  InkvoltPrint/                  the app (SwiftUI): for now a SwiftPM executable that build.sh wraps into a signed,
+                                 sandboxed "Inkvolt Print.app"; an Xcode project for App Store archiving before P11
 ```
 
 ## Module map (.NET to Swift)
@@ -84,7 +87,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | |
 | P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | Done: 52 tests (file-name templates and sets, the preset list and its JSON, the plan for a scanner, summaries; blank pages, skew, crop, rotation; scan recovery and run folders). Mail and sync-folder routes, batch separators and glass photos stay with "Later" |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
-| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | |
+| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | First slice done (2026-10-26): the printer list from Bonjour and the state file, the printer pane (status, alerts, supplies, details, This is my printer), the menu bar item with alerts as notifications, the Local Network banner, demo mode, `--report`. PrintCore: `PrinterMonitor`, `DiscoveredPrinters`, `StateStore`, `SupplyText`, `Demo`, menu lines (15 tests, 287 in all); PrintMac: URLSession and UDP SNMP transports, Bonjour, Local Network signal (7 tests). Checked on `ignia-mac` with the owner's M234dw. Next: Add a printer, the window-closed polling, P7 |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | |
 
 ## Mac differences
@@ -117,10 +120,29 @@ mac/InkvoltPrintKit --build-system native`.
 - `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
+- The Windows app's connection loop (`PrinterViewModel.RunAsync`, `RefreshAsync`, `SetOffline`, `SetElsewhere`, the address
+  move) is PrintCore's `PrinterMonitor` (an actor; events to the app), so it's tested on the fixtures. The app's printer
+  model only shows what it says. For now it runs while the app runs, window or not; the Windows app's suspend-and-poll while
+  hidden (`AlertPolling`) comes later.
+- Discovery is Bonjour only (no Windows association endpoints): `dns_sd`'s browse, resolve and IPv4 lookup in PrintMac
+  (`BonjourDiscovery`; Local Network denied is `kDNSServiceErr_PolicyDenied`), joined into printers by PrintCore's
+  `DiscoveredPrinters` (the Windows discovery's `Merge`, services part). A printer needs an IPv4 address to be listed.
+- Local Network access has no API: `LocalNetworkSignal` is told by the transports and Bonjour (denied: URLSession's -1009
+  whose network path says `localNetworkDenied`, `EHOSTUNREACH` on UDP, `PolicyDenied`; allowed: any answer). Denied shows a
+  banner with a link to System Settings; once allowed, discovery and the offline printers start again at once.
+- The state file is `state.json` in the container's Application Support/InkvoltPrint, with Swift's JSON keys
+  (`StateStore`: remembered printers, the selection, pins, accepted UUIDs, forgotten printers, alerts shown). Demo mode's
+  state is in memory.
+- URLSession sends `Authorization` as given (PrintMacTests checks it against a loopback server). `Host` isn't checked yet
+  (the Epson eSCL quirk, with scanning).
+- Demo mode reads the fixtures from the app bundle (`Contents/Resources/Demo`, copied by build.sh), not embedded resources.
+
+Decided 2026-10-26, starting the app: Inkvolt Print's bundle ID is `com.bermudezsystems.InkvoltPrint`; the app builds with
+SwiftPM and `InkvoltPrint/build.sh` until P11; development builds are ad-hoc signed (the Mac's keychain has no signing
+identity). The repo is cloned at `~/Repos/inkvolt` on `ignia-mac`.
 
 ## Open decisions
 
-- Bundle IDs: proposed `com.bermudezsystems.InkvoltPrint` and `com.bermudezsystems.InkvoltPdf` (the probe uses
-  `com.bermudezsystems.InkvoltProbe`).
-- Where the repo is cloned on `ignia-mac` (proposed `~/Repos/inkvolt`, next to `inkvolt-mobile`).
-- Swift on this Windows PC: the Windows toolchain could build and test `PrintCore` here (Foundation only); not installed.
+- Inkvolt PDF's bundle ID: proposed `com.bermudezsystems.InkvoltPdf`.
+- The Xcode project for App Store archiving (hand-made, or generated with XcodeGen, an extra tool on the Mac): before P11.
+- A real Apple Development and Distribution identity (the mobile team's) in the Mac's keychain: before App Store work.
