@@ -130,8 +130,9 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         unit.pixelDataType = request.color == .color ? .RGB : .gray
         unit.bitDepth = .depth8Bits
         let size = unit.physicalSize
-        let width = request.width.map { min(Double($0) / 300, size.width) } ?? size.width
-        let height = request.height.map { min(Double($0) / 300, size.height) } ?? size.height
+        var width = CGFloat(size.width), height = CGFloat(size.height)
+        if let w = request.width { width = min(CGFloat(w) / 300, width) }
+        if let h = request.height { height = min(CGFloat(h) / 300, height) }
         unit.scanArea = NSRect(x: 0, y: 0, width: width, height: height)
         if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder {
             feeder.documentType = .typeDefault
