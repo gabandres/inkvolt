@@ -392,7 +392,7 @@ struct OtherBrandsConnectionTests {
         let probe = try await PrinterConnection.probe(DeviceHttp(host: "192.0.2.11", transport: handler),
                                                       ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         #expect(probe.ippEndpoint?.path == "/ipp/print")
-        #expect(clock.now - started < .seconds(3))
+        #expect(clock.now - started < PrinterConnection.ippProbeDeadline - .seconds(1)) // not the hint's deadline
     }
 
     @Test func aPrinterThatNeverAnswersIppCostsOneDeadlineNotOnePerAttempt() async throws {
@@ -403,7 +403,7 @@ struct OtherBrandsConnectionTests {
                                                       ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         #expect(probe.ipp == nil)
         #expect(probe.scanner != nil)
-        #expect(clock.now - started < PrinterConnection.ippProbeDeadline + .seconds(2))
+        #expect(clock.now - started < PrinterConnection.ippProbeDeadline * 2 - .seconds(1)) // one deadline, not one per attempt
     }
 
     @Test func hostRouterSendsEachDemoPrinterToItsOwnFixtures() async throws {

@@ -82,7 +82,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P5 | Alerts, status lines | AlertTests, StatusLineTests | Done: 35 tests (conditions, the tracker's holds, quiet hours, pause, memory across restarts, polling, menu bar text, list lines) |
 | P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | Done: 21 tests (typed addresses, the search's addresses, SNMP question, reporting once, stopping; DNS-SD join and endpoints from OtherBrandsTests). The socket scanner is PrintMac's |
 | P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | |
-| P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | |
+| P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | P8a done: 44 tests (file-name templates and sets, the preset list and its JSON, the plan for a scanner, summaries; blank pages, skew, crop, rotation). P8b, scan recovery, next |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
 | P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | |
@@ -106,6 +106,10 @@ mac/InkvoltPrintKit --build-system native`.
   offset). Polling backs off on battery and on a constrained network (macOS's Low Data Mode) rather than Windows' metered one.
 - Network search addresses are dotted IPv4 strings; the scanner protocol is async (`NetworkScanner`), and the sweep runs
   64 addresses at a time in a task group, the SNMP question beside it and awaited when the search stops.
+- Presets keep the Windows app's JSON field names and stored numbers (`StoredChoice`), so the apps read each other's
+  presets; unknown fields survive a save. Paths and subfolders use "/", and the built-in Receipt preset's subfolder is
+  `Scans/Receipts/{date:yyyy}`. File names stay Windows-safe (they may sync to a PC). Date and number formats are .NET's
+  custom ones (`DotNetFormat`), so a template means the same on both. Page rotation runs on one thread for now.
 - `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
