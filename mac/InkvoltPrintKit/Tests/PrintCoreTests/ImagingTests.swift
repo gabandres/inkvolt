@@ -50,59 +50,62 @@ struct ImagingTests {
         return GrayImage(width: w, height: h, pixels: pixels)
     }
 
-    @Test func plainPaperWithNoiseSpecksAndDarkEdgesIsBlank() {
+    @Test func plainPaperWithNoiseSpecksAndDarkEdgesIsBlank() async {
         var pixels = Self.paper()
         for (x, y) in [(200, 300), (500, 640), (610, 900), (333, 333)] { pixels[y * Self.w + x] = 20 } // lone dust specks
         Self.fill(&pixels, 0, 0, Self.w, 30, 30) // lid shadow along the top edge
         Self.fill(&pixels, 0, 0, 20, Self.h, 60) // feeder edge
         Self.fill(&pixels, 30, 500, 20, 20, 0) // punched hole in the margin
         let page = GrayImage(width: Self.w, height: Self.h, pixels: pixels)
-        #expect(BlankPage.isBlank(page), "coverage \(BlankPage.inkCoverage(page))")
+        #expect(await offPool { BlankPage.isBlank(page) })
     }
 
-    @Test func showThroughFromTheBackIsStillBlank() {
+    @Test func showThroughFromTheBackIsStillBlank() async {
         var pixels = Self.paper()
         for row in 0..<30 { Self.fill(&pixels, 110, 150 + row * 24, 630, 8, 210) } // faint mirror of the back's text
-        #expect(BlankPage.isBlank(GrayImage(width: Self.w, height: Self.h, pixels: pixels)))
+        let page = GrayImage(width: Self.w, height: Self.h, pixels: pixels)
+        #expect(await offPool { BlankPage.isBlank(page) })
     }
 
-    @Test func oneShortWordIsNotBlank() {
+    @Test func oneShortWordIsNotBlank() async {
         var pixels = Self.paper()
         Self.fill(&pixels, 400, 520, 40, 10, 50) // about "Page 2" at 100 dpi, as a solid bar
-        #expect(!BlankPage.isBlank(GrayImage(width: Self.w, height: Self.h, pixels: pixels)))
+        let page = GrayImage(width: Self.w, height: Self.h, pixels: pixels)
+        #expect(await offPool { !BlankPage.isBlank(page) })
     }
 
-    @Test func textAndDarkPagesAreNotBlank() {
-        #expect(!BlankPage.isBlank(Self.textPage(0)))
-        #expect(!BlankPage.isBlank(GrayImage(width: Self.w, height: Self.h, pixels: Self.paper(70)))) // a dark photo, even if smooth
+    @Test func textAndDarkPagesAreNotBlank() async {
+        #expect(await offPool { !BlankPage.isBlank(Self.textPage(0)) })
+        #expect(await offPool { !BlankPage.isBlank(GrayImage(width: Self.w, height: Self.h, pixels: Self.paper(70))) }) // a dark photo
     }
 
     @Test(arguments: [3, -2.5, 1.2, -7, 9.5])
-    func findsTheSkewOfATextPage(_ degrees: Double) {
-        #expect(abs(Deskew.angle(Self.textPage(degrees)) - degrees) <= 0.15)
+    func findsTheSkewOfATextPage(_ degrees: Double) async {
+        #expect(await offPool { abs(Deskew.angle(Self.textPage(degrees)) - degrees) } <= 0.15)
     }
 
-    @Test func straightAndNearlyStraightPagesAreLeftAlone() {
-        #expect(Deskew.angle(Self.textPage(0)) == 0)
-        #expect(Deskew.angle(Self.textPage(0.2)) == 0)
+    @Test func straightAndNearlyStraightPagesAreLeftAlone() async {
+        #expect(await offPool { Deskew.angle(Self.textPage(0)) } == 0)
+        #expect(await offPool { Deskew.angle(Self.textPage(0.2)) } == 0)
     }
 
-    @Test func noTextLinesNoAnswer() {
-        #expect(Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: Self.paper())) == 0) // blank
+    @Test func noTextLinesNoAnswer() async {
+        #expect(await offPool { Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: Self.paper())) } == 0) // blank
         // A photo-like page: smooth blotches, no lines.
         var pixels = Self.paper()
         for y in 0..<Self.h {
             for x in 0..<Self.w { pixels[y * Self.w + x] = UInt8(128 + 100 * sin(Double(x) / 37) * cos(Double(y) / 53)) }
         }
-        #expect(Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: pixels)) == 0)
+        let photo = pixels
+        #expect(await offPool { Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: photo)) } == 0)
     }
 
-    @Test func turningASkewedPageBackStraightensIt() {
-        let skewed = Self.textPage(4)
-        let straight = PageRotate.rotate(skewed.pixels, width: Self.w, height: Self.h, stride: Self.w, channels: 1, degrees: -4)
-        #expect(Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: straight)) == 0)
+    @Test func turningASkewedPageBackStraightensIt() async {
+        let skewed = await offPool { Self.textPage(4) }
+        let straight = await offPool { PageRotate.rotate(skewed.pixels, width: Self.w, height: Self.h, stride: Self.w, channels: 1, degrees: -4) }
+        #expect(await offPool { Deskew.angle(GrayImage(width: Self.w, height: Self.h, pixels: straight)) } == 0)
         #expect(straight[0] == 255) // the corner the page turned away from is white
-        #expect(PageRotate.rotate(skewed.pixels, width: Self.w, height: Self.h, stride: Self.w, channels: 1, degrees: 0) == skewed.pixels)
+        #expect(await offPool { PageRotate.rotate(skewed.pixels, width: Self.w, height: Self.h, stride: Self.w, channels: 1, degrees: 0) } == skewed.pixels)
     }
 
     @Test func rotationKeepsColourChannelsApart() {
