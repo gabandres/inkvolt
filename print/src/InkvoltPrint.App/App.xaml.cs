@@ -83,7 +83,7 @@ public partial class App : Application
                     System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
         };
 
-        var pc = demo ? Demo.Pc : PcEnvironment.Real; // chosen once: every view model takes its adapters from it
+        var pc = !demo ? PcEnvironment.Real : e.Args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         _vm = new MainViewModel(pc.LoadState(), pc);
         WindowFrame.FollowAllWindows();
         WindowFrame.ApplyTheme(Array.IndexOf(e.Args, "--theme") is var t and >= 0 && t + 1 < e.Args.Length ? e.Args[t + 1] : _vm.State.Theme);
@@ -110,9 +110,20 @@ public partial class App : Application
             SessionEnding += (_, _) => Quitting = true; // never hold up signing out by hiding instead of closing
             if (!demo) StartWithWindows.KeepCurrent();
         }
-        else
+        // After an update, What's New once, when the window is first on screen (now, or later from the notification area).
+        // --demo --whatsnew-from 1.0.2: as if updated from that version (dev aid).
+        var whatsNewFrom = demo && Array.IndexOf(e.Args, "--whatsnew-from") is var wn and >= 0 && wn + 1 < e.Args.Length ? e.Args[wn + 1] : null;
+        if (!devRun || whatsNewFrom is not null)
         {
-            ((MainWindow)MainWindow).AlertsLink.Visibility = Visibility.Collapsed; // the --try window and dev runs have no tray
+            var window = MainWindow;
+            var state = _vm.State;
+            if (whatsNewFrom is not null) state.LastVersionSeen = whatsNewFrom;
+            window.ContentRendered += WhatsNew;
+            void WhatsNew(object? sender, EventArgs args)
+            {
+                window.ContentRendered -= WhatsNew;
+                window.Dispatcher.BeginInvoke(() => AppHelp.ShowWhatsNewOnce(window, state), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }
         }
         // Started with Windows (--background): straight to the notification area, when it's still turned on.
         if (Tray is { KeepsRunning: true } && e.Args.Contains(StartWithWindows.Argument)) Tray.HideWindow(atStartup: true);

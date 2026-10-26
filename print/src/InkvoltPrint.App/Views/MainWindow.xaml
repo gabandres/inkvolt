@@ -24,6 +24,10 @@
         <KeyBinding Modifiers="Control" Key="D8" Command="{Binding RunPresetAtCommand}" CommandParameter="8" />
         <KeyBinding Modifiers="Control" Key="D9" Command="{Binding RunPresetAtCommand}" CommandParameter="9" />
     </Window.InputBindings>
+    <Window.CommandBindings>
+        <!-- F1 (the command's own gesture) -->
+        <CommandBinding Command="ApplicationCommands.Help" Executed="Help_Executed" />
+    </Window.CommandBindings>
 
     <Window.Resources>
         <!-- Shared per item (x:Shared=False gives each printer its own menu instance). -->
@@ -642,13 +646,6 @@
                                 HorizontalAlignment="Left" Margin="0,6,0,4"
                                 ToolTip="Saves a Patch T sheet as a PDF to print at actual size"
                                 Visibility="{Binding Splits, Converter={StaticResource VisibleWhen}}" />
-                        <CheckBox AutomationProperties.Name="Open scans in Inkvolt PDF" AutomationProperties.HelpText="Each PDF you save opens there automatically" IsChecked="{Binding OpenInInkvoltPdf}" Margin="0,4,0,0"
-                                  Visibility="{Binding InkvoltPdfInstalled, Converter={StaticResource VisibleWhen}}">
-                            <StackPanel>
-                                <TextBlock Text="Open scans in Inkvolt PDF" />
-                                <TextBlock Text="Each PDF you save opens there automatically" Style="{StaticResource Caption}" FontSize="12" />
-                            </StackPanel>
-                        </CheckBox>
 
                     </StackPanel>
                     </ScrollViewer>
@@ -1479,11 +1476,11 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-                <Button Style="{StaticResource LinkButton}" Content="Notification area and alerts" Click="Alerts_Click" HorizontalAlignment="Left"
-                        Margin="10,12,0,0" FontSize="12" x:Name="AlertsLink"
-                        ToolTip="Keep Inkvolt Print in the notification area and get told about low supplies and printer problems" />
                 <Button Style="{StaticResource LinkButton}" Content="Settings" Click="Settings_Click" HorizontalAlignment="Left"
-                        Margin="10,8,0,0" FontSize="12" ToolTip="Inkvolt Print's own settings, such as light or dark" />
+                        Margin="10,12,0,0" FontSize="12"
+                        ToolTip="Light or dark, where scans are saved, the notification area and alerts" />
+                <Button Style="{StaticResource LinkButton}" Content="Help and shortcuts" Click="Help_Click" HorizontalAlignment="Left"
+                        Margin="10,8,0,0" FontSize="12" ToolTip="Keyboard shortcuts, what's new, report a problem (F1)" />
                 <Button Style="{StaticResource LinkButton}" Content="About Inkvolt Print" Click="About_Click" HorizontalAlignment="Left"
                         Margin="10,8,0,0" FontSize="12" />
             </StackPanel>
@@ -1498,7 +1495,12 @@
                     <TextBlock Text="No printers found" FontWeight="SemiBold" />
                     <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,10"
                                Text="Make sure the printer is on and connected to the same Wi-Fi or network as this PC." />
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="Still nothing? A VPN, a firewall that blocks finding devices, or a printer on another network (a guest Wi-Fi, another subnet) can hide it: add it by its IP address." />
                     <Button Content="Search again" Command="{Binding SearchAgainCommand}" HorizontalAlignment="Left" />
+                    <Button Style="{StaticResource LinkButton}" Content="Add a printer by address" Command="{Binding ToggleAddCommand}"
+                            HorizontalAlignment="Left" Margin="0,10,0,0"
+                            Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                     <Button Style="{StaticResource LinkButton}" Content="No printer here? Try a demo printer" Command="{Binding TryDemoCommand}"
                             HorizontalAlignment="Left" Margin="0,10,0,0"
                             ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />
@@ -1571,7 +1573,9 @@
                     <TextBlock Text="Your printers will show up here" FontSize="16" Margin="0,12,0,0" HorizontalAlignment="Center" />
                 </StackPanel>
 
-                <ContentControl Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False">
+                <!-- Hidden without a printer: a template applied to no printer would show its buttons, tabs and setup banner -->
+                <ContentControl Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
+                                Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>

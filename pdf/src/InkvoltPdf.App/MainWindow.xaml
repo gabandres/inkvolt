@@ -279,6 +279,8 @@
                                 <MenuItem Header="_Help">
                                     <MenuItem Command="app:Cmd.Shortcuts" />
                                     <MenuItem Command="app:Cmd.CommandPalette" />
+                                    <MenuItem Command="app:Cmd.WhatsNew" />
+                                    <MenuItem Command="app:Cmd.ReportProblem" />
                                     <MenuItem Header="Open _Log Folder" Click="OnOpenLog" />
                                     <Separator />
                                     <MenuItem Header="_About Inkvolt PDF" Click="OnAbout" />
@@ -458,7 +460,21 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock x:Name="NoRecent" Text="Files you open will appear here." Style="{StaticResource Caption}" Visibility="Collapsed" />
+                            <StackPanel x:Name="NoRecent" Visibility="Collapsed" Margin="0,32,0,0">
+                                <TextBlock Text="Files you open will appear here." Style="{StaticResource Caption}" />
+                                <!-- First-run tip: the start page shows three things; the command palette reaches everything else -->
+                                <Border Margin="0,24,0,0" Padding="16,12" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE82F;" FontSize="20" Margin="0,0,12,0"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        <TextBlock TextWrapping="Wrap" MaxWidth="640">
+                                            <Run FontWeight="SemiBold" Text="New here?" />
+                                            <Run Text="Press Ctrl+K and type what you want to do: sign, fill, edit text, export to Word, redact, add a header. F1 lists the keyboard shortcuts." />
+                                        </TextBlock>
+                                    </DockPanel>
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
 

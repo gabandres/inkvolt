@@ -31,6 +31,8 @@
     <!-- Shown by "About Inkvolt Print" -->
     <Resource Include="..\..\LICENSE" Link="LICENSE" />
     <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
+    <!-- What's New (AppHelp) -->
+    <Resource Include="..\..\WHATS-NEW.md" Link="WHATS-NEW.md" />
   </ItemGroup>
   <ItemGroup>
     <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->

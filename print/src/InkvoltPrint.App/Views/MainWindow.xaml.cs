@@ -18,12 +18,16 @@ public partial class MainWindow : Window
 
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        if (Vm?.State is { } state) AppSettingsDialog.Open(this, state);
+        if (Vm is { } vm) SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray);
     }
 
-    private void Alerts_Click(object sender, RoutedEventArgs e)
+    private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
+
+    private void Help_Executed(object sender, System.Windows.Input.ExecutedRoutedEventArgs e) => ShowHelp();
+
+    private void ShowHelp()
     {
-        if (Application.Current is App { Tray: { } tray }) AlertSettingsDialog.Open(this, tray);
+        if (Vm is { } vm) HelpDialog.Open(this, vm);
     }
 
     /// <summary>

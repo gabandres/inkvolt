@@ -92,6 +92,26 @@ public sealed class AppState
     /// <summary>The main window's place and size last time (DIPs), put back on start when it still fits a monitor.</summary>
     public WindowPlacement? Window { get; set; }
 
+    /// <summary>The version this was last run as ("1.0.3"): What's New after an update shows what came since.</summary>
+    public string? LastVersionSeen { get; set; }
+
+    /// <summary>No state file yet: a new install, with nothing new to tell about.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsNewInstall { get; private set; }
+
+    /// <summary>
+    /// Settings › Reset to defaults: the app's own preferences (theme, scan folder, opening scans in Inkvolt PDF, the
+    /// notification area and alerts). Printers, presets, the Scan tab's choices and the window's place are kept.
+    /// </summary>
+    public void ResetPreferences()
+    {
+        Theme = null;
+        ScanFolder = null;
+        OpenScansInInkvoltPdf = false;
+        Tray?.ResetPreferences();
+        Save();
+    }
+
     /// <summary>HP package set the user chose to keep (banner hidden until the set changes).</summary>
     public string? DismissedHpApps { get; set; }
 
@@ -276,7 +296,8 @@ public sealed class AppState
     {
         try
         {
-            var state = File.Exists(FilePath) ? JsonSerializer.Deserialize<AppState>(File.ReadAllText(FilePath), Json) ?? new() : new();
+            if (!File.Exists(FilePath)) return new() { IsNewInstall = true };
+            var state = JsonSerializer.Deserialize<AppState>(File.ReadAllText(FilePath), Json) ?? new();
             // Hand-edited or older files can hold nulls; never let that stop the app from starting.
             state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
@@ -345,6 +366,14 @@ public sealed class TraySettings
     public Dictionary<string, List<string>> Shown { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public static readonly int[] LowChoices = [5, 10, 15, 20, 25, 30, 40, 50];
+
+    /// <summary>Back to how a new install starts (the alerts already shown and the one-time hint stay as they are).</summary>
+    public void ResetPreferences()
+    {
+        var d = new TraySettings();
+        (Enabled, Alerts, LowPercent, OfflineAlerts) = (d.Enabled, d.Alerts, d.LowPercent, d.OfflineAlerts);
+        (QuietHours, QuietFrom, QuietTo, PausedUntil) = (d.QuietHours, d.QuietFrom, d.QuietTo, d.PausedUntil);
+    }
 
     /// <summary>Hand-edited or older files: values back in range.</summary>
     public void Repair()

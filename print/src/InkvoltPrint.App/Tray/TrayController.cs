@@ -481,7 +481,7 @@ public sealed class TrayController : IDisposable
             pause.Items.Add(Item("Until tomorrow morning", () => Pause(null)));
             menu.Items.Add(pause);
         }
-        menu.Items.Add(Item("_Alert settings…", () => Views.AlertSettingsDialog.Open(_app.MainWindow is { IsVisible: true } w ? w : null, this)));
+        menu.Items.Add(Item("_Alert settings…", () => Views.SettingsWindow.Open(_app.MainWindow is { IsVisible: true } w ? w : null, _vm, this, alerts: true)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("_Quit Inkvolt Print", Quit));
         return menu;

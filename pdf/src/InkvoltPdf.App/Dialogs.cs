@@ -16,6 +16,8 @@ public sealed class FormDialog : Window
     private readonly Border _error = new() { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 14, 0, 0), Visibility = Visibility.Collapsed };
     private readonly TextBlock _errorText = new() { TextWrapping = TextWrapping.Wrap };
     private Func<string?>? _validate;
+    private readonly Button _cancel;
+    private readonly StackPanel _footerLeft = new() { Orientation = Orientation.Horizontal };
 
     public FormDialog(Window owner, string title, string okText = "OK", double width = 440)
     {
@@ -29,7 +31,7 @@ public sealed class FormDialog : Window
 
         var ok = new Button { Content = okText, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
         ok.SetResourceReference(StyleProperty, "AccentButtonStyle");
-        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 104 };
+        var cancel = _cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 104 };
         ok.Click += (_, _) =>
         {
             var err = _validate?.Invoke();
@@ -48,10 +50,14 @@ public sealed class FormDialog : Window
         body.Children.Add(_rows);
         body.Children.Add(_error);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 16, 24, 16) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(ok);
         buttons.Children.Add(cancel);
-        var footer = new Border { Child = buttons, BorderThickness = new Thickness(0, 1, 0, 0) };
+        var bar = new DockPanel { Margin = new Thickness(24, 16, 24, 16) };
+        DockPanel.SetDock(buttons, Dock.Right);
+        bar.Children.Add(buttons);
+        bar.Children.Add(_footerLeft);
+        var footer = new Border { Child = bar, BorderThickness = new Thickness(0, 1, 0, 0) };
         footer.SetResourceReference(Border.BackgroundProperty, "LayerFillColorDefaultBrush");
         footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
 
@@ -100,6 +106,27 @@ public sealed class FormDialog : Window
 
     public PositionPicker AddPosition(int pageCount, int currentPage, string label = "Position") =>
         Add(label, new PositionPicker(pageCount, currentPage));
+
+    /// <summary>A button at the left of the footer (Reset to defaults, Copy) that leaves the dialog open.</summary>
+    public Button AddFooterButton(string text)
+    {
+        var button = new Button { Content = text, Margin = new Thickness(0, 0, 8, 0) };
+        _footerLeft.Children.Add(button);
+        return button;
+    }
+
+    /// <summary>For a dialog that only informs: its OK button (named Close) is the only way out, with Esc as well.</summary>
+    public void HideCancel()
+    {
+        _cancel.Visibility = Visibility.Collapsed;
+        _cancel.IsCancel = false;
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != System.Windows.Input.Key.Escape) return;
+            DialogResult = false;
+            e.Handled = true;
+        };
+    }
 
     /// <summary>Called on OK; return an error message to keep the dialog open.</summary>
     public void Validate(Func<string?> validate) => _validate = validate;

@@ -27,7 +27,8 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window.
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// <c>--dialog settings|help|whatsnew|report</c> renders that window instead.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -174,6 +175,25 @@ internal static class DevSnapshot
             }
             shot = editor;
         }
+        // --dialog settings|help|whatsnew|report: that window instead of the main one.
+        if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
+        {
+            Window? dialog = name switch
+            {
+                "settings" => SettingsWindow.Create(dialogMain, trayController),
+                "help" => HelpDialog.Create(dialogMain),
+                "whatsnew" => WhatsNewDialog.Create(AppHelp.Notes()),
+                "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain)),
+                _ => null,
+            };
+            if (dialog is not null)
+            {
+                dialog.Owner = window;
+                dialog.Show();
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                shot = dialog;
+            }
+        }
         // A dialog's content has a margin, which a VisualBrush would shift by: take the window's own root instead.
         var content = shot == window ? (FrameworkElement)shot.Content : (FrameworkElement)VisualTreeHelper.GetChild(shot, 0);
         var dpi = VisualTreeHelper.GetDpi(shot);
@@ -307,7 +327,7 @@ internal static class DevSnapshot
                 content.UpdateLayout();
                 break;
             case "settings":
-                host = Views.AlertSettingsDialog.Create(tray);
+                host = Views.SettingsWindow.Create((ViewModels.MainViewModel)Application.Current.MainWindow.DataContext, tray);
                 host.Owner = Application.Current.MainWindow;
                 host.Show();
                 await Task.Delay(TimeSpan.FromSeconds(1));

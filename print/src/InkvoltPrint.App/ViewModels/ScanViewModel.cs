@@ -81,7 +81,6 @@ public sealed partial class ScanViewModel : ObservableObject
 
         IsColor = state.ScanColor;
         UseOcr = state.ScanOcr && OcrAvailable;
-        OpenInInkvoltPdf = state.OpenScansInInkvoltPdf;
         SkipBlank = state.ScanSkipBlank;
         Straighten = state.ScanStraighten;
         SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
@@ -149,10 +148,8 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>Inkvolt PDF (the Inkvolt suite's PDF app) is installed: offer to open saved PDFs in it.</summary>
     public bool InkvoltPdfInstalled { get; } = InkvoltApps.Find(InkvoltApps.InkvoltPdf) is not null;
 
-    /// <summary>Open each scan saved as PDF in Inkvolt PDF right away (a setting, remembered).</summary>
-    [ObservableProperty] public partial bool OpenInInkvoltPdf { get; set; }
-
-    partial void OnOpenInInkvoltPdfChanged(bool value) { _state.OpenScansInInkvoltPdf = value; _state.Save(); }
+    /// <summary>Open each scan saved as PDF in Inkvolt PDF right away (Settings).</summary>
+    private bool OpenInInkvoltPdf => _state.OpenScansInInkvoltPdf;
 
     public bool CanOpenSavedInInkvoltPdf => InkvoltPdfInstalled && LastSavedPath?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) == true;
 

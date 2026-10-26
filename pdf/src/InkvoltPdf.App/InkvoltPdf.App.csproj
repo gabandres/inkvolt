@@ -36,6 +36,8 @@
     <Resource Include="..\..\assets\InkvoltPdf-512.png" Link="InkvoltPdfLogo.png" />
     <!-- Shown by Help > About > Third-party notices; packaging/pack-msix.ps1 also copies it into the MSIX -->
     <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
+    <!-- Help > What's New (AppHelp) -->
+    <Resource Include="..\..\WHATS-NEW.md" Link="WHATS-NEW.md" />
   </ItemGroup>
   <ItemGroup>
     <!-- WebView2 SDK (BSD-3-Clause): PDF from Web Page, rendered by the WebView2 runtime that Windows provides (not bundled) -->

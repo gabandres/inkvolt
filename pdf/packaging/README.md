@@ -18,6 +18,10 @@ pwsh -File packaging/pack-msix.ps1 -App Pdf                    # Store build wit
 pwsh -File packaging/pack-msix.ps1 -App Pdf -Version 1.1.0.0   # a later submission
 ```
 
+Before packing a release, rename `## Next` in `pdf/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
+What's New shows that entry once after the update, and its lines are the Store's "What's new in this version". The script
+warns when the heading is missing.
+
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.
 

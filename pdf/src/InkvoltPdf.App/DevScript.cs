@@ -39,7 +39,7 @@ namespace InkvoltPdf.App;
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
-/// <c>· closedialog</c> (close the topmost dialog) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
+/// <c>· closedialog</c> (close the topmost dialog) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
 /// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -102,6 +102,8 @@ internal static class DevScript
         {
             case "wait": await Task.Delay(int.Parse(arg)); break;
             case "shot": Shot(window, arg); break;
+            // dialogshot out.png: the topmost open dialog (use with "later" while a modal is open)
+            case "dialogshot": Shot(Application.Current.Windows.OfType<Window>().Last(w => w != window && w.IsVisible), arg); break;
             // page / zoom / scroll act on the active pane of a split view (the only pane otherwise)
             case "page": tab!.ActiveView.GoToPage(int.Parse(arg) - 1); break;
             case "zoom" when arg == "fitwidth": tab!.ActiveView.SetZoomMode(ZoomMode.FitWidth); break;

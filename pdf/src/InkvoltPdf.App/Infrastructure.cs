@@ -338,6 +338,11 @@ public sealed class AppSettings
 
     /// <summary>"System", "Light" or "Dark".</summary>
     public string Theme { get; set; } = "System";
+    /// <summary>The version this was last run as ("1.0.3"): What's New after an update shows what came since (<see cref="AppHelp"/>).</summary>
+    public string LastVersionSeen { get; set; } = "";
+    /// <summary>No settings file when this run started: a new install, with nothing new to tell about.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsNewInstall { get; private set; }
     /// <summary>Reopen each file at the page and zoom it was left at.</summary>
     public bool RestorePosition { get; set; } = true;
     /// <summary>Reopen the documents that were open when Inkvolt PDF was closed.</summary>
@@ -609,7 +614,9 @@ public sealed class AppSettings
 
     private static AppSettings Load()
     {
+        var isNew = !File.Exists(FilePath);
         TryRead(out var loaded);
+        loaded.IsNewInstall = isNew;
         loaded.SetBaseline();
         return loaded;
     }

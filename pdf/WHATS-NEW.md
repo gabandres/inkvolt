@@ -1,0 +1,34 @@
+# What's new in Inkvolt PDF
+
+Shown in the app once after an update (Help › What's New any time) and used for the Store's "What's new in this version".
+Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.ps1` warns when the version has none);
+`## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
+
+## Next
+
+## 1.0.6
+- Recovery copies: if Inkvolt PDF closes unexpectedly (a crash, a power cut), the next start offers your unsaved changes back.
+- Tabs: right-click a tab for Close Others, Close Tabs to the Right, Copy Path, Show in Folder and Reopen Closed Tab; tabs with the same name show which file is which.
+- Settings › Reset to defaults.
+- Help › What's New, and Help › Report a Problem: copies the details a report needs, with file paths and your names masked, to paste into a GitHub issue. Nothing is sent by the app.
+## 1.0.5
+- Steadier editing: every page change, form edit and signature goes through one tested path that keeps a protected file protected and a signed file's signatures, with the same undo history.
+- Export to Word, Excel and text uses one tested path, the same for single files and Batch.
+
+## 1.0.3
+- Edit text and images right on the page.
+- Prepare Form: create text fields, check boxes, radio buttons, lists, signature fields and buttons, or detect fields on a page automatically.
+- Compare two versions of a PDF, text and visual.
+- Export to Word, Excel or plain text, with text recognition for scanned pages. Forms keep their layout in Word: fill-in lines, labels and boxes where they were.
+- Make PDFs from Office files (with your installed Microsoft Office) and from web pages.
+- Save as PDF/A-2b for archiving.
+- Measure distances, perimeters and areas, with a drawing scale or calibration.
+- Batch: run the same actions on many files at once.
+- Split view: two places of the same document side by side.
+- Sanitize Document: remove hidden data such as metadata, scripts, hidden layers and attachments.
+- Headers and footers (with Bates numbers), watermarks, stamps, pictures and links.
+- Print preview in the Windows print dialog, with page sizing (actual size or fit to paper) right there.
+- Print with Options: pages per sheet, booklet and poster.
+- Optional AI assistant, bring your own (off by default): summarize, ask about a document or explain a passage with Ollama, LM Studio or a service you choose. Answers are AI-generated and may be wrong. You see exactly what is sent, and where, before anything goes.
+- Filled forms look the same in every viewer, new icons, and many fixes.
+- Fixed: opening files failed on PCs without the Visual C++ runtime.

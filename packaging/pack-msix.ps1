@@ -78,6 +78,11 @@ if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$' -or ($Version.Split('.') | Where-O
 if (-not $Version.EndsWith('.0')) { Write-Warning "The Store rejects packages whose last version number isn't 0 ($Version)." }
 if ($IdentityName -notmatch '^[A-Za-z0-9.\-]{3,50}$') { throw "IdentityName: 3-50 letters, digits, '.' or '-': $IdentityName" }
 if ($Publisher -notmatch '^CN=') { throw "Publisher must be a distinguished name starting with CN= (copy it from Partner Center): $Publisher" }
+$notesVersion = ($Version.Split('.')[0..2] -join '.')
+$notesFile = Join-Path $appRoot 'WHATS-NEW.md'
+if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
+    Write-Warning "$notesFile has no '## $notesVersion' heading: the app's What's New will show nothing for this update (rename '## Next')."
+}
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }

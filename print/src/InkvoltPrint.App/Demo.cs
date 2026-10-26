@@ -50,12 +50,15 @@ internal static class Demo
     public const string InkjetHost = "192.0.2.11";
 
     /// <summary>The made-up PC: every adapter the app reaches outside itself, made up (see <see cref="PcEnvironment"/>).</summary>
-    public static PcEnvironment Pc { get; } = new DemoPc();
+    public static PcEnvironment Pc { get; } = new DemoPc(empty: false);
 
-    private sealed class DemoPc : PcEnvironment
+    /// <summary><c>--demo --no-printers</c>: a made-up PC that finds no printer at all (the empty printer list).</summary>
+    public static PcEnvironment EmptyPc { get; } = new DemoPc(empty: true);
+
+    private sealed class DemoPc(bool empty) : PcEnvironment
     {
         public override bool IsDemo => true;
-        public override AppState LoadState() => CreateState();
+        public override AppState LoadState() => empty ? new AppState { IsInMemory = true } : CreateState();
         public override HttpMessageHandler? DeviceTransport() => CreateTransport();
         public override Core.Snmp.ISnmpTransport Snmp => Demo.Snmp;
         public override bool NetworkUp() => true;
@@ -64,7 +67,7 @@ internal static class Demo
 
         // Made up: this PC's queues and scanners are never asked in demo mode.
         public override (IReadOnlyList<Core.Queues.SpoolerQueue>, IReadOnlyList<Core.Wia.WiaDeviceInfo>)? FixedDevices =>
-            (Queues, Demo.Wia.Scanners.Select(s => s.Device).ToList());
+            empty ? ([], []) : (Queues, Demo.Wia.Scanners.Select(s => s.Device).ToList());
 
         public override Core.Wia.IWiaSystem Wia => Demo.Wia;
         public override bool HasWindowsQueues => false;

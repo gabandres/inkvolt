@@ -1471,6 +1471,8 @@ public partial class MainWindow : Window
         BindAlways(Cmd.Exit, Close);
         BindAlways(Cmd.CommandPalette, OpenPalette);
         BindAlways(Cmd.Settings, ShowSettings);
+        BindAlways(Cmd.WhatsNew, () => AppHelp.ShowWhatsNew(this, AppHelp.Notes()));
+        BindAlways(Cmd.ReportProblem, () => AppHelp.ShowReport(this, _tabs.Count));
         BindAlways(Cmd.Shortcuts, () => ShortcutsWindow.Show(this, MainMenu));
         BindAlways(Cmd.FullScreen, ToggleFullScreen);
         BindAlways(Cmd.ToggleDarkMode, () => SetTheme(App.IsDark ? "Light" : "Dark"));
@@ -1992,7 +1994,8 @@ public partial class MainWindow : Window
         var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], s.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 });
         var restore = dlg.AddCheck("Reopen each file at the page where I left off", s.RestorePosition);
         var reopen = dlg.AddCheck("Reopen the files I had open when I closed Inkvolt PDF", s.ReopenTabs);
-        var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes (offered back if Inkvolt PDF closes unexpectedly)", s.KeepRecoveryCopies);
+        var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes", s.KeepRecoveryCopies);
+        recovery.ToolTip = "Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)";
         var dark = dlg.AddCheck("Dark pages (inverted colors for night reading)", s.DarkPages);
         var author = dlg.AddText("Author name on comments", s.AuthorName is { Length: > 0 } a ? a : Environment.UserName);
         dlg.AddNote("To make Inkvolt PDF your default PDF app: Windows Settings › Apps › Default apps › Inkvolt PDF.");
@@ -2005,6 +2008,18 @@ public partial class MainWindow : Window
             if (!AiActions.ShowSettings(dlg)) return;
             aiState.Text = AiActions.Describe();
             foreach (var t in Tabs) t.RefreshAiPane();
+        };
+        var reset = dlg.AddFooterButton("Reset to defaults");
+        reset.ToolTip = "These settings back to how Inkvolt PDF starts, once you press Save. Recent files, signatures and the AI assistant's settings are kept.";
+        reset.Click += (_, _) =>
+        {
+            var d = new AppSettings();
+            theme.SelectedIndex = 0;
+            restore.IsChecked = d.RestorePosition;
+            reopen.IsChecked = d.ReopenTabs;
+            recovery.IsChecked = d.KeepRecoveryCopies;
+            dark.IsChecked = d.DarkPages;
+            author.Text = Environment.UserName;
         };
         if (!dlg.ShowModal()) return;
 

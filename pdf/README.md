@@ -46,7 +46,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   for Close, Close Others, Close Tabs to the Right, Copy Path, Show in Folder and Reopen Closed Tab; middle-click closes it.
   Tabs that would read the same (two documents with the same title, or files of the same name) add the file name or folder
   ("report.pdf · 2026"); the tooltip has the full path.
-- **Start page**: open or combine files, or drop them anywhere; recent files show a first-page preview.
+- **Start page**: open or combine files, or drop them anywhere; recent files show a first-page preview. Before any file has been
+  opened, a tip points at the command palette (Ctrl+K) and F1.
 - **New PDFs from images**: File › New from Images… (JPEG, PNG, BMP, GIF, TIFF; page size: fit each image, Letter or
   A4) or New from Clipboard (Ctrl+Alt+N: a copied image such as a screenshot, or copied image files). Image files
   dropped on the window ask: a new PDF of them, pages at the end of the open document, or just view them; dropped on
@@ -245,6 +246,13 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   protected one keeps its protection.
 - **Command palette** (Ctrl+K): every command (with its icon), recent files, or a page number. **Shortcuts**: F1;
   tooltips show each button's shortcut. Error messages stay until dismissed; other notices fade.
+- **Help › What's New** shows `WHATS-NEW.md` (embedded); after an update it opens once by itself with the versions since the one
+  last run (`AppSettings.LastVersionSeen`; nothing on a new install or in dev-script runs). **Help › Report a Problem…** shows,
+  then copies, the version, Windows, a settings summary and the log's last 200 lines, scrubbed of IP addresses, host names,
+  UUIDs, serial-like IDs, file paths and the user's and PC's names (`InkvoltPrint.Core.Suite.Diagnostics`, shared with Inkvolt
+  Print; tested there), and can open a new GitHub issue with the version filled in to paste them into. Nothing is sent by the app.
+- **Settings** (Ctrl+,): *Reset to defaults* puts the dialog's choices back as a new install has them (saved with Save; recent
+  files, signatures and the AI assistant's settings are kept).
 - **Password protection** (File › Protect with Password…): an open password (with a strength hint) and/or a
   permissions password restricting printing (high/low resolution/none), copying, editing, comments, form filling and
   page assembly; AES-256 (or AES-128 for old readers). An undoable edit; save to keep it. Remove Protection… takes it
