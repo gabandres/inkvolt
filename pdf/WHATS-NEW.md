@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.0.8
 - Steadier: a few specially made PDFs could hang or close Inkvolt PDF (when deleting pages, reducing size, sanitizing, redacting or filling a form); they no longer do.
 - Closing never drops changes made while it asks about another document, and recovery copies are kept when a restore or a write fails.
 - Remove Protection works on files that only have restrictions (no open password).
