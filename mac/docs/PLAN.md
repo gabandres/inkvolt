@@ -77,7 +77,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Builds in CI; run pending |
 | P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
 | P2 | IPP | IppAndPdfTests (IPP part) | Done: 22 tests (codec, text fixtures, status, supplies, Identify-Printer, from OtherBrandsTests, RobustnessTests and MaintenanceTests too). The HTTP client waits for P4 |
-| P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | |
+| P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | Done: 22 tests (LEDM documents and manifest, CDM identity, supplies and status, brands, the hardened XML and JSON readers). The connection, eSCL and web-page tests wait for P4 and P8 |
 | P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | |
 | P5 | Alerts, status lines | AlertTests, StatusLineTests | |
 | P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | |
@@ -91,6 +91,9 @@ mac/InkvoltPrintKit --build-system native`.
 
 - SNMP errors are Swift errors: `SnmpFormatError`, `SnmpTimeoutError`, `SnmpErrorStatus` (the .NET exceptions).
 - IPP attribute values are an enum (`IppAttributeValue`: text, integer, boolean, bytes), not `object`.
+- Device XML is read with `XMLParser` into a small tree (`XmlElement`, by local name); a document with a DTD is refused
+  before parsing. CDM's JSON goes through a small reader of its own (`Json`: numbers keep their text, nesting capped at 64)
+  rather than JSONSerialization, whose booleans and numbers differ between Darwin and other platforms.
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
 
