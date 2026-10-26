@@ -7,7 +7,9 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
 - **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
   `pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
   imports an Apple framework (the probe, PrintMac, the app) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
-  CI job (macos-15, warnings as errors); say which one checked a change.
+  CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
+  Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
+  what it flags before pushing.
 - **The .NET code is the spec.** Port a module by porting its tests first, with the same names, then the code. Read
   fixtures in place from `print/tests/InkvoltPrint.Tests/Fixtures` (and `pdf/tools/export-corpus` later); never copy or
   edit them for the Mac. Where the Mac must behave differently, write it down in `docs/PLAN.md`.

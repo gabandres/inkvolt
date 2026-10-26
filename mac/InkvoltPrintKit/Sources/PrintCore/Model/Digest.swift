@@ -8,10 +8,14 @@ enum Digest {
                            5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
                            4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
                            6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]
-        let k: [UInt32] = (0..<64).map { UInt32(truncatingIfNeeded: Int64(abs(sin(Double($0 + 1))) * 4_294_967_296)) }
+        var k: [UInt32] = []
+        for i in 1...64 {
+            let fraction: Double = abs(sin(Double(i))) * 4_294_967_296
+            k.append(UInt32(truncatingIfNeeded: Int64(fraction)))
+        }
         var a0: UInt32 = 0x67452301, b0: UInt32 = 0xefcdab89, c0: UInt32 = 0x98badcfe, d0: UInt32 = 0x10325476
         for chunk in padded(message, bigEndianLength: false) {
-            let m = (0..<16).map { i in (0..<4).reduce(UInt32(0)) { $0 | UInt32(chunk[i * 4 + $1]) << (8 * UInt32($1)) } }
+            let m = words(chunk, bigEndian: false)
             var (a, b, c, d) = (a0, b0, c0, d0)
             for i in 0..<64 {
                 var f: UInt32
@@ -33,7 +37,7 @@ enum Digest {
             c0 = c0 &+ c
             d0 = d0 &+ d
         }
-        return [a0, b0, c0, d0].flatMap { v in (0..<4).map { UInt8(truncatingIfNeeded: v >> (8 * UInt32($0))) } }
+        return bytes([a0, b0, c0, d0], bigEndian: false)
     }
 
     static func sha256(_ message: [UInt8]) -> [UInt8] {
@@ -49,21 +53,26 @@ enum Digest {
         ]
         var h: [UInt32] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
         for chunk in padded(message, bigEndianLength: true) {
-            var w = (0..<16).map { i in (0..<4).reduce(UInt32(0)) { $0 << 8 | UInt32(chunk[i * 4 + $1]) } }
+            var w = words(chunk, bigEndian: true)
             for i in 16..<64 {
-                let s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3)
-                let s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10)
-                w.append(w[i - 16] &+ s0 &+ w[i - 7] &+ s1)
+                let s0: UInt32 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3)
+                let s1: UInt32 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10)
+                let next: UInt32 = w[i - 16] &+ s0 &+ w[i - 7] &+ s1
+                w.append(next)
             }
             var (a, b, c, d, e, f, g, hh) = (h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7])
             for i in 0..<64 {
-                let t1 = hh &+ (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) &+ ((e & f) ^ (~e & g)) &+ k[i] &+ w[i]
-                let t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) &+ ((a & b) ^ (a & c) ^ (b & c))
+                let sum1: UInt32 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
+                let choose: UInt32 = (e & f) ^ (~e & g)
+                let t1: UInt32 = hh &+ sum1 &+ choose &+ k[i] &+ w[i]
+                let sum0: UInt32 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
+                let majority: UInt32 = (a & b) ^ (a & c) ^ (b & c)
+                let t2: UInt32 = sum0 &+ majority
                 (hh, g, f, e, d, c, b, a) = (g, f, e, d &+ t1, c, b, a, t1 &+ t2)
             }
             for (i, v) in [a, b, c, d, e, f, g, hh].enumerated() { h[i] = h[i] &+ v }
         }
-        return h.flatMap { v in (0..<4).map { UInt8(truncatingIfNeeded: v >> (24 - 8 * UInt32($0))) } }
+        return bytes(h, bigEndian: true)
     }
 
     /// The message with its 0x80 byte, zeros and 64-bit bit length, in 64-byte chunks.
@@ -72,9 +81,35 @@ enum Digest {
         let bits = UInt64(message.count) * 8
         m.append(0x80)
         while m.count % 64 != 56 { m.append(0) }
-        let length = (0..<8).map { UInt8(truncatingIfNeeded: bits >> (8 * UInt64($0))) }
+        var length: [UInt8] = []
+        for j in 0..<8 { length.append(UInt8(truncatingIfNeeded: bits >> UInt64(8 * j))) }
         m += bigEndianLength ? length.reversed() : length
         return stride(from: 0, to: m.count, by: 64).map { Array(m[$0..<$0 + 64]) }
+    }
+
+    /// A 64-byte chunk as sixteen 32-bit words.
+    private static func words(_ chunk: [UInt8], bigEndian: Bool) -> [UInt32] {
+        var words: [UInt32] = []
+        for i in 0..<16 {
+            var word: UInt32 = 0
+            for j in 0..<4 {
+                let byte = UInt32(chunk[i * 4 + j])
+                word |= bigEndian ? byte << UInt32(24 - 8 * j) : byte << UInt32(8 * j)
+            }
+            words.append(word)
+        }
+        return words
+    }
+
+    private static func bytes(_ words: [UInt32], bigEndian: Bool) -> [UInt8] {
+        var out: [UInt8] = []
+        for word in words {
+            for j in 0..<4 {
+                let shift = UInt32(bigEndian ? 24 - 8 * j : 8 * j)
+                out.append(UInt8(truncatingIfNeeded: word >> shift))
+            }
+        }
+        return out
     }
 
     private static func rotl(_ x: UInt32, _ n: UInt32) -> UInt32 { x << n | x >> (32 - n) }

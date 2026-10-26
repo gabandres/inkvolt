@@ -93,8 +93,10 @@ public enum PrinterId {
     }
 
     private static func format(_ b: [UInt8]) -> String {
-        let h = Digest.hex(b)
-        let c = Array(h)
-        return [c[0..<8], c[8..<12], c[12..<16], c[16..<20], c[20..<32]].map { String($0) }.joined(separator: "-")
+        let h = Array(Digest.hex(b))
+        let groups: [Range<Int>] = [0..<8, 8..<12, 12..<16, 16..<20, 20..<32]
+        var parts: [String] = []
+        for g in groups { parts.append(String(h[g])) }
+        return parts.joined(separator: "-")
     }
 }
