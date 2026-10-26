@@ -402,11 +402,11 @@ public partial class MainWindow : Window
             try
             {
                 BringToFront();
-                if (await PrepareToCloseAll())
+                await PrepareToCloseAll(() => [.. _tabs], () =>
                 {
                     _closeApproved = true;
                     Close();
-                }
+                });
             }
             finally
             {
@@ -646,8 +646,19 @@ public partial class MainWindow : Window
         LayoutTabs();
     }
 
-    public void OpenSession(DocumentSession session)
+    /// <remarks>
+    /// While the window asks about unsaved documents before closing, the new tab joins those questions (see
+    /// <see cref="PrepareToCloseAll"/>); once the window has closed, the document is let go.
+    /// </remarks>
+    /// <summary>Shows <paramref name="session"/> in a new tab; false (and disposed) when the window has closed meanwhile.</summary>
+    public bool OpenSession(DocumentSession session)
     {
+        if (_closed || _finished)
+        {
+            Log.Write($"{session.DisplayName} finished opening after the window closed");
+            session.Dispose();
+            return false;
+        }
         var tab = new DocumentTab(session) { Visibility = Visibility.Collapsed };
         var model = new TabModel(tab);
         tab.StateChanged += (_, _) =>
@@ -662,6 +673,7 @@ public partial class MainWindow : Window
         _tabs.Add(model);
         TabStrip.SelectedItem = model;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () => tab.ActiveView.Focus());
+        return true;
     }
 
     private void ShowActiveTab()
@@ -910,17 +922,20 @@ public partial class MainWindow : Window
         try
         {
             if (_closed) return;
-            if (!await PrepareToCloseAll() || _closed) return;
-            if (_forwardedWhileClosing.Count > 0)
+            await PrepareToCloseAll(() => [.. _tabs], () =>
             {
-                // Another launch asked for a file while the window was closing: keep the window for it. The documents
-                // the user agreed to close still close.
-                foreach (var m in _tabs.ToList()) Discard(m);
-                UpdateUi();
-                return;
-            }
-            _closeApproved = true;
-            Close();
+                if (_closed) return;
+                if (_forwardedWhileClosing.Count > 0)
+                {
+                    // Another launch asked for a file while the window was closing: keep the window for it. The documents
+                    // the user agreed to close still close.
+                    foreach (var m in _tabs.ToList()) Discard(m);
+                    UpdateUi();
+                    return;
+                }
+                _closeApproved = true;
+                Close();
+            });
         }
         finally
         {
@@ -952,50 +967,92 @@ public partial class MainWindow : Window
         OpenFiles(files);
     }
 
-    /// <summary>Flushes every tab's pending edits, then asks about each unsaved document. False if anything should stay open.</summary>
-    private async Task<bool> PrepareToCloseAll()
+    /// <summary>
+    /// Flushes every tab's pending edits and asks about each unsaved document, then runs <paramref name="close"/> right
+    /// after the last check, with nothing awaited in between. The pass repeats until it finds nothing new: Save isn't
+    /// modal, so meanwhile the user may edit or type into a tab already passed, and Combine, a conversion or an extract may
+    /// open a tab (which then gets asked about too). <paramref name="scope"/> gives the tabs to close, read anew each pass.
+    /// False if anything should stay open.
+    /// </summary>
+    private async Task<bool> PrepareToCloseAll(Func<IReadOnlyList<TabModel>> scope, Action close)
     {
-        foreach (var model in _tabs.ToList())
+        var letGo = new Dictionary<DocumentTab, byte[]>(); // "Don't save": the content the user agreed to lose
+        for (var pass = 0; ; pass++)
         {
-            if (model.Tab.IsBusy && !model.Tab.HasPendingEdits)
+            var models = scope().Where(_tabs.Contains).ToList();
+            if (models.All(m => IsSettled(m.Tab, letGo)))
             {
-                TabStrip.SelectedItem = model;
-                ShowStatus($"Wait a moment: {model.Title} is still busy.");
+                close();
+                return true;
+            }
+            if (pass == 10) // a tab that never settles (shouldn't happen): don't spin
+            {
+                ShowStatus("Wait a moment: a document is still busy.");
                 return false;
             }
-            await model.Tab.FlushPendingEditsAsync();
-            if (_closed) return false;
+            foreach (var model in models)
+            {
+                if (model.Tab.IsBusy && !model.Tab.HasPendingEdits)
+                {
+                    TabStrip.SelectedItem = model;
+                    ShowStatus($"Wait a moment: {model.Title} is still busy.");
+                    return false;
+                }
+                await model.Tab.FlushPendingEditsAsync();
+                if (_closed) return false;
+            }
+            if (!await ConfirmUnsavedAsync(scope(), letGo)) return false;
         }
-        return await ConfirmUnsavedAsync(_tabs.ToList());
     }
 
-    /// <summary>Asks about each unsaved document first; nothing closes unless every answer allows it.</summary>
-    private async Task<bool> ConfirmUnsavedAsync(IEnumerable<TabModel> models)
+    /// <summary>Nothing left to flush or ask about: no pending edit, no busy work, and saved or let go as it is now.</summary>
+    private static bool IsSettled(DocumentTab tab, Dictionary<DocumentTab, byte[]> letGo) =>
+        tab.IsDisposed
+        || (!tab.IsBusy && !tab.HasPendingEdits
+            && (!tab.Session.IsDirty || (letGo.TryGetValue(tab, out var data) && ReferenceEquals(data, tab.Session.Data))));
+
+    /// <summary>
+    /// Asks about each unsaved document first; nothing closes unless every answer allows it. Documents in
+    /// <paramref name="letGo"/> as they are now aren't asked about again; a "Don't save" answer is added there.
+    /// </summary>
+    private async Task<bool> ConfirmUnsavedAsync(IEnumerable<TabModel> models, Dictionary<DocumentTab, byte[]> letGo)
     {
         foreach (var model in models)
         {
-            if (!_tabs.Contains(model) || !model.Tab.Session.IsDirty) continue;
+            var session = model.Tab.Session;
+            if (!_tabs.Contains(model) || !session.IsDirty || IsSettled(model.Tab, letGo)) continue;
             TabStrip.SelectedItem = model;
-            switch (Prompt.SaveChanges(this, model.Tab.Session.DisplayName))
+            var data = session.Data;
+            switch (Prompt.SaveChanges(this, session.DisplayName))
             {
                 case SaveChoice.Cancel:
                     return false;
                 case SaveChoice.Save when !await SaveAsync(model.Tab):
                     return false;
+                case SaveChoice.DontSave:
+                    letGo[model.Tab] = data;
+                    break;
             }
             if (_closed) return false;
         }
         return true;
     }
 
-    /// <summary>Last step of closing the window: remember the open files (after any Save As), release everything.</summary>
+    /// <summary>
+    /// Last step of closing the window: remember the open files (after any Save As), release everything. Recovery copies
+    /// go when the user settled every document; when the window closes regardless (Windows ending the session), the
+    /// unsaved ones keep theirs for the next start.
+    /// </summary>
     private void FinishClose()
     {
         if (_finished) return;
         _finished = true;
         RememberOpenTabs();
+        var unasked = !_closeApproved && _tabs.Any(t => t.Tab.Session.IsDirty || t.Tab.HasPendingEdits);
+        if (unasked) _autosave.Copy(wait: true);
         foreach (var model in _tabs.ToList()) Discard(model);
-        _autosave.Dispose(); // every document was saved or let go: no recovery copies to keep
+        if (unasked) _autosave.Keep();
+        else _autosave.Dispose(); // every document was saved or let go: no recovery copies to keep
         SavePlacement();
     }
 
@@ -1058,29 +1115,39 @@ public partial class MainWindow : Window
             var wrong = false;
             while (true)
             {
+                DocumentSession session;
                 try
                 {
                     var pw = password;
-                    var session = await Task.Run(() => DocumentSession.Recover(data, info.OriginalPath, info.DisplayName, stamp, pw));
-                    OpenSession(session);
-                    if (ActiveTab is { } tab && info.Page > 0 && info.Page < tab.PageView.PageCount)
-                        _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => tab.PageView.GoToPage(info.Page, record: false));
-                    ShowToast(new Toast($"Restored {info.DisplayName} with its unsaved changes. Save to keep them."));
-                    return true;
+                    session = await Task.Run(() => DocumentSession.Recover(data, info.OriginalPath, info.DisplayName, stamp, pw));
                 }
                 catch (PasswordRequiredException ex)
                 {
                     password = PdfFiles.PromptPassword(this, info.DisplayName, wrong || ex.WrongPassword);
                     if (password is null) return false; // kept for the next start
                     wrong = true;
+                    continue;
                 }
+                catch (Exception ex) when (ex is not (OutOfMemoryException or IOException or UnauthorizedAccessException))
+                {
+                    // The copy's bytes don't open as a PDF: offering it again would fail the same way.
+                    Log.Write($"Restoring {info.DisplayName} failed: {ex}");
+                    RecoveryStore.Remove(document);
+                    ShowToast(new Toast($"Couldn't restore {info.DisplayName}: the copy is damaged.", IsError: true));
+                    return false;
+                }
+                if (!OpenSession(session)) return false; // the window closed meanwhile: the copy stays for the next start
+                if (ActiveTab is { } tab && info.Page > 0 && info.Page < tab.PageView.PageCount)
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => tab.PageView.GoToPage(info.Page, record: false));
+                ShowToast(new Toast($"Restored {info.DisplayName} with its unsaved changes. Save to keep them."));
+                return true;
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Reading the copy failed (in use, no access) or the tab couldn't be made: the copy may be fine, so it stays.
             Log.Write($"Restoring {info.DisplayName} failed: {ex}");
-            RecoveryStore.Remove(document);
-            ShowToast(new Toast($"Couldn't restore {info.DisplayName}: the copy is damaged.", IsError: true));
+            ShowToast(new Toast($"Couldn't restore {info.DisplayName}: {ex.Message} The copy is kept; it's offered again at the next start.", IsError: true));
             return false;
         }
     }
@@ -1448,13 +1515,15 @@ public partial class MainWindow : Window
     private async Task CloseAllAsync()
     {
         var models = _tabs.ToList(); // a file opened while the prompts are up stays open
-        if (!await PrepareToCloseAll()) return;
-        foreach (var m in models.Where(_tabs.Contains))
+        await PrepareToCloseAll(() => models, () =>
         {
-            RememberClosed(m.Tab);
-            Discard(m);
-        }
-        UpdateUi();
+            foreach (var m in models.Where(_tabs.Contains))
+            {
+                RememberClosed(m.Tab);
+                Discard(m);
+            }
+            UpdateUi();
+        });
     }
 
     private void BindAlways(ICommand command, Action execute) =>
@@ -1508,7 +1577,7 @@ public partial class MainWindow : Window
             if ((t.Session.IsDirty || t.HasPendingEdits) && !Prompt.Confirm(this, $"Reload {t.Session.DisplayName}?",
                     "Your unsaved changes will be discarded and the file reopened as it is on disk.", "Reload", warning: true))
                 return;
-            _ = t.ReloadFromDiskAsync($"Reloaded {t.Session.DisplayName}");
+            _ = t.ReloadFromDiskAsync($"Reloaded {t.Session.DisplayName}", manual: true);
         }, t => t.Session.FilePath is not null && !IsSaving(t));
         Bind(Cmd.Print, t => _ = FileActions.Print(this, t), t => t.PageView.PageCount > 0);
         Bind(Cmd.PrintWithOptions, t => _ = FileActions.Print(this, t, withOptions: true), t => t.PageView.PageCount > 0);

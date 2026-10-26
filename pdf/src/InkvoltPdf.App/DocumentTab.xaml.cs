@@ -876,8 +876,11 @@ public partial class DocumentTab : UserControl, IDisposable
             _busyDelay.Start();
         }
         Cursor = text is not null ? Cursors.AppStarting : null;
+        // The layers make a new view engine: not while a print or export reads the one shown.
+        LayersPanel.IsEnabled = !IsBusy;
         if (!IsBusy)
         {
+            DisposeRetiredEngines();
             var idle = _idle;
             _idle = null;
             idle?.TrySetResult();
@@ -1635,7 +1638,7 @@ public partial class DocumentTab : UserControl, IDisposable
         else if (!_diskAcknowledged)
         {
             ShowDiskBar($"{name} was changed by another program. Reload it to see those changes (yours will be discarded), or keep your version (saving it will overwrite theirs).",
-                "Reload", () => _ = ReloadFromDiskAsync($"Reloaded {name}"), "Keep mine", () =>
+                "Reload", () => _ = ReloadFromDiskAsync($"Reloaded {name}", manual: true), "Keep mine", () =>
                 {
                     _diskAcknowledged = true;
                     DiskBar.Visibility = Visibility.Collapsed;
@@ -1643,47 +1646,80 @@ public partial class DocumentTab : UserControl, IDisposable
         }
     }
 
-    /// <summary>Reopens the file from disk in place (same page and zoom). Discards unsaved changes and undo history.</summary>
-    public async Task ReloadFromDiskAsync(string? toast = null)
+    /// <summary>
+    /// Reopens the file from disk in place (same page and zoom). Discards unsaved changes and undo history.
+    /// <paramref name="manual"/>: the user asked (Reload, the bar's buttons): a file that now needs another password asks
+    /// for it, and a failure says why instead of waiting for the next look at the file.
+    /// </summary>
+    public async Task ReloadFromDiskAsync(string? toast = null, bool manual = false)
     {
         // Let an open editor's value and any edit in flight land first, so nothing is written over the reloaded copy.
         await FlushPendingEditsAsync();
         if (_disposed || IsBusy || _pendingWrites > 0) return;
-        // Read and parsed on a worker thread (big files don't freeze the window); busy meanwhile, so no edit cuts in.
-        var busy = BeginBusy($"Reloading {Session.DisplayName}…");
-        try
+        string? password = null;
+        var wrong = false;
+        while (true)
         {
-            var reloaded = await Session.ReloadFromDiskAsync(() =>
+            // Read and parsed on a worker thread (big files don't freeze the window); busy meanwhile, so no edit cuts in.
+            var busy = BeginBusy($"Reloading {Session.DisplayName}…");
+            try
             {
-                if (_disposed) return false;
-                // Values typed while the file was read are part of the copy being replaced.
-                _formQueue.Clear();
-                Viewer.ClearPendingValues();
-                _signatureBaselineStale = true;
-                busy.Dispose(); // idle again before the new content arrives, so its handlers see a normal tab
-                return true;
-            });
-            if (!reloaded) return;
-            _reloadAttempts = 0;
-            DiskBar.Visibility = Visibility.Collapsed;
-            if (toast is not null) Notify(toast);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            // Often the other program is still writing the file: try again a few times, then say so.
-            Log.Write($"Reload of {Session.DisplayName} failed: {ex.Message}");
-            if (++_reloadAttempts <= 3)
-            {
-                ScheduleDiskCheck();
+                var reloaded = await Session.ReloadFromDiskAsync(() =>
+                {
+                    if (_disposed) return false;
+                    // Values typed while the file was read are part of the copy being replaced.
+                    _formQueue.Clear();
+                    Viewer.ClearPendingValues();
+                    _signatureBaselineStale = true;
+                    busy.Dispose(); // idle again before the new content arrives, so its handlers see a normal tab
+                    return true;
+                }, password);
+                if (!reloaded) return;
+                _reloadAttempts = 0;
+                DiskBar.Visibility = Visibility.Collapsed;
+                if (toast is not null) Notify(toast);
                 return;
             }
-            _reloadAttempts = 0;
-            ShowDiskBar($"{Session.DisplayName} was changed by another program, but it couldn't be reloaded: {ex.Message}",
-                "Try again", () => _ = ReloadFromDiskAsync(toast), null, null);
-        }
-        finally
-        {
-            busy.Dispose();
+            catch (PasswordRequiredException ex) when (manual && !_disposed)
+            {
+                busy.Dispose();
+                password = Window.GetWindow(this) is { } owner ? PdfFiles.PromptPassword(owner, Session.DisplayName, wrong || ex.WrongPassword) : null;
+                if (password is null || _disposed) return;
+                wrong = true;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Log.Write($"Reload of {Session.DisplayName} failed: {ex.Message}");
+                if (_disposed) return;
+                if (manual)
+                {
+                    Prompt.Error(Window.GetWindow(this), $"Couldn't reload {Session.DisplayName}",
+                        $"{ex.Message}{Environment.NewLine}{Environment.NewLine}The document stays as it was.");
+                    return;
+                }
+                if (ex is PasswordRequiredException)
+                {
+                    // Another program protected it with a password this tab doesn't know: Reload asks for it.
+                    _reloadAttempts = 0;
+                    ShowDiskBar($"{Session.DisplayName} was changed by another program and now needs a password to open.",
+                        "Reload…", () => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
+                    return;
+                }
+                // Often the other program is still writing the file: try again a few times, then say so.
+                if (++_reloadAttempts <= 3)
+                {
+                    ScheduleDiskCheck();
+                    return;
+                }
+                _reloadAttempts = 0;
+                ShowDiskBar($"{Session.DisplayName} was changed by another program, but it couldn't be reloaded: {ex.Message}",
+                    "Try again", () => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
+                return;
+            }
+            finally
+            {
+                busy.Dispose();
+            }
         }
     }
 
@@ -1722,6 +1758,7 @@ public partial class DocumentTab : UserControl, IDisposable
         DisposeAi();
         _viewEngine?.Dispose();
         _viewEngine = null;
+        DisposeRetiredEngines();
         Session.Dispose();
     }
 }

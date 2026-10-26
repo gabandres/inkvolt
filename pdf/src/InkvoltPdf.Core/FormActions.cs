@@ -240,7 +240,8 @@ public static partial class FormEditor
         }
         // The options may be inherited: write them where they live, so the field's kids keep sharing them.
         var holder = f.Dict;
-        for (var d = f.Dict; d is not null; d = PdfObj.Dict(d.Elements["/Parent"]))
+        var guard = 0;
+        for (var d = f.Dict; d is not null && guard++ < 64; d = PdfObj.Dict(d.Elements["/Parent"]))
             if (d.Elements.ContainsKey("/Opt"))
             {
                 holder = d;

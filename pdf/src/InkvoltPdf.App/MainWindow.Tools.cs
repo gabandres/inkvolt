@@ -18,7 +18,7 @@ public partial class MainWindow
         Bind(Cmd.SaveAsPdfA, t => _ = PdfAActions.SaveAs(this, t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
-        BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.Engine.IsEncrypted);
+        BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.HasEncryption);
         BindEdit(Cmd.ReduceSize, t => FileTools.ReduceSize(this, t));
         BindEdit(Cmd.Flatten, t => FileTools.Flatten(this, t));
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));

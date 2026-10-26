@@ -19,6 +19,8 @@ internal sealed class Autosave : IDisposable
     {
         public string Id { get; } = id;
         public byte[]? Written; // the bytes last copied (documents swap in new arrays on every change)
+        public byte[]? Writing; // the bytes queued to be copied, until the write is done
+        public bool Started; // a write was queued: there may be files to remove
     }
 
     private readonly Func<IReadOnlyList<DocumentTab>> _tabs;
@@ -58,36 +60,57 @@ internal sealed class Autosave : IDisposable
             }
             if (!_entries.TryGetValue(tab, out var entry)) _entries[tab] = entry = new Entry(Guid.NewGuid().ToString("N"));
             var data = session.Data;
-            if (ReferenceEquals(entry.Written, data)) continue;
-            entry.Written = data;
+            if (ReferenceEquals(entry.Written, data) || ReferenceEquals(entry.Writing, data)) continue;
+            entry.Writing = data;
+            entry.Started = true;
             var stamp = session.DiskStampWhenRead;
             var info = new RecoveryInfo(session.DisplayName, session.FilePath, stamp?.Length, stamp?.WriteTimeUtc, DateTime.UtcNow,
                 tab.PageView.CurrentPage);
-            Enqueue(store => store.Write(entry.Id, data, info));
+            // Counted as copied only once written: a failed write (disk full, folder locked) is tried again next pass.
+            Enqueue(store => store.Write(entry.Id, data, info), ok =>
+            {
+                if (ReferenceEquals(entry.Writing, data)) entry.Writing = null;
+                if (ok) entry.Written = data;
+            });
         }
         if (wait) _queue.Wait(TimeSpan.FromSeconds(10));
     }
 
     private void Forget(DocumentTab tab)
     {
-        if (!_entries.Remove(tab, out var entry) || entry.Written is null) return;
+        if (!_entries.Remove(tab, out var entry) || !entry.Started) return;
         Enqueue(store => store.Remove(entry.Id));
     }
 
-    private void Enqueue(Action<RecoveryStore> work)
+    /// <summary>Queues store work; <paramref name="done"/> (on the UI thread) learns whether it succeeded.</summary>
+    private void Enqueue(Action<RecoveryStore> work, Action<bool>? done = null)
     {
+        var dispatcher = Dispatcher.CurrentDispatcher;
         _queue = _queue.ContinueWith(_ =>
         {
+            var ok = false;
             try
             {
                 _store ??= RecoveryStore.Start(Root);
                 work(_store);
+                ok = true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Log.Write($"Recovery copy failed: {ex.Message}");
             }
+            if (done is not null) dispatcher.BeginInvoke(() => done(ok));
         }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// The window closed without the user settling every document (Windows ended the session): the copies stay, and the
+    /// next start offers them (the run's lock goes when the process ends).
+    /// </summary>
+    public void Keep()
+    {
+        _timer.Stop();
+        _queue.Wait(TimeSpan.FromSeconds(10));
     }
 
     /// <summary>A clean exit: every copy goes (the documents were saved, or the user chose not to).</summary>

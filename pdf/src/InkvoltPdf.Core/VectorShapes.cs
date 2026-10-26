@@ -63,6 +63,7 @@ public static class VectorShapes
     private sealed class Walker(PdfPage page, CancellationToken cancel)
     {
         public readonly List<PageShape> Shapes = [];
+        private readonly Dictionary<PdfDictionary, CSequence?> _forms = new(ReferenceEqualityComparer.Instance);
         private int _ops;
 
         public sealed class State
@@ -181,11 +182,16 @@ public static class VectorShapes
             var m = PdfObj.Array(form.Elements["/Matrix"]) is { Elements.Count: 6 } a
                 ? new Matrix(PdfObj.Num(a, 0), PdfObj.Num(a, 1), PdfObj.Num(a, 2), PdfObj.Num(a, 3), PdfObj.Num(a, 4), PdfObj.Num(a, 5))
                 : Matrix.Identity;
-            var bytes = PdfObj.StreamBytes(form);
-            if (bytes.Length == 0) return;
+            // Read once: a form can be drawn many times, and its content (comments, say) cost more than its operators.
+            if (!_forms.TryGetValue(form, out var content))
+            {
+                var bytes = PdfObj.StreamBytes(form);
+                _forms[form] = content = bytes.Length == 0 ? null : ContentReader.ReadContent(bytes);
+            }
+            if (content is null) return;
             var inner = state.Clone();
             inner.Ctm = m.Then(state.Ctm);
-            Run(ContentReader.ReadContent(bytes), PdfObj.Dict(form.Elements["/Resources"]) ?? resources, inner, depth + 1);
+            Run(content, PdfObj.Dict(form.Elements["/Resources"]) ?? resources, inner, depth + 1);
         }
 
         private static IEnumerable<COperator> Operators(CSequence seq)

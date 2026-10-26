@@ -24,6 +24,7 @@ public sealed partial class DocumentSession : IDisposable
     private long _lastStepId;
     private bool _disposed;
     private (long Length, DateTime WriteTimeUtc)? _onDisk;
+    private string? _diskPassword; // what opens the file on disk: the session's own may differ after a protection change
 
     public string? FilePath { get; private set; }
     public string DisplayName { get; private set; }
@@ -40,6 +41,26 @@ public sealed partial class DocumentSession : IDisposable
     /// <summary>True when the content differs from what is on disk (undoing back to the saved state clears it).</summary>
     public bool IsDirty => _version != _savedVersion;
     public bool IsPdf => FileType == InputFileTypes.PDF;
+
+    private sealed record EncryptionScan(byte[] Data, bool Found);
+    private EncryptionScan? _encryptionScan;
+
+    /// <summary>
+    /// True when the PDF has an encryption dictionary: it needs a password to open, or only restricts printing, copying or
+    /// editing. <see cref="PdfEngine.IsEncrypted"/> is true only in the first case (MuPDF opens the others as plain).
+    /// Remove Protection applies to both; signing refuses both. A byte scan as signing's own, cached per content.
+    /// </summary>
+    public bool HasEncryption
+    {
+        get
+        {
+            var data = Data;
+            if (_encryptionScan is { } scan && ReferenceEquals(scan.Data, data)) return scan.Found;
+            var found = IsPdf && data.AsSpan().IndexOf("/Encrypt"u8) >= 0;
+            _encryptionScan = new EncryptionScan(data, found);
+            return found;
+        }
+    }
 
     /// <summary>The file's size and time when it was opened or last saved (null for a document never saved).</summary>
     public (long Length, DateTime WriteTimeUtc)? DiskStampWhenRead => _onDisk;
@@ -79,7 +100,7 @@ public sealed partial class DocumentSession : IDisposable
         var type = PdfEngine.TypeFromPath(path);
         var engine = PdfEngine.Open(data, type, password);
         var openPassword = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), data, password, type, engine) { _onDisk = stamp, OpenPassword = openPassword };
+        return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), data, password, type, engine) { _onDisk = stamp, OpenPassword = openPassword, _diskPassword = password };
     }
 
     /// <summary>A new, unsaved PDF (e.g. the result of Combine or Extract).</summary>
@@ -104,7 +125,7 @@ public sealed partial class DocumentSession : IDisposable
         var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine) { OpenPassword = openPassword };
+        var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine) { OpenPassword = openPassword, _diskPassword = password };
         session._onDisk = path is null ? null : diskStamp ?? DiskStamp(path);
         session._savedVersion = -1; // unsaved changes
         return session;
@@ -174,7 +195,7 @@ public sealed partial class DocumentSession : IDisposable
     {
         path = Path.GetFullPath(path);
         WriteFile(path, Data);
-        MarkSaved(path, _version);
+        MarkSaved(path, _version, Password);
     }
 
     /// <summary>
@@ -184,15 +205,15 @@ public sealed partial class DocumentSession : IDisposable
     public async Task SaveAsAsync(string path)
     {
         path = Path.GetFullPath(path);
-        var data = Data;
-        var version = _version;
+        var (data, version, password) = (Data, _version, Password);
         await Task.Run(() => WriteFile(path, data));
-        MarkSaved(path, version);
+        MarkSaved(path, version, password);
     }
 
-    private void MarkSaved(string path, int version)
+    private void MarkSaved(string path, int version, string? password)
     {
         FilePath = path;
+        _diskPassword = password;
         DisplayName = Path.GetFileName(path);
         _savedVersion = version;
         _onDisk = DiskStamp(path);
@@ -256,18 +277,22 @@ public sealed partial class DocumentSession : IDisposable
     public bool IsMissingOnDisk() => FilePath is not null && !File.Exists(FilePath);
 
     /// <summary>
-    /// Re-reads the file (same password), discarding unsaved changes and undo history; raises ContentChanged then
-    /// StateChanged. On failure (I/O, password, corrupt file) nothing changes.
+    /// Re-reads the file with the password that opened or saved it (not the session's own after Remove Protection or a
+    /// new password), discarding unsaved changes and undo history; raises ContentChanged then StateChanged. On failure
+    /// (I/O, password, corrupt file) nothing changes.
     /// </summary>
-    public void ReloadFromDisk() => ApplyReload(ReadDiskCopy(FilePath, FileType, Password));
+    /// <exception cref="PasswordRequiredException">The file needs another password (another program protected it).</exception>
+    public void ReloadFromDisk() => ApplyReload(ReadDiskCopy(FilePath, FileType, _diskPassword));
 
     /// <summary>
     /// <see cref="ReloadFromDisk"/> with the reading and parsing on a worker thread; the content is swapped on the calling
     /// thread. Returns false (nothing changed) when <paramref name="stillWanted"/> says no once the file has been read.
+    /// <paramref name="password"/>: one the user gave after <see cref="PasswordRequiredException"/>.
     /// </summary>
-    public async Task<bool> ReloadFromDiskAsync(Func<bool>? stillWanted = null)
+    public async Task<bool> ReloadFromDiskAsync(Func<bool>? stillWanted = null, string? password = null)
     {
-        var (path, type, password) = (FilePath, FileType, Password);
+        var (path, type) = (FilePath, FileType);
+        password ??= _diskPassword;
         var copy = await Task.Run(() => ReadDiskCopy(path, type, password));
         if (stillWanted?.Invoke() == false || path != FilePath)
         {
@@ -278,18 +303,23 @@ public sealed partial class DocumentSession : IDisposable
         return true;
     }
 
-    private sealed record DiskCopy(byte[] Data, PdfEngine Engine, (long, DateTime)? Stamp);
+    private sealed record DiskCopy(byte[] Data, PdfEngine Engine, (long, DateTime)? Stamp, string? Password, string? OpenPassword);
 
     private static DiskCopy ReadDiskCopy(string? path, InputFileTypes type, string? password)
     {
         if (path is null) throw new InvalidOperationException("This document has not been saved to a file.");
         var stamp = DiskStamp(path);
         var data = File.ReadAllBytes(path);
-        return new DiskCopy(data, PdfEngine.Open(data, type, password), stamp);
+        var engine = PdfEngine.Open(data, type, password);
+        var openPassword = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
+        return new DiskCopy(data, engine, stamp, password, openPassword);
     }
 
     private void ApplyReload(DiskCopy copy)
     {
+        // The file's passwords from now on; the same password keeps an open password learned since.
+        if (copy.Password != Password) (Password, OpenPassword) = (copy.Password, copy.OpenPassword);
+        _diskPassword = copy.Password;
         _undo.Clear();
         _redo.Clear();
         _onDisk = copy.Stamp;

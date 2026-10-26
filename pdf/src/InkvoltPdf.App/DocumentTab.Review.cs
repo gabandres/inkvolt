@@ -214,6 +214,7 @@ public partial class DocumentTab
     private readonly Dictionary<string, bool> _layerChoice = [];
     private int _layerTicket;
     private PdfEngine? _viewEngine;
+    private readonly List<PdfEngine> _retiredEngines = []; // replaced layer views a print or export may still read
     private IReadOnlyList<SignatureInfo> _signatures = [];
     private readonly Dictionary<string, SignatureInfo> _signaturesOnOpen = [];
     private bool _signatureBaselineStale; // reloaded from disk: the next verification is the new "on open" result
@@ -975,7 +976,7 @@ public partial class DocumentTab
         Viewer.SetEngine(ViewEngine, _scheduler, keepPosition: true, contentOnly: true);
         RebuildThumbs();
         if (IsOrganizing) Organizer.Load(Session.Engine, Organizer.SelectedPages, Viewer.CurrentPage);
-        old?.Dispose();
+        if (old is not null) RetireEngine(old);
         RaiseState();
     }
 
@@ -986,7 +987,23 @@ public partial class DocumentTab
         if (_viewEngine is null) return;
         var old = _viewEngine;
         _viewEngine = null;
-        old.Dispose();
+        RetireEngine(old);
+    }
+
+    /// <summary>
+    /// Lets a layer view go. Printing and exporting read <see cref="ViewEngine"/> while the tab is busy, so one replaced
+    /// meanwhile is disposed once the tab is idle (see <see cref="UpdateBusy"/>).
+    /// </summary>
+    private void RetireEngine(PdfEngine engine)
+    {
+        if (IsBusy && !_disposed) _retiredEngines.Add(engine);
+        else engine.Dispose();
+    }
+
+    private void DisposeRetiredEngines()
+    {
+        foreach (var engine in _retiredEngines) engine.Dispose();
+        _retiredEngines.Clear();
     }
 
     private async Task SaveLayersAsDefault()

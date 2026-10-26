@@ -713,7 +713,7 @@ public static class Sanitizer
 
         private bool OcmdVisible(PdfDictionary ocmd)
         {
-            if (PdfObj.Array(ocmd.Elements["/VE"]) is { } ve && Evaluate(ve, 0) is { } result) return result;
+            if (PdfObj.Array(ocmd.Elements["/VE"]) is { } ve && Evaluate(ve, new Dictionary<PdfArray, bool?>(RefEq), 0) is { } result) return result;
             var members = Members(ocmd.Elements["/OCGs"]);
             if (members.Count == 0) return true;
             bool On(PdfDictionary m) => !_hiddenOcgs!.Contains(m);
@@ -726,29 +726,38 @@ public static class Sanitizer
             };
         }
 
-        /// <summary>A visibility expression ([/And ...], [/Or ...], [/Not x]); null when it can't be read.</summary>
-        private bool? Evaluate(PdfArray ve, int depth)
+        /// <summary>
+        /// A visibility expression ([/And ...], [/Or ...], [/Not x]); null when it can't be read. Each array is evaluated
+        /// once (<paramref name="done"/>): an expression can use one many times.
+        /// </summary>
+        private bool? Evaluate(PdfArray ve, Dictionary<PdfArray, bool?> done, int depth)
         {
-            if (depth > 16 || ve.Elements.Count < 2) return null;
-            var operands = new List<bool>();
-            foreach (var e in ve.Elements.Skip(1))
+            if (done.TryGetValue(ve, out var known)) return known;
+            return done[ve] = Read();
+
+            bool? Read()
             {
-                bool? v = PdfObj.Resolve(e) switch
+                if (depth > 16 || ve.Elements.Count < 2) return null;
+                var operands = new List<bool>();
+                foreach (var e in ve.Elements.Skip(1))
                 {
-                    PdfArray sub => Evaluate(sub, depth + 1),
-                    PdfDictionary ocg => !_hiddenOcgs!.Contains(ocg),
+                    bool? v = PdfObj.Resolve(e) switch
+                    {
+                        PdfArray sub => Evaluate(sub, done, depth + 1),
+                        PdfDictionary ocg => !_hiddenOcgs!.Contains(ocg),
+                        _ => null,
+                    };
+                    if (v is null) return null;
+                    operands.Add(v.Value);
+                }
+                return PdfObj.Name(ve.Elements[0]) switch
+                {
+                    "And" => operands.All(x => x),
+                    "Or" => operands.Any(x => x),
+                    "Not" => !operands[0],
                     _ => null,
                 };
-                if (v is null) return null;
-                operands.Add(v.Value);
             }
-            return PdfObj.Name(ve.Elements[0]) switch
-            {
-                "And" => operands.All(x => x),
-                "Or" => operands.Any(x => x),
-                "Not" => !operands[0],
-                _ => null,
-            };
         }
 
         private void StripLayers()
@@ -911,7 +920,7 @@ public static class Sanitizer
             foreach (var m in ocmds.Where(m => m.Elements.ContainsKey("/VE")))
             {
                 var used = new HashSet<PdfDictionary>(RefEq);
-                CollectVe(PdfObj.Array(m.Elements["/VE"]), used, 0);
+                CollectVe(PdfObj.Array(m.Elements["/VE"]), used, new HashSet<PdfArray>(RefEq), 0);
                 if (used.Overlaps(gone)) _notes.Add("A layer visibility expression uses a hidden layer, so that layer was kept (still hidden; its content was removed).");
                 gone.ExceptWith(used);
             }
@@ -930,40 +939,45 @@ public static class Sanitizer
             }
             if (gone.Count == 0) return;
 
-            Filter(PdfObj.Array(props.Elements["/OCGs"]), gone);
+            var filtered = new HashSet<PdfArray>(RefEq);
+            Filter(PdfObj.Array(props.Elements["/OCGs"]), gone, filtered);
             var configs = new List<PdfDictionary>();
             if (PdfObj.Dict(props.Elements["/D"]) is { } d) configs.Add(d);
             if (PdfObj.Array(props.Elements["/Configs"]) is { } more) configs.AddRange(more.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>());
             foreach (var c in configs)
             {
-                foreach (var key in new[] { "/ON", "/OFF", "/Locked", "/Order" }) Filter(PdfObj.Array(c.Elements[key]), gone);
+                foreach (var key in new[] { "/ON", "/OFF", "/Locked", "/Order" }) Filter(PdfObj.Array(c.Elements[key]), gone, filtered);
                 if (PdfObj.Array(c.Elements["/RBGroups"]) is { } groups)
-                    foreach (var g in groups.Elements) Filter(PdfObj.Array(g), gone);
+                    foreach (var g in groups.Elements) Filter(PdfObj.Array(g), gone, filtered);
                 if (PdfObj.Array(c.Elements["/AS"]) is { } auto)
-                    foreach (var a in auto.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) Filter(PdfObj.Array(a.Elements["/OCGs"]), gone);
+                    foreach (var a in auto.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) Filter(PdfObj.Array(a.Elements["/OCGs"]), gone, filtered);
             }
             if (PdfObj.Array(props.Elements["/OCGs"]) is not { Elements.Count: > 0 }) Catalog.Elements.Remove("/OCProperties");
         }
 
-        private static void CollectVe(PdfArray? ve, HashSet<PdfDictionary> into, int depth)
+        /// <summary>The layers an expression names (each of its arrays read once: <paramref name="seen"/>).</summary>
+        private static void CollectVe(PdfArray? ve, HashSet<PdfDictionary> into, HashSet<PdfArray> seen, int depth)
         {
-            if (ve is null || depth > 16) return;
+            if (ve is null || depth > 16 || !seen.Add(ve)) return;
             foreach (var e in ve.Elements.Skip(1))
             {
-                if (PdfObj.Resolve(e) is PdfArray sub) CollectVe(sub, into, depth + 1);
+                if (PdfObj.Resolve(e) is PdfArray sub) CollectVe(sub, into, seen, depth + 1);
                 else if (PdfObj.Dict(e) is { } ocg) into.Add(ocg);
             }
         }
 
-        /// <summary>Removes the layers from an array, and from arrays inside it (/Order nests them).</summary>
-        private static void Filter(PdfArray? a, HashSet<PdfDictionary> gone, int depth = 0)
+        /// <summary>
+        /// Removes the layers from an array, and from arrays inside it (/Order nests them). Arrays in
+        /// <paramref name="done"/> were filtered already (arrays can be shared).
+        /// </summary>
+        private static void Filter(PdfArray? a, HashSet<PdfDictionary> gone, HashSet<PdfArray> done, int depth = 0)
         {
-            if (a is null || depth > 32) return;
+            if (a is null || depth > 32 || !done.Add(a)) return;
             for (var k = a.Elements.Count - 1; k >= 0; k--)
             {
                 var e = a.Elements[k];
                 if (PdfObj.Dict(e) is { } d && gone.Contains(d)) a.Elements.RemoveAt(k);
-                else if (PdfObj.Resolve(e) is PdfArray sub) Filter(sub, gone, depth + 1);
+                else if (PdfObj.Resolve(e) is PdfArray sub) Filter(sub, gone, done, depth + 1);
             }
         }
     }

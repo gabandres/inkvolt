@@ -391,7 +391,7 @@ public static class AiActions
         var data = s.Data;
         // MuPDF opens a file that needs no open password as unencrypted, so look for the encryption dictionary itself
         // (a quick byte scan) before reading the permissions with PDFsharp.
-        if (!s.IsPdf || data.AsSpan().IndexOf("/Encrypt"u8) < 0) return false;
+        if (!s.IsPdf || !s.HasEncryption) return false;
         var password = s.Password;
         try
         {

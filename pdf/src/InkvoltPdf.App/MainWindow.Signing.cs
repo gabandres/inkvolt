@@ -25,10 +25,10 @@ public partial class MainWindow
         {
             await t.FlushPendingEditsAsync();
             if (t.IsDisposed) return;
-            if (t.Session.Engine.IsEncrypted)
+            if (t.Session.HasEncryption) // also a PDF that only restricts printing or copying: signing can't keep its encryption
             {
-                Prompt.Info(this, "Password-protected PDFs can't be signed",
-                    "Save a copy without the password protection first (Save As), then sign that copy.");
+                Prompt.Info(this, "Protected PDFs can't be signed",
+                    "Remove the protection first (File › Remove Protection), then sign: the signed copy is saved as a new file.");
                 return;
             }
             var (aspect, fieldVisible) = field is null ? (3.6, true) : t.SignatureFieldShape(field);

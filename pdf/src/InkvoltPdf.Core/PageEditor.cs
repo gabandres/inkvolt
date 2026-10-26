@@ -441,13 +441,16 @@ internal static class PdfStructure
 
         WriteOutline(doc, Prune(ReadOutline(doc), item => Dead(names.Of(item.Dict))));
 
-        // A jump (or a chain of actions with one) to a removed page: the action goes.
-        bool DeadAction(PdfItem? item)
+        // A jump (or a chain of actions with one) to a removed page: the action goes. Each action is looked at once
+        // (chains can share or loop back to actions), at most MaxDepth deep along any chain.
+        bool DeadAction(PdfItem? item) => DeadChain(item, new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance), 0);
+        bool DeadChain(PdfItem? item, HashSet<PdfDictionary> seen, int depth)
         {
-            for (var depth = 0; depth < MaxDepth && Dict(item) is { } action; depth++)
+            for (; depth < MaxDepth && Dict(item) is { } action && seen.Add(action); depth++)
             {
                 if (action.Elements.GetName("/S") == "/GoTo" && Dead(names.Explicit(action.Elements["/D"]))) return true;
-                item = Resolve(action.Elements["/Next"]) is PdfArray next ? next.Elements.FirstOrDefault(DeadAction) : action.Elements["/Next"];
+                if (Resolve(action.Elements["/Next"]) is PdfArray next) return next.Elements.Any(e => DeadChain(e, seen, depth + 1));
+                item = action.Elements["/Next"];
             }
             return false;
         }

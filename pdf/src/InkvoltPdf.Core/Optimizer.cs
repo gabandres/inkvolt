@@ -214,7 +214,7 @@ public static class Optimizer
         var shown = new Dictionary<PdfDictionary, (double X, double Y)>(ReferenceEqualityComparer.Instance);
         foreach (var page in doc.Pages)
         {
-            ContentImages.Scan(page, (image, ctm) =>
+            var complete = ContentImages.Scan(page, (image, ctm) =>
             {
                 var w = PdfObj.Int(image.Elements["/Width"]) ?? 0;
                 var h = PdfObj.Int(image.Elements["/Height"]) ?? 0;
@@ -223,6 +223,8 @@ public static class Optimizer
                 var dpi = (X: lx > 1e-6 ? w / lx : double.MaxValue, Y: ly > 1e-6 ? h / ly : double.MaxValue);
                 shown[image] = shown.TryGetValue(image, out var was) ? (Math.Min(was.X, dpi.X), Math.Min(was.Y, dpi.Y)) : dpi;
             });
+            // A page drawing more than can be followed may show an image larger than found: leave them all as they are.
+            if (!complete) return 0;
         }
 
         var count = 0;
@@ -416,13 +418,32 @@ public static class Optimizer
 
 /// <summary>
 /// Finds the image XObjects a page's content draws and the transformation each is drawn with (through form XObjects),
-/// by following q/Q/cm and Do in the content streams.
+/// by following q/Q/cm and Do in the content streams. Each form is read once: what it draws is kept and placed again
+/// wherever it is drawn (an image a form draws twice with the same transformation is reported once per drawing).
 /// </summary>
 internal static class ContentImages
 {
     private const int MaxDepth = 12;
 
-    public static void Scan(PdfPage page, Action<PdfDictionary, double[]> onImage)
+    /// <summary>Form reads (one more per 4 KB of content) plus images reported, per page: past it the page is left unread.</summary>
+    private const int MaxWork = 200_000;
+
+    private static readonly double[] Identity = [1, 0, 0, 1, 0, 0];
+
+    /// <summary>The images one form draws, with their transformations in its space (each once).</summary>
+    private sealed record FormImages(PdfDictionary? Resources, int Depth, List<(PdfDictionary Image, double[] Ctm)> Images);
+
+    /// <summary>One page's scan: the forms being drawn, those already read, and the work done.</summary>
+    private sealed class Walk
+    {
+        public readonly HashSet<PdfDictionary> Visiting = new(ReferenceEqualityComparer.Instance);
+        public readonly Dictionary<PdfDictionary, List<FormImages>> Forms = new(ReferenceEqualityComparer.Instance);
+        public int Work, Cuts;
+        public bool Over => Work > MaxWork;
+    }
+
+    /// <summary>Reports each image drawn; false when the page draws more than <see cref="MaxWork"/> allows (some not reported).</summary>
+    public static bool Scan(PdfPage page, Action<PdfDictionary, double[]> onImage)
     {
         var content = new MemoryStream();
         var item = page.Elements["/Contents"];
@@ -433,11 +454,12 @@ internal static class ContentImages
                 content.Write(PdfObj.StreamBytes(s));
                 content.WriteByte((byte)'\n');
             }
-        var visiting = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
-        Run(content.ToArray(), PdfObj.Dict(page.Elements["/Resources"]), [1, 0, 0, 1, 0, 0], onImage, visiting, 0);
+        var walk = new Walk();
+        Run(content.ToArray(), PdfObj.Dict(page.Elements["/Resources"]), Identity, onImage, walk, 0);
+        return !walk.Over;
     }
 
-    private static void Run(byte[] ops, PdfDictionary? resources, double[] start, Action<PdfDictionary, double[]> onImage, HashSet<PdfDictionary> visiting, int depth)
+    private static void Run(byte[] ops, PdfDictionary? resources, double[] start, Action<PdfDictionary, double[]> onImage, Walk walk, int depth)
     {
         var ctm = start;
         var stack = new Stack<double[]>();
@@ -512,14 +534,24 @@ internal static class ContentImages
                 {
                     if (PdfObj.Dict(xobjects?.Elements[name]) is not { } x) break;
                     var subtype = PdfObj.NameOf(x, "/Subtype");
-                    if (subtype == "/Image") onImage(x, ctm);
-                    else if (subtype == "/Form" && depth < MaxDepth && x.Stream is not null && visiting.Add(x))
+                    if (subtype == "/Image")
                     {
+                        if (++walk.Work > MaxWork) return;
+                        onImage(x, ctm);
+                    }
+                    else if (subtype == "/Form" && depth < MaxDepth && x.Stream is not null
+                        && ImagesOf(x, PdfObj.Dict(x.Elements["/Resources"]) ?? resources, walk, depth + 1) is { } images)
+                    {
+                        if (walk.Over) return;
                         var fm = PdfObj.Array(x.Elements["/Matrix"]) is { Elements.Count: >= 6 } a
                             ? Enumerable.Range(0, 6).Select(k => PdfObj.Num(a, k)).ToArray()
-                            : [1, 0, 0, 1, 0, 0];
-                        Run(PdfObj.StreamBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, Multiply(fm, ctm), onImage, visiting, depth + 1);
-                        visiting.Remove(x);
+                            : Identity;
+                        var at = Multiply(fm, ctm);
+                        foreach (var (image, m) in images)
+                        {
+                            if (++walk.Work > MaxWork) return;
+                            onImage(image, Multiply(m, at));
+                        }
                     }
                     break;
                 }
@@ -529,6 +561,37 @@ internal static class ContentImages
             }
             operands.Clear();
         }
+    }
+
+    /// <summary>
+    /// The images a form draws, read once per resources and depth; null when the form is already being drawn (a form
+    /// drawing itself). A read that met such a loop depends on where the form was drawn from, so it isn't kept.
+    /// </summary>
+    private static List<(PdfDictionary Image, double[] Ctm)>? ImagesOf(PdfDictionary form, PdfDictionary? resources, Walk walk, int depth)
+    {
+        if (walk.Forms.TryGetValue(form, out var known) && known.Find(k => ReferenceEquals(k.Resources, resources) && k.Depth == depth) is { } done)
+            return done.Images;
+        if (!walk.Visiting.Add(form))
+        {
+            walk.Cuts++;
+            return null;
+        }
+        var ops = PdfObj.StreamBytes(form);
+        walk.Work += 1 + ops.Length / 4096;
+        var cuts = walk.Cuts;
+        var images = new List<(PdfDictionary Image, double[] Ctm)>();
+        var distinct = new HashSet<(PdfDictionary, double, double, double, double, double, double)>();
+        Run(ops, resources, Identity, (image, m) =>
+        {
+            if (distinct.Add((image, m[0], m[1], m[2], m[3], m[4], m[5]))) images.Add((image, m));
+        }, walk, depth);
+        walk.Visiting.Remove(form);
+        if (walk.Cuts == cuts)
+        {
+            if (known is null) walk.Forms[form] = known = [];
+            known.Add(new FormImages(resources, depth, images));
+        }
+        return images;
     }
 
     /// <summary>m × n for PDF matrices [a b c d e f].</summary>

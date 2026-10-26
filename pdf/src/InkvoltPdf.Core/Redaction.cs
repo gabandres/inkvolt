@@ -160,13 +160,14 @@ public static class Redaction
     /// </summary>
     private static void ScrubStructure(PdfDocument doc, PdfPage page, HashSet<PdfObject> removed)
     {
+        // Each dictionary and array once: a tree can share them (or loop), and walking every path can take forever.
         var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
         void Visit(PdfItem? item, bool onPage, int depth)
         {
             if (depth > 128) return;
             switch (PdfObj.Resolve(item))
             {
-                case PdfArray arr:
+                case PdfArray arr when seen.Add(arr):
                     foreach (var e in arr.Elements) Visit(e, onPage, depth + 1);
                     break;
                 case PdfDictionary d when seen.Add(d):

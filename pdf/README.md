@@ -213,7 +213,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   text in reading order, a paragraph per line, table rows tab-separated. Scanned pages without text are recognized
   with Windows' OCR first (on the PC); without an OCR language they are kept as pictures in Word. XPS, EPUB and the
   other formats Inkvolt PDF opens export too.
-- **Reload** (F5) and an info bar when another program changes the open file. **Accessibility**: screen-reader names
+- **Reload** (F5) and an info bar when another program changes the open file; a reload that needs the file's password
+  asks for it (after Remove Protection, the file on disk still has one). **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page (both panes of a split view); high-contrast aware.
 - **Recovery copies**: every PDF with unsaved changes (edits, a combined or scanned document never saved) gets a copy in
   `%LOCALAPPDATA%\InkvoltPdf\recovery` at most every 20 seconds after a change, written in the background as Save would
@@ -222,7 +223,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   process or a power cut, the next start asks: **Restore** opens each document with its changes and back at its page
   (a protected one asks for its password; Save writes it to the file it came from, and a file changed meanwhile shows as
   changed on disk), **Discard**, or **Not now** (asked again next time). Each run keeps its copies in a folder of its own,
-  locked while it runs (`RecoveryStore`). Settings › "Keep recovery copies of unsaved changes" turns it off.
+  locked while it runs (`RecoveryStore`). Settings › "Keep recovery copies of unsaved changes" turns it off. A copy that
+  fails to write is written again on the next pass; one that can't be read back at restore (a file held by another
+  program) is kept, and only a copy that isn't a PDF is dropped as damaged. Closing asks about every document with changes
+  again after the last answer (a tab edited, a field still being typed, or a document that opened while the questions were
+  up), and a close nobody answered (Windows ending the session) keeps the copies.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit.
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
@@ -261,7 +266,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Password protection** (File › Protect with Password…): an open password (with a strength hint) and/or a
   permissions password restricting printing (high/low resolution/none), copying, editing, comments, form filling and
   page assembly; AES-256 (or AES-128 for old readers). An undoable edit; save to keep it. Remove Protection… takes it
-  off (asks for the permissions password if needed); Properties shows the protection. **Edits keep the protection**: a
+  off (asks for the permissions password if needed; also for a file with only restrictions and no open password); Properties shows the protection. **Edits keep the protection**: a
   protected PDF stays protected after any edit, with the same permissions and passwords (RC4 files are upgraded to
   AES-128). For an AES-256 file opened with its permissions password, Inkvolt PDF asks once for the open password (or saves
   without one, if you say so); older files need nothing.
@@ -405,6 +410,9 @@ Batch: `batch folder;file` (opens the window), `batchstep watermark DRAFT|bates 
 action's dialog), `batchstate`. Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
 everything it removes); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`.
+`HostileStructureTests`: crafted structures that once hung or crashed the app (a field's /Parent or an action's /Next pointing
+back at itself, arrays shared many times over in layers and the structure tree, forms drawn many times over); every
+walk over a PDF's objects is bounded and visits a shared object once.
 
 ## License
 
