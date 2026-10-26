@@ -16,3 +16,4 @@ jobs:
       - uses: actions/checkout@v7
       - run: swift --version
       - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
+      - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors

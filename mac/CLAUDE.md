@@ -4,8 +4,10 @@ Native Swift versions of Inkvolt Print (first, Mac App Store) and Inkvolt PDF (l
 layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 
-- **Machines.** Builds, tests and runs happen on the owner's Mac (`ignia-mac`). The Windows PC can plan and port code
-  and tests, but can't build them; say so instead of claiming a Swift change works.
+- **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
+  `pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
+  imports an Apple framework (the probe, PrintMac, the app) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
+  CI job (macos-15, warnings as errors); say which one checked a change.
 - **The .NET code is the spec.** Port a module by porting its tests first, with the same names, then the code. Read
   fixtures in place from `print/tests/InkvoltPrint.Tests/Fixtures` (and `pdf/tools/export-corpus` later); never copy or
   edit them for the Mac. Where the Mac must behave differently, write it down in `docs/PLAN.md`.
@@ -22,5 +24,6 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   before adding any package.
 - **Device data.** Never put a real printer's serial, IP, hostname or UUID in the repo (use 192.0.2.x). Probe reports
   stay out of the repo; record only what was learned.
-- **Done** means `swift test` green and 0 warnings on the Mac, and `mac/README.md` and `docs/PLAN.md` updated. Commit
-  only when the owner says, message style per `git log --oneline -6`.
+- **Done** means `swift test` green with 0 warnings in our code (locally for PrintCore, and in the `mac` CI job), and
+  `mac/README.md` and `docs/PLAN.md` (step status, Mac differences) updated. Commit only when the owner says, message
+  style per `git log --oneline -6`; pushes of mac/-only fixes for CI are approved.

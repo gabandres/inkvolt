@@ -68,22 +68,30 @@ Not ported: `Suite/ShellRegistration`, `Offline/RepairScripts`, `Queues/Spooler*
 
 ## Steps
 
-Each port step ports the module's .NET tests first, under the same names, then the code until they pass.
+Each port step ports the module's .NET tests first, under the same names (in lower camel case), then the code until
+they pass. PrintCore builds and tests on the Windows PC too: `pwsh -File mac/tools/swift-dev.ps1 test --package-path
+mac/InkvoltPrintKit --build-system native`.
 
-| Step | What | .NET tests to port |
-|---|---|---|
-| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | |
-| P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests |
-| P2 | IPP | IppAndPdfTests (IPP part) |
-| P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests |
-| P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests |
-| P5 | Alerts, status lines | AlertTests, StatusLineTests |
-| P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests |
-| P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) |
-| P8 | eSCL, presets, file names, scan recovery, page edits | EsclTests, ScanPresetTests, ScanRecoveryTests, ImagingTests |
-| P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) |
-| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests |
-| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | |
+| Step | What | .NET tests to port | Status |
+|---|---|---|---|
+| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Builds in CI; run pending |
+| P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
+| P2 | IPP | IppAndPdfTests (IPP part) | |
+| P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | |
+| P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | |
+| P5 | Alerts, status lines | AlertTests, StatusLineTests | |
+| P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | |
+| P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | |
+| P8 | eSCL, presets, file names, scan recovery, page edits | EsclTests, ScanPresetTests, ScanRecoveryTests, ImagingTests | |
+| P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
+| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | |
+| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | |
+
+## Mac differences
+
+- SNMP errors are Swift errors: `SnmpFormatError`, `SnmpTimeoutError`, `SnmpErrorStatus` (the .NET exceptions).
+- `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
+  its own, 1 s per request).
 
 ## Open decisions
 
