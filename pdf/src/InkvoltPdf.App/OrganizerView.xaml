@@ -27,6 +27,72 @@
             </DockPanel>
         </Border>
 
+        <!-- Page actions on the selected pages (also on the right-click menu and the Organize menu) -->
+        <Border DockPanel.Dock="Top" Padding="12,4" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <app:ToolbarPanel x:Name="ActionBar" AutomationProperties.Name="Page actions">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateLeft" ToolTip="Rotate the selected pages counterclockwise" AutomationProperties.Name="Rotate left">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" FontSize="15" />
+                        <TextBlock Text="Rotate left" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateRight" ToolTip="Rotate the selected pages clockwise" AutomationProperties.Name="Rotate right">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" FontSize="15" RenderTransformOrigin="0.5,0.5">
+                            <TextBlock.RenderTransform>
+                                <ScaleTransform ScaleX="-1" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                        <TextBlock Text="Rotate right" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DeleteSelected" ToolTip="Delete the selected pages (Del)" AutomationProperties.Name="Delete">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" FontSize="15" />
+                        <TextBlock Text="Delete" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DuplicatePages" ToolTip="Duplicate the selected pages" AutomationProperties.Name="Duplicate">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" FontSize="15" />
+                        <TextBlock Text="Duplicate" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.ExtractPages" ToolTip="Extract pages into a new PDF" AutomationProperties.Name="Extract">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xEDE1;" FontSize="15" />
+                        <TextBlock Text="Extract" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.MovePages" ToolTip="Move pages to another place in the document" AutomationProperties.Name="Move">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8CB;" FontSize="15" />
+                        <TextBlock Text="Move" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Border Style="{StaticResource BarSeparator}" />
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertPages" ToolTip="Insert pages from another file" AutomationProperties.Name="Insert from file">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="15" />
+                        <TextBlock Text="Insert from file" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertBlank" ToolTip="Insert blank pages" AutomationProperties.Name="Insert blank">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="15" />
+                        <TextBlock Text="Insert blank" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+                <Border Style="{StaticResource BarSeparator}" />
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.CropPages" ToolTip="Crop pages" AutomationProperties.Name="Crop">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" FontSize="15" />
+                        <TextBlock Text="Crop" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                    </StackPanel>
+                </Button>
+            </app:ToolbarPanel>
+        </Border>
         <Grid>
             <ItemsControl x:Name="Rows" AllowDrop="True" Background="Transparent"
                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"

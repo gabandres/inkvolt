@@ -590,6 +590,21 @@ internal static class DevScript
             case "menu": log.Add(ClickMenuItem(arg)); break;
             case "tabmenu": window.OpenTabMenu(window.ActiveTabModel!, atMouse: false); break;
             case "tablabels": log.Add($"tabs: {string.Join(" | ", window.TabLabelsShown)}"); break;
+            case "toolcard":
+            {
+                // toolcard Title[|file.pdf]: click a start-page Tools card; with a file, as if picked in its Open dialog.
+                var parts = arg.Split('|', 2);
+                if (window.ToolGrid.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault(b => b.Content is StartTool t && t.Title == parts[0]) is not { } card)
+                {
+                    log.Add($"toolcard {parts[0]}: not found");
+                    break;
+                }
+                if (parts.Length == 2 && card.Tag is System.Windows.Input.RoutedCommand command) await window.RunOnFileAsync(parts[1], command, parts[0]);
+                else card.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, card));
+                var t2 = window.ActiveTab;
+                log.Add($"toolcard {parts[0]}: tabs={window.TabCount} organizing={t2?.IsOrganizing} editing={t2?.IsEditingContent} tool={t2?.ActiveView.Tool}");
+                break;
+            }
             case "recover":
                 // recover: what a normal start does first: offer the documents a run left unsaved (answer the prompt with "answer").
                 await window.OfferRecoveryAsync();

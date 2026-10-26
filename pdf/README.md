@@ -46,8 +46,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   for Close, Close Others, Close Tabs to the Right, Copy Path, Show in Folder and Reopen Closed Tab; middle-click closes it.
   Tabs that would read the same (two documents with the same title, or files of the same name) add the file name or folder
   ("report.pdf · 2026"); the tooltip has the full path.
-- **Start page**: open or combine files, or drop them anywhere; recent files show a first-page preview. Before any file has been
-  opened, a tip points at the command palette (Ctrl+K) and F1.
+- **Start page**: open a file, or drop files anywhere; recent files show a first-page preview. **Tools**: twelve cards for the
+  main tools (Fill & sign, Edit text & images, Export to Word, Combine, Compare, Reduce file size, Protect, Redact, OCR,
+  Organize pages, Batch, Create a PDF: a menu of Office file, web page, images, clipboard, scanner). Each runs its command
+  (`MainWindow.StartPage.cs`, the command in the card's `Tag`); one that needs a document first asks for a PDF, opens it and
+  then runs. Before any file has been opened, a tip points at the command palette (Ctrl+K) and F1.
 - **New PDFs from images**: File › New from Images… (JPEG, PNG, BMP, GIF, TIFF; page size: fit each image, Letter or
   A4) or New from Clipboard (Ctrl+Alt+N: a copied image such as a screenshot, or copied image files). Image files
   dropped on the window ask: a new PDF of them, pages at the end of the open document, or just view them; dropped on
@@ -225,7 +228,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
 - **Organize pages** (Ctrl+Shift+O): a grid of large pages; click / Ctrl / Shift to select, arrows to move, drag to
   reorder, Alt+Shift+arrows move the selected pages (announced to screen readers); the hovered or focused page shows
-  rotate and delete buttons; double-click or Enter to open it, Esc when done.
+  rotate and delete buttons; double-click or Enter to open it, Esc when done. A bar under its header has the page actions
+  with labels (rotate left and right, delete, duplicate, extract, move, insert from file, insert blank, crop; icons only when
+  narrow), the same commands as the right-click menu.
 - **Page edits** (all undoable; every edit shows a toast with Undo): rotate (Organize menu, toolbar or right-click; no
   default shortcut, since it changes the file), delete, insert from file or blank,
   extract (new tab, one file, or a file per page), split (by count, ranges, or bookmarks), move, duplicate, reverse,

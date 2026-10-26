@@ -1627,6 +1627,7 @@ public partial class MainWindow : Window
     {
         var any = await Task.Run(() => OfficeConverter.InstalledApps.Count > 0);
         OfficeMenu.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        CreateOfficeMenu.Visibility = OfficeMenu.Visibility;
     }
 
     private void OnOpenInkvoltPrint(object sender, RoutedEventArgs e)

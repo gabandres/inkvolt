@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- The Overview uses the whole window: its cards widen to fill it.
+- Add a printer by address: type the address straight away.
 
 ## 1.0.5
 - Unsaved scans are kept on disk: after a crash, a killed app or a power cut they come back in the Scan tab.

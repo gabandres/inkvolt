@@ -144,6 +144,8 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   per-monitor DPI (v2); the window's place and size are kept in `state.json` and put back on start when its title bar still lands on
   a monitor. The printer list says why a dot is amber or red ("Ready · Yellow ink is low", the worst alert and how many more:
   `PrinterStatus.ListLine`). On the Scan tab the Scan button stays in view under the settings, which scroll on a short window.
+  The Overview's cards share the pane's width in equal columns, as many as fit at about 400 px (`Views/CardWrapPanel`). *Add a
+  printer by address* puts the keyboard in the address box when it opens, and back on its button after Esc or Cancel.
 - One instance per user (named mutex + current-user-only pipe). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
 - Unhandled errors are logged to `%LOCALAPPDATA%\InkvoltPrint\logs\inkvoltprint.log` and shown; the app keeps running. Closing with unsaved scans asks first.
 - Unsaved scans are kept on disk while the app runs (`%LOCALAPPDATA%\InkvoltPrint\recovery`; demo runs under `%TEMP%`):

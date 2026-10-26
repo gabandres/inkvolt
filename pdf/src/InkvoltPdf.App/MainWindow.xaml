@@ -378,6 +378,29 @@
                     <!-- Start page -->
                     <ScrollViewer x:Name="StartPage" VerticalScrollBarVisibility="Auto">
                         <StackPanel MaxWidth="920" Margin="40,40,40,32">
+                            <StackPanel.Resources>
+                                <!-- A Tools card: runs its command (Tag); one that needs a document asks for a PDF first (OnToolCard) -->
+                                <Style x:Key="ToolCard" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Margin" Value="4" />
+                                    <Setter Property="Padding" Value="14,12" />
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding Content.Title, RelativeSource={RelativeSource Self}}" />
+                                    <Setter Property="AutomationProperties.HelpText" Value="{Binding Content.Detail, RelativeSource={RelativeSource Self}}" />
+                                </Style>
+                                <DataTemplate DataType="{x:Type app:StartTool}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="20" Margin="0,1,12,0"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </StackPanel.Resources>
                             <StackPanel Orientation="Horizontal">
                                 <Image Source="InkvoltPdfLogo.png" Width="56" Height="56" RenderOptions.BitmapScalingMode="HighQuality" />
                                 <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
@@ -386,36 +409,64 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <UniformGrid Columns="3" Margin="0,28,0,0">
-                                <Button x:Name="OpenCard" Command="app:Cmd.Open" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch">
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="28" Margin="0,0,16,0"
-                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                        <StackPanel>
-                                            <TextBlock Text="Open a file" FontSize="15" FontWeight="SemiBold" />
-                                            <TextBlock Text="PDF, XPS, EPUB, images · or drop files anywhere" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </DockPanel>
+                            <Button x:Name="OpenCard" Command="app:Cmd.Open" Margin="0,28,0,0" Padding="20" HorizontalContentAlignment="Stretch">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="28" Margin="0,0,16,0"
+                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                    <StackPanel>
+                                        <TextBlock Text="Open a file" FontSize="15" FontWeight="SemiBold" />
+                                        <TextBlock Text="PDF, XPS, EPUB, images &#xB7; or drop files anywhere" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+
+                            <TextBlock Text="Tools" Style="{DynamicResource SubtitleTextBlockStyle}" Margin="0,32,0,6" />
+                            <!-- The tools people look for first; the rest are in the menus and Ctrl+K -->
+                            <UniformGrid x:Name="ToolGrid" Columns="4" Margin="-4,0,-4,0">
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ToolAddText}">
+                                    <app:StartTool Title="Fill &amp; sign" Detail="Type on any form, add check marks and your signature" Glyph="&#xE76D;" />
                                 </Button>
-                                <Button Command="app:Cmd.Combine" Margin="8,0,8,0" Padding="20" HorizontalContentAlignment="Stretch">
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8F1;" FontSize="28" Margin="0,0,16,0"
-                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                        <StackPanel>
-                                            <TextBlock Text="Combine files" FontSize="15" FontWeight="SemiBold" />
-                                            <TextBlock Text="Merge several PDFs into one, in the order you choose" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </DockPanel>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.EditContent}">
+                                    <app:StartTool Title="Edit text &amp; images" Detail="Change the words and pictures already on a page" Glyph="&#xE70F;" />
                                 </Button>
-                                <Button Command="app:Cmd.Compare" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch">
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7C4;" FontSize="28" Margin="0,0,16,0"
-                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                        <StackPanel>
-                                            <TextBlock Text="Compare files" FontSize="15" FontWeight="SemiBold" />
-                                            <TextBlock Text="See what changed between two versions, side by side" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </DockPanel>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ExportWord}">
+                                    <app:StartTool Title="Export to Word" Detail="Turn a PDF into an editable .docx" Glyph="&#xEDE1;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Combine}">
+                                    <app:StartTool Title="Combine files" Detail="Merge several files into one PDF, in your order" Glyph="&#xE8F1;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Compare}">
+                                    <app:StartTool Title="Compare files" Detail="See what changed between two versions" Glyph="&#xE7C4;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ReduceSize}">
+                                    <app:StartTool Title="Reduce file size" Detail="Make a PDF small enough to e-mail or upload" Glyph="&#xE73F;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ProtectPassword}">
+                                    <app:StartTool Title="Protect" Detail="Require a password to open, print or change it" Glyph="&#xE72E;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Redact}">
+                                    <app:StartTool Title="Redact" Detail="Black out private details for good" Glyph="&#xE73B;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.RecognizeText}">
+                                    <app:StartTool Title="Recognize text (OCR)" Detail="Make a scan searchable and its text copyable" Glyph="&#xE8C1;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Organize}">
+                                    <app:StartTool Title="Organize pages" Detail="Reorder, rotate, delete, insert or extract pages" Glyph="&#xE8B3;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Batch}">
+                                    <app:StartTool Title="Batch" Detail="Run the same actions on many files at once" Glyph="&#xE762;" />
+                                </Button>
+                                <Button x:Name="CreateCard" Style="{StaticResource ToolCard}" Click="OnCreateCard">
+                                    <app:StartTool Title="Create a PDF" Detail="From Office files, a web page, images or the clipboard" Glyph="&#xE8A5;" />
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem x:Name="CreateOfficeMenu" Command="app:Cmd.CreateFromOffice" Header="From an _Office File (Word, Excel, PowerPoint)&#x2026;" Visibility="Collapsed" />
+                                            <MenuItem Command="app:Cmd.CreateFromWeb" Header="From a _Web Page&#x2026;" />
+                                            <MenuItem Command="app:Cmd.NewFromImages" Header="From _Images&#x2026;" />
+                                            <MenuItem Command="app:Cmd.NewFromClipboard" Header="From the _Clipboard" />
+                                            <MenuItem Command="app:Cmd.Scan" Header="From a _Scanner&#x2026;" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
                                 </Button>
                             </UniformGrid>
 
@@ -462,7 +513,7 @@
                             </ItemsControl>
                             <StackPanel x:Name="NoRecent" Visibility="Collapsed" Margin="0,32,0,0">
                                 <TextBlock Text="Files you open will appear here." Style="{StaticResource Caption}" />
-                                <!-- First-run tip: the start page shows three things; the command palette reaches everything else -->
+                                <!-- First-run tip: the Tools grid shows the main tools; the command palette reaches everything else -->
                                 <Border Margin="0,24,0,0" Padding="16,12" CornerRadius="6" BorderThickness="1" HorizontalAlignment="Left"
                                         Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
                                     <DockPanel>
