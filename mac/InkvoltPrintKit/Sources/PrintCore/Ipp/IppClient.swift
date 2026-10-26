@@ -1,6 +1,6 @@
 import Foundation
 
-/// A printer's IPP interface. So far its status and supplies mapping; the HTTP part comes with the device HTTP port (P4).
+/// A printer's IPP interface: Get-Printer-Attributes for status and supplies, Identify-Printer.
 public final class IppClient: Sendable {
     public static let statusAttributes = [
         "printer-state", "printer-state-reasons", "printer-state-message", "printer-make-and-model", "printer-uuid",
@@ -8,6 +8,49 @@ public final class IppClient: Sendable {
         "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
         "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
     ]
+
+    private let http: DeviceHttp
+
+    /// http(s) URL of the printer object, e.g. `http://host:631/ipp/print` (IPPS: https).
+    public let endpoint: URL
+
+    public init(_ http: DeviceHttp, endpoint: URL) {
+        self.http = http
+        self.endpoint = endpoint
+    }
+
+    /// IPP Everywhere's printer object on the host: `http://host:631/ipp/print`.
+    public static func defaultEndpoint(_ http: DeviceHttp) -> URL {
+        var c = URLComponents(url: http.httpBase, resolvingAgainstBaseURL: false)!
+        c.port = 631
+        c.path = "/ipp/print"
+        return c.url!
+    }
+
+    /// The `printer-uri` operation attribute: `ipp://` (or `ipps://`) for the endpoint's host, port and path.
+    public var printerUri: String {
+        var c = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!
+        c.scheme = endpoint.scheme == "https" ? "ipps" : "ipp"
+        if c.port == nil { c.port = endpoint.scheme == "https" ? 443 : 80 }
+        return c.url!.absoluteString
+    }
+
+    public func printerAttributes(_ requested: [String]? = nil) async throws -> IppResponse {
+        try await post(IppCodec.encodeGetPrinterAttributes(printerUri, requested ?? Self.statusAttributes), timeout: .seconds(5))
+    }
+
+    /// PWG 5100.13 Identify-Printer: the printer flashes, beeps or shows a message so it can be found. Sent once, never
+    /// retried; the caller reads the IPP status (a printer may want a signed-in user for it, §4.1).
+    public func identifyPrinter(actions: [String], userName: String?) async throws -> IppResponse {
+        try await post(IppCodec.encodeIdentifyPrinter(printerUri, userName: userName, actions: actions), timeout: .seconds(10), once: true)
+    }
+
+    private func post(_ body: [UInt8], timeout: Duration, once: Bool = false) async throws -> IppResponse {
+        let request = HttpRequest("POST", endpoint, headers: ["Content-Type": "application/ipp"], body: body, timeout: timeout, once: once)
+        let response = try await http.send(request)
+        try DeviceHttp.ensureSuccess(response, "POST", endpoint)
+        return try IppCodec.decode(response.body)
+    }
 
     /// Status from `printer-state` and `printer-state-reasons`, plus `printer-alert` entries (PWG 5100.9) that no reason
     /// covers. Alerts matching a reason lend it their `printer-alert-description`s (the printer's own words, e.g. which
