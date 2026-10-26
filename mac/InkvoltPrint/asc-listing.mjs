@@ -1,7 +1,9 @@
 // Fills in Inkvolt Print's App Store listing for the version being prepared, from assets/store/listing.json and the
 // screenshots beside it, through the App Store Connect API; and submits it for review.
-//   node mac/InkvoltPrint/asc-listing.mjs apply <build number>   texts, categories, age rating, price (free), availability,
-//                                                               content rights, review details, screenshots, the build
+//   node mac/InkvoltPrint/asc-listing.mjs apply <build number>   texts (What's New too, after the first version), categories,
+//                                                               age rating, price (free), availability, content rights,
+//                                                               review details, screenshots, the build; creates the version
+//                                                               (the build's MARKETING_VERSION) when none is in preparation
 //   node mac/InkvoltPrint/asc-listing.mjs submit                  sends the version to App Review (Waiting for Review)
 // The App Privacy answers ("Data Not Collected") can't be set through the API: publish them in App Store Connect first.
 // The review contact is copied from another app of the team (listing.json's reviewContactFrom), so no phone number or
@@ -21,9 +23,27 @@ for (const [k, max] of Object.entries(limits)) {
 }
 
 const theApp = await app();
-const version = (await get(`/v1/apps/${theApp.id}/appStoreVersions?filter[platform]=MAC_OS`)).data
-  .find((v) => ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"].includes(v.attributes.appStoreState));
+const versions = (await get(`/v1/apps/${theApp.id}/appStoreVersions?filter[platform]=MAC_OS`)).data;
+let version = versions.find((v) => ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"].includes(v.attributes.appStoreState));
+// The version the project builds (MARKETING_VERSION), created for `apply` when none is in preparation.
+const marketing = readFileSync(join(HERE, "InkvoltPrint.xcodeproj", "project.pbxproj"), "utf8").match(/MARKETING_VERSION = ([0-9.]+);/)?.[1];
+if (!version && command === "apply") {
+  if (!marketing) throw new Error("No MARKETING_VERSION in the Xcode project");
+  if (versions.some((v) => v.attributes.versionString === marketing)) throw new Error(`Version ${marketing} exists already: bump MARKETING_VERSION`);
+  version = (await api("POST", "/v1/appStoreVersions", {
+    data: { type: "appStoreVersions", attributes: { platform: "MAC_OS", versionString: marketing },
+      relationships: { app: { data: { type: "apps", id: theApp.id } } } },
+  })).data;
+  console.log(`- created version ${marketing}`);
+}
 if (!version) throw new Error("No macOS version in preparation");
+if (marketing && version.attributes.versionString !== marketing) {
+  throw new Error(`The version in preparation is ${version.attributes.versionString}, the project builds ${marketing}`);
+}
+// What's New is for updates: App Store Connect refuses it on an app's first version.
+const isUpdate = versions.some((v) => v.id !== version.id && v.attributes.appStoreState === "READY_FOR_SALE");
+if (isUpdate && !L.whatsNew) throw new Error("listing.json needs whatsNew for an update");
+if (L.whatsNew && text(L.whatsNew).length > 4000) throw new Error("whatsNew is longer than 4000 characters");
 const step = (what) => console.log(`- ${what}`);
 
 if (command === "apply") await apply();
@@ -79,10 +99,10 @@ async function apply() {
     data: {
       type: "appStoreVersionLocalizations", id: loc.id,
       attributes: { description: text(L.description), keywords: L.keywords, promotionalText: L.promotionalText, supportUrl: L.supportUrl,
-        marketingUrl: L.marketingUrl },
+        marketingUrl: L.marketingUrl, ...(isUpdate ? { whatsNew: text(L.whatsNew) } : {}) },
     },
   });
-  step("description, keywords, promotional text, support and marketing URLs");
+  step(`description, keywords, promotional text, support and marketing URLs${isUpdate ? ", What's New" : ""}`);
 
   await price();
   await availability();

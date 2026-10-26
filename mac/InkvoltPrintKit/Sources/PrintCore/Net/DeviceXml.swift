@@ -16,6 +16,9 @@ public struct XmlElement: Equatable, Sendable {
     public let attributes: [String: String]
     public fileprivate(set) var children: [XmlElement]
     fileprivate(set) var text: String
+    /// The namespace URI ("" for none) and the prefix the device wrote ("" for none): a write reuses the device's own names.
+    public fileprivate(set) var namespace: String = ""
+    public fileprivate(set) var prefix: String = ""
 
     /// The element's text with its descendants' (as LINQ to XML's `Value`; mixed content isn't kept in order).
     public var value: String { children.isEmpty ? text : text + children.map(\.value).joined() }
@@ -91,7 +94,8 @@ public enum DeviceXml {
                 parser.abortParsing()
                 return
             }
-            stack.append(XmlElement(name: elementName, attributes: attributes, children: [], text: ""))
+            let prefix = qualifiedName.flatMap { q in q.firstIndex(of: ":").map { String(q[..<$0]) } } ?? ""
+            stack.append(XmlElement(name: elementName, attributes: attributes, children: [], text: "", namespace: namespaceURI ?? "", prefix: prefix))
         }
 
         func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName: String?) {

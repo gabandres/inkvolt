@@ -136,4 +136,17 @@ struct PrinterMonitorTests {
         DiscoveredPrinter(uuid: uuid, name: "Office", model: nil, host: host, hostName: nil, esclRoot: nil, hasScanner: false, ippUri: nil, txt: [:],
                           addresses: [host])
     }
+
+    @Test func aBackgroundCheckReadsOnceAndSaysWhetherThePrinterAnswered() async throws {
+        let log = Log()
+        let laser = Self.monitor(Self.demo(Demo.uuid), log)
+        #expect(await laser.check())
+        #expect(await laser.view.isOnline)
+        #expect(await laser.check()) // connected already: asked who it is, then read
+        #expect(log.snapshots.filter { $0.reachable }.count == 2)
+
+        let office = Self.monitor(Self.demo(Demo.officeUuid), Log())
+        #expect(await !office.check())
+        #expect(await office.view.phase == .offline)
+    }
 }

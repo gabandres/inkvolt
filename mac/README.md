@@ -7,8 +7,8 @@ follows (notarized download, AGPL because of MuPDF). Plan and status: [`docs/PLA
 |---|---|
 | [`docs/`](docs) | The plan, and platform research with sources |
 | [`Probe/`](Probe/README.md) | InkvoltProbe: a throwaway sandboxed app that checks what the App Store sandbox allows (CUPS, SNMP broadcast, Bonjour, ImageCaptureCore, Local Network privacy) |
-| `InkvoltPrintKit/` | Swift package. **PrintCore**: Inkvolt Print's protocols and rules, ported from `shared/InkvoltPrint.Core` with its tests; Foundation only. **PrintMac**: the adapters to Apple's frameworks (URLSession, UDP SNMP, Bonjour, Local Network access); Mac only |
-| `InkvoltPrint/` | The app (SwiftUI; `InkvoltPrint.xcodeproj` over the package): printer list, printer pane, menu bar item, demo mode. `build.sh` installs a development build; `release.sh` makes and uploads App Store builds |
+| `InkvoltPrintKit/` | Swift package. **PrintCore**: Inkvolt Print's protocols and rules, ported from `shared/InkvoltPrint.Core` with its tests; Foundation only. **PrintMac**: the adapters to Apple's frameworks (URLSession, UDP SNMP, Bonjour, the subnet search's sockets, Local Network access, libcups, ImageCaptureCore, Core Graphics and PDFKit for scans and photo sheets, Vision for searchable PDFs, the Keychain); Mac only |
+| `InkvoltPrint/` | The app (SwiftUI; `InkvoltPrint.xcodeproj` over the package): the printer list (network printers, macOS's print queues, USB scanners), the printer pane (status, supplies, print queue, maintenance, the offline fixer; Scan with presets; device Settings), Add a printer, Print a PDF, Print Photos, Settings (menu bar item, open at login, alerts), the menu bar item, demo mode. `build.sh` installs a development build; `release.sh` makes and uploads App Store builds |
 | `tools/` | `swift-dev.ps1`: runs Swift on the Windows PC with Visual Studio's build tools |
 
 Builds need macOS 15 or later with Xcode 16 or later:
@@ -31,6 +31,11 @@ identity) and installed in /Applications:
 sh mac/InkvoltPrint/build.sh
 open "/Applications/Inkvolt Print.app" --args --demo                        # the made-up printers
 open "/Applications/Inkvolt Print.app" --args --report real --wait 25 --stay # writes what it shows to its container
+open "/Applications/Inkvolt Print.app" --args --report found --wait 25 --search # and what Add a printer's search found
+open "/Applications/Inkvolt Print.app" --args --report dev --wait 3 --device      # the selected printer's settings (read only)
+open "/Applications/Inkvolt Print.app" --args --report icc --wait 3 --icc         # ImageCaptureCore's scanners (no scan)
+open "/Applications/Inkvolt Print.app" --args --report scan --wait 2 --demo --scan     # a demo scan, PDF and preset saved
+open "/Applications/Inkvolt Print.app" --args --report fix --wait 3 --demo --fix all   # the offline fixer on the demo office laser
 ```
 
 The report lands in `~/Library/Containers/com.bermudezsystems.InkvoltPrint/Data/Library/Application Support/InkvoltPrint/`.

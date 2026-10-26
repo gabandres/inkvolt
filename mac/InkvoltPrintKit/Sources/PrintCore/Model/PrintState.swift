@@ -44,6 +44,13 @@ public struct PrintState: Equatable, Sendable, Codable {
     public var forgottenUuids: [String] = []
     /// The menu bar's alerts already shown, per printer (`AlertTracker.shown`).
     public var shownAlerts: [String: [String]] = [:]
+    /// The menu bar item and its alerts, as the user set them.
+    public var alertSettings = AlertSettings()
+    /// The scan presets, as the Windows app stores them (its JSON field names, so the apps read each other's).
+    public var scanPresets: ScanPresetSettings?
+    /// Preset id → the folder its scans go to, as an app-scoped security bookmark (the sandbox writes only where the user
+    /// pointed).
+    public var presetFolders: [String: Data] = [:]
 
     public init() {}
 
@@ -56,6 +63,9 @@ public struct PrintState: Equatable, Sendable, Codable {
         acceptedUuids = try c.decodeIfPresent([String: [String]].self, forKey: .acceptedUuids) ?? [:]
         forgottenUuids = try c.decodeIfPresent([String].self, forKey: .forgottenUuids) ?? []
         shownAlerts = try c.decodeIfPresent([String: [String]].self, forKey: .shownAlerts) ?? [:]
+        alertSettings = try c.decodeIfPresent(AlertSettings.self, forKey: .alertSettings) ?? AlertSettings()
+        scanPresets = try? c.decodeIfPresent(ScanPresetSettings.self, forKey: .scanPresets)
+        presetFolders = (try? c.decodeIfPresent([String: Data].self, forKey: .presetFolders)) ?? [:]
     }
 }
 

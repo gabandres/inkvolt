@@ -5,19 +5,63 @@ import SwiftUI
 /// The selected printer: its status and alerts, its supplies, and what it is.
 struct PrinterPane: View {
     let printer: PrinterModel
+    @Environment(AppModel.self) private var app
+    @State private var tab = Tab.status
+    @State private var printingPhotos = false
+
+    enum Tab { case status, scan, settings }
 
     var body: some View {
+        let leftOver = app.leftOverScans.filter { $0.scan.printerId.caseInsensitiveCompare(printer.id) == .orderedSame }
+        Group {
+            if tab == .scan && (printer.canScan || !leftOver.isEmpty) {
+                ScanView(scan: printer.scan, leftOver: leftOver)
+            } else if tab == .settings && printer.hasDeviceSettings {
+                DeviceSettingsView(printer: printer).id(printer.id)
+            } else {
+                status
+            }
+        }
+        .navigationTitle(printer.name)
+        .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
+        .toolbar {
+            if !printer.isScannerOnly { ToolbarItem {
+                Menu {
+                    Button("Print a PDF…") { Printing.printPdf(on: printer, app: app) }
+                    Button("Print Photos…") { printingPhotos = true }
+                } label: {
+                    Label("Print", systemImage: "printer")
+                }
+                .help(printer.queueName == nil ? "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)"
+                      : "Print on \(printer.name)")
+            } }
+            if printer.canScan || !leftOver.isEmpty || printer.hasDeviceSettings {
+                ToolbarItem(placement: .principal) {
+                    Picker("View", selection: $tab) {
+                        Text("Status").tag(Tab.status)
+                        if printer.canScan || !leftOver.isEmpty { Text("Scan").tag(Tab.scan) }
+                        if printer.hasDeviceSettings { Text("Settings").tag(Tab.settings) }
+                    }
+                    .pickerStyle(.segmented)
+                    .help("Show the printer's status, or scan")
+                }
+            }
+        }
+    }
+
+    private var status: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 StatusCard(printer: printer)
                 if !printer.view.supplies.isEmpty { supplies }
+                if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
+                if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
             }
             .padding(24)
             .frame(maxWidth: 820, alignment: .leading)
         }
-        .navigationTitle(printer.name)
     }
 
     private var header: some View {
@@ -51,7 +95,12 @@ struct PrinterPane: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text("Details").font(.headline)
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
-                row("Address", printer.host)
+                if let d = printer.destination {
+                    if let address = CupsQueues.address(d) { row("Address", address) }
+                    row("macOS queue", d.name)
+                } else {
+                    row("Address", printer.host)
+                }
                 if !v.interfaces.isEmpty { row("Connected over", v.interfaces.joined(separator: ", ")) }
                 if let firmware = v.firmware, !firmware.display.isEmpty { row("Firmware", firmware.display) }
                 if let location = v.location { row("Location", location) }
@@ -76,7 +125,9 @@ struct PrinterPane: View {
 /// The printer's state in words, its alerts, and "This is my printer" when another device has its address.
 struct StatusCard: View {
     let printer: PrinterModel
+    @Environment(AppModel.self) private var app
     @State private var confirmAccept = false
+    @State private var fixing = false
 
     var body: some View {
         let v = printer.view
@@ -98,14 +149,16 @@ struct StatusCard: View {
                         .foregroundStyle(alert.severity == .error ? .red : alert.severity == .warning ? .orange : .secondary)
                 }
             }
-            if v.phase == .elsewhere {
-                Button("This Is My Printer…") { confirmAccept = true }
+            HStack {
+                if printer.needsFixing { Button("Fix It…") { fixing = true } }
+                if v.phase == .elsewhere { Button("This Is My Printer…") { confirmAccept = true } }
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.secondary, in: .rect(cornerRadius: 10))
         .accessibilityElement(children: .contain)
+        .sheet(isPresented: $fixing) { OfflineFixerSheet(printer: printer, app: app) }
         .confirmationDialog("Use the device that now answers at \(printer.host) as \(printer.name)?", isPresented: $confirmAccept) {
             Button("This Is My Printer") { printer.acceptDevice() }
         } message: {

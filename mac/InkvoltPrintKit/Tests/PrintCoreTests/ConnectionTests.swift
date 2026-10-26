@@ -385,25 +385,31 @@ struct OtherBrandsConnectionTests {
         #expect(conn.probe.brand == .epson)
     }
 
+    // These two time the IPP step alone (the Mac port's): the whole probe also reads LEDM and eSCL, which a full parallel run
+    // can slow by seconds without the IPP step waiting on anything.
     @Test func aSilentHintDoesntHoldUpThePlainIppAnswer() async throws {
+        Fixtures.preload("inkjet-demo") // timed: nothing waits on the disk
         let handler = Network(Printers.inkjet(), failNow: true) { $0.url.path == "/ipp/printer" ? Network.hang() : nil }
+        let http = DeviceHttp(host: "192.0.2.11", transport: handler)
         let clock = ContinuousClock()
         let started = clock.now
-        let probe = try await PrinterConnection.probe(DeviceHttp(host: "192.0.2.11", transport: handler),
-                                                      ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
-        #expect(probe.ippEndpoint?.path == "/ipp/print")
+        let ipp = await PrinterConnection.probeIpp(http, hint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         #expect(clock.now - started < PrinterConnection.ippProbeDeadline - .seconds(1)) // not the hint's deadline
+        #expect(ipp?.1.path == "/ipp/print")
     }
 
     @Test func aPrinterThatNeverAnswersIppCostsOneDeadlineNotOnePerAttempt() async throws {
+        Fixtures.preload("inkjet-demo") // timed: nothing waits on the disk
         let handler = Network(Printers.inkjet(), failNow: true) { $0.url.port == 631 ? Network.hang() : nil }
+        let http = DeviceHttp(host: "192.0.2.11", transport: handler)
         let clock = ContinuousClock()
         let started = clock.now
-        let probe = try await PrinterConnection.probe(DeviceHttp(host: "192.0.2.11", transport: handler),
-                                                      ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
-        #expect(probe.ipp == nil)
-        #expect(probe.scanner != nil)
+        let ipp = await PrinterConnection.probeIpp(http, hint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         #expect(clock.now - started < PrinterConnection.ippProbeDeadline * 2 - .seconds(1)) // one deadline, not one per attempt
+        #expect(ipp == nil)
+        let probe = try await PrinterConnection.probe(http, ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
+        #expect(probe.ipp == nil)
+        #expect(probe.scanner != nil) // the other interfaces are still asked
     }
 
     @Test func hostRouterSendsEachDemoPrinterToItsOwnFixtures() async throws {

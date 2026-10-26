@@ -1,6 +1,6 @@
 import Foundation
 
-/// One DNS-SD service as browsing found it: its instance name ("HP LaserJet MFP M234dw (95BE5B)") and what it announces.
+/// One DNS-SD service as browsing found it: its instance name ("HP LaserJet MFP M234dw (1A2B3C)") and what it announces.
 public struct AnnouncedService: Equatable, Sendable {
     public var instance: String?
     public var dnssd: DnssdService

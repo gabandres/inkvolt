@@ -9,7 +9,7 @@
   "secondaryCategory": "PRODUCTIVITY",
   "copyright": "2026 Bermudez Systems LLC",
   "promotionalText": "See every printer's status, ink and toner levels and alerts at a glance, in its window or from the menu bar. No account, no cloud, no tracking.",
-  "keywords": "printer,ink,toner,status,supplies,cartridge,airprint,ipp,ink level,toner level,menu bar,office",
+  "keywords": "printer,ink,toner,status,scanner,scan,cartridge,airprint,ipp,menu bar,print queue,office",
   "description": [
     "Inkvolt Print keeps an eye on your printers. It finds them on your network and shows what matters: ready or asleep, ink and toner levels, paper and cover problems, and how many pages they've printed, kept up to date while it runs.",
     "",
@@ -19,6 +19,12 @@
     "• A menu bar item shows at a glance whether every printer is fine, and a notification tells you when one needs you.",
     "• Made for HP printers and works with Canon, Epson, Brother and other AirPrint, Mopria or IPP Everywhere printers. Older network printers get status and toner over SNMP.",
     "• Before it shows anything, it checks that the device at a printer's address is still your printer, so another device that took the address is never shown under its name.",
+    "• Printers set up in macOS show too, USB and shared ones included, with their status and your print jobs, which you can cancel.",
+    "• A printer that stopped printing gets step-by-step help: Inkvolt Print finds it at a new address, resumes a paused queue and cancels stuck jobs, and says what to do in System Settings for the rest.",
+    "• Scan from the printer's scanner or a USB scanner: blank pages left out, crooked pages straightened, pages turned, cropped and reordered before you save them as a PDF, a searchable PDF (text recognised on your Mac) or JPEG images. One-click scan presets save where you choose.",
+    "• Print a PDF, print photos (full page, standard photo sizes, contact sheets) or make a copy, through macOS's own printing.",
+    "• Change an HP printer's settings (sleep, two-sided printing, paper) and its automatic firmware updates, and run its maintenance pages.",
+    "• Add a printer that doesn't announce itself: Inkvolt Print searches your network for it, or takes its address.",
     "• A demo with made-up printers, to try it without one.",
     "",
     "Private by design: no account, no cloud service, no ads, no analytics, no tracking. Inkvolt Print talks only to the printers on your network.",
@@ -30,14 +36,27 @@
   "reviewNotes": [
     "Inkvolt Print reads the status, alerts and ink or toner levels of printers on the user's local network. There is no account or sign-in.",
     "",
-    "Without a printer: when none is found (after about 30 seconds of looking), the window says \"No printers found\" and offers \"Try the Demo\", which opens a second window with five made-up printers that answer from data built into the app (nothing goes to the network).",
+    "Without a printer: when none is found (after about 30 seconds of looking), the window says \"No printers found\" and offers \"Try the Demo\", which opens a second window with made-up printers (five on the network, three set up in macOS) that answer from data built into the app (nothing goes to the network).",
+    "",
+    "In the demo window: the Scan tab (on the demo inkjet or the USB laser) scans made-up pages and saves them where you choose; the demo office laser's Fix It… shows the offline fixer; the office MFP's print queue card shows made-up jobs; Print a PDF and Print Photos open the macOS print panel (Cancel stops them); the demo printer's Settings tab takes changes but the made-up printer keeps none.",
     "",
     "Local Network: macOS asks for Local Network access at first launch. The app uses it to find printers with Bonjour (the service types listed in NSBonjourServices) and to read them over HTTP and HTTPS (IPP, and HP's own LEDM and CDM interfaces) and over SNMP. If access is denied, the app says so and links to System Settings.",
     "",
-    "Entitlements: com.apple.security.network.client for those connections; com.apple.security.network.server only to receive the UDP replies to the SNMP questions the app sends to printers. The app runs no server and listens for no connections.",
+    "Entitlements: com.apple.security.network.client for those connections; com.apple.security.network.server only to receive the UDP replies to the SNMP questions the app sends to printers (the app runs no server and listens for no connections); com.apple.security.print to read the printers set up in macOS (their CUPS queues: USB printers and printers shared from other computers are listed with their status) and to cancel the user's own print jobs, through libcups; com.apple.security.files.user-selected.read-write to save scans where the user chooses in the save panel; com.apple.security.files.bookmarks.app-scope to remember the folder the user chose for a scan preset; com.apple.security.device.usb to scan with USB scanners through ImageCaptureCore.",
     "",
     "The app collects no data. Everything it remembers stays in its container on the Mac."
   ],
   "screenshots": ["01-laser.png", "02-dark-cdm.png", "03-inkjet.png", "04-office.png", "05-snmp.png"],
-  "reviewContactFrom": "com.bermudezsystems.inkvolt"
+  "reviewContactFrom": "com.bermudezsystems.inkvolt",
+  "whatsNew": [
+    "Inkvolt Print 1.1 does far more than show status:",
+    "",
+    "• Scanning, with page review, straightening, blank page skipping, searchable PDFs and one-click presets; USB scanners too.",
+    "• Print a PDF, print photos, and copy.",
+    "• Printers set up in macOS join the list, with their print queues: cancel your own jobs.",
+    "• Fix It… helps a printer that stopped printing.",
+    "• Add a Printer… searches your network or takes an address.",
+    "• HP printers: device settings, automatic firmware updates and maintenance pages.",
+    "• Settings: quiet hours, the low-supply level, pausing alerts, opening at login."
+  ]
 }

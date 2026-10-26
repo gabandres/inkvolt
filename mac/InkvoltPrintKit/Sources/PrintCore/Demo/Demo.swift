@@ -22,15 +22,24 @@ public enum Demo {
     public static let unlistedHost = "192.0.2.16"
 
     /// The made-up network's HTTP and SNMP. `fixtures`: the folder holding `m234dw`, `hp-demo`, `inkjet-demo`, `cdm-laser` and
-    /// `snmp-demo` (the app bundle's `Demo` folder; the tests' Fixtures folder).
-    public static func network(fixtures: URL) -> (http: any HttpTransport, snmp: any SnmpTransport) {
+    /// `snmp-demo` (the app bundle's `Demo` folder; the tests' Fixtures folder). `scanPage`: the made-up scanners' pages, a JPEG
+    /// for (page, width, height in 1/300 inch): page 0 straight, 1 a little crooked, 2 blank. The glass gives page 0 at the area
+    /// asked for; the feeder holds all three, letter size. Nil: the demo printers can't scan.
+    public static func network(fixtures: URL, scanPage: (@Sendable (Int, Int, Int) -> [UInt8])? = nil)
+        -> (http: any HttpTransport, snmp: any SnmpTransport) {
         @Sendable func read(_ folder: String, _ name: String) -> [UInt8]? {
             (try? Data(contentsOf: fixtures.appendingPathComponent(folder).appendingPathComponent(name))).map(Array.init)
         }
         @Sendable func laser(_ name: String) -> [UInt8]? { read("m234dw", name) ?? read("hp-demo", name) }
+        var area: (@Sendable (Int, Int) -> [UInt8])?
+        var feeder: (@Sendable () -> [[UInt8]]?)?
+        if let scanPage {
+            area = { w, h in scanPage(0, w, h) }
+            feeder = { [0, 1, 2].map { scanPage($0, 2550, 3300) } }
+        }
         let http = HostRouter([
-            FixtureTransport.demoHost: FixtureTransport(document: laser),
-            inkjetHost: FixtureTransport(document: { read("inkjet-demo", $0) }),
+            FixtureTransport.demoHost: FixtureTransport(document: laser, scanArea: area, feederBatch: feeder),
+            inkjetHost: FixtureTransport(document: { read("inkjet-demo", $0) }, scanArea: area, feederBatch: feeder),
             // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
             officeNewHost: FixtureTransport(document: { name in
                 guard let bytes = laser(name) else { return nil }
@@ -54,6 +63,57 @@ public enum Demo {
             },
         ])
         return (http, snmp)
+    }
+
+    /// Search my network on the made-up network: 253 addresses over about three seconds, finding the HP laser and the
+    /// SNMP-only laser (both listed already) and `unlistedHost`. Nothing reaches the network.
+    public static func searchNetwork(found: @escaping @Sendable (String) -> Void, progress: @escaping @Sendable (SearchProgress) -> Void) async throws {
+        let total = 253
+        let printers = [10: FixtureTransport.demoHost, 14: snmpHost, 16: unlistedHost]
+        for i in 1...total {
+            if i % 16 == 0 { try await Task.sleep(for: .milliseconds(180)) }
+            if let host = printers[i] { found(host) }
+            progress(SearchProgress(checked: i, total: total))
+        }
+    }
+
+    /// The made-up Mac's print queues: a USB laser discovery can't see (toner low as its queue says), a printer shared from
+    /// another Mac that is off, a colour MFP on a raw socket at `snmpQueueHost` with a job waiting, and two that stay out of
+    /// the list: a PDF writer (virtual) and the demo HP laser's own queue (its device URI carries the printer's UUID).
+    public static let destinations: [CupsDestination] = [
+        CupsDestination(name: "Demo_USB_laser", options: [
+            "printer-info": "Demo USB laser", "device-uri": "usb://Demo/Laser%202100?serial=DEMO0002100", "printer-make-and-model": "Demo Laser 2100",
+            "printer-type": "4", "printer-state": "3", "printer-state-reasons": "toner-low-warning", "printer-is-accepting-jobs": "true",
+            "marker-names": "Black Toner", "marker-levels": "12", "marker-low-levels": "15", "marker-types": "toner", "marker-colors": "#000000",
+        ], jobs: 0),
+        CupsDestination(name: "Front_desk_demo_mac", options: [
+            "printer-info": "Front desk @ demo-mac", "device-uri": "dnssd://Front%20desk%20%40%20demo-mac._ipp._tcp.local./cups?uuid=5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9",
+            "printer-make-and-model": "Demo Inkjet 3700 Series", "printer-type": "\(4 | CupsDestination.TypeBit.remote)", "printer-state": "3",
+            "printer-state-reasons": "offline-report", "printer-is-accepting-jobs": "true",
+        ], jobs: 0),
+        CupsDestination(name: "Office_color_MFP", options: [
+            "printer-info": "Office color MFP", "device-uri": "socket://\(snmpQueueHost)", "printer-make-and-model": "Demo Color MFP 4400",
+            "printer-location": "Copy room", "printer-type": "8", "printer-state": "4", "printer-state-reasons": "none", "printer-is-accepting-jobs": "true",
+        ], jobs: 1),
+        CupsDestination(name: "PDFwriter", options: ["printer-info": "PDFwriter", "device-uri": "pdfwriter:/", "printer-type": "4", "printer-state": "3"]),
+        CupsDestination(name: "HP_LaserJet_MFP_M234dw_demo", options: [
+            "printer-info": "HP LaserJet MFP M234dw (demo)", "device-uri": "dnssd://Demo%20printer._ipp._tcp.local./?uuid=\(uuid)",
+            "printer-make-and-model": "HP LaserJet MFP M234dw - IPP Everywhere", "printer-type": "4", "printer-state": "3",
+        ]),
+    ]
+
+    /// Demo mode's print queues: `destinations`, with made-up jobs (yours, and one from someone else) in the office MFP's
+    /// queue and the demo HP laser's own, which can be cancelled; nothing prints.
+    public static func queues(now: Date = Date()) -> FixedQueues {
+        FixedQueues(destinations, jobs: [
+            "Office_color_MFP": [
+                QueueJob(id: 41, name: "Quarterly report.pdf", pages: 12, pagesPrinted: 3, state: .processing, submitted: now.addingTimeInterval(-240), owner: "you"),
+                QueueJob(id: 42, name: "Team photo.jpg", pages: 1, state: .pending, submitted: now.addingTimeInterval(-60), owner: "alex"),
+            ],
+            "HP_LaserJet_MFP_M234dw_demo": [
+                QueueJob(id: 17, name: "Boarding pass.pdf", pages: 2, state: .pending, submitted: now.addingTimeInterval(-30), owner: "you"),
+            ],
+        ], user: "you")
     }
 
     /// The made-up state: the demo printers remembered, the HP laser selected. Kept in memory only.

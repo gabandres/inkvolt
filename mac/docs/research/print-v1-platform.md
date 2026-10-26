@@ -54,9 +54,10 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 | `com.apple.security.app-sandbox` | Required for the Mac App Store |
 | `com.apple.security.network.client` | Outgoing TCP (IPP, LEDM/CDM, eSCL, the 631/9100/515 probe) and sending UDP (SNMP) |
 | `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." |
-| `com.apple.security.print` | Printing (test page). Probably also what opens the cupsd socket (UNVERIFIED, see Q2) |
+| `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing) |
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
-| `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks |
+| `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
+| `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
 
 Not needed: `com.apple.developer.networking.multicast`, which is iOS, iPadOS and visionOS only.
 
@@ -104,6 +105,9 @@ not granted) unless said otherwise. These replace the matching UNVERIFIED items 
 | TCP sweep | 759 connections, 96 at a time, 1.5 s timeout: 12.7 s for a /24; the printer's 515, 631 and 9100 open. |
 | 5. Bonjour | Each listed type finds the printer; unlisted types still `NoAuth`. |
 | 9. ATS | With `NSAllowsLocalNetworking`, `http://<IPv4>/` and `/eSCL/ScannerCapabilities` answer 200, and `https://<IPv4>/` with a trust handler accepting the self-signed certificate. |
+| URLSession `Host` | A `Host` header set on the request goes out as given (loopback server, 2026-10-26), though Apple lists it among the headers URLSession manages: the Epson eSCL quirk works. |
+| ImageCaptureCore session | From the sandboxed Release build, a session on the network M234dw opened and its flatbed was read (8.5 × 11.7 in, 3 resolutions), once the scanner said it was available (a moment after the session opened). No scan was run; no USB scanner was at hand. |
+| Cancel-Job (own) | **Works from the sandbox** (2026-10-26, the app's Release build, `cupsCancelJob2` with no password callback): a held job the user submitted to a local queue was cancelled. |
 | localhost:631 | Still EPERM: the sandbox doesn't let the app reach cupsd over TCP. Use libcups (its socket) for local queues. |
 | CUPS | `cupsGetDests2` also lists the printer's Bonjour (temporary) destination once Local Network is allowed, without state until it's used. |
 | 4. ImageCaptureCore | The network scanner was added and removed again about every second for 15 s while Bonjour browsing ran in the same app: the app must debounce ICC's device list. |
