@@ -35,24 +35,23 @@ enum NetworkChecks {
         await withCheckedContinuation { continuation in
             let browser = NWBrowser(for: .bonjour(type: type, domain: nil), using: NWParameters())
             let once = Once()
-            var state = "setup"
-            var count = 0
-            func finish(_ text: String) {
+            let seen = BrowseState()
+            let finish: @Sendable (String) -> Void = { text in
                 guard once.claim() else { return }
                 browser.cancel()
                 continuation.resume(returning: text)
             }
             browser.stateUpdateHandler = { update in
                 switch update {
-                case .ready: state = "ready"
-                case .waiting(let error): state = "waiting \(error)"
+                case .ready: seen.state = "ready"
+                case .waiting(let error): seen.state = "waiting \(error)"
                 case .failed(let error): finish("failed \(error)")
                 default: break
                 }
             }
-            browser.browseResultsChangedHandler = { results, _ in count = results.count }
+            browser.browseResultsChangedHandler = { results, _ in seen.count = results.count }
             browser.start(queue: probeQueue)
-            probeQueue.asyncAfter(deadline: .now() + seconds) { finish("\(state), \(count) found") }
+            probeQueue.asyncAfter(deadline: .now() + seconds) { finish("\(seen.state), \(seen.count) found") }
         }
     }
 
@@ -130,7 +129,7 @@ enum NetworkChecks {
         await withCheckedContinuation { continuation in
             let connection = NWConnection(host: NWEndpoint.Host(address), port: 161, using: .udp)
             let once = Once()
-            func finish(_ text: String) {
+            let finish: @Sendable (String) -> Void = { text in
                 guard once.claim() else { return }
                 connection.cancel()
                 continuation.resume(returning: text)
@@ -200,7 +199,7 @@ enum NetworkChecks {
         await withCheckedContinuation { continuation in
             let connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
             let once = Once()
-            func finish(_ result: TcpResult) {
+            let finish: @Sendable (TcpResult) -> Void = { result in
                 guard once.claim() else { return }
                 connection.cancel()
                 continuation.resume(returning: result)
@@ -221,6 +220,12 @@ enum NetworkChecks {
     private static func denied(_ connection: NWConnection) -> Bool {
         connection.currentPath?.unsatisfiedReason == .localNetworkDenied
     }
+}
+
+/// What a Bonjour browse has seen; touched only on `probeQueue`.
+final class BrowseState: @unchecked Sendable {
+    var state = "setup"
+    var count = 0
 }
 
 // MARK: - IPv4 interfaces

@@ -15,4 +15,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: swift --version
-      - run: swift build --package-path mac/Probe
+      - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
