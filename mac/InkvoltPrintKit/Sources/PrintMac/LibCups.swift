@@ -13,8 +13,12 @@ public struct LibCups: PrintQueues, QueueControl {
             var list: UnsafeMutablePointer<cups_dest_t>?
             let count = cupsGetDests2(nil, &list)
             defer { cupsFreeDests(count, list) }
-            // None, and an error: cupsd couldn't be asked (no print entitlement: "Bad file descriptor", 0x502).
-            if count == 0 { return cupsLastError().rawValue >= IPP_STATUS_ERROR_BAD_REQUEST.rawValue ? nil : [] }
+            // None, and an error: cupsd couldn't be asked (no print entitlement: "Bad file descriptor", 0x502). "Not found"
+            // (0x406, "No destinations added") is a Mac with no queue at all.
+            if count == 0 {
+                let error = cupsLastError()
+                return error == IPP_STATUS_ERROR_NOT_FOUND || error.rawValue < IPP_STATUS_ERROR_BAD_REQUEST.rawValue ? [] : nil
+            }
             guard let list else { return [] }
             var found: [CupsDestination] = []
             for i in 0..<Int(count) {
