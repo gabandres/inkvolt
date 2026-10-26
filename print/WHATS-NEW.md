@@ -5,6 +5,11 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Add a printer: searches your network for printers that don't show up by themselves, puts back printers you removed, helps with USB printers, and takes an address or printer URL.
+- Unsaved scans come back after a crash in more cases (after a save, while a dialog was open), and a printer with unsaved scans stays listed.
+- The scan review fits small windows.
+- Opening several files with Inkvolt Print at once opens them all.
+- Report a problem masks more personal details and keeps model numbers and versions readable.
 
 ## 1.0.6
 - The Overview uses the whole window: its cards widen to fill it.

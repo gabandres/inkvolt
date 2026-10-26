@@ -73,10 +73,10 @@
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:ScanPageViewModel}">
                     <StackPanel Width="220">
-                        <Grid Height="285">
+                        <Grid Height="{Binding ThumbnailHeight, RelativeSource={RelativeSource AncestorType=views:ScanPages}}">
                             <Border CornerRadius="4" BorderThickness="1" Background="White" HorizontalAlignment="Center" VerticalAlignment="Center"
                                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxWidth="218" MaxHeight="283">
+                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxWidth="218">
                                     <Image.Style>
                                         <Style TargetType="Image">
                                             <Style.Triggers>
@@ -166,11 +166,7 @@
         <!-- Photos on the glass: the scan, large, with a box over each photo -->
         <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
                    Visibility="{Binding IsEditingPhotos, Converter={StaticResource VisibleWhen}}">
-            <DockPanel DockPanel.Dock="Top" Margin="20,4,14,10">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                    <Button Content="Cancel" Command="{Binding CancelPhotosCommand}" Margin="0,0,8,0" IsCancel="True" />
-                    <Button Content="Done" Command="{Binding ApplyPhotosCommand}" Style="{DynamicResource AccentButtonStyle}" />
-                </StackPanel>
+            <views:HeaderPanel DockPanel.Dock="Top" Margin="20,14,14,10" Gap="10">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding PhotoPage.Number, StringFormat='Photos on page {0}'}" FontSize="14" FontWeight="SemiBold" />
                     <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
@@ -185,7 +181,11 @@
                     </WrapPanel>
                     <TextBlock Text="{Binding PhotoStatus}" Margin="0,8,0,0" TextWrapping="Wrap" />
                 </StackPanel>
-            </DockPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="Cancel" Command="{Binding CancelPhotosCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Done" Command="{Binding ApplyPhotosCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+            </views:HeaderPanel>
             <Grid Margin="20,0,20,20">
                 <TextBlock Text="Loading the scan…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding PhotoImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
@@ -198,18 +198,18 @@
         <!-- Crop: one page, large, with the box to keep -->
         <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
                    Visibility="{Binding IsCropping, Converter={StaticResource VisibleWhen}}">
-            <DockPanel DockPanel.Dock="Top" Margin="20,4,14,10">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Content="Whole page" Command="{Binding ResetCropCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
-                    <Button Content="Cancel" Command="{Binding CancelCropCommand}" Margin="0,0,8,0" IsCancel="True" />
-                    <Button Content="Crop" Command="{Binding ApplyCropCommand}" Style="{DynamicResource AccentButtonStyle}" />
-                </StackPanel>
+            <views:HeaderPanel DockPanel.Dock="Top" Margin="20,14,14,10" Gap="10">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding CropPage.Number, StringFormat='Crop page {0}'}" FontSize="14" FontWeight="SemiBold" />
                     <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
                                Text="Drag over the part to keep, or drag the box and its corners. Arrow keys move it; Shift+arrows resize it." />
                 </StackPanel>
-            </DockPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="Whole page" Command="{Binding ResetCropCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
+                    <Button Content="Cancel" Command="{Binding CancelCropCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Crop" Command="{Binding ApplyCropCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+            </views:HeaderPanel>
             <Grid Margin="20,0,20,20">
                 <TextBlock Text="Loading the page…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding CropImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />

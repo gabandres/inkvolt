@@ -23,17 +23,9 @@ public partial class MainWindow : Window
 
     private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
 
-    // Add a printer by address: type at once when it opens; back on its button when it closes from inside (Esc, Cancel).
-    private void AddPrinterCard_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    private void AddPrinter_Click(object sender, RoutedEventArgs e)
     {
-        if (AddPrinterCard.IsVisible)
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
-            {
-                AddressBox.Focus();
-                AddressBox.SelectAll();
-            });
-        else if (AddPrinterCard.IsKeyboardFocusWithin || System.Windows.Input.Keyboard.FocusedElement is null)
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () => AddPrinterButton.Focus());
+        if (Vm is { } vm) AddPrinterWindow.Open(this, vm);
     }
 
     private void Help_Executed(object sender, System.Windows.Input.ExecutedRoutedEventArgs e) => ShowHelp();

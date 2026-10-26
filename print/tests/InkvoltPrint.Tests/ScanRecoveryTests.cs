@@ -75,6 +75,29 @@ public sealed class ScanRecoveryTests : IDisposable
     }
 
     [Fact]
+    public void Pages_of_a_forgotten_scan_are_written_again_when_a_list_names_them_again()
+    {
+        var store = ScanRecoveryStore.Start(_root);
+        var a = ScanRecoveryStore.NewPageName();
+        var b = ScanRecoveryStore.NewPageName();
+        var written = new List<string>();
+        byte[] Jpeg(string name)
+        {
+            written.Add(name);
+            return name == a ? [1, 1] : [2, 2];
+        }
+        store.Keep(Scan(Laser, new KeptPage(a, 300, true)), Jpeg);
+        store.Keep(Scan(Laser, new KeptPage(a, 300, true), new KeptPage(b, 300, true)), Jpeg); // a is on disk: not written again
+        Assert.Equal([a, b], written);
+        store.Forget(Laser); // saved: its list and pages go
+        store.Keep(Scan(Laser, new KeptPage(a, 300, true), new KeptPage(b, 300, true)), Jpeg); // then turned, or more scanned
+        store.KeepForNextStart();
+
+        var left = Assert.Single(ScanRecoveryStore.FindLeftOver(_root));
+        Assert.Equal([[1, 1], [2, 2]], left.Scan.Pages.Select(p => File.ReadAllBytes(left.PagePath(p))));
+    }
+
+    [Fact]
     public void A_scan_whose_pages_are_missing_or_whose_list_is_damaged_is_skipped()
     {
         var store = ScanRecoveryStore.Start(_root);

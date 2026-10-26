@@ -169,11 +169,7 @@ public sealed class LedmClient(DeviceHttp http)
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
     }
 
-    private static XDocument Load(byte[] bytes)
-    {
-        using var ms = new MemoryStream(bytes);
-        return XDocument.Load(ms);
-    }
+    private static XDocument Load(byte[] bytes) => DeviceXml.Load(bytes);
 }
 
 public sealed class LedmAuthRequiredException(bool credentialsWereSent)

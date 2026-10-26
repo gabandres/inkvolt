@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using InkvoltPrint.App.ViewModels;
 using InkvoltPrint.Core.Imaging;
@@ -65,26 +66,7 @@ internal sealed class ScanKeeper : IDisposable
                 if (_kept.Remove(printer.Uuid)) Forget(printer.Uuid);
                 continue;
             }
-            var fresh = new List<(string Name, byte[] Jpeg)>();
-            var pages = scan.Pages.Select(p =>
-            {
-                if (!_files.TryGetValue(p, out var name))
-                {
-                    name = ScanRecoveryStore.NewPageName();
-                    _files.Add(p, name);
-                    fresh.Add((name, p.Original));
-                }
-                return new KeptPage(name, p.Dpi, p.Ocr, p.Edits.QuarterTurns, p.Edits.Deskew, p.Edits.Crop, p.IsSkipped, p.StartsFile);
-            }).ToList();
-            var says = string.Join("|", pages);
-            if (_kept.TryGetValue(printer.Uuid, out var before) && before == says) continue;
-            _kept[printer.Uuid] = says;
-            var kept = new KeptScan(printer.Uuid, printer.Name, DateTime.UtcNow, pages);
-            Enqueue(store =>
-            {
-                foreach (var (name, jpeg) in fresh) store.KeepPage(name, jpeg);
-                store.Keep(kept);
-            });
+            if (Write(printer, scan) is { } write) Enqueue(write);
         }
         foreach (var gone in _kept.Keys.Where(id => !listed.Contains(id)).ToList())
         {
@@ -94,16 +76,38 @@ internal sealed class ScanKeeper : IDisposable
         if (wait) _queue.Wait(TimeSpan.FromSeconds(10));
     }
 
+    /// <summary>The store work that writes a printer's unsaved scan as it is now; null when it hasn't changed since the last pass.</summary>
+    private Action<ScanRecoveryStore>? Write(PrinterViewModel printer, ScanViewModel scan)
+    {
+        // The store writes each page its folder doesn't have, which is also every page again after a save forgot them all.
+        var jpegs = new Dictionary<string, byte[]>();
+        var pages = scan.Pages.Select(p =>
+        {
+            var name = _files.GetValue(p, _ => ScanRecoveryStore.NewPageName());
+            jpegs[name] = p.Original;
+            return new KeptPage(name, p.Dpi, p.Ocr, p.Edits.QuarterTurns, p.Edits.Deskew, p.Edits.Crop, p.IsSkipped, p.StartsFile);
+        }).ToList();
+        var says = string.Join("|", pages);
+        if (_kept.TryGetValue(printer.Uuid, out var before) && before == says) return null;
+        _kept[printer.Uuid] = says;
+        var kept = new KeptScan(printer.Uuid, printer.Name, DateTime.UtcNow, pages);
+        return store => store.Keep(kept, name => jpegs[name]);
+    }
+
     private void Forget(string printerId) => Enqueue(store => store.Forget(printerId));
 
-    /// <summary>Left-over scans go back into a Scan tab once one can take them (its scanner connected, not busy).</summary>
+    /// <summary>
+    /// Left-over scans go back into a Scan tab once one can take them (its scanner connected; not scanning, saving or clearing),
+    /// never while a dialog is open: pages put back under a Save or Discard question would be saved as untouched or discarded.
+    /// </summary>
     private void RestorePending()
     {
+        if (_pending.Count == 0 || ComponentDispatcher.IsThreadModal) return;
         foreach (var left in _pending.ToList())
         {
             var own = _vm.Printers.FirstOrDefault(p => p.Uuid == left.Scan.PrinterId);
             var target = own ?? (DateTime.UtcNow - _started > WaitForPrinter ? _vm.Printers.FirstOrDefault(p => p.Scan is not null) : null);
-            if (target?.Scan is not { IsBusy: false } scan) continue;
+            if (target?.Scan is not { TakesRestoredPages: true } scan) continue;
             List<(byte[], KeptPage)> pages;
             try
             {
@@ -115,15 +119,29 @@ internal sealed class ScanKeeper : IDisposable
                 _pending.Remove(left);
                 continue;
             }
+            try
+            {
+                scan.Restore(pages);
+            }
+            catch (Exception ex) // not put back: the copy stays for the next start
+            {
+                Log.Write($"Unsaved scan couldn't be put back: {ex}");
+                _pending.Remove(left);
+                continue;
+            }
             _pending.Remove(left);
-            scan.Restore(pages);
             _vm.Selected = target;
             target.SelectedSection = PrinterViewModel.ScanSection;
             Log.Write($"Restored {pages.Count} unsaved scanned pages");
-            // This run keeps its own copy first, so a crash right now still finds the pages.
-            Keep();
+            // This run keeps its own copy first, so a crash right now still finds the pages; one that couldn't be written
+            // (the store threw) leaves the old copy for the next start.
+            var write = Write(target, scan);
             var done = left;
-            Enqueue(_ => ScanRecoveryStore.Remove(done));
+            Enqueue(store =>
+            {
+                write?.Invoke(store);
+                ScanRecoveryStore.Remove(done);
+            });
         }
     }
 

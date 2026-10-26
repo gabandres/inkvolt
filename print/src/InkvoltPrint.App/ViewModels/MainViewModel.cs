@@ -162,22 +162,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowSearching), nameof(ShowNoPrinters))]
     public partial bool IsSearching { get; set; } = true;
 
-    [ObservableProperty]
-    public partial bool IsAddOpen { get; set; }
-
     public bool ShowSearching => IsEmpty && IsSearching;
     public bool ShowNoPrinters => IsEmpty && !IsSearching;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AddByAddressCommand))]
-    public partial string ManualAddress { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string? ManualError { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AddByAddressCommand))]
-    public partial bool IsAdding { get; set; }
 
     public bool IsEmpty => Printers.Count == 0;
 
@@ -305,13 +291,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // ---------------------------------------------------------------- printers
-
-    [RelayCommand]
-    private void ToggleAdd()
-    {
-        IsAddOpen = !IsAddOpen;
-        ManualError = null;
-    }
 
     /// <summary>A second window with the made-up demo printer (App: --try), for anyone without a supported printer at hand.</summary>
     [RelayCommand]
@@ -452,9 +431,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var id in change.Removed)
             if (Printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase)) is { } gone)
             {
+                if (gone.Scan is { HasUnsavedPages: true } unsaved)
+                {
+                    KeepForScans(gone, unsaved);
+                    continue;
+                }
+                if (_keptForScans.Remove(gone, out var saved)) saved.PropertyChanged -= KeptScanChanged;
                 Printers.Remove(gone);
                 gone.Dispose();
             }
+        // Only a pass over the queues can tell a kept printer's queue is back (a scanners-only pass never removes queue printers).
+        if (queues)
+            foreach (var back in _keptForScans.Keys.Where(p => !change.Removed.Contains(p.Uuid, StringComparer.OrdinalIgnoreCase)).ToList())
+                LetGo(back); // its queue is back
         foreach (var q in change.AddedQueues)
         {
             var vm = new PrinterViewModel(q, _pc.QueueStatus(q), _state, Presets, Remember, _pc);
@@ -476,8 +465,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         _wantedSelection = change.WantedQueue;
         var selected = Printers.FirstOrDefault(p => string.Equals(p.Uuid, change.Selected, StringComparison.OrdinalIgnoreCase));
-        if (selected != Selected) Selected = selected;
+        if (selected != Selected && !(Selected is { } shown && _keptForScans.ContainsKey(shown))) Selected = selected; // not away from pages being reviewed
         NotifyEmpty();
+    }
+
+    /// <summary>Queue printers the list would drop (see <see cref="KeepForScans"/>), with the Scan tab watched for its pages being saved.</summary>
+    private readonly Dictionary<PrinterViewModel, ScanViewModel> _keptForScans = [];
+
+    /// <summary>
+    /// A queue printer whose Windows queue went (removed or renamed), or that a network printer found later now stands for, stays
+    /// listed while its Scan tab has pages not saved yet, as a scanner on its own does: they can still be reviewed and saved (and
+    /// stay kept on disk). Once they're saved or cleared the queues are read again, and it goes.
+    /// </summary>
+    private void KeepForScans(PrinterViewModel p, ScanViewModel scan)
+    {
+        if (_keptForScans.ContainsKey(p)) return;
+        Log.Write($"[{p.Name}] stays listed until its unsaved scanned pages are saved or cleared");
+        _keptForScans[p] = scan;
+        p.QueueMissing -= RelistQueues; // known: not read again every few seconds
+        scan.PropertyChanged += KeptScanChanged;
+    }
+
+    private void LetGo(PrinterViewModel p)
+    {
+        if (!_keptForScans.Remove(p, out var scan)) return;
+        scan.PropertyChanged -= KeptScanChanged;
+        p.QueueMissing += RelistQueues;
+    }
+
+    private void KeptScanChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ScanViewModel.HasUnsavedPages) && sender is ScanViewModel { HasUnsavedPages: false }) RelistQueues();
     }
 
     private void Remember(PrinterViewModel p)
@@ -487,66 +505,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice));
     }
 
-    private bool CanAddByAddress() => !string.IsNullOrWhiteSpace(ManualAddress) && !IsAdding;
-
-    /// <summary>Add a printer that mDNS can't see (other subnet, VPN): probe it directly by IP or host name.</summary>
-    [RelayCommand(CanExecute = nameof(CanAddByAddress))]
-    private async Task AddByAddressAsync()
-    {
-        var host = ManualAddress.Trim();
-        if (Uri.TryCreate(host, UriKind.Absolute, out var u)) host = u.Host;
-        ManualError = null;
-        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
-        {
-            ManualError = $"\"{host}\" is not a valid address.";
-            return;
-        }
-        if (_pc.AddByAddressOff is { } off)
-        {
-            ManualError = off;
-            return;
-        }
-        IsAdding = true;
-        try
-        {
-            using var http = new InkvoltPrint.Core.Net.DeviceHttp(host, _pc.DeviceTransport());
-            var probe = await PrinterConnection.ProbeAsync(http, snmp: _pc.Snmp); // SNMP-only printers can be added too
-            if (!probe.Reachable)
-            {
-                ManualError = $"No printer answered at {host}. Check the address and that the printer is on.";
-                return;
-            }
-            var uuid = PrinterId.Normalize(probe.Uuid, host);
-            _state.Unforget([uuid]);
-            var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
-            // Answering only SNMP now makes it an SNMP-only printer (it's asked over HTTP again later, in case it was asleep).
-            var snmpOnly = probe.Snmp is { } snmp ? SnmpDevice.From(snmp) : null;
-            if (vm is null)
-            {
-                vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember, _pc)
-                    { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly };
-                Printers.Add(vm);
-                vm.Start();
-                NotifyEmpty();
-            }
-            else vm.SnmpDevice ??= snmpOnly;
-            Remember(vm);
-            Selected = vm;
-            ManualAddress = "";
-            IsAddOpen = false;
-            Reconcile(queues: true);
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"Add by address failed: {ex}");
-            ManualError = $"Could not add {host}: {ex.Message}";
-        }
-        finally
-        {
-            IsAdding = false;
-        }
-    }
-
     [RelayCommand]
     private void Forget(PrinterViewModel? p)
     {
@@ -554,13 +512,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var warning = p.Scan?.HasUnsavedPages == true ? $"\n\nYou'll lose {p.Scan.PageCountText.ToLowerInvariant()} you scanned and haven't saved." : "";
         var again = !p.IsNetworkPrinter
             ? "It stays hidden here while Windows has it; if it's removed from Windows and set up again, it shows again."
-            : "To see it again, add it by address.";
+            : "To see it again, open Add a printer: it's offered there while it's on the network.";
         if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. {again}", "Remove"))
             return;
         _state.RemovePrinter(p.Uuid);
         // A network printer's own Windows queues and its Windows scanner go with it, so they don't show up again as entries of their own.
         _state.Forget(PrinterList.HiddenWith(Listed(p), Printers.Select(Listed).ToList(), _queues, _scanners));
         _state.Save();
+        if (_keptForScans.Remove(p, out var kept)) kept.PropertyChanged -= KeptScanChanged;
         p.Dispose();
         Printers.Remove(p);
         if (Selected == p) Selected = Printers.FirstOrDefault();

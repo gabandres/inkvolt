@@ -104,4 +104,21 @@ public class LedmTests
     [InlineData("na_letter", "Na letter")]
     [InlineData("ADFJam", "ADFJam")]
     public void Humanize(string id, string expected) => Assert.Equal(expected, StatusText.Humanize(id));
+
+    [Fact]
+    public void Device_xml_nested_deeper_than_any_printer_writes_is_refused_not_a_stack_overflow()
+    {
+        // LINQ to XML reads elements recursively: 200,000 levels overflowed the stack, which no catch stops.
+        const int depth = 200_000;
+        var xml = System.Text.Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("<a>", depth)) + string.Concat(Enumerable.Repeat("</a>", depth)));
+        Assert.Throws<System.Xml.XmlException>(() => InkvoltPrint.Core.Net.DeviceXml.Load(xml));
+        Assert.NotNull(InkvoltPrint.Core.Net.DeviceXml.Load(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", "DevMgmt_DiscoveryTree.xml"))));
+    }
+
+    [Fact]
+    public void Device_xml_with_a_dtd_is_refused()
+    {
+        var xml = "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY e \"x\">]><a>&e;</a>"u8.ToArray();
+        Assert.Throws<System.Xml.XmlException>(() => InkvoltPrint.Core.Net.DeviceXml.Load(xml));
+    }
 }

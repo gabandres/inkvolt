@@ -171,11 +171,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
         return await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
     }
 
-    private static XDocument Load(byte[] bytes)
-    {
-        using var ms = new MemoryStream(bytes);
-        return XDocument.Load(ms);
-    }
+    private static XDocument Load(byte[] bytes) => DeviceXml.Load(bytes);
 }
 
 public sealed class ScanException(string message) : Exception(message);

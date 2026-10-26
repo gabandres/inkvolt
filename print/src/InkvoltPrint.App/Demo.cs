@@ -46,6 +46,9 @@ internal static class Demo
     /// <summary>The demo printer that answers SNMP only, and the demo color MFP behind a Windows TCP/IP port.</summary>
     public const string SnmpHost = "192.0.2.14", SnmpQueueHost = "192.0.2.15";
 
+    /// <summary>A demo laser on the network that isn't listed: only Add a printer's Search my network finds it (SNMP only).</summary>
+    public const string UnlistedHost = "192.0.2.16";
+
     /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
     public const string InkjetHost = "192.0.2.11";
 
@@ -63,7 +66,11 @@ internal static class Demo
         public override Core.Snmp.ISnmpTransport Snmp => Demo.Snmp;
         public override bool NetworkUp() => true;
         public override Windows.Discovery.PrinterDiscovery? CreateDiscovery() => null;
-        public override string? AddByAddressOff => "Adding printers is turned off in demo mode.";
+        // Adding works against the made-up printers only: the demo's transports reach no real address.
+        public override string? AddByAddressOff => null;
+
+        public override Task SearchNetworkAsync(Action<string> found, IProgress<Core.Discovery.SearchProgress>? progress, CancellationToken ct) =>
+            Demo.SearchNetworkAsync(empty, found, progress, ct);
 
         // Made up: this PC's queues and scanners are never asked in demo mode.
         public override (IReadOnlyList<Core.Queues.SpoolerQueue>, IReadOnlyList<Core.Wia.WiaDeviceInfo>)? FixedDevices =>
@@ -136,10 +143,30 @@ internal static class Demo
     {
         [SnmpHost] = SnmpAgent("workgroup-laser.txt"),
         [SnmpQueueHost] = SnmpAgent("color-mfp.txt"),
+        [UnlistedHost] = SnmpAgent("workgroup-laser.txt", text => text.Replace("Demo Laser 5200 Series", "Demo Laser 3100")
+            .Replace("Demo Laser 5200", "Demo Laser 3100").Replace("DEMO0005200", "DEMO0003100").Replace("demo-laser", "basement-laser")
+            .Replace("Office, 2nd floor", "Basement")),
     });
 
-    private static Core.Snmp.SnmpAgent SnmpAgent(string name) =>
-        new(Core.Snmp.SnmpAgent.ParseWalk(System.Text.Encoding.UTF8.GetString(Document("DemoSnmp." + name) ?? [])));
+    /// <summary>
+    /// Search my network on the made-up network: 253 addresses over about three seconds, finding the HP laser and the SNMP-only
+    /// laser (both listed already) and <see cref="UnlistedHost"/>; on the empty PC's network, nothing.
+    /// </summary>
+    public static async Task SearchNetworkAsync(bool empty, Action<string> found, IProgress<Core.Discovery.SearchProgress>? progress, CancellationToken ct)
+    {
+        const int total = 253;
+        var printers = empty ? new Dictionary<int, string>()
+            : new Dictionary<int, string> { [10] = FixtureHandler.DemoHost, [14] = SnmpHost, [16] = UnlistedHost };
+        for (var i = 1; i <= total; i++)
+        {
+            if (i % 16 == 0) await Task.Delay(180, ct);
+            if (printers.TryGetValue(i, out var host)) found(host);
+            progress?.Report(new Core.Discovery.SearchProgress(i, total));
+        }
+    }
+
+    private static Core.Snmp.SnmpAgent SnmpAgent(string name, Func<string, string>? change = null) =>
+        new(Core.Snmp.SnmpAgent.ParseWalk((change ?? (t => t))(System.Text.Encoding.UTF8.GetString(Document("DemoSnmp." + name) ?? []))));
 
     /// <summary>The made-up PC and network the demo printers' offline fixer looks at and repairs.</summary>
     public static DemoOfflinePc OfflinePc { get; } = new([(Uuid, FixtureHandler.DemoHost), (InkjetUuid, InkjetHost)], OfficeUuid);

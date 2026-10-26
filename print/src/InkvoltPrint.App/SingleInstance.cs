@@ -56,12 +56,18 @@ public sealed class SingleInstance : IDisposable
         });
     }
 
+    /// <summary>
+    /// How long a launch waits for the running copy's pipe: it listens as soon as it holds the lock, but that copy may itself be
+    /// starting on a slow PC, and launches together ("Open with" on several files) are taken one at a time.
+    /// </summary>
+    private static readonly TimeSpan ForwardWait = TimeSpan.FromSeconds(20);
+
     private static void Forward(string[] args)
     {
         try
         {
             using var client = new NamedPipeClientStream(".", Id, PipeDirection.Out, PipeOptions.CurrentUserOnly);
-            client.Connect(3000);
+            client.Connect(ForwardWait); // tries again until then while the pipe isn't there or is busy
             var bytes = Encoding.UTF8.GetBytes(string.Join('\n', args.Select(a => File.Exists(a) ? Path.GetFullPath(a) : a)));
             client.Write(bytes);
         }

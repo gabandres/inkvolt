@@ -20,9 +20,25 @@ public partial class ScanPages : UserControl
     private Point? _dragStart;
     private ScanPageViewModel? _dragPage;
 
+    public static readonly DependencyProperty ThumbnailHeightProperty =
+        DependencyProperty.Register(nameof(ThumbnailHeight), typeof(double), typeof(ScanPages), new PropertyMetadata(MaxThumbnail));
+
+    private const double MaxThumbnail = 285, MinThumbnail = 150, BelowThumbnail = 80; // the page's buttons, its padding, the list's
+
+    /// <summary>A page's thumbnail height: as tall as the list has room for (a whole page in view in a short window), up to 285.</summary>
+    public double ThumbnailHeight
+    {
+        get => (double)GetValue(ThumbnailHeightProperty);
+        set => SetValue(ThumbnailHeightProperty, value);
+    }
+
     public ScanPages()
     {
         InitializeComponent();
+        PagesList.SizeChanged += (_, e) =>
+        {
+            if (e.HeightChanged && e.NewSize.Height > 0) ThumbnailHeight = Math.Clamp(Math.Floor(e.NewSize.Height - BelowThumbnail), MinThumbnail, MaxThumbnail);
+        };
         // The crop view takes the keyboard when it opens, so arrows move the box straight away.
         Cropper.IsVisibleChanged += (_, e) =>
         {

@@ -186,6 +186,29 @@ public class FirmwareTests
         Assert.Null(FirmwareUpdateSettings.ConfigPathIn([]));
     }
 
+    [Fact]
+    public void Manifest_nested_twenty_thousand_deep_is_cut_off_not_a_stack_overflow()
+    {
+        // A reply arrives over plain HTTP before the device is identified: one recursion per nested map would let it end the process.
+        const int depth = 20_000;
+        var sb = new System.Text.StringBuilder("<Manifest><ResourceMap><ResourceLink><ResourceURI>/Base</ResourceURI></ResourceLink>");
+        for (var i = 0; i < depth; i++)
+            sb.Append("<ResourceNode><ResourceLink><ResourceURI>/a</ResourceURI></ResourceLink><ResourceType><T>Level</T></ResourceType><ResourceMap>");
+        for (var i = 0; i < depth; i++) sb.Append("</ResourceMap></ResourceNode>");
+        sb.Append("</ResourceMap></Manifest>");
+        var doc = XDocument.Parse(sb.ToString());
+
+        IReadOnlyList<(string Type, string Path)>? entries = null;
+        var walk = new Thread(() => entries = LedmManifest.Entries(doc));
+        walk.Start();
+        walk.Join();
+
+        Assert.NotNull(entries);
+        Assert.InRange(entries.Count, 16, 64); // the levels a real manifest uses (three or four), and no further
+        Assert.Equal(("Level", "/Base/a"), entries[0]);
+        Assert.Equal(("Level", "/Base/a/a"), entries[1]);
+    }
+
     [Theory]
     [InlineData("available", "A firmware update is available.")]
     [InlineData("downloading", "Downloading an update…")]

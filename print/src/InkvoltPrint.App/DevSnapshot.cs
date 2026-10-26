@@ -28,7 +28,7 @@ namespace InkvoltPrint.App;
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
-/// <c>--dialog settings|help|whatsnew|report</c> renders that window instead.
+/// <c>--dialog settings|help|whatsnew|report|addprinter [--dialog-wait ms]</c> renders that window instead.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -175,7 +175,7 @@ internal static class DevSnapshot
             }
             shot = editor;
         }
-        // --dialog settings|help|whatsnew|report: that window instead of the main one.
+        // --dialog settings|help|whatsnew|report|addprinter: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
         {
             Window? dialog = name switch
@@ -184,13 +184,15 @@ internal static class DevSnapshot
                 "help" => HelpDialog.Create(dialogMain),
                 "whatsnew" => WhatsNewDialog.Create(AppHelp.Notes()),
                 "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain)),
+                "addprinter" => AddPrinterWindow.Create(dialogMain),
                 _ => null,
             };
             if (dialog is not null)
             {
                 dialog.Owner = window;
                 dialog.Show();
-                await Task.Delay(TimeSpan.FromSeconds(1));
+                // Add a printer searches the (made-up) network first: about three seconds.
+                await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
                 shot = dialog;
             }
         }

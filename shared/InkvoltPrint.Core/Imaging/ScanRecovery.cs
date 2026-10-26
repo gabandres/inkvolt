@@ -74,6 +74,23 @@ public sealed class ScanRecoveryStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes (or replaces) a printer's page list, first writing each page it names that isn't on disk (new, or deleted with a
+    /// scan saved and then changed again) from <paramref name="jpeg"/>; then deletes the pages no list names.
+    /// </summary>
+    public void Keep(KeptScan scan, Func<string, byte[]> jpeg)
+    {
+        lock (_gate)
+        {
+            if (_ended) return;
+            foreach (var page in scan.Pages)
+                if (Path.Combine(_run.Path, page.File) is var path && !File.Exists(path))
+                    RunFolder.WriteAtomic(path, stream => stream.Write(jpeg(page.File)));
+            RunFolder.WriteAtomic(ListPath(_run.Path, scan.PrinterId), stream => JsonSerializer.Serialize(stream, scan, Json));
+            DeleteUnlisted(_run.Path);
+        }
+    }
+
     /// <summary>A printer's scan was saved or cleared: its list and pages go.</summary>
     public void Forget(string printerId)
     {

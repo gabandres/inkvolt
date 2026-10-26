@@ -96,6 +96,7 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             for (var i = 0; i < Pages.Count; i++) Pages[i].Number = i + 1;
             _dirty = Pages.Count > 0;
+            _changes++;
             _savedParts.Clear();
             RefreshFiles();
             PagesChanged();
@@ -117,6 +118,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (e.PropertyName is not (nameof(ScanPageViewModel.Edits) or nameof(ScanPageViewModel.IsSkipped)
                 or nameof(ScanPageViewModel.Separator) or nameof(ScanPageViewModel.StartsFile) or nameof(ScanPageViewModel.Photos))) return;
         _dirty = true;
+        _changes++;
         _savedParts.Clear(); // a page changed: what was saved isn't what's on screen any more
         if (e.PropertyName != nameof(ScanPageViewModel.Edits)) RefreshFiles();
         PagesChanged();
@@ -185,6 +187,38 @@ public sealed partial class ScanViewModel : ObservableObject
     public bool HasPages => Pages.Count > 0;
     public bool HasUnsavedPages => _dirty && Pages.Count > 0;
 
+    /// <summary>Counts the changes to the pages, so a save marks them saved only if nothing changed while it ran.</summary>
+    private int _changes;
+
+    /// <summary>A save or clear is under way, its dialogs included.</summary>
+    private int _holding;
+
+    /// <summary>Pages a crashed run left can be put back now: not scanning, saving or clearing (<see cref="Restore"/>).</summary>
+    public bool TakesRestoredPages => !IsBusy && _holding == 0;
+
+    /// <summary>Holds restored pages back until the save or clear (with its questions) is over.</summary>
+    private Holding HoldRestore() => new(this);
+
+    private readonly struct Holding : IDisposable
+    {
+        private readonly ScanViewModel _scan;
+
+        public Holding(ScanViewModel scan)
+        {
+            _scan = scan;
+            scan._holding++;
+        }
+
+        public void Dispose() => _scan._holding--;
+    }
+
+    /// <summary>The pages saved as they were when the save started (<paramref name="changes"/>): marked saved, unless they changed meanwhile.</summary>
+    private void MarkSaved(int changes)
+    {
+        if (_changes == changes) _dirty = false;
+        OnPropertyChanged(nameof(HasUnsavedPages));
+    }
+
     /// <summary>
     /// The files the pages are saved as: one, or with separator sheets (or splits set by hand) several, each its pages in
     /// order (<see cref="BatchSplit"/>). Skipped pages and dropped separators are in none.
@@ -204,7 +238,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>The page whose photos are being adjusted; null when the photo view is closed.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEditingPhotos))]
+    [NotifyPropertyChangedFor(nameof(IsEditingPhotos), nameof(IsAdjustingPage))]
     public partial ScanPageViewModel? PhotoPage { get; set; }
 
     public bool IsEditingPhotos => PhotoPage is not null;
@@ -653,6 +687,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (from < 0 || index < 0 || index >= Pages.Count || index == from) return null;
         Pages.Move(from, index);
         _dirty = true;
+        _changes++;
         OnPropertyChanged(nameof(HasUnsavedPages));
         return $"Moved to position {index + 1} of {Pages.Count}";
     }
@@ -678,15 +713,16 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void KeepPage(ScanPageViewModel? page)
     {
-        if (page is not null) page.IsSkipped = false;
-        if (page is not null) _ = page.OcrAsync();
+        if (page is null || IsBusy) return;
+        page.IsSkipped = false;
+        _ = page.OcrAsync();
     }
 
     // ---- Crop: an enlarged view of one page (straightened and turned, not cropped) with the crop box drawn on it ----
 
     /// <summary>The page being cropped; null when the crop view is closed.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCropping))]
+    [NotifyPropertyChangedFor(nameof(IsCropping), nameof(IsAdjustingPage))]
     public partial ScanPageViewModel? CropPage { get; set; }
 
     [ObservableProperty] public partial BitmapSource? CropImage { get; set; }
@@ -695,6 +731,9 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial CropBox CropBox { get; set; } = CropBox.Full;
 
     public bool IsCropping => CropPage is not null;
+
+    /// <summary>The crop or photo view is open: it takes the whole pane, the review's toolbar and status line too.</summary>
+    public bool IsAdjustingPage => IsCropping || IsEditingPhotos;
 
     [RelayCommand]
     private async Task CropAsync(ScanPageViewModel? page)
@@ -742,6 +781,7 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private void Clear()
     {
+        using var hold = HoldRestore();
         if (HasUnsavedPages && !Prompt.Ask($"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved?", "Discard")) return;
         DropPages();
     }
@@ -782,6 +822,8 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(string? format)
     {
+        using var hold = HoldRestore();
+        var changes = _changes;
         var jpg = format == "jpg";
         var folder = _state.ScanFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var files = Files();
@@ -830,8 +872,7 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             LastSavedPath = all[0];
             _savedPdfs = jpg ? [] : all;
-            _dirty = false;
-            OnPropertyChanged(nameof(HasUnsavedPages));
+            MarkSaved(changes);
             Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}.";
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
@@ -963,10 +1004,13 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (preset is null || IsBusy) return;
         preset = _presets.Find(preset.Id) ?? preset;
-        if (HasUnsavedPages && !Prompt.Ask(
-                $"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved and scan with \"{preset.Name}\"?", "Discard and scan"))
-            return;
-        DropPages();
+        using (HoldRestore())
+        {
+            if (HasUnsavedPages && !Prompt.Ask(
+                    $"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved and scan with \"{preset.Name}\"?", "Discard and scan"))
+                return;
+            DropPages();
+        }
         ActivePreset = preset;
         Prompt.Announce($"Scanning with {preset.Name}");
         var added = await ScanPagesAsync(() => PlanAsync(preset));
@@ -983,6 +1027,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (ActivePreset is not { } active) return;
         var preset = _presets.FindById(active.Id) ?? active; // edited meanwhile, or deleted (then saved as it was)
+        var changes = _changes;
         var files = Files();
         var kept = files.SelectMany(f => f).ToList();
         if (kept.Count == 0)
@@ -1037,8 +1082,7 @@ public sealed partial class ScanViewModel : ObservableObject
             ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
             _savedPdfs = jpg ? [] : saved;
-            _dirty = false;
-            OnPropertyChanged(nameof(HasUnsavedPages));
+            MarkSaved(changes);
             Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")}"
                 + $"{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")} in {folder}."
                 + (before.Count == 0 ? "" : $" Already saved the first time, not written again: {string.Join(", ", before.Select(Path.GetFileName))}.")

@@ -27,6 +27,20 @@ public class HelpTests
     [InlineData(@"tried C:\Scans\a.pdf, C:\Scans\b.pdf; gave up", "tried [path].pdf, [path].pdf; gave up")]
     [InlineData(@"at InkvoltPdf.App.MainWindow.OnSave() in Z:\PdfDesk\pdf\src\MainWindow.xaml.cs:line 12", @"at InkvoltPdf.App.MainWindow.OnSave() in [path].cs:line 12")]
     [InlineData("Logged in as JDoe on jdoe-laptop", "Logged in as [user] on [pc]")]
+    [InlineData(@"Opened C:\Users\x\Documents\John Smith tax return.pdf", "Opened [path].pdf")]
+    [InlineData(@"Opened \\srv\share\Jane Doe.pdf (2 pages)", "Opened [path].pdf (2 pages)")]
+    [InlineData("No such host is known. (officeprinter.lan:80)", "No such host is known. ([host]:80)")]
+    [InlineData("Connection refused (printer:9100)", "Connection refused ([host]:9100)")]
+    [InlineData("OFFICE-PRINTER.CORP:443 timed out", "[host]:443 timed out")]
+    [InlineData("resolved OfficePrinter.home.arpa, retrying", "resolved [host], retrying")]
+    [InlineData("found npi7a1b2c and NPI7A1B2C", "found [host] and [host]")]
+    [InlineData("answered at printer.home.local", "answered at [host].local")]
+    [InlineData("from ::ffff:192.168.1.5 on port 631", "from [ip] on port 631")]
+    [InlineData("peer 172.16.5.4 and 8.8.8.8", "peer [ip] and 8.8.8.8")]
+    [InlineData("SerialNumber=CNB9K12345", "SerialNumber=[serial]")]
+    [InlineData("Serial number: CNB9K12345, firmware TJP1FN2405AR", "Serial number: [serial], firmware TJP1FN2405AR")]
+    [InlineData("device CN12345678 and TJP1FN2405AR", "device [id] and [id]")]
+    [InlineData("device CN1234ABCD, then KMN12345", "device [id], then [id]")] // shaped like a model number, but not after a maker's prefix
     public void Scrub_masks_what_identifies_a_person_a_printer_or_a_network(string line, string expected) =>
         Assert.Equal(expected, Diagnostics.Scrub(line, Me));
 
@@ -36,6 +50,16 @@ public class HelpTests
     [InlineData("HP LaserJet MFP M234dw: toner 42 %")]
     [InlineData("System.IO.IOException: The process cannot access the file")]
     [InlineData("eSCL 2.63, 300 dpi, A4")]
+    [InlineData("Brother MFC-L8900CDW: ready")]
+    [InlineData("Firmware: TJP1FN2405AR (2024-08-13)")]
+    [InlineData("Firmware revision SAYPRO1N001.2045A")]
+    [InlineData("Inkvolt PDF 1.0.7.0 started")]
+    [InlineData("Could not load 'System.Text.Json, Version=10.0.12.0'")]
+    [InlineData("System.Text.Json.Serialization.JsonException: bad value")]
+    [InlineData("at InkvoltPrint.App.ViewModels.ScanViewModel.SaveAsync() in MainWindow.xaml.cs:line 12")]
+    [InlineData("settings.json not read; state.json kept")]
+    [InlineData("What's New shown for 1.0.7, 1.0.6")]
+    [InlineData("2026-10-25T10:00:00 Response status code does not indicate success: 404 (Not Found).")]
     public void Scrub_keeps_what_helps_find_the_problem(string line) => Assert.Equal(line, Diagnostics.Scrub(line, Me));
 
     [Fact]

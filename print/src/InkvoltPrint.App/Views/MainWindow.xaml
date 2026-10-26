@@ -653,9 +653,15 @@
 
                 <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}" Padding="0">
                     <DockPanel>
-                        <!-- Toolbar -->
-                        <DockPanel DockPanel.Dock="Top" Margin="20,14,14,10">
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <!-- Toolbar: the buttons go under the page count when the pane is narrow; hidden while a page is cropped (its own buttons) -->
+                        <views:HeaderPanel DockPanel.Dock="Top" Margin="20,14,14,10" Gap="10"
+                                           Visibility="{Binding IsAdjustingPage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="Drag pages to reorder. Right-click a page for more." Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap"
+                                           Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
+                            <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button Content="Clear" Command="{Binding ClearCommand}" Margin="0,0,8,0"
                                         Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Save as images" Command="{Binding SaveCommand}" CommandParameter="jpg" Margin="0,0,8,0" />
@@ -668,28 +674,26 @@
                                 <Button Content="{Binding SavePresetText}" Command="{Binding SaveWithPresetCommand}" Style="{DynamicResource AccentButtonStyle}"
                                         ToolTip="{Binding ActivePreset, Converter={StaticResource PresetSummary}}"
                                         Visibility="{Binding HasActivePreset, Converter={StaticResource VisibleWhen}}" />
-                            </StackPanel>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Drag pages to reorder. Right-click a page for more." Style="{StaticResource Caption}" FontSize="12"
-                                           Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
-                            </StackPanel>
-                        </DockPanel>
+                            </WrapPanel>
+                        </views:HeaderPanel>
 
-                        <!-- Status line -->
-                        <Border DockPanel.Dock="Bottom" Padding="20,10" BorderThickness="0,1,0,0"
+                        <!-- Status line (the crop and photo views take its room too) -->
+                        <Border DockPanel.Dock="Bottom" Visibility="{Binding IsAdjustingPage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <Border Padding="20,10" BorderThickness="0,1,0,0"
                                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                 Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
-                            <DockPanel>
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                                            Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
-                                    <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="16,0,16,0" />
+                            <!-- The links go under a message too long to sit beside them -->
+                            <views:HeaderPanel Gap="12">
+                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center"
+                                           Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
+                                    <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
                                     <Button Content="Open in Inkvolt PDF" Command="{Binding OpenSavedInInkvoltPdfCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
                                             Visibility="{Binding CanOpenSavedInInkvoltPdf, Converter={StaticResource VisibleWhen}}" />
                                     <Button Content="Show in folder" Command="{Binding ShowSavedInFolderCommand}" Style="{StaticResource LinkButton}" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-                            </DockPanel>
+                                </WrapPanel>
+                            </views:HeaderPanel>
+                        </Border>
                         </Border>
                         <ProgressBar DockPanel.Dock="Bottom" IsIndeterminate="True" Height="3" Margin="20,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
@@ -1446,35 +1450,13 @@
 
             <!-- Add a printer that discovery can't see -->
             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                <Button x:Name="AddPrinterButton" AutomationProperties.Name="Add a printer by address" Command="{Binding ToggleAddCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
-                        Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                <Button AutomationProperties.Name="Add a printer" Click="AddPrinter_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
+                        ToolTip="Search your network, add a USB printer, or one by its address">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" Margin="0,0,10,0" />
-                        <TextBlock Text="Add a printer by address" />
+                        <TextBlock Text="Add a printer…" />
                     </StackPanel>
                 </Button>
-                <Border x:Name="AddPrinterCard" Style="{StaticResource Card}" Padding="12" IsVisibleChanged="AddPrinterCard_IsVisibleChanged"
-                        Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}}">
-                    <StackPanel>
-                        <TextBlock Text="Printer IP address or name" Margin="0,0,0,6" />
-                        <TextBox x:Name="AddressBox" Text="{Binding ManualAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Printer address">
-                            <TextBox.InputBindings>
-                                <KeyBinding Key="Enter" Command="{Binding AddByAddressCommand}" />
-                                <KeyBinding Key="Escape" Command="{Binding ToggleAddCommand}" />
-                            </TextBox.InputBindings>
-                        </TextBox>
-                        <TextBlock Text="Print a network report from the printer to find its IP address." Style="{StaticResource Caption}"
-                                   FontSize="12" Margin="0,6,0,0" />
-                        <TextBlock Text="{Binding ManualError}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
-                                   Visibility="{Binding ManualError, Converter={StaticResource VisibleWhen}}" />
-                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
-                                     Visibility="{Binding IsAdding, Converter={StaticResource VisibleWhen}}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                            <Button Content="Cancel" Command="{Binding ToggleAddCommand}" Margin="0,0,8,0" />
-                            <Button Content="Add" Command="{Binding AddByAddressCommand}" Style="{DynamicResource AccentButtonStyle}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
                 <Button Style="{StaticResource LinkButton}" Content="Settings" Click="Settings_Click" HorizontalAlignment="Left"
                         Margin="10,12,0,0" FontSize="12"
                         ToolTip="Light or dark, where scans are saved, the notification area and alerts" />
@@ -1495,11 +1477,11 @@
                     <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,10"
                                Text="Make sure the printer is on and connected to the same Wi-Fi or network as this PC." />
                     <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,10" TextWrapping="Wrap"
-                               Text="Still nothing? A VPN, a firewall that blocks finding devices, or a printer on another network (a guest Wi-Fi, another subnet) can hide it: add it by its IP address." />
-                    <Button Content="Search again" Command="{Binding SearchAgainCommand}" HorizontalAlignment="Left" />
-                    <Button Style="{StaticResource LinkButton}" Content="Add a printer by address" Command="{Binding ToggleAddCommand}"
-                            HorizontalAlignment="Left" Margin="0,10,0,0"
-                            Visibility="{Binding IsAddOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                               Text="Still nothing? A VPN, a firewall or another network (a guest Wi-Fi) can hide it. Add a printer looks harder, and takes a USB printer or an address." />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Add a printer…" Click="AddPrinter_Click" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0" />
+                        <Button Content="Search again" Command="{Binding SearchAgainCommand}" />
+                    </StackPanel>
                     <Button Style="{StaticResource LinkButton}" Content="No printer here? Try a demo printer" Command="{Binding TryDemoCommand}"
                             HorizontalAlignment="Left" Margin="0,10,0,0"
                             ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />

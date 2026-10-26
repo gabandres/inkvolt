@@ -15,6 +15,9 @@ public partial class App : Application
     private MainViewModel? _vm;
     private SingleInstance? _instance;
 
+    /// <summary>Arguments other launches handed over before the window was up (null once it is).</summary>
+    private List<string[]>? _forwardedEarly = [];
+
     /// <summary>The notification-area icon and alerts: normal runs, and demo runs given <c>--tray</c> (never the <c>--try</c> window).</summary>
     public TrayController? Tray { get; private set; }
 
@@ -53,6 +56,13 @@ public partial class App : Application
                 Shutdown(); // the running copy got our arguments
                 return;
             }
+            // Listening at once: "Open with" on several files starts a copy per file, and those that lose the race hand their
+            // file over while this one is still starting (held until the window is up, below).
+            _instance.Listen(args => Dispatcher.InvokeAsync(() =>
+            {
+                if (_forwardedEarly is { } early) early.Add(args);
+                else HandleForwarded(args);
+            }));
         }
 
         // This UI is static; GPU rendering only costs memory (~200 MB on some ARM64 graphics drivers).
@@ -129,7 +139,6 @@ public partial class App : Application
         if (Tray is { KeepsRunning: true } && e.Args.Contains(StartWithWindows.Argument)) Tray.HideWindow(atStartup: true);
         else MainWindow.Show();
 
-        _instance?.Listen(args => Dispatcher.InvokeAsync(() => HandleForwarded(args)));
         // Demo runs keep theirs apart, under %TEMP% like their scans; the --try window and snapshots keep none.
         if (!devRun || (demo && !tryDemo && !e.Args.Contains("--snapshot")))
         {
@@ -155,6 +164,10 @@ public partial class App : Application
         else if (Pictures(e.Args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
         // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.
         if (PresetArg(e.Args) is { } preset && !e.Args.Contains("--snapshot")) _ = _vm.RunPresetWhenReadyAsync(preset);
+        // Then what other launches handed over while this one was starting, in the order they came.
+        var forwarded = _forwardedEarly;
+        _forwardedEarly = null;
+        foreach (var args in forwarded ?? []) HandleForwarded(args);
         if (Array.IndexOf(e.Args, "--autoprint") is var ap and >= 0 && ap + 1 < e.Args.Length)
             _ = DevAutoPrint.RunAsync(_vm, e.Args[ap + 1],
                 copies: int.TryParse(e.Args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,

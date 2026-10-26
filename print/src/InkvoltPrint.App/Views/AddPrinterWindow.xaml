@@ -1,0 +1,196 @@
+<Window x:Class="InkvoltPrint.App.Views.AddPrinterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels"
+        Title="Add a printer" Icon="/InkvoltPrint.ico" Width="600" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Window.Resources>
+        <!-- A section's heading: its glyph and title -->
+        <Style x:Key="SectionGlyph" TargetType="TextBlock" BasedOn="{StaticResource Icon}">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource CardTitle}">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="24,20,24,20">
+        <!-- Header -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="10" Margin="0,0,14,0" VerticalAlignment="Top"
+                    Background="{DynamicResource AccentFillColorDefaultBrush}">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+            </Border>
+            <StackPanel>
+                <TextBlock Text="Add a printer" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0"
+                           Text="Printers on your network and the ones set up in Windows show up in your list by themselves. Not seeing yours? Try these." />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Footer -->
+        <Button DockPanel.Dock="Bottom" Content="Done" IsCancel="True" MinWidth="96" HorizontalAlignment="Right" Margin="0,16,0,0" />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+            <StackPanel>
+                <!-- 1. On your network: searched as soon as the window opens -->
+                <Border Style="{StaticResource Card}" Padding="20,16">
+                    <StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Stop" Command="{Binding StopSearchCommand}"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Stop searching"
+                                    Visibility="{Binding IsSearching, Converter={StaticResource VisibleWhen}}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Search again" Command="{Binding SearchCommand}"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsSearching, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                            <TextBlock Style="{StaticResource SectionGlyph}" Text="&#xE721;" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="On your network" />
+                        </DockPanel>
+                        <ProgressBar Maximum="1" Value="{Binding Progress}" Height="3" Margin="0,12,0,0" AutomationProperties.Name="Search progress"
+                                     Visibility="{Binding IsSearching, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Visibility="{Binding Status, Converter={StaticResource VisibleWhen}}" />
+
+                        <ItemsControl ItemsSource="{Binding Found}" Margin="0,8,0,0" Focusable="False" AutomationProperties.Name="Printers found">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FoundPrinter}">
+                                    <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="0,10"
+                                            AutomationProperties.Name="{Binding Name}">
+                                        <DockPanel>
+                                            <!-- What can be done with it -->
+                                            <Grid DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                                                <Button x:Name="AddButton" Content="Add" MinWidth="72" Visibility="Collapsed"
+                                                        Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding AddName}"
+                                                        Command="{Binding DataContext.AddCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <ProgressBar x:Name="Adding" IsIndeterminate="True" Width="72" Height="3" Visibility="Collapsed"
+                                                             AutomationProperties.Name="Adding" />
+                                                <StackPanel x:Name="InList" Orientation="Horizontal" Visibility="Collapsed">
+                                                    <TextBlock x:Name="Check" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12" Margin="0,0,6,0"
+                                                               Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                    <TextBlock x:Name="InListText" Text="In your list" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                                    <Button Style="{StaticResource LinkButton}" Content="Show" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                            AutomationProperties.Name="{Binding ShowName}"
+                                                            Command="{Binding DataContext.ShowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Margin="0,0,12,0" VerticalAlignment="Top"
+                                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="16" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" FontSize="12" Margin="0,2,0,0" />
+                                                <TextBlock Text="{Binding Error}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" FontSize="12"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"
+                                                           Visibility="{Binding Error, Converter={StaticResource VisibleWhen}}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="{x:Static vm:FoundState.CanAdd}">
+                                            <Setter TargetName="AddButton" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="{x:Static vm:FoundState.Adding}">
+                                            <Setter TargetName="Adding" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="{x:Static vm:FoundState.Listed}">
+                                            <Setter TargetName="InList" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="{x:Static vm:FoundState.Added}">
+                                            <Setter TargetName="InList" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="InListText" Property="Text" Value="Added" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Nothing to add: what can hide a printer -->
+                        <Border CornerRadius="6" Padding="12,10" Margin="0,8,0,0" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding NothingFound}" Value="True" />
+                                                <Condition Binding="{Binding IsSearching}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,1,10,0" VerticalAlignment="Top" />
+                                <TextBlock TextWrapping="Wrap" FontSize="12"
+                                           Text="A printer that's off or asleep, on another network (a guest Wi-Fi, another floor), or behind a VPN or firewall can't be found this way. Wake it up and search again, or enter its address below." />
+                            </DockPanel>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,10,0,0"
+                                   Text="Only devices on this PC's own network are asked whether they print. Nothing is sent anywhere else." />
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. USB -->
+                <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,12,0,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource SectionGlyph}" Text="&#xECF0;" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Connected with a cable?" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                   Text="Plug it in and turn it on. Windows sets it up, and it shows in your list a moment later. If it doesn't, add it in Windows' settings." />
+                        <Button HorizontalAlignment="Left" Margin="0,12,0,0" Command="{Binding OpenWindowsSettingsCommand}"
+                                AutomationProperties.Name="Open Windows' Printers and scanners settings">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Open Printers &amp; scanners" />
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- 3. An address -->
+                <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,12,0,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource SectionGlyph}" Text="&#xE774;" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Know its address?" />
+                        </StackPanel>
+                        <TextBlock x:Name="AddressLabel" Text="IP address, name or printer URL" Margin="0,10,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="AddressBox" Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.LabeledBy="{Binding ElementName=AddressLabel}">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding AddAddressCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Grid.Column="1" Content="Add" MinWidth="72" Margin="8,0,0,0" Command="{Binding AddAddressCommand}"
+                                    AutomationProperties.Name="Add the printer at this address" />
+                        </Grid>
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0" AutomationProperties.Name="Adding"
+                                     Visibility="{Binding IsAddingAddress, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding AddressError}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" TextWrapping="Wrap"
+                                   Margin="0,8,0,0" AutomationProperties.LiveSetting="Assertive"
+                                   Visibility="{Binding AddressError, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,8,0,0"
+                                   Text="It's on the printer's screen (network or Wi-Fi settings) or on a network report it prints. For example 192.168.1.40, printer.local or ipp://printer.local/ipp/print." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

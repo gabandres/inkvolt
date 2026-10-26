@@ -86,11 +86,17 @@ public static class LedmManifest
         var map = new List<(string, string)>();
         if (doc.Root?.Kid("ResourceMap") is not { } root) return map;
         var basePath = root.Kid("ResourceLink")?.KidValue("ResourceURI") ?? "";
-        Walk(root, basePath, map);
+        Walk(root, basePath, map, 1);
         return map;
     }
 
-    private static void Walk(XElement resourceMap, string basePath, List<(string, string)> map)
+    /// <summary>
+    /// Nested maps followed; deeper ones are ignored. Real manifests nest three or four deep; the reply comes over plain HTTP before
+    /// the device is identified, so a map nested thousands deep must not recurse once per level (an uncatchable stack overflow).
+    /// </summary>
+    private const int MaxDepth = 32;
+
+    private static void Walk(XElement resourceMap, string basePath, List<(string, string)> map, int depth)
     {
         foreach (var node in resourceMap.Kids("ResourceNode"))
         {
@@ -98,7 +104,7 @@ public static class LedmManifest
             var path = basePath.TrimEnd('/') + "/" + link.TrimStart('/');
             // The type is the text of whichever element sits in ResourceType (its name varies per interface).
             if (node.Kid("ResourceType")?.Elements().FirstOrDefault()?.Value.Trim() is { Length: > 0 } type) map.Add((type, path));
-            if (node.Kid("ResourceMap") is { } nested) Walk(nested, path, map);
+            if (depth < MaxDepth && node.Kid("ResourceMap") is { } nested) Walk(nested, path, map, depth + 1);
         }
     }
 }

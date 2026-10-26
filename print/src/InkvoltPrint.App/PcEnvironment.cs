@@ -49,6 +49,12 @@ public abstract class PcEnvironment
     /// <summary>Why adding a printer by address can't be done here, or null when it can.</summary>
     public abstract string? AddByAddressOff { get; }
 
+    /// <summary>
+    /// Search my network (Add a printer): each address that may be a printer, as it's found (from any thread). The real network
+    /// is searched only when this is called (<see cref="Core.Discovery.NetworkSearch"/>).
+    /// </summary>
+    public abstract Task SearchNetworkAsync(Action<string> found, IProgress<Core.Discovery.SearchProgress>? progress, CancellationToken ct);
+
     // ---------------------------------------------------------------- Windows' print queues and scanners
 
     /// <summary>
@@ -139,6 +145,10 @@ public abstract class PcEnvironment
         public override bool NetworkUp() => PowerInfo.NetworkUp();
         public override PrinterDiscovery? CreateDiscovery() => new();
         public override string? AddByAddressOff => null;
+
+        public override Task SearchNetworkAsync(Action<string> found, IProgress<Core.Discovery.SearchProgress>? progress, CancellationToken ct) =>
+            Core.Discovery.NetworkSearch.SearchAsync(Core.Discovery.SocketNetworkScanner.Instance, a => found(a.ToString()), progress, ct);
+
         public override (IReadOnlyList<SpoolerQueue>, IReadOnlyList<WiaDeviceInfo>)? FixedDevices => null;
         public override IWiaSystem Wia => WindowsWia.Instance;
         public override bool HasWindowsQueues => true;
