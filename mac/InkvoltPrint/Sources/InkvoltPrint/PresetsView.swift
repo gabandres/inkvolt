@@ -120,6 +120,13 @@ private struct PresetEditor: View {
                 Toggle("Skip blank pages", isOn: $preset.skipBlank)
                 Toggle("Straighten pages", isOn: $preset.straighten)
                 Toggle("Stop on the pages to review them before saving", isOn: $preset.review)
+                if preset.source != .glass {
+                    Picker("Split into files at", selection: $preset.splitAt) {
+                        ForEach(SplitAt.known, id: \.self) { Text(Separators.label($0)).tag($0) }
+                    }
+                    if preset.splitAt != .none { Toggle("Keep separator sheets", isOn: $preset.keepSeparators) }
+                }
+                if preset.source != .feeder { Toggle("Several photos on the glass", isOn: $preset.findPhotos) }
             }
             Section("Save") {
                 Picker("As", selection: $preset.fileType) {
@@ -143,6 +150,13 @@ private struct PresetEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
+                // Open in Inkvolt PDF waits for Inkvolt PDF on the Mac; a preset from the Windows app that has it saves only.
+                Picker("Then", selection: $preset.after) {
+                    Text("Nothing more").tag(PresetAfter.none)
+                    Text("Print a copy").tag(PresetAfter.print)
+                    Text("Attach to a new email").tag(PresetAfter.email)
+                    if preset.after == .openInInkvoltPdf { Text("Open in Inkvolt PDF (Windows only)").tag(PresetAfter.openInInkvoltPdf) }
+                }
             }
         }
         .formStyle(.grouped)

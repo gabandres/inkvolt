@@ -11,6 +11,11 @@ public struct KeptPage: Equatable, Sendable, Codable {
     public var crop: CropBox?
     public var skipped = false
     public var startsFile = false
+    /// Mac only (the Windows app's recovery list has none of them): the photos found on the glass, the page as a batch's
+    /// separator, and whether it looked blank. Missing in an older list: none, not one, and as `skipped` says.
+    public var photos: [PhotoBox]?
+    public var separator: SeparatorFound?
+    public var looksBlank: Bool?
 
     public init(_ file: String, dpi: Int, ocr: Bool, quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, skipped: Bool = false,
                 startsFile: Bool = false) {

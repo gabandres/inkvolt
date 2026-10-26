@@ -5,7 +5,7 @@ import PrintCore
 /// macOS's print queues through libcups, over cupsd's domain socket (never `localhost:631`, which the sandbox refuses).
 /// Needs `com.apple.security.print`: without it libcups lists nothing. Calls block, so they run off the cooperative pool,
 /// one at a time.
-public struct LibCups: PrintQueues, QueueControl {
+public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
     public init() {}
 
     public func destinations() async -> [CupsDestination]? {
@@ -75,6 +75,17 @@ public struct LibCups: PrintQueues, QueueControl {
 
     public func acceptJobs(_ queue: String) async throws { try await Self.protected(IPP_OP_CUPS_ACCEPT_JOBS, queue) }
 
+    /// Points the queue at another device URI (the offline fixer's `.pointAt`): CUPS-Add-Modify-Printer, an administrator's.
+    public func setDeviceUri(_ queue: String, _ uri: String) async throws {
+        let failure: QueueControlError? = await Self.run {
+            cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
+            return Self.ask(IPP_OP_CUPS_ADD_MODIFY_PRINTER, "ipp://localhost/printers/" + queue, path: "/admin/") { r in
+                ippAddString(r, IPP_TAG_PRINTER, IPP_TAG_URI, "device-uri", nil, uri)
+            }
+        }
+        if let failure { throw failure }
+    }
+
     /// An operation cupsd keeps for operators and administrators (the probe showed both work from the sandbox for an
     /// administrator), asked as the user with no password prompt: a standard user is refused.
     private static func protected(_ operation: ipp_op_t, _ queue: String) async throws {
@@ -96,6 +107,94 @@ public struct LibCups: PrintQueues, QueueControl {
             return .failed(cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused.")
         }
         if let failure { throw failure }
+    }
+
+    /// "Set up in macOS" (`QueueSetup`): CUPS-Create-Local-Printer, which any local user may ask for, makes a temporary
+    /// queue and has cupsd read the printer into its PPD (the queue is stopped until that's done); then
+    /// CUPS-Add-Modify-Printer with `printer-is-temporary` false keeps it, which needs an administrator. Refused there, the
+    /// temporary queue goes away by itself.
+    public func addQueue(_ plan: QueueSetupPlan) async throws {
+        let created: QueueControlError? = await Self.run {
+            cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
+            return Self.ask(ipp_op_t(rawValue: 0x4028), "ipp://localhost/", path: "/") { r in // CUPS-Create-Local-Printer
+                ippAddString(r, IPP_TAG_PRINTER, IPP_TAG_NAME, "printer-name", nil, plan.queueName)
+                ippAddString(r, IPP_TAG_PRINTER, IPP_TAG_URI, "device-uri", nil, plan.deviceUri)
+                ippAddString(r, IPP_TAG_PRINTER, IPP_TAG_TEXT, "printer-info", nil, plan.info)
+            }
+        }
+        if let created { throw created }
+        // cupsd connects to the printer and writes the PPD: up to its 30 s timeout, then the queue is idle.
+        var ready = false
+        for _ in 0..<70 {
+            try await Task.sleep(for: .milliseconds(500))
+            let state = await Self.run { Self.printerState(plan.queueName) }
+            guard let state else { throw QueueControlError.failed("The printer didn't tell macOS what it can do.") }
+            if state != 5 { ready = true; break } // 5: stopped, still being set up
+        }
+        guard ready else { throw QueueControlError.failed("The printer didn't tell macOS what it can do in time.") }
+        let kept: QueueControlError? = await Self.run {
+            Self.ask(IPP_OP_CUPS_ADD_MODIFY_PRINTER, "ipp://localhost/printers/" + plan.queueName, path: "/admin/") { r in
+                ippAddBoolean(r, IPP_TAG_PRINTER, "printer-is-temporary", 0)
+                ippAddBoolean(r, IPP_TAG_PRINTER, "printer-is-accepting-jobs", 1)
+                ippAddString(r, IPP_TAG_PRINTER, IPP_TAG_TEXT, "printer-info", nil, plan.info)
+            }
+        }
+        if let kept { throw kept }
+    }
+
+    /// One request to cupsd as the user: nil when it took it.
+    private static func ask(_ op: ipp_op_t, _ printerUri: String, path: String, _ fill: (OpaquePointer?) -> Void) -> QueueControlError? {
+        // libcups keeps the callback per thread, and the queue's blocks may run on any: set it for each request.
+        cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
+        guard let request = ippNewRequest(op) else { return .failed("macOS's printing system couldn't be asked.") }
+        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, printerUri)
+        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, cupsUser())
+        fill(request)
+        let words = { cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused." }
+        guard let response = cupsDoRequest(nil, request, path) else {
+            let status = cupsLastError()
+            return status == IPP_STATUS_ERROR_FORBIDDEN || status == IPP_STATUS_ERROR_NOT_AUTHORIZED
+                || status == IPP_STATUS_ERROR_CUPS_AUTHENTICATION_CANCELED ? .refused : .failed(words())
+        }
+        defer { ippDelete(response) }
+        let status = ippGetStatusCode(response)
+        if status.rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue { return nil }
+        return status == IPP_STATUS_ERROR_FORBIDDEN || status == IPP_STATUS_ERROR_NOT_AUTHORIZED ? .refused : .failed(words())
+    }
+
+    /// The queue's `printer-state` (3 idle, 4 processing, 5 stopped); nil when cupsd has no such queue.
+    private static func printerState(_ queue: String) -> Int? {
+        cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
+        guard let request = ippNewRequest(IPP_OP_GET_PRINTER_ATTRIBUTES) else { return nil }
+        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, "ipp://localhost/printers/" + queue)
+        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "requested-attributes", nil, "printer-state")
+        guard let response = cupsDoRequest(nil, request, "/") else { return nil }
+        defer { ippDelete(response) }
+        guard ippGetStatusCode(response).rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue,
+              let attr = ippFindAttribute(response, "printer-state", IPP_TAG_ENUM) else { return nil }
+        return Int(ippGetInteger(attr, 0))
+    }
+
+    /// The paper sizes the queue offers, with the margins its printer keeps (`cupsCopyDestInfo`, its media list): what
+    /// Print Photos lays out on, borderless sizes included. Empty when cupsd can't say.
+    public func media(_ queue: String) async -> [QueueMedia] {
+        await Self.run {
+            guard let dest = cupsGetNamedDest(nil, queue, nil) else { return [] }
+            defer { cupsFreeDests(1, dest) }
+            guard let info = cupsCopyDestInfo(nil, dest) else { return [] }
+            defer { cupsFreeDestInfo(info) }
+            let flags = UInt32(CUPS_MEDIA_FLAGS_DEFAULT)
+            var found: [QueueMedia] = []
+            for i in 0..<cupsGetDestMediaCount(nil, dest, info, flags) {
+                var size = cups_size_t()
+                guard cupsGetDestMediaByIndex(nil, dest, info, i, flags, &size) != 0 else { continue }
+                let name = withUnsafeBytes(of: size.media) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
+                func inches(_ hundredthsOfMm: Int32) -> Double { Double(hundredthsOfMm) / 2540 }
+                found.append(QueueMedia(name: name, width: inches(size.width), height: inches(size.length), left: inches(size.left),
+                                        top: inches(size.top), right: inches(size.right), bottom: inches(size.bottom)))
+            }
+            return found
+        }
     }
 
     /// Jobs not finished yet, every user's (the count is what the queue holds).

@@ -36,6 +36,12 @@ open "/Applications/Inkvolt Print.app" --args --report dev --wait 3 --device    
 open "/Applications/Inkvolt Print.app" --args --report icc --wait 3 --icc         # ImageCaptureCore's scanners (no scan)
 open "/Applications/Inkvolt Print.app" --args --report scan --wait 2 --demo --scan     # a demo scan, PDF and preset saved
 open "/Applications/Inkvolt Print.app" --args --report fix --wait 3 --demo --fix all   # the offline fixer on the demo office laser
+open "/Applications/Inkvolt Print.app" --args --report b --wait 2 --demo --batch      # a feeder batch split at its Patch T sheet
+open "/Applications/Inkvolt Print.app" --args --report ph --wait 2 --demo --photos    # three photos on the glass, each its own JPEG
+open "/Applications/Inkvolt Print.app" --args --report id --wait 2 --demo --idcard    # an ID card copy laid out (not printed)
+open "/Applications/Inkvolt Print.app" --args --report st --wait 2 --demo --setup     # Set Up in macOS on a demo printer
+open "/Applications/Inkvolt Print.app" --args --report pp --wait 2 --papers           # the paper sizes each queue offers
+open "/Applications/Inkvolt Print.app" --args --report sp --wait 2 --setup-probe      # makes a test CUPS queue, then deletes it
 ```
 
 The report lands in `~/Library/Containers/com.bermudezsystems.InkvoltPrint/Data/Library/Application Support/InkvoltPrint/`.

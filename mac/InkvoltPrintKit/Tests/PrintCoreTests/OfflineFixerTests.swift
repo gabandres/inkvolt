@@ -14,8 +14,8 @@ import Testing
 /// Unusable_rediscovery_is_treated_as_not_found.
 ///
 /// Adapted to what they mean on the Mac (renamed):
-/// - New_address_from_dhcp_points_the_tcpip_port_at_it → newAddressFromDhcpHandsOffAddingTheQueueAgainAtIt (macOS can't
-///   re-point a queue: remove it and add it again at the new address).
+/// - New_address_from_dhcp_points_the_tcpip_port_at_it → newAddressFromDhcpPointsTheQueueAtIt (the queue's device URI, not
+///   a port; refused, the steps remove it and add it again at the new address).
 /// - Paused_and_work_offline_queue_can_be_fixed_as_the_user → pausedAndNotAcceptingQueueOffersResumeAndAccept.
 /// - Previous_address_and_stored_queue_name_match_too → previousAddressesMatchToo (Inkvolt Print stores no queue here).
 /// - Printer_answers_but_windows_says_offline → printerAnswersButMacosSaysOffline (one hand-off: add it again).
@@ -95,7 +95,7 @@ struct OfflineFixerTests {
 
     // MARK: Diagnosis
 
-    @Test func newAddressFromDhcpHandsOffAddingTheQueueAgainAtIt() async throws {
+    @Test func newAddressFromDhcpPointsTheQueueAtIt() async throws {
         let probes = FakeProbes(found: Rediscovery(Self.newIp, hostName: "NPIEXAMPLE.local"), answering: [Self.newIp])
         let report = try await Self.run(probes, [Self.socketQueue("Office laser", Self.oldIp), Self.socketQueue("Someone else's", "192.0.2.99")])
 
@@ -111,10 +111,12 @@ struct OfflineFixerTests {
         #expect(Self.check(report, .queues).state == .failed)
 
         let add = report.repairs[0]
-        #expect(add.kind == .addAgainAt)
+        #expect(add.kind == .pointAt)
         #expect(add.target == Self.newIp)
         #expect(add.queue == "Office_laser")
-        #expect(add.manualOnly) // macOS can't change a queue's address: the user removes it and adds it again
+        #expect(!add.manualOnly) // tried; refused, the steps remove it and add it again
+        #expect(add.targetUri == "socket://\(Self.newIp)")
+        #expect(add.question?.contains("Its print jobs go to \(Self.newIp) from now on") == true)
         #expect(!add.isAlternative)
         #expect(add.manualSteps.contains { $0.contains(Self.newIp) && $0.contains("HP Jetdirect - Socket") })
         #expect(add.manualSteps.contains { $0.contains("“Office laser”") })
@@ -176,7 +178,7 @@ struct OfflineFixerTests {
 
         #expect(report.queues.map(\.reason) == [.address, .address])
         #expect(report.queues.allSatisfy { $0.portIsStale })
-        #expect(report.repairs.map(\.kind) == [.addAgainAt, .addAgainAt])
+        #expect(report.repairs.map(\.kind) == [.pointAt, .pointAt])
         let ipp = report.repairs[1]
         #expect(ipp.targetUri == "ipp://\(Self.newIp):631/ipp/print") // port and path kept
         #expect(ipp.manualSteps.contains { $0.contains("Internet Printing Protocol - IPP") && $0.contains("ipp/print") })
@@ -331,6 +333,11 @@ struct OfflineFixerTests {
             calls.withLock { $0.append("accept \(queue)") }
             if let result { throw result }
         }
+
+        func setDeviceUri(_ queue: String, _ uri: String) async throws {
+            calls.withLock { $0.append("point \(queue) \(uri)") }
+            if let result { throw result }
+        }
     }
 
     private static let resume = Repair(.resumeQueue, "Resume", "", queue: "q", manualSteps: ManualSteps.for(.resumeQueue, queue: "q"))
@@ -353,9 +360,21 @@ struct OfflineFixerTests {
         #expect(failed.steps == Self.resume.manualSteps)
     }
 
+    @Test func pointingAQueueSendsItsNewUriAndHandsOffWhenRefused() async {
+        let point = Repair(.pointAt, "Point", "", queue: "q", target: Self.newIp, targetUri: "socket://\(Self.newIp)",
+                           manualSteps: ManualSteps.for(.pointAt, queue: "q", target: Self.newIp, uri: "socket://\(Self.newIp)"))
+        let ok = FakeControl()
+        #expect(await RepairRunner.run(point, queues: NoCups(), control: ok).kind == .fixed)
+        #expect(ok.calls.withLock { $0 } == ["point q socket://\(Self.newIp)"])
+
+        let refused = await RepairRunner.run(point, queues: NoCups(), control: FakeControl(result: .refused))
+        #expect(refused.kind == .manual)
+        #expect(refused.steps.contains { $0.contains("Remove Printer") })
+    }
+
     @Test func manualOnlyRepairsOnlyShowTheSteps() async {
-        let add = Repair(.addAgainAt, "Add again", "", queue: "q", target: Self.newIp, manualOnly: true,
-                         manualSteps: ManualSteps.for(.addAgainAt, queue: "q", target: Self.newIp, uri: "socket://\(Self.newIp)"))
+        let add = Repair(.addAgain, "Add again", "", queue: "q", manualOnly: true,
+                         manualSteps: ManualSteps.for(.pointAt, queue: "q", target: Self.newIp, uri: "socket://\(Self.newIp)"))
         let control = FakeControl()
         let outcome = await RepairRunner.run(add, queues: NoCups(), control: control)
         #expect(outcome.kind == .manual)
@@ -385,9 +404,9 @@ struct OfflineFixerTests {
     }
 
     @Test func manualStepsNameTheQueueAndTarget() {
-        #expect(ManualSteps.for(.addAgainAt, queue: "Office laser", target: Self.newIp, uri: "socket://\(Self.newIp)").contains { $0.contains(Self.newIp) })
+        #expect(ManualSteps.for(.pointAt, queue: "Office laser", target: Self.newIp, uri: "socket://\(Self.newIp)").contains { $0.contains(Self.newIp) })
         #expect(ManualSteps.for(.resumeQueue, queue: "Office laser").contains { $0.contains("“Office laser”") })
-        #expect(ManualSteps.for(.addAgainAt, queue: "q", target: Self.newIp, uri: "lpd://\(Self.newIp)/raw").contains { $0.contains("Line Printer Daemon - LPD") && $0.contains("raw") })
+        #expect(ManualSteps.for(.pointAt, queue: "q", target: Self.newIp, uri: "lpd://\(Self.newIp)/raw").contains { $0.contains("Line Printer Daemon - LPD") && $0.contains("raw") })
         #expect(RepairKind.allCases.allSatisfy { !ManualSteps.for($0, queue: "q", target: Self.newIp).isEmpty })
         #expect(RepairKind.allCases.allSatisfy { k in ManualSteps.for(k, queue: "q").contains { $0.contains("Printers & Scanners") } })
     }
@@ -436,12 +455,15 @@ struct OfflineFixerTests {
         #expect(report.adoption == .adopt)
         #expect(report.found?.address == Demo.officeNewHost)
         #expect(report.queues.map(\.queue.name) == [DemoOffline.officeQueue])
-        #expect(report.repairs.map(\.kind) == [.resumeQueue, .addAgainAt, .addAgainAt, .cancelStuckJobs])
+        #expect(report.repairs.map(\.kind) == [.resumeQueue, .pointAt, .pointAt, .cancelStuckJobs])
 
         #expect(await RepairRunner.run(report.repairs[0], queues: demo, control: demo).kind == .fixed)
         #expect(await RepairRunner.run(report.repairs[3], queues: demo, control: demo).kind == .fixed)
         let after = try await OfflineDiagnosis.run(office, probes: demo, queues: demo)
-        #expect(after.repairs.map(\.kind) == [.addAgainAt, .addAgainAt]) // only the hand-off is left
+        #expect(after.repairs.map(\.kind) == [.pointAt, .pointAt]) // only its address is left
+        #expect(await RepairRunner.run(after.repairs[0], queues: demo, control: demo).kind == .fixed)
+        let pointed = try await OfflineDiagnosis.run(office, probes: demo, queues: demo)
+        #expect(pointed.repairs.isEmpty)
 
         let demoPrinter = OfflineDevice(uuid: Demo.uuid, name: "Demo printer", model: nil, host: FixtureTransport.demoHost)
         #expect(try await OfflineDiagnosis.run(demoPrinter, probes: demo, queues: demo).headline == "No problems found")

@@ -7,8 +7,11 @@ import PrintMac
 /// (20 by default) writes what the app shows to `Application Support/InkvoltPrint/report-<name>.txt` in its container, then quits
 /// (unless `--stay`); `--search` runs Add a printer's search at launch and lists what it found; `--cancel-mine <queue>`
 /// cancels the user's own jobs in that CUPS queue first (as the print queue card's Cancel My Jobs); with `--demo`, `--scan`
-/// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--fix [all]` runs the
-/// offline fixer on the office laser (and its repairs). For checking a build over
+/// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--batch` scans its
+/// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
+/// JPEG; `--papers` lists the paper sizes Print Photos offers for each printer; `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
+/// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
+/// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue. For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -32,8 +35,14 @@ enum Report {
                 cancelled = ["Cancel my jobs in \(queue): \(mine) of mine, \(jobs.jobs.count) left\(jobs.message.map { ", " + $0 } ?? "")"]
             }
             if model.isDemo && args.contains("--scan") { cancelled += await scanCheck(model) }
+            if model.isDemo && args.contains("--batch") { cancelled += await batchCheck(model) }
+            if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
+            if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
+            if args.contains("--papers") { cancelled += await papersCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
+            if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
+            if model.isDemo && args.contains("--setup") { cancelled += await setupCheck(model) }
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")
             }
@@ -43,6 +52,18 @@ enum Report {
             try? Data((text(model, after: wait, search: search) + cancelled.map { $0 + "\n" }.joined()).utf8).write(to: folder.appendingPathComponent("report-\(name).txt"), options: .atomic)
             if !args.contains("--stay") { NSApp.terminate(nil) }
         }
+    }
+
+    /// "Set up in macOS" on the first connected demo printer macOS has no queue for, as the status pane's button does.
+    private static func setupCheck(_ model: AppModel) async -> [String] {
+        for _ in 0..<80 where !model.printers.contains(where: { $0.isNetwork && $0.view.isOnline && $0.queueName == nil }) || model.destinations == nil {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        guard let p = model.printers.first(where: { $0.isNetwork && $0.view.isOnline && $0.queueName == nil }) else {
+            return ["setup: every connected printer has a queue"]
+        }
+        let message = await model.setUpQueue(for: p)
+        return ["setup: \(p.name): \(message) Queue now: \(p.queueName ?? "none")"]
     }
 
     /// The selected printer's settings, firmware update mode and maintenance actions, as the Settings tab and the maintenance
@@ -116,6 +137,7 @@ enum Report {
         scan.format = .searchablePdf
         scan.skipBlank = true
         scan.straighten = true
+        scan.splitAt = .none
         scan.scan()
         for _ in 0..<100 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
         let notes = scan.pages.pages.map { $0.note.isEmpty ? "-" : $0.note }.joined(separator: ", ")
@@ -141,6 +163,105 @@ enum Report {
             let files = (try? FileManager.default.subpathsOfDirectory(atPath: folder.path)) ?? []
             lines.append("preset \(p.name): \(scan.status) \(scan.problem ?? ""); files: \(files.sorted().joined(separator: ", "))")
         }
+        return lines
+    }
+
+    /// The demo inkjet ready to scan, its review empty.
+    private static func demoScanner(_ model: AppModel) async -> ScanModel? {
+        guard let inkjet = model.printers.first(where: { $0.id == Demo.inkjetUuid }) else { return nil }
+        for _ in 0..<50 where !inkjet.view.isOnline { try? await Task.sleep(for: .milliseconds(200)) }
+        let scan = inkjet.scan
+        await scan.load()
+        scan.clear()
+        return scan.caps == nil ? nil : scan
+    }
+
+    private static func scanAndWait(_ scan: ScanModel) async {
+        scan.scan()
+        for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+    }
+
+    private static func files(in folder: URL) -> String {
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().joined(separator: ", ")
+    }
+
+    /// Demo mode: the feeder's batch (two pages, a Patch T sheet, three more) split at patch codes, saved as PDFs in a folder.
+    private static func batchCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["batch: no demo inkjet"] }
+        scan.source = .adf
+        scan.format = .pdf
+        scan.skipBlank = true
+        scan.straighten = true
+        scan.splitAt = .patchCode
+        scan.keepSeparators = false
+        await scanAndWait(scan)
+        let notes = scan.pages.pages.map { p in
+            let file = scan.pages.fileStart(p.id)
+            return (file > 0 ? "[file \(file)] " : "") + (p.note.isEmpty ? "-" : p.note)
+        }
+        var lines = ["batch: \(scan.status)", "  pages: \(notes.joined(separator: ", "))"]
+        let folder = AppModel.dataFolder.appendingPathComponent("batch-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        await scan.save(to: folder, reveal: false)
+        lines.append("  saved: \(scan.status) \(scan.problem ?? "")")
+        for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() {
+            lines.append("  \(name): \(PDFDocument(url: folder.appendingPathComponent(name))?.pageCount ?? 0) pages")
+        }
+        scan.splitAt = .none
+        return lines
+    }
+
+    /// The papers Print Photos offers for each printer with a queue (its media list through libcups), borderless ones marked.
+    private static func papersCheck(_ model: AppModel) async -> [String] {
+        try? await Task.sleep(for: .seconds(4)) // the queues are read
+        var lines: [String] = []
+        for p in model.printers where p.queueName != nil || (model.isDemo && p.id == Demo.inkjetUuid) {
+            let choices = QueuePapers.photoChoices(await model.photoMedia(for: p))
+            lines.append("papers \(p.name): " + (choices.isEmpty ? "none listed" : choices.map { $0.label + ($0.borderless != nil ? " (+borderless)" : "") }.joined(separator: ", ")))
+        }
+        return lines.isEmpty ? ["papers: no printer has a queue"] : lines
+    }
+
+    /// Demo mode: an ID card copy, front and back from the inkjet's glass, laid out on one sheet (not printed).
+    private static func idCardCheck(_ model: AppModel) async -> [String] {
+        guard let inkjet = model.printers.first(where: { $0.id == Demo.inkjetUuid }) else { return ["idcard: no demo inkjet"] }
+        for _ in 0..<50 where !inkjet.view.isOnline { try? await Task.sleep(for: .milliseconds(200)) }
+        let copy = IdCardCopyModel(printer: inkjet, app: model)
+        await copy.scanSide(printWhenDone: false)
+        let afterFront = "\(copy.step)"
+        await copy.scanSide(printWhenDone: false)
+        guard let page = copy.document?.page(at: 0) else { return ["idcard: \(afterFront), \(copy.step), \(copy.problem ?? "no sheet")"] }
+        let size = page.bounds(for: .mediaBox).size
+        return ["idcard: after the front \(afterFront), then \(copy.step); sheet \(Int(size.width)) × \(Int(size.height)) pt, \(copy.document?.pageCount ?? 0) page \(copy.problem ?? "")"]
+    }
+
+    /// Demo mode: three photos on the glass, found and saved as JPEGs, each cut out straight.
+    private static func photosCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["photos: no demo inkjet"] }
+        scan.source = .platen
+        scan.format = .jpeg
+        scan.findPhotos = true
+        await scanAndWait(scan)
+        var lines = ["photos: \(scan.status)"]
+        for p in scan.pages.pages {
+            for (i, b) in (p.photos ?? []).enumerated() {
+                lines.append("  photo \(i + 1): centre " + String(format: "%.2f, %.2f", b.centerX, b.centerY) + ", " + String(format: "%.2f × %.2f", b.width, b.height)
+                             + ", " + String(format: "%.1f°", b.angle))
+            }
+        }
+        let folder = AppModel.dataFolder.appendingPathComponent("photos-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        await scan.save(to: folder, reveal: false)
+        lines.append("  saved: \(scan.status) \(scan.problem ?? "")")
+        for name in files(in: folder).split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) where !name.isEmpty {
+            let bytes = (try? Data(contentsOf: folder.appendingPathComponent(name))).map(Array.init) ?? []
+            let size = ScanImaging.size(bytes)
+            let skew = (try? ScanImaging.analysis(bytes)).map(Deskew.angle)
+            lines.append("  \(name): \(size.map { "\($0.width) × \($0.height)" } ?? "-") px, skew left " + (skew.map { String(format: "%.2f", $0) } ?? "-"))
+        }
+        scan.findPhotos = false
         return lines
     }
 

@@ -39,6 +39,25 @@ final class ScanModel {
     var straighten: Bool {
         didSet { UserDefaults.standard.set(straighten, forKey: "scanStraighten") }
     }
+    /// Batch scanning: a feeder run is saved as several files, split at patch code sheets, blank pages, or either.
+    var splitAt: SplitAt {
+        didSet { UserDefaults.standard.set(splitAt.rawValue, forKey: "scanSplitAt") }
+    }
+    /// Separator sheets are kept, as the first page of the file each starts.
+    var keepSeparators: Bool {
+        didSet {
+            UserDefaults.standard.set(keepSeparators, forKey: "scanKeepSeparators")
+            if !isScanning && pages.keepSeparators != keepSeparators { // the batch on screen follows it
+                pages.keepSeparators = keepSeparators
+                savedParts.clear()
+                keep()
+            }
+        }
+    }
+    /// Several photos on the glass: each is found and saved as its own picture (glass scans only).
+    var findPhotos: Bool {
+        didSet { UserDefaults.standard.set(findPhotos, forKey: "scanFindPhotos") }
+    }
 
     private(set) var pages = ScanPages()
     private(set) var thumbnails: [String: NSImage] = [:]
@@ -49,6 +68,8 @@ final class ScanModel {
     private(set) var problem: String?
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
+    /// The files of a batch a preset save wrote before it failed part-way: saving again writes only the rest.
+    @ObservationIgnored private var savedParts = SavedParts<String>()
     @ObservationIgnored private var scanning: Task<Void, Never>?
     @ObservationIgnored private unowned let printer: PrinterModel
     @ObservationIgnored private let app: AppModel
@@ -60,6 +81,10 @@ final class ScanModel {
         format = ScanFormat(rawValue: d.string(forKey: "scanFormat") ?? "") ?? .searchablePdf
         skipBlank = d.object(forKey: "scanSkipBlank") as? Bool ?? true
         straighten = d.object(forKey: "scanStraighten") as? Bool ?? true
+        let split = SplitAt(rawValue: d.integer(forKey: "scanSplitAt"))
+        splitAt = split.isKnown ? split : .none
+        keepSeparators = d.bool(forKey: "scanKeepSeparators")
+        findPhotos = d.bool(forKey: "scanFindPhotos")
         sizeKey = Locale.current.measurementSystem == .metric ? "a4" : "letter"
     }
 
@@ -110,23 +135,31 @@ final class ScanModel {
         dpi = plan.request.resolution
         sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
         format = p.fileType == .jpeg ? .jpeg : plan.ocr ? .searchablePdf : .pdf
-        skipBlank = p.skipBlank
-        straighten = p.straighten
         preset = p
         let notes = plan.notes
-        scan {
+        // The preset's checks are its own: the tab's settings stay as the user set them.
+        let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
+                              findPhotos: p.findPhotos && plan.request.source == .platen)
+        scan(check: check, keepSeparators: p.keepSeparators) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
         }
     }
 
-    func scan(then finished: (@MainActor () async -> Void)? = nil) {
+    /// Scans with the tab's settings, or a preset's `check` and `keepSeparators`. Batches come from the feeder only, photos
+    /// from the glass only.
+    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, then finished: (@MainActor () async -> Void)? = nil) {
         guard !isScanning else { return }
         problem = nil
         isScanning = true
         status = source == .platen ? "Scanning…" : "Scanning from the feeder…"
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
-        let skip = skipBlank, straight = straighten
+        var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos)
+        if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
+        let check = c, split = c.splitAt, photos = c.findPhotos
+        let duplex = source == .adfDuplex
+        if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
+        if app.isDemo { Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos) }
         let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
         scanning = Task {
             defer {
@@ -139,15 +172,19 @@ final class ScanModel {
                 return
             }
             var count = 0
+            var added: [String] = []
             do {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
                     status = "Scanned \(count) \(count == 1 ? "page" : "pages")…"
-                    await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), skipBlank: skip, straighten: straight)
+                    added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
                 }
-                status = count == 0 ? "No pages came from the scanner." : pages.summary
-                // The page checks finish (blank pages skipped) before a preset saves.
-                for _ in 0..<100 where pages.pages.contains(where: { !$0.analysed }) { try await Task.sleep(for: .milliseconds(100)) }
+                // The page checks finish (blank pages skipped, separators found) before a preset saves.
+                for _ in 0..<150 where pages.pages.contains(where: { !$0.analysed }) { try await Task.sleep(for: .milliseconds(100)) }
+                if duplex { pages.separatorBacks(added) }
+                keep()
+                let found = notes(added, split: split, photos: photos, duplex: duplex)
+                status = count == 0 ? "No pages came from the scanner." : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 await finished?()
             } catch is CancellationError {
                 status = "Scan stopped."
@@ -170,7 +207,38 @@ final class ScanModel {
         return abs(measured - asked) <= max(asked / 30, 2) ? asked : measured
     }
 
-    private func add(_ jpeg: [UInt8], dpi: Int, skipBlank: Bool, straighten: Bool) async {
+    /// What the page check looks for.
+    struct PageCheck: Sendable {
+        var skipBlank: Bool
+        var straighten: Bool
+        var splitAt: SplitAt
+        var findPhotos: Bool
+    }
+
+    /// What the page check found.
+    private struct Checked: Sendable {
+        var looksBlank: Bool
+        var skew: Double
+        var separator: SeparatorFound
+        var photos: [PhotoBox]?
+    }
+
+    /// Separator, blank and skew checks (the Windows app's `AnalyseAsync`), and the photos on the glass. A separator sheet is
+    /// neither skipped nor straightened, nor is a page of photos (each is cut out straight).
+    nonisolated private static func check(_ jpeg: [UInt8], dpi: Int, _ c: PageCheck) -> Checked? {
+        guard let gray = try? ScanImaging.analysis(jpeg) else { return nil }
+        let fullWidth = ScanImaging.size(jpeg)?.width ?? gray.width
+        let ppi = Double(gray.width) * Double(dpi) / Double(max(fullWidth, 1))
+        let separator = c.splitAt == .none ? SeparatorFound.none : Separators.detect(gray, pixelsPerInch: ppi, splitAt: c.splitAt)
+        let looksBlank = separator.kind == .blankPage || BlankPage.isBlank(gray)
+        let blank = c.skipBlank && looksBlank && !separator.isSeparator
+        let photos = c.findPhotos && !blank && !separator.isSeparator ? PhotoFinder.find(gray, pixelsPerInch: ppi) : nil
+        let skew = c.straighten && !blank && !separator.isSeparator && (photos?.isEmpty ?? true) ? Deskew.angle(gray) : 0
+        return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos)
+    }
+
+    @discardableResult
+    private func add(_ jpeg: [UInt8], dpi: Int, check c: PageCheck) async -> String {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
         pages.add(ScannedPage(id: id, dpi: dpi))
@@ -178,28 +246,68 @@ final class ScanModel {
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
         Task {
-            let result: (Bool, Double)? = await offPool {
-                guard let gray = try? ScanImaging.analysis(jpeg) else { return nil }
-                let blank = BlankPage.isBlank(gray)
-                return (blank, straighten && !(skipBlank && blank) ? Deskew.angle(gray) : 0)
+            let result: Checked? = await offPool { Self.check(jpeg, dpi: dpi, c) }
+            guard let result, pages.page(id) != nil else {
+                pages.analysed(id, looksBlank: false, skew: 0, skipBlank: false, straighten: false) // the page stays as scanned
+                return
             }
-            guard let (blank, skew) = result, pages.page(id) != nil else { return }
-            pages.analysed(id, looksBlank: blank, skew: skew, skipBlank: skipBlank, straighten: straighten)
+            pages.analysed(id, looksBlank: result.looksBlank, skew: result.skew, skipBlank: c.skipBlank, straighten: c.straighten,
+                           separator: result.separator, photos: result.photos)
             keep()
             refreshThumbnail(id)
             if !isScanning { status = pages.summary }
         }
+        return id
+    }
+
+    /// What a scan found, after the page summary (the Windows app's notes).
+    private func notes(_ added: [String], split: SplitAt, photos: Bool, duplex: Bool) -> [String] {
+        let run = added.compactMap { pages.page($0) }
+        guard !run.isEmpty else { return [] }
+        var notes: [String] = []
+        let found = run.reduce(0) { $0 + ($1.photos?.count ?? 0) }
+        if photos {
+            notes.append(found == 0 ? "No photos were found on the glass: the whole scan is saved."
+                : "\(found == 1 ? "1 photo" : "\(found) photos") found, each saved as its own picture.")
+        }
+        let separators = run.filter { $0.isSeparator && $0.separator.kind != .sheetBack }.count
+        if split != .none {
+            let files = pages.files.count
+            notes.append(separators == 0 ? "No separator sheets were found: it's one file."
+                : "\(separators == 1 ? "1 separator sheet" : "\(separators) separator sheets") found: \(files == 1 ? "1 file" : "\(files) files").")
+            if duplex && (split == .blankPage || split == .patchCodeOrBlankPage) {
+                notes.append("Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better.")
+            }
+        }
+        return notes
     }
 
     // MARK: Review
 
     func turn(_ id: String, _ quarters: Int) { change(id) { $0.turn(id, quarters) } }
+    func toggleStartsFile(_ id: String) { change(id) { $0.toggleStartsFile(id) } }
+    func notSeparator(_ id: String) { change(id) { $0.notSeparator(id) } }
+    func useAsSeparator(_ id: String) { change(id) { $0.useAsSeparator(id) } }
+    func setPhotos(_ id: String, _ photos: [PhotoBox]) { change(id) { $0.setPhotos(id, photos) } }
+
+    /// Looks for the photos on the page again (Find Again), forgetting boxes changed by hand.
+    func findPhotosAgain(_ id: String) async {
+        guard let jpeg = images[id], let page = pages.page(id) else { return }
+        let dpi = page.dpi
+        let found: [PhotoBox]? = await offPool {
+            guard let gray = try? ScanImaging.analysis(jpeg) else { return nil }
+            let ppi = Double(gray.width) * Double(dpi) / Double(max(ScanImaging.size(jpeg)?.width ?? gray.width, 1))
+            return PhotoFinder.find(gray, pixelsPerInch: ppi)
+        }
+        if let found { setPhotos(id, found) }
+    }
     func crop(_ id: String, shown: CropBox?) { change(id) { $0.crop(id, shown: shown) } }
     func reset(_ id: String) { change(id) { $0.reset(id) } }
     func keepPage(_ id: String) { change(id) { $0.keep(id) } }
     func skipPage(_ id: String) { change(id) { $0.skip(id) } }
 
     func delete(_ id: String) {
+        savedParts.clear()
         pages.delete(id)
         images[id] = nil
         thumbnails[id] = nil
@@ -209,11 +317,13 @@ final class ScanModel {
 
     func move(_ id: String, by offset: Int) {
         guard let n = pages.number(id) else { return }
+        savedParts.clear()
         pages.move(id, to: n - 1 + offset)
         keep()
     }
 
     func move(_ id: String, to index: Int) {
+        savedParts.clear()
         pages.move(id, to: index)
         keep()
     }
@@ -221,6 +331,7 @@ final class ScanModel {
     /// Drops every page (after saving them, or when the user starts over).
     func clear() {
         preset = nil
+        savedParts.clear()
         pages = ScanPages()
         images = [:]
         thumbnails = [:]
@@ -238,6 +349,7 @@ final class ScanModel {
     }
 
     private func change(_ id: String, _ body: (inout ScanPages) -> Void) {
+        savedParts.clear() // the pages changed: a retry writes everything again
         body(&pages)
         keep()
         refreshThumbnail(id)
@@ -275,6 +387,7 @@ final class ScanModel {
                 restored.delete(p.id)
             }
         }
+        if pages.isEmpty { pages.keepSeparators = keepSeparators }
         for p in restored.pages { pages.add(p) }
         ScanRecoveryStore.remove(left)
         keep()
@@ -292,13 +405,12 @@ final class ScanModel {
 
     /// The kept pages through the print panel, on this printer's queue: a copy.
     func printPages() async {
-        let list = pages.toSave
-        guard !list.isEmpty, !isSaving else { return }
+        guard !pages.toSave.isEmpty, !isSaving else { return }
         isSaving = true
         status = "Preparing the copy…"
-        let jpegs = list.map { (images[$0.id] ?? [], $0.edits, $0.dpi) }
+        let jobs = jobs(pages.files)
         let data: Data? = await offPool {
-            try? ScanPdf.write(jpegs.map { ScanPdf.Page(jpeg: (try? ScanImaging.jpeg($0.0, $0.1)) ?? $0.0, dpi: $0.2) })
+            try? ScanPdf.write(Self.render(jobs).joined().map { ScanPdf.Page(jpeg: $0.jpeg, dpi: $0.dpi) })
         }
         isSaving = false
         status = pages.summary
@@ -309,9 +421,93 @@ final class ScanModel {
         Printing.print(document, name: suggestedName, on: printer, app: app)
     }
 
+    /// Prints a separator sheet (Patch T, for this Mac's paper size) at actual size, on this printer's queue.
+    func printSeparatorSheet() {
+        let metric = Locale.current.measurementSystem == .metric
+        guard let sheet = SeparatorSheet.page(.patchT, widthIn: metric ? 8.27 : 8.5, heightIn: metric ? 11.69 : 11),
+              let data = SeparatorSheetPdf.write(sheet), let document = PDFDocument(data: data) else { return }
+        Printing.print(document, name: sheet.title, on: printer, app: app, actualSize: true)
+    }
+
     // MARK: Saving
 
-    /// Saves the way the preset says: in its folder (asked for once, then remembered), its subfolder, its file name.
+    /// One page as a file sees it: the scanner's JPEG, its edits, its resolution, and its photos (each saved by itself).
+    private struct PageJob: Sendable {
+        var jpeg: [UInt8]
+        var edits: PageEdits
+        var dpi: Int
+        var photos: [PhotoBox]?
+    }
+
+    /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos).
+    private struct OutputImage: Sendable {
+        var jpeg: [UInt8]
+        var dpi: Int
+        var isPhoto: Bool
+    }
+
+    private func jobs(_ files: [[ScannedPage]]) -> [[PageJob]] {
+        files.map { file in file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil) } }
+    }
+
+    nonisolated private static func render(_ jobs: [[PageJob]]) throws -> [[OutputImage]] {
+        try jobs.map { file in
+            try file.flatMap { job -> [OutputImage] in
+                if let photos = job.photos { return try photos.map { OutputImage(jpeg: try ScanImaging.photo(job.jpeg, $0), dpi: job.dpi, isPhoto: true) } }
+                return [OutputImage(jpeg: try ScanImaging.jpeg(job.jpeg, job.edits), dpi: job.dpi, isPhoto: false)]
+            }
+        }
+    }
+
+    /// The images each file holds: one per page, or one per photo.
+    var imagesPerFile: [Int] { pages.files.map { file in file.reduce(0) { $0 + ($1.hasPhotos ? $1.photos!.count : 1) } } }
+
+    /// Saving makes more than one file (a batch, or several images): the save panel asks for a folder.
+    var savesSeveralFiles: Bool { format == .jpeg ? imagesPerFile.reduce(0, +) > 1 : imagesPerFile.count > 1 }
+
+    /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first.
+    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat) throws -> [URL] {
+        let files = try render(jobs)
+        var written: [URL] = []
+        for (file, urls) in zip(files, targets) {
+            switch format {
+            case .pdf, .searchablePdf:
+                let pdfPages = file.map { ScanPdf.Page(jpeg: $0.jpeg, dpi: $0.dpi, words: format == .searchablePdf && !$0.isPhoto ? ScanPdf.recognize($0.jpeg) : nil) }
+                try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
+                written.append(urls[0])
+            case .jpeg:
+                for (image, url) in zip(file, urls) {
+                    try Data(image.jpeg).write(to: url, options: urls.count == 1 && files.count == 1 ? .atomic : .withoutOverwriting)
+                    written.append(url)
+                }
+            }
+        }
+        return written
+    }
+
+    /// Where each file goes in `folder`, named after `stem`: "Scan.pdf"; a batch "Scan (1).pdf", "Scan (2).pdf"; images
+    /// "Scan (1).jpg"…, a batch's "Scan (2-1).jpg" (the Windows app's names). Never over a file that's there.
+    private func targets(in folder: URL, stem: String) throws -> [[URL]] {
+        let counts = imagesPerFile
+        let exists = { (path: String) in FileManager.default.fileExists(atPath: path) }
+        let several = counts.count > 1
+        return try counts.enumerated().map { f, images in
+            let name = several ? "\(stem) (\(f + 1))" : stem
+            if format != .jpeg { return try FileNameTemplate.uniquePaths(folder.path, name, ".pdf", count: 1, exists: exists).map { URL(fileURLWithPath: $0) } }
+            if several {
+                let set = try FileNameTemplate.uniquePaths(folder.path, "\(stem) (\(f + 1)-1)", ".jpg", count: 1, exists: exists)
+                return try (1...images).map { i in
+                    i == 1 ? URL(fileURLWithPath: set[0])
+                        : URL(fileURLWithPath: try FileNameTemplate.uniquePaths(folder.path, "\(stem) (\(f + 1)-\(i))", ".jpg", count: 1, exists: exists)[0])
+                }
+            }
+            return try FileNameTemplate.uniquePaths(folder.path, name, ".jpg", count: images, exists: exists).map { URL(fileURLWithPath: $0) }
+        }
+    }
+
+    /// Saves the way the preset says: in its folder (asked for once, then remembered), its subfolder, its file name, each file
+    /// of a batch with its own `{n}` and `{pages}`; then what the preset does after (print a copy, attach to an email). A save
+    /// that failed part-way writes only the files it hadn't when Save is pressed again.
     func saveWithPreset() async {
         guard let p = preset else { return }
         var folder = app.presetFolder(p.id)
@@ -321,27 +517,82 @@ final class ScanModel {
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
             panel.prompt = "Use This Folder"
-            panel.message = "Choose where \"\(p.name)\" saves its scans. Inkvolt Print remembers it."
+            panel.message = "Choose where \"\(p.name)\" saves its scans (a folder in iCloud Drive or another synced folder works too). Inkvolt Print remembers it."
             panel.directoryURL = FileManager.default.urls(for: p.folder == .pictures ? .picturesDirectory : .documentDirectory, in: .userDomainMask).first
             guard panel.runModal() == .OK, let url = panel.url else { return }
             app.setPresetFolder(p.id, url)
             folder = app.presetFolder(p.id) ?? url
         }
-        guard let folder else { return }
+        guard let folder, !pages.toSave.isEmpty, !isSaving else { return }
         let accessing = folder.startAccessingSecurityScopedResource()
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: app.reserveNumber(p.id), pages: pages.toSave.count)
-        let stem = FileNameTemplate.fileName(p.fileName, ctx)
-        let sub = FileNameTemplate.subfolder(p.subfolder, ctx)
-        let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let ext = format == .jpeg ? ".jpg" : ".pdf"
-            let count = format == .jpeg ? pages.toSave.count : 1
-            let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
-            await save(to: count == 1 ? URL(fileURLWithPath: paths[0]) : dir, names: paths.map { URL(fileURLWithPath: $0) })
-        } catch {
-            problem = "The scan couldn't be saved in \(folder.lastPathComponent). Check the folder is still there, or choose another in Manage Presets."
+        let files = pages.files
+        let counts = imagesPerFile
+        let ext = format == .jpeg ? ".jpg" : ".pdf"
+        var numbers = PartNumbers(1)
+        var all: [URL] = []
+        isSaving = true
+        problem = nil
+        status = format == .searchablePdf ? "Recognising text…" : "Saving…"
+        for (f, file) in files.enumerated() {
+            let ids = file.map(\.id)
+            if let done = savedParts.find(ids) {
+                all += done.map { URL(fileURLWithPath: $0) }
+                continue
+            }
+            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f])
+            let stem = FileNameTemplate.fileName(p.fileName, ctx)
+            let sub = FileNameTemplate.subfolder(p.subfolder, ctx)
+            let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
+            let format = format
+            let job = jobs([file])
+            let result: Result<[URL], any Error> = await offPool {
+                Result {
+                    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    let count = format == .jpeg ? counts[f] : 1
+                    let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
+                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format)
+                }
+            }
+            guard case .success(let urls) = result else {
+                isSaving = false
+                let part = files.count > 1 ? " (file \(f + 1) of \(files.count); Save again writes the rest)" : ""
+                problem = "The scan couldn't be saved in \(folder.lastPathComponent)\(part). Check the folder is still there, or choose another in Manage Presets."
+                status = pages.summary
+                return
+            }
+            savedParts.add(ids, paths: urls.map(\.path))
+            all += urls
+        }
+        isSaving = false
+        await finishSaving(all, in: folder.lastPathComponent, reveal: p.after == .none)
+        await after(p.after, all)
+    }
+
+    /// The preset's step after saving: print a copy of what was saved on this printer, or attach it to a new email in the
+    /// user's mail app (Inkvolt Print has no mail account of its own). "Open in Inkvolt PDF" waits for a Mac Inkvolt PDF.
+    private func after(_ step: PresetAfter, _ urls: [URL]) async {
+        switch step {
+        case .print:
+            let document = PDFDocument()
+            for url in urls {
+                if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
+                    for i in 0..<pdf.pageCount { if let page = pdf.page(at: i) { document.insert(page, at: document.pageCount) } }
+                } else if let image = NSImage(contentsOf: url), let page = PDFPage(image: image) {
+                    document.insert(page, at: document.pageCount)
+                }
+            }
+            if document.pageCount > 0 { Printing.print(document, name: urls.first?.deletingPathExtension().lastPathComponent ?? "Scan", on: printer, app: app) }
+        case .email:
+            guard let service = NSSharingService(named: .composeEmail), service.canPerform(withItems: urls) else {
+                problem = "No mail app is set up on this Mac to attach the scan to. The scan is saved."
+                NSWorkspace.shared.activateFileViewerSelecting(urls)
+                return
+            }
+            service.subject = urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : "Scans"
+            service.perform(withItems: urls)
+        default:
+            break
         }
     }
 
@@ -350,52 +601,42 @@ final class ScanModel {
         FileNameTemplate.fileName("Scan {date} {time}", NameContext(now: Date(), preset: "", printer: printer.name, number: 1, pages: pages.toSave.count))
     }
 
-    /// Saves the pages that are kept to `url` (a PDF file, a JPEG file for one page, or a folder for several), then clears the
-    /// review. Searchable PDFs get each page's text recognised first.
-    func save(to url: URL, names: [URL]? = nil, reveal: Bool = true) async {
-        let list = pages.toSave
-        guard !list.isEmpty, !isSaving else { return }
+    /// Saves the pages that are kept to `url`: a PDF or JPEG file when they make one file, else a folder, where each file of a
+    /// batch (and each image) gets a numbered name. Searchable PDFs get each page's text recognised first (not photos'). Then
+    /// clears the review.
+    func save(to url: URL, reveal: Bool = true) async {
+        guard !pages.toSave.isEmpty, !isSaving else { return }
         isSaving = true
         problem = nil
-        defer { isSaving = false }
-        let jpegs = list.map { (images[$0.id] ?? [], $0.edits, $0.dpi) }
         let format = format
         status = format == .searchablePdf ? "Recognising text…" : "Saving…"
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        let result: Result<[URL], any Error> = await offPool {
-            do {
-                let pages = try jpegs.map { (jpeg, edits, dpi) in (try ScanImaging.jpeg(jpeg, edits), dpi) }
-                switch format {
-                case .pdf, .searchablePdf:
-                    let pdfPages = pages.map { ScanPdf.Page(jpeg: $0.0, dpi: $0.1, words: format == .searchablePdf ? ScanPdf.recognize($0.0) : nil) }
-                    try ScanPdf.write(pdfPages, title: url.deletingPathExtension().lastPathComponent).write(to: url, options: .atomic)
-                    return .success([url])
-                case .jpeg:
-                    if pages.count == 1 && !url.hasDirectoryPath {
-                        try Data(pages[0].0).write(to: url, options: .atomic)
-                        return .success([url])
-                    }
-                    let stem = FileNameTemplate.sanitize("Scan \(Date().formatted(.iso8601.year().month().day()))")
-                    let paths = try names.map { $0.map(\.path) } ?? FileNameTemplate.uniquePaths(url.path, stem, ".jpg", count: pages.count) {
-                        FileManager.default.fileExists(atPath: $0)
-                    }
-                    for (page, path) in zip(pages, paths) { try Data(page.0).write(to: URL(fileURLWithPath: path), options: .withoutOverwriting) }
-                    return .success(paths.map { URL(fileURLWithPath: $0) })
-                }
-            } catch {
-                return .failure(error)
-            }
+        let targets: [[URL]]
+        do {
+            targets = url.hasDirectoryPath ? try self.targets(in: url, stem: FileNameTemplate.sanitize(suggestedName)) : [[url]]
+        } catch {
+            isSaving = false
+            problem = "There are too many scans with that name in \(url.lastPathComponent). Choose another folder."
+            return
         }
+        let job = jobs(pages.files)
+        let result: Result<[URL], any Error> = await offPool { Result { try Self.write(job, to: targets, format: format) } }
+        isSaving = false
         switch result {
         case .success(let urls):
-            let saved = list.count == 1 ? "1 page" : "\(list.count) pages"
-            clear()
-            status = "Saved \(saved) to \(urls.count == 1 ? urls[0].lastPathComponent : url.lastPathComponent)."
-            if reveal { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+            await finishSaving(urls, in: url.lastPathComponent, reveal: reveal)
         case .failure:
             problem = "The scan couldn't be saved there. Choose another place, or check there's room on the disk."
             status = pages.summary
         }
+    }
+
+    private func finishSaving(_ urls: [URL], in place: String, reveal: Bool) async {
+        let saved = pages.toSave.count == 1 ? "1 page" : "\(pages.toSave.count) pages"
+        let files = urls.count > 1 ? " as \(urls.count) files" : ""
+        clear()
+        status = "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place)."
+        if reveal { NSWorkspace.shared.activateFileViewerSelecting(urls) }
     }
 }

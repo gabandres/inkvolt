@@ -85,6 +85,12 @@ public struct FirmwareUpdateSettings: Equatable, Sendable {
         return model.range(of: #"\bLaserJet\s+MFP\s+M23[2-7]"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// The choices to offer (the Windows app's `OfferedFirmwareChoices`): Notify is left out for a printer that doesn't keep
+    /// it, by model or as learned, unless it reads back Notify now.
+    public func offered(keepsNotify: Bool, model: String?) -> FirmwareUpdateSettings {
+        mode != .notify && (!keepsNotify || Self.knownNotToKeepNotify(model)) ? withoutNotify() : self
+    }
+
     /// What the printer did with a written `chosen` mode, judged from its read-back.
     public static func judge(_ chosen: FirmwareUpdateMode, _ readBack: FirmwareUpdateMode) -> FirmwareUpdateWriteResult {
         readBack == chosen ? .kept : chosen == .notify && readBack == .automatic ? .notifyInstalls : .other

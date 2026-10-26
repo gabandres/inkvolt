@@ -114,6 +114,21 @@ not granted) unless said otherwise. These replace the matching UNVERIFIED items 
 | 10. SMAppService | `notFound` only means not registered yet: **`register()` works from the sandbox** (status `enabled`), even ad-hoc signed. |
 | 3. Settings links | **Both open Printers & Scanners** on macOS 27 (`x-apple.systempreferences:com.apple.Print-Scan-Settings.extension` and the older `com.apple.preference.printfax`). Opening a given printer's queue window: untested. |
 
+**Creating queues from the sandbox** (2026-10-26, Inkvolt Print's Release build, `--setup-probe`; an admin user, libcups
+over cupsd's socket, no password callback):
+
+| Operation | Result |
+|---|---|
+| CUPS-Add-Modify-Printer (a new queue at a documentation address) | **Works**, as do CUPS-Delete-Printer and changing an existing queue's `device-uri`. Like Resume-Printer, macOS's cupsd lets an administrator do it over the socket; the research's `@SYSTEM` reading was wrong for macOS 27. Untested: a standard user (expected: refused). |
+| CUPS-Create-Local-Printer (0x4028) | **Works** (any local user per Apple's `scheduler/ipp.c`, `create_local_printer`): a temporary, stopped queue that cupsd's own thread turns into a driverless (IPP Everywhere) queue by asking the printer (`create_local_bg_thread`, `_ppdCreateFromIPP`), then idle. cupsd deletes it again when unused. |
+| The device URI it needs | cupsd connects to the URI's host itself, so a Bonjour **service name** host (`ipp://HP%20…._ipp._tcp.local./`, what `cupsGetDests2` lists for a temporary destination) fails: "nodename nor servname provided". The printer's `.local` host name or address works. |
+| Making it permanent | CUPS-Add-Modify-Printer on the temporary queue with `printer-is-temporary` false (Apple's `add_printer` reads it). The M234dw got a permanent queue ("LaserJet MFP M232-M237 - IPP Everywhere") in 4.2 s. |
+| `lpadmin -m everywhere` | Not usable from the app: lpadmin builds the PPD client-side with the private `_ppdCreateFromIPP` and uploads it. |
+| Media list | `cupsCopyDestInfo` and `cupsGetDestMediaByIndex` answer from the sandbox: the M234dw's queue lists 25 sizes with their margins (none borderless). |
+
+So "Set up in macOS" and re-pointing a queue at a printer's new address are possible from the App Store build for an
+administrator; a refusal hands off to Printers & Scanners as before.
+
 Still to do: recovery without relaunching after Allow (7), item 8, and the protected operations as a standard user.
 
 **Inkvolt Print's first build** (`com.bermudezsystems.InkvoltPrint`, ad-hoc signed, the same entitlements and Info.plist
@@ -327,7 +342,9 @@ Other APIs:
 - Ping the device on 631, 9100 and 515.
 - Cancel the user's own stuck jobs.
 
-**Can't do:** resume, accept, cancel other users' jobs, add, delete or re-point a queue.
+**Can't do:** resume, accept, cancel other users' jobs, add, delete or re-point a queue. (Superseded on a Mac: as an
+administrator the app can resume, accept, add and re-point queues over the socket; see "Creating queues from the
+sandbox" above.)
 
 **Hand-off:**
 

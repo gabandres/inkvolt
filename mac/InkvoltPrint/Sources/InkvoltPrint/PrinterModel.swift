@@ -16,6 +16,8 @@ final class PrinterModel: Identifiable {
     private(set) var host: String
     /// Its Bonjour host name, once discovery saw it (queue matching knows it by that too).
     private(set) var hostName: String?
+    /// The IPP URL Bonjour announced (or the one remembered), for setting it up in macOS when its session reads it another way.
+    @ObservationIgnored private(set) var ippHint: URL?
     /// The CUPS queue its print jobs go through: a queue printer's own, or the one macOS has for a network printer.
     var queueName: String?
     private(set) var view = PrinterView.connecting
@@ -29,11 +31,15 @@ final class PrinterModel: Identifiable {
     /// The window is closed: the printer is checked now and then instead of watched live.
     @ObservationIgnored private var polling: Task<Void, Never>?
 
+    /// The state file, for what's remembered per printer.
+    var store: StateStore { app.store }
+
     init(known: KnownPrinter, app: AppModel) {
         id = known.uuid
         name = known.name
         model = known.model
         host = known.host
+        ippHint = known.ippUri.flatMap { URL(string: $0) }
         self.app = app
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
         let store = app.store, id = known.uuid
@@ -183,6 +189,7 @@ final class PrinterModel: Identifiable {
     func apply(_ found: DiscoveredPrinter) {
         if model == nil { model = found.model }
         hostName = found.hostName
+        if let ipp = found.ippUri { ippHint = ipp }
         guard let monitor else { return }
         Task {
             if await monitor.announced(found) { start() }

@@ -36,6 +36,8 @@ final class AppModel {
     /// The offline fixer's network checks and its queue repairs (this Mac's, or demo mode's made-up ones).
     @ObservationIgnored let offlineProbes: any OfflineProbes
     @ObservationIgnored let queueControl: any QueueControl
+    /// "Set up in macOS": creates a CUPS queue (this Mac's cupsd, or demo mode's made-up one).
+    @ObservationIgnored let queueSetup: any QueueSetupControl
     @ObservationIgnored private var readingQueues: Task<Void, Never>?
     /// Discovery's first sweep is over: network queues may be listed (a printer it finds would take their place).
     @ObservationIgnored private var sweepDone = false
@@ -88,6 +90,7 @@ final class AppModel {
             queues = offline
             offlineProbes = offline
             queueControl = offline
+            queueSetup = offline
         } else {
             transport = URLSessionTransport.factory(localNetwork: signal)
             snmp = UdpSnmpTransport(localNetwork: signal)
@@ -95,6 +98,7 @@ final class AppModel {
             queues = LibCups()
             offlineProbes = NetworkOfflineProbes(localNetwork: signal)
             queueControl = LibCups()
+            queueSetup = LibCups()
         }
         settings = store.current.alertSettings
         presets = ScanPresets.normalize(store.current.scanPresets)
@@ -221,6 +225,35 @@ final class AppModel {
     }
 
     // MARK: Queue printers
+
+    /// The paper sizes Print Photos offers for a printer: its macOS queue's (libcups), demo mode's made-up inkjet's, or
+    /// none (the fixed list then).
+    func photoMedia(for p: PrinterModel) async -> [QueueMedia] {
+        if isDemo { return p.id == Demo.inkjetUuid ? Demo.photoMedia : [] }
+        guard let queue = p.queueName else { return [] }
+        return await LibCups().media(queue)
+    }
+
+    /// "Set up in macOS" for a network printer macOS has no queue for: a driverless queue on its IPP URL, then the queues
+    /// read again (the printer takes its new queue). Returns what to tell the user.
+    func setUpQueue(for p: PrinterModel) async -> String {
+        // The session's IPP URL, else Bonjour's, else IPP Everywhere's own (a printer read over LEDM or CDM may print over IPP too).
+        let host = p.host.contains(":") ? "[\(p.host)]" : p.host
+        let ipp = await p.connection()?.ipp?.endpoint ?? p.ippHint ?? URL(string: "ipp://\(host):631/ipp/print")
+        guard let plan = QueueSetup.plan(name: p.name, ippUri: ipp, hostName: p.hostName, destinations: destinations ?? []) else {
+            return "This printer doesn't offer driverless printing (IPP), so macOS needs its maker's driver for it. Add it in Printers & Scanners."
+        }
+        var failure: QueueControlError?
+        do {
+            try await queueSetup.addQueue(plan)
+        } catch let e as QueueControlError {
+            failure = e
+        } catch {
+            failure = .failed("It stopped before it was done.")
+        }
+        await readQueues()
+        return QueueSetup.outcome(failure, info: plan.info)
+    }
 
     /// Reads macOS's queues: each queue printer takes its queue's state, and the list follows the queues.
     private func readQueues() async {

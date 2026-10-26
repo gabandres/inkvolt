@@ -21,6 +21,15 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   (`PrinterList` in `shared/InkvoltPrint.Core/Queues`).
 - **CUPS destination** (Mac): a print queue set up in macOS, as libcups lists it with its options (`CupsDestination`). A
   temporary destination (a printer Bonjour shows that nobody set up) isn't a queue.
+- **Set up in macOS** (Mac): creating the CUPS queue for a network printer macOS has none for, so every app prints to it:
+  cupsd makes a temporary destination and reads the printer into a driverless (IPP Everywhere) queue, then keeps it
+  (`QueueSetup`; Windows: Set up in Windows). Needs an administrator of the Mac.
+- **Batch** (scan): one feeder run saved as several files, split at separator sheets or by hand (`BatchSplit`).
+- **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T),
+  a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
+  Left out of the files unless the batch keeps them.
+- **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
+  out straight (`PhotoFinder`, `PhotoBox`).
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and

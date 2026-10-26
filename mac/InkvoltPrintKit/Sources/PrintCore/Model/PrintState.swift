@@ -51,6 +51,8 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// Preset id → the folder its scans go to, as an app-scoped security bookmark (the sandbox writes only where the user
     /// pointed).
     public var presetFolders: [String: Data] = [:]
+    /// Printers seen turning on automatic installs when only the update check was asked for: Notify isn't offered again.
+    public var noFirmwareNotify: [String] = []
 
     public init() {}
 
@@ -66,6 +68,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         alertSettings = try c.decodeIfPresent(AlertSettings.self, forKey: .alertSettings) ?? AlertSettings()
         scanPresets = try? c.decodeIfPresent(ScanPresetSettings.self, forKey: .scanPresets)
         presetFolders = (try? c.decodeIfPresent([String: Data].self, forKey: .presetFolders)) ?? [:]
+        noFirmwareNotify = try c.decodeIfPresent([String].self, forKey: .noFirmwareNotify) ?? []
     }
 }
 
@@ -162,6 +165,15 @@ public final class StateStore: Sendable {
             for u in uuids where !list.contains(where: { same($0, u) }) { list.append(u) }
             s.acceptedUuids[key] = list
         }
+    }
+
+    // MARK: Firmware
+
+    /// False once the printer read back automatic installs after Notify was written.
+    public func keepsFirmwareNotify(_ id: String) -> Bool { read { !$0.noFirmwareNotify.contains { same($0, id) } } }
+
+    public func setNoFirmwareNotify(_ id: String) {
+        change { s in if !s.noFirmwareNotify.contains(where: { same($0, id) }) { s.noFirmwareNotify.append(id) } }
     }
 
     // MARK: Certificate pins

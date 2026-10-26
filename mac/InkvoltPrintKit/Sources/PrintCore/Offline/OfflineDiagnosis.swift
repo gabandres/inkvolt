@@ -259,7 +259,7 @@ public enum OfflineDiagnosis {
             }
 
             if m.portIsStale, let target {
-                addAgainAt(&list, m, target, found?.hostName, caution)
+                pointAt(&list, m, target, found?.hostName, caution)
             } else if !m.portIsStale, answers, !m.isPaused, CupsStatus.describe(q).offline {
                 // It answers, the address is right, yet macOS says offline.
                 list.append(Repair(.addAgain, "Add “\(shown)” again",
@@ -288,26 +288,29 @@ public enum OfflineDiagnosis {
         return list
     }
 
-    /// macOS can't change a queue's address: the user removes it and adds it again at the printer's address (or its
-    /// Bonjour host name, which follows it). The steps name the address, which came from the network, so a doubt about it
-    /// comes first.
-    private static func addAgainAt(_ list: inout [Repair], _ m: MatchedQueue, _ target: String, _ hostName: String?, _ caution: String?) {
+    /// The queue is pointed at the printer's address (or its Bonjour host name, which follows it); refused (not an
+    /// administrator), the steps remove it and add it again there. The address came from the network, so a doubt about it
+    /// comes first, in the question too.
+    private static func pointAt(_ list: inout [Repair], _ m: MatchedQueue, _ target: String, _ hostName: String?, _ caution: String?) {
         let q = m.queue
         let shown = q.displayName
         let uri = q.deviceUri ?? ""
         let old = CupsQueues.host(uri) ?? uri
         let doubt = (m.reason == .name ? "“\(shown)” has the same model name as this printer, but prints to \(old). Is it for this printer? " : "") + (caution ?? "")
         let newUri = replacingHost(uri, with: target)
-        list.append(Repair(.addAgainAt, "Add “\(shown)” again at \(target)",
-                           "\(doubt)It still prints to \(old), the printer's old address, and macOS can't change a printer's address: remove it and add it again at \(target).",
-                           queue: q.name, target: target, targetUri: newUri, manualOnly: true,
-                           manualSteps: ManualSteps.for(.addAgainAt, queue: shown, target: target, uri: newUri)))
+        list.append(Repair(.pointAt, "Point “\(shown)” at \(target)",
+                           "\(doubt)It still prints to \(old), the printer's old address. Inkvolt Print points it at \(target).",
+                           queue: q.name, target: target, targetUri: newUri,
+                           question: "\(doubt)Point “\(shown)” at \(target)? Its print jobs go to \(target) from now on.", confirm: "Point It",
+                           manualSteps: ManualSteps.for(.pointAt, queue: shown, target: target, uri: newUri)))
         if let hostName, !hostName.isEmpty {
             let byName = replacingHost(uri, with: hostName)
-            list.append(Repair(.addAgainAt, "Or add it with its network name, \(hostName)",
-                               "\(doubt)The printer's network name follows it when the router gives it a new address.",
-                               queue: q.name, target: hostName, targetUri: byName, manualOnly: true, isAlternative: true,
-                               manualSteps: ManualSteps.for(.addAgainAt, queue: shown, target: hostName, uri: byName)))
+            list.append(Repair(.pointAt, "Or point it at \(hostName)",
+                               "\(doubt)The printer's network name, which follows it when the router gives it a new address.",
+                               queue: q.name, target: hostName, targetUri: byName,
+                               question: "\(doubt)Point “\(shown)” at \(hostName)? Its print jobs go to whichever address that name has.",
+                               confirm: "Point It", isAlternative: true,
+                               manualSteps: ManualSteps.for(.pointAt, queue: shown, target: hostName, uri: byName)))
         }
     }
 

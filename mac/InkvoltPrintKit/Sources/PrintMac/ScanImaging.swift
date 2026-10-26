@@ -60,6 +60,34 @@ public enum ScanImaging {
         return [UInt8](data as Data)
     }
 
+    /// One photo found on the glass, cut out of the full-size scan straight (`GlassPhotoCrop`: only the pixels around it are
+    /// turned) and given its quarter turns, as a JPEG.
+    public static func photo(_ jpeg: [UInt8], _ box: PhotoBox) throws -> [UInt8] {
+        let image = try decode(jpeg, maxPixels: nil)
+        let r = GlassPhotoCrop.bounds(box, width: image.width, height: image.height)
+        guard let part = image.cropping(to: CGRect(x: r.x, y: r.y, width: r.width, height: r.height)) else { throw ImageError() }
+        let stride = r.width * 4
+        var region = [UInt8](repeating: 255, count: stride * r.height)
+        let space = CGColorSpaceCreateDeviceRGB()
+        let info = CGImageAlphaInfo.noneSkipLast.rawValue
+        let drawn: Bool = region.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: r.width, height: r.height, bitsPerComponent: 8, bytesPerRow: stride,
+                                          space: space, bitmapInfo: info) else { return false }
+            context.draw(part, in: CGRect(x: 0, y: 0, width: r.width, height: r.height))
+            return true
+        }
+        guard drawn else { throw ImageError() }
+        let cut = GlassPhotoCrop.straighten(region, regionWidth: r.width, regionHeight: r.height, stride: stride, channels: 4, box: box,
+                                            scanWidth: image.width, regionX: r.x, regionY: r.y)
+        guard let provider = CGDataProvider(data: Data(cut.pixels) as CFData),
+              var photo = CGImage(width: cut.width, height: cut.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: cut.stride, space: space,
+                                  bitmapInfo: CGBitmapInfo(rawValue: info), provider: provider, decode: nil, shouldInterpolate: true,
+                                  intent: .defaultIntent) else { throw ImageError() }
+        let turns = ((box.quarterTurns % 4) + 4) % 4
+        if turns != 0 { photo = try turned(photo, turns) }
+        return try Self.jpeg(photo)
+    }
+
     /// Width and height in pixels without decoding the page.
     public static func size(_ jpeg: [UInt8]) -> (width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil),

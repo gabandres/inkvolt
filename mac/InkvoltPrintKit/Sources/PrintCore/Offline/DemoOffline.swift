@@ -5,7 +5,7 @@ import Foundation
 /// `Demo.officeOldHost` to `Demo.officeNewHost`; its queue still prints to the old address over a raw socket, is paused and
 /// holds a stuck job of the user's. Repairs change only this made-up state, so the whole flow can be tried and snapshotted
 /// without reading or touching this Mac's real queues.
-public final class DemoOffline: OfflineProbes, QueueControl, PrintQueues {
+public final class DemoOffline: OfflineProbes, QueueControl, QueueSetupControl, PrintQueues {
     /// The office laser's queue.
     public static let officeQueue = "Demo_office_laser"
 
@@ -16,6 +16,8 @@ public final class DemoOffline: OfflineProbes, QueueControl, PrintQueues {
     private let online: [String: String]
     private let office: Shared<CupsDestination>
     private let officeJobs: Shared<[QueueJob]>
+    /// Queues "Set up in macOS" added.
+    private let added = Shared<[CupsDestination]>([])
 
     /// `delay`: how long a Bonjour look-up takes (a reachability check half that), so the checks show as they run.
     public init(now: Date = Date(), delay: Duration = .milliseconds(700)) {
@@ -50,7 +52,7 @@ public final class DemoOffline: OfflineProbes, QueueControl, PrintQueues {
     public func destinations() async -> [CupsDestination]? {
         var office = office.withLock { $0 }
         office.jobs = officeJobs.withLock { $0.count }
-        return (await base.destinations() ?? []) + [office]
+        return (await base.destinations() ?? []) + [office] + added.withLock { $0 }
     }
 
     public func jobs(_ queue: String) async -> [QueueJob]? {
@@ -84,6 +86,30 @@ public final class DemoOffline: OfflineProbes, QueueControl, PrintQueues {
         try await pause(delay / 2)
         guard isOffice(queue) else { return }
         office.withLock { $0.options["printer-is-accepting-jobs"] = "true" }
+    }
+
+    // MARK: QueueSetupControl
+
+    /// Adds the queue at once (made up: nothing on this Mac changes), after the moment cupsd takes to read a printer.
+    public func addQueue(_ plan: QueueSetupPlan) async throws {
+        try await pause(delay * 2)
+        added.withLock { list in
+            guard !list.contains(where: { $0.name.caseInsensitiveCompare(plan.queueName) == .orderedSame }) else { return }
+            list.append(CupsDestination(name: plan.queueName, options: [
+                "printer-info": plan.info, "device-uri": plan.deviceUri, "printer-make-and-model": plan.info, "printer-type": "4",
+                "printer-state": "3", "printer-is-accepting-jobs": "true",
+            ]))
+        }
+    }
+
+    public func setDeviceUri(_ queue: String, _ uri: String) async throws {
+        try await pause(delay / 2)
+        guard isOffice(queue) else { return }
+        office.withLock { d in
+            d.options["device-uri"] = uri
+            // cupsd reaches the printer at its new address: its "offline" goes.
+            d.options["printer-state-reasons"] = d.reasons.filter { $0 != "offline-report" }.joined(separator: ",")
+        }
     }
 
     private func isOffice(_ queue: String) -> Bool { queue.caseInsensitiveCompare(Self.officeQueue) == .orderedSame }

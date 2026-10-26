@@ -1,5 +1,6 @@
 import AppKit
 import PrintCore
+import PrintMac
 import SwiftUI
 
 /// The selected printer: its status and alerts, its supplies, and what it is.
@@ -8,6 +9,7 @@ struct PrinterPane: View {
     @Environment(AppModel.self) private var app
     @State private var tab = Tab.status
     @State private var printingPhotos = false
+    @State private var copyingCard = false
 
     enum Tab { case status, scan, settings }
 
@@ -24,11 +26,16 @@ struct PrinterPane: View {
         }
         .navigationTitle(printer.name)
         .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
+        .sheet(isPresented: $copyingCard) { IdCardCopySheet(printer: printer, app: app) }
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {
                 Menu {
                     Button("Print a PDF…") { Printing.printPdf(on: printer, app: app) }
                     Button("Print Photos…") { printingPhotos = true }
+                    if printer.canScan {
+                        Divider()
+                        Button("Copy an ID Card…") { copyingCard = true }
+                    }
                 } label: {
                     Label("Print", systemImage: "printer")
                 }
@@ -54,6 +61,7 @@ struct PrinterPane: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 StatusCard(printer: printer)
+                if printer.isNetwork { SetUpCard(printer: printer).id(printer.id) }
                 if !printer.view.supplies.isEmpty { supplies }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
@@ -123,6 +131,46 @@ struct PrinterPane: View {
 }
 
 /// The printer's state in words, its alerts, and "This is my printer" when another device has its address.
+/// "Set up in macOS" (the Windows app's Set up in Windows): offered while macOS has no queue for a network printer that's
+/// connected, so other apps can print to it too.
+struct SetUpCard: View {
+    let printer: PrinterModel
+    @Environment(AppModel.self) private var app
+    @State private var working = false
+    @State private var message: String?
+    @State private var done = false
+
+    var body: some View {
+        if (printer.queueName == nil && app.destinations != nil && printer.view.isOnline) || message != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                if printer.queueName == nil {
+                    Text("macOS has no printer set up for this one, so other apps can't print to it.")
+                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if let message { Text(message).fixedSize(horizontal: false, vertical: true) }
+                HStack {
+                    if printer.queueName == nil {
+                        Button("Set Up in macOS") { Task { await setUp() } }.disabled(working)
+                        if message != nil && !done { Button("Open Printers & Scanners") { NSWorkspace.shared.open(SystemSettings.printers) } }
+                    }
+                    if working {
+                        ProgressView().controlSize(.small)
+                        Text("macOS is reading what the printer can do…").foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func setUp() async {
+        working = true
+        message = nil
+        message = await app.setUpQueue(for: printer)
+        done = printer.queueName != nil
+        working = false
+    }
+}
+
 struct StatusCard: View {
     let printer: PrinterModel
     @Environment(AppModel.self) private var app

@@ -1,8 +1,9 @@
 import Foundation
 
-/// What the fixer can repair on the Mac. Resuming a queue and letting it accept jobs are tried from the app (cupsd allows
-/// them for an administrator; a standard user may be refused); cancelling the user's own jobs always works. Everything
-/// else is a hand-off: steps for System Settings › Printers & Scanners.
+/// What the fixer can repair on the Mac. Resuming a queue, letting it accept jobs and pointing it at the printer's new
+/// address are tried from the app (cupsd allows them for an administrator; a standard user is refused and gets the steps);
+/// cancelling the user's own jobs always works. Everything else is a hand-off: steps for System Settings › Printers &
+/// Scanners.
 public enum RepairKind: CaseIterable, Equatable, Sendable {
     /// Resume-Printer: the queue is paused (printer-state 5).
     case resumeQueue
@@ -12,8 +13,9 @@ public enum RepairKind: CaseIterable, Equatable, Sendable {
     case cancelStuckJobs
     /// Other people's stuck jobs: only an administrator cancels them (hand-off).
     case cancelOthersJobs
-    /// The queue's device URI points at the printer's old address: remove it and add it again at the new one (hand-off).
-    case addAgainAt
+    /// The queue's device URI points at the printer's old address: CUPS-Add-Modify-Printer with the URI at the new one (the
+    /// Windows app's PointPortAt). Refused, the steps remove it and add it again there.
+    case pointAt
     /// The printer answers at the queue's address, yet macOS shows it offline: remove it and add it again (hand-off).
     case addAgain
 }
@@ -25,9 +27,9 @@ public struct Repair: Equatable, Sendable {
     public var detail: String
     /// The CUPS queue's name (`printer-name`), for the calls; titles and steps use the name people see.
     public var queue: String?
-    /// `.addAgainAt`: the address or host name to add it at.
+    /// `.pointAt`: the address or host name to point it at.
     public var target: String?
-    /// `.addAgainAt`: the queue's device URI at `target` (scheme, port and path kept).
+    /// `.pointAt`: the queue's device URI at `target` (scheme, port and path kept).
     public var targetUri: String?
     public var jobIds: [Int]
     /// Asked before doing it (cancelling jobs).
@@ -76,7 +78,7 @@ public enum ManualSteps {
             return [openQueue, "Select each stuck job and click the ✕ beside it. Other people's jobs need an administrator."]
         case .cancelOthersJobs:
             return [openQueue, "Select each stuck job and click the ✕ beside it; macOS asks for an administrator's name and password."]
-        case .addAgainAt:
+        case .pointAt:
             let (name, path) = protocolOf(uri)
             let queuePart = path.isEmpty ? "" : ", with \(path) as the queue"
             return [remove, "Click Add Printer, Scanner, or Fax…, then IP at the top of the window.",
@@ -105,6 +107,9 @@ public protocol QueueControl: Sendable {
 
     /// CUPS-Accept-Jobs (0x4008) through cupsd. Throws `QueueControlError`.
     func acceptJobs(_ queue: String) async throws
+
+    /// CUPS-Add-Modify-Printer (0x4003) with a new `device-uri`, through cupsd. Throws `QueueControlError`.
+    func setDeviceUri(_ queue: String, _ uri: String) async throws
 }
 
 public enum QueueControlError: Error, Equatable, Sendable {
@@ -138,9 +143,15 @@ public enum RepairRunner {
         if repair.manualOnly { return RepairOutcome(.manual, "Do this in System Settings:", repair.manualSteps) }
         guard let queue = repair.queue else { return RepairOutcome(.failed, "There's no printer to change.", repair.manualSteps) }
         switch repair.kind {
-        case .resumeQueue, .acceptJobs:
+        case .resumeQueue, .acceptJobs, .pointAt:
             do {
-                if repair.kind == .resumeQueue { try await control.resume(queue) } else { try await control.acceptJobs(queue) }
+                switch repair.kind {
+                case .resumeQueue: try await control.resume(queue)
+                case .acceptJobs: try await control.acceptJobs(queue)
+                default:
+                    guard let uri = repair.targetUri else { return RepairOutcome(.failed, "There's no address to point it at.", repair.manualSteps) }
+                    try await control.setDeviceUri(queue, uri)
+                }
                 return .fixed("Done.")
             } catch QueueControlError.refused {
                 return RepairOutcome(.manual, "macOS lets only an administrator of this Mac do this from Inkvolt Print. Do it in System Settings, "
@@ -167,7 +178,7 @@ public enum RepairRunner {
             let left = repair.jobIds.count - done
             let message = done == 0 ? why : "\(jobs(done)) \(done == 1 ? "was" : "were") cancelled. The other \(jobs(left)) couldn't be: \(why)"
             return RepairOutcome(.failed, message, repair.manualSteps)
-        case .cancelOthersJobs, .addAgainAt, .addAgain:
+        case .cancelOthersJobs, .addAgain:
             return RepairOutcome(.manual, "Do this in System Settings:", repair.manualSteps)
         }
     }

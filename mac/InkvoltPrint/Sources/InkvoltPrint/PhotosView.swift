@@ -13,6 +13,8 @@ struct PhotoItem: Identifiable {
     var image: CGImage
     var quarterTurns = 0
     var copies = 1
+    /// Zoom and pan inside its prints (drag it on a sheet).
+    var crop = PhotoCrop.none
     var name: String { url.lastPathComponent }
 }
 
@@ -40,7 +42,8 @@ enum PhotoPaper: String, CaseIterable, Identifiable {
         }
     }
 
-    var pageSize: NSSize { NSSize(width: sheet.width * 72, height: sheet.height * 72) }
+    /// As a paper choice, for a printer whose queue doesn't list its papers.
+    var choice: PhotoPaperChoice { PhotoPaperChoice(label: label, sheet: sheet, media: rawValue) }
 }
 
 /// Print Photos (the Windows app's Photos tab): pictures laid out full page, at a print size, or as a contact sheet,
@@ -53,7 +56,11 @@ final class PhotosModel {
     var fit: PhotoFit = .fill
     var onePhotoPerSheet = false
     var perSheet = 12
-    var paper: PhotoPaper = Locale.current.measurementSystem == .metric ? .a4 : .letter
+    /// The papers to choose from: the printer's queue's (with their printable areas), else four usual ones.
+    private(set) var papers: [PhotoPaperChoice] = PhotoPaper.allCases.map(\.choice)
+    var paperId = (Locale.current.measurementSystem == .metric ? PhotoPaper.a4 : PhotoPaper.letter).rawValue
+    /// Edge to edge, when the paper has a borderless size.
+    var borderless = false
     private(set) var problem: String?
     private(set) var previews: [NSImage] = []
     private(set) var printing = false
@@ -71,8 +78,55 @@ final class PhotosModel {
                            onePhotoPerSheet: onePhotoPerSheet)
     }
 
-    var sheets: [PhotoSheet] {
-        PhotoLayout.sheets(photos.map { PhotoInput(Double($0.image.width), Double($0.image.height), $0.copies, .none) }, options, paper.sheet)
+    var paper: PhotoPaperChoice { papers.first { $0.id == paperId } ?? papers[0] }
+
+    /// The sheet the photos are laid out on: the paper's printable area, or all of it borderless.
+    var sheet: SheetPaper { paper.sheet(borderless: borderless) }
+
+    private var inputs: [PhotoInput] { photos.map { PhotoInput(Double($0.image.width), Double($0.image.height), $0.copies, $0.crop) } }
+
+    /// The sheets as laid out at the last change (`refresh`).
+    private(set) var sheets: [PhotoSheet] = []
+
+    /// The lowest resolution each photo prints at; under `PhotoLayout.lowDpi` it may look soft.
+    private(set) var printDpi: [Double?] = []
+
+    /// "2 photos print below 150 dpi and may look soft", or nil.
+    var softWarning: String? {
+        let soft = printDpi.filter { ($0 ?? .infinity) < PhotoLayout.lowDpi }.count
+        if soft == 0 { return nil }
+        return soft == 1 ? "1 photo prints below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list)."
+            : "\(soft) photos print below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list)."
+    }
+
+    /// The printer's own papers, once (its macOS queue's media list).
+    func loadPapers() async {
+        let choices = QueuePapers.photoChoices(await app.photoMedia(for: printer))
+        guard !choices.isEmpty else { return }
+        papers = choices
+        paperId = QueuePapers.preferred(choices, metric: Locale.current.measurementSystem == .metric)?.id ?? choices[0].id
+        refresh()
+    }
+
+    /// The photo in `cell` dragged by (`dx`, `dy`) inches on the paper, from the crop it had when the drag began.
+    func drag(_ cell: PhotoCell, from start: PhotoCrop, dx: Double, dy: Double) {
+        guard cell.photo < photos.count else { return }
+        let p = photos[cell.photo]
+        photos[cell.photo].crop = PhotoLayout.drag(cell.cell, Double(p.image.width), Double(p.image.height), fit, start, turned: cell.turned, dx: dx, dy: dy)
+    }
+
+    /// Zooms a photo in or out (100–400 %), keeping its pan.
+    func zoom(_ index: Int, by factor: Double) {
+        guard index < photos.count else { return }
+        let c = photos[index].crop
+        photos[index].crop = PhotoCrop(min(max(c.zoom * factor, 1), PhotoCrop.maxZoom), c.panX, c.panY)
+        refresh()
+    }
+
+    func resetCrop(_ index: Int) {
+        guard index < photos.count else { return }
+        photos[index].crop = .none
+        refresh()
     }
 
     func add() {
@@ -107,7 +161,10 @@ final class PhotosModel {
 
     /// The sheets' previews, redrawn after each change.
     func refresh() {
-        let sheets = sheets, images = photos.map(\.image), names = photos.map(\.name), paper = paper.sheet
+        let inputs = inputs
+        sheets = PhotoLayout.sheets(inputs, options, sheet)
+        printDpi = PhotoLayout.printDpi(sheets, inputs)
+        let sheets = sheets, images = photos.map(\.image), names = photos.map(\.name), paper = sheet
         previews = sheets.prefix(12).compactMap { sheet in
             PhotoSheets.preview(sheet, photos: images, names: names, paper: paper, width: 360).map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
         }
@@ -118,14 +175,14 @@ final class PhotosModel {
         guard !sheets.isEmpty else { return }
         printing = true
         defer { printing = false }
-        let images = photos.map(\.image), names = photos.map(\.name), sheet = paper.sheet
+        let images = photos.map(\.image), names = photos.map(\.name), sheet = sheet
         let data: Data? = await offPool { try? PhotoSheets.pdf(sheets, photos: images, names: names, paper: sheet) }
         guard let data, let document = PDFDocument(data: data) else {
             problem = "The sheets couldn't be prepared for printing."
             return
         }
         Printing.print(document, name: photos.count == 1 ? photos[0].name : "\(photos.count) photos", on: printer, app: app, actualSize: true,
-                       paper: paper.pageSize)
+                       paper: NSSize(width: sheet.width * 72, height: sheet.height * 72), borderless: borderless && paper.borderless != nil)
     }
 }
 
@@ -143,7 +200,13 @@ struct PhotosView: View {
                     ForEach(model.photos) { p in
                         HStack {
                             Image(decorative: p.image, scale: max(CGFloat(p.image.width) / 48, 1)).frame(width: 48, height: 48)
-                            Text(p.name).lineLimit(1).truncationMode(.middle)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(p.name).lineLimit(1).truncationMode(.middle)
+                                if let i = model.photos.firstIndex(where: { $0.id == p.id }), let dpi = model.printDpi[i] {
+                                    Text("\(Int(dpi.rounded())) dpi\(dpi < PhotoLayout.lowDpi ? ": may look soft" : "")")
+                                        .font(.caption).foregroundStyle(dpi < PhotoLayout.lowDpi ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                                }
+                            }
                             Spacer()
                             Stepper("\(p.copies)", value: Binding(get: { p.copies }, set: { v in
                                 if let i = model.photos.firstIndex(where: { $0.id == p.id }) { model.photos[i].copies = v }
@@ -157,7 +220,15 @@ struct PhotosView: View {
                     if let problem = model.problem { Text(problem).foregroundStyle(.red) }
                 }
                 Section("Layout") {
-                    Picker("Paper", selection: $model.paper) { ForEach(PhotoPaper.allCases) { Text($0.label).tag($0) } }
+                    Picker("Paper", selection: $model.paperId) { ForEach(model.papers) { Text($0.label).tag($0.id) } }
+                    if model.paper.borderless != nil {
+                        Toggle("Borderless", isOn: $model.borderless)
+                        if model.borderless {
+                            Text("In the print panel, pick the paper size marked Borderless, if macOS doesn't.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Prints with margins: this paper has no borderless size.").font(.caption).foregroundStyle(.secondary)
+                    }
                     Picker("Layout", selection: $model.kind) {
                         Text("Full page").tag(PhotoLayoutKind.fullPage)
                         Text("Print size").tag(PhotoLayoutKind.printSize)
@@ -180,7 +251,9 @@ struct PhotosView: View {
             .formStyle(.grouped)
             .frame(width: 380)
             .onChange(of: model.options) { model.refresh() }
-            .onChange(of: model.paper) { model.refresh() }
+            .onChange(of: model.paperId) { model.refresh() }
+            .onChange(of: model.borderless) { model.refresh() }
+            .task { await model.loadPapers() }
             Divider()
             VStack(spacing: 0) {
                 ScrollView {
@@ -188,6 +261,7 @@ struct PhotosView: View {
                         ForEach(Array(model.previews.enumerated()), id: \.offset) { i, image in
                             VStack(spacing: 4) {
                                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fit).shadow(radius: 2)
+                                    .overlay { if model.kind != .contactSheet, i < model.sheets.count { CropCells(model: model, sheet: model.sheets[i]) } }
                                 Text("Sheet \(i + 1)").font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -198,6 +272,10 @@ struct PhotosView: View {
                 Divider()
                 HStack {
                     Text(model.sheets.count == 1 ? "1 sheet" : "\(model.sheets.count) sheets").foregroundStyle(.secondary)
+                    if let soft = model.softWarning { Text(soft).foregroundStyle(.orange).lineLimit(2) }
+                    if model.kind != .contactSheet && !model.photos.isEmpty {
+                        Text("Drag a photo on a sheet to move its crop.").font(.caption).foregroundStyle(.secondary)
+                    }
                     Spacer()
                     if model.printing { ProgressView().controlSize(.small) }
                     Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -210,3 +288,37 @@ struct PhotosView: View {
     }
 }
 
+/// The prints on a sheet's preview, to crop by hand: drag a photo to move what shows of it, pinch (or the menu) to zoom.
+private struct CropCells: View {
+    let model: PhotosModel
+    let sheet: PhotoSheet
+    @State private var start: PhotoCrop?
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width / model.sheet.width // points per inch
+            ForEach(Array(sheet.cells.enumerated()), id: \.offset) { _, cell in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .frame(width: cell.cell.width * scale, height: cell.cell.height * scale)
+                    .position(x: (cell.cell.x + cell.cell.width / 2) * scale, y: (cell.cell.y + cell.cell.height / 2) * scale)
+                    .gesture(DragGesture(minimumDistance: 2)
+                        .onChanged { g in
+                            let from = start ?? model.photos[cell.photo].crop
+                            start = from
+                            model.drag(cell, from: from, dx: g.translation.width / scale, dy: g.translation.height / scale)
+                        }
+                        .onEnded { _ in
+                            start = nil
+                            model.refresh()
+                        })
+                    .gesture(MagnifyGesture().onEnded { g in model.zoom(cell.photo, by: g.magnification) })
+                    .contextMenu {
+                        Button("Zoom In") { model.zoom(cell.photo, by: 1.25) }
+                        Button("Zoom Out") { model.zoom(cell.photo, by: 0.8) }
+                        Button("Reset Crop") { model.resetCrop(cell.photo) }
+                    }
+                    .help(cell.photo < model.photos.count ? "\(model.photos[cell.photo].name): drag to move the crop" : "")
+            }
+        }
+    }
+}

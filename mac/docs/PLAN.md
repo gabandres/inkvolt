@@ -20,15 +20,21 @@ In:
 - printer status, supplies and alerts (LEDM, CDM, IPP, SNMP; same fallback order and identity-before-data rule);
 - Add a printer: Bonjour, the subnet search (TCP 631/9100/515, SNMP broadcast), a typed address;
 - scanning: eSCL presets with review, crop and straighten, crash recovery; USB scanners through ImageCaptureCore;
-- the offline fixer, reduced to diagnosis, cancelling the user's own stuck jobs, and a guided hand-off to Printers &
-  Scanners (the sandbox can't resume, re-enable, add or delete a CUPS queue);
+- the offline fixer: diagnosis, cancelling the user's own stuck jobs, resuming, re-enabling and re-pointing a queue (for
+  an administrator; a standard user gets a guided hand-off to Printers & Scanners);
 - a menu bar item (the tray's equivalent) with alerts; launch at login only if the user turns it on;
 - demo mode (the made-up environment), so App Review can use the app without a printer.
 
-Later (Windows features not on the Mac yet): batch scans with separator sheets and patch codes, several photos on the
-glass, the ID card copy, mail and sync-folder routes for presets, Open in Inkvolt PDF, "Set up in Windows" (adding a
-CUPS queue from the sandbox is unprobed; the app hands off to Printers & Scanners). Copy, Print Photos, Print a PDF, HP
-maintenance, firmware update settings and LEDM settings came in 1.1.
+Copy, Print Photos, Print a PDF, HP maintenance, firmware update settings and LEDM settings came in 1.1. After 1.1
+(2026-10-26, not in a build yet): batch scans with separator sheets and patch codes, several photos on the glass, the ID
+card copy, presets' after-steps (print a copy, attach to an email) and splitting, Set Up in macOS (CUPS queue creation
+from the sandbox works for an administrator), the offline fixer pointing a queue at the printer's new address, the
+queue's own paper sizes and borderless in Print Photos, crop by dragging, the low-resolution warning, and firmware's
+Notify left out for printers that don't keep it.
+
+Not on the Mac: Open in Inkvolt PDF (no Mac Inkvolt PDF yet), HP clean-up (nothing like it on macOS), WIA. Still
+simpler than Windows: the glass photos' boxes can't be dragged by hand yet (Find Photos Again, Save the Whole Scan), and
+Print Photos' paper type and quality are the print panel's.
 
 ## Layout
 
@@ -68,8 +74,8 @@ mac/
 | `Wia/` | `PrintMac/Icc` | ImageCaptureCore; `FakeWiaSystem`'s role goes to a fake scanner protocol |
 | `Pdf/PdfWriter` | `PrintMac/Pdf` | PDFKit / Core Graphics; searchable PDF with Vision |
 
-Not ported: `Suite/ShellRegistration`, `Offline/RepairScripts`, `Queues/Spooler*`, `Wia/WorkThread`, and the v1
-"Later" list above.
+Not ported: `Suite/ShellRegistration`, `Offline/RepairScripts`, `Queues/Spooler*`, `Wia/WorkThread`, `Presets/MailRoute`
+and `Presets/SyncFolders` (macOS's share service and a folder the user picks do their work), HP clean-up.
 
 ## Steps
 
@@ -89,7 +95,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | Done (2026-10-26): `CupsDestination`, `CupsQueues` (ids, virtual and temporary destinations, connection, matching a queue to a network printer), `CupsStatus`, `PrinterList` (queues part), `Demo.destinations` (30 tests); PrintMac `LibCups` (cupsGetDests2 and job counts over cupsd's socket, 1 test); the app lists queue printers, reads them every 10 s, and hides a removed network printer's own queues. `com.apple.security.print` is back. Checked on `ignia-mac`: the probe's queue for the M234dw is matched to it (not listed twice) |
 | P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | Done: 52 tests (file-name templates and sets, the preset list and its JSON, the plan for a scanner, summaries; blank pages, skew, crop, rotation; scan recovery and run folders). Mail and sync-folder routes, batch separators and glass photos stay with "Later" |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | Done (2026-10-26): `OfflineModel`, `OfflineDiagnosis`, `OfflineRepairs`, `DemoOffline` (23 tests: 12 ported, 8 adapted, 3 new; the test file's header lists them); PrintMac `NetworkOfflineProbes` (Bonjour by UUID, TCP) and `LibCups` Resume-Printer / CUPS-Accept-Jobs; the app's Fix It… sheet. `--report … --demo --fix all` on `ignia-mac`: the office laser found at its new address and adopted, its queue resumed and its stuck job cancelled |
-| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | First slice done (2026-10-26): the printer list from Bonjour and the state file, the printer pane (status, alerts, supplies, details, This is my printer), the menu bar item with alerts as notifications, the Local Network banner, demo mode, `--report`. PrintCore: `PrinterMonitor`, `DiscoveredPrinters`, `StateStore`, `SupplyText`, `Demo`, menu lines (15 tests, 287 in all); PrintMac: URLSession and UDP SNMP transports, Bonjour, Local Network signal (7 tests). Checked on `ignia-mac` with the owner's M234dw. Then (2026-10-26): the print queue card (`QueueJobs`, `RefreshGate`, 13 tests; cancelling the user's own held job checked on `ignia-mac`), the Scan tab (`ScanPages`, 5 tests; PrintMac `ScanImaging`, `ScanPdf` with Vision text, `DemoScanPage`; `--report … --demo --scan`: a blank sheet skipped, a 2.5° page straightened to 0.00°, a searchable PDF whose text is found), Settings (menu bar item, open at login through `SMAppService.mainApp`, alerts: low level, offline, quiet hours; `AlertSettings`, 4 tests), Pause Alerts in the menu, and window-closed checks (`PrinterMonitor.check`, `PollingConditions`). Later the same day: Print a PDF, Print Photos and Copy (scan → print) through the print panel on the printer's macOS queue (`Printing`; `PhotoLayout`, `CopyLayout`, `PageFit`, `PageRange` ported, 50 tests; PrintMac `PhotoSheets`); the Settings tab (LEDM settings and automatic firmware updates, the admin password in the Keychain: `PrinterPasswords`) and the maintenance card (`LedmSettings`, `FirmwareUpdate`, `Maintenance*` ported, 58 tests); USB scanners through ImageCaptureCore (`SystemScanners`, `SystemScanDevice`; `ScanDevice`, `ScannerMatch` and the printer list's scanner part, 7 tests; demo mode's `DemoScanDevice`); scan presets (one-click scans, Save (preset), Manage Presets, folders as app-scoped bookmarks). Checked on `ignia-mac`: the M234dw's 13 settings and firmware mode read (nothing written), AppKit finds its queue from the sandbox, ICC opens a session on it and reads its glass; `--report … --demo --scan` also saves a preset scan into its folder, subfolder and name. Add a printer (2026-10-26): the sheet (File › Add a Printer…, the toolbar's +, the empty list), the subnet search, removed printers put back, a typed address; PrintCore `AddPrinter` and `AddPrinterText` (9 tests), `Demo.searchNetwork`; PrintMac `SocketNetworkScanner` (2 tests); `--report … --search` found the M234dw (listed) on `ignia-mac`, and demo mode's unlisted laser. Next: the window-closed polling, P7 |
+| P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | First slice done (2026-10-26): the printer list from Bonjour and the state file, the printer pane (status, alerts, supplies, details, This is my printer), the menu bar item with alerts as notifications, the Local Network banner, demo mode, `--report`. PrintCore: `PrinterMonitor`, `DiscoveredPrinters`, `StateStore`, `SupplyText`, `Demo`, menu lines (15 tests, 287 in all); PrintMac: URLSession and UDP SNMP transports, Bonjour, Local Network signal (7 tests). Checked on `ignia-mac` with the owner's M234dw. Then (2026-10-26): the print queue card (`QueueJobs`, `RefreshGate`, 13 tests; cancelling the user's own held job checked on `ignia-mac`), the Scan tab (`ScanPages`, 5 tests; PrintMac `ScanImaging`, `ScanPdf` with Vision text, `DemoScanPage`; `--report … --demo --scan`: a blank sheet skipped, a 2.5° page straightened to 0.00°, a searchable PDF whose text is found), Settings (menu bar item, open at login through `SMAppService.mainApp`, alerts: low level, offline, quiet hours; `AlertSettings`, 4 tests), Pause Alerts in the menu, and window-closed checks (`PrinterMonitor.check`, `PollingConditions`). Later the same day: Print a PDF, Print Photos and Copy (scan → print) through the print panel on the printer's macOS queue (`Printing`; `PhotoLayout`, `CopyLayout`, `PageFit`, `PageRange` ported, 50 tests; PrintMac `PhotoSheets`); the Settings tab (LEDM settings and automatic firmware updates, the admin password in the Keychain: `PrinterPasswords`) and the maintenance card (`LedmSettings`, `FirmwareUpdate`, `Maintenance*` ported, 58 tests); USB scanners through ImageCaptureCore (`SystemScanners`, `SystemScanDevice`; `ScanDevice`, `ScannerMatch` and the printer list's scanner part, 7 tests; demo mode's `DemoScanDevice`); scan presets (one-click scans, Save (preset), Manage Presets, folders as app-scoped bookmarks). Checked on `ignia-mac`: the M234dw's 13 settings and firmware mode read (nothing written), AppKit finds its queue from the sandbox, ICC opens a session on it and reads its glass; `--report … --demo --scan` also saves a preset scan into its folder, subfolder and name. Add a printer (2026-10-26): the sheet (File › Add a Printer…, the toolbar's +, the empty list), the subnet search, removed printers put back, a typed address; PrintCore `AddPrinter` and `AddPrinterText` (9 tests), `Demo.searchNetwork`; PrintMac `SocketNetworkScanner` (2 tests); `--report … --search` found the M234dw (listed) on `ignia-mac`, and demo mode's unlisted laser. Parity with the Windows table (2026-10-26, after 1.1): batch scanning (`PatchCodes`, `Separators`, `BatchSplit`, `SeparatorSheet`, `SavedParts`, `PartNumbers` ported, BatchScanTests 21 tests; `ScanPages` files, separators and photos, 8 tests; PrintMac `SeparatorSheetPdf`), glass photos (`PhotoFinder`, `PhotoBox`, `GlassPhotoCrop`, GlassPhotoTests 12 tests; PrintMac `ScanImaging.photo`), presets' split, photos and after-steps, the ID card copy (PrintMac `IdCardSheet`), Set Up in macOS (`QueueSetup`, 7 tests; PrintMac `LibCups.addQueue`, `CupsSetupProbe`), the fixer's `.pointAt` (`setDeviceUri`), Print Photos' queue papers, borderless, crop and resolution (`QueuePapers`, 4 tests; `LibCups.media`), firmware Notify (`offered`, `noFirmwareNotify`, 2 tests); 538 PrintCore tests. Checked on `ignia-mac`: a permanent IPP Everywhere queue for the M234dw made and deleted from the sandbox (`--setup-probe`), its 25 paper sizes read; in demo mode `--batch` (2 PDFs at the Patch T sheet), `--photos` (3 photos at 4.0°, −6.0°, 2.0°, cut out straight), `--idcard`, `--setup`, `--fix all` (the queue pointed at the new address) |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | Started 2026-10-26, beside P10: the App Store Connect record (macOS, "Inkvolt Print"), the Xcode project, the icon, release.sh with cloud signing and the preflight; builds 1-4 uploaded and VALID. The owner chose (2026-10-26) to submit 1.0 now with the status slice: the listing, screenshots, age rating, price and review notes go through the API (asc-listing.mjs); App Privacy on the website; the privacy policy page covers the Mac app. 1.0 requests only the sandbox and network client and server entitlements (print, USB and user-selected files come back with their features). 1.1 prepared (2026-10-26, not uploaded): `MARKETING_VERSION` 1.1, the listing's description, keywords, review notes and `whatsNew`; `asc-listing.mjs apply` creates the version when none is in preparation and sets What's New on updates; the entitlements add `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope` and `device.usb` (preflight and review notes say why). The screenshots are still 1.0's; App Privacy stays "Data Not Collected" |
 
 ## Mac differences
@@ -140,25 +146,47 @@ mac/InkvoltPrintKit --build-system native`.
   Cancel My Jobs) shows for a queue printer and for a network printer macOS has a queue for. Job states are IPP's
   (`JobState`), not Windows' status bits; CUPS gives no page counts through `cupsGetJobs2`, so pages show only when known.
 - The offline fixer has no Print Spooler or ping step (cupsd starts on demand; TCP to 631/9100/80/443 says whether the
-  printer answers) and no port types: a queue's device URI says where it prints. Resume-Printer and CUPS-Accept-Jobs are
-  tried from the app (they work for an administrator); refused, the fixer shows the steps in Printers & Scanners. A queue
-  that prints to an old address can't be re-pointed from the sandbox: the fixer says how to remove it and add it again
-  at the new address (or its `.local` name). Adopting the new address is the monitor's `move(to:)`.
+  printer answers) and no port types: a queue's device URI says where it prints. Resume-Printer, CUPS-Accept-Jobs and
+  pointing a queue at the printer's new address (or its `.local` name: CUPS-Add-Modify-Printer with the new `device-uri`,
+  `.pointAt`, the Windows app's PointPortAt) are tried from the app (they work for an administrator); refused, the fixer
+  shows the steps in Printers & Scanners (remove it and add it again there). Adopting the new address is the monitor's
+  `move(to:)`.
+- Set Up in macOS (the Windows app's Set up in Windows) shows on a connected network printer macOS has no queue for:
+  CUPS-Create-Local-Printer with the printer's IPP URL on its `.local` name (cupsd reads the printer into a driverless
+  queue), then CUPS-Add-Modify-Printer with `printer-is-temporary` false keeps it (`QueueSetup`, `LibCups.addQueue`). It
+  needs an administrator; refused, it points to Printers & Scanners. No scanner is added (macOS finds eSCL scanners
+  itself). A printer that answers no IPP gets the hand-off.
 - Scanning keeps every page in memory and in the recovery folder (`Application Support/InkvoltPrint/Scans`, the run
   folder's lock `flock`); quitting with pages not saved asks first and leaves them for the next start. Saving goes through
   the save panel (`com.apple.security.files.user-selected.read-write`): a PDF file, one JPEG, or a folder for several.
   Searchable PDFs carry Vision's words as invisible text (`ScanPdf`); straightening uses PrintCore's `PageRotate`, as the
-  Windows app does. Presets, mail and sync-folder routes, separator sheets and photos on the glass aren't on the Mac yet.
+  Windows app does. A batch or several images save into a folder the user picks (the sandbox grants only the file a save
+  panel names), numbered as on Windows ("Scan (1).pdf", "Scan (2-1).jpg"). The batch's split points and separators live in
+  PrintCore's `ScanPages` (the Windows app keeps them in its view model); the recovery list keeps a left-out separator as a
+  skipped page and each file's first page as starting it, so a restored batch splits the same. Print a Separator Sheet
+  prints a vector Patch T sheet at actual size through the print panel (which can also save it as a PDF). Photos on the
+  glass are cut out with `GlassPhotoCrop` on the full-size scan's pixels; their boxes show on the thumbnail, and Find
+  Photos Again or Save the Whole Scan are the review's edits for now (no dragging boxes yet).
 - The menu bar item is on by default (the Windows tray icon starts off), with its alerts; turned off, closing the window
   quits. With it on and the window closed, network printers are checked every 5 minutes (15 on battery or in Low Data
   Mode, backing off to an hour for one that doesn't answer) instead of watched live; queues are read every minute.
   Settings are in the state file (`alertSettings`). Open at login is `SMAppService.mainApp`, off until the user turns it on.
 - Printing goes through macOS's print panel (`NSPrintOperation` on a PDFKit document) with the printer's queue chosen
   when AppKit knows it (`NSPrinter(name:)` takes the queue's `printer-info`, which works from the sandbox): copies, page
-  ranges, two-sided printing and paper are the panel's and the driver's, so there's no driver-capabilities reading as on
-  Windows. Photos are laid out for the paper picked in the Photos window (Letter, A4, 4 × 6, 5 × 7 in, with margins:
-  borderless isn't asked for) and printed at actual size; the print panel's own paper choice doesn't move them. A network
-  printer macOS has no queue for can still be chosen in the panel (macOS lists printers nearby).
+  ranges, two-sided printing and paper type are the panel's and the driver's. Photos are laid out for the paper picked in
+  the Photos window: the queue's own sizes and margins (`cupsCopyDestInfo`'s media list, `QueuePapers`), with Borderless
+  when the queue has a borderless size of that paper (laid out edge to edge, printed with no margins; the user picks the
+  panel's Borderless paper if macOS doesn't), else Letter, A4, 4 × 6 and 5 × 7 in with usual margins. Printed at actual
+  size; the print panel's own paper choice doesn't move them. Each photo's crop moves by dragging it on a sheet's preview
+  (`PhotoLayout.drag`), zooms with a pinch or the menu (100–400 %), and the list says the resolution each prints at,
+  marked under 150 dpi. A network printer macOS has no queue for can still be chosen in the panel (macOS lists printers
+  nearby).
+- The ID card copy is its own sheet (the Print menu's Copy an ID Card…; Windows: the Copy tab's ID card mode): front from
+  the glass's corner, turn the card, back, then both on one Letter or A4 sheet at actual size (`CopyLayout.idCard`,
+  PrintMac `IdCardSheet`) through the print panel, where copies are chosen.
+- Firmware: a printer that turned on automatic installs when only the update check was written is set back, remembered
+  (`noFirmwareNotify` in the state file) and no longer offered "Tell me when there's an update", as are the LaserJet MFP
+  M232–M237 by model.
 - Device settings and maintenance writes ask for the printer's admin password when it answers 401/403; it's kept in the
   login keychain (`PrinterPasswords`, one generic password per printer id) and sent only over HTTPS. A failed TLS
   handshake counts as "may have been sent" for a maintenance action (`DeviceNetworkError` has no TLS case). Settings PUTs
@@ -170,7 +198,10 @@ mac/InkvoltPrintKit --build-system native`.
   USB scanner (none at hand); the session code ran against the network M234dw.
 - Scan presets keep the Windows JSON (state file `scanPresets`); each preset's folder is an app-scoped security bookmark
   (`presetFolders`, `com.apple.security.files.bookmarks.app-scope`), asked for the first time it saves (Documents or
-  Pictures suggested, as the Windows preset's folder kind says). No mail, print-after or Open in Inkvolt PDF steps yet.
+  Pictures suggested, as the Windows preset's folder kind says). A sync folder is any folder the user picks there (iCloud
+  Drive, Dropbox: no code of its own). After saving, a preset can print a copy on its printer or attach the files to a new
+  email through macOS's share service (`NSSharingService` `.composeEmail`, the user's mail app; the Windows `MailRoute`
+  isn't needed). Open in Inkvolt PDF waits for a Mac Inkvolt PDF: a Windows preset with it only saves.
 - Add a printer is a sheet over the main window (File › Add a Printer… ⌘N, the toolbar's +, the empty list's button). Its rules
   (what an address that answered becomes, the order, what the sheet says, a few identified at a time) are PrintCore's
   `AddPrinter`, tested, where the Windows app keeps them in its view model. The search's networks are the Ethernet and Wi-Fi

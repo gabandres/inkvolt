@@ -34,11 +34,12 @@ enum Printing {
     /// Prints a document with the panel, on the printer's queue when it has one. `actualSize`: at its own size (photos laid
     /// out for `paper`), else each page fitted to the paper.
     static func print(_ document: PDFDocument, name: String, on printer: PrinterModel, app: AppModel, actualSize: Bool = false,
-                      paper: NSSize? = nil) {
+                      paper: NSSize? = nil, borderless: Bool = false) {
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.jobDisposition = .spool
         if let target = macPrinter(for: printer, app: app) { info.printer = target }
         if let paper { info.paperSize = paper }
+        if borderless { (info.topMargin, info.bottomMargin, info.leftMargin, info.rightMargin) = (0, 0, 0, 0) }
         info.horizontalPagination = .fit
         info.verticalPagination = .fit
         guard let operation = document.printOperation(for: info, scalingMode: actualSize ? .pageScaleNone : .pageScaleToFit,

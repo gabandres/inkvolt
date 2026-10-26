@@ -23,8 +23,9 @@ public enum Demo {
 
     /// The made-up network's HTTP and SNMP. `fixtures`: the folder holding `m234dw`, `hp-demo`, `inkjet-demo`, `cdm-laser` and
     /// `snmp-demo` (the app bundle's `Demo` folder; the tests' Fixtures folder). `scanPage`: the made-up scanners' pages, a JPEG
-    /// for (page, width, height in 1/300 inch): page 0 straight, 1 a little crooked, 2 blank. The glass gives page 0 at the area
-    /// asked for; the feeder holds all three, letter size. Nil: the demo printers can't scan.
+    /// for (page, width, height in 1/300 inch), one of `DemoScan`'s. The glass gives a letter at the area asked for (photos
+    /// when `scanSetup` says so); the feeder holds three pages, letter size, or a batch with a separator sheet. Nil: the demo
+    /// printers can't scan.
     public static func network(fixtures: URL, scanPage: (@Sendable (Int, Int, Int) -> [UInt8])? = nil)
         -> (http: any HttpTransport, snmp: any SnmpTransport) {
         @Sendable func read(_ folder: String, _ name: String) -> [UInt8]? {
@@ -34,8 +35,8 @@ public enum Demo {
         var area: (@Sendable (Int, Int) -> [UInt8])?
         var feeder: (@Sendable () -> [[UInt8]]?)?
         if let scanPage {
-            area = { w, h in scanPage(0, w, h) }
-            feeder = { [0, 1, 2].map { scanPage($0, 2550, 3300) } }
+            area = { w, h in scanPage(scanSetup.photosOnGlass ? DemoScan.photos : DemoScan.letter, w, h) }
+            feeder = { (scanSetup.feederBatch ? DemoScan.batch : DemoScan.feeder).map { scanPage($0, 2550, 3300) } }
         }
         let http = HostRouter([
             FixtureTransport.demoHost: FixtureTransport(document: laser, scanArea: area, feederBatch: feeder),
@@ -133,4 +134,44 @@ public enum Demo {
         s.selectedUuid = uuid
         return s
     }
+}
+
+/// The demo scanners' pages, by number (`Demo.network`'s `scanPage`).
+public enum DemoScan {
+    public static let letter = 0, crooked = 1, blank = 2, separatorSheet = 3, crookedLeft = 4, photos = 5
+    /// The feeder's three pages.
+    public static let feeder = [letter, crooked, blank]
+    /// The feeder's batch (the Windows demo's): two pages, a Patch T sheet, then three more (one blank, one crooked).
+    public static let batch = [letter, crooked, separatorSheet, letter, blank, crookedLeft]
+}
+
+/// What the demo scanners hold next, set by the Scan tab (the Windows demo's `FeederBatch`, `PhotosOnGlass`): a batch in the
+/// feeder when the scan splits into files, photos on the glass when it looks for them.
+public final class DemoScanSetup: Sendable {
+    private let state = Shared((batch: false, photos: false))
+
+    public init() {}
+
+    public var feederBatch: Bool { state.withLock { $0.batch } }
+    public var photosOnGlass: Bool { state.withLock { $0.photos } }
+
+    public func prepare(feederBatch: Bool, photosOnGlass: Bool) { state.withLock { $0 = (feederBatch, photosOnGlass) } }
+}
+
+extension Demo {
+    public static let scanSetup = DemoScanSetup()
+
+    /// The demo inkjet's paper sizes for Print Photos (the Windows demo's): photo paper, borderless except on Legal.
+    public static let photoMedia: [QueueMedia] = {
+        func m(_ name: String, _ w: Double, _ h: Double, _ margin: Double) -> QueueMedia {
+            QueueMedia(name: name, width: w, height: h, left: margin, top: margin, right: margin, bottom: margin)
+        }
+        return [
+            m("na_letter_8.5x11in", 8.5, 11, 0.12), m("na_letter_8.5x11in.borderless", 8.5, 11, 0),
+            m("na_index-4x6_4x6in", 4, 6, 0.12), m("na_index-4x6_4x6in.borderless", 4, 6, 0),
+            m("na_5x7_5x7in", 5, 7, 0.12), m("na_5x7_5x7in.borderless", 5, 7, 0),
+            m("iso_a4_210x297mm", 210 / 25.4, 297 / 25.4, 0.12), m("iso_a4_210x297mm.borderless", 210 / 25.4, 297 / 25.4, 0),
+            m("na_legal_8.5x14in", 8.5, 14, 0.12),
+        ]
+    }()
 }

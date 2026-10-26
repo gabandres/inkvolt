@@ -70,6 +70,23 @@ private struct ScanSettings: View {
             }
             Toggle("Skip blank pages", isOn: $scan.skipBlank)
             Toggle("Straighten pages", isOn: $scan.straighten)
+            if scan.source == .platen {
+                Toggle("Several photos on the glass", isOn: $scan.findPhotos)
+                    .help("Each photo laid on the glass is found and saved as its own picture, cut out straight")
+            } else {
+                Picker("Split into files at", selection: $scan.splitAt) {
+                    ForEach(SplitAt.known, id: \.self) { Text(Separators.label($0)).tag($0) }
+                }
+                .help("One feeder run saved as several files: a new file starts at each separator sheet")
+                if scan.splitAt != .none {
+                    Toggle("Keep separator sheets", isOn: $scan.keepSeparators)
+                        .help("Keep each separator sheet as the first page of the file it starts")
+                    if scan.splitAt != .blankPage {
+                        Button("Print a Separator Sheet…") { scan.printSeparatorSheet() }
+                            .help("A Patch T sheet to put in front of each document in the feeder; print it at actual size")
+                    }
+                }
+            }
             HStack {
                 if scan.isScanning {
                     ProgressView().controlSize(.small)
@@ -112,8 +129,9 @@ private struct PageGrid: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
+                let starts = scan.pages.fileStarts
                 ForEach(scan.pages.pages) { page in
-                    PageTile(scan: scan, page: page, cropping: $cropping)
+                    PageTile(scan: scan, page: page, file: starts[page.id] ?? 0, cropping: $cropping)
                 }
             }
             .padding(14)
@@ -124,6 +142,8 @@ private struct PageGrid: View {
 private struct PageTile: View {
     let scan: ScanModel
     let page: ScannedPage
+    /// The file this page starts (0: none, or only one file).
+    let file: Int
     @Binding var cropping: String?
 
     var body: some View {
@@ -133,21 +153,26 @@ private struct PageTile: View {
                 if let image = scan.thumbnails[page.id] {
                     Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
                         .shadow(radius: 1)
+                        .overlay { if let photos = page.photos, !photos.isEmpty { PhotoBoxes(photos: photos) } }
                 } else {
                     Rectangle().fill(.background.secondary).aspectRatio(0.77, contentMode: .fit).overlay { ProgressView().controlSize(.small) }
                 }
             }
             .frame(height: 200)
-            .opacity(page.skipped ? 0.35 : 1)
-            .onTapGesture(count: 2) { cropping = page.id }
+            .opacity(page.skipped || (page.isSeparator && !scan.pages.keepSeparators) ? 0.35 : 1)
+            .onTapGesture(count: 2) { if !page.hasPhotos { cropping = page.id } }
             HStack(spacing: 4) {
+                if file > 0 {
+                    Text("File \(file)").font(.caption.weight(.semibold)).padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(.tint.opacity(0.2), in: .capsule)
+                }
                 Text("\(number)").font(.caption.monospacedDigit().weight(.semibold))
                 if !page.note.isEmpty { Text(page.note).font(.caption).foregroundStyle(.secondary) }
             }
             HStack(spacing: 2) {
                 Button { scan.turn(page.id, -1) } label: { Image(systemName: "rotate.left") }.help("Turn left")
                 Button { scan.turn(page.id, 1) } label: { Image(systemName: "rotate.right") }.help("Turn right")
-                Button { cropping = page.id } label: { Image(systemName: "crop") }.help("Crop")
+                Button { cropping = page.id } label: { Image(systemName: "crop") }.help("Crop").disabled(page.hasPhotos)
                 if page.skipped {
                     Button("Keep") { scan.keepPage(page.id) }
                 } else {
@@ -161,8 +186,23 @@ private struct PageTile: View {
         .contextMenu {
             Button("Turn Left") { scan.turn(page.id, -1) }
             Button("Turn Right") { scan.turn(page.id, 1) }
-            Button("Crop…") { cropping = page.id }
-            if !page.edits.isEmpty { Button("Undo Edits") { scan.reset(page.id) } }
+            // A page of photos is never saved itself: each photo is cut out (Turn turns them all).
+            if !page.hasPhotos {
+                Button("Crop…") { cropping = page.id }
+                if !page.edits.isEmpty { Button("Undo Edits") { scan.reset(page.id) } }
+            }
+            if page.photos != nil {
+                Button("Find Photos Again") { Task { await scan.findPhotosAgain(page.id) } }
+                if page.hasPhotos { Button("Save the Whole Scan") { scan.setPhotos(page.id, []) } }
+            }
+            Divider()
+            if page.isSeparator {
+                Button("Not a Separator") { scan.notSeparator(page.id) }
+            } else {
+                Button(page.startsFile ? "Don't Start a New File Here" : "Start a New File Here") { scan.toggleStartsFile(page.id) }
+                    .disabled(number <= 1)
+                Button("Use as a Separator Sheet") { scan.useAsSeparator(page.id) }
+            }
             Divider()
             Button("Move Earlier") { scan.move(page.id, by: -1) }.disabled(number <= 1)
             Button("Move Later") { scan.move(page.id, by: 1) }.disabled(number >= scan.pages.pages.count)
@@ -171,13 +211,40 @@ private struct PageTile: View {
             Button("Delete", role: .destructive) { scan.delete(page.id) }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(page.note.isEmpty ? "Page \(number)" : "Page \(number), \(page.note.lowercased())")
+        .accessibilityLabel(label(number))
         .draggable(page.id)
         .dropDestination(for: String.self) { ids, _ in
             guard let id = ids.first, id != page.id, let to = scan.pages.number(page.id) else { return false }
             scan.move(id, to: to - 1)
             return true
         }
+    }
+}
+
+extension PageTile {
+    fileprivate func label(_ number: Int) -> String {
+        let start = file > 0 ? ", starts file \(file)" : ""
+        return page.note.isEmpty ? "Page \(number)\(start)" : "Page \(number)\(start), \(page.note.lowercased())"
+    }
+}
+
+/// The photos found on the glass, outlined and numbered on the page's thumbnail (boxes in units of the scan's width, y down).
+private struct PhotoBoxes: View {
+    let photos: [PhotoBox]
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width
+            ForEach(Array(photos.enumerated()), id: \.offset) { i, box in
+                let corners = box.corners().map { CGPoint(x: $0.x * scale, y: $0.y * scale) }
+                Path { path in path.addLines(corners); path.closeSubpath() }
+                    .stroke(Color.accentColor, lineWidth: 2)
+                Text("\(i + 1)").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                    .padding(3).background(Color.accentColor, in: .circle)
+                    .position(x: box.centerX * scale, y: box.centerY * scale)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -208,16 +275,17 @@ private struct SaveBar: View {
         .padding(12)
     }
 
-    /// The save panel (a sandboxed app writes only where the user points): a file for a PDF or one image, a folder for several.
+    /// The save panel (a sandboxed app writes only where the user points): a file for a PDF or one image, a folder for several
+    /// (a batch's files, or several images).
     private func save() {
-        let count = scan.pages.toSave.count
-        if scan.format == .jpeg && count > 1 {
+        if scan.savesSeveralFiles {
+            let files = scan.format == .jpeg ? scan.imagesPerFile.reduce(0, +) : scan.imagesPerFile.count
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
             panel.prompt = "Save Here"
-            panel.message = "Choose the folder for the \(count) images."
+            panel.message = "Choose the folder for the \(files) \(scan.format == .jpeg ? "images" : "files")."
             guard panel.runModal() == .OK, let url = panel.url else { return }
             Task { await scan.save(to: url) }
             return

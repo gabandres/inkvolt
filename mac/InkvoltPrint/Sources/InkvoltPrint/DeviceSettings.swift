@@ -39,7 +39,7 @@ final class DeviceSettingsModel {
         }
         do {
             settings = try await ledm.settings()
-            firmware = try? await ledm.firmwareUpdate()
+            firmware = offered(try? await ledm.firmwareUpdate())
             edits = [:]
         } catch {
             problem = "The printer didn't send its settings. Try again in a moment."
@@ -59,17 +59,51 @@ final class DeviceSettingsModel {
         await write("Saved.") { ledm in try await ledm.save(changes, over: settings) }
     }
 
+    /// Notify is left out for printers that don't keep it (unless one reads back Notify now).
+    private func offered(_ fw: FirmwareUpdateSettings?) -> FirmwareUpdateSettings? {
+        fw?.offered(keepsNotify: printer.store.keepsFirmwareNotify(printer.id), model: printer.model)
+    }
+
     func setFirmware(_ mode: FirmwareUpdateMode) async {
-        guard let current = firmware, mode != current.mode else { return }
+        guard let before = firmware, mode != before.mode else { return }
         await write(nil) { ledm in
-            try await ledm.setFirmwareUpdate(mode, in: current)
-            if let back = try await ledm.firmwareUpdate() {
-                switch FirmwareUpdateSettings.judge(mode, back.mode) {
-                case .kept: self.message = "Saved."
-                case .notifyInstalls: self.message = "This printer installs updates whenever it checks for them, so it's set to update automatically."
-                case .other: self.message = "The printer kept its own setting."
-                }
+            try await ledm.setFirmwareUpdate(mode, in: before)
+            self.message = await self.checkFirmwareKept(ledm, before: before, chosen: mode)
+        }
+    }
+
+    /// Reads the firmware switches back after a write (the Windows app's `CheckFirmwareKeptAsync`). A printer that ties the
+    /// check to installs (Notify read back as Automatic) is set back to what it was before, remembered, and no longer
+    /// offered Notify. Returns what to tell the user. Never throws: the settings are read again afterwards.
+    private func checkFirmwareKept(_ ledm: LedmClient, before: FirmwareUpdateSettings, chosen: FirmwareUpdateMode) async -> String {
+        let notify = DeviceSettingsView.label(.notify)
+        guard let back = try? await ledm.firmwareUpdate() else {
+            return "Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. Check again in a moment."
+        }
+        switch FirmwareUpdateSettings.judge(chosen, back.mode) {
+        case .kept:
+            return "Saved."
+        case .notifyInstalls:
+            printer.store.setNoFirmwareNotify(printer.id)
+            if back.mode == before.mode || back.configPath == nil {
+                return "This printer can't check for updates without installing them, so \u{201C}\(notify)\u{201D} is no longer offered for it."
             }
+            let tied = "This printer can't check for updates without installing them: it turned on automatic installs"
+            let previous = DeviceSettingsView.label(before.mode)
+            do {
+                try await ledm.setFirmwareUpdate(before.mode, in: back)
+            } catch {
+                return "\(tied). The printer kept automatic updates on and the previous setting (\u{201C}\(previous)\u{201D}) couldn't be restored. Change it here or on its web page."
+            }
+            guard let restored = try? await ledm.firmwareUpdate() else {
+                return "\(tied). The previous setting was sent back, but the printer didn't say whether it took it. Check it in a moment."
+            }
+            if restored.mode != before.mode {
+                return "\(tied), and it didn't take the previous setting back. Check automatic updates on its web page."
+            }
+            return "\(tied), so automatic updates were set back to \u{201C}\(previous)\u{201D}. \u{201C}\(notify)\u{201D} is no longer offered for it."
+        case .other:
+            return "Saved, but the printer reads back automatic updates as \u{201C}\(DeviceSettingsView.label(back.mode))\u{201D}."
         }
     }
 

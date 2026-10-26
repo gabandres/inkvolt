@@ -136,6 +136,31 @@ struct FirmwareTests {
         #expect(s.withoutNotify() == s)
     }
 
+    @Test func notifyIsOfferedOnlyToPrintersThatKeepIt() throws {
+        let s = try Self.captured()
+
+        #expect(s.offered(keepsNotify: true, model: "HP OfficeJet Pro 9010").choices == [.automatic, .notify, .off])
+        #expect(s.offered(keepsNotify: false, model: "HP OfficeJet Pro 9010").choices == [.automatic, .off])
+        #expect(s.offered(keepsNotify: true, model: "HP LaserJet MFP M234dw").choices == [.automatic, .off])
+        // A printer reading back Notify now keeps the choice it's on.
+        let notify = FirmwareUpdateSettings.parse(try Self.dyn(check: "enabled"), cap: try Self.cap(), configPath: "/x")
+        #expect(notify?.offered(keepsNotify: false, model: "HP LaserJet MFP M234dw").choices.contains(.notify) == true)
+    }
+
+    @Test func aPrinterThatDoesNotKeepNotifyIsRemembered() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-state-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("state.json")
+        let store = StateStore(file: file)
+        #expect(store.keepsFirmwareNotify("A"))
+        store.setNoFirmwareNotify("a")
+        store.setNoFirmwareNotify("A")
+
+        let again = StateStore(file: file)
+        #expect(!again.keepsFirmwareNotify("A"))
+        #expect(again.current.noFirmwareNotify == ["a"])
+    }
+
     @Test(arguments: [
         ("HP LaserJet MFP M234dw", true),
         ("HP LaserJet MFP M232-M237", true),
