@@ -44,8 +44,9 @@ mac/
                                  Declared only when Package.swift is read on a Mac
     Tests/PrintCoreTests/        Swift Testing; reads print/tests/InkvoltPrint.Tests/Fixtures in place
     Tests/PrintMacTests/         the transports against loopback servers (Mac and CI only)
-  InkvoltPrint/                  the app (SwiftUI): for now a SwiftPM executable that build.sh wraps into a signed,
-                                 sandboxed "Inkvolt Print.app"; an Xcode project for App Store archiving before P11
+  InkvoltPrint/                  the app (SwiftUI): InkvoltPrint.xcodeproj (hand-made, synchronized folders, the package
+                                 by relative path), Info.plist, entitlements, Resources (icon, privacy manifest);
+                                 build.sh (development), release.sh + pkg-preflight.sh + asc-builds.mjs (App Store)
 ```
 
 ## Module map (.NET to Swift)
@@ -88,7 +89,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P8 | Presets, file names, scan recovery, page edits (eSCL came with P4a) | ScanPresetTests, ScanRecoveryTests, ImagingTests | Done: 52 tests (file-name templates and sets, the preset list and its JSON, the plan for a scanner, summaries; blank pages, skew, crop, rotation; scan recovery and run folders). Mail and sync-folder routes, batch separators and glass photos stay with "Later" |
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | |
 | P10 | App: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode | DemoTests | First slice done (2026-10-26): the printer list from Bonjour and the state file, the printer pane (status, alerts, supplies, details, This is my printer), the menu bar item with alerts as notifications, the Local Network banner, demo mode, `--report`. PrintCore: `PrinterMonitor`, `DiscoveredPrinters`, `StateStore`, `SupplyText`, `Demo`, menu lines (15 tests, 287 in all); PrintMac: URLSession and UDP SNMP transports, Bonjour, Local Network signal (7 tests). Checked on `ignia-mac` with the owner's M234dw. Next: Add a printer, the window-closed polling, P7 |
-| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | |
+| P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots | | Started 2026-10-26, beside P10: the App Store Connect record (macOS, "Inkvolt Print"), the Xcode project, the icon, release.sh with cloud signing and the preflight; build 1.0 (1) uploaded and VALID (TestFlight). Review waits for the v1 scope. Still to do: privacy label, review notes, screenshots, description, privacy policy URL |
 
 ## Mac differences
 
@@ -137,12 +138,15 @@ mac/InkvoltPrintKit --build-system native`.
   (the Epson eSCL quirk, with scanning).
 - Demo mode reads the fixtures from the app bundle (`Contents/Resources/Demo`, copied by build.sh), not embedded resources.
 
-Decided 2026-10-26, starting the app: Inkvolt Print's bundle ID is `com.bermudezsystems.InkvoltPrint`; the app builds with
-SwiftPM and `InkvoltPrint/build.sh` until P11; development builds are ad-hoc signed (the Mac's keychain has no signing
-identity). The repo is cloned at `~/Repos/inkvolt` on `ignia-mac`.
+Decided 2026-10-26, starting the app: Inkvolt Print's bundle ID is `com.bermudezsystems.InkvoltPrint`, on the Inkvolt
+mobile apps' team (AE6TTXW92K); development builds are ad-hoc signed; App Store builds are signed by Xcode with the
+team's cloud-managed certificates through the App Store Connect API key (no certificate in the Mac's keychain), as the
+mobile apps are. The app is a hand-made Xcode project (no XcodeGen). Store setup and TestFlight run beside the v1
+features; the app goes to review once the v1 scope is in. Print and PDF stay two apps (PDF can't be on the App Store:
+AGPL MuPDF and Sparkle). The repo is cloned at `~/Repos/inkvolt` on `ignia-mac`.
 
 ## Open decisions
 
 - Inkvolt PDF's bundle ID: proposed `com.bermudezsystems.InkvoltPdf`.
-- The Xcode project for App Store archiving (hand-made, or generated with XcodeGen, an extra tool on the Mac): before P11.
-- A real Apple Development and Distribution identity (the mobile team's) in the Mac's keychain: before App Store work.
+- An Apple Development identity on the Mac, so development builds keep their Local Network permission between builds
+  (ad-hoc builds may be asked again).

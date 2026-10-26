@@ -11,10 +11,16 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
   what it flags before pushing.
 - **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the clone is `~/Repos/inkvolt` (pull, or copy changed files
-  over with LF endings: a CRLF entitlements file fails `codesign`). `SIGN_IDENTITY=- sh mac/InkvoltPrint/build.sh` installs
-  `/Applications/Inkvolt Print.app`; `open -n` it with `--report <name> [--wait s] [--stay] [--demo]` and read the report
-  from its container (README). Start automatic work from the app delegate, never a view (a locked screen shows no
-  window). `screencapture` doesn't work over SSH: ask the owner what the screen shows.
+  over with LF endings for text only: a CRLF entitlements file fails `codesign`, and converting a PNG breaks it).
+  `sh mac/InkvoltPrint/build.sh` installs `/Applications/Inkvolt Print.app` (process `Inkvolt Print`); `open -n` it with
+  `--report <name> [--wait s] [--stay] [--demo]` and read the report from its container (README). Start automatic work
+  from the app delegate, never a view (a locked screen shows no window). `screencapture` doesn't work over SSH: ask the
+  owner what the screen shows. New files in `Sources/InkvoltPrint` and `Resources` join the Xcode project by themselves
+  (synchronized folders).
+- **App Store builds** go through `mac/InkvoltPrint/release.sh <build> --upload` only (README), run detached on the Mac;
+  read its status file before running it again (a build number can't be uploaded twice), then check App Store Connect
+  with `asc-builds.mjs <build> --wait`. Upload or submit for review only when the owner says. No Sentry or other crash
+  SDK, unlike the mobile apps: the privacy rule below wins, and the preflight refuses one.
 - **The .NET code is the spec.** Port a module by porting its tests first, with the same names, then the code. Read
   fixtures in place from `print/tests/InkvoltPrint.Tests/Fixtures` (and `pdf/tools/export-corpus` later); never copy or
   edit them for the Mac. Where the Mac must behave differently, write it down in `docs/PLAN.md`.

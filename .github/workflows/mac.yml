@@ -26,4 +26,4 @@ jobs:
           swift --version
       - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors
-      - run: swift build --package-path mac/InkvoltPrint -Xswiftc -warnings-as-errors
+      - run: xcodebuild -project mac/InkvoltPrint/InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration Release -destination generic/platform=macOS -quiet build CODE_SIGNING_ALLOWED=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=YES

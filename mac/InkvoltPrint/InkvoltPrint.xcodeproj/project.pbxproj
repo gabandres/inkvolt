@@ -1,0 +1,283 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1A0000000000000000000C01 /* PrintCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000B01 /* PrintCore */; };
+		1A0000000000000000000C02 /* PrintMac in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000B02 /* PrintMac */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1A0000000000000000000A06 /* Inkvolt Print.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Inkvolt Print.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000A14 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1A0000000000000000000A15 /* InkvoltPrint.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InkvoltPrint.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		1A0000000000000000000A03 /* Sources/InkvoltPrint */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Sources/InkvoltPrint; sourceTree = "<group>"; };
+		1A0000000000000000000A04 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Resources; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1A0000000000000000000A10 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A0000000000000000000C01 /* PrintCore in Frameworks */,
+				1A0000000000000000000C02 /* PrintMac in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1A0000000000000000000A02 = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000A03 /* Sources/InkvoltPrint */,
+				1A0000000000000000000A04 /* Resources */,
+				1A0000000000000000000A14 /* Info.plist */,
+				1A0000000000000000000A15 /* InkvoltPrint.entitlements */,
+				1A0000000000000000000A05 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1A0000000000000000000A05 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000A06 /* Inkvolt Print.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1A0000000000000000000A07 /* InkvoltPrint */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A0000000000000000000A08 /* Build configuration list for PBXNativeTarget "InkvoltPrint" */;
+			buildPhases = (
+				1A0000000000000000000A09 /* Sources */,
+				1A0000000000000000000A10 /* Frameworks */,
+				1A0000000000000000000A11 /* Resources */,
+				1A0000000000000000000A12 /* Demo fixtures */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1A0000000000000000000A03 /* Sources/InkvoltPrint */,
+				1A0000000000000000000A04 /* Resources */,
+			);
+			name = InkvoltPrint;
+			packageProductDependencies = (
+				1A0000000000000000000B01 /* PrintCore */,
+				1A0000000000000000000B02 /* PrintMac */,
+			);
+			productName = InkvoltPrint;
+			productReference = 1A0000000000000000000A06 /* Inkvolt Print.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1A0000000000000000000A01 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					1A0000000000000000000A07 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+				};
+			};
+			buildConfigurationList = 1A0000000000000000000A13 /* Build configuration list for PBXProject "InkvoltPrint" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1A0000000000000000000A02;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1A0000000000000000000B03 /* XCLocalSwiftPackageReference "../InkvoltPrintKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1A0000000000000000000A05 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1A0000000000000000000A07 /* InkvoltPrint */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1A0000000000000000000A11 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1A0000000000000000000A12 /* Demo fixtures */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Demo fixtures";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Demo mode's made-up printers: the scrubbed test fixtures (the tests read them in place), copied into the bundle.\nset -e\nsrc=\"$SRCROOT/../../print/tests/InkvoltPrint.Tests/Fixtures\"\ndest=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Demo\"\nrm -rf \"$dest\"\nmkdir -p \"$dest\"\nfor set in m234dw hp-demo inkjet-demo cdm-laser snmp-demo; do\n  cp -R \"$src/$set\" \"$dest/$set\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1A0000000000000000000A09 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1A0000000000000000000D01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		1A0000000000000000000D02 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		1A0000000000000000000D03 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InkvoltPrint.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AE6TTXW92K;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
+				PRODUCT_NAME = "Inkvolt Print";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		1A0000000000000000000D04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InkvoltPrint.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AE6TTXW92K;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
+				PRODUCT_NAME = "Inkvolt Print";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1A0000000000000000000A08 /* Build configuration list for PBXNativeTarget "InkvoltPrint" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A0000000000000000000D03 /* Debug */,
+				1A0000000000000000000D04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1A0000000000000000000A13 /* Build configuration list for PBXProject "InkvoltPrint" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A0000000000000000000D01 /* Debug */,
+				1A0000000000000000000D02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		1A0000000000000000000B03 /* XCLocalSwiftPackageReference "../InkvoltPrintKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../InkvoltPrintKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A0000000000000000000B01 /* PrintCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PrintCore;
+		};
+		1A0000000000000000000B02 /* PrintMac */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PrintMac;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 1A0000000000000000000A01 /* Project object */;
+}
