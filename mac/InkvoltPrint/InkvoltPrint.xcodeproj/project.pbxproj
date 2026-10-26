@@ -215,6 +215,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
 				PRODUCT_NAME = "Inkvolt Print";
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 			};
 			name = Debug;
 		};
@@ -235,6 +236,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
 				PRODUCT_NAME = "Inkvolt Print";
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 			};
 			name = Release;
 		};
