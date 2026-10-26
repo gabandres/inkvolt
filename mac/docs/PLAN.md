@@ -78,7 +78,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
 | P2 | IPP | IppAndPdfTests (IPP part) | Done: 22 tests (codec, text fixtures, status, supplies, Identify-Printer, from OtherBrandsTests, RobustnessTests and MaintenanceTests too). The HTTP client waits for P4 |
 | P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | Done: 22 tests (LEDM documents and manifest, CDM identity, supplies and status, brands, the hardened XML and JSON readers). The connection, eSCL and web-page tests wait for P4 and P8 |
-| P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | P4a done: 69 tests (device HTTP, pins per port, the fixture transport, LEDM, CDM, IPP and eSCL clients, the connection probe and printer reader, printer ids; with the connection tests SnmpTests, CdmTests and OtherBrandsTests left for here, and eSCL from P8). P4b, the printer session, next |
+| P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | Done: 78 tests (device HTTP, pins per port, the fixture transport, LEDM, CDM, IPP and eSCL clients, the connection probe, printer reader and printer session, printer ids; with the connection tests SnmpTests, CdmTests and OtherBrandsTests left for here, and eSCL from P8). The TLS handshake tests wait for PrintMac |
 | P5 | Alerts, status lines | AlertTests, StatusLineTests | |
 | P6 | Discovery: typed addresses, network search planning, DNS-SD join | NetworkSearchTests | |
 | P7 | Printer list with CUPS destinations | PrinterListTests, QueuePrinterTests (CUPS parts) | |
@@ -102,6 +102,7 @@ mac/InkvoltPrintKit --build-system native`.
 - The IPP probe asks the DNS-SD hint and the plain endpoint at the same time, so which is asked first isn't fixed.
 - A printer added by address keeps the Windows app's id (MD5 of the host as a .NET Guid; PrintCore has its own MD5 and
   SHA-256, since CryptoKit is Apple's).
+- `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
 
