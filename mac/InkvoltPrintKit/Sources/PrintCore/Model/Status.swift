@@ -105,6 +105,78 @@ public struct Consumable: Equatable, Sendable {
     public static func isWasteKind(_ kind: String) -> Bool { kind.lowercased().hasPrefix("waste") }
 }
 
+public struct ProductInfo: Equatable, Sendable {
+    public var makeAndModel: String
+    public var family: String?
+    public var serialNumber: String?
+    public var productNumber: String?
+    public var uuid: String?
+    public var firmwareDate: String?
+    public var adminPasswordSet: Bool?
+    public var firmwareRevision: String?
+
+    public init(makeAndModel: String, family: String? = nil, serialNumber: String? = nil, productNumber: String? = nil, uuid: String? = nil,
+                firmwareDate: String? = nil, adminPasswordSet: Bool? = nil, firmwareRevision: String? = nil) {
+        self.makeAndModel = makeAndModel
+        self.family = family
+        self.serialNumber = serialNumber
+        self.productNumber = productNumber
+        self.uuid = uuid
+        self.firmwareDate = firmwareDate
+        self.adminPasswordSet = adminPasswordSet
+        self.firmwareRevision = firmwareRevision
+    }
+}
+
+/// The firmware a printer reports. LEDM gives its release date (an HP LaserJet's firmware version is that date) and on
+/// some models a revision; IPP printers give `printer-firmware-string-version`.
+public struct FirmwareInfo: Equatable, Sendable {
+    public var version: String?
+    public var date: String?
+
+    /// "2024-08-13", "SAYPRO1N001.2045A (2024-08-13)" or just the version.
+    public var display: String {
+        guard let version else { return date ?? "" }
+        guard let date else { return version }
+        return "\(version) (\(date))"
+    }
+
+    public static func from(_ product: ProductInfo?, _ ipp: IppResponse?) -> FirmwareInfo? {
+        let version = product?.firmwareRevision ?? fromIpp(ipp)
+        let date = product?.firmwareDate
+        return version == nil && date == nil ? nil : FirmwareInfo(version: version, date: date)
+    }
+
+    /// IPP's firmware attributes are parallel lists (one entry per component). The first is the main firmware on the
+    /// printers seen so far; prefer an entry whose name says so.
+    private static func fromIpp(_ ipp: IppResponse?) -> String? {
+        guard let ipp else { return nil }
+        let versions = ipp.strs("printer-firmware-string-version")
+        guard let first = versions.first else { return nil }
+        let main = ipp.strs("printer-firmware-name").firstIndex {
+            $0.range(of: "firmware", options: .caseInsensitive) != nil || $0.range(of: "system", options: .caseInsensitive) != nil
+        }
+        if let main, main < versions.count { return versions[main] }
+        return first
+    }
+}
+
+public struct UsageCounters: Equatable, Sendable {
+    public var totalImpressions: Int?
+    public var duplexSheets: Int?
+    public var jamEvents: Int?
+    public var mispickEvents: Int?
+    public var scanImages: Int?
+
+    public init(totalImpressions: Int?, duplexSheets: Int?, jamEvents: Int?, mispickEvents: Int?, scanImages: Int?) {
+        self.totalImpressions = totalImpressions
+        self.duplexSheets = duplexSheets
+        self.jamEvents = jamEvents
+        self.mispickEvents = mispickEvents
+        self.scanImages = scanImages
+    }
+}
+
 /// Whether the device answering at a printer's address is that printer.
 public enum DeviceIdentity: Sendable {
     /// The printer reports no UUID (or was remembered without one): can't tell.

@@ -76,7 +76,7 @@ mac/InkvoltPrintKit --build-system native`.
 |---|---|---|---|
 | P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Builds in CI; run pending |
 | P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
-| P2 | IPP | IppAndPdfTests (IPP part) | |
+| P2 | IPP | IppAndPdfTests (IPP part) | Done: 22 tests (codec, text fixtures, status, supplies, Identify-Printer, from OtherBrandsTests, RobustnessTests and MaintenanceTests too). The HTTP client waits for P4 |
 | P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | |
 | P4 | Device HTTP, printer status, printer session, certificate pins | PrinterReadingTests, PrinterSessionTests, RobustnessTests, CertificatePinTests | |
 | P5 | Alerts, status lines | AlertTests, StatusLineTests | |
@@ -90,6 +90,7 @@ mac/InkvoltPrintKit --build-system native`.
 ## Mac differences
 
 - SNMP errors are Swift errors: `SnmpFormatError`, `SnmpTimeoutError`, `SnmpErrorStatus` (the .NET exceptions).
+- IPP attribute values are an enum (`IppAttributeValue`: text, integer, boolean, bytes), not `object`.
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).
 
