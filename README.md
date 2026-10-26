@@ -9,6 +9,7 @@ Microsoft Store listing; they share code and install together.
 | [`print/`](print/README.md) | **Inkvolt Print**: a lean, private app for your printers and scanners (status, ink or toner, scan, copy, print) | MIT |
 | `shared/` | `InkvoltPrint.Core` (protocols: eSCL, IPP, LEDM, CDM, SNMP, scan options, remembered printers) and `InkvoltPrint.Windows` (discovery, Windows queues, WIA): used by both apps; tested by `print/tests` | MIT |
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
+| [`mac/`](mac/README.md) | **Inkvolt for macOS**, in planning: native Swift, Inkvolt Print first (Mac App Store), then Inkvolt PDF | MIT (Inkvolt PDF's Mac app will be AGPL) |
 
 The license of each folder is in its `LICENSE`; the top-level scripts are MIT (see [LICENSE](LICENSE)). Inkvolt PDF's
 AGPL applies to Inkvolt PDF as distributed (the MIT libraries in it stay MIT on their own); Inkvolt Print ships no AGPL

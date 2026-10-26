@@ -1,0 +1,18 @@
+# Builds the macOS code on pushes that touch it. Nothing on the Windows PC can compile Swift, so this is the first check
+# that mac/ builds at all.
+name: mac
+
+on:
+  push:
+    paths: ['mac/**', '.github/workflows/mac.yml']
+  pull_request:
+    paths: ['mac/**', '.github/workflows/mac.yml']
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift --version
+      - run: swift build --package-path mac/Probe

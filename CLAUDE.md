@@ -10,5 +10,6 @@ push: `dotnet test Inkvolt.slnx`.
   identities and certification history: `pdf/packaging/README.md`, `print/packaging/README.md`.
 - **Driving the apps**: Inkvolt PDF's `--script steps.txt` (step list at the top of `pdf/src/InkvoltPdf.App/DevScript.cs`),
   Inkvolt Print's `--demo --snapshot` (`print/README.md`).
+- **macOS apps** (native Swift, in planning): `mac/CLAUDE.md`.
 - **Export fidelity** (Word, Excel and the other exports): `pdf/tools/export-corpus` (see its README) after any change to
   `DocLayout`, `DocxWriter` or the glyph reading in `PdfEngine`.
