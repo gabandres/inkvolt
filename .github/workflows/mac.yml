@@ -18,6 +18,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - run: swift --version
+      # The newest Xcode 26 on the runner (App Store uploads need its SDK; the owner's Mac has it), else the default.
+      - run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
+          xcodebuild -version
+          swift --version
       - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors

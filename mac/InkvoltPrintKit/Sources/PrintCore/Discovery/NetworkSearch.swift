@@ -74,7 +74,7 @@ public enum NetworkSearch {
         let networks = unique(scanner.localNetworks())
         let hosts = unique(networks.flatMap(addresses))
         let own = Set(networks.map(\.address))
-        let reported = Mutex(Set<String>())
+        let reported = Shared(Set<String>())
         let report: @Sendable (String) -> Void = { a in if reported.withLock({ $0.insert(a).inserted }) { found(a) } }
         let broadcasts = unique(networks.compactMap(broadcast))
 
@@ -95,7 +95,7 @@ public enum NetworkSearch {
     /// Each address on each printer port, `parallel` addresses at a time.
     private static func sweep(_ scanner: any NetworkScanner, _ hosts: [String], _ report: @escaping @Sendable (String) -> Void,
                               _ progress: (@Sendable (SearchProgress) -> Void)?) async throws {
-        let done = Mutex(0)
+        let done = Shared(0)
         try await withThrowingTaskGroup(of: Void.self) { group in
             var next = 0
             while next < hosts.count || !group.isEmpty {
