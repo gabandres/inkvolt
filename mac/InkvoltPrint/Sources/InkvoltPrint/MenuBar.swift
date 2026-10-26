@@ -2,7 +2,8 @@ import AppKit
 import PrintCore
 import SwiftUI
 
-/// The menu bar item's menu (the Windows tray's): a line per printer, problems first; opening the app; quitting.
+/// The menu bar item's menu (the Windows tray's): a line per printer, problems first; pausing alerts; settings; opening the
+/// app; quitting.
 struct MenuBarMenu: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
@@ -20,6 +21,17 @@ struct MenuBarMenu: View {
                 open()
             }
         }
+        Divider()
+        if model.isPaused, let until = model.settings.pausedUntil {
+            Button("Resume Alerts (paused until \(until.formatted(date: .omitted, time: .shortened)))") { model.resumeAlerts() }
+        } else if model.settings.alerts {
+            Menu("Pause Alerts") {
+                Button("For 1 Hour") { model.pauseAlerts(for: 3600) }
+                Button("For 8 Hours") { model.pauseAlerts(for: 8 * 3600) }
+                Button("Until Tomorrow Morning") { model.pauseAlerts(for: nil) }
+            }
+        }
+        SettingsLink { Text("Settings…") }.keyboardShortcut(",")
         Divider()
         Button("Open Inkvolt Print") { open() }.keyboardShortcut("o")
         Divider()

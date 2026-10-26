@@ -16,9 +16,11 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   certificate pins (`PrinterRecipe`).
 - **Identity before data**: a printer's status is read only after the device at its address has said it is that printer
   (its UUID, or over SNMP its serial number); another device that took the address is never read under its name.
-- **Printer list**: the printers in the sidebar: network printers, queue printers (known only by a Windows queue no network
-  printer stands for) and scanners on their own (a Windows scanner no printer claims), and which one is selected
+- **Printer list**: the printers in the sidebar: network printers, queue printers (known only by a Windows queue, or on the
+  Mac a CUPS destination, no network printer stands for) and scanners on their own (a Windows scanner no printer claims), and which one is selected
   (`PrinterList` in `shared/InkvoltPrint.Core/Queues`).
+- **CUPS destination** (Mac): a print queue set up in macOS, as libcups lists it with its options (`CupsDestination`). A
+  temporary destination (a printer Bonjour shows that nobody set up) isn't a queue.
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and

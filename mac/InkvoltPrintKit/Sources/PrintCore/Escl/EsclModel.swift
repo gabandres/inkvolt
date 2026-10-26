@@ -230,3 +230,19 @@ public enum EsclXml {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 }
+
+// In extensions, so the structs keep their memberwise initializers (the parsers use them).
+extension InputCaps {
+    /// A source described from elsewhere (a scanner macOS drives through ImageCaptureCore); sizes in 1/300 inch.
+    public init(minWidth: Int, maxWidth: Int, minHeight: Int, maxHeight: Int, colorModes: [String], resolutions: [Int]) {
+        self.init(minWidth: minWidth, maxWidth: maxWidth, minHeight: minHeight, maxHeight: maxHeight, colorModes: colorModes,
+                  documentFormats: ["image/jpeg"], resolutions: resolutions, intents: [])
+    }
+}
+
+extension ScannerCapabilities {
+    /// A scanner described from elsewhere (ImageCaptureCore's functional units).
+    public init(makeAndModel: String?, platen: InputCaps?, adf: InputCaps?, adfDuplex: Bool) {
+        self.init(version: "ImageCaptureCore", makeAndModel: makeAndModel, uuid: nil, platen: platen, adf: adf, adfDuplex: adfDuplex, manufacturer: nil)
+    }
+}

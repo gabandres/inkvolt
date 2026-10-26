@@ -91,6 +91,44 @@ struct TransportTests {
 
     // MARK: Helpers
 
+    @Test func theHostHeaderNamesThePortAsEpsonScannersWantIt() async throws {
+        // The Epson eSCL quirk sends "Host: host:port". URLSession lists Host among the headers it manages: this says what goes out.
+        let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n" }
+        defer { server.stop() }
+        let http = URLSessionTransport(check: CertificateCheck(pin: nil))
+        let url = URL(string: "http://127.0.0.1:\(server.port)/eSCL/ScannerStatus")!
+        // A value of our own, not the URL's: it goes out as given, so the port can be named even when it's the default one.
+        _ = try await http.send(HttpRequest("GET", url, headers: ["Host": "printer.test:80"]))
+        #expect(server.requests.last?.headers["host"] == "printer.test:80")
+    }
+
+    // MARK: Search my network
+
+    @Test func theScannerFindsAListeningPortAndNotAClosedOne() async throws {
+        let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n" }
+        defer { server.stop() }
+        let scanner = SocketNetworkScanner()
+        #expect(try await scanner.isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
+        let started = ContinuousClock.now
+        #expect(try await !scanner.isOpen("127.0.0.1", port: 9, timeout: .milliseconds(600)))
+        #expect(ContinuousClock.now - started < .seconds(2))
+    }
+
+    @Test func theScannerSearchesNoLoopbackOrTunnel() {
+        for net in SocketNetworkScanner().localNetworks() {
+            #expect(!net.address.hasPrefix("127."))
+            #expect((1...32).contains(net.prefixLength))
+        }
+    }
+
+    // MARK: CUPS
+
+    @Test func libcupsListsThisMacsQueues() async throws {
+        // Tests aren't sandboxed, so cupsd answers whether or not the Mac has a queue; each one comes with its options.
+        let list = try #require(await LibCups().destinations())
+        for d in list { #expect(!d.name.isEmpty) }
+    }
+
     static func fixture(_ path: String) throws -> Data {
         var url = URL(fileURLWithPath: #filePath) // mac/InkvoltPrintKit/Tests/PrintMacTests/TransportTests.swift
         for _ in 0..<5 { url.deleteLastPathComponent() }

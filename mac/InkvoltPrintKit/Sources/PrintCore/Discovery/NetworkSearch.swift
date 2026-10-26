@@ -16,6 +16,11 @@ public struct LocalNetwork: Hashable, Sendable {
 public struct SearchProgress: Equatable, Sendable {
     public var checked: Int
     public var total: Int
+
+    public init(checked: Int, total: Int) {
+        self.checked = checked
+        self.total = total
+    }
 }
 
 /// What `NetworkSearch` needs from the network (sockets in PrintMac, or a made-up one).

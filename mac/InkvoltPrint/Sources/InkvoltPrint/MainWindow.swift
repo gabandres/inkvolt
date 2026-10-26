@@ -29,6 +29,12 @@ struct MainWindow: View {
                 .overlay { if model.isEmpty { EmptyList() } }
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 260)
+            .toolbar {
+                ToolbarItem {
+                    Button { model.isAddingPrinter = true } label: { Label("Add a Printer…", systemImage: "plus") }
+                        .help("Add a printer")
+                }
+            }
         } detail: {
             if let p = model.selected {
                 PrinterPane(printer: p).id(p.id)
@@ -36,8 +42,13 @@ struct MainWindow: View {
                 ContentUnavailableView("No printer selected", systemImage: "printer")
             }
         }
+        .sheet(isPresented: $model.isAddingPrinter) { AddPrinterSheet().environment(model) }
         // The demo window may come back by itself (window restoration): its printers start with it. Idempotent.
-        .onAppear { model.start() }
+        .onAppear {
+            model.start()
+            model.windowChanged(open: true)
+        }
+        .onDisappear { model.windowChanged(open: false) }
     }
 }
 
@@ -63,7 +74,9 @@ struct PrinterRow: View {
         .confirmationDialog("Remove \(printer.name) from Inkvolt Print?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { model.remove(printer) }
         } message: {
-            Text("This doesn't remove it from macOS. It won't be listed again when it's found on the network.")
+            Text(printer.isScannerOnly ? "It's listed again when it's connected again."
+                 : printer.isQueue ? "This doesn't remove it from macOS. It's listed again if it's set up in macOS again."
+                 : "This doesn't remove it from macOS. It won't be listed again when it's found on the network.")
         }
     }
 }
@@ -125,8 +138,9 @@ struct EmptyList: View {
                     Text("No printers found")
                 }
             } description: {
-                Text("Make sure your printer is on and connected to the same network as this Mac.")
+                Text("Make sure your printer is on and connected to the same network as this Mac. Not found? Add a printer looks harder.")
             } actions: {
+                Button("Add a Printer…") { model.isAddingPrinter = true }
                 if !model.isDemo {
                     Button("Search Again") { model.searchAgain() }
                     Button("Try the Demo") { model.openDemo() }

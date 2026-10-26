@@ -25,6 +25,10 @@ public struct PrinterView: Equatable, Sendable {
     public static let connecting = PrinterView(phase: .connecting, statusMessage: "Connecting…", statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil)
 
+    /// A scanner of its own (a USB scanner macOS has a driver for): it has no status to read.
+    public static let scannerReady = PrinterView(phase: .online, statusMessage: "Ready to scan", statusDetail: nil, severity: .info, alerts: [],
+                                                 supplies: [], usage: nil, model: nil, interfaces: ["USB scanner"], firmware: nil, location: nil)
+
     public var isOnline: Bool { phase == .online }
 
     /// The printer list's line: the state, and for a warning or error the worst alert's words (`PrinterStatus.listLine`).
@@ -143,6 +147,48 @@ public actor PrinterMonitor {
         if let escl = found.esclRoot { target.esclHint = escl }
         if let ipp = found.ippUri { target.ippHint = ipp }
         return true
+    }
+
+    /// The printer's scanner (eSCL) while it's connected as itself; nil offline, when another device answers at its address,
+    /// or when it has none. Identity before data: a scan never reaches a device that isn't this printer.
+    public func scanner() async -> EsclClient? {
+        guard view.isOnline else { return nil }
+        return await session.connection?.scanner
+    }
+
+    /// The printer's connection while it's connected as itself (settings, maintenance); nil otherwise.
+    public func connection() async -> PrinterConnection? {
+        guard view.isOnline else { return nil }
+        return await session.connection
+    }
+
+    /// One background check while the window is closed (the Windows app's tray check, every `AlertPolling.interval`): connects
+    /// if it isn't, asks who answers before reading, and reads once. True when the printer answered as itself. Never runs
+    /// beside `run`.
+    public func check() async -> Bool {
+        do {
+            if view.isOnline, await session.connection != nil {
+                await session.askIdentityFirst() // time passed: who answers is asked again first
+            } else {
+                guard try await connect() else { return false }
+            }
+            guard try await refresh() else { return false }
+            return view.isOnline
+        } catch is CancellationError {
+            return view.isOnline
+        } catch {
+            setOffline()
+            return false
+        }
+    }
+
+    /// The user chose the printer's new address (the offline fixer found it there by its UUID): reached there from now on;
+    /// the caller restarts `run`, which asks who answers before reading.
+    public func move(to host: String) {
+        guard host.caseInsensitiveCompare(target.host) != .orderedSame else { return }
+        target.host = host
+        target.esclHint = nil
+        target.ippHint = nil
     }
 
     /// "This is my printer": the device at the address counts as this printer from now on. True when there was one to accept
