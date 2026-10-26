@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.0.7
 - Tools on the start page: Fill & sign, Edit, Export to Word, Combine, Compare, Reduce size, Protect, Redact, OCR, Organize, Batch and Create a PDF, one click each (pick a PDF and it opens straight in the tool).
 - Organize pages has a bar with the page actions: rotate, delete, duplicate, extract, move, insert, crop.
 
