@@ -107,10 +107,10 @@ not granted) unless said otherwise. These replace the matching UNVERIFIED items 
 | localhost:631 | Still EPERM: the sandbox doesn't let the app reach cupsd over TCP. Use libcups (its socket) for local queues. |
 | CUPS | `cupsGetDests2` also lists the printer's Bonjour (temporary) destination once Local Network is allowed, without state until it's used. |
 | 4. ImageCaptureCore | The network scanner was added and removed again about every second for 15 s while Bonjour browsing ran in the same app: the app must debounce ICC's device list. |
-| 10. SMAppService | Still `notFound` (ad-hoc signature). |
+| 10. SMAppService | `notFound` only means not registered yet: **`register()` works from the sandbox** (status `enabled`), even ad-hoc signed. |
+| 3. Settings links | **Both open Printers & Scanners** on macOS 27 (`x-apple.systempreferences:com.apple.Print-Scan-Settings.extension` and the older `com.apple.preference.printfax`). Opening a given printer's queue window: untested. |
 
-Still to do: which pane each Printers & Scanners link opens (3), recovery without relaunching after Allow (7), item 8, the
-protected operations as a standard user, and launch at login with a real signature.
+Still to do: recovery without relaunching after Allow (7), item 8, and the protected operations as a standard user.
 
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
