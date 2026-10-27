@@ -5,7 +5,7 @@ public enum ShapeKind: Sendable { case rectangle, ellipse }
 
 /// A line ending (/LE). New annotations use none, openArrow, closedArrow, circle or square; the rest are read and drawn
 /// too.
-public enum LineEnding: Sendable { case none, openArrow, closedArrow, circle, square, diamond, butt, rOpenArrow, rClosedArrow, slash }
+public enum LineEnding: Sendable, CaseIterable { case none, openArrow, closedArrow, circle, square, diamond, butt, rOpenArrow, rClosedArrow, slash }
 
 /// FreeText alignment (/Q).
 public enum TextAlign: Sendable { case left, center, right }

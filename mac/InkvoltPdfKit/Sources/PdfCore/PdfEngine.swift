@@ -334,6 +334,50 @@ public final class PdfEngine: @unchecked Sendable {
         return PageText(result, directions: directions)
     }
 
+    /// A line of text as MuPDF reads it, in MuPDF page space (the page's origin not taken off): its text, its box and
+    /// each character with its box.
+    struct TextLine {
+        var text: String
+        var box: RectD
+        var chars: [(ch: String, box: RectD)]
+    }
+
+    /// The page's text lines, with its annotations and widgets drawn in when asked (what MuPDFCore reads with
+    /// `includeAnnotations`; `text` reads the page's own content only). Not cached.
+    func textLines(_ page: Int, annotations: Bool) throws -> [TextLine] {
+        try enterText(nil)
+        defer { textGate.unlock() }
+        let instance = try text()
+        _ = try geometry(page)
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        var lines: UnsafeMutablePointer<inkv_line>?
+        var chars: UnsafeMutablePointer<inkv_char>?
+        var lineCount: Int32 = 0, charCount: Int32 = 0
+        let read = annotations ? inkv_page_chars_annots : inkv_page_chars
+        guard read(instance.ctx, instance.doc, Int32(page), &lines, &lineCount, &chars, &charCount, &err) != 0 else {
+            throw PdfEngineError(message: Self.message(err))
+        }
+        defer {
+            inkv_free(lines)
+            inkv_free(chars)
+        }
+        var result: [TextLine] = []
+        for li in 0..<Int(lineCount) {
+            let line = lines![li]
+            var list: [(ch: String, box: RectD)] = []
+            var box = RectD.zero
+            for ci in Int(line.first)..<Int(line.first + line.count) {
+                let c = chars![ci]
+                let ch = Unicode.Scalar(UInt32(bitPattern: c.c)).map { String(Character($0)) } ?? "\u{FFFD}"
+                let r = RectD.fromEdges(Double(c.x0), Double(c.y0), Double(c.x1), Double(c.y1))
+                box = list.isEmpty ? r : RectD.fromEdges(min(box.x, r.x), min(box.y, r.y), max(box.right, r.right), max(box.bottom, r.bottom))
+                list.append((ch, r))
+            }
+            result.append(TextLine(text: list.map(\.ch).joined(), box: box, chars: list))
+        }
+        return result
+    }
+
     /// - Throws: `CancellationError` when `cancel` fired before the links were read.
     public func links(_ page: Int, cancel: CancelToken? = nil) throws -> [PageLink] {
         try cancel.check()

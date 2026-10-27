@@ -4,8 +4,8 @@ import Testing
 
 /// Ported from KeptProtectionTests.cs: edits of encrypted PDFs keep the protection, permissions and both passwords. On the
 /// Mac MuPDF writes an edit under the document's own encryption, so it keeps the method too (Windows upgrades RC4 to
-/// AES-128) and never needs the open password (Windows needs it for AES-256). Adapted: the edits are rotations (filling
-/// a form and adding a note come with D5 and D4); Aes256WithAnUnknownOpenPasswordAsksOrDropsIt keeps the open password
+/// AES-128) and never needs the open password (Windows needs it for AES-256). Adapted: the edits are a rotation and a
+/// note (filling a form comes with D5); Aes256WithAnUnknownOpenPasswordAsksOrDropsIt keeps the open password
 /// without asking, and drops it on request; RecoversTheUserPasswordFromTheOwnerPassword checks that an edit keeps a
 /// non-ASCII open password (there is nothing to recover on the Mac). Left out: extraction (D3).
 struct KeptProtectionTests {
@@ -26,11 +26,17 @@ struct KeptProtectionTests {
         PdfSecurity.permissions(PdfSecurity.pValue(Self.restricted), revision: info.revision)
     }
 
+    static let edits: [(name: String, edit: @Sendable ([UInt8]) throws -> [UInt8])] = [
+        ("rotate", { try PageEditor.rotate($0, owner, [0], 90) }),
+        ("note", { try Annotations.addNote($0, owner, 0, 100, 100, "Kept", author: "Tester") }),
+    ]
+
     @Test(arguments: methods)
     func editsKeepProtectionWithoutAnOpenPassword(method: String, kind: EncryptionMethod) throws {
         let pdf = Self.encrypted(method, "")
         #expect(try PdfSecurity.readSecurity(pdf, nil).method == kind)
-        let edited = try PageEditor.rotate(pdf, Self.owner, [0], 90)
+        for (name, edit) in Self.edits {
+        let edited = try edit(pdf)
         let info = try PdfSecurity.readSecurity(edited, nil)
         #expect(info.isEncrypted)
         #expect(info.method == kind)
@@ -43,13 +49,16 @@ struct KeptProtectionTests {
         #expect(throws: OwnerPasswordRequired.self) { try PageEditor.rotate(edited, nil, [1], 90) }
         #expect(throws: OwnerPasswordRequired.self) { try PageEditor.rotate(edited, "nope", [1], 90) }
         _ = try PdfSecurity.readSecurity(PageEditor.rotate(edited, Self.owner, [1], 90), nil)
+        #expect(info.isEncrypted, "\(name)")
+        }
     }
 
     @Test(arguments: methods)
     func editsKeepTheOpenPassword(method: String, kind: EncryptionMethod) throws {
         let pdf = Self.encrypted(method, "user-pw")
         #expect(try PdfSecurity.readSecurity(pdf, "user-pw").method == kind)
-        let edited = try PageEditor.rotate(pdf, Self.owner, [0], 90)
+        for (name, edit) in Self.edits {
+        let edited = try edit(pdf)
         #expect(throws: PasswordRequired.self) { try PdfEngine.open(edited).close() }
         try PdfEngine.open(edited, password: "user-pw").close()
         try PdfEngine.open(edited, password: Self.owner).close()
@@ -58,12 +67,15 @@ struct KeptProtectionTests {
         #expect(info.requiresOpenPassword)
         #expect(info.permissions == expected(info))
         #expect(PdfSecurity.isOpenPassword(edited, "user-pw"))
-        #expect(!PdfSecurity.isOpenPassword(edited, Self.owner))
+        #expect(!PdfSecurity.isOpenPassword(edited, Self.owner), "\(name)")
+        }
     }
 
     @Test func theEditIsInTheProtectedResult() throws {
         let pdf = Self.encrypted("aes-128", "u")
-        let rotated = try PageEditor.rotate(pdf, Self.owner, [0], 90)
+        let noted = try Annotations.addNote(pdf, Self.owner, 0, 100, 100, "Kept", author: "Tester")
+        #expect(try Annotations.read(noted, "u").contains { $0.contents == "Kept" })
+        let rotated = try PageEditor.rotate(noted, Self.owner, [0], 90)
         let e = try PdfEngine.open(rotated, password: "u")
         defer { e.close() }
         #expect(e.page(0).width > e.page(0).height)

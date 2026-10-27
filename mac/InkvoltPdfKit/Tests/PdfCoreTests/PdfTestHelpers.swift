@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 @testable import PdfCore
 
 /// Hand-written PDFs from a list of objects numbered 1…n, and reading a PDF's objects (the Windows tests' `Core2Pdf`,
@@ -160,3 +161,42 @@ func widgets(_ data: [UInt8]) throws -> [(field: String, page: Int, value: Strin
     }
     return out
 }
+
+extension Core2Pdf {
+    typealias Line = (text: String, box: RectD, chars: [(ch: String, box: RectD)])
+
+    /// Text lines MuPDF extracts from a page, annotations (and widget appearances) included, with their boxes in MuPDF's
+    /// page space (Core2Pdf.Lines, which reads them with MuPDFCore).
+    static func lines(_ data: [UInt8], page: Int = 0, annotations: Bool = true) throws -> [Line] {
+        let engine = try PdfEngine.open(data)
+        defer { engine.close() }
+        return try engine.textLines(page, annotations: annotations).map { ($0.text, $0.box, $0.chars) }
+    }
+
+    static func allText(_ data: [UInt8], page: Int = 0, annotations: Bool = true) throws -> String {
+        try lines(data, page: page, annotations: annotations).map(\.text).joined(separator: "\n")
+    }
+
+    /// The fraction of dark pixels in a page region rendered at 2x.
+    static func ink(_ data: [UInt8], _ page: Int, _ region: RectD) throws -> Double {
+        let engine = try PdfEngine.open(data)
+        defer { engine.close() }
+        let img = try engine.render(page, scale: 2, region: region)
+        var dark = 0
+        var i = 0
+        while i + 2 < img.pixels.count {
+            if Int(img.pixels[i]) + Int(img.pixels[i + 1]) + Int(img.pixels[i + 2]) < 384 { dark += 1 }
+            i += 3
+        }
+        return Double(dark) / Double(img.width * img.height)
+    }
+
+    /// The last annotation on a page (its dictionary), read through MuPDF.
+    static func lastAnnot(_ data: [UInt8], page: Int = 0) throws -> PObj {
+        let doc = try open(data)
+        return try #require(doc.page(page).array("Annots")?.elements.last)
+    }
+}
+
+/// The PDF's bytes as text (Latin-1, as the Windows tests' `Encoding.Latin1.GetString`).
+func latin1(_ data: [UInt8]) -> String { String(data.map { Character(Unicode.Scalar($0)) }) }

@@ -7,8 +7,8 @@ import Testing
 /// signatures come to the Mac: appending, reporting and flattening don't read the signature itself. Adapted:
 /// AnEditThatCantBeAppendedStopsInsteadOfBreakingTheSignatures (MuPDF appends to an encrypted signed file too, where
 /// PDFsharp couldn't: the edit is appended); JunkAfterTheEndOfFileStillAppends rotates a page (the form fill comes with
-/// D5); RemovalsAppended… keeps its page part (comments, attachments, stamps, headers and signature verification come
-/// with their steps); FindsTheLastValidStartxref finds where the last revision ends (`PdfEdit.lastEnd`, which lets MuPDF
+/// D5); RemovalsAppended… keeps its page, comment and Fill & Sign parts (attachments, headers and signature
+/// verification come with their steps); FindsTheLastValidStartxref finds where the last revision ends (`PdfEdit.lastEnd`, which lets MuPDF
 /// read a file with junk after it). Left out: ReadsTheFileIdAsHexOrLiteralStrings and
 /// ALiteralFileIdIsCarriedIntoTheUpdate (the Windows incremental writer's own parsing; MuPDF writes the update here) and
 /// AnAppendedEditCopiesTheFileOnce (it counts .NET allocations).
@@ -82,6 +82,15 @@ struct SignedEditTests {
         let flat = try SignedEdits.flatten(deleted, nil)
         #expect(!Self.contains(flat, "Second page"))
         #expect(!Self.appended(pdf, flat))
+
+        // Comments too; adding things isn't a removal. Fill & Sign items too.
+        let (noted, added) = try SignedEdits.run { try Annotations.addNote(pdf, nil, 0, 100, 100, "Private remark", author: "Me") }
+        #expect(added == SignedEditReport(appended: true, removedItemKept: false))
+        let id = try #require(try Annotations.read(noted, nil).first { $0.contents == "Private remark" }).id
+        #expect(try SignedEdits.run { try Annotations.delete(noted, nil, id) }.1.removedItemKept)
+        let typed = try TextStamps.put(pdf, nil, 0, RectD(100, 100, 200, 20), .text, "Private remark", 12)
+        let stampId = try #require(try TextStamps.read(typed, nil).first).id
+        #expect(try SignedEdits.run { try TextStamps.remove(typed, nil, stampId) }.1.removedItemKept)
 
         // Unsigned files are rewritten: nothing is left behind.
         #expect(try SignedEdits.run { try PageEditor.delete(TestPdf.make(3), nil, [1]) }.1 == SignedEditReport(appended: false, removedItemKept: false))

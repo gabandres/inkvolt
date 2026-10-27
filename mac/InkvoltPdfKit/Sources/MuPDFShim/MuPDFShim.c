@@ -315,8 +315,8 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
     return 1;
 }
 
-int inkv_page_chars(void *vctx, inkv_doc *d, int index, inkv_line **lines, int *line_count, inkv_char **chars,
-                    int *char_count, char *err) {
+static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_line **lines, int *line_count,
+                      inkv_char **chars, int *char_count, char *err) {
     fz_context *ctx = vctx;
     fz_stext_page *text = NULL;
     fz_device *dev = NULL;
@@ -335,7 +335,8 @@ int inkv_page_chars(void *vctx, inkv_doc *d, int index, inkv_line **lines, int *
         fz_stext_options options = { 0 };
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        fz_run_page_contents(ctx, page, dev, fz_identity, NULL);
+        if (annotations) fz_run_page(ctx, page, dev, fz_identity, NULL);
+        else fz_run_page_contents(ctx, page, dev, fz_identity, NULL);
         fz_close_device(ctx, dev);
         int nl = 0, nc = 0;
         for (fz_stext_block *b = text->first_block; b; b = b->next) {
@@ -384,6 +385,16 @@ int inkv_page_chars(void *vctx, inkv_doc *d, int index, inkv_line **lines, int *
         return 0;
     }
     return 1;
+}
+
+int inkv_page_chars(void *ctx, inkv_doc *d, int index, inkv_line **lines, int *line_count, inkv_char **chars,
+                    int *char_count, char *err) {
+    return page_chars(ctx, d, index, 0, lines, line_count, chars, char_count, err);
+}
+
+int inkv_page_chars_annots(void *ctx, inkv_doc *d, int index, inkv_line **lines, int *line_count, inkv_char **chars,
+                           int *char_count, char *err) {
+    return page_chars(ctx, d, index, 1, lines, line_count, chars, char_count, err);
 }
 
 char *inkv_page_text(void *vctx, inkv_doc *d, int index, char *err) {

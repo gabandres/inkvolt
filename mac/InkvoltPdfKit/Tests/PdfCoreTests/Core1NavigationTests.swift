@@ -140,9 +140,9 @@ struct Core1NavigationTests {
 }
 
 /// Ported from Core1XmpTests (in Core1NavigationTests.cs): XMP metadata kept in step with the Info dictionary, read with
-/// Foundation's XMLDocument where Windows uses XDocument. Left out: EveryCoreSavePathKeepsTheXmpPacket (it saves through
-/// comments, stamps, attachments, redaction and forms, which come with D4, D5 and later; each of those save paths gets
-/// its XMP check with its step). EditsKeepTheOriginalPacketAndUpdateIt and WriteMetadataUpdatesXmpWithEscaping are whole.
+/// Foundation's XMLDocument where Windows uses XDocument. Adapted: EveryCoreSavePathKeepsTheXmpPacket saves through
+/// comments and Fill & Sign (attachments, redaction and forms come with D5 and later, each with its XMP check).
+/// EditsKeepTheOriginalPacketAndUpdateIt and WriteMetadataUpdatesXmpWithEscaping are whole.
 struct Core1XmpTests {
     static let rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
     static let dc = "http://purl.org/dc/elements/1.1/"
@@ -204,6 +204,23 @@ struct Core1XmpTests {
         let engine = try PdfEngine.open(rotated)
         defer { engine.close() }
         #expect(try engine.text(0).text.contains("Page 1"))
+    }
+
+    @Test func everyCoreSavePathKeepsTheXmpPacket() throws {
+        let original = Core1TestPdf.withXmp()
+        let note = Annotations.newId()
+        let saves: [(String, ([UInt8]) throws -> [UInt8])] = [
+            ("note", { try Annotations.addNote($0, nil, 0, 50, 50, "Hi", author: "Me", id: note) }),
+            ("markup", { try Annotations.addTextMarkup($0, nil, 0, .highlight, [RectD(50, 50, 100, 12)], .yellow, note: nil, author: "Me") }),
+            ("contents", { try Annotations.setContents(Annotations.addNote($0, nil, 0, 50, 50, "Hi", author: "Me", id: note), nil, note, "Bye") }),
+            ("stamp", { try TextStamps.put($0, nil, 0, RectD(60, 60, 80, 14), .text, "Signed", 11) }),
+        ]
+        for (name, save) in saves {
+            let x = try readXmp(save(original))
+            #expect(try prop(x, "urn:example:my", "Custom") == "keep me", "\(name): custom XMP property lost")
+            #expect(try prop(x, Self.dc, "title") == "Old title", "\(name): title not kept")
+            #expect(try prop(x, Self.xmp, "CreateDate")?.hasPrefix("2020-01-02") == true, "\(name): CreateDate changed")
+        }
     }
 
     @Test func mergedDocumentGetsAValidPacket() throws {

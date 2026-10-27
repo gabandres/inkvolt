@@ -27,6 +27,8 @@ final class MuDoc {
     private let owner: MuDoc?
     /// The first change that failed (objects are changed without throwing, as PDFsharp's are); saving throws it.
     var failure: String?
+    /// Standard-14 font objects the edit's appearances share, by /BaseFont (`FontResources.standard`).
+    var standardFonts: [String: PObj] = [:]
 
     private init(ctx: UnsafeMutableRawPointer, doc: OpaquePointer, owner: MuDoc? = nil) {
         self.ctx = ctx

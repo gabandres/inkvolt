@@ -5,8 +5,8 @@ import Testing
 /// Ported from PageStructureTests.cs: page edits keep the file's structure honest (no hidden copies of other pages, page
 /// labels, page boxes). The PDFsharp object checks read the same objects through MuPDF (`Core2Pdf.open`). Adapted: the
 /// labelled document is written by hand (`TestPdf.make`'s `catalogExtra`) where Windows adds /PageLabels with PDFsharp;
-/// `PdfObj.DisplaySize` is `PageBoxes.displaySize`. Left out of ACropBoxBeyondTheMediaBoxIsClipped: its redaction and
-/// Fill & Sign text parts (Redaction comes later, text stamps with D4).
+/// `PdfObj.DisplaySize` is `PageBoxes.displaySize`. Left out of ACropBoxBeyondTheMediaBoxIsClipped: its redaction part
+/// (Redaction comes later).
 struct PageStructureTests {
     /// Page 1 has a form button jumping to page 2 (/A and /AA), a page /AA jumping there, an article thread bead and a
     /// reply to a comment on page 2. Page 2 holds SECRET text and a SECRET comment; the document opens on page 2.
@@ -194,5 +194,16 @@ struct PageStructureTests {
         #expect(engine.page(0).width == 400 && engine.page(0).height == 500)
         let size = PageBoxes.displaySize(try Core2Pdf.open(pdf).page(0))
         #expect(size.w == 400 && size.h == 500)
+
+        // Fill & Sign text lands where it was put, relative to the page's own text as the viewer shows it.
+        let found = try #require(try engine.text(0).find("Hello boxes", matchCase: true, wholeWord: false).first)
+        let text = try engine.text(0).rects(found.start, found.end).reduce(RectD.zero) { $0.union($1) }
+        let stamped = try TextStamps.put(pdf, nil, 0, RectD(text.x, text.bottom + 20, 200, 30), .text, "Stamped", 20)
+        #expect(abs((try TextStamps.read(stamped, nil).first?.rect.x ?? 0) - text.x) <= 1)
+        let lines = try Core2Pdf.lines(stamped)
+        let hello = try #require(lines.first { $0.text.contains("Hello boxes") }).box
+        let stamp = try #require(lines.first { $0.text.contains("Stamped") }).box
+        #expect(stamp.x - hello.x >= -4 && stamp.x - hello.x <= 6, "\(stamp) \(hello)")
+        #expect(stamp.y - hello.bottom >= 14 && stamp.y - hello.bottom <= 30, "\(stamp) \(hello)")
     }
 }

@@ -83,6 +83,9 @@ int inkv_save_image(void *ctx, inkv_doc *doc, int page, float scale, const char 
 /// The page's text without its annotations: lines and characters (malloc'ed; inkv_free each). 0 on failure.
 int inkv_page_chars(void *ctx, inkv_doc *doc, int page, inkv_line **lines, int *line_count, inkv_char **chars,
                     int *char_count, char *err);
+/// The same with the page's annotations and widgets drawn in (their appearances' text too).
+int inkv_page_chars_annots(void *ctx, inkv_doc *doc, int page, inkv_line **lines, int *line_count, inkv_char **chars,
+                           int *char_count, char *err);
 
 /// The page's text as UTF-8 (malloc'ed; inkv_free), lines separated by '\n'. NULL on failure.
 char *inkv_page_text(void *ctx, inkv_doc *doc, int page, char *err);

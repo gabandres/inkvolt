@@ -119,7 +119,7 @@ struct PasswordStrengthTests {
     }
 }
 
-/// Ported from OwnerPasswordTests.cs (but its TextStamps line, which comes with D4).
+/// Ported from OwnerPasswordTests.cs, whole.
 struct OwnerPasswordTests {
     /// Opens without a password, but changes are restricted by an owner password.
     static func ownerOnly(_ owner: String) -> [UInt8] {
@@ -134,6 +134,7 @@ struct OwnerPasswordTests {
 
         #expect(throws: OwnerPasswordRequired(wrongPassword: false)) { try PageEditor.rotate(data, nil, [0], 90) }
         #expect(throws: OwnerPasswordRequired(wrongPassword: true)) { try PageEditor.rotate(data, "nope", [0], 90) }
+        #expect(throws: OwnerPasswordRequired(wrongPassword: false)) { try TextStamps.put(data, nil, 0, RectD(10, 10, 50, 20), .text, "x", 11) }
 
         let rotated = try PageEditor.rotate(data, "own", [0], 90)
         let after = try PdfEngine.open(rotated, password: "own")
