@@ -1,6 +1,6 @@
 #!/bin/sh
-# Builds Inkvolt PDF (release), makes "Inkvolt PDF.app" (the binary and Info.plist), signs it and installs it in
-# /Applications. For development on the Mac (D8 makes the notarized DMG).
+# Builds Inkvolt PDF (release), makes "Inkvolt PDF.app" (assemble.sh: the binary, Info.plist and icons), signs it and
+# installs it in /Applications. For development on the Mac; release.sh makes the notarized DMG.
 #   sh mac/InkvoltPdf/build.sh
 # Signs with the Apple Development identity in ~/Library/Keychains/inkvolt-dev.keychain-db (mac/InkvoltPrint/dev-cert.sh),
 # unlocked with DEV_KEYCHAIN_PASSWORD from mac/InkvoltPrint/.env.local (INKVOLT_ENV names another file); ad hoc without
@@ -8,16 +8,8 @@
 set -eu
 cd "$(dirname "$0")"
 
-swift build -c release -Xswiftc -warnings-as-errors \
-    -Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150
-bin="$(swift build -c release --show-bin-path)/InkvoltPdf"
-
 app="build/Inkvolt PDF.app"
-rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$bin" "$app/Contents/MacOS/Inkvolt PDF"
-cp Info.plist "$app/Contents/Info.plist"
-printf 'APPL????' > "$app/Contents/PkgInfo"
+sh ./assemble.sh "$app"
 
 env="${INKVOLT_ENV:-../InkvoltPrint/.env.local}"
 [ -f "$env" ] || env="$HOME/Repos/inkvolt/mac/InkvoltPrint/.env.local"
