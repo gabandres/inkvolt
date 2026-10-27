@@ -24,6 +24,12 @@ public partial class MainWindow
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
+        BindEdit(Cmd.ExportComments, t => CommentFileActions.Export(this, t));
+        BindEdit(Cmd.ImportComments, t => CommentFileActions.Import(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.SummarizeComments, t => CommentFileActions.Summarize(this, t));
+        BindEdit(Cmd.ExportFormData, t => FormDataActions.Export(this, t));
+        BindEdit(Cmd.ImportFormData, t => FormDataActions.Import(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.FillFormsFromCsv, t => FormDataActions.FillFromCsv(this, t));
         BindEdit(Cmd.AddHeaderFooter, t => PageMarkActions.AddHeaderFooter(this, t));
         BindEdit(Cmd.RemoveHeaderFooter, PageMarkActions.RemoveHeaderFooter);
         BindEdit(Cmd.AddWatermark, t => PageMarkActions.AddWatermark(this, t));

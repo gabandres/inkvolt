@@ -70,6 +70,9 @@ internal sealed class TextPainter
 
     public bool Unicode { get; }
 
+    /// <summary>Resource names of the embedded fonts start with this (two painters drawing on one page need different ones).</summary>
+    public string CidPrefix { get; init; } = "/PdU";
+
     public TextPainter(StdFont std, IEnumerable<string> texts)
     {
         _std = std;
@@ -115,7 +118,7 @@ internal sealed class TextPainter
                 sb.Append(CultureInfo.InvariantCulture, $"BT {color.Fill} {resourceName} {PdfObj.F(size)} Tf 1 0 0 1 {PdfObj.F(x)} {PdfObj.F(y)} Tm ({WinAnsi.Literal(text)}) Tj ET\n");
         else
         {
-            _writer ??= new CidFontWriter();
+            _writer ??= new CidFontWriter(CidPrefix);
             foreach (var (text, x, y, size) in _items)
             {
                 sb.Append(CultureInfo.InvariantCulture, $"BT {color.Fill} 1 0 0 1 {PdfObj.F(x)} {PdfObj.F(y)} Tm ");

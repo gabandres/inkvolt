@@ -33,6 +33,13 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Watched folder** (`Core/WatchedFolder.cs`): a folder whose new PDFs and images run through a preset once complete
   (size and time unchanged for the quiet period, nobody holding them), taken by a move into `working`, then moved to
   `done` or `failed` with a log line. In the app: `FolderWatches` (`App/BatchAutomation.cs`); unattended: `--watch`.
+- **Comment file** (`Core/CommentFiles.cs`): a document's comments outside it, as XFDF, FDF or CSV, with their ids,
+  replies and (FDF; a stamp's in XFDF) appearances. Importing one merges: comments whose id is already there are skipped.
+- **Comment summary** (`Core/CommentSummary.cs`): a new PDF of each page with comments beside its numbered list of them,
+  numbers on both sides joined by a line.
+- **Form data file** (`Core/FormDataFiles.cs`): a form's values outside it, as XFDF, FDF, CSV (one row) or JSON.
+- **Merge** (`Core/FormMerge.cs`): Fill Forms from CSV: one filled copy of a form per CSV row, rows with refused values
+  reported instead of saved.
 - **Pro check** (`Core/Pro.cs`): `Pro.Allows(feature)`, the one place a Pro feature asks whether it may run (no licence
   yet: always yes).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor

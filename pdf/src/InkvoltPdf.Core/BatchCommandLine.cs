@@ -1,13 +1,14 @@
 namespace InkvoltPdf.Core;
 
-public enum CommandKind { Help, Batch, Watch }
+public enum CommandKind { Help, Batch, Watch, Fill }
 
 /// <summary>A parsed command line (see <see cref="BatchCommandLine.Usage"/>).</summary>
 /// <param name="Preset">The preset file.</param>
 /// <param name="Inputs">--batch: the files and folders to run it on.</param>
 /// <param name="Folder">--watch: the folder.</param>
+/// <param name="Name">--fill: the file name pattern of the forms.</param>
 public sealed record CommandLineRequest(CommandKind Kind, string? Preset = null, IReadOnlyList<string>? Inputs = null, string? Folder = null,
-    string? Output = null, bool Recursive = false, bool Once = false, bool Quiet = false);
+    string? Output = null, bool Recursive = false, bool Once = false, bool Quiet = false, string? Name = null, bool Flatten = false);
 
 /// <summary>The command line is wrong; the message says how.</summary>
 public sealed class CommandLineException(string message) : Exception(message);
@@ -45,6 +46,14 @@ public static class BatchCommandLine
               --out <folder>   where the results go (default: the preset's folder, else <folder>\results)
               --once           handle the files there now, then stop (for a scheduled task)
 
+          inkvoltpdf --fill <form.pdf> <data.csv> [--out <folder>] [--name <pattern>] [--flatten] [--quiet]
+              Fills one copy of the form for each row of the CSV (its header names the fields), a line per row.
+              A row with a value the form refuses is not saved; a report CSV lists why.
+              --out <folder>   where the forms go (default: "<form> forms" beside the CSV)
+              --name <pattern> file names: <<name>> the form's name, <<n>> or <<n:3>> the row, <<date>>, and any
+                               column as <<Column>> (default: "<<name>> <<n:3>>")
+              --flatten        the values become part of the pages
+
           inkvoltpdf --help
 
         Make presets in Inkvolt PDF: File > Batch > Save Preset (or Export). They are plain JSON.
@@ -56,23 +65,24 @@ public static class BatchCommandLine
         """;
 
     /// <summary>The arguments ask for the command line (rather than opening files in the app).</summary>
-    public static bool IsCommand(IReadOnlyList<string> args) => args.Count > 0 && args[0].ToLowerInvariant() is "--batch" or "--watch" or "--help" or "-h" or "-?" or "/?";
+    public static bool IsCommand(IReadOnlyList<string> args) => args.Count > 0 && args[0].ToLowerInvariant() is "--batch" or "--watch" or "--fill" or "--help" or "-h" or "-?" or "/?";
 
     /// <exception cref="CommandLineException">The arguments are wrong.</exception>
     public static CommandLineRequest Parse(IReadOnlyList<string> args)
     {
-        if (args.Count == 0) throw new CommandLineException("Say what to do: --batch, --watch or --help.");
+        if (args.Count == 0) throw new CommandLineException("Say what to do: --batch, --watch, --fill or --help.");
         var kind = args[0].ToLowerInvariant() switch
         {
             "--batch" => CommandKind.Batch,
             "--watch" => CommandKind.Watch,
+            "--fill" => CommandKind.Fill,
             "--help" or "-h" or "-?" or "/?" => CommandKind.Help,
-            _ => throw new CommandLineException($"\"{args[0]}\" isn't a command: use --batch, --watch or --help."),
+            _ => throw new CommandLineException($"\"{args[0]}\" isn't a command: use --batch, --watch, --fill or --help."),
         };
         if (kind == CommandKind.Help) return new CommandLineRequest(kind);
 
-        string? first = null, preset = null, output = null;
-        bool recursive = false, once = false, quiet = false;
+        string? first = null, preset = null, output = null, name = null;
+        bool recursive = false, once = false, quiet = false, flatten = false;
         var inputs = new List<string>();
         string Value(ref int i, string name) =>
             i + 1 < args.Count && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : throw new CommandLineException($"{name} needs a value after it.");
@@ -87,12 +97,20 @@ public static class BatchCommandLine
                 case "--recursive": recursive = true; break;
                 case "--once": once = true; break;
                 case "--quiet": quiet = true; break;
+                case "--name" when kind == CommandKind.Fill: name = Value(ref i, "--name"); break;
+                case "--flatten" when kind == CommandKind.Fill: flatten = true; break;
                 default:
                     if (a.StartsWith("--", StringComparison.Ordinal)) throw new CommandLineException($"\"{a}\" isn't an option Inkvolt PDF knows (--help lists them).");
                     if (first is null) first = a;
                     else inputs.Add(a);
                     break;
             }
+        }
+        if (kind == CommandKind.Fill)
+        {
+            if (first is null || inputs.Count != 1) throw new CommandLineException("--fill needs the form (a PDF), then the CSV of values.");
+            if (preset is not null || recursive || once) throw new CommandLineException("--fill takes --out, --name, --flatten and --quiet.");
+            return new CommandLineRequest(kind, null, [first, inputs[0]], null, output, Quiet: quiet, Name: name, Flatten: flatten);
         }
         if (kind == CommandKind.Batch)
         {
@@ -132,6 +150,7 @@ public static class BatchCommandLine
             output.WriteLine(Usage);
             return Done;
         }
+        if (request.Kind == CommandKind.Fill) return Fill(request, output, error, environment(OpenPasswordVariable), cancel); // free (roadmap 1.4)
         if (!Pro.Allows(ProFeature.CommandLine))
         {
             error.WriteLine(Pro.Locked(ProFeature.CommandLine));
@@ -274,6 +293,56 @@ public static class BatchCommandLine
             error.WriteLine(ex.Message);
             return Wrong;
         }
+    }
+
+    /// <summary>--fill: a form merge (<see cref="FormMerge"/>), a line per row; a report CSV beside the forms when a row failed.</summary>
+    private static int Fill(CommandLineRequest request, TextWriter output, TextWriter error, string? password, CancellationToken cancel)
+    {
+        var form = Path.GetFullPath(request.Inputs![0]);
+        var csv = Path.GetFullPath(request.Inputs[1]);
+        if (new[] { form, csv }.FirstOrDefault(p => !File.Exists(p)) is { } missing)
+        {
+            error.WriteLine($"There is no file {missing}.");
+            return Wrong;
+        }
+        var outFolder = Path.GetFullPath(request.Output ?? Path.Combine(Path.GetDirectoryName(csv)!, Path.GetFileNameWithoutExtension(form) + " forms"));
+        var options = new FormMergeOptions { OutputFolder = outFolder, NameTemplate = request.Name ?? FormMergeOptions.DefaultTemplate, Flatten = request.Flatten };
+        FormMergeReport report;
+        try
+        {
+            report = FormMerge.Run(File.ReadAllBytes(form), password, File.ReadAllBytes(csv), form, options, null, cancel);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine(ex.Message);
+            return Wrong;
+        }
+        foreach (var c in report.UnknownColumns) error.WriteLine($"column   \"{c}\" isn't a field of the form: left out");
+        foreach (var r in report.Made.Concat(report.Failed).OrderBy(r => r.Row))
+        {
+            if (r.File is { } file)
+            {
+                if (!request.Quiet) output.WriteLine($"made     row {r.Row} -> {file}");
+            }
+            else error.WriteLine($"failed   row {r.Row}: {string.Join("; ", r.Problems)}");
+        }
+        if (report.Failed.Count > 0)
+        {
+            var path = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(form) + " merge report.csv");
+            try
+            {
+                Directory.CreateDirectory(outFolder);
+                File.WriteAllBytes(path, report.Csv());
+                output.WriteLine($"Report: {path}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                error.WriteLine($"The report can't be saved: {ex.Message}");
+            }
+        }
+        output.WriteLine(report.Text);
+        if (report.Stopped) return Stopped;
+        return report.Failed.Count > 0 ? SomeFailed : Done;
     }
 
     private static string Count(int n, string word) => n == 1 ? $"1 {word}" : $"{n} {word}s";

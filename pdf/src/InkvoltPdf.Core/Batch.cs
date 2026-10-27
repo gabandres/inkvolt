@@ -234,7 +234,16 @@ public sealed record OcrStep : BatchStep
     public override string Title => "Recognize text (OCR)";
 }
 
-public enum BatchExportFormat { Word, Excel, Text, Png, Jpeg }
+public enum BatchExportFormat
+{
+    Word, Excel, Text, Png, Jpeg,
+    /// <summary>Comments (<see cref="CommentFiles"/>).</summary>
+    CommentsXfdf, CommentsFdf, CommentsCsv,
+    /// <summary>Form data (<see cref="FormDataFiles"/>).</summary>
+    FormDataXfdf, FormDataFdf, FormDataCsv, FormDataJson,
+    /// <summary>A comment summary PDF (<see cref="CommentSummary"/>).</summary>
+    CommentSummary,
+}
 
 /// <param name="Dpi">Resolution of page images (PNG, JPEG).</param>
 public sealed record ExportStep(BatchExportFormat Format, int Dpi = 150) : BatchStep
@@ -246,11 +255,22 @@ public sealed record ExportStep(BatchExportFormat Format, int Dpi = 150) : Batch
         BatchExportFormat.Word => "Export to Word",
         BatchExportFormat.Excel => "Export tables to Excel",
         BatchExportFormat.Text => "Export as plain text",
+        BatchExportFormat.CommentsXfdf => "Export comments (XFDF)",
+        BatchExportFormat.CommentsFdf => "Export comments (FDF)",
+        BatchExportFormat.CommentsCsv => "Export comments (CSV)",
+        BatchExportFormat.FormDataXfdf => "Export form data (XFDF)",
+        BatchExportFormat.FormDataFdf => "Export form data (FDF)",
+        BatchExportFormat.FormDataCsv => "Export form data (CSV)",
+        BatchExportFormat.FormDataJson => "Export form data (JSON)",
+        BatchExportFormat.CommentSummary => "Summarize comments",
         BatchExportFormat.Png => "Export pages as PNG images",
         _ => "Export pages as JPEG images",
     };
 
     public bool IsImages => Format is BatchExportFormat.Png or BatchExportFormat.Jpeg;
+
+    /// <summary>Comments, form data or a comment summary (not the pages' content).</summary>
+    public bool IsReview => Format >= BatchExportFormat.CommentsXfdf;
 }
 
 public enum SignedFilePolicy
@@ -808,6 +828,11 @@ public static class BatchRunner
 
         private void Export(byte[] data, ExportStep step)
         {
+            if (step.IsReview)
+            {
+                ExportReview(data, step);
+                return;
+            }
             using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
             if (step.IsImages)
             {
@@ -845,6 +870,58 @@ public static class BatchRunner
             cancel.ThrowIfCancellationRequested();
             var bytes = ms.ToArray();
             _outputs.Add(names.Place(_folder, _baseName + DocumentExport.Extension(format), temp => File.WriteAllBytes(temp, bytes)));
+        }
+
+        /// <summary>Comments, form data or a comment summary beside the result; a file without any gets a note, no file.</summary>
+        private void ExportReview(byte[] data, ExportStep step)
+        {
+            var name = System.IO.Path.GetFileName(file.NamedAs);
+            byte[]? bytes = null;
+            string extension;
+            switch (step.Format)
+            {
+                case BatchExportFormat.CommentsXfdf or BatchExportFormat.CommentsFdf or BatchExportFormat.CommentsCsv:
+                {
+                    var format = step.Format switch
+                    {
+                        BatchExportFormat.CommentsXfdf => CommentFileFormat.Xfdf,
+                        BatchExportFormat.CommentsFdf => CommentFileFormat.Fdf,
+                        _ => CommentFileFormat.Csv,
+                    };
+                    var export = CommentFiles.Export(data, _password, format, name);
+                    if (export.Count > 0) bytes = export.Data;
+                    else _notes.Add("Comments: none, nothing saved");
+                    extension = (step.Format == BatchExportFormat.CommentsCsv ? " comments" : "") + CommentFiles.Extension(format);
+                    break;
+                }
+                case BatchExportFormat.CommentSummary:
+                    try
+                    {
+                        bytes = CommentSummary.Make(data, _password, name);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        _notes.Add("Comment summary: no comments, nothing saved");
+                    }
+                    extension = " comments.pdf";
+                    break;
+                default:
+                {
+                    var format = step.Format switch
+                    {
+                        BatchExportFormat.FormDataXfdf => FormDataFormat.Xfdf,
+                        BatchExportFormat.FormDataFdf => FormDataFormat.Fdf,
+                        BatchExportFormat.FormDataJson => FormDataFormat.Json,
+                        _ => FormDataFormat.Csv,
+                    };
+                    if (FormEditor.DataFields(data, _password).Count > 0) bytes = FormDataFiles.Export(data, _password, format, name);
+                    else _notes.Add("Form data: no form fields, nothing saved");
+                    extension = (format == FormDataFormat.Csv ? " data" : "") + FormDataFiles.Extension(format);
+                    break;
+                }
+            }
+            cancel.ThrowIfCancellationRequested();
+            if (bytes is not null) _outputs.Add(names.Place(_folder, _baseName + extension, temp => File.WriteAllBytes(temp, bytes)));
         }
     }
 

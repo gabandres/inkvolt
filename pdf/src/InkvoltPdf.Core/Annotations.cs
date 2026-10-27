@@ -133,14 +133,28 @@ public static partial class Annotations
         var page = doc.Pages[pageIndex];
 
         // Quad corners in PDF space, in the reading orientation of the displayed page: upper-left, upper-right, lower-left, lower-right.
-        var quads = new List<((double X, double Y) UL, (double X, double Y) UR, (double X, double Y) LL, (double X, double Y) LR)>();
+        var quads = new List<Quad>();
         foreach (var r in lineRects.Where(r => !r.IsEmpty))
-            quads.Add((PdfObj.ToPdf(page, r.X, r.Y), PdfObj.ToPdf(page, r.Right, r.Y), PdfObj.ToPdf(page, r.X, r.Bottom), PdfObj.ToPdf(page, r.Right, r.Bottom)));
+            quads.Add(new Quad(PdfObj.ToPdf(page, r.X, r.Y), PdfObj.ToPdf(page, r.Right, r.Y), PdfObj.ToPdf(page, r.X, r.Bottom), PdfObj.ToPdf(page, r.Right, r.Bottom)));
+        var (ap, x1, y1, x2, y2) = MarkupAppearance(doc, kind, quads, color);
+        var annot = NewAnnot(doc, page, kind.ToString(), x1, y1, x2, y2, id, note ?? "", author, color);
+        var qp = new List<double>();
+        foreach (var (ul, ur, ll, lr) in quads) qp.AddRange([ul.X, ul.Y, ur.X, ur.Y, ll.X, ll.Y, lr.X, lr.Y]);
+        annot.Elements["/QuadPoints"] = PdfObj.Reals(doc, [.. qp]);
+        SetAppearance(doc, annot, ap);
+    }
+
+    /// <summary>One marked line: its corners in PDF space (upper-left, upper-right, lower-left, lower-right as read).</summary>
+    internal readonly record struct Quad((double X, double Y) UL, (double X, double Y) UR, (double X, double Y) LL, (double X, double Y) LR);
+
+    /// <summary>The appearance of a text markup over <paramref name="quads"/>, and the rectangle it covers (PDF space).</summary>
+    private static (PdfDictionary Form, double X1, double Y1, double X2, double Y2) MarkupAppearance(PdfDocument doc, TextMarkupKind kind,
+        IReadOnlyList<Quad> quads, AnnotColor color)
+    {
         var allX = quads.SelectMany(q => new[] { q.UL.X, q.UR.X, q.LL.X, q.LR.X }).ToList();
         var allY = quads.SelectMany(q => new[] { q.UL.Y, q.UR.Y, q.LL.Y, q.LR.Y }).ToList();
         var pad = kind == TextMarkupKind.Squiggly ? 2 : 1;
         double x1 = allX.Min() - pad, y1 = allY.Min() - pad, x2 = allX.Max() + pad, y2 = allY.Max() + pad;
-
         var c = $"{PdfObj.F(color.R)} {PdfObj.F(color.G)} {PdfObj.F(color.B)}";
         var ops = new StringBuilder();
         foreach (var (ul, ur, ll, lr) in quads)
@@ -185,13 +199,7 @@ public static partial class Annotations
             resources.Elements["/ExtGState"] = gsMap;
             ops.Insert(0, "/GS0 gs\n");
         }
-        var ap = PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(ops.ToString()), x1, y1, x2, y2, resources);
-
-        var annot = NewAnnot(doc, page, kind.ToString(), x1, y1, x2, y2, id, note ?? "", author, color);
-        var qp = new List<double>();
-        foreach (var (ul, ur, ll, lr) in quads) qp.AddRange([ul.X, ul.Y, ur.X, ur.Y, ll.X, ll.Y, lr.X, lr.Y]);
-        annot.Elements["/QuadPoints"] = PdfObj.Reals(doc, [.. qp]);
-        SetAppearance(doc, annot, ap);
+        return (PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(ops.ToString()), x1, y1, x2, y2, resources), x1, y1, x2, y2);
 
         static string P((double X, double Y) p) => $"{PdfObj.F(p.X)} {PdfObj.F(p.Y)}";
     }
@@ -213,15 +221,20 @@ public static partial class Annotations
         const double size = 20;
         var (x1, y1, x2, y2) = TextStamps.FromPageSpace(page, new RectD(x, y, size, size));
         var col = color ?? AnnotColor.Yellow;
-        var c = $"{PdfObj.F(col.R)} {PdfObj.F(col.G)} {PdfObj.F(col.B)}";
-        // A speech bubble with three text lines, drawn upright on rotated pages.
-        var ops = $"q 0.35 G 0.8 w {c} rg 1.5 6 m 1.5 18.5 l 18.5 18.5 l 18.5 6 l 9 6 l 5 1.5 l 6 6 l h B\n" +
-                  "0.3 G 1 w 5 15 m 15 15 l 5 12 m 15 12 l 5 9 m 12 9 l S Q\n";
-        var ap = PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(ops), 0, 0, size, size, new PdfDictionary(doc), PdfObj.CounterRotation(doc, page));
         var annot = NewAnnot(doc, page, "Text", x1, y1, x2, y2, id, text, author, col);
         annot.Elements["/Name"] = new PdfName("/Comment");
         annot.Elements["/Open"] = new PdfBoolean(false);
-        SetAppearance(doc, annot, ap);
+        SetAppearance(doc, annot, NoteAppearance(doc, page, col));
+    }
+
+    /// <summary>A sticky note's icon: a speech bubble with three text lines (20 pt), drawn upright on rotated pages.</summary>
+    private static PdfDictionary NoteAppearance(PdfDocument doc, PdfPage page, AnnotColor col)
+    {
+        const double size = 20;
+        var c = $"{PdfObj.F(col.R)} {PdfObj.F(col.G)} {PdfObj.F(col.B)}";
+        var ops = $"q 0.35 G 0.8 w {c} rg 1.5 6 m 1.5 18.5 l 18.5 18.5 l 18.5 6 l 9 6 l 5 1.5 l 6 6 l h B\n" +
+                  "0.3 G 1 w 5 15 m 15 15 l 5 12 m 15 12 l 5 9 m 12 9 l S Q\n";
+        return PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(ops), 0, 0, size, size, new PdfDictionary(doc), PdfObj.CounterRotation(doc, page));
     }
 
     /// <summary>Changes a comment's text. A FreeText box (other than a Fill &amp; Sign stamp) shows the new text: its appearance is rebuilt.</summary>

@@ -231,6 +231,30 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportsCommentsFormDataAndSummaries()
+    {
+        var commented = Put("in/review.pdf", CommentFilesTests.Commented());
+        var form = Put("in/form.pdf", FormEditor.SetValues(FormDataTests.Form(), null, new Dictionary<string, string> { ["name"] = "Ana" }));
+        var plain = Put("in/plain.pdf", TestPdf.Make(1));
+        var plan = Plan(new ExportStep(BatchExportFormat.CommentsXfdf), new ExportStep(BatchExportFormat.CommentsCsv), new ExportStep(BatchExportFormat.CommentSummary),
+            new ExportStep(BatchExportFormat.FormDataJson), new ExportStep(BatchExportFormat.FormDataFdf));
+        Assert.Null(plan.Validate(true));
+        var summary = await Run([commented, form, plain], plan);
+        Assert.Equal(3, summary.Done);
+        Assert.Equal(13, CommentFiles.Count(File.ReadAllBytes(Path.Combine(Out, "review.xfdf"))));
+        Assert.Equal(13, CommentFiles.Count(File.ReadAllBytes(Path.Combine(Out, "review comments.csv"))));
+        Assert.Contains("Callout, text", Text(File.ReadAllBytes(Path.Combine(Out, "review comments.pdf")), page: 1));
+        Assert.Equal("Ana", FormDataFiles.ReadValues(File.ReadAllBytes(Path.Combine(Out, "form.json")))["name"]);
+        Assert.Equal("Ana", FormDataFiles.ReadValues(File.ReadAllBytes(Path.Combine(Out, "form.fdf")))["name"]);
+        Assert.False(File.Exists(Path.Combine(Out, "plain.xfdf")));
+        Assert.False(File.Exists(Path.Combine(Out, "plain.json")));
+        Assert.Contains(summary.Items.Single(i => i.File.Path == plain).Notes, n => n.StartsWith("Comments: none", StringComparison.Ordinal));
+
+        // The new exports go into presets and come back.
+        Assert.Equal(plan.Steps, BatchPresets.Read(BatchPresets.Write(BatchPreset.From("Review", plan, false))).Steps);
+    }
+
+    [Fact]
     public async Task PasswordsAreAskedPerFileOrSkipped()
     {
         var locked = Put("in/locked.pdf", TestPdf.Encrypted(1, "secret"));

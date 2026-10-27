@@ -443,6 +443,10 @@ internal sealed class BatchWindow : Window
         Item("Export Tables to Excel (.xlsx)", () => new ExportStep(BatchExportFormat.Excel));
         Item("Export as Plain Text (.txt)", () => new ExportStep(BatchExportFormat.Text));
         Item("Export Pages as Images…", () => AskImages(null));
+        menu.Items.Add(new Separator());
+        Item("Export Comments…", () => AskReview(null, comments: true));
+        Item("Summarize Comments", () => new ExportStep(BatchExportFormat.CommentSummary));
+        Item("Export Form Data…", () => AskReview(null, comments: false));
         return menu;
     }
 
@@ -500,6 +504,8 @@ internal sealed class BatchWindow : Window
             RotateStep r => AskRotate(r),
             FlattenStep f => AskFlatten(f),
             ExportStep { IsImages: true } e => AskImages(e),
+            ExportStep { IsReview: true, Format: not BatchExportFormat.CommentSummary } e =>
+                AskReview(e, comments: e.Format is BatchExportFormat.CommentsXfdf or BatchExportFormat.CommentsFdf or BatchExportFormat.CommentsCsv),
             _ => null, // nothing to set
         };
         if (changed is null) return;
@@ -593,6 +599,23 @@ internal sealed class BatchWindow : Window
         return new ExportStep(format.SelectedIndex == 1 ? BatchExportFormat.Jpeg : BatchExportFormat.Png, dpis[Math.Max(0, dpi.SelectedIndex)]);
     }
 
+    private ExportStep? AskReview(ExportStep? current, bool comments)
+    {
+        BatchExportFormat[] formats = comments
+            ? [BatchExportFormat.CommentsXfdf, BatchExportFormat.CommentsFdf, BatchExportFormat.CommentsCsv]
+            : [BatchExportFormat.FormDataXfdf, BatchExportFormat.FormDataFdf, BatchExportFormat.FormDataCsv, BatchExportFormat.FormDataJson];
+        string[] labels = comments
+            ? ["XFDF (Acrobat and other PDF apps)", "FDF (keeps every appearance)", "CSV (a row per comment, for spreadsheets)"]
+            : ["XFDF (Acrobat and other PDF apps)", "FDF", "CSV (a header and a row of values)", "JSON"];
+        var dlg = new FormDialog(this, comments ? "Export Comments" : "Export Form Data", "OK");
+        dlg.AddNote(comments
+            ? "A file beside each result with its comments; a PDF without comments gets none."
+            : "A file beside each result with its form's values; a PDF without a form gets none.");
+        var format = dlg.AddChoice("Format", labels, Math.Max(0, Array.IndexOf(formats, current?.Format ?? formats[0])));
+        if (!dlg.ShowModal()) return null;
+        return new ExportStep(formats[Math.Max(0, format.SelectedIndex)]);
+    }
+
     /// <summary>The line under an action's name.</summary>
     internal static string Describe(BatchStep step)
     {
@@ -645,6 +668,14 @@ internal sealed class BatchWindow : Window
                     BatchExportFormat.Word => "A .docx beside each result",
                     BatchExportFormat.Excel => "The tables found, as an .xlsx (none found: no file)",
                     BatchExportFormat.Text => "A .txt beside each result",
+                    BatchExportFormat.CommentsXfdf => "An .xfdf beside each result (none without comments)",
+                    BatchExportFormat.CommentsFdf => "An .fdf beside each result (none without comments)",
+                    BatchExportFormat.CommentsCsv => "A comments .csv beside each result (none without comments)",
+                    BatchExportFormat.CommentSummary => "A PDF of each page beside its comments, numbered and connected",
+                    BatchExportFormat.FormDataXfdf => "An .xfdf of the form's values beside each result",
+                    BatchExportFormat.FormDataFdf => "An .fdf of the form's values beside each result",
+                    BatchExportFormat.FormDataCsv => "A data .csv of the form's values beside each result",
+                    BatchExportFormat.FormDataJson => "A .json of the form's values beside each result",
                     _ => $"{(x.Format == BatchExportFormat.Png ? "PNG" : "JPEG")}, {x.Dpi} dpi, one file per page",
                 };
             default:
@@ -1024,6 +1055,9 @@ internal sealed class BatchWindow : Window
                 "excel" => BatchExportFormat.Excel,
                 "png" => BatchExportFormat.Png,
                 "jpeg" or "jpg" => BatchExportFormat.Jpeg,
+                "xfdf" => BatchExportFormat.CommentsXfdf,
+                "summary" => BatchExportFormat.CommentSummary,
+                "formcsv" => BatchExportFormat.FormDataCsv,
                 _ => BatchExportFormat.Text,
             }, 72),
             _ => throw new ArgumentException($"unknown batch step {a[0]}"),

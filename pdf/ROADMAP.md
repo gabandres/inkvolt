@@ -133,11 +133,31 @@ the checkout.
   in the same panel; the report saves as HTML; runs in Batch. Test: the corpus result matches veraPDF file by file.
 - **Effort** M. Windows; Mac after 1.0.
 
-### 1.4 Comments and form data in and out
+### 1.4 Comments and form data in and out (done 2026-10-27)
 - **Leader.** Acrobat Pro: export and import comments as FDF or XFDF
   ([Adobe](https://helpx.adobe.com/acrobat/current/importing-exporting-comments.html)), comment summaries, form data
   import and export.
-- **Now.** None.
+- **Now.** Windows: Review › Export Comments, Import Comments, Summarize Comments; Edit › Forms › Export Form Data,
+  Import Form Data, Fill Forms from CSV; Batch actions for the exports and the summary; `inkvoltpdf --fill`.
+  Comments (`CommentFiles`): XFDF (ISO 19444-1 elements and attributes; a stamp's appearance as Acrobat's base64
+  DICT/STREAM tree), FDF (every annotation as it is, appearance streams included) and CSV, with replies to any depth,
+  colors, authors, dates, opacity, borders, line endings and geometry; imported comments without an appearance get
+  Inkvolt's own. Import merges by /NM (or, without one, by type, page, place, text and author), lists what it skipped
+  and why, and lets in only an allow-list of entries, every value cleaned (no actions, JavaScript, attachments,
+  embedded files or external streams, also inside appearances), XML without DTDs, at most 64 MB and 100,000 comments.
+  Form data (`FormDataFiles`): XFDF, FDF, CSV and JSON for every field type, values checked against their fields
+  (choices, length, required, read-only) and then run through the form's scripts. Merge (`FormMerge`): a filled copy
+  per CSV row in a folder, names from a pattern with Batch's tokens and any column, optional flattening; refused rows
+  aren't saved and the report (screen and CSV) lists each problem. Summary (`CommentSummary`): landscape sheets, the
+  page as it prints at the left, the numbered list at the right, numbers on both joined by a line, continuation sheets.
+  Tests: XFDF and FDF round trips into a clean copy keep every comment (type, text, author, color to XFDF's 1/255,
+  replies, geometry, style), CSV keeps all but FreeText fonts; exported XFDF validates against the XFDF 3.0 rules
+  transcribed into an XSD; Adobe-style XFDF (rich text, replies, ink, a stamp's appearance) imports; every field type
+  round-trips in all four formats; a 200-row merge makes 200 forms whose values read back right; failed rows are
+  reported per row; DTD, entity-expansion, script, action, attachment and oversized files are refused or cleaned.
+  Still to do: the round trip through Acrobat itself (not run here: checked against the spec's rules and Adobe-style
+  samples instead); a highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF
+  keeps it); the Mac.
 - **Beat it when:** comments export and import as XFDF and FDF (replies, colors, authors, appearances of stamps and
   drawings kept) and as CSV; form data exports as XFDF, FDF, CSV and JSON and imports from them, and a CSV of many rows
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered

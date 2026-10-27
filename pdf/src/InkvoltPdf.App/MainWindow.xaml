@@ -163,6 +163,10 @@
                                     <MenuItem Header="F_orms">
                                         <MenuItem x:Name="PrepareFormMenu" Command="app:Cmd.PrepareForm" />
                                         <MenuItem Command="app:Cmd.DetectFields" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.ExportFormData" />
+                                        <MenuItem Command="app:Cmd.ImportFormData" />
+                                        <MenuItem Command="app:Cmd.FillFormsFromCsv" />
                                     </MenuItem>
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CommandPalette" />
@@ -265,6 +269,10 @@
                                         <MenuItem Command="app:Cmd.MeasureScale" />
                                         <MenuItem Command="app:Cmd.MeasureCalibrate" />
                                     </MenuItem>
+                                    <Separator />
+                                    <MenuItem Command="app:Cmd.ExportComments" />
+                                    <MenuItem Command="app:Cmd.ImportComments" />
+                                    <MenuItem Command="app:Cmd.SummarizeComments" />
                                     <Separator />
                                     <MenuItem x:Name="AttachMenu" Header="Attach a _File…" Click="OnAttachFile" />
                                     <MenuItem Command="app:Cmd.RecognizeText" />

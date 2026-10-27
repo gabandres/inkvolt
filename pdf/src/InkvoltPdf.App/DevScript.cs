@@ -38,7 +38,7 @@ namespace InkvoltPdf.App;
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
-/// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it) <c>· later ms step</c>
+/// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
 /// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds

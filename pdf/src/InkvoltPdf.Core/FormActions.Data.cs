@@ -169,7 +169,7 @@ internal static class FormData
         {
             if (start < data.Length && data[start] == (byte)'<') return ParseXfdf(data);
             var text = Encoding.Latin1.GetString(data);
-            return text.AsSpan(start).StartsWith("%FDF") ? new FdfParser(text).Fields() : null;
+            return text.AsSpan(start).StartsWith("%FDF") ? FdfFields(InkvoltPdf.Core.Fdf.Read(text)) : null;
         }
         catch (Exception ex) when (ex is XmlException or FormatException or InvalidOperationException or IndexOutOfRangeException or ArgumentException)
         {
@@ -199,222 +199,32 @@ internal static class FormData
         return result;
     }
 
-    /// <summary>Just enough of the PDF object syntax to read an FDF file's /Fields.</summary>
-    private sealed class FdfParser(string s)
+    /// <summary>An FDF file's /Fields as full name → values.</summary>
+    private static Dictionary<string, List<string>> FdfFields(InkvoltPdf.Core.Fdf.Document doc)
     {
-        private sealed record Name(string Value);
-        private sealed record Ref(int Id);
-        private sealed record Keyword(string Value);
-        private static readonly object Open = new(), Close = new(), ArrOpen = new(), ArrClose = new();
+        var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (doc.FdfDict() is { } fdf && doc.Resolve(fdf.GetValueOrDefault("Fields")) is List<object?> fields)
+            foreach (var f in fields) Walk(f, null, 0);
+        return result;
 
-        private int _p;
-        private readonly List<object?> _tokens = [];
-        private readonly Dictionary<int, object?> _objects = [];
-
-        public Dictionary<string, List<string>> Fields()
+        void Walk(object? item, string? parent, int depth)
         {
-            Lex();
-            object? root = null;
-            var i = 0;
-            while (i < _tokens.Count)
-            {
-                if (i + 2 < _tokens.Count && _tokens[i] is double id && _tokens[i + 1] is double && _tokens[i + 2] is Keyword { Value: "obj" })
-                {
-                    i += 3;
-                    _objects[(int)id] = Value(ref i);
-                }
-                else if (_tokens[i] is Keyword { Value: "trailer" })
-                {
-                    i++;
-                    if (Value(ref i) is Dictionary<string, object?> t) root = t.GetValueOrDefault("Root");
-                }
-                else i++;
-            }
-            var catalog = Resolve(root) as Dictionary<string, object?>
-                ?? _objects.Values.OfType<Dictionary<string, object?>>().FirstOrDefault(d => d.ContainsKey("FDF"));
-            var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            if (Resolve(catalog?.GetValueOrDefault("FDF")) is Dictionary<string, object?> fdf && Resolve(fdf.GetValueOrDefault("Fields")) is List<object?> fields)
-                foreach (var f in fields) Walk(f, null, result, 0);
-            return result;
-        }
-
-        private object? Resolve(object? o)
-        {
-            for (var guard = 0; o is Ref r && guard < 32; guard++) o = _objects.GetValueOrDefault(r.Id);
-            return o is Ref ? null : o;
-        }
-
-        private void Walk(object? item, string? parent, Dictionary<string, List<string>> into, int depth)
-        {
-            if (depth > 64 || Resolve(item) is not Dictionary<string, object?> d) return;
-            var part = Resolve(d.GetValueOrDefault("T")) as string;
+            if (depth > 64 || doc.Resolve(item) is not Dictionary<string, object?> d) return;
+            var part = doc.Resolve(d.GetValueOrDefault("T")) as string;
             var name = part is null ? parent : parent is null ? part : $"{parent}.{part}";
             if (name is not null && d.TryGetValue("V", out var v))
             {
-                var values = Resolve(v) switch
+                var values = doc.Resolve(v) switch
                 {
                     string str => [str],
-                    Name n => [n.Value],
-                    List<object?> list => list.Select(Resolve).Select(x => x switch { string str => str, Name n => n.Value, _ => null }).OfType<string>().ToList(),
+                    InkvoltPdf.Core.Fdf.Name n => [n.Value],
+                    List<object?> list => list.Select(doc.Resolve).Select(x => x switch { string str => str, InkvoltPdf.Core.Fdf.Name n => n.Value, _ => null }).OfType<string>().ToList(),
                     _ => new List<string>(),
                 };
-                if (values.Count > 0) into[name] = values;
+                if (values.Count > 0) result[name] = values;
             }
-            if (Resolve(d.GetValueOrDefault("Kids")) is List<object?> kids)
-                foreach (var k in kids) Walk(k, name, into, depth + 1);
+            if (doc.Resolve(d.GetValueOrDefault("Kids")) is List<object?> kids)
+                foreach (var k in kids) Walk(k, name, depth + 1);
         }
-
-        private object? Value(ref int i)
-        {
-            if (i >= _tokens.Count) return null;
-            var t = _tokens[i++];
-            if (t is double n && i + 1 < _tokens.Count && _tokens[i] is double && _tokens[i + 1] is Keyword { Value: "R" })
-            {
-                i += 2;
-                return new Ref((int)n);
-            }
-            if (ReferenceEquals(t, Open))
-            {
-                var d = new Dictionary<string, object?>(StringComparer.Ordinal);
-                while (i < _tokens.Count && !ReferenceEquals(_tokens[i], Close))
-                {
-                    if (_tokens[i++] is not Name key) continue;
-                    d[key.Value] = Value(ref i);
-                }
-                i++;
-                return d;
-            }
-            if (ReferenceEquals(t, ArrOpen))
-            {
-                var list = new List<object?>();
-                while (i < _tokens.Count && !ReferenceEquals(_tokens[i], ArrClose)) list.Add(Value(ref i));
-                i++;
-                return list;
-            }
-            return t switch
-            {
-                Keyword { Value: "true" } => true,
-                Keyword { Value: "false" } => false,
-                Keyword { Value: "null" } => null,
-                _ => t,
-            };
-        }
-
-        private void Lex()
-        {
-            while (_p < s.Length && _tokens.Count < 1_000_000)
-            {
-                var c = s[_p];
-                if (char.IsWhiteSpace(c) || c == '\0') _p++;
-                else if (c == '%') while (_p < s.Length && s[_p] is not ('\r' or '\n')) _p++;
-                else if (c == '<' && At(1) == '<') { _tokens.Add(Open); _p += 2; }
-                else if (c == '>' && At(1) == '>') { _tokens.Add(Close); _p += 2; }
-                else if (c == '[') { _tokens.Add(ArrOpen); _p++; }
-                else if (c == ']') { _tokens.Add(ArrClose); _p++; }
-                else if (c == '(') _tokens.Add(Decode(Literal()));
-                else if (c == '<') _tokens.Add(Decode(Hex()));
-                else if (c == '/') _tokens.Add(new Name(NameToken()));
-                else if (c is (>= '0' and <= '9') or '+' or '-' or '.') _tokens.Add(Number());
-                else
-                {
-                    var start = _p;
-                    while (_p < s.Length && !char.IsWhiteSpace(s[_p]) && "()<>[]{}/%".IndexOf(s[_p]) < 0) _p++;
-                    if (_p == start) _p++;
-                    var word = s[start.._p];
-                    if (word == "stream")
-                    {
-                        var end = s.IndexOf("endstream", _p, StringComparison.Ordinal);
-                        _p = end < 0 ? s.Length : end + 9;
-                    }
-                    else _tokens.Add(new Keyword(word));
-                }
-            }
-        }
-
-        private char At(int ahead) => _p + ahead < s.Length ? s[_p + ahead] : '\0';
-
-        private object Number()
-        {
-            var start = _p;
-            _p++;
-            while (_p < s.Length && (char.IsDigit(s[_p]) || s[_p] == '.')) _p++;
-            return double.TryParse(s.AsSpan(start, _p - start), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0.0;
-        }
-
-        private string NameToken()
-        {
-            _p++;
-            var bytes = new List<byte>();
-            while (_p < s.Length && !char.IsWhiteSpace(s[_p]) && "()<>[]{}/%".IndexOf(s[_p]) < 0)
-            {
-                if (s[_p] == '#' && _p + 2 < s.Length && byte.TryParse(s.AsSpan(_p + 1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-                {
-                    bytes.Add(b);
-                    _p += 3;
-                }
-                else bytes.Add((byte)s[_p++]);
-            }
-            return Encoding.UTF8.GetString([.. bytes]);
-        }
-
-        private byte[] Literal()
-        {
-            _p++;
-            var bytes = new List<byte>();
-            var depth = 1;
-            while (_p < s.Length)
-            {
-                var c = s[_p++];
-                if (c == '\\' && _p < s.Length)
-                {
-                    var e = s[_p++];
-                    switch (e)
-                    {
-                        case 'n': bytes.Add((byte)'\n'); break;
-                        case 'r': bytes.Add((byte)'\r'); break;
-                        case 't': bytes.Add((byte)'\t'); break;
-                        case 'b': bytes.Add((byte)'\b'); break;
-                        case 'f': bytes.Add((byte)'\f'); break;
-                        case '\r':
-                            if (_p < s.Length && s[_p] == '\n') _p++;
-                            break;
-                        case '\n': break;
-                        case >= '0' and <= '7':
-                        {
-                            var v = e - '0';
-                            for (var k = 0; k < 2 && _p < s.Length && s[_p] is >= '0' and <= '7'; k++) v = v * 8 + (s[_p++] - '0');
-                            bytes.Add((byte)v);
-                            break;
-                        }
-                        default: bytes.Add((byte)e); break;
-                    }
-                    continue;
-                }
-                if (c == '(') depth++;
-                else if (c == ')' && --depth == 0) break;
-                bytes.Add((byte)c);
-            }
-            return [.. bytes];
-        }
-
-        private byte[] Hex()
-        {
-            _p++;
-            var digits = new StringBuilder();
-            while (_p < s.Length && s[_p] != '>')
-            {
-                if (Uri.IsHexDigit(s[_p])) digits.Append(s[_p]);
-                _p++;
-            }
-            _p++;
-            if (digits.Length % 2 == 1) digits.Append('0');
-            return Convert.FromHexString(digits.ToString());
-        }
-
-        /// <summary>PDF text string bytes: UTF-16BE or UTF-8 with a byte order mark, else PDFDocEncoding (as Latin-1).</summary>
-        private static string Decode(byte[] b) =>
-            b.Length >= 2 && b[0] == 0xFE && b[1] == 0xFF ? Encoding.BigEndianUnicode.GetString(b, 2, b.Length - 2)
-            : b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF ? Encoding.UTF8.GetString(b, 3, b.Length - 3)
-            : Encoding.Latin1.GetString(b);
     }
 }

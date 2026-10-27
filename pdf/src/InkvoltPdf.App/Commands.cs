@@ -174,6 +174,14 @@ public static class Cmd
     public static readonly RoutedUICommand CheckRedaction = Make("Chec_k Redaction…", nameof(CheckRedaction));
     public static readonly RoutedUICommand Sanitize = Make("Sa_nitize Document…", nameof(Sanitize));
 
+    // Comments and form data in and out (see CommentFileActions, FormDataActions)
+    public static readonly RoutedUICommand ExportComments = Make("E_xport Comments…", nameof(ExportComments));
+    public static readonly RoutedUICommand ImportComments = Make("_Import Comments…", nameof(ImportComments));
+    public static readonly RoutedUICommand SummarizeComments = Make("Summari_ze Comments…", nameof(SummarizeComments));
+    public static readonly RoutedUICommand ExportFormData = Make("_Export Form Data…", nameof(ExportFormData));
+    public static readonly RoutedUICommand ImportFormData = Make("_Import Form Data…", nameof(ImportFormData));
+    public static readonly RoutedUICommand FillFormsFromCsv = Make("Fill Forms from _CSV…", nameof(FillFormsFromCsv));
+
     // Drawing tools. Their keys (P, M, R, E, L, W, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.
     public static readonly RoutedUICommand ToolPen = Make("_Pen", nameof(ToolPen));
     public static readonly RoutedUICommand ToolHighlighter = Make("_Highlighter Pen", nameof(ToolHighlighter));
