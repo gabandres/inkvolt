@@ -172,6 +172,12 @@ public sealed record SanitizeStep(IReadOnlySet<SanitizeItem> Items) : BatchStep
     public override string Title => "Sanitize";
 }
 
+/// <summary>Redaction by pattern on every page, applied at once (the pages with matches become images, as in the app).</summary>
+public sealed record RedactPatternsStep(RedactionPatternOptions Options) : BatchStep
+{
+    public override string Title => "Redact patterns";
+}
+
 public sealed record WatermarkStep(WatermarkOptions Options) : BatchStep
 {
     public override string Title => "Add watermark";
@@ -266,8 +272,8 @@ public sealed record BatchPlan
     /// <summary>The PDF itself is saved: something changes it, or the file was an image made into one.</summary>
     public bool WritesPdf(BatchFile file) => file.IsImage || Steps.Any(s => s.ChangesPdf);
 
-    /// <summary>Some action renders pages (page images, OCR), which takes far more memory than the file's size says.</summary>
-    public bool RendersPages => Steps.Any(s => s is OcrStep or ExportStep { IsImages: true });
+    /// <summary>Some action renders pages (page images, OCR, redaction), which takes far more memory than the file's size says.</summary>
+    public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or ExportStep { IsImages: true });
 
     /// <summary>Bates numbers run on across files, so the files are done one at a time, in order.</summary>
     public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null);
@@ -285,6 +291,10 @@ public sealed record BatchPlan
             return "Protect with a password needs an open password, a permissions password, or both.";
         if (Steps.OfType<ExportStep>().GroupBy(e => e.Format).FirstOrDefault(g => g.Count() > 1) is { } twice)
             return $"\"{twice.First().Title}\" is in the list twice.";
+        if (Steps.OfType<RedactPatternsStep>().Any(r => r.Options.IsEmpty))
+            return "Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.";
+        if (Steps.OfType<RedactPatternsStep>().Select(r => RedactionPatterns.ValidateExpression(r.Options.Expression)).FirstOrDefault(e => e is not null) is { } patternError)
+            return patternError;
         if (!ocrAvailable && Steps.Any(s => s is OcrStep))
             return "Text recognition isn't available: Windows has no OCR language installed.";
         return null;
@@ -442,6 +452,9 @@ public static class BatchRunner
     /// <summary>OCR renders pages at this resolution (see the app's recognizer), within this many pixels.</summary>
     private const double OcrDpi = 300, OcrMaxPixels = 60_000_000;
 
+    /// <summary>Redacted pages are drawn again at this resolution (<see cref="Redaction.Apply"/>'s), whole.</summary>
+    private const double RedactDpi = 300;
+
     /// <summary>
     /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
     /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each.
@@ -459,6 +472,7 @@ public static class BatchRunner
             {
                 ExportStep { IsImages: true } e => ((double)e.Dpi, PageImages.MaxPixels),
                 OcrStep => (OcrDpi, OcrMaxPixels),
+                RedactPatternsStep => (RedactDpi, double.MaxValue),
                 _ => (0d, 0d),
             };
             pixels = Math.Max(pixels, Math.Min(max, w / 72 * dpi * (h / 72 * dpi)));
@@ -650,6 +664,15 @@ public static class BatchRunner
                 case ProtectStep p: return PdfSecurity.Protect(d, pw, p.UserPassword, p.OwnerPassword, p.Permissions, p.Method);
                 case UnprotectStep: return PdfSecurity.Unprotect(d, pw);
                 case SanitizeStep s: return Sanitizer.Sanitize(d, pw, s.Items).Data;
+                case RedactPatternsStep r:
+                {
+                    var (redacted, matches) = RedactionPatterns.Redact(d, pw, r.Options, cancel);
+                    var pages = matches.Select(m => m.Page).Distinct().Count();
+                    _notes.Add(matches.Count == 0
+                        ? "Redact patterns: nothing found, left as it was"
+                        : $"Redacted {matches.Count} {(matches.Count == 1 ? "match" : "matches")} on {pages} {(pages == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(matches)})");
+                    return redacted;
+                }
                 case WatermarkStep w: return Watermarks.Apply(d, pw, all, w.Options);
                 case HeaderFooterStep h:
                     return HeaderFooter.Apply(d, pw, all, h.Options with

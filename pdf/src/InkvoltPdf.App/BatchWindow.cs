@@ -405,6 +405,7 @@ internal sealed class BatchWindow : Window
         Item("Protect with Password…", () => AskProtect());
         Item("Remove Password Protection", () => new UnprotectStep());
         Item("Sanitize…", () => AskSanitize(null));
+        Item("Redact Patterns…", () => AskRedactPatterns(null));
         Item("Add Watermark…", () => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null);
         Item("Add Header, Footer & Bates Numbers…", () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
         Item("Rotate Pages…", () => AskRotate(null));
@@ -436,7 +437,7 @@ internal sealed class BatchWindow : Window
         if (_steps.Count == 0)
             _stepList.Items.Add(new ListBoxItem
             {
-                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, watermark, header and footer, rotate, flatten, OCR, export.", Style = Caption, TextWrapping = TextWrapping.Wrap },
+                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, watermark, header and footer, rotate, flatten, OCR, export.", Style = Caption, TextWrapping = TextWrapping.Wrap },
                 Focusable = false,
                 IsHitTestVisible = false,
             });
@@ -467,6 +468,7 @@ internal sealed class BatchWindow : Window
             OptimizeStep o => AskOptimize(o),
             ProtectStep => AskProtect(),
             SanitizeStep s => AskSanitize(s),
+            RedactPatternsStep r => AskRedactPatterns(r),
             WatermarkStep w => PageMarkActions.AskWatermark(this, null, w.Options) is { } x ? new WatermarkStep(x.Options) : null,
             HeaderFooterStep h => PageMarkActions.AskHeaderFooter(this, null, h.Options, h.ContinueBates) is { } y ? new HeaderFooterStep(y.Options, y.ContinueBates) : null,
             RotateStep r => AskRotate(r),
@@ -530,6 +532,9 @@ internal sealed class BatchWindow : Window
         return new SanitizeStep(checks.Where(c => c.Box.IsChecked == true).Select(c => c.Item).ToHashSet());
     }
 
+    private RedactPatternsStep? AskRedactPatterns(RedactPatternsStep? current) =>
+        RedactPatternActions.Ask(this, current?.Options ?? new RedactionPatternOptions(), null) is { } o ? new RedactPatternsStep(o) : null;
+
     private RotateStep? AskRotate(RotateStep? current)
     {
         int[] degrees = [90, -90, 180];
@@ -582,6 +587,8 @@ internal sealed class BatchWindow : Window
                 return s.Items.Count == SanitizeActions.Kinds.Length ? "Everything, signatures too"
                     : s.Items.Count == SanitizeActions.Kinds.Length - 1 && !s.Items.Contains(SanitizeItem.Signatures) ? "Everything but signatures"
                     : $"{s.Items.Count} of {SanitizeActions.Kinds.Length} kinds of hidden data";
+            case RedactPatternsStep r:
+                return RedactPatternActions.Describe(r.Options);
             case WatermarkStep w:
                 var what = w.Options.Image is not null ? "A picture" : $"\"{w.Options.Text}\"";
                 return $"{what}, {w.Options.Opacity:P0} opaque, {(w.Options.Layout == WatermarkLayout.Tiled ? "tiled" : "centered")}{(w.Options.Behind ? ", behind the content" : "")}";
@@ -839,6 +846,7 @@ internal sealed class BatchWindow : Window
             "protect" => new ProtectStep(rest.Split(' ')[0], rest.Split(' ').ElementAtOrDefault(1), PdfPermissions.All),
             "unprotect" => new UnprotectStep(),
             "sanitize" => new SanitizeStep(SanitizeActions.Kinds.Select(k => k.Item).Where(i => i != SanitizeItem.Signatures).ToHashSet()),
+            "redactpatterns" => new RedactPatternsStep(new RedactionPatternOptions { Phrases = rest.Length > 0 ? [rest] : [] }),
             "watermark" => new WatermarkStep(new WatermarkOptions { Text = rest.Length > 0 ? rest : "DRAFT" }),
             "footer" => new HeaderFooterStep(new HeaderFooterOptions { FooterCenter = rest.Length > 0 ? rest : "Page <<page>> of <<pages>>" }),
             "bates" => new HeaderFooterStep(new HeaderFooterOptions { FooterRight = "<<bates>>", Bates = new BatesFormat(rest.Split(' ')[0], 1, 6) }, rest.Contains("continue")),
@@ -867,6 +875,7 @@ internal sealed class BatchWindow : Window
             "optimize" => AskOptimize(null),
             "protect" => AskProtect(),
             "sanitize" => AskSanitize(null),
+            "redactpatterns" => AskRedactPatterns(null),
             "watermark" => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null,
             "headerfooter" => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null,
             "rotate" => AskRotate(null),

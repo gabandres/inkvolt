@@ -17,7 +17,7 @@ namespace InkvoltPdf.App;
 /// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
-/// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search ·
+/// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
 /// apply-redactions [confirm] · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
@@ -232,6 +232,7 @@ internal static class DevScript
             }
             case "redact-text": log.Add($"redact-text: {await tab!.RedactSelection()} marks"); break;
             case "redact-search": log.Add($"redact-search: {tab!.RedactSearchHits()} marks"); break;
+            case "redact-patterns": log.Add($"redact-patterns: {(await tab!.MarkPatternMatches(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] }))?.Count ?? -1} matches"); break;
             case "apply-redactions": log.Add($"apply-redactions: {await tab!.ApplyRedactions(confirm: arg == "confirm")}"); break;
             case "attachments":
                 log.Add($"attachments: {tab!.AttachedFiles.Count}");
@@ -832,7 +833,7 @@ internal static class DevScript
                 else log.Add("dialogfill: no dialog open");
                 break;
             // Batch: batch [path;path] (opens the window, modeless) · batchadd path;path · batchstep optimize|protect open [owner]|unprotect|
-            // sanitize|watermark text|footer text|bates PREFIX [continue]|rotate 90|flatten|ocr|export word|excel|text|png|jpeg ·
+            // sanitize|redactpatterns [phrase]|watermark text|footer text|bates PREFIX [continue]|rotate 90|flatten|ocr|export word|excel|text|png|jpeg ·
             // batchout folder [template] · batchoption signed=edit passwords=skip overwrite=on subfolders=off recursive=off images=a4 ·
             // batchpw password|skip (answers the next password prompt) · batchrun (waits for the result) · batchshot out.png · batchstate · batchclose
             case "batch":

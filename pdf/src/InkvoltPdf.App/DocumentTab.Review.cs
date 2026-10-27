@@ -1209,6 +1209,51 @@ public partial class DocumentTab
         return marks.Count;
     }
 
+    /// <summary>
+    /// Redact by pattern: finds the matches in the background (a progress window with Cancel shows if that takes a while),
+    /// marks them for redaction and turns on the redaction tool, so a mark can be clicked away before the marks are applied.
+    /// Returns the matches, null when cancelled or stopped.
+    /// </summary>
+    public async Task<List<RedactionMatch>?> MarkPatternMatches(RedactionPatternOptions options)
+    {
+        if (!Session.IsPdf || Viewer.Engine is not { } engine) return null;
+        List<RedactionMatch> matches;
+        using (var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Searching the pages…"))
+        {
+            try
+            {
+                var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Searching page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / p.Total));
+                matches = await Task.Run(() => RedactionPatterns.Find(engine, options, progress, prompt.Token), prompt.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            catch (ObjectDisposedException)
+            {
+                Notify("The document changed meanwhile. Try again.");
+                return null;
+            }
+            catch (TimeoutException ex)
+            {
+                Prompt.Error(Window.GetWindow(this), "The search stopped", ex.Message);
+                return null;
+            }
+        }
+        if (!ReferenceEquals(engine, Viewer.Engine)) return null;
+        if (matches.Count == 0)
+        {
+            Notify("Nothing matching was found on the pages searched.");
+            return matches;
+        }
+        Viewer.AddRedactions(matches.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
+        Viewer.Tool = ViewerTool.Redact;
+        Viewer.GoToPage(matches[0].Page);
+        Notify($"Marked {matches.Count} match{(matches.Count == 1 ? "" : "es")} for redaction ({RedactionPatterns.Summary(matches)}). " +
+               "Check the marks and click any you want to keep to unmark it, then apply them.");
+        return matches;
+    }
+
     public bool HasSearchResults => _results.Count > 0;
 
     public void MarkRedaction(int page, RectD rect) => Viewer.AddRedactions([new RedactMark(page, rect)]);

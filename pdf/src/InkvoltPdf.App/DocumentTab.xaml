@@ -416,7 +416,9 @@
                         <Button x:Name="RedactDone" DockPanel.Dock="Right" Style="{StaticResource IconButton}" FontSize="10" Height="26" MinWidth="26"
                                 Content="&#xE711;" ToolTip="Leave the redaction tool (marks stay until you clear them)" AutomationProperties.Name="Close redaction bar" />
                         <Button x:Name="RedactApply" DockPanel.Dock="Right" Content="Apply redactions…" Margin="8,0,4,0" Style="{DynamicResource AccentButtonStyle}" />
-                        <Button x:Name="RedactClear" DockPanel.Dock="Right" Content="Clear marks" Margin="12,0,0,0" />
+                        <Button x:Name="RedactClear" DockPanel.Dock="Right" Content="Clear marks" Margin="8,0,0,0" />
+                        <Button DockPanel.Dock="Right" Content="Redact by pattern…" Margin="12,0,0,0" Command="app:Cmd.RedactPatterns"
+                                ToolTip="Find Social Security, phone and card numbers, email addresses, dates, your words or your own pattern, and mark them" />
                         <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE73B;" FontSize="16" Margin="0,0,12,0"
                                    Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                         <TextBlock x:Name="RedactBarText" VerticalAlignment="Center" TextWrapping="Wrap" />

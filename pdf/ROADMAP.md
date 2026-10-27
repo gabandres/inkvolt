@@ -76,6 +76,10 @@ patterns).
   Foxit sells Smart Redact (names, organizations; batch) as a paid plug-in
   ([Foxit](https://resource-cms.foxit.com/tutorials/master-ai-powered-pdf-redaction-with-smart-redact-in-foxit-pdf-editor)).
 - **Now.** Areas, selected text, every match of a search; pages become images at 300 dpi with OCR text put back.
+  Redact by Pattern (`RedactionPatterns`): SSN, phone, email, card (Luhn), date, IBAN (mod 97), IP and ZIP patterns,
+  phrases and a regex (with a timeout), across line breaks and hyphens, on all pages or a range, marked for review in
+  the document; Batch's Redact Patterns action applies them over many files. Still to do: saved named pattern sets,
+  scanned pages through OCR text, a per-hit list with context, the removal report, the read-back check, the Pro split.
 - **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
   a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
   so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
@@ -91,7 +95,7 @@ patterns).
   ([Adobe](https://helpx.adobe.com/acrobat/current/action-wizard-acrobat-pro.html)). ABBYY FineReader PDF's Hot Folder:
   watched local, network, FTP or mail folders, now or on a schedule, capped at 5,000 pages a month on 2 cores
   ([ABBYY](https://pdf.abbyy.com/how-to/optimize-digitization-routines/)).
-- **Now.** Batch with 12 actions; the action list isn't saved.
+- **Now.** Batch with 13 actions; the action list isn't saved.
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the

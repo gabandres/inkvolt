@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Redact by Pattern (Review menu): find and mark Social Security, phone and card numbers, email addresses, dates, bank account numbers (IBAN), IP addresses, your own words or your own pattern, on all pages or some; check the marks, then apply. Also a Batch action for many files at once.
 
 ## 1.0.8
 - Steadier: a few specially made PDFs could hang or close Inkvolt PDF (when deleting pages, reducing size, sanitizing, redacting or filling a form); they no longer do.
