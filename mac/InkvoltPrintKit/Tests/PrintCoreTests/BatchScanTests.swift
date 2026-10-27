@@ -84,69 +84,73 @@ struct BatchScanTests {
     }
 
     @Test(arguments: PatchCode.allCases)
-    func readsEachPatch(_ code: PatchCode) {
-        #expect(PatchCodes.find(Self.patchPage(code), pixelsPerInch: Self.ppi) == code)
+    func readsEachPatch(_ code: PatchCode) async {
+        #expect(await offPool { PatchCodes.find(Self.patchPage(code), pixelsPerInch: Self.ppi) } == code)
     }
 
-    @Test func readsPatchesAcrossThePageToo() {
-        #expect(PatchCodes.find(Self.patchPage(.patch2, x: 2, y: 5, vertical: false), pixelsPerInch: Self.ppi) == .patch2)
+    @Test func readsPatchesAcrossThePageToo() async {
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patch2, x: 2, y: 5, vertical: false), pixelsPerInch: Self.ppi) } == .patch2)
     }
 
     @Test(arguments: [4.0, -6.0])
-    func readsASheetFedCrooked(_ degrees: Double) {
-        #expect(PatchCodes.find(Self.patchPage(.patchT, degrees: degrees), pixelsPerInch: Self.ppi) == .patchT)
+    func readsASheetFedCrooked(_ degrees: Double) async {
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, degrees: degrees), pixelsPerInch: Self.ppi) } == .patchT)
     }
 
-    @Test func readsAPhotocopiedOrLowResolutionPatch() {
-        #expect(PatchCodes.find(Self.patchPage(.patchT, gain: 0.02), pixelsPerInch: Self.ppi) == .patchT) // bars spread
-        #expect(PatchCodes.find(Self.patchPage(.patchT, gain: -0.015), pixelsPerInch: Self.ppi) == .patchT) // bars thin
-        #expect(PatchCodes.find(Self.patchPage(.patchT, ppi: 72), pixelsPerInch: 72) == .patchT) // legal from the feeder
-        #expect(PatchCodes.find(Self.patchPage(.patchT, ink: 110), pixelsPerInch: Self.ppi) == .patchT) // grey toner
+    @Test func readsAPhotocopiedOrLowResolutionPatch() async {
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, gain: 0.02), pixelsPerInch: Self.ppi) } == .patchT) // bars spread
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, gain: -0.015), pixelsPerInch: Self.ppi) } == .patchT) // bars thin
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, ppi: 72), pixelsPerInch: 72) } == .patchT) // legal from the feeder
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, ink: 110), pixelsPerInch: Self.ppi) } == .patchT) // grey toner
     }
 
-    @Test func upsideDownPatchTReadsAsPatch3AndStillSeparates() {
+    @Test func upsideDownPatchTReadsAsPatch3AndStillSeparates() async {
         let turned = Self.patchPage(.patchT, degrees: 180)
 
-        #expect(PatchCodes.find(turned, pixelsPerInch: Self.ppi) == .patch3) // NWNW read backwards is WNWN
-        #expect(Separators.detect(turned, pixelsPerInch: Self.ppi, splitAt: .patchCode).kind == .patchCode)
+        #expect(await offPool { PatchCodes.find(turned, pixelsPerInch: Self.ppi) } == .patch3) // NWNW read backwards is WNWN
+        #expect(await offPool { Separators.detect(turned, pixelsPerInch: Self.ppi, splitAt: .patchCode).kind } == .patchCode)
     }
 
-    @Test func tooShortTooSmallOrTooLargeIsNoPatch() {
-        #expect(PatchCodes.find(Self.patchPage(.patchT, length: 0.5), pixelsPerInch: Self.ppi) == nil) // a fragment, not a 2 in patch
-        #expect(PatchCodes.find(Self.patchPage(.patchT, ppi: 40), pixelsPerInch: 100) == nil) // at 40% size: 0.32 in across
-        #expect(PatchCodes.find(Self.patchPage(.patchT, ppi: 200), pixelsPerInch: 100) == nil) // at twice the size: 1.6 in across
+    @Test func tooShortTooSmallOrTooLargeIsNoPatch() async {
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, length: 0.5), pixelsPerInch: Self.ppi) } == nil) // a fragment, not a 2 in patch
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, ppi: 40), pixelsPerInch: 100) } == nil) // at 40% size: 0.32 in across
+        #expect(await offPool { PatchCodes.find(Self.patchPage(.patchT, ppi: 200), pixelsPerInch: 100) } == nil) // at twice the size: 1.6 in across
     }
 
-    @Test func textTablesAndBarsOfOneWidthAreNoPatch() {
+    @Test func textTablesAndBarsOfOneWidthAreNoPatch() async {
         // Lines of words.
         var text = Self.paper()
         for row in 0..<30 {
             for x in stride(from: 110, to: 740, by: 70) { Self.fill(&text, x, 150 + row * 24, 58, 8, 40) }
         }
-        #expect(PatchCodes.find(Self.image(text), pixelsPerInch: Self.ppi) == nil)
+        let textImage = Self.image(text)
+        #expect(await offPool { PatchCodes.find(textImage, pixelsPerInch: Self.ppi) } == nil)
 
         // A table: thin rules every 0.5 in, with text in the cells.
         var table = Self.paper()
         for x in stride(from: 100, through: 700, by: 50) { Self.fill(&table, x, 200, 2, 600, 30) }
         for y in stride(from: 200, through: 800, by: 30) { Self.fill(&table, 100, y, 600, 2, 30) }
-        #expect(PatchCodes.find(Self.image(table), pixelsPerInch: Self.ppi) == nil)
+        let tableImage = Self.image(table)
+        #expect(await offPool { PatchCodes.find(tableImage, pixelsPerInch: Self.ppi) } == nil)
 
         // Four bars of one width, spaced like a patch: two must be wide.
         var even = Self.paper()
         for i in 0..<4 { Self.fill(&even, 300 + i * 20, 300, 12, 300, 25) }
-        #expect(PatchCodes.find(Self.image(even), pixelsPerInch: Self.ppi) == nil)
+        let evenImage = Self.image(even)
+        #expect(await offPool { PatchCodes.find(evenImage, pixelsPerInch: Self.ppi) } == nil)
 
         // A barcode: thin bars far below the patch's size.
         var barcode = Self.paper()
         for i in 0..<60 { Self.fill(&barcode, 300 + i * 4, 300, i % 3 == 0 ? 2 : 1, 80, 25) }
-        #expect(PatchCodes.find(Self.image(barcode), pixelsPerInch: Self.ppi) == nil)
+        let barcodeImage = Self.image(barcode)
+        #expect(await offPool { PatchCodes.find(barcodeImage, pixelsPerInch: Self.ppi) } == nil)
 
-        #expect(PatchCodes.find(Self.image(Self.paper(70)), pixelsPerInch: Self.ppi) == nil) // a dark page
+        #expect(await offPool { PatchCodes.find(Self.image(Self.paper(70)), pixelsPerInch: Self.ppi) } == nil) // a dark page
     }
 
     // ---- What counts as a separator ----
 
-    @Test func separatorPagesByMode() {
+    @Test func separatorPagesByMode() async {
         let patchT = Self.patchPage(.patchT)
         let blank = Self.image(Self.paper())
         var textPixels = Self.paper()
@@ -154,19 +158,19 @@ struct BatchScanTests {
         let text = Self.image(textPixels)
         let ppi = Self.ppi
 
-        #expect(Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .patchCode) == SeparatorFound(.patchCode, code: .patchT))
-        #expect(Separators.detect(blank, pixelsPerInch: ppi, splitAt: .patchCode).kind == .none)
-        #expect(Separators.detect(blank, pixelsPerInch: ppi, splitAt: .blankPage).kind == .blankPage)
-        #expect(Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .blankPage).kind == .none)
-        #expect(Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind == .patchCode)
-        #expect(Separators.detect(blank, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind == .blankPage)
-        #expect(Separators.detect(text, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind == .none)
-        #expect(Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .none).kind == .none)
+        #expect(await offPool { Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .patchCode) } == SeparatorFound(.patchCode, code: .patchT))
+        #expect(await offPool { Separators.detect(blank, pixelsPerInch: ppi, splitAt: .patchCode).kind } == .none)
+        #expect(await offPool { Separators.detect(blank, pixelsPerInch: ppi, splitAt: .blankPage).kind } == .blankPage)
+        #expect(await offPool { Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .blankPage).kind } == .none)
+        #expect(await offPool { Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind } == .patchCode)
+        #expect(await offPool { Separators.detect(blank, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind } == .blankPage)
+        #expect(await offPool { Separators.detect(text, pixelsPerInch: ppi, splitAt: .patchCodeOrBlankPage).kind } == .none)
+        #expect(await offPool { Separators.detect(patchT, pixelsPerInch: ppi, splitAt: .none).kind } == .none)
     }
 
     @Test(arguments: [PatchCode.patch1, .patch4, .patch6])
-    func imageControlPatchesAreNotSeparators(_ code: PatchCode) {
-        #expect(Separators.detect(Self.patchPage(code), pixelsPerInch: Self.ppi, splitAt: .patchCode).kind == .none)
+    func imageControlPatchesAreNotSeparators(_ code: PatchCode) async {
+        #expect(await offPool { Separators.detect(Self.patchPage(code), pixelsPerInch: Self.ppi, splitAt: .patchCode).kind } == .none)
     }
 
     // ---- Splitting a run into files ----
@@ -300,7 +304,7 @@ struct BatchScanTests {
         #expect(SeparatorSheet.page(.patchT, widthIn: 8.5, heightIn: 6) == nil) // too short for the patch and its text
     }
 
-    @Test func separatorSheetLayoutReadsBackAsItsPatch() {
+    @Test func separatorSheetLayoutReadsBackAsItsPatch() async {
         // Every bar the sheet draws (in inches on the page), rendered at 100 dpi, is read as the sheet's patch.
         for code in [PatchCode.patchT, .patch2] {
             var pixels = Self.paper()
@@ -309,11 +313,12 @@ struct BatchScanTests {
                 let rw = Int((r.width * Self.ppi).rounded()), rh = Int((r.height * Self.ppi).rounded())
                 Self.fill(&pixels, x, y, rw, rh, 25)
             }
-            #expect(PatchCodes.find(Self.image(pixels), pixelsPerInch: Self.ppi) == code)
+            let pixelsImage = Self.image(pixels)
+            #expect(await offPool { PatchCodes.find(pixelsImage, pixelsPerInch: Self.ppi) } == code)
             // The same bars from PrintCore's own raster (demo mode's scans of a sheet).
             let sheet = SeparatorSheet.image(code, widthIn: 8.5, heightIn: 11, pixelsPerInch: Self.ppi)
             #expect(sheet.width == Self.w && sheet.height == Self.h)
-            #expect(PatchCodes.find(sheet, pixelsPerInch: Self.ppi) == code)
+            #expect(await offPool { PatchCodes.find(sheet, pixelsPerInch: Self.ppi) } == code)
         }
     }
 }
