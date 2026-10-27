@@ -4,7 +4,7 @@ import Testing
 @testable import PdfCore
 
 /// Not a port: the page edits (D3), the comments, drawings, stamps and images (D4), form filling and Fill & Sign (D5),
-/// and Edit Text & Images (D5a) run on real documents, copied by
+/// Edit Text & Images (D5a) and Recognize Text (D5b) run on real documents, copied by
 /// hand into /tmp/inkvolt-d3-real (skipped when the folder isn't there; real files never go into the repo). Each result
 /// must open in PdfEngine and in Apple's PDFKit with the expected page count; page edits must leave the expected source
 /// pages in the expected order (compared as small renders); annotations must be read back and the page must render in
@@ -403,5 +403,69 @@ struct RealFileTests {
         }
         #expect(failures == 0)
     }
-}
 
+    /// Recognize Text (D5b) on the scan-like copies (no extractable text, or text only in an invisible OCR layer): each
+    /// page (the first three) drawn at 200 dpi and rebuilt as a picture-only PDF, recognized by Vision, and compared with
+    /// the original's own text layer. Prints counts only.
+    @Test(.enabled(if: !files.isEmpty)) func recognizeTextOnRealFiles() throws {
+        var failures = 0
+        for (k, name) in Self.files.enumerated() {
+            let label = "file\(k + 1)"
+            let data = Array(try Data(contentsOf: URL(fileURLWithPath: "\(Self.folder)/\(name)")))
+            let engine = try PdfEngine.open(data)
+            let n = min(engine.pageCount, 3)
+            let originalText = try (0..<n).map { try engine.text($0).text }.joined(separator: "\n")
+            let invisibleLayer = (try PdfText.everything(data)).range(of: #"\b3\s+Tr\b"#, options: .regularExpression) != nil
+            let chars = originalText.filter { !$0.isWhitespace }.count
+            guard chars == 0 || invisibleLayer else {
+                engine.close()
+                print("REAL \(label) ocr not scan-like (\(chars) characters of visible text) SKIP")
+                continue
+            }
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-ocr-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+            var images: [(bytes: [UInt8], name: String)] = []
+            for p in 0..<n {
+                let path = dir.appendingPathComponent("p\(p).jpg").path
+                try engine.saveImage(p, dpi: 200, path: path, jpeg: true)
+                images.append((Array(try Data(contentsOf: URL(fileURLWithPath: path))), "p\(p).jpg"))
+            }
+            engine.close()
+            let imageOnly = try ImageImport.imagesToPdf(images)
+            let started = Date()
+            let (result, report) = try PageOcr.recognizeText(imageOnly, nil, PageOcr.recognizer(VisionRecognizer()))
+            let seconds = Date().timeIntervalSince(started)
+
+            let after = try PdfEngine.open(result)
+            let recognized = try (0..<n).map { try after.text($0).text }.joined(separator: "\n")
+            let invisible = try (0..<n).allSatisfy { p in
+                let a = try PdfEngine.open(imageOnly)
+                defer { a.close() }
+                return try a.render(p, scale: 0.5).pixels == after.render(p, scale: 0.5).pixels
+            }
+            after.close()
+            let kitChars = (PDFDocument(data: Data(result))?.page(at: 0)?.string ?? "").filter { !$0.isWhitespace }.count
+
+            func wordsOf(_ t: String) -> [String] {
+                t.lowercased().components(separatedBy: CharacterSet.letters.inverted).filter { $0.count >= 5 }
+            }
+            let sample = Array(Set(wordsOf(originalText))).sorted().prefix(20)
+            let got = Set(wordsOf(recognized))
+            let found = sample.filter { got.contains($0) }.count
+            // Accents dropped, and anywhere in the text (a word Vision split or joined differently).
+            let fold = { (t: String) in t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil) }
+            let foldedText = fold(recognized.filter { !$0.isWhitespace })
+            let loose = sample.filter { foldedText.contains(fold($0)) }.count
+            let foldedWords = Set(got.map(fold))
+            let accentsOnly = sample.filter { foldedWords.contains(fold($0)) }.count
+            func wordCount(_ t: String) -> Int { t.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count }
+            print("REAL \(label) ocr whitespace-separated words: original \(wordCount(originalText)), recognized \(wordCount(recognized)), Vision \(report.words)")
+            let recognizedChars = recognized.filter { !$0.isWhitespace }.count
+            let ok = recognizedChars > 0 && invisible && kitChars > 0
+            if !ok { failures += 1 }
+            print("REAL \(label) ocr pages \(n) layer-before \(invisibleLayer ? "yes" : "no") original-chars \(chars) recognized-chars \(recognizedChars) words \(report.words) sample-found \(found)/\(sample.count) (without accents \(accentsOnly), anywhere \(loose)) pdfkit-chars \(kitChars) invisible \(invisible ? "yes" : "no") \(String(format: "%.1f", seconds)) s \(ok ? "PASS" : "FAIL")")
+        }
+        #expect(failures == 0)
+    }
+}

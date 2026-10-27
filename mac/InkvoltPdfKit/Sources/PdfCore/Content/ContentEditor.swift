@@ -391,7 +391,7 @@ public enum ContentEditor {
     }
 
     /// A dictionary entry the page may change: its own (direct) one, or a copy of a shared one put in its place.
-    private static func ownDict(_ doc: MuDoc, _ parent: PObj, _ key: String, _ inherited: PObj? = nil) -> PObj {
+    static func ownDict(_ doc: MuDoc, _ parent: PObj, _ key: String, _ inherited: PObj? = nil) -> PObj {
         let current = parent[key] ?? inherited
         if let current, current.isDict, !current.isRef, parent[key] != nil { return current }
         let copy = doc.dict()
