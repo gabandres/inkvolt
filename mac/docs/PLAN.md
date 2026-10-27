@@ -356,7 +356,8 @@ As for Print: each step ports the module's .NET tests first, under the same name
 
 Decided 2026-10-27 with the owner: Inkvolt PDF on the Mac reaches full parity with the Windows app (and Inkvolt Print
 already has it, but for HP's clean-up tool, which has no macOS counterpart), so a person, an office or a school picks
-the platform, not the features. 1.0 is the first stage; the E-steps after it bring every other Windows feature. From the
+the platform, not the features. 1.0 is the first stage and goes public when D2-D8 are done (decided 2026-10-27: release at 1.0, saying that more is
+coming; a notarized DMG needs no App Review, only notarization); the E-steps after it bring every other Windows feature. From the
 roadmap (`pdf/ROADMAP.md`) on, a feature counts as done only when it ships on both. One Inkvolt Pro key (the same
 signed format) unlocks Pro on both, and a business licence covers both.
 
