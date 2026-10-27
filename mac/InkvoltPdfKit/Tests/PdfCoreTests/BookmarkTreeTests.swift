@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import PdfCore
 
-/// Ported from BookmarkTreeTests.cs. Adapted: "untouched branches stay the same records" is equality here (bookmarks are
-/// values). EditsRoundTripThroughTheFile comes with D3's `Bookmarks` (reading and writing a file's outline).
+/// Ported from BookmarkTreeTests.cs: all 3 tests. Adapted: "untouched branches stay the same records" is equality here
+/// (bookmarks are values).
 struct BookmarkTreeTests {
     private func tree() -> [Bookmark] {
         [
@@ -50,5 +50,13 @@ struct BookmarkTreeTests {
         #expect(show(try BookmarkTree.move(t, [0, 1], [], 1)) == "A(A1) A2 B C(C1)")
         #expect(throws: BookmarkMoveRefused.self) { try BookmarkTree.move(t, [0], [0, 1], 0) }
         #expect(throws: BookmarkNotFound.self) { try BookmarkTree.remove(t, [5]) }
+    }
+
+    @Test func editsRoundTripThroughTheFile() throws {
+        let pdf = try Bookmarks.setOutline(TestPdf.make(3), nil, tree())
+        let read = try Bookmarks.read(pdf, nil)
+        let edited = try Bookmarks.setOutline(pdf, nil, try BookmarkTree.move(try BookmarkTree.replace(read, [1], titled("Bee")), [2, 0], [], 0))
+        #expect(show(try Bookmarks.read(edited, nil)) == "C1 A(A1 A2) Bee C")
+        #expect(try Bookmarks.read(edited, nil)[0].pageIndex == 2)
     }
 }

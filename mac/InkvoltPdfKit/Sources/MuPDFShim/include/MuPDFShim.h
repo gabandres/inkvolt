@@ -126,6 +126,84 @@ int inkv_can_append(void *ctx, inkv_doc *doc);
 int inkv_append_pdf(void *ctx, inkv_doc *doc, const uint8_t *original, size_t original_length, uint8_t **out, size_t *length,
                     char *err);
 
+// ---- PDF objects (D3 on): what PDFsharp's object model is on Windows, over MuPDF's pdf_obj. Every object a function
+// returns is the caller's (inkv_obj_drop); objects of documents opened in the same context can be grafted between them.
+// Reading resolves indirect references; an object that can't be read reads as null.
+
+typedef struct inkv_obj inkv_obj;
+typedef struct inkv_graft inkv_graft;
+
+/// An empty PDF (no pages), for merging and images.
+inkv_doc *inkv_new_pdf(void *ctx, char *err);
+/// An image file opened as a document (MuPDF's image handler; `magic` such as "image/png"); one page per frame.
+inkv_doc *inkv_open_image(void *ctx, const uint8_t *data, size_t length, const char *magic, char *err);
+/// Draws a page at `scale` into straight (not premultiplied) RGBA on transparency; malloc'ed (inkv_free). 0 on failure.
+int inkv_render_rgba(void *ctx, inkv_doc *doc, int page, float scale, uint8_t **pixels, int *width, int *height, char *err);
+
+void inkv_obj_drop(void *ctx, inkv_obj *obj);
+inkv_obj *inkv_obj_trailer(void *ctx, inkv_doc *doc, char *err);
+/// The page's object (an indirect reference). NULL on failure.
+inkv_obj *inkv_obj_page(void *ctx, inkv_doc *doc, int index, char *err);
+/// The index of the page an object (a reference to a page object) is, or -1.
+int inkv_obj_page_number(void *ctx, inkv_doc *doc, inkv_obj *obj);
+/// 0 null (or missing, or unreadable), 1 bool, 2 int, 3 real, 4 name, 5 string, 6 array, 7 dict (a stream is a dict).
+int inkv_obj_kind(void *ctx, inkv_obj *obj);
+int inkv_obj_is_ref(void *ctx, inkv_obj *obj);
+int inkv_obj_num(void *ctx, inkv_obj *obj);
+/// The resolved object's address: identifies a direct object while it lives.
+uintptr_t inkv_obj_identity(void *ctx, inkv_obj *obj);
+int inkv_obj_is_stream(void *ctx, inkv_obj *obj);
+int inkv_obj_bool(void *ctx, inkv_obj *obj);
+double inkv_obj_number(void *ctx, inkv_obj *obj);
+/// The name without its slash, copied into out; 0 when it isn't a name.
+int inkv_obj_name(void *ctx, inkv_obj *obj, char *out, int size);
+/// A string's bytes (malloc'ed); NULL when it isn't a string.
+uint8_t *inkv_obj_string(void *ctx, inkv_obj *obj, size_t *length);
+/// A string decoded as text (PDFDocEncoding or UTF-16), as UTF-8 (malloc'ed); NULL when it isn't a string.
+char *inkv_obj_text(void *ctx, inkv_obj *obj);
+/// An array's length or a dictionary's number of entries; 0 otherwise.
+int inkv_obj_count(void *ctx, inkv_obj *obj);
+inkv_obj *inkv_obj_at(void *ctx, inkv_obj *array, int index);
+/// A dictionary's key (malloc'ed) and value at `index`.
+char *inkv_obj_key_at(void *ctx, inkv_obj *dict, int index);
+inkv_obj *inkv_obj_value_at(void *ctx, inkv_obj *dict, int index);
+/// A dictionary's value for `key` (no slash); NULL when missing.
+inkv_obj *inkv_obj_get(void *ctx, inkv_obj *dict, const char *key);
+/// Sets (or, with value NULL, removes) a dictionary entry. 0 on failure.
+int inkv_obj_put(void *ctx, inkv_obj *dict, const char *key, inkv_obj *value, char *err);
+int inkv_obj_array_put(void *ctx, inkv_obj *array, int index, inkv_obj *value, char *err);
+/// Inserts at `index` (the length appends).
+int inkv_obj_array_insert(void *ctx, inkv_obj *array, int index, inkv_obj *value, char *err);
+int inkv_obj_array_delete(void *ctx, inkv_obj *array, int index, char *err);
+/// A new direct object: kind as inkv_obj_kind (bool, int and real from `number`, name from `text`, string from `bytes`),
+/// or 8: a text string from UTF-8 `text` (PDFDocEncoding when it fits, else UTF-16).
+inkv_obj *inkv_obj_new(void *ctx, inkv_doc *doc, int kind, double number, const char *text, const uint8_t *bytes, size_t length,
+                       char *err);
+/// A new indirect object holding `obj`; returns the reference.
+inkv_obj *inkv_obj_add(void *ctx, inkv_doc *doc, inkv_obj *obj, char *err);
+/// A reference to object `num` (for walking every object).
+inkv_obj *inkv_obj_ref(void *ctx, inkv_doc *doc, int num, char *err);
+int inkv_obj_xref_len(void *ctx, inkv_doc *doc);
+/// A stream's data, decoded, or with `raw` as the file stores it (still encoded); malloc'ed. NULL on failure.
+uint8_t *inkv_obj_stream(void *ctx, inkv_doc *doc, inkv_obj *obj, int raw, size_t *length, char *err);
+/// A new stream object (returns its reference): `dict`'s entries (may be NULL) and the bytes, deflated when `deflate`
+/// (/Filter /FlateDecode), else kept as they are (already encoded as `dict` says).
+inkv_obj *inkv_obj_add_stream(void *ctx, inkv_doc *doc, inkv_obj *dict, const uint8_t *bytes, size_t length, int deflate,
+                              char *err);
+/// Replaces a stream's data, as inkv_obj_add_stream stores it. 0 on failure.
+int inkv_obj_set_stream(void *ctx, inkv_doc *doc, inkv_obj *stream, const uint8_t *bytes, size_t length, int deflate, char *err);
+
+/// Inserts a page object (a reference) into the page tree before page `at` (the count appends). 0 on failure.
+int inkv_page_insert(void *ctx, inkv_doc *doc, int at, inkv_obj *page, char *err);
+
+/// Copies between documents opened in the same context, each source object once per map.
+inkv_graft *inkv_graft_new(void *ctx, inkv_doc *dst, char *err);
+void inkv_graft_drop(void *ctx, inkv_graft *map);
+/// Source page `from` copied (its contents, resources and boxes, not its annotations) as page `to` of the map's document.
+int inkv_graft_page(void *ctx, inkv_graft *map, int to, inkv_doc *src, int from, char *err);
+/// A source object copied into the map's document, with everything it refers to.
+inkv_obj *inkv_graft_obj(void *ctx, inkv_graft *map, inkv_obj *obj, char *err);
+
 void inkv_free(void *p);
 
 #endif

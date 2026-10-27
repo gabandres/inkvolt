@@ -5,10 +5,11 @@ import Foundation
 /// plus a marker word and two more lines, in Helvetica, on Letter pages. Written by hand, objects and cross-reference
 /// table, so the tests need nothing but MuPDF to read them.
 enum TestPdf {
-    static func make(_ pages: Int, marker: String = "alpha") -> [UInt8] {
+    /// `catalogExtra`: more catalog entries (the Windows tests add them with PDFsharp, e.g. /PageLabels).
+    static func make(_ pages: Int, marker: String = "alpha", catalogExtra: String = "") -> [UInt8] {
         var objects: [String] = []
         // 1 catalog, 2 page tree, 3 font, then per page: the page and its content stream.
-        objects.append("<< /Type /Catalog /Pages 2 0 R >>")
+        objects.append("<< /Type /Catalog /Pages 2 0 R \(catalogExtra)>>")
         let kids = (0..<pages).map { "\(4 + $0 * 2) 0 R" }.joined(separator: " ")
         objects.append("<< /Type /Pages /Kids [\(kids)] /Count \(pages) >>")
         objects.append("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
@@ -80,6 +81,27 @@ enum Core1TestPdf {
             objects[10 + i] = stream("BT /Helv 20 Tf 72 700 Td (\(label) \(i + 1)) Tj ET")
         }
         return build(objects)
+    }
+
+    /// One page ("Page 1") with an Info dictionary and an XMP packet holding a custom property, a PDF/A id and a 2020
+    /// creation date.
+    static func withXmp(title: String = "Old title") -> [UInt8] {
+        let xmp = "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
+            + "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+            + "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" "
+            + "xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\" xmlns:my=\"urn:example:my\" xmp:CreateDate=\"2020-01-02T03:04:05Z\" pdfaid:part=\"2\">"
+            + "<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">\(title)</rdf:li></rdf:Alt></dc:title>"
+            + "<xmp:ModifyDate>2020-01-02T03:04:05Z</xmp:ModifyDate><my:Custom>keep me</my:Custom>"
+            + "</rdf:Description></rdf:RDF></x:xmpmeta>\n<?xpacket end=\"w\"?>"
+        return build([
+            1: "<< /Type /Catalog /Pages 2 0 R /Metadata 4 0 R >>",
+            2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            3: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /Helv 7 0 R >> >> >>",
+            4: stream(xmp, "/Type /Metadata /Subtype /XML"),
+            5: "<< /Title (\(title)) /Producer (Test) /CreationDate (D:20200102030405Z) >>",
+            6: stream("BT /Helv 20 Tf 72 700 Td (Page 1) Tj ET"),
+            7: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        ], trailerExtra: "/Info 5 0 R")
     }
 
     /// One page that takes MuPDF a long time to render: many overlapping semi-transparent shapes.

@@ -73,6 +73,17 @@ struct EngineTests {
         #expect(throws: PasswordRequired(wrongPassword: true)) { try PdfEngine.open(TestPdf.encrypted(2, "pw"), password: "wrong") }
     }
 
+    /// New for the Mac (the app asked for it): a stale page number throws instead of stopping the app.
+    @Test func aPageThatIsntThereThrows() throws {
+        let engine = try PdfEngine.open(TestPdf.make(2))
+        defer { engine.close() }
+        #expect(throws: PdfEngineError.self) { try engine.render(2, scale: 1) }
+        #expect(throws: PdfEngineError.self) { try engine.render(-1, scale: 1) }
+        #expect(throws: PdfEngineError.self) { try engine.text(5) }
+        #expect(throws: PdfEngineError.self) { try engine.links(9) }
+        #expect(try engine.text(1).text.contains("Page 2"))
+    }
+
     @Test func unencryptedDocumentIgnoresPassword() throws {
         let engine = try PdfEngine.open(TestPdf.make(1), password: "whatever")
         defer { engine.close() }

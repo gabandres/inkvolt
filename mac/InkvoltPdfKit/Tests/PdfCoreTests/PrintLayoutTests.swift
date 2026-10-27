@@ -33,9 +33,11 @@ struct PrintLayoutTests {
         var read: [Int] = []
         for s in 0..<sheets { read += [sides[2 * s].right, sides[2 * s + 1].left] }
         for s in stride(from: sheets - 1, through: 0, by: -1) { read += [sides[2 * s + 1].right, sides[2 * s].left] }
-        #expect(read == (0..<(sheets * 4)).map { $0 < pages ? $0 : -1 })
+        let expected: [Int] = (0..<(sheets * 4)).map { (i: Int) -> Int in i < pages ? i : -1 }
+        #expect(read == expected)
         // Every page exactly once.
-        #expect(sides.flatMap { [$0.left, $0.right] }.filter { $0 >= 0 }.sorted() == Array(0..<pages))
+        let printed: [Int] = sides.flatMap { (s: (left: Int, right: Int)) -> [Int] in [s.left, s.right] }.filter { $0 >= 0 }.sorted()
+        #expect(printed == Array(0..<pages))
     }
 
     @Test func bookletPagesSitAgainstTheFold() throws {

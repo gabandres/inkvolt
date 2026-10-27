@@ -123,7 +123,7 @@ struct DrawingGeometryTests {
     }
 
     @Test func simplifyDropsPointsOnAStraightRun() {
-        let pts = (0..<50).map { PointD(Double($0), $0 < 25 ? 0 : Double($0 - 25)) }
+        let pts: [PointD] = (0..<50).map { (i: Int) -> PointD in PointD(Double(i), i < 25 ? 0 : Double(i - 25)) }
         #expect(DrawingGeometry.simplify(pts, 0.1) == [PointD(0, 0), PointD(25, 0), PointD(49, 24)])
         #expect(DrawingGeometry.simplify([PointD(0, 0), PointD(1, 1)], 1).count == 2)
     }

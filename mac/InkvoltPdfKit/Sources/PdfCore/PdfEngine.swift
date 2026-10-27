@@ -192,6 +192,12 @@ public final class PdfEngine: @unchecked Sendable {
 
     public func page(_ index: Int) -> PageGeometry { pages[index] }
 
+    /// The page's geometry, or `PdfEngineError` when there is no such page (a caller's stale index must not crash).
+    private func geometry(_ page: Int) throws -> PageGeometry {
+        guard pages.indices.contains(page) else { throw PdfEngineError(message: "There is no page \(page + 1).") }
+        return pages[page]
+    }
+
     /// Renders a page (or a region of it, in page points) at `scale` pixels per point.
     /// - Throws: `CancellationError` when `cancel` fires (MuPDF stops mid-render); `PdfEngineError` when the image would
     ///   exceed `maxPixels`.
@@ -201,7 +207,7 @@ public final class PdfEngine: @unchecked Sendable {
         defer { gate.unlock() }
         guard let main else { throw PdfEngineClosed() }
         try cancel.check()
-        let g = pages[page]
+        let g = try geometry(page)
         let r = region ?? RectD(0, 0, g.width, g.height)
         try Self.checkSize(r.width * scale, r.height * scale)
         let cookie = cancel == nil ? nil : inkv_new_cookie()
@@ -230,7 +236,7 @@ public final class PdfEngine: @unchecked Sendable {
         guard let main else { throw PdfEngineClosed() }
         try cancel.check()
         let scale = dpi / 72
-        let g = pages[page]
+        let g = try geometry(page)
         try Self.checkSize((g.width * scale).rounded(.up), (g.height * scale).rounded(.up))
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         guard inkv_save_image(main.ctx, main.doc, Int32(page), Float(scale), path, jpeg ? 1 : 0, &err) != 0 else {
@@ -298,7 +304,7 @@ public final class PdfEngine: @unchecked Sendable {
     }
 
     private func extractText(_ instance: Instance, _ page: Int) throws -> PageText {
-        let g = pages[page]
+        let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var lines: UnsafeMutablePointer<inkv_line>?
         var chars: UnsafeMutablePointer<inkv_char>?
@@ -335,7 +341,7 @@ public final class PdfEngine: @unchecked Sendable {
         defer { textGate.unlock() }
         let instance = try text()
         if let cached = linkCache[page] { return cached }
-        let g = pages[page]
+        let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var raw: UnsafeMutablePointer<inkv_link>?
         var count: Int32 = 0

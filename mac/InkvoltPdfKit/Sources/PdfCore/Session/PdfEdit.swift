@@ -22,15 +22,21 @@ public struct PdfEditError: Error, Equatable, Sendable, CustomStringConvertible 
 final class MuDoc {
     let ctx: UnsafeMutableRawPointer
     let doc: OpaquePointer
+    /// A document opened in another's context (so pages and objects can be grafted between them) keeps that document,
+    /// and so the context, alive.
+    private let owner: MuDoc?
+    /// The first change that failed (objects are changed without throwing, as PDFsharp's are); saving throws it.
+    var failure: String?
 
-    private init(ctx: UnsafeMutableRawPointer, doc: OpaquePointer) {
+    private init(ctx: UnsafeMutableRawPointer, doc: OpaquePointer, owner: MuDoc? = nil) {
         self.ctx = ctx
         self.doc = doc
+        self.owner = owner
     }
 
     deinit {
         inkv_drop_doc(ctx, doc)
-        inkv_drop_context(ctx)
+        if owner == nil { inkv_drop_context(ctx) }
     }
 
     static func open(_ data: [UInt8]) throws -> MuDoc {
@@ -41,6 +47,35 @@ final class MuDoc {
             throw PdfEngineError(message: PdfEngine.message(err))
         }
         return MuDoc(ctx: ctx, doc: doc)
+    }
+
+    /// A PDF opened in `other`'s context, to graft pages and objects between them.
+    static func open(_ data: [UInt8], in other: MuDoc) throws -> MuDoc {
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(other.ctx, $0.baseAddress, $0.count, 8, &err) }) else {
+            throw PdfEngineError(message: PdfEngine.message(err))
+        }
+        return MuDoc(ctx: other.ctx, doc: doc, owner: other)
+    }
+
+    /// A new, empty PDF (no pages), in a context of its own.
+    static func create() throws -> MuDoc {
+        guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") }
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        guard let doc = inkv_new_pdf(ctx, &err) else {
+            inkv_drop_context(ctx)
+            throw PdfEngineError(message: PdfEngine.message(err))
+        }
+        return MuDoc(ctx: ctx, doc: doc)
+    }
+
+    /// An image file as a document in `other`'s context (one page per frame), to draw its frames.
+    static func openImage(_ data: [UInt8], magic: String, in other: MuDoc) throws -> MuDoc {
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_image(other.ctx, $0.baseAddress, $0.count, magic, &err) }) else {
+            throw PdfEngineError(message: PdfEngine.message(err))
+        }
+        return MuDoc(ctx: other.ctx, doc: doc, owner: other)
     }
 
     private func check(_ ok: (UnsafeMutablePointer<CChar>) -> Bool) throws {

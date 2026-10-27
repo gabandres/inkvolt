@@ -109,12 +109,12 @@ static fz_display_list *inkv_list(fz_context *ctx, inkv_doc *d, int i) {
     return d->lists[i];
 }
 
-static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *path, int cache, char *err) {
+static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *magic, const char *path, int cache, char *err) {
     inkv_doc *result = NULL;
     fz_var(result);
     fz_try(ctx) {
         result = fz_malloc_struct(ctx, inkv_doc);
-        result->doc = stream ? fz_open_document_with_stream(ctx, "application/pdf", stream) : fz_open_document(ctx, path);
+        result->doc = stream ? fz_open_document_with_stream(ctx, magic, stream) : fz_open_document(ctx, path);
         inkv_setup(ctx, result, cache);
     }
     fz_catch(ctx) {
@@ -126,8 +126,8 @@ static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *path,
     return result;
 }
 
-inkv_doc *inkv_open_pdf(void *vctx, const uint8_t *data, size_t length, int cache, char *err) {
-    fz_context *ctx = vctx;
+/// A document of type `magic` from memory (the bytes copied).
+static inkv_doc *inkv_open_bytes(fz_context *ctx, const uint8_t *data, size_t length, const char *magic, int cache, char *err) {
     fz_buffer *buffer = NULL;
     fz_stream *stream = NULL;
     inkv_doc *result = NULL;
@@ -142,14 +142,18 @@ inkv_doc *inkv_open_pdf(void *vctx, const uint8_t *data, size_t length, int cach
         inkv_error(ctx, err);
         return NULL;
     }
-    result = inkv_open(ctx, stream, NULL, cache, err);
+    result = inkv_open(ctx, stream, magic, NULL, cache, err);
     fz_drop_stream(ctx, stream);
     fz_drop_buffer(ctx, buffer);
     return result;
 }
 
+inkv_doc *inkv_open_pdf(void *vctx, const uint8_t *data, size_t length, int cache, char *err) {
+    return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, err);
+}
+
 inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
-    return inkv_open((fz_context *)vctx, NULL, path, cache, err);
+    return inkv_open((fz_context *)vctx, NULL, NULL, path, cache, err);
 }
 
 void inkv_drop_doc(void *vctx, inkv_doc *d) {
@@ -707,3 +711,521 @@ int inkv_append_pdf(void *vctx, inkv_doc *d, const uint8_t *original, size_t ori
 }
 
 void inkv_free(void *p) { free(p); }
+
+// ---- PDF objects ----
+
+#define OBJ(o) ((pdf_obj *)(o))
+#define OUT(o) ((inkv_obj *)(o))
+
+inkv_doc *inkv_new_pdf(void *vctx, char *err) {
+    fz_context *ctx = vctx;
+    inkv_doc *result = NULL;
+    fz_var(result);
+    fz_try(ctx) {
+        result = fz_malloc_struct(ctx, inkv_doc);
+        result->doc = &pdf_create_document(ctx)->super;
+        inkv_setup(ctx, result, 8);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        if (result) fz_drop_document(ctx, result->doc);
+        fz_free(ctx, result);
+        return NULL;
+    }
+    return result;
+}
+
+inkv_doc *inkv_open_image(void *vctx, const uint8_t *data, size_t length, const char *magic, char *err) {
+    return inkv_open_bytes((fz_context *)vctx, data, length, magic, 4, err);
+}
+
+int inkv_render_rgba(void *vctx, inkv_doc *d, int index, float scale, uint8_t **pixels, int *width, int *height, char *err) {
+    fz_context *ctx = vctx;
+    fz_pixmap *pix = NULL;
+    fz_var(pix);
+    *pixels = NULL;
+    fz_try(ctx) {
+        pix = fz_new_pixmap_from_display_list(ctx, inkv_list(ctx, d, index), fz_scale(scale, scale), fz_device_rgb(ctx), 1);
+        int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
+        size_t stride = (size_t)fz_pixmap_stride(ctx, pix), row = (size_t)w * 4;
+        uint8_t *out = malloc(row * (size_t)(h > 0 ? h : 1));
+        if (!out) fz_throw(ctx, FZ_ERROR_SYSTEM, "Not enough memory for the image pixels.");
+        const uint8_t *src = fz_pixmap_samples(ctx, pix);
+        for (int y = 0; y < h; y++) memcpy(out + row * (size_t)y, src + stride * (size_t)y, row);
+        // MuPDF's pixels are premultiplied by alpha; straight color is what an image with an /SMask stores.
+        for (size_t k = 0; k < row * (size_t)h; k += 4) {
+            unsigned a = out[k + 3];
+            if (a == 0 || a == 255) continue;
+            for (int c = 0; c < 3; c++) {
+                unsigned v = out[k + c] * 255u / a;
+                out[k + c] = (uint8_t)(v > 255 ? 255 : v);
+            }
+        }
+        *pixels = out;
+        *width = w;
+        *height = h;
+    }
+    fz_always(ctx) fz_drop_pixmap(ctx, pix);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+void inkv_obj_drop(void *ctx, inkv_obj *obj) { pdf_drop_obj((fz_context *)ctx, OBJ(obj)); }
+
+inkv_obj *inkv_obj_trailer(void *vctx, inkv_doc *d, char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *t = NULL;
+    fz_var(t);
+    fz_try(ctx) t = pdf_keep_obj(ctx, pdf_trailer(ctx, inkv_pdf(ctx, d)));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(t);
+}
+
+inkv_obj *inkv_obj_page(void *vctx, inkv_doc *d, int index, char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *p = NULL;
+    fz_var(p);
+    fz_try(ctx) p = pdf_keep_obj(ctx, pdf_lookup_page_obj(ctx, inkv_pdf(ctx, d), index));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(p);
+}
+
+int inkv_obj_page_number(void *vctx, inkv_doc *d, inkv_obj *obj) {
+    fz_context *ctx = vctx;
+    int n = -1;
+    fz_try(ctx) n = pdf_is_indirect(ctx, OBJ(obj)) ? pdf_lookup_page_number(ctx, inkv_pdf(ctx, d), OBJ(obj)) : -1;
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        n = -1;
+    }
+    return n;
+}
+
+int inkv_obj_kind(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    int kind = 0;
+    fz_try(ctx) {
+        pdf_obj *obj = OBJ(o);
+        kind = pdf_is_bool(ctx, obj) ? 1 : pdf_is_int(ctx, obj) ? 2 : pdf_is_real(ctx, obj) ? 3 : pdf_is_name(ctx, obj) ? 4
+             : pdf_is_string(ctx, obj) ? 5 : pdf_is_array(ctx, obj) ? 6 : pdf_is_dict(ctx, obj) ? 7 : 0;
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        kind = 0;
+    }
+    return kind;
+}
+
+int inkv_obj_is_ref(void *ctx, inkv_obj *o) { return pdf_is_indirect((fz_context *)ctx, OBJ(o)); }
+int inkv_obj_num(void *ctx, inkv_obj *o) { return pdf_to_num((fz_context *)ctx, OBJ(o)); }
+
+uintptr_t inkv_obj_identity(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    uintptr_t id = 0;
+    fz_try(ctx) id = (uintptr_t)pdf_resolve_indirect_chain(ctx, OBJ(o));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        id = (uintptr_t)o;
+    }
+    return id;
+}
+
+int inkv_obj_is_stream(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    int is = 0;
+    fz_try(ctx) is = pdf_is_stream(ctx, OBJ(o));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        is = 0;
+    }
+    return is;
+}
+
+int inkv_obj_bool(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    int b = 0;
+    fz_try(ctx) b = pdf_to_bool(ctx, OBJ(o));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        b = 0;
+    }
+    return b;
+}
+
+double inkv_obj_number(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    double n = 0;
+    fz_try(ctx) n = pdf_is_int(ctx, OBJ(o)) ? (double)pdf_to_int64(ctx, OBJ(o)) : pdf_to_real(ctx, OBJ(o));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+int inkv_obj_name(void *vctx, inkv_obj *o, char *out, int size) {
+    fz_context *ctx = vctx;
+    int ok = 0;
+    out[0] = 0;
+    fz_try(ctx) {
+        if (pdf_is_name(ctx, OBJ(o))) {
+            strncpy(out, pdf_to_name(ctx, OBJ(o)), (size_t)size - 1);
+            out[size - 1] = 0;
+            ok = 1;
+        }
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        ok = 0;
+    }
+    return ok;
+}
+
+uint8_t *inkv_obj_string(void *vctx, inkv_obj *o, size_t *length) {
+    fz_context *ctx = vctx;
+    uint8_t *copy = NULL;
+    fz_var(copy);
+    *length = 0;
+    fz_try(ctx) {
+        if (pdf_is_string(ctx, OBJ(o))) {
+            size_t n = pdf_to_str_len(ctx, OBJ(o));
+            copy = malloc(n ? n : 1);
+            if (copy && n) memcpy(copy, pdf_to_str_buf(ctx, OBJ(o)), n);
+            *length = n;
+        }
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        free(copy);
+        copy = NULL;
+    }
+    return copy;
+}
+
+char *inkv_obj_text(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    char *copy = NULL;
+    fz_var(copy);
+    fz_try(ctx) {
+        if (pdf_is_string(ctx, OBJ(o))) copy = inkv_strdup(pdf_to_text_string(ctx, OBJ(o)));
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        copy = NULL;
+    }
+    return copy;
+}
+
+int inkv_obj_count(void *vctx, inkv_obj *o) {
+    fz_context *ctx = vctx;
+    int n = 0;
+    fz_try(ctx) n = pdf_is_array(ctx, OBJ(o)) ? pdf_array_len(ctx, OBJ(o)) : pdf_is_dict(ctx, OBJ(o)) ? pdf_dict_len(ctx, OBJ(o)) : 0;
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+inkv_obj *inkv_obj_at(void *vctx, inkv_obj *o, int index) {
+    fz_context *ctx = vctx;
+    pdf_obj *v = NULL;
+    fz_var(v);
+    fz_try(ctx) v = pdf_keep_obj(ctx, pdf_array_get(ctx, OBJ(o), index));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        v = NULL;
+    }
+    return OUT(v);
+}
+
+char *inkv_obj_key_at(void *vctx, inkv_obj *o, int index) {
+    fz_context *ctx = vctx;
+    char *key = NULL;
+    fz_var(key);
+    fz_try(ctx) {
+        pdf_obj *k = pdf_dict_get_key(ctx, OBJ(o), index);
+        if (pdf_is_name(ctx, k)) key = inkv_strdup(pdf_to_name(ctx, k));
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        key = NULL;
+    }
+    return key;
+}
+
+inkv_obj *inkv_obj_value_at(void *vctx, inkv_obj *o, int index) {
+    fz_context *ctx = vctx;
+    pdf_obj *v = NULL;
+    fz_var(v);
+    fz_try(ctx) v = pdf_keep_obj(ctx, pdf_dict_get_val(ctx, OBJ(o), index));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        v = NULL;
+    }
+    return OUT(v);
+}
+
+inkv_obj *inkv_obj_get(void *vctx, inkv_obj *o, const char *key) {
+    fz_context *ctx = vctx;
+    pdf_obj *v = NULL;
+    fz_var(v);
+    fz_try(ctx) v = pdf_keep_obj(ctx, pdf_dict_gets(ctx, OBJ(o), key));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        v = NULL;
+    }
+    return OUT(v);
+}
+
+int inkv_obj_put(void *vctx, inkv_obj *o, const char *key, inkv_obj *value, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) {
+        if (value) pdf_dict_puts(ctx, OBJ(o), key, OBJ(value));
+        else pdf_dict_dels(ctx, OBJ(o), key);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_obj_array_put(void *vctx, inkv_obj *o, int index, inkv_obj *value, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) pdf_array_put(ctx, OBJ(o), index, OBJ(value));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_obj_array_insert(void *vctx, inkv_obj *o, int index, inkv_obj *value, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) {
+        if (index >= pdf_array_len(ctx, OBJ(o))) pdf_array_push(ctx, OBJ(o), OBJ(value));
+        else pdf_array_insert(ctx, OBJ(o), OBJ(value), index);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_obj_array_delete(void *vctx, inkv_obj *o, int index, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) pdf_array_delete(ctx, OBJ(o), index);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+inkv_obj *inkv_obj_new(void *vctx, inkv_doc *d, int kind, double number, const char *text, const uint8_t *bytes, size_t length,
+                       char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *v = NULL;
+    fz_var(v);
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        switch (kind) {
+        case 1: v = number != 0 ? PDF_TRUE : PDF_FALSE; break;
+        case 2: v = pdf_new_int(ctx, (int64_t)number); break;
+        case 3: v = pdf_new_real(ctx, (float)number); break;
+        case 4: v = pdf_new_name(ctx, text ? text : ""); break;
+        case 5: v = pdf_new_string(ctx, (const char *)bytes, length); break;
+        case 6: v = pdf_new_array(ctx, pdf, 4); break;
+        case 7: v = pdf_new_dict(ctx, pdf, 4); break;
+        case 8: v = pdf_new_text_string(ctx, text ? text : ""); break;
+        default: v = PDF_NULL; break;
+        }
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(v);
+}
+
+inkv_obj *inkv_obj_add(void *vctx, inkv_doc *d, inkv_obj *o, char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *ref = NULL;
+    fz_var(ref);
+    fz_try(ctx) ref = pdf_add_object(ctx, inkv_pdf(ctx, d), OBJ(o));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(ref);
+}
+
+inkv_obj *inkv_obj_ref(void *vctx, inkv_doc *d, int num, char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *ref = NULL;
+    fz_var(ref);
+    fz_try(ctx) ref = pdf_new_indirect(ctx, inkv_pdf(ctx, d), num, 0);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(ref);
+}
+
+int inkv_obj_xref_len(void *vctx, inkv_doc *d) {
+    fz_context *ctx = vctx;
+    int n = 0;
+    fz_try(ctx) n = pdf_xref_len(ctx, inkv_pdf(ctx, d));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+uint8_t *inkv_obj_stream(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t *length, char *err) {
+    fz_context *ctx = vctx;
+    fz_buffer *buf = NULL;
+    uint8_t *copy = NULL;
+    fz_var(buf);
+    fz_var(copy);
+    *length = 0;
+    (void)d;
+    fz_try(ctx) {
+        buf = raw ? pdf_load_raw_stream(ctx, OBJ(o)) : pdf_load_stream(ctx, OBJ(o));
+        unsigned char *bytes = NULL;
+        size_t n = fz_buffer_storage(ctx, buf, &bytes);
+        copy = malloc(n ? n : 1);
+        if (!copy) fz_throw(ctx, FZ_ERROR_SYSTEM, "Not enough memory for the stream.");
+        if (n) memcpy(copy, bytes, n);
+        *length = n;
+    }
+    fz_always(ctx) fz_drop_buffer(ctx, buf);
+    fz_catch(ctx) {
+        free(copy);
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return copy;
+}
+
+/// The bytes as a stream stores them: deflated (zlib) when asked. Throws.
+static fz_buffer *inkv_stream_buffer(fz_context *ctx, const uint8_t *bytes, size_t length, int deflate) {
+    if (!deflate) return fz_new_buffer_from_copied_data(ctx, bytes, length);
+    size_t bound = fz_deflate_bound(ctx, length);
+    unsigned char *out = fz_malloc(ctx, bound ? bound : 1);
+    size_t n = bound;
+    fz_try(ctx) fz_deflate(ctx, out, &n, bytes, length, FZ_DEFLATE_DEFAULT);
+    fz_catch(ctx) {
+        fz_free(ctx, out);
+        fz_rethrow(ctx);
+    }
+    return fz_new_buffer_from_data(ctx, out, n);
+}
+
+inkv_obj *inkv_obj_add_stream(void *vctx, inkv_doc *d, inkv_obj *dict, const uint8_t *bytes, size_t length, int deflate,
+                              char *err) {
+    fz_context *ctx = vctx;
+    fz_buffer *buf = NULL;
+    pdf_obj *made = NULL, *ref = NULL;
+    fz_var(buf);
+    fz_var(made);
+    fz_var(ref);
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        pdf_obj *use = OBJ(dict);
+        if (!use) use = made = pdf_new_dict(ctx, pdf, 4);
+        if (deflate) {
+            pdf_dict_put(ctx, use, PDF_NAME(Filter), PDF_NAME(FlateDecode));
+            pdf_dict_del(ctx, use, PDF_NAME(DecodeParms));
+        }
+        buf = inkv_stream_buffer(ctx, bytes, length, deflate);
+        ref = pdf_add_stream(ctx, pdf, buf, use, 1);
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buf);
+        pdf_drop_obj(ctx, made);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(ref);
+}
+
+int inkv_obj_set_stream(void *vctx, inkv_doc *d, inkv_obj *o, const uint8_t *bytes, size_t length, int deflate, char *err) {
+    fz_context *ctx = vctx;
+    fz_buffer *buf = NULL;
+    fz_var(buf);
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        if (deflate) pdf_dict_put(ctx, OBJ(o), PDF_NAME(Filter), PDF_NAME(FlateDecode));
+        else pdf_dict_del(ctx, OBJ(o), PDF_NAME(Filter));
+        pdf_dict_del(ctx, OBJ(o), PDF_NAME(DecodeParms));
+        buf = inkv_stream_buffer(ctx, bytes, length, deflate);
+        pdf_update_stream(ctx, pdf, OBJ(o), buf, 1);
+    }
+    fz_always(ctx) fz_drop_buffer(ctx, buf);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_page_insert(void *vctx, inkv_doc *d, int at, inkv_obj *page, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) pdf_insert_page(ctx, inkv_pdf(ctx, d), at, OBJ(page));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+inkv_graft *inkv_graft_new(void *vctx, inkv_doc *dst, char *err) {
+    fz_context *ctx = vctx;
+    pdf_graft_map *map = NULL;
+    fz_var(map);
+    fz_try(ctx) map = pdf_new_graft_map(ctx, inkv_pdf(ctx, dst));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return (inkv_graft *)map;
+}
+
+void inkv_graft_drop(void *ctx, inkv_graft *map) { pdf_drop_graft_map((fz_context *)ctx, (pdf_graft_map *)map); }
+
+int inkv_graft_page(void *vctx, inkv_graft *map, int to, inkv_doc *src, int from, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) pdf_graft_mapped_page(ctx, (pdf_graft_map *)map, to, inkv_pdf(ctx, src), from);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+inkv_obj *inkv_graft_obj(void *vctx, inkv_graft *map, inkv_obj *obj, char *err) {
+    fz_context *ctx = vctx;
+    pdf_obj *copy = NULL;
+    fz_var(copy);
+    fz_try(ctx) copy = pdf_graft_mapped_object(ctx, (pdf_graft_map *)map, OBJ(obj));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return OUT(copy);
+}

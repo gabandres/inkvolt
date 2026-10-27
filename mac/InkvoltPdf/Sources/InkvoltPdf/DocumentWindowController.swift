@@ -223,11 +223,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         pages.currentMatch = m
         findBar.status = "\(foundIndex + 1) of \(found.count)"
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first {
-            let r = pages.pageRects[m.page]
-            let y = r.minY + box.y - scrollView.contentView.bounds.height / 3
-            let shown = scrollView.contentView.bounds
-            let matchY = r.minY + box.y
-            if matchY < shown.minY || matchY + box.height > shown.maxY { pages.scrollTo(y: y) }
+            let r: CGRect = pages.pageRects[m.page]
+            let shown: CGRect = scrollView.contentView.bounds
+            let matchY: CGFloat = r.minY + CGFloat(box.y)
+            let y: CGFloat = matchY - shown.height / 3
+            if matchY < shown.minY || matchY + CGFloat(box.height) > shown.maxY { pages.scrollTo(y: y) }
         }
     }
 }
