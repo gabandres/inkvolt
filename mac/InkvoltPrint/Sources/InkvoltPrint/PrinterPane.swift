@@ -13,8 +13,14 @@ struct PrinterPane: View {
 
     enum Tab { case status, scan, settings }
 
+    /// Scans of this printer's left from before (not saved when the app quit).
+    private var leftOverScans: [LeftOverScan] {
+        let id: String = printer.id
+        return app.leftOverScans.filter { (left: LeftOverScan) -> Bool in left.scan.printerId.caseInsensitiveCompare(id) == .orderedSame }
+    }
+
     var body: some View {
-        let leftOver = app.leftOverScans.filter { $0.scan.printerId.caseInsensitiveCompare(printer.id) == .orderedSame }
+        let leftOver: [LeftOverScan] = leftOverScans
         Group {
             if tab == .scan && (printer.canScan || !leftOver.isEmpty) {
                 ScanView(scan: printer.scan, leftOver: leftOver)
@@ -26,6 +32,16 @@ struct PrinterPane: View {
         }
         .navigationTitle(printer.name)
         .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
+        .onChange(of: app.paneRequest, initial: true) { _, request in
+            switch request {
+            case .status:
+                tab = .status
+                printingPhotos = false
+            case .scan, .photosSheet: tab = .scan
+            case .printPhotos: printingPhotos = true
+            case nil: break
+            }
+        }
         .sheet(isPresented: $copyingCard) { IdCardCopySheet(printer: printer, app: app) }
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {

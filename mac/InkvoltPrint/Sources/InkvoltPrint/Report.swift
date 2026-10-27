@@ -10,7 +10,9 @@ import PrintMac
 /// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--batch` scans its
 /// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
 /// JPEG; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
-/// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer; `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
+/// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer, with its paper types, qualities and colors;
+/// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
+/// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue. For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
@@ -40,6 +42,7 @@ enum Report {
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
+            if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
@@ -169,7 +172,7 @@ enum Report {
     }
 
     /// The demo inkjet ready to scan, its review empty.
-    private static func demoScanner(_ model: AppModel) async -> ScanModel? {
+    static func demoScanner(_ model: AppModel) async -> ScanModel? {
         guard let inkjet = model.printers.first(where: { $0.id == Demo.inkjetUuid }) else { return nil }
         for _ in 0..<50 where !inkjet.view.isOnline { try? await Task.sleep(for: .milliseconds(200)) }
         let scan = inkjet.scan
@@ -178,7 +181,7 @@ enum Report {
         return scan.caps == nil ? nil : scan
     }
 
-    private static func scanAndWait(_ scan: ScanModel) async {
+    static func scanAndWait(_ scan: ScanModel) async {
         scan.scan()
         for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
     }
@@ -287,8 +290,66 @@ enum Report {
         for p in model.printers where p.queueName != nil || (model.isDemo && p.id == Demo.inkjetUuid) {
             let choices = QueuePapers.photoChoices(await model.photoMedia(for: p))
             lines.append("papers \(p.name): " + (choices.isEmpty ? "none listed" : choices.map { $0.label + ($0.borderless != nil ? " (+borderless)" : "") }.joined(separator: ", ")))
+            let options = await model.photoJobOptions(for: p)
+            let types = QueueJobChoices.mediaTypes(options).map(\.label).joined(separator: ", ")
+            let qualities = QueueJobChoices.qualities(options).map(\.label).joined(separator: ", ")
+            let colors = QueueJobChoices.colors(options).map(\.label).joined(separator: ", ")
+            lines.append("paper types \(p.name): \(types.isEmpty ? "none" : types); quality: \(qualities.isEmpty ? "none" : qualities); color: \(colors.isEmpty ? "none" : colors)")
         }
         return lines.isEmpty ? ["papers: no printer has a queue"] : lines
+    }
+
+    /// Print Photos' job on each queue printer, held: a blank sheet on the region's paper, with the queue's first photo paper
+    /// type (else its default, else its first), its best quality and its first color; read back from cupsd, then cancelled. Nothing prints.
+    private static func photoJobCheck(_ model: AppModel) async -> [String] {
+        try? await Task.sleep(for: .seconds(4)) // the queues are read
+        var lines: [String] = []
+        let cups = LibCups()
+        for p in model.printers {
+            guard let queue = p.queueName else { continue }
+            let choices = QueuePapers.photoChoices(await model.photoMedia(for: p))
+            guard let paper = QueuePapers.preferred(choices, metric: Locale.current.measurementSystem == .metric) else {
+                lines.append("photo job \(p.name): no papers listed")
+                continue
+            }
+            let options = await model.photoJobOptions(for: p)
+            let types = QueueJobChoices.mediaTypes(options)
+            let type = types.first { PhotoPaperText.isPhotoMedia(QueueJobChoices.schemaMediaType($0.value)) }?.value ?? options.defaultMediaType ?? types.first?.value
+            let wanted = QueueJobChoices.jobOptions(mediaType: type, quality: QueueJobChoices.qualities(options).last?.value,
+                                                    color: QueueJobChoices.colors(options).first?.value)
+            let sheet = paper.sheet
+            guard let pdf = blankPdf(width: sheet.width * 72, height: sheet.height * 72) else { return ["photo job: no PDF"] }
+            do {
+                let job = try await cups.printPdf(queue, pdf, title: "Inkvolt photo job check", media: QueueJobChoices.media(paper, borderless: false),
+                                                  options: wanted, hold: true)
+                let held = await cups.sentJob(job)
+                let took = held.map { j in j.attributes.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") } ?? "not found"
+                let asked = wanted.map { "\($0.name)=\($0.value)" }.joined(separator: " ")
+                lines.append("photo job \(p.name): asked media=\(paper.media) \(asked); held state \(held?.state ?? 0) "
+                             + "(\(held?.reasons.joined(separator: ",") ?? "")); took \(took)")
+                do {
+                    try await cups.cancel(queue, job: job)
+                    lines.append("photo job \(p.name): cancelled")
+                } catch {
+                    lines.append("photo job \(p.name): NOT cancelled: \(error)")
+                }
+            } catch {
+                lines.append("photo job \(p.name): refused: \((error as? PrintJobSendError)?.message ?? "\(error)")")
+            }
+        }
+        return lines.isEmpty ? ["photo job: no printer has a queue"] : lines
+    }
+
+    /// One blank page `width` × `height` points.
+    private static func blankPdf(width: Double, height: Double) -> Data? {
+        let data = NSMutableData()
+        var box = CGRect(x: 0, y: 0, width: width, height: height)
+        guard let consumer = CGDataConsumer(data: data as CFMutableData),
+              let context = CGContext(consumer: consumer, mediaBox: &box, nil) else { return nil }
+        context.beginPDFPage(nil)
+        context.endPDFPage()
+        context.closePDF()
+        return data as Data
     }
 
     /// Demo mode: an ID card copy, front and back from the inkjet's glass, laid out on one sheet (not printed).
@@ -384,12 +445,14 @@ enum Report {
 #if DEBUG
 import ScreenCaptureKit
 
-/// Debug builds only (`build.sh debug`): `open "Inkvolt Print.app" --args --demo --snapshot laser:0,inkjet:1
+/// Debug builds only (`build.sh debug`): `open "Inkvolt Print.app" --args --demo --snapshot laser:0,inkjet:1:scan
 /// [--size 1180x720] [--dark] [--wait <seconds>]`. After `--wait` seconds (8 by default) shows the main window at
-/// `--size` points and, for each `name:index`, selects the index-th printer and captures the window with ScreenCaptureKit
-/// (as the screen shows it, at its scale, without the shadow) to `Application Support/InkvoltPrint/snapshot-<name>.png` in
-/// the container, then quits. For the App Store screenshots. Needs Screen Recording permission for this build (macOS asks
-/// the first time) and the Mac's screen unlocked. Release builds have none of this.
+/// `--size` points and, for each `name:index[:screen]`, selects the index-th printer, shows the screen (`status`, the
+/// default; `scan`, `photos` or `print-photos`, after a scan of the demo inkjet's glass with its photos looked for) and
+/// captures the window, with any sheet over it, through ScreenCaptureKit (as the screen shows it, at its scale, without
+/// the shadow) to `Application Support/InkvoltPrint/snapshot-<name>.png` in the container, then quits. For the App Store
+/// screenshots. Needs Screen Recording permission for this build (macOS asks the first time; an ad-hoc build is a new app
+/// to it each time) and the Mac's screen unlocked. Release builds have none of this.
 @MainActor
 enum Snapshot {
     static func runIfAsked(_ model: AppModel) {
@@ -402,9 +465,9 @@ enum Snapshot {
             }
         }
         guard let list = value("--snapshot") else { return }
-        let shots = list.split(separator: ",").map { item -> (String, Int) in
-            let parts = item.split(separator: ":")
-            return (String(parts[0]), parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
+        let shots = list.split(separator: ",").map { item -> (name: String, index: Int, screen: String) in
+            let parts = item.split(separator: ":").map(String.init)
+            return (parts[0], parts.count > 1 ? Int(parts[1]) ?? 0 : 0, parts.count > 2 ? parts[2] : "status")
         }
         let size = value("--size").map { $0.split(separator: "x").compactMap { Double($0) } } ?? [1180, 720]
         let wait = value("--wait").flatMap(Double.init) ?? 8
@@ -416,41 +479,78 @@ enum Snapshot {
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             var log: [String] = []
-            for (name, index) in shots {
-                if index < model.printers.count { model.selectedID = model.printers[index].id }
+            var photoFiles: [URL]?
+            for shot in shots {
+                if shot.screen != "status" && photoFiles == nil { photoFiles = await scanGlassPhotos(model) }
+                if shot.index < model.printers.count { model.selectedID = model.printers[shot.index].id }
                 guard let window = mainWindow() else {
-                    log.append("\(name): no window")
+                    log.append("\(shot.name): no window")
                     break
                 }
                 if size.count == 2 { window.setContentSize(NSSize(width: size[0], height: size[1])) }
                 window.center()
                 window.makeKeyAndOrderFront(nil)
-                try? await Task.sleep(for: .seconds(1.5))
+                switch shot.screen {
+                case "scan": model.paneRequest = .scan
+                case "photos":
+                    model.paneRequest = .scan
+                    try? await Task.sleep(for: .seconds(1))
+                    model.paneRequest = .photosSheet
+                case "print-photos": model.paneRequest = .printPhotos(photoFiles ?? [])
+                default: model.paneRequest = .status
+                }
+                try? await Task.sleep(for: .seconds(shot.screen == "status" ? 1.5 : shot.screen == "print-photos" ? 8 : 4))
                 do {
                     let png = try await capture(window)
-                    try png.write(to: folder.appendingPathComponent("snapshot-\(name).png"))
-                    log.append("\(name): ok")
+                    try png.write(to: folder.appendingPathComponent("snapshot-\(shot.name).png"))
+                    log.append("\(shot.name): ok")
                 } catch {
-                    log.append("\(name): \(error)")
+                    log.append("\(shot.name): \(error)")
                 }
+                model.paneRequest = .status // closes a sheet
+                try? await Task.sleep(for: .seconds(1))
             }
             try? Data(log.joined(separator: "\n").utf8).write(to: folder.appendingPathComponent("snapshot-log.txt"))
             NSApp.terminate(nil)
         }
     }
 
+    /// The demo inkjet's glass scanned with its photos looked for (the Scan tab and the Photos sheet show it), and the
+    /// photos saved as JPEGs for Print Photos.
+    private static func scanGlassPhotos(_ model: AppModel) async -> [URL] {
+        guard let scan = await Report.demoScanner(model) else { return [] }
+        scan.source = .platen
+        scan.format = .jpeg
+        scan.findPhotos = true
+        await Report.scanAndWait(scan)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("snapshot-photos", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        await scan.save(to: folder, reveal: false)
+        await Report.scanAndWait(scan) // saving cleared the pages: scan again for the Scan tab and the Photos sheet
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted()
+        return names.map { folder.appendingPathComponent($0) }
+    }
+
+    /// The main window and any sheet over it, as the screen shows them (the app's own windows only).
     private static func capture(_ window: NSWindow) async throws -> Data {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else {
+        guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }),
+              let display = content.displays.first(where: { $0.frame.intersects(target.frame) }) ?? content.displays.first else {
             throw CocoaError(.fileNoSuchFile)
         }
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let ours = content.windows.filter { $0.owningApplication?.processID == pid && $0.isOnScreen && $0.frame.intersects(target.frame) }
         let config = SCStreamConfiguration()
         let scale = window.backingScaleFactor
+        config.sourceRect = CGRect(x: target.frame.minX - display.frame.minX, y: target.frame.minY - display.frame.minY,
+                                   width: target.frame.width, height: target.frame.height)
         config.width = Int(target.frame.width * scale)
         config.height = Int(target.frame.height * scale)
-        config.ignoreShadowsSingleWindow = true
+        config.ignoreShadowsDisplay = true
+        config.backgroundColor = .clear
         config.showsCursor = false
-        let image = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: target),
+        let image = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(display: display, including: ours),
                                                                configuration: config)
         guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
             throw CocoaError(.fileWriteUnknown)

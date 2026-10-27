@@ -40,7 +40,8 @@ open "/Applications/Inkvolt Print.app" --args --report b --wait 2 --demo --batch
 open "/Applications/Inkvolt Print.app" --args --report ph --wait 2 --demo --photos    # three photos on the glass, each its own JPEG
 open "/Applications/Inkvolt Print.app" --args --report id --wait 2 --demo --idcard    # an ID card copy laid out (not printed)
 open "/Applications/Inkvolt Print.app" --args --report st --wait 2 --demo --setup     # Set Up in macOS on a demo printer
-open "/Applications/Inkvolt Print.app" --args --report pp --wait 2 --papers           # the paper sizes each queue offers
+open "/Applications/Inkvolt Print.app" --args --report pp --wait 2 --papers           # each queue's paper sizes, types, qualities, colors
+open "/Applications/Inkvolt Print.app" --args --report pj --wait 2 --photo-job        # Print Photos' job sent held, read back, cancelled
 open "/Applications/Inkvolt Print.app" --args --report sp --wait 2 --setup-probe      # makes a test CUPS queue, then deletes it
 open "/Applications/Inkvolt Print.app" --args --report hw --wait 2 --hardware         # the selected real printer: glass, ID card, feeder, Set Up
 ```
@@ -66,8 +67,12 @@ The listing is `assets/store/listing.json` (texts, URLs, categories, review note
 `node mac/InkvoltPrint/asc-listing.mjs apply <build>` sets all of it (and the age rating, the free price, every
 territory, the review contact, the build) on the version being prepared; `asc-listing.mjs submit` sends it to App
 Review. App Privacy ("Data Not Collected") can only be published on the App Store Connect website. Screenshots: a Debug
-build's `--snapshot` (ScreenCaptureKit, needs Screen Recording permission for that build) in demo mode, then
-`assets/make-screenshots.py <captures folder>`.
+build's `--snapshot name:index[:scan|photos|print-photos]` (ScreenCaptureKit, needs Screen Recording permission, given once
+in System Settings) in demo mode, then `assets/make-screenshots.py <captures folder>` (its docstring has the commands).
+
+`build.sh` signs with the Apple Development identity that `dev-cert.sh` put in its own keychain (once per Mac: the App
+Store Connect API key creates the certificate; the keychain's password goes into `.env.local`), so macOS keeps the app's
+Screen Recording and Local Network permissions between builds; without it, builds are ad-hoc signed and asked again.
 
 The `mac` CI job (`.github/workflows/mac.yml`) builds the probe and the Xcode project and tests the package on macOS 15,
 warnings as errors.

@@ -174,4 +174,10 @@ extension Demo {
             m("na_legal_8.5x14in", 8.5, 14, 0.12),
         ]
     }()
+
+    /// The demo inkjet's paper types, qualities and colors (the Windows demo's, as IPP keywords).
+    public static let photoJobOptions = QueueJobOptions(
+        mediaTypes: ["stationery", "photographic", "photographic-glossy", "photographic-semi-gloss", "photographic-matte"],
+        defaultMediaType: "stationery", qualities: [3, 4, 5], defaultQuality: 4, colorModes: ["color", "monochrome"],
+        defaultColorMode: "color")
 }

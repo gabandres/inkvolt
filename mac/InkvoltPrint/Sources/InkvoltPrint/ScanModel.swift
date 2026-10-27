@@ -292,14 +292,25 @@ final class ScanModel {
 
     /// Looks for the photos on the page again (Find Again), forgetting boxes changed by hand.
     func findPhotosAgain(_ id: String) async {
-        guard let jpeg = images[id], let page = pages.page(id) else { return }
+        if let found = await photosFound(id) { setPhotos(id, found) }
+    }
+
+    /// The photos on the page as the finder sees them, without changing the page (the Photos sheet's Find Again).
+    func photosFound(_ id: String) async -> [PhotoBox]? {
+        guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let dpi = page.dpi
-        let found: [PhotoBox]? = await offPool {
+        return await offPool {
             guard let gray = try? ScanImaging.analysis(jpeg) else { return nil }
             let ppi = Double(gray.width) * Double(dpi) / Double(max(ScanImaging.size(jpeg)?.width ?? gray.width, 1))
             return PhotoFinder.find(gray, pixelsPerInch: ppi)
         }
-        if let found { setPhotos(id, found) }
+    }
+
+    /// The scan's width in inches and its height in units of its width, as scanned (photo boxes are measured on it).
+    func scanShape(_ id: String) -> (widthInches: Double, aspect: Double)? {
+        guard let jpeg = images[id], let page = pages.page(id), let size = ScanImaging.size(jpeg), size.width > 0, page.dpi > 0
+        else { return nil }
+        return (Double(size.width) / Double(page.dpi), Double(size.height) / Double(size.width))
     }
     func crop(_ id: String, shown: CropBox?) { change(id) { $0.crop(id, shown: shown) } }
     func reset(_ id: String) { change(id) { $0.reset(id) } }
@@ -341,9 +352,10 @@ final class ScanModel {
     }
 
     /// The page with its edits, for the crop view.
-    func image(_ id: String, maxPixels: Int = 1600) async -> NSImage? {
+    func image(_ id: String, maxPixels: Int = 1600, asScanned: Bool = false) async -> NSImage? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
-        let edits = PageEdits(quarterTurns: page.edits.quarterTurns, deskew: page.edits.deskew) // the crop is what's drawn on it
+        // The crop is what's drawn on it; photos are found and cut on the scan as it came.
+        let edits = asScanned ? PageEdits.none : PageEdits(quarterTurns: page.edits.quarterTurns, deskew: page.edits.deskew)
         let image: CGImage? = await offPool { try? ScanImaging.render(jpeg, edits, maxPixels: maxPixels) }
         return image.map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
     }

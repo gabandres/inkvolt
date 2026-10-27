@@ -29,7 +29,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
   Left out of the files unless the batch keeps them.
 - **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
-  out straight (`PhotoFinder`, `PhotoBox`).
+  out straight (`PhotoFinder`, `PhotoBox`). Their boxes can be moved, resized, turned or drawn by hand before saving
+  (Windows `PhotoBoxesView`; Mac `PhotoBoxEditor`).
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and

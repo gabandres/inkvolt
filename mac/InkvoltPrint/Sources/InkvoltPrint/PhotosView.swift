@@ -47,7 +47,8 @@ enum PhotoPaper: String, CaseIterable, Identifiable {
 }
 
 /// Print Photos (the Windows app's Photos tab): pictures laid out full page, at a print size, or as a contact sheet,
-/// previewed sheet by sheet, then printed at their real size through the print panel.
+/// previewed sheet by sheet, then printed at their real size: sent straight to the printer's macOS queue with the paper,
+/// paper type, quality and color picked here, or through the print panel for a printer macOS has no queue for.
 @MainActor @Observable
 final class PhotosModel {
     var photos: [PhotoItem] = []
@@ -61,6 +62,15 @@ final class PhotosModel {
     var paperId = (Locale.current.measurementSystem == .metric ? PhotoPaper.a4 : PhotoPaper.letter).rawValue
     /// Edge to edge, when the paper has a borderless size.
     var borderless = false
+    /// The queue's paper types, qualities and colors (IPP values), and the ones picked (nil: none offered).
+    private(set) var mediaTypes: [JobChoice] = []
+    private(set) var qualities: [JobChoice] = []
+    private(set) var colors: [JobChoice] = []
+    var mediaType: String?
+    var quality: String?
+    var color: String?
+    /// What the last print did ("Sent 2 sheets to …").
+    private(set) var sent: String?
     private(set) var problem: String?
     private(set) var previews: [NSImage] = []
     private(set) var printing = false
@@ -99,8 +109,19 @@ final class PhotosModel {
             : "\(soft) photos print below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list)."
     }
 
-    /// The printer's own papers, once (its macOS queue's media list).
+    /// Whether the sheets go straight to the printer's macOS queue (else through the print panel). Demo mode's printers
+    /// have no queue: the panel prints the sheets on any printer the reviewer has.
+    var printsToQueue: Bool { !app.isDemo && printer.queueName != nil }
+
+    /// The printer's own papers, paper types, qualities and colors, once (its macOS queue's).
     func loadPapers() async {
+        let options = await app.photoJobOptions(for: printer)
+        mediaTypes = QueueJobChoices.mediaTypes(options)
+        qualities = QueueJobChoices.qualities(options)
+        colors = QueueJobChoices.colors(options)
+        mediaType = QueueJobChoices.initial(mediaTypes, kept: mediaType, queueDefault: options.defaultMediaType)
+        quality = QueueJobChoices.initial(qualities, kept: quality, queueDefault: options.defaultQuality.map(String.init))
+        color = QueueJobChoices.initial(colors, kept: color, queueDefault: options.defaultColorMode)
         let choices = QueuePapers.photoChoices(await app.photoMedia(for: printer))
         guard !choices.isEmpty else { return }
         papers = choices
@@ -135,9 +156,14 @@ final class PhotosModel {
         panel.allowsMultipleSelection = true
         panel.message = "Choose the photos to print."
         guard panel.runModal() == .OK else { return }
+        add(panel.urls)
+    }
+
+    /// Pictures from these files (the open panel's, or the snapshots' demo photos).
+    func add(_ urls: [URL]) {
         problem = nil
         var unreadable = 0
-        for url in panel.urls {
+        for url in urls {
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             if let image = try? PhotoSheets.load(url) { photos.append(PhotoItem(url: url, image: image)) } else { unreadable += 1 }
@@ -175,14 +201,41 @@ final class PhotosModel {
         guard !sheets.isEmpty else { return }
         printing = true
         defer { printing = false }
+        problem = nil
+        sent = nil
         let images = photos.map(\.image), names = photos.map(\.name), sheet = sheet
         let data: Data? = await offPool { try? PhotoSheets.pdf(sheets, photos: images, names: names, paper: sheet) }
-        guard let data, let document = PDFDocument(data: data) else {
+        guard let data else {
             problem = "The sheets couldn't be prepared for printing."
             return
         }
-        Printing.print(document, name: photos.count == 1 ? photos[0].name : "\(photos.count) photos", on: printer, app: app, actualSize: true,
+        let title = photos.count == 1 ? photos[0].name : "\(photos.count) photos"
+        if printsToQueue, let queue = printer.queueName {
+            await send(data, title: title, sheets: sheets.count, to: queue)
+            return
+        }
+        guard let document = PDFDocument(data: data) else {
+            problem = "The sheets couldn't be prepared for printing."
+            return
+        }
+        Printing.print(document, name: title, on: printer, app: app, actualSize: true,
                        paper: NSSize(width: sheet.width * 72, height: sheet.height * 72), borderless: borderless && paper.borderless != nil)
+    }
+
+    /// The sheets as one job on the queue, with the paper, paper type, quality and color picked (only those the queue
+    /// offers a choice of: otherwise its default).
+    private func send(_ pdf: Data, title: String, sheets: Int, to queue: String) async {
+        let media = QueueJobChoices.media(paper, borderless: borderless)
+        let options = QueueJobChoices.jobOptions(mediaType: mediaTypes.count > 1 ? mediaType : nil,
+                                                 quality: qualities.count > 1 ? quality : nil,
+                                                 color: colors.count > 1 ? color : nil)
+        do {
+            _ = try await LibCups().printPdf(queue, pdf, title: title, media: media, options: options)
+            sent = "Sent \(sheets == 1 ? "1 sheet" : "\(sheets) sheets") to \(printer.name)."
+        } catch {
+            let why = (error as? PrintJobSendError)?.message ?? error.localizedDescription
+            problem = "The photos couldn't be sent to \(printer.name): \(why)"
+        }
     }
 }
 
@@ -190,7 +243,12 @@ struct PhotosView: View {
     @State private var model: PhotosModel
     @Environment(\.dismiss) private var dismiss
 
-    init(printer: PrinterModel, app: AppModel) { _model = State(initialValue: PhotosModel(printer: printer, app: app)) }
+    private let app: AppModel
+
+    init(printer: PrinterModel, app: AppModel) {
+        _model = State(initialValue: PhotosModel(printer: printer, app: app))
+        self.app = app
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -199,7 +257,7 @@ struct PhotosView: View {
                 Section("Photos") {
                     ForEach(model.photos) { p in
                         HStack {
-                            Image(decorative: p.image, scale: max(CGFloat(p.image.width) / 48, 1)).frame(width: 48, height: 48)
+                            Image(decorative: p.image, scale: 1).resizable().scaledToFit().frame(width: 48, height: 48)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(p.name).lineLimit(1).truncationMode(.middle)
                                 if let i = model.photos.firstIndex(where: { $0.id == p.id }), let dpi = model.printDpi[i] {
@@ -208,10 +266,13 @@ struct PhotosView: View {
                                 }
                             }
                             Spacer()
-                            Stepper("\(p.copies)", value: Binding(get: { p.copies }, set: { v in
+                            Text("\(p.copies)×").monospacedDigit().accessibilityHidden(true)
+                            Stepper("Prints of \(p.name)", value: Binding(get: { p.copies }, set: { v in
                                 if let i = model.photos.firstIndex(where: { $0.id == p.id }) { model.photos[i].copies = v }
                                 model.refresh()
-                            }), in: 1...99).fixedSize()
+                            }), in: 1...99)
+                            .labelsHidden()
+                            .accessibilityValue("\(p.copies)")
                             Button { model.turn(p.id, 1) } label: { Image(systemName: "rotate.right") }.buttonStyle(.borderless).help("Turn right")
                             Button { model.remove(p.id) } label: { Image(systemName: "trash") }.buttonStyle(.borderless).help("Remove")
                         }
@@ -223,11 +284,22 @@ struct PhotosView: View {
                     Picker("Paper", selection: $model.paperId) { ForEach(model.papers) { Text($0.label).tag($0.id) } }
                     if model.paper.borderless != nil {
                         Toggle("Borderless", isOn: $model.borderless)
-                        if model.borderless {
+                        if model.borderless && !model.printsToQueue {
                             Text("In the print panel, pick the paper size marked Borderless, if macOS doesn't.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else {
                         Text("Prints with margins: this paper has no borderless size.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if model.mediaTypes.count > 1 {
+                        Picker("Paper type", selection: $model.mediaType) {
+                            ForEach(model.mediaTypes) { Text($0.label).tag(Optional($0.value)) }
+                        }
+                    }
+                    if model.qualities.count > 1 {
+                        Picker("Quality", selection: $model.quality) { ForEach(model.qualities) { Text($0.label).tag(Optional($0.value)) } }
+                    }
+                    if model.colors.count > 1 {
+                        Picker("Color", selection: $model.color) { ForEach(model.colors) { Text($0.label).tag(Optional($0.value)) } }
                     }
                     Picker("Layout", selection: $model.kind) {
                         Text("Full page").tag(PhotoLayoutKind.fullPage)
@@ -253,7 +325,11 @@ struct PhotosView: View {
             .onChange(of: model.options) { model.refresh() }
             .onChange(of: model.paperId) { model.refresh() }
             .onChange(of: model.borderless) { model.refresh() }
-            .task { await model.loadPapers() }
+            .task {
+                await model.loadPapers()
+                // The Debug build's snapshots open it with the demo photos in it.
+                if case .printPhotos(let files) = app.paneRequest, model.photos.isEmpty { model.add(files) }
+            }
             Divider()
             VStack(spacing: 0) {
                 ScrollView {
@@ -279,7 +355,10 @@ struct PhotosView: View {
                     Spacer()
                     if model.printing { ProgressView().controlSize(.small) }
                     Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Button("Print…") { Task { await model.print() } }.buttonStyle(.borderedProminent).disabled(model.sheets.isEmpty || model.printing)
+                    if let sent = model.sent { Text(sent).foregroundStyle(.secondary) }
+                    Button(model.printsToQueue ? "Print" : "Print…") { Task { await model.print() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.sheets.isEmpty || model.printing)
                 }
                 .padding(12)
             }

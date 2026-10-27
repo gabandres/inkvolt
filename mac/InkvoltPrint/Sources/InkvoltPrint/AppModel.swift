@@ -49,6 +49,8 @@ final class AppModel {
     private(set) var presets: [ScanPreset] = []
     /// Scans a run that didn't end cleanly left behind, offered on their printer's Scan tab.
     var leftOverScans: [LeftOverScan] = []
+    /// A screen the selected printer's pane is asked to show (the Debug build's App Store snapshots).
+    var paneRequest: PaneRequest?
     /// macOS's USB scanners (ImageCaptureCore); made up in demo mode.
     @ObservationIgnored private var systemScanners: SystemScanners?
     /// The scanners as last listed; nil before the first list.
@@ -232,6 +234,13 @@ final class AppModel {
         if isDemo { return p.id == Demo.inkjetUuid ? Demo.photoMedia : [] }
         guard let queue = p.queueName else { return [] }
         return await LibCups().media(queue)
+    }
+
+    /// The paper types, qualities and colors the printer's macOS queue offers for photos.
+    func photoJobOptions(for p: PrinterModel) async -> QueueJobOptions {
+        if isDemo { return p.id == Demo.inkjetUuid ? Demo.photoJobOptions : .none }
+        guard let queue = p.queueName else { return .none }
+        return await LibCups().jobOptions(queue)
     }
 
     /// "Set up in macOS" for a network printer macOS has no queue for: a driverless queue on its IPP URL, then the queues
@@ -505,4 +514,13 @@ final class AppModel {
             (p.id, TrayText.line(name: p.name, tracked: tracker.level(p.id), problem: tracker.problem(p.id), view: p.view))
         }
     }
+}
+
+/// What `AppModel.paneRequest` asks the printer pane for: a tab, the Photos sheet over its first page of glass photos, or
+/// Print Photos with these pictures in it.
+enum PaneRequest: Equatable {
+    case status
+    case scan
+    case photosSheet
+    case printPhotos([URL])
 }

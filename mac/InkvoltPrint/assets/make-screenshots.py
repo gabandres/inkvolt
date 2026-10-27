@@ -2,7 +2,7 @@
 
 Input: window captures from the Debug build's snapshot mode, in demo mode (made-up printers, 192.0.2.x addresses, no
 real device's identifiers):
-    open "Inkvolt Print.app" --args --demo --snapshot laser:0,inkjet:1,cdm:3,office:2,snmp:4 --wait 8
+    open "Inkvolt Print.app" --args --demo --snapshot laser:0,inkjet:1,cdm:3,office:2,snmp:4,scan:1:scan,photos:1:photos,print-photos:1:print-photos --wait 8
     open "Inkvolt Print.app" --args --demo --dark --snapshot dark-laser:0,dark-inkjet:1,dark-cdm:3 --wait 8
 copied from the app's container into a folder. Each capture goes on the icon's blue-to-indigo gradient under a caption,
 at 1:1 (the captures are 1180 x 720 at 1x), with a soft shadow.
@@ -26,6 +26,9 @@ SHOTS = [
     ("inkjet", "Not just HP", "Works with AirPrint, Mopria and IPP Everywhere printers from any brand."),
     ("office", "Knows when something's wrong", "Offline, low or jammed: the menu bar tells you, and so does a notification."),
     ("snmp", "Older network printers too", "Status, alerts and toner over SNMP when that's all a printer speaks."),
+    ("scan", "Several photos, one scan", "Lay prints on the glass: each is found, cut out straight and saved on its own."),
+    ("photos", "Adjust any photo by hand", "Move, resize or turn a box, or mark a photo the scan missed."),
+    ("print-photos", "Print photos at their real size", "Pick the paper, paper type and quality; borderless where your printer offers it."),
 ]
 
 
