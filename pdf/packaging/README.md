@@ -212,6 +212,8 @@ If `install.ps1`'s copy is installed too, both appear under "Open with"; uninsta
 `AppEnvironment.IsPackaged` (src/InkvoltPdf.App/AppEnvironment.cs) tells the two apart at run time:
 
 - File associations, the Start menu entry and the `inkvoltpdf` command (app execution alias) come from the manifest;
+  the alias is also the command line (`inkvoltpdf --batch`, `--watch`, `--help`: README's "Command line"), so after a
+  package change check `inkvoltpdf --help | Out-Default` prints the usage and `$LASTEXITCODE` is 0;
   nothing writes registry associations. Settings' "Open Default apps" opens the package's own Default apps page.
 - Settings and logs stay at `%LOCALAPPDATA%\InkvoltPdf`; Windows redirects that into the package's private folder, so a
   packaged and an unpackaged copy keep separate settings. Uninstalling the package removes them.

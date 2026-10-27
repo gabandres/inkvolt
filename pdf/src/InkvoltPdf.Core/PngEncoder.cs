@@ -65,3 +65,91 @@ internal static class PngEncoder
         return table;
     }
 }
+
+/// <summary>
+/// Minimal PNG reader for the pictures batch presets carry (<see cref="PngEncoder"/>'s output, and any 8-bit RGB or RGBA
+/// PNG without interlacing, every row filter): to a <see cref="StampImage"/>.
+/// </summary>
+internal static class PngDecoder
+{
+    /// <exception cref="InvalidDataException">Not a PNG of that kind, or damaged.</exception>
+    public static StampImage Decode(byte[] png)
+    {
+        ReadOnlySpan<byte> signature = [0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        if (png.Length < 33 || !png.AsSpan(0, 8).SequenceEqual(signature)) throw new InvalidDataException("not a PNG file");
+        int width = 0, height = 0, channels = 0;
+        using var idat = new MemoryStream();
+        for (var at = 8; at + 12 <= png.Length;)
+        {
+            var length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(at));
+            if (length < 0 || at + 12L + length > png.Length) throw new InvalidDataException("a chunk runs past the end");
+            var type = System.Text.Encoding.ASCII.GetString(png, at + 4, 4);
+            var data = png.AsSpan(at + 8, length);
+            if (type == "IHDR")
+            {
+                width = BinaryPrimitives.ReadInt32BigEndian(data);
+                height = BinaryPrimitives.ReadInt32BigEndian(data[4..]);
+                if (data[8] != 8 || data[12] != 0) throw new InvalidDataException("only 8-bit pictures without interlacing");
+                channels = data[9] switch { 2 => 3, 6 => 4, _ => throw new InvalidDataException("only RGB or RGBA pictures") };
+            }
+            else if (type == "IDAT") idat.Write(data);
+            else if (type == "IEND") break;
+            at += 12 + length;
+        }
+        if (width is <= 0 or > 8192 || height is <= 0 or > 8192 || channels == 0) throw new InvalidDataException("no usable picture size");
+
+        var stride = width * channels;
+        var raw = new byte[(long)(stride + 1) * height];
+        idat.Position = 0;
+        using (var z = new ZLibStream(idat, CompressionMode.Decompress))
+        {
+            try
+            {
+                z.ReadExactly(raw);
+            }
+            catch (EndOfStreamException)
+            {
+                throw new InvalidDataException("the picture data is cut short");
+            }
+        }
+        var pixels = new byte[stride * height];
+        for (var y = 0; y < height; y++)
+        {
+            var filter = raw[y * (stride + 1)];
+            var src = raw.AsSpan(y * (stride + 1) + 1, stride);
+            var row = pixels.AsSpan(y * stride, stride);
+            var up = y > 0 ? pixels.AsSpan((y - 1) * stride, stride) : default;
+            for (var x = 0; x < stride; x++)
+            {
+                int a = x >= channels ? row[x - channels] : 0, b = y > 0 ? up[x] : 0, c = x >= channels && y > 0 ? up[x - channels] : 0;
+                row[x] = (byte)(src[x] + filter switch
+                {
+                    0 => 0,
+                    1 => a,
+                    2 => b,
+                    3 => (a + b) / 2,
+                    4 => Paeth(a, b, c),
+                    _ => throw new InvalidDataException("an unknown row filter"),
+                });
+            }
+        }
+        var n = width * height;
+        var rgb = new byte[n * 3];
+        byte[]? alpha = channels == 4 ? new byte[n] : null;
+        for (var i = 0; i < n; i++)
+        {
+            rgb[i * 3] = pixels[i * channels];
+            rgb[i * 3 + 1] = pixels[i * channels + 1];
+            rgb[i * 3 + 2] = pixels[i * channels + 2];
+            if (alpha is not null) alpha[i] = pixels[i * 4 + 3];
+        }
+        return new StampImage(width, height, rgb, alpha);
+    }
+
+    private static int Paeth(int a, int b, int c)
+    {
+        var p = a + b - c;
+        int pa = Math.Abs(p - a), pb = Math.Abs(p - b), pc = Math.Abs(p - c);
+        return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+    }
+}

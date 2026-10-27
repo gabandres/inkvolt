@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Batch presets: save the list of Batch actions under a name and pick it next time; export a preset to share it, import one from someone else (a plain JSON file). New Batch action: Save as PDF/A.
+- Watched folders (Batch › Watched Folders…): drop PDFs or images into a folder and Inkvolt PDF runs a preset on each one once it has finished copying, then moves the original to "done" or "failed" and logs a line for it.
+- Command line: inkvoltpdf --batch runs a preset on files or folders without a window, and inkvoltpdf --watch watches a folder from a terminal or a scheduled task (inkvoltpdf --help).
 - Redaction check: after you apply redactions, Inkvolt PDF checks that nothing of what you redacted is left anywhere in the file (other pages, comments, form fields, bookmarks, properties, attached files, hidden layers, earlier versions) and offers to fix what it finds. Review › Check Redaction… checks any PDF for text still under black boxes or highlights, unapplied redaction marks and more. Also a Batch action.
 - Redact by Pattern (Review menu): find and mark Social Security, phone and card numbers, email addresses, dates, bank account numbers (IBAN), IP addresses, your own words or your own pattern, on all pages or some; check the marks, then apply. Also a Batch action for many files at once.
 

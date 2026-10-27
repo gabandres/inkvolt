@@ -59,6 +59,14 @@
                         WindowChrome.IsHitTestVisibleInChrome="True" />
                 <ProgressBar x:Name="OpenProgress" DockPanel.Dock="Left" IsIndeterminate="True" Width="48" Height="4" Margin="10,4,0,0"
                              VerticalAlignment="Center" Visibility="Collapsed" AutomationProperties.Name="Opening files" />
+                <!-- Watched folders' status (FolderWatches); opens Batch > Watched Folders -->
+                <Button x:Name="WatchButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Height="30" Margin="6,6,0,0" Padding="8,0"
+                        Visibility="Collapsed" Click="OnWatchButton" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock x:Name="WatchText" FontSize="12" VerticalAlignment="Center" FontFamily="{DynamicResource ContentControlThemeFontFamily}" />
+                    </StackPanel>
+                </Button>
                 <TextBlock x:Name="AppTitle" DockPanel.Dock="Left" Text="Inkvolt PDF" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" />
             </DockPanel>
         </Grid>

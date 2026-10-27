@@ -27,5 +27,13 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
   with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.
+- **Batch preset** (`Core/BatchPresets.cs`): a saved batch (its actions in order with their settings, the output
+  names and choices) as a plain JSON file with a version; never holds passwords. Run by the Batch window, a watched
+  folder and the command line.
+- **Watched folder** (`Core/WatchedFolder.cs`): a folder whose new PDFs and images run through a preset once complete
+  (size and time unchanged for the quiet period, nobody holding them), taken by a move into `working`, then moved to
+  `done` or `failed` with a log line. In the app: `FolderWatches` (`App/BatchAutomation.cs`); unattended: `--watch`.
+- **Pro check** (`Core/Pro.cs`): `Pro.Allows(feature)`, the one place a Pro feature asks whether it may run (no licence
+  yet: always yes).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

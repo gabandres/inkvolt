@@ -128,6 +128,7 @@ public partial class MainWindow : Window
         _ = ShowConvertMenuAsync();
 
         TabArea.SizeChanged += (_, _) => LayoutTabs();
+        FolderWatches.Changed += ShowWatchStatus;
         _tabs.CollectionChanged += (_, _) => LayoutTabs();
         Activated += (_, _) => ActiveTab?.ScheduleDiskCheck();
         Application.Current.SessionEnding += OnSessionEnding;
@@ -135,6 +136,7 @@ public partial class MainWindow : Window
         {
             _closed = true;
             Application.Current.SessionEnding -= OnSessionEnding;
+            FolderWatches.Changed -= ShowWatchStatus;
             if (!_finished) FinishClose();
         };
 
@@ -331,6 +333,19 @@ public partial class MainWindow : Window
             : new Thickness(0);
     }
 
+    /// <summary>The title bar's watched-folder status (hidden when no folder is watched).</summary>
+    private void ShowWatchStatus()
+    {
+        var summary = FolderWatches.Summary;
+        WatchButton.Visibility = summary is null ? Visibility.Collapsed : Visibility.Visible;
+        WatchText.Text = summary ?? "";
+        WatchButton.ToolTip = summary is null ? null : $"{summary}: open Watched Folders";
+        System.Windows.Automation.AutomationProperties.SetName(WatchButton, summary ?? "");
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, LayoutTabs);
+    }
+
+    private void OnWatchButton(object sender, RoutedEventArgs e) => WatchWindow.Open(this);
+
     /// <summary>Keeps the + button and a strip to drag the window visible: tabs shrink to share the rest, then scroll.</summary>
     private void LayoutTabs()
     {
@@ -338,7 +353,8 @@ public partial class MainWindow : Window
         if (TabArea.ActualWidth <= 0) return; // not laid out yet; SizeChanged comes next
         var plus = NewTabButton.ActualWidth + NewTabButton.Margin.Left + NewTabButton.Margin.Right;
         var progress = OpenProgress.Visibility == Visibility.Visible ? OpenProgress.Width + OpenProgress.Margin.Left : 0;
-        var room = Math.Max(0, TabArea.ActualWidth - plus - progress - DragStrip);
+        var watch = WatchButton.Visibility == Visibility.Visible ? WatchButton.ActualWidth + WatchButton.Margin.Left : 0;
+        var room = Math.Max(0, TabArea.ActualWidth - plus - progress - watch - DragStrip);
         TabStrip.MaxWidth = room;
         TabMaxWidth = _tabs.Count == 0 ? MaxTab : Math.Clamp(Math.Floor(room / _tabs.Count) - TabMargin, MinTab, MaxTab);
         if (TabStrip.SelectedItem is not null) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>

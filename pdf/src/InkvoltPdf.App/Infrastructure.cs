@@ -389,6 +389,8 @@ public sealed class AppSettings
     public bool BatchNeverOverwrite { get; set; } = true;
     public bool BatchKeepSubfolders { get; set; } = true;
     public bool BatchRecursive { get; set; } = true;
+    /// <summary>Watched folders (<c>FolderWatches</c>): watched while the app is open, started again when it starts.</summary>
+    public List<WatchSetting> WatchedFolders { get; set; } = [];
 
     public string PrintHandling { get; set; } = "Fit";
     public bool PrintFitToPaper { get; set; }
@@ -416,6 +418,15 @@ public sealed class AppSettings
     public Dictionary<string, DrawStyleSetting> DrawStyles { get; set; } = [];
     /// <summary>Per-file view state, keyed by full path (most recent 300 kept).</summary>
     public Dictionary<string, FileState> Files { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A watched folder: the preset file it runs, where results go ("" = the preset's folder, else "results" in it), stopped by the user.</summary>
+    public sealed class WatchSetting
+    {
+        public string Folder { get; set; } = "";
+        public string Preset { get; set; } = "";
+        public string Output { get; set; } = "";
+        public bool Paused { get; set; }
+    }
 
     public sealed class FileState
     {

@@ -25,7 +25,8 @@ namespace InkvoltPdf.App;
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
-/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
+/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -840,7 +841,7 @@ internal static class DevScript
                 else log.Add("dialogfill: no dialog open");
                 break;
             // Batch: batch [path;path] (opens the window, modeless) · batchadd path;path · batchstep optimize|protect open [owner]|unprotect|
-            // sanitize|redactpatterns [phrase]|watermark text|footer text|bates PREFIX [continue]|rotate 90|flatten|ocr|export word|excel|text|png|jpeg ·
+            // sanitize|redactpatterns [phrase]|watermark text|footer text|bates PREFIX [continue]|rotate 90|flatten|ocr|pdfa|export word|excel|text|png|jpeg ·
             // batchout folder [template] · batchoption signed=edit passwords=skip overwrite=on subfolders=off recursive=off images=a4 ·
             // batchpw password|skip (answers the next password prompt) · batchrun (waits for the result) · batchshot out.png · batchstate · batchclose
             case "batch":
@@ -891,6 +892,19 @@ internal static class DevScript
                 break;
             }
             case "batchclose": OpenBatch().Close(); break;
+            // Presets and watched folders: presetsave name · presetload name (the open Batch window) · watch folder;preset name
+            // (watched until the script ends) · watchshot out.png (the Watched Folders window) · watchstate
+            case "presetsave": OpenBatch().DevSavePreset(arg); break;
+            case "presetload": OpenBatch().DevLoadPreset(arg); log.Add(OpenBatch().DevState()); break;
+            case "watch":
+            {
+                var a = arg.Split(';', 2);
+                var preset = PresetLibrary.List().FirstOrDefault(p => p.Name == a[1]).Path ?? throw new ArgumentException($"no preset {a[1]}");
+                FolderWatches.Add(window, a[0], preset, "");
+                break;
+            }
+            case "watchshot": WatchWindow.Open(window); await Task.Delay(500); Shot(WatchWindow.Open(window), arg); break;
+            case "watchstate": log.Add($"watch: {WatchWindow.Open(window).DevState()}; title '{FolderWatches.Summary}'"); break;
             // Create PDF: convert path (an Office file or a saved web page, as File › Open does) · webpage address|file
             // (Create PDF from Web Page with the saved options) · converters (what is installed)
             case "convert":

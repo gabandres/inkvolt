@@ -63,12 +63,13 @@ there are business users.
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
 
-Not built yet: the licence seam, the key format and the checkout come with the first Pro feature (1.1's batch and saved
-patterns).
+The seam is in (with 1.2): `Pro.Allows(feature)` in Core (`Pro.cs`) is the one check every Pro feature asks, today always
+yes; presets, watched folders and the command line ask it. Not built yet: the key format, its check behind that seam and
+the checkout.
 
 ## Wave 1 (next)
 
-### 1.1 Redaction by pattern (building now)
+### 1.1 Redaction by pattern (done 2026-10-27)
 - **Leader.** Acrobat Pro: Find Text & Redact with fixed patterns (phone, credit card, email, SSN, date), several files,
   review each hit, then apply; it doesn't search encrypted PDFs
   ([Adobe](https://helpx.adobe.com/acrobat/current/removing-sensitive-content-pdfs.html)). PDF-XChange adds regular
@@ -91,12 +92,25 @@ patterns).
   finds 100% of them and leaves 0 after applying.
 - **Effort** M. Windows now; Mac with its redaction step.
 
-### 1.2 Saved batch presets, a watched folder and a command line
+### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
   ([Adobe](https://helpx.adobe.com/acrobat/current/action-wizard-acrobat-pro.html)). ABBYY FineReader PDF's Hot Folder:
   watched local, network, FTP or mail folders, now or on a schedule, capped at 5,000 pages a month on 2 cores
   ([ABBYY](https://pdf.abbyy.com/how-to/optimize-digitization-routines/)).
-- **Now.** Batch with 13 actions; the action list isn't saved.
+- **Now.** Windows: Batch with 16 actions (Save as PDF/A added; Redact Patterns and Check Redaction came with 1.1 and 1.5). Presets
+  (`BatchPresets`): named, saved on the PC, exported and imported as plain JSON (format marker, `version`, fields always
+  in the same order, no passwords: Protect keeps which ones it sets), strict on reading (an unknown action or setting, a
+  wrong value or a newer version is refused saying where). Watched folders (`WatchedFolder`): in the app while it is open
+  (Batch › Watched Folders, status in the title bar), or `inkvoltpdf --watch <folder> --preset <file> [--once]` in a
+  terminal or a scheduled task; a file runs once its size and time have held for 3 s and nobody holds it open, is moved
+  into `working` (so it runs once, across restarts; a run that never finished sends its files to `failed`), then to
+  `done` or `failed`, with a line per file in `inkvolt-watch.log`; one watcher per folder; no page cap. Command line
+  (`BatchCommandLine`): `inkvoltpdf --batch <preset> <files or folders>` without a window, a line per file, exit code 1 on
+  any failure (2 for a wrong command line or preset, 3 stopped), `--help`; Protect's passwords from environment
+  variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
+  with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
+  originals move right, an interrupted file never runs twice, the command line's exit codes. Still to do: the Mac; a
+  500-file run over a real network share; the alias tested in an installed Store package.
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the
@@ -131,7 +145,7 @@ patterns).
   makes 200 filled forms whose values read back right.
 - **Effort** S-M. Windows; Mac after 1.0.
 
-### 1.5 Redaction check (differentiator, building now)
+### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case
   ([Free Law Project](https://free.law/projects/x-ray/)). A study of 11 redaction tools, Acrobat among them, found that
   removed text can still be inferred from the positions of the characters around it

@@ -15,7 +15,9 @@ namespace InkvoltPdf.App;
 /// File › Batch: one list of actions run on many files (PDFs, and images made into PDFs), the results saved in a folder
 /// with names from a template; the originals stay as they are. The work is <see cref="BatchRunner"/>'s (worker threads, a
 /// few files at a time within a memory budget); this window lists the files with each one's result, asks for passwords
-/// as they come up (or skips those files), and can stop the batch.
+/// as they come up (or skips those files), and can stop the batch. The actions and choices can be saved as a named preset
+/// (<see cref="PresetLibrary"/>, plain JSON through <see cref="BatchPresets"/>), exported and imported, and run by a watched
+/// folder (<see cref="WatchWindow"/>) or the command line.
 /// </summary>
 internal sealed class BatchWindow : Window
 {
@@ -74,6 +76,9 @@ internal sealed class BatchWindow : Window
     private readonly Button _openFolder = new() { Content = "Open Folder", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
     private readonly Button _close = new() { Content = "Close", MinWidth = 104, IsCancel = true };
     private readonly List<UIElement> _editors = [];
+    private readonly ComboBox _preset = new() { MinWidth = 220 };
+    private List<(string Name, string Path)> _presets = [];
+    private bool _showingPresets;
 
     private CancellationTokenSource? _cts;
     private Task<BatchSummary>? _run;
@@ -110,9 +115,9 @@ internal sealed class BatchWindow : Window
         Owner = host;
         Title = "Batch";
         Width = 900;
-        Height = 780;
+        Height = 840;
         MinWidth = 720;
-        MinHeight = 640;
+        MinHeight = 690;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var s = AppSettings.Current;
@@ -267,6 +272,18 @@ internal sealed class BatchWindow : Window
             Text = "The same actions for many files, in the order listed. The originals stay as they are; the results go to the folder below (exports and page images without password protection).",
             Style = Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0),
         });
+        var presetRow = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        presetRow.Children.Add(new TextBlock { Text = "Preset", FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
+        AutomationProperties.SetName(_preset, "Preset");
+        _preset.Margin = new Thickness(0, 0, 8, 6);
+        _preset.SelectionChanged += (_, _) => LoadSelectedPreset();
+        presetRow.Children.Add(_preset);
+        presetRow.Children.Add(Small("Save Preset…", SavePreset));
+        presetRow.Children.Add(Small("Import…", ImportPreset));
+        presetRow.Children.Add(Small("Export…", ExportPreset));
+        presetRow.Children.Add(Small("Delete", DeletePreset));
+        heading.Children.Add(presetRow);
+        _editors.Add(presetRow);
         body.Children.Add(heading);
         Grid.SetRow(lists, 1);
         body.Children.Add(lists);
@@ -288,7 +305,13 @@ internal sealed class BatchWindow : Window
         buttons.Children.Add(_stop);
         buttons.Children.Add(_openFolder);
         buttons.Children.Add(_close);
-        var footer = new Border { Child = buttons, BorderThickness = new Thickness(0, 1, 0, 0) };
+        var watched = new Button { Content = "Watched Folders…", MinWidth = 104, Margin = new Thickness(24, 16, 0, 16), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
+        watched.Click += (_, _) => WatchWindow.Open(_host);
+        var bar = new DockPanel();
+        DockPanel.SetDock(buttons, Dock.Right);
+        bar.Children.Add(buttons);
+        bar.Children.Add(watched);
+        var footer = new Border { Child = bar, BorderThickness = new Thickness(0, 1, 0, 0) };
         footer.SetResourceReference(Border.BackgroundProperty, "LayerFillColorDefaultBrush");
         footer.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
         var root = new DockPanel();
@@ -299,6 +322,7 @@ internal sealed class BatchWindow : Window
 
         UpdateCounts();
         RefreshSteps();
+        RefreshPresets();
         Closing += OnClosing;
     }
 
@@ -413,6 +437,7 @@ internal sealed class BatchWindow : Window
         Item("Flatten…", () => AskFlatten(null));
         var ocr = PageOcr.Engine is not null;
         Item("Recognize Text (OCR)", () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
+        Item("Save as PDF/A-2b", () => new SaveAsPdfAStep());
         menu.Items.Add(new Separator());
         Item("Export to Word (.docx)", () => new ExportStep(BatchExportFormat.Word));
         Item("Export Tables to Excel (.xlsx)", () => new ExportStep(BatchExportFormat.Excel));
@@ -438,7 +463,7 @@ internal sealed class BatchWindow : Window
         if (_steps.Count == 0)
             _stepList.Items.Add(new ListBoxItem
             {
-                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, check redaction, watermark, header and footer, rotate, flatten, OCR, export.", Style = Caption, TextWrapping = TextWrapping.Wrap },
+                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, check redaction, watermark, header and footer, rotate, flatten, OCR, PDF/A, export. Or choose a saved preset above.", Style = Caption, TextWrapping = TextWrapping.Wrap },
                 Focusable = false,
                 IsHitTestVisible = false,
             });
@@ -576,6 +601,8 @@ internal sealed class BatchWindow : Window
             case OptimizeStep o:
                 var q = FileTools.Qualities.FirstOrDefault(x => x.Dpi == o.Options.MaxImageDpi).Name ?? "";
                 return q + (o.Options.RemoveMetadata ? "; XMP metadata removed" : "");
+            case ProtectStep { NeedsPasswords: true }:
+                return "Its passwords aren't in the preset: Change… to type them";
             case ProtectStep p:
                 var parts = new List<string>();
                 if (!string.IsNullOrEmpty(p.UserPassword)) parts.Add("needs a password to open");
@@ -608,6 +635,8 @@ internal sealed class BatchWindow : Window
                 if (f.Options.Annotations) kinds.Add("comments");
                 if (f.Options.FormFields) kinds.Add("form fields");
                 return string.Join(" and ", kinds) is { Length: > 0 } k ? char.ToUpperInvariant(k[0]) + k[1..] + (f.Options.PrintableOnly ? ", only what prints" : "") : "";
+            case SaveAsPdfAStep:
+                return "An archival copy (ISO 19005-2, level B); a file that can't be made one fails, saying why";
             case OcrStep:
                 return PageOcr.Engine is { } e ? $"Pages without text, with Windows' {e.RecognizerLanguage.DisplayName} recognizer" : PageOcr.Unavailable;
             case ExportStep x:
@@ -621,6 +650,137 @@ internal sealed class BatchWindow : Window
             default:
                 return "";
         }
+    }
+
+    // ───────────────────────────── presets ─────────────────────────────
+
+    private void RefreshPresets(string? select = null)
+    {
+        _showingPresets = true;
+        _presets = PresetLibrary.List();
+        _preset.ItemsSource = _presets.Select(p => p.Name).ToList();
+        _preset.SelectedIndex = select is null ? -1 : _presets.FindIndex(p => string.Equals(p.Path, select, StringComparison.OrdinalIgnoreCase));
+        _showingPresets = false;
+    }
+
+    private (string Name, string Path)? SelectedPreset => _preset.SelectedIndex >= 0 && _preset.SelectedIndex < _presets.Count ? _presets[_preset.SelectedIndex] : null;
+
+    private void LoadSelectedPreset()
+    {
+        if (_showingPresets || SelectedPreset is not { } chosen) return;
+        if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
+        try
+        {
+            ShowPreset(BatchPresets.Load(chosen.Path));
+        }
+        catch (BatchPresetException ex)
+        {
+            Status(ex.Message, error: true);
+        }
+    }
+
+    /// <summary>The window takes a preset's actions and choices (and its results folder, when it has one).</summary>
+    private void ShowPreset(BatchPreset preset)
+    {
+        _steps.Clear();
+        _steps.AddRange(preset.Steps);
+        RefreshSteps(0);
+        if (preset.OutputFolder is { } folder) _folder.Text = folder;
+        _template.Text = preset.NameTemplate;
+        _neverOverwrite.IsChecked = preset.NeverOverwrite;
+        _keepSubfolders.IsChecked = preset.KeepSubfolders;
+        _signed.SelectedIndex = preset.SignedFiles == SignedFilePolicy.Edit ? 1 : 0;
+        _passwords.SelectedIndex = preset.Passwords == PasswordPolicy.Skip ? 1 : 0;
+        _imageSize.SelectedIndex = preset.ImagePageSize switch { PageSizeOption.Letter => 1, PageSizeOption.A4 => 2, _ => 0 };
+        Status($"\"{preset.Name}\": {preset.Steps.Count} action{(preset.Steps.Count == 1 ? "" : "s")}." +
+               (preset.Steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords) ? " Protect with a password needs its passwords (presets don't keep them): choose it, then Change…" : ""));
+    }
+
+    private void SavePreset()
+    {
+        if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
+        if (_steps.Count == 0)
+        {
+            Status("Add the actions first, then save them as a preset.", error: true);
+            return;
+        }
+        var dlg = new FormDialog(this, "Save Preset", "Save", 480);
+        var name = dlg.AddText("Name", SelectedPreset?.Name ?? "");
+        var keepFolder = dlg.AddCheck("Keep the results folder in the preset", _folder.Text.Trim().Length > 0);
+        dlg.AddNote("The actions in order with their settings, the file names and the choices below. Passwords are never saved: they are asked for when the preset runs.");
+        dlg.Validate(() => string.IsNullOrWhiteSpace(name.Text) ? "Name the preset." : null);
+        if (!dlg.ShowModal()) return;
+        var path = PresetLibrary.PathFor(name.Text.Trim());
+        if (File.Exists(path) && !string.Equals(path, SelectedPreset?.Path, StringComparison.OrdinalIgnoreCase)
+                              && !Prompt.Confirm(this, "Replace the preset?", $"There is a preset named \"{name.Text.Trim()}\" already.", "Replace"))
+            return;
+        try
+        {
+            RefreshPresets(PresetLibrary.Save(BatchPreset.From(name.Text.Trim(), Plan(), keepFolder.IsChecked == true)));
+            Status($"Preset \"{name.Text.Trim()}\" saved. Watched Folders can run it; Export… writes a copy for the command line or another PC.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Status($"The preset couldn't be saved: {ex.Message}", error: true);
+        }
+    }
+
+    private void ImportPreset()
+    {
+        if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
+        var dlg = new OpenFileDialog { Title = "Import a batch preset", Filter = "Batch presets (*.json)|*.json", InitialDirectory = AppSettings.Current.LastFolder };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var preset = BatchPresets.Load(dlg.FileName);
+            var path = PresetLibrary.PathFor(preset.Name);
+            if (File.Exists(path) && !Prompt.Confirm(this, "Replace the preset?", $"There is a preset named \"{preset.Name}\" already.", "Replace")) return;
+            RefreshPresets(PresetLibrary.Save(preset));
+            ShowPreset(preset);
+        }
+        catch (Exception ex) when (ex is BatchPresetException or IOException or UnauthorizedAccessException)
+        {
+            Status(ex.Message, error: true);
+        }
+    }
+
+    /// <summary>The window's actions and choices (results folder included) as a preset file anywhere: to share, or for the command line.</summary>
+    private void ExportPreset()
+    {
+        if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
+        if (_steps.Count == 0)
+        {
+            Status("Add the actions first (or choose a preset), then export them.", error: true);
+            return;
+        }
+        var name = SelectedPreset?.Name ?? "Batch preset";
+        var dlg = new SaveFileDialog { Title = "Export the batch preset", Filter = "Batch presets (*.json)|*.json", FileName = BatchPresets.FileName(name) };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            BatchPresets.Save(BatchPreset.From(name, Plan(), keepFolder: true), dlg.FileName);
+            Status($"Exported to {dlg.FileName}. Run it with: inkvoltpdf --batch \"{dlg.FileName}\" <files or folders>");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Status($"The preset couldn't be exported: {ex.Message}", error: true);
+        }
+    }
+
+    private void DeletePreset()
+    {
+        if (SelectedPreset is not { } chosen
+            || !Prompt.Confirm(this, "Delete the preset?", $"\"{chosen.Name}\" is removed from this PC. A watched folder using it stops at its next start.", "Delete"))
+            return;
+        try
+        {
+            File.Delete(chosen.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Status($"The preset couldn't be deleted: {ex.Message}", error: true);
+        }
+        RefreshPresets();
     }
 
     // ───────────────────────────── running ─────────────────────────────
@@ -857,6 +1017,7 @@ internal sealed class BatchWindow : Window
             "rotate" => new RotateStep(int.TryParse(rest, out var d) ? d : 90),
             "flatten" => new FlattenStep(new FlattenOptions()),
             "ocr" => new OcrStep(),
+            "pdfa" => new SaveAsPdfAStep(),
             "export" => new ExportStep(rest.ToLowerInvariant() switch
             {
                 "word" => BatchExportFormat.Word,
@@ -910,6 +1071,15 @@ internal sealed class BatchWindow : Window
             case "recursive": _recursive.IsChecked = value == "on"; break;
             case "images": _imageSize.SelectedIndex = value switch { "letter" => 1, "a4" => 2, _ => 0 }; break;
         }
+    }
+
+    /// <summary><c>presetsave name</c> and <c>presetload name</c>: a preset saved or chosen without the dialogs.</summary>
+    internal void DevSavePreset(string name) => RefreshPresets(PresetLibrary.Save(BatchPreset.From(name, Plan(), keepFolder: true)));
+
+    internal void DevLoadPreset(string name)
+    {
+        RefreshPresets();
+        _preset.SelectedIndex = _presets.FindIndex(p => p.Name == name);
     }
 
     internal string DevState() =>

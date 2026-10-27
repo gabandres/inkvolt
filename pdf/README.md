@@ -332,7 +332,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Redact Patterns (the choices of Redact by Pattern, applied at once; each row says how many matches of each kind),
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
-  Flatten, Recognize Text (OCR), Export to Word, Excel or text, Export Pages as Images. Each action has the same
+  Flatten, Recognize Text (OCR), Save as PDF/A-2b (last of the changes; a file that can't be made PDF/A fails, saying
+  why), Export to Word, Excel or text, Export Pages as Images. Each action has the same
   settings as its own command. The results go to a folder with names from a template (`<<name>>`, `<<n>>` or
   `<<n:3>>`, `<<date>>`, `<<folder>>`), subfolders kept if you like; a name already taken gets a number ("report
   (2).pdf") unless you allow overwriting, and the originals are never replaced. Files run a few at a time on worker
@@ -341,6 +342,19 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   half). A file with a password asks for it when its turn comes (the open password, or the permissions password when a
   change needs it; Cancel skips that file, or skip them all) and keeps its protection; signed PDFs are left alone unless
   you choose to change them too (exports still read them). Double-click a row to open its result.
+  **Presets**: Save Preset keeps the actions with their settings, the names and the choices as a named preset on this PC
+  (`presets` in Inkvolt PDF's data folder), picked from the Preset list next time; Export and Import write and read one
+  anywhere, to share it or for the command line. A preset is a plain JSON file (readable, diffable, the fields always in
+  the same order, a `version` for later changes); passwords are never in it: Protect with a password keeps only which
+  passwords it sets, and asks for them when it runs. A preset from a newer Inkvolt PDF, or one with a mistake made by hand
+  (an unknown action or setting, a wrong value), is refused saying what and where. **Watched Folders** (in Batch, or the
+  title-bar status): each PDF or image put in a watched folder runs through its preset once it has stopped growing
+  (its size and time unchanged for 3 seconds and nobody else holding it open, so a slow network copy is waited for); the
+  original moves to `done` or `failed` below the folder and `inkvolt-watch.log` there gets a line per file (time, result,
+  file, what happened, the results; tab-separated). Results go to the preset's folder, or `results` in the watched one.
+  A file is taken by moving it into `working` first, so it runs once even with the app restarting: files left there by a
+  run that never finished go to `failed`, never through again. Folders are watched while Inkvolt PDF is open (they start
+  again with it; the title bar says how they are doing); for a folder watched without the app, see Command line.
 - **Print** (renders in the background, one sheet at a time; progress on the taskbar button, as for export, OCR and
   combine). Ctrl+P prints each page fit to the paper as last chosen. **Print with Options…** (Ctrl+Alt+P) adds **Page
   Sizing & Handling** after the printer is chosen (remembered, with a sketch of the first sheet and the sheet count):
@@ -396,13 +410,40 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Requests to this PC or the network never use a proxy; redirects aren't followed. The log records only the host and
   sizes, never the text.
 
+## Command line
+
+Inkvolt PDF runs a saved preset without a window (Export one from File › Batch). From the Microsoft Store install the
+command is `inkvoltpdf` (its app execution alias, on the PATH); from a build, `InkvoltPdf.exe`.
+
+```
+inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--quiet]
+inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--quiet]
+inkvoltpdf --help
+```
+
+- `--batch` runs the preset on the files (a folder: the PDFs and images in it; `--recursive` its subfolders too), a line
+  per file; results go to `--out`, else the preset's folder. `--watch` watches a folder as the app's Watched Folders do
+  (same `done`, `failed`, `working` and log) until Ctrl+C; `--once` handles the files there now and stops, for a
+  scheduled task. `--quiet` prints only failures and the summary.
+- Nothing is asked: files that need a password to open are skipped, and Protect with a password takes its passwords from
+  `INKVOLTPDF_OPEN_PASSWORD` and `INKVOLTPDF_PERMISSIONS_PASSWORD` (presets never keep them; the command line is
+  visible to other programs, the environment isn't).
+- Exit codes: `0` every file done; `1` a file failed or was skipped; `2` wrong command line, preset or folder (nothing
+  done); `3` stopped before the end.
+- It is a windowed app (a console app would flash a console each time a PDF opens from Explorer), so a terminal doesn't
+  wait for it: the lines come after the prompt. To wait and get the exit code: `start /wait inkvoltpdf --batch …` and
+  `%ERRORLEVEL%` in cmd; `inkvoltpdf --batch … | Out-Default` and `$LASTEXITCODE` in PowerShell. Output redirected to a
+  file or a pipe always works. A scheduled task waits on its own: program `%LOCALAPPDATA%\Microsoft\WindowsApps\inkvoltpdf.exe`,
+  arguments `--watch D:\Inbox --preset D:\Presets\archive.json --once`, every 15 minutes (or `--watch` without `--once`
+  at logon, running until logoff).
+
 ## Layout
 
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
 | `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `Redaction` + `RedactionPatterns` (redact by pattern: finding SSNs, phones, cards, dates, …) + `RedactionCheck` (`RedactionCheck.Data.cs`: what is left of a redaction: covered text, unapplied marks, leftovers in every object, earlier versions and raw bytes), `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `DocumentTab.Measure.cs` + `Viewer/PageViewer.Measure.cs` Measure (Core: `Measurement.cs`: `MeasureGeometry`, `MeasureScale`, `Measurements`); `PdfAActions.cs` Save as PDF/A-2b (Core: `PdfA.cs`, with `IccProfiles`); `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document; `RedactPatternActions.cs` Redact by Pattern (the dialog, also Batch's); `RedactionCheckActions.cs` Check Redaction (the report and its fix; the check after Apply is in `DocumentTab.Review.cs`) |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `DocumentTab.Measure.cs` + `Viewer/PageViewer.Measure.cs` Measure (Core: `Measurement.cs`: `MeasureGeometry`, `MeasureScale`, `Measurements`); `PdfAActions.cs` Save as PDF/A-2b (Core: `PdfA.cs`, with `IccProfiles`); `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate; presets are Core's `BatchPresets.cs`, the watcher `WatchedFolder.cs`, the command line `BatchCommandLine.cs`, the Pro check `Pro.cs`); `BatchAutomation.cs` the presets saved on this PC, the app's watched folders (`FolderWatches`) and the Watched Folders window; `CommandLine.cs` `--batch` / `--watch` without a window (the console, OCR); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document; `RedactPatternActions.cs` Redact by Pattern (the dialog, also Batch's); `RedactionCheckActions.cs` Check Redaction (the report and its fix; the check after Apply is in `DocumentTab.Review.cs`) |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
@@ -432,7 +473,8 @@ converted samples when `INKVOLTPDF_VERAPDF` names `verapdf.bat` (extra inputs fr
 converted files stay in `INKVOLTPDF_SAMPLES\pdfa`). PDF from Office and web: `converters` (what is installed), `convert file.docx|page.html` (as File › Open), `webpage address|file`.
 Batch: `batch folder;file` (opens the window), `batchstep watermark DRAFT|bates CASE- continue|export text|…`, `batchout folder [template]`,
 `batchoption signed=edit passwords=skip …`, `batchpw password|skip`, `batchrun`, `batchshot out.png`, `batchask headerfooter out.png` (an
-action's dialog), `batchstate`. Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
+action's dialog), `batchstate`, `batchstep pdfa`; presets and watched folders: `presetsave name`, `presetload name`, `watch folder;preset name`,
+`watchshot out.png`, `watchstate`. Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
 everything it removes). Redact by Pattern: `dialog RedactPatterns out.png`, `dialogok RedactPatterns text0=Acme{sp}Corp text1=CASE-\d{4}`
 (phrases, then the pattern; the kinds are `check0`…), `redact-patterns [phrase]` (the default kinds), `batchstep redactpatterns [phrase]`;
 Redaction check: `apply-redactions` (the check follows: `dialogshot`, then `prompt Fix N things` or `closedialog`), `cmd CheckRedaction`,
@@ -555,7 +597,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   choice per file (delete, extract, split, crop, insert). Actions run on every page of each file. Bates numbers that
   continue from file to file make the batch run one file at a time. A file is read whole into memory, and very large
   files run alone, so a batch of huge scans is slow rather than out of memory. XPS, EPUB and other formats aren't
-  taken (PDFs and images only). An action list isn't saved between sessions (the folder and naming are).
+  taken (PDFs and images only). Presets keep 8-bit colors and no passwords (asked, or from the environment on the
+  command line). Watched folders: the folder's top only (not subfolders), watched while the app is open or a `--watch`
+  runs; a file that needs a password to open fails there; one watcher per folder (a lock file); closing the app gives
+  files being worked on 10 seconds to finish, after which they go to `failed` on the next start. The command line
+  doesn't keep a terminal waiting (see Command line).
 - Split view: the second pane is for reading: comments, fields and drawings are edited, and search and find matches
   shown, in the main pane. One split per tab (two panes), not remembered when the tab is closed. Two different
   documents side by side: use Compare Files.
@@ -589,11 +635,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
   summary to export (CSV), geospatial (GEO) scales.
 - PDF/A: PDF/A-1b and 3b, the accessible level (tags), CMYK documents (a CMYK output intent), embedding installed
-  fonts other than the standard ones, Save as PDF/A in Batch.
+  fonts other than the standard ones.
 - PDF from Office and web: Office files in batches, LibreOffice when Office isn't installed, a whole website or
   several pages into one PDF, a page's own print-friendly mode or reader view.
-- Batch: saved action lists (presets), print as an action, split and combine, page ranges per action, running a batch
-  from the command line or a watched folder.
+- Batch: print as an action, split and combine, page ranges per action; watched folders on a schedule, over FTP or
+  mail, and as a Windows service.
 - Split view: edit in either pane; more than two panes; two open tabs side by side; remember the split per file.
 - Sanitize: find text hidden in white, under images or outside the page; remove alternate text and a structure
   tree's hidden content; save a report of what was removed.

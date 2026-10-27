@@ -9,9 +9,14 @@ namespace InkvoltPdf.Core;
 /// <param name="Path">Its full path.</param>
 /// <param name="RelativeFolder">The folder below an added folder it was found in ("" at the top or when added on its own):
 /// with <see cref="BatchPlan.KeepSubfolders"/> its results go to the same folder below the output folder.</param>
-public sealed record BatchFile(string Path, string RelativeFolder = "")
+/// <param name="Origin">Where the file came from when it is worked on elsewhere (a watched folder's file, moved aside while
+/// it runs): names (&lt;&lt;folder&gt;&gt;) come from there. Null: <paramref name="Path"/>.</param>
+public sealed record BatchFile(string Path, string RelativeFolder = "", string? Origin = null)
 {
     public bool IsImage => BatchFiles.IsImage(Path);
+
+    /// <summary>The path result names are made from.</summary>
+    public string NamedAs => Origin ?? Path;
 }
 
 /// <summary>The files a batch can take: PDFs, and images (made into a PDF first).</summary>
@@ -154,10 +159,16 @@ public sealed record OptimizeStep(OptimizeOptions Options) : BatchStep
     public override string Title => "Reduce file size";
 }
 
-/// <summary>AES-256 protection. Passwords are kept out of <see cref="ToString"/> (no log ever shows them).</summary>
+/// <summary>
+/// AES-256 protection. Passwords are kept out of <see cref="ToString"/> (no log ever shows them). A password that is ""
+/// is wanted but not given yet: a preset (<see cref="BatchPresets"/>) keeps which passwords are set, never the passwords.
+/// </summary>
 public sealed record ProtectStep(string? UserPassword, string? OwnerPassword, PdfPermissions Permissions, EncryptionMethod Method = EncryptionMethod.Aes256) : BatchStep
 {
     public override string Title => "Protect with a password";
+
+    /// <summary>A password is wanted but not given (a step read from a preset).</summary>
+    public bool NeedsPasswords => UserPassword is "" || OwnerPassword is "";
 
     public override string ToString() => Title;
 }
@@ -209,6 +220,12 @@ public sealed record RotateStep(int Degrees) : BatchStep
 public sealed record FlattenStep(FlattenOptions Options) : BatchStep
 {
     public override string Title => "Flatten";
+}
+
+/// <summary>An archival PDF/A-2b copy (<see cref="PdfA.Convert"/>); a file that can't be made one fails, saying why.</summary>
+public sealed record SaveAsPdfAStep : BatchStep
+{
+    public override string Title => "Save as PDF/A";
 }
 
 /// <summary>Text recognition of pages without text, added as an invisible text layer (the recognizer comes from <see cref="BatchHost.Recognize"/>).</summary>
@@ -298,8 +315,15 @@ public sealed record BatchPlan
         var protect = Steps.ToList().FindIndex(s => s is ProtectStep);
         if (protect >= 0 && Steps.Skip(protect + 1).Any(s => s.ChangesPdf))
             return "Put \"Protect with a password\" after the other changes: they would need its password.";
+        if (Steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords))
+            return "Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them.";
         if (Steps.OfType<ProtectStep>().Any(p => string.IsNullOrEmpty(p.UserPassword) && string.IsNullOrEmpty(p.OwnerPassword)))
             return "Protect with a password needs an open password, a permissions password, or both.";
+        var pdfa = Steps.ToList().FindIndex(s => s is SaveAsPdfAStep);
+        if (pdfa >= 0 && Steps.Any(s => s is ProtectStep))
+            return "A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\".";
+        if (pdfa >= 0 && Steps.Skip(pdfa + 1).Any(s => s.ChangesPdf))
+            return "Put \"Save as PDF/A\" after the other changes, so the result stays PDF/A.";
         if (Steps.OfType<ExportStep>().GroupBy(e => e.Format).FirstOrDefault(g => g.Count() > 1) is { } twice)
             return $"\"{twice.First().Title}\" is in the list twice.";
         if (Steps.OfType<RedactPatternsStep>().Any(r => r.Options.IsEmpty))
@@ -544,7 +568,7 @@ public static class BatchRunner
             {
                 cancel.ThrowIfCancellationRequested();
                 Report("Reading…", 0);
-                _baseName = BatchNames.Expand(plan.NameTemplate, file.Path, index + 1, plan.Date);
+                _baseName = BatchNames.Expand(plan.NameTemplate, file.NamedAs, index + 1, plan.Date);
                 _folder = plan.KeepSubfolders && file.RelativeFolder.Length > 0 ? Path.Combine(plan.OutputFolder, file.RelativeFolder) : plan.OutputFolder;
                 var data = await File.ReadAllBytesAsync(file.Path, cancel).ConfigureAwait(false);
                 if (file.IsImage)
@@ -709,11 +733,17 @@ public static class BatchRunner
                 case HeaderFooterStep h:
                     return HeaderFooter.Apply(d, pw, all, h.Options with
                     {
-                        FileName = Path.GetFileName(file.Path),
+                        FileName = Path.GetFileName(file.NamedAs),
                         BatesOffset = h.ContinueBates ? (int)Math.Min(int.MaxValue, BatesOffset) : 0,
                     });
                 case RotateStep r: return PageEditor.Rotate(d, pw, all, r.Degrees);
                 case FlattenStep f: return Flattener.Flatten(d, pw, f.Options);
+                case SaveAsPdfAStep:
+                {
+                    var r = PdfA.Convert(d, pw);
+                    _notes.Add(r.Changes.Count == 0 ? "PDF/A-2b: nothing needed changing" : $"PDF/A-2b: {string.Join("; ", r.Changes)}");
+                    return r.Data;
+                }
                 default: throw new NotSupportedException(step.Title);
             }
         }
@@ -727,7 +757,7 @@ public static class BatchRunner
                     _password = string.IsNullOrEmpty(p.OwnerPassword) ? p.UserPassword : p.OwnerPassword;
                     _openPassword = string.IsNullOrEmpty(p.UserPassword) ? null : p.UserPassword;
                     break;
-                case UnprotectStep:
+                case UnprotectStep or SaveAsPdfAStep: // PDF/A files aren't encrypted
                     _password = _openPassword = null;
                     break;
             }

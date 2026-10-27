@@ -28,6 +28,12 @@ public partial class App : Application
             Shutdown(OfficeConverter.RunChild(args));
             return;
         }
+        // The command line (--batch, --watch, --help): no window, no single-instance handoff, exits with its code.
+        if (Core.BatchCommandLine.IsCommand(args))
+        {
+            _ = RunCommandLineAsync(args);
+            return;
+        }
         var script = Array.IndexOf(args, "--script");
         if (script >= 0 && script + 1 < args.Length)
         {
@@ -66,8 +72,11 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+        if (_instance.IsOwner) FolderWatches.StartSaved(); // a fallback copy would only find the folders locked
         _ = OpenStartupFilesAsync(window, args);
     }
+
+    private async Task RunCommandLineAsync(string[] args) => Shutdown(await CommandLine.RunAsync(args));
 
     /// <summary>Documents left unsaved by an earlier run first (one may be a file asked for now), then the files asked for.</summary>
     private async Task OpenStartupFilesAsync(MainWindow window, string[] args)
@@ -224,6 +233,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        FolderWatches.StopAll();
         _instance?.Dispose();
         base.OnExit(e);
     }
