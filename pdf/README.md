@@ -543,6 +543,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 ## Backlog
 
+- The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 - Edit Text & Images: edit a whole paragraph with reflow, fall back to a matching installed font when the embedded one
   lacks a character, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
