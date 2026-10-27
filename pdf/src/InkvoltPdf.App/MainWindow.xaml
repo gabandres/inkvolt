@@ -266,6 +266,7 @@
                                     <MenuItem x:Name="RedactHitsMenu" Header="Mark Search _Matches for Redaction" Click="OnRedactHits" />
                                     <MenuItem Command="app:Cmd.RedactPatterns" />
                                     <MenuItem x:Name="ApplyRedactMenu" Header="_Apply Redactions…" Click="OnApplyRedactions" />
+                                    <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
                                     <Separator />
                                     <!-- Bring your own AI: off by default (AiActions, DocumentTab.Ai) -->

@@ -79,7 +79,8 @@ patterns).
   Redact by Pattern (`RedactionPatterns`): SSN, phone, email, card (Luhn), date, IBAN (mod 97), IP and ZIP patterns,
   phrases and a regex (with a timeout), across line breaks and hyphens, on all pages or a range, marked for review in
   the document; Batch's Redact Patterns action applies them over many files. Still to do: saved named pattern sets,
-  scanned pages through OCR text, a per-hit list with context, the removal report, the read-back check, the Pro split.
+  scanned pages through OCR text, a per-hit list with context, the removal report, the Pro split (the read-back check
+  is 1.5's check after Apply).
 - **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
   a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
   so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
@@ -130,7 +131,7 @@ patterns).
   makes 200 filled forms whose values read back right.
 - **Effort** S-M. Windows; Mac after 1.0.
 
-### 1.5 Redaction check (differentiator)
+### 1.5 Redaction check (differentiator, building now)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case
   ([Free Law Project](https://free.law/projects/x-ray/)). A study of 11 redaction tools, Acrobat among them, found that
   removed text can still be inferred from the positions of the characters around it
@@ -140,6 +141,18 @@ patterns).
   later content; flags lines whose remaining glyph spacing gives away the removed width; lists each with page and box.
   Our own redaction (1.1) passes it by construction (pages become images). Test: a corpus of bad redactions (boxes,
   highlights, white-on-black, unapplied marks) is flagged 100%, properly redacted files 0%.
+- **Now.** Windows: `RedactionCheck`, run after every Apply (with what was redacted) and as Review › Check Redaction…
+  and a Batch action (a file with findings fails). Covers: text under dark boxes, highlights and other comments or drawn
+  in the color behind it (white-on-black read strictly: any text whose glyphs don't show, found by drawing each
+  character), pictures and drawings under dark boxes (drawn again without the box), unapplied Redact marks, text beside
+  a box keeping its positions; each with page and box. Leftovers of the redacted text in every other place the file can
+  keep it (page text, hidden or off-page content, comments and appearances, fields and XFA, bookmarks, Info and XMP,
+  attachments, tags, scripts, unused objects, each earlier incremental version, raw bytes decompressed) and text an
+  earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
+  picture. Fix redacts, sanitizes and rewrites. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
+  planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
+  busy PC), in the background (Apply itself unchanged). Still to do: the Mac, glyph-spacing inference around pixel
+  redactions.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
 ## Wave 2

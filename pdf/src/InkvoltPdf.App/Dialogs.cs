@@ -128,6 +128,9 @@ public sealed class FormDialog : Window
         };
     }
 
+    /// <summary>The Cancel button's text ("Close" when leaving changes nothing).</summary>
+    public void SetCancelText(string text) => _cancel.Content = text;
+
     /// <summary>Called on OK; return an error message to keep the dialog open.</summary>
     public void Validate(Func<string?> validate) => _validate = validate;
 

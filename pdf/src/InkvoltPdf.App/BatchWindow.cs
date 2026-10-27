@@ -406,6 +406,7 @@ internal sealed class BatchWindow : Window
         Item("Remove Password Protection", () => new UnprotectStep());
         Item("Sanitize…", () => AskSanitize(null));
         Item("Redact Patterns…", () => AskRedactPatterns(null));
+        Item("Check Redaction", () => new CheckRedactionStep());
         Item("Add Watermark…", () => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null);
         Item("Add Header, Footer & Bates Numbers…", () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
         Item("Rotate Pages…", () => AskRotate(null));
@@ -437,7 +438,7 @@ internal sealed class BatchWindow : Window
         if (_steps.Count == 0)
             _stepList.Items.Add(new ListBoxItem
             {
-                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, watermark, header and footer, rotate, flatten, OCR, export.", Style = Caption, TextWrapping = TextWrapping.Wrap },
+                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, check redaction, watermark, header and footer, rotate, flatten, OCR, export.", Style = Caption, TextWrapping = TextWrapping.Wrap },
                 Focusable = false,
                 IsHitTestVisible = false,
             });
@@ -589,6 +590,8 @@ internal sealed class BatchWindow : Window
                     : $"{s.Items.Count} of {SanitizeActions.Kinds.Length} kinds of hidden data";
             case RedactPatternsStep r:
                 return RedactPatternActions.Describe(r.Options);
+            case CheckRedactionStep:
+                return "A file with anything recoverable left (text under boxes, leftovers of what was redacted) fails and isn't saved";
             case WatermarkStep w:
                 var what = w.Options.Image is not null ? "A picture" : $"\"{w.Options.Text}\"";
                 return $"{what}, {w.Options.Opacity:P0} opaque, {(w.Options.Layout == WatermarkLayout.Tiled ? "tiled" : "centered")}{(w.Options.Behind ? ", behind the content" : "")}";
@@ -847,6 +850,7 @@ internal sealed class BatchWindow : Window
             "unprotect" => new UnprotectStep(),
             "sanitize" => new SanitizeStep(SanitizeActions.Kinds.Select(k => k.Item).Where(i => i != SanitizeItem.Signatures).ToHashSet()),
             "redactpatterns" => new RedactPatternsStep(new RedactionPatternOptions { Phrases = rest.Length > 0 ? [rest] : [] }),
+            "checkredaction" => new CheckRedactionStep(),
             "watermark" => new WatermarkStep(new WatermarkOptions { Text = rest.Length > 0 ? rest : "DRAFT" }),
             "footer" => new HeaderFooterStep(new HeaderFooterOptions { FooterCenter = rest.Length > 0 ? rest : "Page <<page>> of <<pages>>" }),
             "bates" => new HeaderFooterStep(new HeaderFooterOptions { FooterRight = "<<bates>>", Bates = new BatesFormat(rest.Split(' ')[0], 1, 6) }, rest.Contains("continue")),

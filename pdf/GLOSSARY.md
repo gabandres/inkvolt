@@ -24,5 +24,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   File › Export, Batch and `tools/export-corpus`.
 - **Recognizer**: text recognition (OCR) of a page without text; Windows' OCR in the app (`App/PageOcr.cs`), passed to
   Core as a function.
+- **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
+  (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
+  with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

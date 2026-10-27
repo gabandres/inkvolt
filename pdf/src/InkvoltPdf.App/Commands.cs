@@ -171,6 +171,7 @@ public static class Cmd
     public static readonly RoutedUICommand AddNote = Make("Add _Note", nameof(AddNote), K(Key.C, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand Redact = Make("_Redact", nameof(Redact));
     public static readonly RoutedUICommand RedactPatterns = Make("Redact by _Pattern…", nameof(RedactPatterns));
+    public static readonly RoutedUICommand CheckRedaction = Make("Chec_k Redaction…", nameof(CheckRedaction));
     public static readonly RoutedUICommand Sanitize = Make("Sa_nitize Document…", nameof(Sanitize));
 
     // Drawing tools. Their keys (P, M, R, E, L, W, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.

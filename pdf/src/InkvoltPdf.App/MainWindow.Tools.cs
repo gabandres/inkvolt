@@ -23,6 +23,7 @@ public partial class MainWindow
         BindEdit(Cmd.Flatten, t => FileTools.Flatten(this, t));
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
         BindEdit(Cmd.AddHeaderFooter, t => PageMarkActions.AddHeaderFooter(this, t));
         BindEdit(Cmd.RemoveHeaderFooter, PageMarkActions.RemoveHeaderFooter);
         BindEdit(Cmd.AddWatermark, t => PageMarkActions.AddWatermark(this, t));

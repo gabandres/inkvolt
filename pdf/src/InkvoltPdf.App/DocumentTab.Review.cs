@@ -1259,7 +1259,9 @@ public partial class DocumentTab
     public void MarkRedaction(int page, RectD rect) => Viewer.AddRedactions([new RedactMark(page, rect)]);
 
     /// <summary>Confirms, then blacks out every marked area for good (the affected pages become images).</summary>
-    public async Task<bool> ApplyRedactions(bool confirm = true)
+    /// <param name="check">Check the result afterwards (<see cref="RedactionCheck"/>, in the background): a report when
+    /// anything of what was redacted is left in the file, a toast when nothing is.</param>
+    public async Task<bool> ApplyRedactions(bool confirm = true, bool check = true)
     {
         var marks = Viewer.Redactions.ToList();
         if (marks.Count == 0 || !Session.IsPdf) return false;
@@ -1269,6 +1271,9 @@ public partial class DocumentTab
                 $"The marked areas are blacked out and their content removed. {(pages.Count == 1 ? "Page" : "Pages")} {list} become images: their text can no longer be selected, searched or copied, and their links, comments and form fields are flattened into the image.{(Session.SignedOnOpen ? "\n\nThis document is digitally signed: redaction rewrites the file, so its signatures will no longer verify." : "")}\n\nYou can undo this until you save. Once saved, the removed content can't be recovered.",
                 "Apply redactions", warning: true)) return false;
         var areas = marks.GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
+        // What is about to be redacted, for the check afterwards: the text under the marks, the document as it is.
+        var before = Session.Data;
+        var values = check && Viewer.Engine is { } engine ? RedactionCheck.ValuesUnder(engine, areas) : [];
         var ocr = PageOcr.Engine;
         var recognized = 0;
         var ocrSkipped = false;
@@ -1301,8 +1306,58 @@ public partial class DocumentTab
             if (Viewer.Tool == ViewerTool.Redact) Viewer.Tool = ViewerTool.Hand;
             if (ocr is null) Notify("The redacted pages are images now and their text can't be searched: no text recognition (OCR) language is installed in Windows.");
             else if (ocrSkipped) Notify("Redacted. Text recognition was cancelled, so the redacted pages can't be searched; use Recognize Text (OCR) to add it later.");
+            if (check) _ = CheckAfterApply(new RedactionCheckOptions { Values = values, Areas = areas, Original = before });
         }
         return ok;
+    }
+
+    /// <summary>
+    /// The redaction check after Apply, in the background: the report when something of what was redacted is still in the
+    /// file (in other places, or in what the document carries besides its pages), a toast when nothing is. Nothing shows
+    /// if the document changed meanwhile (an undo, another edit).
+    /// </summary>
+    private async Task CheckAfterApply(RedactionCheckOptions options)
+    {
+        var data = Session.Data;
+        var password = Session.Password;
+        RedactionCheckReport report;
+        try
+        {
+            report = await Task.Run(() => RedactionCheck.Run(data, password, options));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException)
+        {
+            Log.Write($"Redaction check after apply failed: {ex}");
+            return;
+        }
+        if (_disposed || !ReferenceEquals(data, Session.Data)) return;
+        if (report.IsClean) Notify("Redaction checked: nothing of what was redacted is left in the file.");
+        else await RedactionCheckActions.Show(this, report, options);
+    }
+
+    /// <summary>
+    /// Fixes what the redaction check found: redacts the areas (marked, then applied as usual, with text recognition on the
+    /// pages that become images), then sanitizes the kinds that hold leftovers in one rewrite, then checks again.
+    /// </summary>
+    public async Task FixRedactionLeftovers(IReadOnlyList<RedactionFinding> findings, RedactionCheckOptions options)
+    {
+        var areas = RedactionCheck.RedactAreas(findings);
+        var items = RedactionCheck.SanitizeItems(findings);
+        if (areas.Count > 0)
+        {
+            Viewer.AddRedactions(areas.SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r))));
+            if (!await ApplyRedactions(confirm: false, check: false)) return;
+        }
+        if (items.Count > 0 || findings.Any(f => f.Fix == RedactionFix.Rewrite))
+        {
+            var outcome = await TryEdit("Remove redaction leftovers", (d, pw) =>
+                SignedEdits.Run(() => Sanitizer.Sanitize(d, pw, items).Data, allowRewrite: true).Data, signaturesWarned: true);
+            if (outcome is not (EditOutcome.Done or EditOutcome.NoChange)) return;
+        }
+        // Checked again with what was redacted, not where (the fix redacted more, and earlier areas are images now).
+        if (await RedactionCheckActions.Run(this, options with { Areas = null, Original = null }) is not { } again) return;
+        if (again.IsClean) Notify("Fixed: nothing of what was redacted is left in the file. Save to keep it.");
+        else await RedactionCheckActions.Show(this, again, options);
     }
 
     /// <summary>

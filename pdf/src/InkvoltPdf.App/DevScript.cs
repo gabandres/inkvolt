@@ -18,7 +18,7 @@ namespace InkvoltPdf.App;
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
 /// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
-/// apply-redactions [confirm] · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
+/// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
@@ -232,6 +232,13 @@ internal static class DevScript
             }
             case "redact-text": log.Add($"redact-text: {await tab!.RedactSelection()} marks"); break;
             case "redact-search": log.Add($"redact-search: {tab!.RedactSearchHits()} marks"); break;
+            case "redaction-check":
+            {
+                var report = await Task.Run(() => RedactionCheck.Run(tab!.Session.Data, tab.Session.Password));
+                log.Add($"redaction-check: {report.Summary}");
+                foreach (var f in report.Findings) log.Add($"  {f.Kind} p{f.Page + 1} {f.Where}: {f.Text} ({f.Fix})");
+                break;
+            }
             case "redact-patterns": log.Add($"redact-patterns: {(await tab!.MarkPatternMatches(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] }))?.Count ?? -1} matches"); break;
             case "apply-redactions": log.Add($"apply-redactions: {await tab!.ApplyRedactions(confirm: arg == "confirm")}"); break;
             case "attachments":

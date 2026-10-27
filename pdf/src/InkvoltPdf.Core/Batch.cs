@@ -178,6 +178,17 @@ public sealed record RedactPatternsStep(RedactionPatternOptions Options) : Batch
     public override string Title => "Redact patterns";
 }
 
+/// <summary>
+/// Redaction check (<see cref="RedactionCheck"/>): the file fails when anything recoverable is found (it isn't saved).
+/// After Redact Patterns, what that action redacted is looked for everywhere in the file.
+/// </summary>
+public sealed record CheckRedactionStep : BatchStep
+{
+    public override bool ChangesPdf => false;
+
+    public override string Title => "Check redaction";
+}
+
 public sealed record WatermarkStep(WatermarkOptions Options) : BatchStep
 {
     public override string Title => "Add watermark";
@@ -273,7 +284,7 @@ public sealed record BatchPlan
     public bool WritesPdf(BatchFile file) => file.IsImage || Steps.Any(s => s.ChangesPdf);
 
     /// <summary>Some action renders pages (page images, OCR, redaction), which takes far more memory than the file's size says.</summary>
-    public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or ExportStep { IsImages: true });
+    public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or CheckRedactionStep or ExportStep { IsImages: true });
 
     /// <summary>Bates numbers run on across files, so the files are done one at a time, in order.</summary>
     public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null);
@@ -455,6 +466,9 @@ public static class BatchRunner
     /// <summary>Redacted pages are drawn again at this resolution (<see cref="Redaction.Apply"/>'s), whole.</summary>
     private const double RedactDpi = 300;
 
+    /// <summary>The redaction check draws every page at this resolution (<see cref="RedactionCheck"/>'s first look).</summary>
+    private const double CheckDpi = 54;
+
     /// <summary>
     /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
     /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each.
@@ -473,6 +487,7 @@ public static class BatchRunner
                 ExportStep { IsImages: true } e => ((double)e.Dpi, PageImages.MaxPixels),
                 OcrStep => (OcrDpi, OcrMaxPixels),
                 RedactPatternsStep => (RedactDpi, double.MaxValue),
+                CheckRedactionStep => (CheckDpi, double.MaxValue),
                 _ => (0d, 0d),
             };
             pixels = Math.Max(pixels, Math.Min(max, w / 72 * dpi * (h / 72 * dpi)));
@@ -499,6 +514,9 @@ public static class BatchRunner
     /// <summary>The file is left out, with the reason (a password not given, a signed file).</summary>
     private sealed class SkipException(string reason) : Exception(reason);
 
+    /// <summary>The redaction check found something: the file fails.</summary>
+    private sealed class RedactionCheckFailedException(string message) : Exception(message);
+
     private sealed class Job(BatchFile file, int index, BatchPlan plan, BatchHost host, OutputNames names, SemaphoreSlim prompts,
         IProgress<BatchProgress>? progress, CancellationToken cancel)
     {
@@ -510,6 +528,10 @@ public static class BatchRunner
         private string? _password; // opens / edits the file (owner password once known)
         private string? _openPassword; // the open password, for KeptProtection (AES-256 opened with the owner password)
         private string _baseName = "";
+        /// <summary>What Redact Patterns removed (the text, the areas) and the file before it: for a later check.</summary>
+        private readonly List<string> _redactedValues = [];
+        private readonly Dictionary<int, List<RectD>> _redactedAreas = [];
+        private byte[]? _beforeRedaction;
         private string _folder = "";
 
         private void Report(string message, double fraction) => progress?.Report(new BatchProgress(index, BatchItemState.Running, message, fraction));
@@ -553,6 +575,9 @@ public static class BatchRunner
                     {
                         case ExportStep export:
                             await Task.Run(() => Export(data, export), cancel).ConfigureAwait(false);
+                            break;
+                        case CheckRedactionStep:
+                            await Task.Run(() => CheckRedaction(data), cancel).ConfigureAwait(false);
                             break;
                         case OcrStep:
                             var words = await Task.Run(() => Recognize(data), cancel).ConfigureAwait(false);
@@ -668,6 +693,13 @@ public static class BatchRunner
                 {
                     var (redacted, matches) = RedactionPatterns.Redact(d, pw, r.Options, cancel);
                     var pages = matches.Select(m => m.Page).Distinct().Count();
+                    if (matches.Count > 0)
+                    {
+                        _beforeRedaction ??= d;
+                        _redactedValues.AddRange(matches.Select(m => m.Text));
+                        foreach (var (page, areas) in RedactionPatterns.Areas(matches))
+                            (_redactedAreas.TryGetValue(page, out var list) ? list : _redactedAreas[page] = []).AddRange(areas);
+                    }
                     _notes.Add(matches.Count == 0
                         ? "Redact patterns: nothing found, left as it was"
                         : $"Redacted {matches.Count} {(matches.Count == 1 ? "match" : "matches")} on {pages} {(pages == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(matches)})");
@@ -699,6 +731,21 @@ public static class BatchRunner
                     _password = _openPassword = null;
                     break;
             }
+        }
+
+        /// <summary>The redaction check: anything found fails the file (the first findings go in its notes).</summary>
+        private void CheckRedaction(byte[] data)
+        {
+            var report = RedactionCheck.Run(data, _password, new RedactionCheckOptions
+            {
+                Values = _redactedValues,
+                Areas = _redactedAreas.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<RectD>)kv.Value),
+                Original = _beforeRedaction,
+            }, new Progress<(int Done, int Total)>(p => Report("Checking redaction…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+            if (report.IsClean) return;
+            foreach (var f in report.Findings.Take(10)) _notes.Add($"{f.Where}: {RedactionCheck.Name(f.Kind)}");
+            if (report.Findings.Count > 10) _notes.Add($"… and {report.Findings.Count - 10} more");
+            throw new RedactionCheckFailedException($"Redaction check: {report.Summary}");
         }
 
         private int Pages(byte[] data)

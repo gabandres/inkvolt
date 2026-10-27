@@ -88,6 +88,9 @@ public static class Sanitizer
         return new Pass(doc, null) { OriginalIds = originalIds }.Run(EarlierRevisions(data));
     }
 
+    /// <summary>What an open document holds of each kind (its earlier versions not counted).</summary>
+    internal static SanitizeReport Scan(PdfDocument doc) => new Pass(doc, null).Run(0);
+
     /// <summary>Removes the chosen kinds of content; the report counts what went.</summary>
     /// <exception cref="SignaturesWouldBreakException">The document is signed and the rewrite wasn't allowed.</exception>
     public static SanitizeResult Sanitize(byte[] data, string? password, IReadOnlySet<SanitizeItem> items)
