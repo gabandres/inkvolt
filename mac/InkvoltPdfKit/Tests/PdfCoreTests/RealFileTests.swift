@@ -4,8 +4,8 @@ import Testing
 @testable import PdfCore
 
 /// Not a port: the page edits (D3), the comments, drawings, stamps and images (D4), form filling and Fill & Sign (D5),
-/// Edit Text & Images (D5a) and Recognize Text (D5b) run on real documents, copied by
-/// hand into /tmp/inkvolt-d3-real (skipped when the folder isn't there; real files never go into the repo). Each result
+/// Edit Text & Images (D5a), Recognize Text (D5b) and Export to Word, Excel and text (D5c) run on real documents, copied
+/// by hand into /tmp/inkvolt-d3-real (skipped when the folder isn't there; real files never go into the repo). Each result
 /// must open in PdfEngine and in Apple's PDFKit with the expected page count; page edits must leave the expected source
 /// pages in the expected order (compared as small renders); annotations must be read back and the page must render in
 /// both. Prints one "REAL file<n> <edit> PASS|FAIL|SKIP" line per check (files are numbered, never named) and nothing
@@ -465,6 +465,87 @@ struct RealFileTests {
             let ok = recognizedChars > 0 && invisible && kitChars > 0
             if !ok { failures += 1 }
             print("REAL \(label) ocr pages \(n) layer-before \(invisibleLayer ? "yes" : "no") original-chars \(chars) recognized-chars \(recognizedChars) words \(report.words) sample-found \(found)/\(sample.count) (without accents \(accentsOnly), anywhere \(loose)) pdfkit-chars \(kitChars) invisible \(invisible ? "yes" : "no") \(String(format: "%.1f", seconds)) s \(ok ? "PASS" : "FAIL")")
+        }
+        #expect(failures == 0)
+    }
+
+    /// Lowercased words of letters and digits, counted (for "how much of the PDF's text the export holds").
+    private func wordBag(_ text: String) -> [String: Int] {
+        var bag: [String: Int] = [:]
+        for w in text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted) where !w.isEmpty { bag[w, default: 0] += 1 }
+        return bag
+    }
+
+    /// The share of `source`'s words (with their counts) that `export` holds.
+    private func wordRatio(_ source: [String: Int], _ export: [String: Int]) -> Double {
+        let total = source.values.reduce(0, +)
+        return total == 0 ? 1 : Double(source.reduce(0) { $0 + min($1.value, export[$1.key] ?? 0) }) / Double(total)
+    }
+
+    /// Export to Word, Excel and text (D5c): each output a sound package (or UTF-8 text), the Word file read by `textutil`,
+    /// the text export holding most of the PDF's extractable words (the ratio printed). A scan-like copy is rebuilt as
+    /// pictures only (its first three pages, as in the OCR check) and exported with Vision as the recognizer, so its text
+    /// comes through the recognizer path. Prints counts only.
+    @Test(.enabled(if: !files.isEmpty)) func exportOnRealFiles() throws {
+        var failures = 0
+        for (k, name) in Self.files.enumerated() {
+            let label = "file\(k + 1)"
+            var data = Array(try Data(contentsOf: URL(fileURLWithPath: "\(Self.folder)/\(name)")))
+            var engine = try PdfEngine.open(data)
+            var source = try (0..<engine.pageCount).map { try engine.text($0).text }.joined(separator: "\n")
+            let invisibleLayer = try PdfText.everything(data).range(of: #"\b3\s+Tr\b"#, options: .regularExpression) != nil
+            let scanLike = source.filter { !$0.isWhitespace }.isEmpty || invisibleLayer
+            var recognize: Recognizer?
+            if scanLike {
+                let n = min(engine.pageCount, 3)
+                source = try (0..<n).map { try engine.text($0).text }.joined(separator: "\n")
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-export-\(UUID().uuidString)")
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: dir) }
+                var images: [(bytes: [UInt8], name: String)] = []
+                for p in 0..<n {
+                    let path = dir.appendingPathComponent("p\(p).jpg").path
+                    try engine.saveImage(p, dpi: 200, path: path, jpeg: true)
+                    images.append((Array(try Data(contentsOf: URL(fileURLWithPath: path))), "p\(p).jpg"))
+                }
+                engine.close()
+                data = try ImageImport.imagesToPdf(images)
+                engine = try PdfEngine.open(data)
+                recognize = PageOcr.recognizer(VisionRecognizer())
+            }
+            defer { engine.close() }
+            let options = ExportOptions(title: label, recognize: recognize)
+            var line = "REAL \(label) export pages \(engine.pageCount)\(scanLike ? " (scan, as pictures)" : "")"
+            var ok = true
+
+            let started = Date()
+            let word = MemorySink()
+            let wordReport = try DocumentExport.export(engine, .word, to: word, options: options)
+            let wordSeconds = Date().timeIntervalSince(started)
+            let wordProblems = wordReport.saved ? try OpenXmlPackage(word.bytes).validate() : ["not saved"]
+            let doc = wordReport.saved ? try WordDoc(word.bytes) : nil
+            let readBack = wordReport.saved ? try OpenXmlPackage.textutil(word.bytes) : nil
+            ok = ok && wordProblems.isEmpty && readBack != nil
+            line += " | docx \(wordProblems.isEmpty ? "valid" : "INVALID(\(wordProblems.count))") paragraphs \(doc?.bodyParagraphs.count ?? 0)"
+                + " tables \(doc?.tables.count ?? 0) pictures \(doc?.mediaCount ?? 0) textutil \(readBack == nil ? "FAIL" : "ok")"
+                + " recognized \(wordReport.recognized) unreadable \(wordReport.unreadable.count) \(String(format: "%.1f", wordSeconds)) s"
+
+            let excel = MemorySink()
+            let excelReport = try DocumentExport.export(engine, .excel, to: excel, options: options)
+            let excelProblems = excelReport.saved ? try OpenXmlPackage(excel.bytes).validate() : []
+            ok = ok && excelProblems.isEmpty
+            line += " | xlsx " + (excelReport.saved ? "\(excelReport.tables) sheet(s) \(excelProblems.isEmpty ? "valid" : "INVALID")" : "no tables (nothing saved)")
+
+            let text = MemorySink()
+            let textReport = try DocumentExport.export(engine, .text, to: text, options: options)
+            let exported = String(decoding: text.bytes.dropFirst(3), as: UTF8.self)
+            let ratio = wordRatio(wordBag(source), wordBag(exported))
+            let threshold = scanLike ? 0.6 : 0.9
+            ok = ok && textReport.saved && Array(text.bytes.prefix(3)) == [0xEF, 0xBB, 0xBF] && ratio >= threshold
+                && (!scanLike || textReport.recognized == engine.pageCount)
+            line += " | txt words \(String(format: "%.3f", ratio)) of the PDF's\(scanLike ? " text layer (recognized \(textReport.recognized) page(s))" : "")"
+            if !ok { failures += 1 }
+            print(line + " \(ok ? "PASS" : "FAIL")")
         }
         #expect(failures == 0)
     }

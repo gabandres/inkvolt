@@ -497,6 +497,101 @@ public final class PdfEngine: @unchecked Sendable {
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
 
+    // ---- export (D5c; the rest of GetExportPage is in Export/EngineExport.swift) ----
+
+    /// What a lone accent draws, per font, text and size (the Windows engine's `_drawnAs`).
+    let drawnAs = DrawnAsCache()
+
+    /// A page read for export, before its glyphs become lines: each MuPDF line's glyphs with their look and direction,
+    /// the pictures (encoded; empty data when MuPDF couldn't encode one) and the vector paths' bounds (page space).
+    struct ExportRead {
+        var geometry: PageGeometry
+        var lines: [(glyphs: [ExportGlyph], turn: Int, sideways: Bool)]
+        var images: [ExportImage]
+        var paths: [(box: RectD, stroked: Bool)]
+    }
+
+    /// The structured text of a page with its annotations, its pictures (when `images`) and vector paths (the Windows
+    /// engine's `GetStructuredTextPage(page, true, CollectVectors | PreserveImages)` and `ReadGlyphs`). Not cached.
+    /// - Throws: `CancellationError` when `cancel` fired before the page was read; `PdfEngineError` when MuPDF can't.
+    func exportRead(_ page: Int, images: Bool, jpegAbovePixels: Int, cancel: CancelToken?) throws -> ExportRead {
+        try cancel.check()
+        try enterText(cancel)
+        defer { textGate.unlock() }
+        let instance = try text()
+        let g = try geometry(page)
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        var raw = inkv_export()
+        guard inkv_export_page(instance.ctx, instance.doc, Int32(page), images ? 1 : 0, Int64(jpegAbovePixels), &raw, &err) != 0 else {
+            throw PdfEngineError(message: Self.message(err))
+        }
+        defer { inkv_free_export(&raw) }
+        func box(_ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float) -> RectD {
+            RectD.fromEdges(Double(x0) - g.originX, Double(y0) - g.originY, Double(x1) - g.originX, Double(y1) - g.originY)
+        }
+        // Each font's look once: name, bold and italic from its flags or its name, serif, monospaced.
+        var looks: [ExportSpan] = []
+        for k in 0..<Int(raw.font_count) {
+            let f = raw.fonts[k]
+            let name = f.name.map { String(cString: $0) } ?? ""
+            var look = ExportSpan("", name, 0, f.bold != 0 || FontNames.looksBold(name), f.italic != 0 || FontNames.looksItalic(name), 0, .zero)
+            look.serif = f.serif != 0
+            look.mono = f.mono != 0
+            looks.append(look)
+        }
+        let plain = ExportSpan("", "", 0, false, false, 0, .zero)
+        var read = ExportRead(geometry: g, lines: [], images: [], paths: [])
+        read.lines.reserveCapacity(Int(raw.line_count))
+        for li in 0..<Int(raw.line_count) {
+            let line = raw.lines[li]
+            var glyphs: [ExportGlyph] = []
+            glyphs.reserveCapacity(Int(line.count))
+            for ci in Int(line.first)..<Int(line.first + line.count) {
+                let c = raw.chars[ci]
+                let ch = Unicode.Scalar(UInt32(bitPattern: c.c)).map { String(Character($0)) } ?? "\u{FFFD}"
+                let rect = box(c.x0, c.y0, c.x1, c.y1)
+                var look = c.font >= 0 ? looks[Int(c.font)] : plain
+                look.size = Double(c.size)
+                look.color = c.argb & 0xFFFFFF
+                look.box = rect
+                glyphs.append(ExportGlyph(ch, rect, look))
+            }
+            let dx = Double(line.dx), dy = Double(line.dy)
+            read.lines.append((glyphs, ExportLine.turnOf(dx, dy), abs(dy) > 0.1 || dx <= 0))
+        }
+        for k in 0..<Int(raw.image_count) {
+            let i = raw.images[k]
+            guard i.width > 0 && i.height > 0 else { continue }
+            let data = i.data.map { Array(UnsafeBufferPointer(start: $0, count: i.length)) } ?? []
+            read.images.append(ExportImage(data, i.jpeg != 0 ? "jpeg" : "png", Int(i.width), Int(i.height), box(i.x0, i.y0, i.x1, i.y1)))
+        }
+        read.paths.reserveCapacity(Int(raw.vector_count))
+        for k in 0..<Int(raw.vector_count) {
+            let v = raw.vectors[k]
+            read.paths.append((box(v.x0, v.y0, v.x1, v.y1), v.stroked != 0))
+        }
+        return read
+    }
+
+    /// A region of a page (page space) drawn on transparency as straight RGBA at `scale` pixels per point; nil when MuPDF
+    /// can't draw it or it has no pixels.
+    /// - Throws: `CancellationError` when `cancel` fired before it was drawn.
+    func renderRegionRgba(_ page: Int, _ region: RectD, scale: Double, cancel: CancelToken?) throws -> (rgba: [UInt8], width: Int, height: Int)? {
+        try cancel.check()
+        gate.lock()
+        defer { gate.unlock() }
+        guard let main else { throw PdfEngineClosed() }
+        let g = try geometry(page)
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        var pixels: UnsafeMutablePointer<UInt8>?
+        var width: Int32 = 0, height: Int32 = 0
+        let ok = inkv_render_region_rgba(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + region.x), Float(g.originY + region.y),
+                                         Float(g.originX + region.right), Float(g.originY + region.bottom), &pixels, &width, &height, &err)
+        defer { inkv_free(pixels) }
+        guard ok != 0, let pixels, width > 0, height > 0 else { return nil }
+        return (Array(UnsafeBufferPointer(start: pixels, count: Int(width) * Int(height) * 4)), Int(width), Int(height))
+    }
+
     static func message(_ err: [CChar]) -> String {
         let bytes = err.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
         return bytes.isEmpty ? "MuPDF failed." : String(decoding: bytes, as: UTF8.self)

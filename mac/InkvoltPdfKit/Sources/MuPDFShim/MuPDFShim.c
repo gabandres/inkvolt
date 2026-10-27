@@ -1240,3 +1240,225 @@ inkv_obj *inkv_graft_obj(void *vctx, inkv_graft *map, inkv_obj *obj, char *err) 
     }
     return OUT(copy);
 }
+
+// ---- Export (D5c) ----
+
+/// A picture's pixels encoded as PNG or JPEG into e->data; left NULL when MuPDF can't (the caller renders it instead).
+static void inkv_encode_image(fz_context *ctx, fz_image *image, int jpeg, inkv_eimage *e) {
+    fz_pixmap *pix = NULL, *rgb = NULL;
+    fz_buffer *buf = NULL;
+    fz_var(pix);
+    fz_var(rgb);
+    fz_var(buf);
+    fz_try(ctx) {
+        pix = fz_get_pixmap_from_image(ctx, image, NULL, NULL, NULL, NULL);
+        fz_colorspace *cs = fz_pixmap_colorspace(ctx, pix);
+        int plain = cs && (fz_colorspace_is_rgb(ctx, cs) || fz_colorspace_is_gray(ctx, cs));
+        // PNG takes gray or RGB (with alpha); JPEG takes no alpha.
+        if (!plain || (jpeg && fz_pixmap_alpha(ctx, pix)))
+            rgb = fz_convert_pixmap(ctx, pix, fz_device_rgb(ctx), NULL, NULL, fz_default_color_params, jpeg ? 0 : 1);
+        fz_pixmap *use = rgb ? rgb : pix;
+        buf = jpeg ? fz_new_buffer_from_pixmap_as_jpeg(ctx, use, fz_default_color_params, 85, 0)
+                   : fz_new_buffer_from_pixmap_as_png(ctx, use, fz_default_color_params);
+        unsigned char *bytes = NULL;
+        size_t n = fz_buffer_storage(ctx, buf, &bytes);
+        uint8_t *copy = malloc(n ? n : 1);
+        if (!copy) fz_throw(ctx, FZ_ERROR_SYSTEM, "There is not enough memory for the picture.");
+        memcpy(copy, bytes, n);
+        e->data = copy;
+        e->length = n;
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buf);
+        fz_drop_pixmap(ctx, rgb);
+        fz_drop_pixmap(ctx, pix);
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        e->data = NULL;
+        e->length = 0;
+    }
+}
+
+void inkv_free_export(inkv_export *e) {
+    if (!e) return;
+    for (int i = 0; i < e->font_count; i++) free(e->fonts[i].name);
+    for (int i = 0; i < e->image_count; i++) free(e->images[i].data);
+    free(e->lines);
+    free(e->chars);
+    free(e->fonts);
+    free(e->images);
+    free(e->vectors);
+    memset(e, 0, sizeof(*e));
+}
+
+/// The index of `font` among the export's fonts, added (with its name and flags) when new. Throws.
+static int inkv_export_font(fz_context *ctx, inkv_export *out, fz_font ***seen, int *capacity, fz_font *font) {
+    for (int k = out->font_count - 1; k >= 0; k--)
+        if ((*seen)[k] == font) return k;
+    if (out->font_count == *capacity) {
+        int grown = *capacity * 2;
+        inkv_efont *fonts = realloc(out->fonts, sizeof(inkv_efont) * (size_t)grown);
+        if (fonts) out->fonts = fonts;
+        fz_font **more = realloc(*seen, sizeof(fz_font *) * (size_t)grown);
+        if (more) *seen = more;
+        if (!fonts || !more) fz_throw(ctx, FZ_ERROR_SYSTEM, "There is not enough memory for the page's fonts.");
+        *capacity = grown;
+    }
+    int k = out->font_count++;
+    (*seen)[k] = font;
+    inkv_efont *f = &out->fonts[k];
+    f->name = inkv_strdup(fz_font_name(ctx, font));
+    f->bold = fz_font_is_bold(ctx, font);
+    f->italic = fz_font_is_italic(ctx, font);
+    f->serif = fz_font_is_serif(ctx, font);
+    f->mono = fz_font_is_monospaced(ctx, font);
+    return k;
+}
+
+int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long jpeg_above, inkv_export *out, char *err) {
+    fz_context *ctx = vctx;
+    fz_stext_page *text = NULL;
+    fz_device *dev = NULL;
+    fz_font **seen = NULL;
+    fz_var(text);
+    fz_var(dev);
+    fz_var(seen);
+    memset(out, 0, sizeof(*out));
+    fz_try(ctx) {
+        fz_page *page = inkv_page(ctx, d, index);
+        fz_stext_options options = { 0 };
+        options.flags = FZ_STEXT_COLLECT_VECTORS | (images ? FZ_STEXT_PRESERVE_IMAGES : 0);
+        text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
+        dev = fz_new_stext_device(ctx, text, &options);
+        fz_run_page(ctx, page, dev, fz_identity, NULL);
+        fz_close_device(ctx, dev);
+        int nl = 0, nc = 0, ni = 0, nv = 0;
+        for (fz_stext_block *b = text->first_block; b; b = b->next) {
+            if (b->type == FZ_STEXT_BLOCK_TEXT) {
+                for (fz_stext_line *l = b->u.t.first_line; l; l = l->next) {
+                    nl++;
+                    for (fz_stext_char *c = l->first_char; c; c = c->next) nc++;
+                }
+            } else if (b->type == FZ_STEXT_BLOCK_IMAGE) {
+                ni++;
+            } else if (b->type == FZ_STEXT_BLOCK_VECTOR) {
+                nv++;
+            }
+        }
+        int capacity = 16;
+        out->lines = malloc(sizeof(inkv_line) * (size_t)(nl ? nl : 1));
+        out->chars = malloc(sizeof(inkv_echar) * (size_t)(nc ? nc : 1));
+        out->images = calloc((size_t)(ni ? ni : 1), sizeof(inkv_eimage));
+        out->vectors = malloc(sizeof(inkv_evector) * (size_t)(nv ? nv : 1));
+        out->fonts = calloc((size_t)capacity, sizeof(inkv_efont));
+        seen = calloc((size_t)capacity, sizeof(fz_font *));
+        if (!out->lines || !out->chars || !out->images || !out->vectors || !out->fonts || !seen)
+            fz_throw(ctx, FZ_ERROR_SYSTEM, "There is not enough memory for the page's text.");
+        int li = 0, ci = 0, last = -1;
+        for (fz_stext_block *b = text->first_block; b; b = b->next) {
+            if (b->type == FZ_STEXT_BLOCK_TEXT) {
+                for (fz_stext_line *l = b->u.t.first_line; l; l = l->next) {
+                    out->lines[li].first = ci;
+                    out->lines[li].dx = l->dir.x;
+                    out->lines[li].dy = l->dir.y;
+                    for (fz_stext_char *c = l->first_char; c; c = c->next) {
+                        fz_rect r = fz_rect_from_quad(c->quad);
+                        inkv_echar *e = &out->chars[ci++];
+                        e->c = c->c;
+                        e->x0 = r.x0;
+                        e->y0 = r.y0;
+                        e->x1 = r.x1;
+                        e->y1 = r.y1;
+                        e->size = c->size;
+                        e->argb = c->argb;
+                        e->font = -1;
+                        out->char_count = ci;
+                        if (!c->font) continue;
+                        // Characters mostly share the font of the one before.
+                        if (last < 0 || seen[last] != c->font) last = inkv_export_font(ctx, out, &seen, &capacity, c->font);
+                        e->font = last;
+                    }
+                    out->lines[li].count = ci - out->lines[li].first;
+                    out->line_count = ++li;
+                }
+            } else if (b->type == FZ_STEXT_BLOCK_IMAGE) {
+                inkv_eimage *e = &out->images[out->image_count++];
+                fz_image *img = b->u.i.image;
+                e->x0 = b->bbox.x0;
+                e->y0 = b->bbox.y0;
+                e->x1 = b->bbox.x1;
+                e->y1 = b->bbox.y1;
+                e->width = img ? img->w : 0;
+                e->height = img ? img->h : 0;
+                e->jpeg = (long long)e->width * e->height > jpeg_above;
+                if (img && e->width > 0 && e->height > 0) inkv_encode_image(ctx, img, e->jpeg, e);
+            } else if (b->type == FZ_STEXT_BLOCK_VECTOR) {
+                inkv_evector *e = &out->vectors[out->vector_count++];
+                e->x0 = b->bbox.x0;
+                e->y0 = b->bbox.y0;
+                e->x1 = b->bbox.x1;
+                e->y1 = b->bbox.y1;
+                e->stroked = b->u.v.stroked != 0;
+            }
+        }
+    }
+    fz_always(ctx) {
+        free(seen);
+        fz_drop_device(ctx, dev);
+        fz_drop_stext_page(ctx, text);
+    }
+    fz_catch(ctx) {
+        inkv_free_export(out);
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
+                            uint8_t **pixels, int *width, int *height, char *err) {
+    fz_context *ctx = vctx;
+    fz_pixmap *pix = NULL;
+    fz_device *dev = NULL;
+    fz_var(pix);
+    fz_var(dev);
+    *pixels = NULL;
+    fz_try(ctx) {
+        fz_display_list *list = inkv_list(ctx, d, index);
+        fz_matrix ctm = fz_scale(scale, scale);
+        fz_rect area = fz_transform_rect(fz_make_rect(x0, y0, x1, y1), ctm);
+        pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(area), NULL, 1);
+        fz_clear_pixmap(ctx, pix);
+        dev = fz_new_draw_device(ctx, fz_identity, pix);
+        fz_run_display_list(ctx, list, dev, ctm, area, NULL);
+        fz_close_device(ctx, dev);
+        int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
+        size_t stride = (size_t)fz_pixmap_stride(ctx, pix), row = (size_t)w * 4;
+        uint8_t *px = malloc(row * (size_t)(h > 0 ? h : 1));
+        if (!px) fz_throw(ctx, FZ_ERROR_SYSTEM, "There is not enough memory for the picture's pixels.");
+        const uint8_t *src = fz_pixmap_samples(ctx, pix);
+        for (int y = 0; y < h; y++) memcpy(px + row * (size_t)y, src + stride * (size_t)y, row);
+        // Premultiplied by alpha in MuPDF; straight for PNG.
+        for (size_t k = 0; k < row * (size_t)h; k += 4) {
+            unsigned a = px[k + 3];
+            if (a == 0 || a == 255) continue;
+            for (int c = 0; c < 3; c++) {
+                unsigned v = px[k + c] * 255u / a;
+                px[k + c] = (uint8_t)(v > 255 ? 255 : v);
+            }
+        }
+        *pixels = px;
+        *width = w;
+        *height = h;
+    }
+    fz_always(ctx) {
+        fz_drop_device(ctx, dev);
+        fz_drop_pixmap(ctx, pix);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}

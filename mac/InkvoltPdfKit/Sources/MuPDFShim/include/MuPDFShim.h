@@ -209,4 +209,64 @@ inkv_obj *inkv_graft_obj(void *ctx, inkv_graft *map, inkv_obj *obj, char *err);
 
 void inkv_free(void *p);
 
+// ---- Export (D5c): what Export to Word, Excel and text reads from a page (MuPDFCore's structured text with
+// PreserveImages and CollectVectors on Windows).
+
+/// A character: its code point, its quad's box (MuPDF page space), size, color (sRGB, alpha in the top byte) and font
+/// (an index into the page's fonts, -1 when it has none).
+typedef struct {
+    int c;
+    float x0, y0, x1, y1;
+    float size;
+    uint32_t argb;
+    int font;
+} inkv_echar;
+
+/// A font the page's characters use: its name (malloc'ed) and MuPDF's flags for it.
+typedef struct {
+    char *name;
+    int bold, italic, serif, mono;
+} inkv_efont;
+
+/// A picture: where it is drawn, its own pixel size, and its pixels encoded as PNG, or as JPEG (quality 85) when `jpeg`;
+/// data NULL when MuPDF couldn't encode it (an unusual color space: the caller renders it instead).
+typedef struct {
+    float x0, y0, x1, y1;
+    int width, height;
+    int jpeg;
+    uint8_t *data;
+    size_t length;
+} inkv_eimage;
+
+/// A vector path's bounds, and whether it is stroked (else filled).
+typedef struct {
+    float x0, y0, x1, y1;
+    int stroked;
+} inkv_evector;
+
+/// A page read for export: text lines (their characters [first, first + count)), fonts, pictures and vector paths, in
+/// the order MuPDF's blocks come. Free with inkv_free_export.
+typedef struct {
+    inkv_line *lines;
+    int line_count;
+    inkv_echar *chars;
+    int char_count;
+    inkv_efont *fonts;
+    int font_count;
+    inkv_eimage *images;
+    int image_count;
+    inkv_evector *vectors;
+    int vector_count;
+} inkv_export;
+
+/// Reads a page for export, with its annotations drawn in: pictures (encoded, when `images`; JPEG for those of more than
+/// `jpeg_above` pixels) and vector paths are collected too. 0 on failure.
+int inkv_export_page(void *ctx, inkv_doc *doc, int page, int images, long long jpeg_above, inkv_export *out, char *err);
+void inkv_free_export(inkv_export *e);
+
+/// Draws an area of the page (MuPDF page space) at `scale`, with its annotations, on transparency, as straight (not
+/// premultiplied) RGBA; malloc'ed (inkv_free). 0 on failure.
+int inkv_render_region_rgba(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
+                            uint8_t **pixels, int *width, int *height, char *err);
+
 #endif
