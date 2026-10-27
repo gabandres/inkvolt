@@ -336,7 +336,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | Step | What | .NET tests to port | Status |
 |---|---|---|---|
 | D0 | MuPDF for the Mac: `Vendor/mupdf/build.sh` (pinned tag, the Windows app's 1.25.2 or the current release), the XCFramework, `CMuPDF`, the package skeleton, the CI job; open a test PDF, draw a page, read its text | || Done (2026-10-27): MuPDF 1.25.2 (the Windows app's) built from its tag on `ignia-mac`, arm64 and x86_64 for macOS 15, as one static XCFramework (107 MB, not in git) with a `CMuPDF` module map; zlib's `fdopen` clash with the macOS SDK worked around (`-Dfdopen=fdopen`). The C shim `MuPDFShim` catches MuPDF's errors (fz_try) and hands Swift the message, marks them handled and keeps MuPDF quiet on stderr. `PdfEngine` opens, counts, sizes, draws and reads a page; `TestPdf` writes the tests' PDFs by hand (the Windows tests draw them with PDFsharp); 5 tests on `ignia-mac`. The `mac` CI job's `pdf` part builds MuPDF (cached until `build.sh` changes) and runs them |
-| D1 | Engine: open (passwords), page geometry, rendering (regions, cancel), text and words, links, outline | EngineTests, Core1EngineTests, Core1NavigationTests, PageTextTests, TextLayerTests, HostileStructureTests | |
+| D1 | Engine: open (passwords), page geometry, rendering (regions, cancel), text and words, links, outline | EngineTests, Core1EngineTests (with Core1TextTests), PageTextTests, Core1NavigationTests (the reading parts) | Done (2026-10-27): `PdfEngine` (a render instance and a text instance with their own locks, the last 32 pages and their display lists kept loaded per instance, renders stopped midway through MuPDF's cookie, a text cache of 48 pages), `PageText`, `RotatedView`, `RenderedImage.rotated`, `CancelToken`; the shim grew page caching, abortable drawing, characters with their boxes, links, the outline, image saving and whole-file writing. 33 tests on `ignia-mac`, the timing ones measured (a cancelled render stops early; text reads while a render runs). Moved: TextLayerTests to OCR, HostileStructureTests to the steps of what they test (D3, D5, later) |
 | D2 | Document session, edit transaction, undo steps, incremental save, kept protection, passwords, recovery | EditTransactionTests, RecoveryTests, KeptProtectionTests, SecurityTests, OwnerPasswordTests, SessionProtectionTests, PasswordStrengthTests, SignedEditTests | |
 | D3 | Pages: organize, ranges, insert from files and images, bookmarks | PageEditorTests, PageRangeTests, PageStructureTests, ImageImportTests, BookmarkTests, BookmarkTreeTests | |
 | D4 | Comments, drawing, stamps, images, text shaping for their appearances | DrawingAnnotationTests, DrawingGeometryTests, RubberStampTests, TextStampTests, Core2StampTests, LinkAndImageTests, ShapingTests, BidiLineTests | |
@@ -344,6 +344,20 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | D6 | Print layout | PrintLayoutTests | |
 | D7 | The app: document windows and tabs, the page view (tiled rendering, selection, find, VoiceOver), the side rail, tools, start page, settings, recovery prompt; Open in Inkvolt PDF from Inkvolt Print | | |
 | D8 | Release: Developer ID certificate, hardened runtime, notarytool with the API key, the DMG, Sparkle 2 (EdDSA key, appcast and where it's hosted), notices and the source offer | | |
+
+Mac differences for the PDF app (so far):
+- Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
+  large), `PdfEngineClosed` for .NET's `ObjectDisposedException` (`close()` takes `Dispose()`'s place), and
+  `CancellationError` when a `CancelToken` (.NET's `CancellationToken`) fires.
+- Rendered pixels are RGB, not BGR.
+- `PageText` keeps .NET's UTF-16 offsets (carets, matches and boxes per UTF-16 unit); search is Foundation's
+  (`NSString` with case and diacritic insensitivity, canonical equivalence) where .NET uses the invariant culture's
+  `CompareInfo`, so match lengths come from Foundation.
+- The engine talks to MuPDF directly (through the shim), so the Windows workarounds for MuPDFCore (finalizers that
+  crashed the process, reflection for abortable renders and freeing pages) have no Mac counterpart, and their tests
+  aren't ported. Text comes from the page's content without annotations, as MuPDFCore's `includeAnnotations: false`.
+- The tests write their PDFs by hand (`TestPdf`, `Core1TestPdf`); encrypted ones are written by MuPDF (AES-256), where
+  the Windows tests use PDFsharp.
 
 Open questions for the PDF app:
 - The MuPDF version: the Windows app's 1.25.2 (same rendering as Windows) or the current release.
