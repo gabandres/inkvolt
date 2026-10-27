@@ -23,8 +23,7 @@ if [ -f "$keychain" ] && [ -n "$password" ]; then
     flags="--keychain $keychain"
 fi
 # shellcheck disable=SC2086
-codesign --force --options runtime --timestamp=none $flags --sign "${identity:--}" "$app"
-codesign --verify --strict "$app"
+sh ./sign.sh "$app" --timestamp=none $flags --sign "${identity:--}"
 
 pkill -x "Inkvolt PDF" 2>/dev/null || true
 rm -rf "/Applications/Inkvolt PDF.app"

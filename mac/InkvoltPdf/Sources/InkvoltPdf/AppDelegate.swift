@@ -2,14 +2,21 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let updates: Updates
+
+    init(updates: Updates) {
+        self.updates = updates
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         Report.startIfAsked()
+        updates.startTestIfAsked()
         // Launched with no file (files from Finder arrive just after launch): the Open panel, as Preview does.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             MainActor.assumeIsolated {
-                if NSDocumentController.shared.documents.isEmpty && !Report.isRunning {
+                if NSDocumentController.shared.documents.isEmpty && !Report.isRunning && !self.updates.isTesting {
                     NSDocumentController.shared.openDocument(nil)
                 }
             }
@@ -22,13 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 }
 
-/// The menu bar, built in code: the app, File (Open, Open Recent, Close), Edit (Copy, Find), View (zoom, sidebar),
+/// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close), Edit (Copy, Find), View (zoom, sidebar),
 /// Go (pages), Window.
 @MainActor
 enum MainMenu {
-    static func make() -> NSMenu {
+    static func make(updates: Updates) -> NSMenu {
         let main = NSMenu()
-        main.addItem(submenu(appMenu()))
+        main.addItem(submenu(appMenu(updates)))
         main.addItem(submenu(fileMenu()))
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
@@ -51,9 +58,10 @@ enum MainMenu {
         return item
     }
 
-    private static func appMenu() -> NSMenu {
+    private static func appMenu(_ updates: Updates) -> NSMenu {
         let menu = NSMenu(title: "Inkvolt PDF")
         menu.addItem(item("About Inkvolt PDF", #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
+        menu.addItem(updates.menuItem())
         menu.addItem(.separator())
         let services = NSMenu(title: "Services")
         let servicesItem = item("Services", nil)

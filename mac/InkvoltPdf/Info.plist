@@ -30,6 +30,12 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/gabandres/inkvolt/appcast/pdf-mac/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>JiuKpBvTPxDMMBjMY+Fnila0cbnv8XhmA/q1h1g14pI=</string>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software.</string>
 	<key>CFBundleDocumentTypes</key>
