@@ -3,8 +3,8 @@ import PDFKit
 import Testing
 @testable import PdfCore
 
-/// Not a port: the page edits (D3), the comments, drawings, stamps and images (D4), and form filling and Fill & Sign (D5)
-/// run on real documents, copied by
+/// Not a port: the page edits (D3), the comments, drawings, stamps and images (D4), form filling and Fill & Sign (D5),
+/// and Edit Text & Images (D5a) run on real documents, copied by
 /// hand into /tmp/inkvolt-d3-real (skipped when the folder isn't there; real files never go into the repo). Each result
 /// must open in PdfEngine and in Apple's PDFKit with the expected page count; page edits must leave the expected source
 /// pages in the expected order (compared as small renders); annotations must be read back and the page must render in
@@ -296,4 +296,112 @@ struct RealFileTests {
         }
         #expect(failures == 0)
     }
+    /// Words of a page's text as MuPDF reads it, with how often each appears.
+    private func words(_ text: String) -> [String: Int] {
+        text.split(whereSeparator: \.isWhitespace).reduce(into: [:]) { $0[String($1), default: 0] += 1 }
+    }
+
+    private func pageTexts(_ data: [UInt8]) throws -> [String] {
+        let e = try PdfEngine.open(data)
+        defer { e.close() }
+        return try (0..<e.pageCount).map { try e.text($0, cache: false).text }
+    }
+
+    /// The page renders in PdfEngine and PDFKit, and PDFKit opens the file with `pages` pages.
+    private func rendersInBoth(_ data: [UInt8], page: Int, pages: Int) throws -> Bool {
+        let e = try PdfEngine.open(data)
+        defer { e.close() }
+        guard e.pageCount == pages else { return false }
+        let img = try e.render(page, scale: 0.5)
+        guard img.width > 0, img.pixels.count == img.width * img.height * 3 else { return false }
+        guard let kit = PDFDocument(data: Data(data)), kit.pageCount == pages, let p = kit.page(at: page) else { return false }
+        return p.thumbnail(of: NSSize(width: 120, height: 120), for: .mediaBox).size.width > 0
+    }
+
+    /// A word of the run that can be written differently with the run's own glyphs: its letters reversed, else two of
+    /// them swapped, else its last letter dropped.
+    private func newWord(_ run: TextRun) -> (old: String, new: String, text: String)? {
+        let candidates = run.text.split(separator: " ").map(String.init).filter { $0.count >= 3 && $0.allSatisfy(\.isLetter) }
+        for word in candidates {
+            let letters = Array(word)
+            var tries = [String(letters.reversed()), String([letters[1], letters[0]] + letters[2...])]
+            tries.append(String(letters.dropLast()))
+            for t in tries where t != word {
+                guard let r = run.text.range(of: word) else { continue }
+                let text = run.text.replacingCharacters(in: r, with: t)
+                if run.check(text).missing.isEmpty { return (word, t, text) }
+            }
+        }
+        return nil
+    }
+
+    @Test(.enabled(if: !files.isEmpty)) func contentEditsOnRealFiles() throws {
+        var failures = 0
+        func report(_ file: String, _ check: String, _ run: () throws -> Bool?) {
+            let outcome: String
+            do {
+                switch try run() {
+                case true?: outcome = "PASS"
+                case false?: outcome = "FAIL"
+                    failures += 1
+                case nil: outcome = "SKIP"
+                }
+            } catch {
+                outcome = "FAIL (\(type(of: error)))"
+                failures += 1
+            }
+            print("REAL \(file) \(check) \(outcome)")
+        }
+
+        for (k, name) in Self.files.enumerated() {
+            let label = "file\(k + 1)"
+            let data = Array(try Data(contentsOf: URL(fileURLWithPath: "\(Self.folder)/\(name)")))
+            let before = try pageTexts(data)
+            let n = before.count
+            let scan = min(n, 5)
+            let contents = try ContentEditor.read(data, nil, pages: Array(0..<scan))
+            let editable = (0..<scan).flatMap { p in (contents[p]?.runs ?? []).filter { $0.blocked == nil } }
+            let images = (0..<scan).flatMap { p in (contents[p]?.images ?? []).filter { $0.blocked == nil } }
+            let all = (0..<scan).flatMap { contents[$0]?.runs ?? [] }
+            let reasons = Dictionary(grouping: all.compactMap(\.blocked), by: { $0 }).mapValues(\.count)
+            print("REAL \(label) runs \(editable.count) of \(all.count), pictures \(images.count); not editable: \(reasons.values.sorted())")
+            for (why, count) in reasons.sorted(by: { $0.value > $1.value }) { print("REAL \(label)   \(count) \(why)") }
+
+            report(label, "textedit") {
+                guard let (run, word) = editable.lazy.compactMap({ r in self.newWord(r).map { (r, $0) } }).first else { return nil }
+                let edited = try ContentEditor.replaceText(data, nil, run, word.text)
+                let after = try pageTexts(edited)
+                guard after.count == n else { return false }
+                // The edited page's words: one old word less, one new word more; every other page as it was.
+                var expected = words(before[run.pageIndex])
+                expected[word.old, default: 0] -= 1
+                if expected[word.old] == 0 { expected[word.old] = nil }
+                expected[word.new, default: 0] += 1
+                let got = words(after[run.pageIndex])
+                let others = (0..<n).allSatisfy { $0 == run.pageIndex || after[$0] == before[$0] }
+                let reread = try ContentEditor.read(edited, nil, run.pageIndex).runs.contains { $0.text == word.text }
+                if got != expected { print("REAL \(label) textedit words differ: \(got.count) vs \(expected.count) distinct") }
+                let renders = try rendersInBoth(edited, page: run.pageIndex, pages: n)
+                return got == expected && others && reread && renders
+            }
+
+            report(label, "imagemove") {
+                guard let image = images.first else { return nil }
+                let b = image.box
+                let target = RectD(b.x + 10, b.y + 10, max(b.width * 0.8, 2), max(b.height * 0.8, 2))
+                let moved = try ContentEditor.moveImage(data, nil, image, target)
+                let after = try ContentEditor.read(moved, nil, image.pageIndex).images
+                let placed = after.contains {
+                    abs($0.box.x - target.x) < 1 && abs($0.box.y - target.y) < 1 && abs($0.box.width - target.width) < 1
+                        && abs($0.box.height - target.height) < 1
+                }
+                let sameCount = after.count == (contents[image.pageIndex]?.images.count ?? -1)
+                let textKept = try pageTexts(moved) == before
+                let renders = try rendersInBoth(moved, page: image.pageIndex, pages: n)
+                return placed && sameCount && textKept && renders
+            }
+        }
+        #expect(failures == 0)
+    }
 }
+

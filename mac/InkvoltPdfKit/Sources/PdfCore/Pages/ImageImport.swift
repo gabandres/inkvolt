@@ -50,6 +50,23 @@ public enum ImageImport {
         return try doc.write("garbage=compact")
     }
 
+    /// An image file stored in `doc` as an image XObject (its first frame), with its pixel size, resolution and EXIF
+    /// orientation (Edit Text & Images' Replace Picture).
+    /// - Throws: `PdfEditError` when the file isn't an image that can be read.
+    static func storeImage(_ doc: MuDoc, _ bytes: [UInt8], _ name: String) throws
+        -> (image: PObj, width: Int, height: Int, dpiX: Double, dpiY: Double, orientation: Int) {
+        let p: Picture
+        switch sniff(bytes, name) {
+        case .jpeg?:
+            if let jpeg = jpeg(doc, bytes) { p = jpeg } else { p = try decoded(doc, bytes, .jpeg, name)[0] }
+        case let type?:
+            p = try decoded(doc, bytes, type, name)[0]
+        case nil:
+            throw PdfEditError("\"\(name)\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).")
+        }
+        return (p.image, p.width, p.height, p.dpiX, p.dpiY, p.orientation)
+    }
+
     private static func addPage(_ doc: MuDoc, _ p: Picture, _ size: PageSizeOption) throws {
         let w = Double(p.width) * 72 / p.dpiX
         let h = Double(p.height) * 72 / p.dpiY

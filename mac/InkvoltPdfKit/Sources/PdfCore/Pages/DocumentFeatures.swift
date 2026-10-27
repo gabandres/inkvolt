@@ -38,40 +38,50 @@ enum PageBoxes {
         return x2 > x1 && y2 > y1 ? (x1, y1, x2, y2) : m
     }
 
-    private static func frame(_ page: PObj) -> (bx1: Double, by2: Double, w: Double, h: Double, rot: Int) {
+    static func frame(_ page: PObj) -> PageFrame {
         let b = visibleBox(page)
-        return (b.x1, b.y2, b.x2 - b.x1, b.y2 - b.y1, rotate(page))
+        return PageFrame(bx1: b.x1, by2: b.y2, w: b.x2 - b.x1, h: b.y2 - b.y1, rot: rotate(page))
     }
 
     /// PDF user space → page space.
-    static func toPage(_ page: PObj, _ x: Double, _ y: Double) -> (x: Double, y: Double) {
-        let f = frame(page)
-        let u = x - f.bx1, v = f.by2 - y
-        switch f.rot {
-        case 90: return (f.h - v, u)
-        case 180: return (f.w - u, f.h - v)
-        case 270: return (v, f.w - u)
-        default: return (u, v)
-        }
-    }
+    static func toPage(_ page: PObj, _ x: Double, _ y: Double) -> (x: Double, y: Double) { frame(page).toPage(x, y) }
 
     /// Page space → PDF user space.
-    static func toPdf(_ page: PObj, _ px: Double, _ py: Double) -> (x: Double, y: Double) {
-        let f = frame(page)
-        let (u, v): (Double, Double)
-        switch f.rot {
-        case 90: (u, v) = (py, f.h - px)
-        case 180: (u, v) = (f.w - px, f.h - py)
-        case 270: (u, v) = (f.w - py, px)
-        default: (u, v) = (px, py)
-        }
-        return (f.bx1 + u, f.by2 - v)
-    }
+    static func toPdf(_ page: PObj, _ px: Double, _ py: Double) -> (x: Double, y: Double) { frame(page).toPdf(px, py) }
 
     /// The displayed page size in points (rotation applied).
     static func displaySize(_ page: PObj) -> (w: Double, h: Double) {
         let f = frame(page)
         return f.rot == 90 || f.rot == 270 ? (f.h, f.w) : (f.w, f.h)
+    }
+}
+
+/// A page's visible box and /Rotate, read once: maps PDF user space to page space and back (`PageBoxes.toPage`, `toPdf`).
+struct PageFrame: Sendable {
+    var bx1: Double, by2: Double, w: Double, h: Double
+    var rot: Int
+
+    /// PDF user space → page space.
+    func toPage(_ x: Double, _ y: Double) -> (x: Double, y: Double) {
+        let u = x - bx1, v = by2 - y
+        switch rot {
+        case 90: return (h - v, u)
+        case 180: return (w - u, h - v)
+        case 270: return (v, w - u)
+        default: return (u, v)
+        }
+    }
+
+    /// Page space → PDF user space.
+    func toPdf(_ px: Double, _ py: Double) -> (x: Double, y: Double) {
+        let (u, v): (Double, Double)
+        switch rot {
+        case 90: (u, v) = (py, h - px)
+        case 180: (u, v) = (w - px, h - py)
+        case 270: (u, v) = (w - py, px)
+        default: (u, v) = (px, py)
+        }
+        return (bx1 + u, by2 - v)
     }
 }
 
