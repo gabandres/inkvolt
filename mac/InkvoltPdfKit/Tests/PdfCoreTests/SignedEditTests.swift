@@ -6,8 +6,8 @@ import Testing
 /// The fixture is signed-looking (a signature field whose /ByteRange and /Contents are placeholders) until digital
 /// signatures come to the Mac: appending, reporting and flattening don't read the signature itself. Adapted:
 /// AnEditThatCantBeAppendedStopsInsteadOfBreakingTheSignatures (MuPDF appends to an encrypted signed file too, where
-/// PDFsharp couldn't: the edit is appended); JunkAfterTheEndOfFileStillAppends rotates a page (the form fill comes with
-/// D5); RemovalsAppended… keeps its page, comment and Fill & Sign parts (attachments, headers and signature
+/// PDFsharp couldn't: the edit is appended); JunkAfterTheEndOfFileStillAppends checks the appended fill's text, not the
+/// signature's state (verification comes later); RemovalsAppended… keeps its page, comment and Fill & Sign parts (attachments, headers and signature
 /// verification come with their steps); FindsTheLastValidStartxref finds where the last revision ends (`PdfEdit.lastEnd`, which lets MuPDF
 /// read a file with junk after it). Left out: ReadsTheFileIdAsHexOrLiteralStrings and
 /// ALiteralFileIdIsCarriedIntoTheUpdate (the Windows incremental writer's own parsing; MuPDF writes the update here) and
@@ -61,6 +61,10 @@ struct SignedEditTests {
         let (rotated, report) = try SignedEdits.run { try PageEditor.rotate(pdf, nil, [0], 90) }
         #expect(report.appended)
         #expect(Self.appended(pdf, rotated))
+        let (filled, fillReport) = try SignedEdits.run { try FormEditor.setValues(pdf, nil, ["Name": "Ada"]) }
+        #expect(fillReport.appended)
+        #expect(Self.appended(pdf, filled))
+        #expect(try Core2Pdf.allText(filled).contains("Ada"))
     }
 
     @Test func findsTheLastValidStartxref() {

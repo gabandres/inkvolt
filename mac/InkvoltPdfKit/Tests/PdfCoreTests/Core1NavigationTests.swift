@@ -4,8 +4,8 @@ import Testing
 
 /// Ported from Core1NavigationTests.cs: bookmarks, links, named destinations and form fields across page edits, all 11
 /// tests. The PDFsharp object checks read the same objects through MuPDF (`Core2Pdf.open`). Adapted: the widget checks
-/// that use FormEditor.Read (D5) read the pages' widgets directly (`widgets`). Left out until D5: FieldsFromEachFileStay
-/// Fillable's fill (FormEditor.SetValues); its AcroForm /DA and /DR checks are here.
+/// other than FieldsFromEachFileStayFillable's read the pages' widgets directly (`widgets`), as they were written before
+/// FormEditor came (D5).
 struct Core1NavigationTests {
     private static let nav = Core1TestPdf.navigation()
 
@@ -129,6 +129,10 @@ struct Core1NavigationTests {
 
     @Test func fieldsFromEachFileStayFillable() throws {
         let merged = try PageEditor.merge([PdfSource(Self.nav, nil, "a.pdf"), PdfSource(Self.nav, nil, "b.pdf")], false)
+        let result = try filled(merged, ["name_2": "Bob"])
+        let fields = try FormEditor.read(result, nil)
+        #expect(fields.filter { $0.fieldName == "name" }.map(\.value) == ["Alice"])
+        #expect(fields.filter { $0.fieldName == "name_2" }.map(\.value) == ["Bob"])
         let acro = try #require(try Core2Pdf.open(merged).catalog.dict("AcroForm"))
         #expect(acro.text("DA") == "/Helv 0 Tf 0 g")
         #expect(acro.dict("DR")?.dict("Font")?["Helv"] != nil)
@@ -141,7 +145,7 @@ struct Core1NavigationTests {
 
 /// Ported from Core1XmpTests (in Core1NavigationTests.cs): XMP metadata kept in step with the Info dictionary, read with
 /// Foundation's XMLDocument where Windows uses XDocument. Adapted: EveryCoreSavePathKeepsTheXmpPacket saves through
-/// comments and Fill & Sign (attachments, redaction and forms come with D5 and later, each with its XMP check).
+/// comments, Fill & Sign and a form fill (attachments and redaction come later, each with its XMP check).
 /// EditsKeepTheOriginalPacketAndUpdateIt and WriteMetadataUpdatesXmpWithEscaping are whole.
 struct Core1XmpTests {
     static let rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -215,6 +219,12 @@ struct Core1XmpTests {
             ("contents", { try Annotations.setContents(Annotations.addNote($0, nil, 0, 50, 50, "Hi", author: "Me", id: note), nil, note, "Bye") }),
             ("stamp", { try TextStamps.put($0, nil, 0, RectD(60, 60, 80, 14), .text, "Signed", 11) }),
         ]
+        let packet = try readXmp(original).rootElement()?.xmlString ?? ""
+        let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) >>"],
+                                 catalogExtra: "/Metadata 6 0 R", more: [Core2Pdf.stream(packet, "/Type /Metadata /Subtype /XML")])
+        let fill = try readXmp(filled(form, ["name": "Ana"]))
+        #expect(try prop(fill, "urn:example:my", "Custom") == "keep me")
+        #expect(try prop(fill, Self.xmp, "CreateDate")?.hasPrefix("2020-01-02") == true)
         for (name, save) in saves {
             let x = try readXmp(save(original))
             #expect(try prop(x, "urn:example:my", "Custom") == "keep me", "\(name): custom XMP property lost")

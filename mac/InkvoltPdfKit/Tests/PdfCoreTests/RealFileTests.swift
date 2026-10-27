@@ -3,7 +3,8 @@ import PDFKit
 import Testing
 @testable import PdfCore
 
-/// Not a port: the page edits (D3) and the comments, drawings, stamps and images (D4) run on real documents, copied by
+/// Not a port: the page edits (D3), the comments, drawings, stamps and images (D4), and form filling and Fill & Sign (D5)
+/// run on real documents, copied by
 /// hand into /tmp/inkvolt-d3-real (skipped when the folder isn't there; real files never go into the repo). Each result
 /// must open in PdfEngine and in Apple's PDFKit with the expected page count; page edits must leave the expected source
 /// pages in the expected order (compared as small renders); annotations must be read back and the page must render in
@@ -205,6 +206,93 @@ struct RealFileTests {
                 let img = StampImage(20, 20, Array([[UInt8]](repeating: [20, 40, 200], count: 400).joined()), nil)
                 return try SignatureStamps.putImage(d, nil, 0, RectD(w * 0.7, h * 0.75, 60, 60), img, label: "Inkvolt image")
             }, { try SignatureStamps.read($0, nil).contains { $0.kind == .image && $0.pageIndex == 0 } })
+        }
+        #expect(failures == 0)
+    }
+
+    /// PDFKit's annotations on page 1.
+    private func kitAnnotations(_ data: [UInt8]) -> Int { PDFDocument(data: Data(data))?.page(at: 0)?.annotations.count ?? -1 }
+
+    @Test(.enabled(if: !files.isEmpty)) func formsAndFillAndSignOnRealFiles() throws {
+        var failures = 0
+        func report(_ file: String, _ check: String, _ run: () throws -> Bool?) {
+            let outcome: String
+            do {
+                switch try run() {
+                case true?: outcome = "PASS"
+                case false?: outcome = "FAIL"
+                    failures += 1
+                case nil: outcome = "SKIP"
+                }
+            } catch {
+                outcome = "FAIL (\(type(of: error)))"
+                failures += 1
+            }
+            print("REAL \(file) \(check) \(outcome)")
+        }
+
+        for (k, name) in Self.files.enumerated() {
+            let label = "file\(k + 1)"
+            let data = Array(try Data(contentsOf: URL(fileURLWithPath: "\(Self.folder)/\(name)")))
+            let engine = try PdfEngine.open(data)
+            let n = engine.pageCount
+            let g = engine.page(0)
+            engine.close()
+            let widgets = (try? FormEditor.read(data, nil)) ?? []
+            let texts = widgets.filter { $0.kind == .text && !$0.readOnly }
+            let boxes = widgets.filter { $0.kind == .checkBox && !$0.readOnly }
+            print("REAL \(label) widgets \(widgets.count) fields \(Set(widgets.map(\.fieldName)).count) text \(Set(texts.map(\.fieldName)).count) checkboxes \(Set(boxes.map(\.fieldName)).count)")
+
+            report(label, "fill") {
+                if texts.isEmpty && boxes.isEmpty { return nil }
+                var values: [String: String] = [:]
+                for (i, w) in texts.enumerated() where values[w.fieldName] == nil {
+                    let v = "Inkvolt \(i + 1)"
+                    values[w.fieldName] = w.maxLength > 0 ? String(v.prefix(w.maxLength)) : v
+                }
+                let box = boxes.first
+                if let box { values[box.fieldName] = box.value == "Off" ? box.onState ?? "Yes" : "Off" }
+                let r = try FormEditor.fill(data, nil, values)
+                let back = try FormEditor.read(r.data, nil)
+                let rejected = Set(r.rejected.map(\.fieldName))
+                var ok = 0
+                for (field, v) in values where !rejected.contains(field) && field != box?.fieldName {
+                    if back.first(where: { $0.fieldName == field })?.value == v { ok += 1 }
+                }
+                let expectedText = values.count - (box == nil ? 0 : 1) - rejected.subtracting([box?.fieldName ?? ""]).count
+                var toggled = true
+                if let box, !rejected.contains(box.fieldName) {
+                    toggled = back.first { $0.fieldName == box.fieldName }?.value != box.value
+                }
+                print("REAL \(label) filled \(ok) of \(values.count - (box == nil ? 0 : 1)) text, \(rejected.count) refused by the form's scripts, checkbox toggled \(box == nil ? "-" : String(toggled))")
+                let opens = try opensAndRenders(r.data, pages: n, annots: 0)
+                return ok == expectedText && toggled && opens
+            }
+
+            report(label, "fill&sign") {
+                let before = kitAnnotations(data)
+                var d = try TextStamps.put(data, nil, 0, RectD(g.width * 0.1, g.height * 0.85, g.width * 0.5, 18), .text, "Inkvolt Fill and Sign", 12)
+                d = try TextStamps.put(d, nil, 0, RectD(g.width * 0.65, g.height * 0.85, 14, 14), .check, "", 12)
+                // A drawn signature: a dark stroke on a transparent 120 x 40 image.
+                let (iw, ih) = (120, 40)
+                var rgb: [UInt8] = []
+                var alpha: [UInt8] = []
+                for y in 0..<ih {
+                    for x in 0..<iw {
+                        let curve = Int(20 + 12 * sin(Double(x) / 10))
+                        rgb += [10, 20, 90]
+                        alpha.append(abs(y - curve) <= 1 ? 255 : 0)
+                    }
+                }
+                d = try SignatureStamps.put(d, nil, 0, RectD(g.width * 0.1, g.height * 0.9, 120, 40), StampImage(iw, ih, rgb, alpha))
+                let stamps = try TextStamps.read(d, nil).filter { $0.pageIndex == 0 }
+                let signatures = try SignatureStamps.read(d, nil).filter { $0.pageIndex == 0 && $0.kind == .signature }
+                let drawn = try Core2Pdf.allText(d).contains("Inkvolt Fill and Sign")
+                let found = stamps.contains { $0.kind == .text && $0.text == "Inkvolt Fill and Sign" } && stamps.contains { $0.kind == .check }
+                    && !signatures.isEmpty && drawn
+                let opens = try opensAndRenders(d, pages: n, annots: max(0, before) + 3)
+                return found && opens
+            }
         }
         #expect(failures == 0)
     }

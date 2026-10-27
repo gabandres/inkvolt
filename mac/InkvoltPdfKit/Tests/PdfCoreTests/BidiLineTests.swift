@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import PdfCore
 
-/// Ported from BidiLineTests.cs: mixed-direction Fill & Sign text extracts as one line in logical order. Left out:
-/// FormValueIsOneLogicalLine (form appearances come with D5).
+/// Ported from BidiLineTests.cs, whole: mixed-direction Fill & Sign text and form values extract as one line in
+/// logical order.
 struct BidiLineTests {
     static let mixed = ["Hello مرحبا world", "abc שלום def", "שלום abc!", "مرحبا 123 بكم", "Pay שלום עולם to Ada (now)"]
 
@@ -14,6 +14,14 @@ struct BidiLineTests {
         try #require(lines.count == 1, "\(lines.map(\.text))")
         #expect(lines[0].text == text)
         #expect(!lines[0].text.contains { $0 == "\u{200E}" || $0 == "\u{200F}" })
+    }
+
+    @Test(arguments: mixed)
+    func formValueIsOneLogicalLine(_ text: String) throws {
+        let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"])
+        let lines = try Core2Pdf.lines(Core2Pdf.withoutNeedAppearances(filled(form, ["name": text])))
+        try #require(lines.count == 1, "\(lines.map(\.text))")
+        #expect(lines[0].text == text)
     }
 
     @Test func singleDirectionLinesHaveNoMarks() throws {

@@ -12,7 +12,9 @@ let package = Package(
     targets: [
         .binaryTarget(name: "MuPDF", path: "Frameworks/MuPDF.xcframework"),
         .target(name: "MuPDFShim", dependencies: ["MuPDF"]),
-        .target(name: "PdfCore", dependencies: ["MuPDFShim"]),
+        // JavaScriptCore's watchdog (the time limit of form scripts), declared in C: see ScriptLimits.c.
+        .target(name: "ScriptLimits", linkerSettings: [.linkedFramework("JavaScriptCore")]),
+        .target(name: "PdfCore", dependencies: ["MuPDFShim", "ScriptLimits"]),
         .testTarget(name: "PdfCoreTests", dependencies: ["PdfCore"]),
     ]
 )

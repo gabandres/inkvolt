@@ -3,8 +3,7 @@ import Testing
 @testable import PdfCore
 
 /// Ported from EditTransactionTests.cs: the edit transaction (`DocumentSession.edit`) through its interface, the
-/// questions it asks (answered by a script) and the session afterwards. Adapted: ContentOnlyEditsSaySo… marks a rotation
-/// as content-only (the form fill comes with D5); AnAes256Edit… asks nothing on the Mac (MuPDF keeps the open password
+/// questions it asks (answered by a script) and the session afterwards. Adapted: AnAes256Edit… asks nothing on the Mac (MuPDF keeps the open password
 /// without knowing it), so it checks that the protection and the open password stay. Left out until digital signatures:
 /// ASignedFileAsksBeforeAnEditBreaksItsSignature (it verifies the signature), and AnEncryptedSignedFileWarnsOnceBeforeItsFirstEdit
 /// (MuPDF appends to an encrypted signed file, so there is no rewrite to warn about).
@@ -89,13 +88,14 @@ struct EditTransactionTests {
     }
 
     @Test func contentOnlyEditsSaySoAndUnchangedBytesMakeNoStep() async throws {
-        let session = try DocumentSession.fromBytes(TestPdf.make(1), "f.pdf")
+        let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"])
+        let session = try DocumentSession.fromBytes(form, "f.pdf")
         defer { session.close() }
         let events = Events()
         session.contentChanged = { events.changes.append($0) }
         let prompts = ScriptedPrompts()
 
-        var fill = rotate("Fill form field")
+        var fill = EditRequest("Fill form field") { d, pw in try FormEditor.fill(d, pw, ["name": "Ada"]).data }
         fill.contentOnly = true
         #expect(await session.edit(fill, prompts: prompts).outcome == .done)
         #expect(events.changes.count == 1 && events.changes[0].contentOnly)

@@ -3,8 +3,9 @@ import Testing
 @testable import PdfCore
 
 /// Ported from HostileStructureTests.cs, the page-edit tests (D3): DeletingAPageWalksSharedActionChainsOnce and
-/// DeletingAPageSurvivesAnActionThatIsItsOwnNext. Files built to make a walk over their objects run forever must finish in
-/// seconds (a hang fails the test instead of blocking the run). The form and drawing ones come with D5 and later.
+/// DeletingAPageSurvivesAnActionThatIsItsOwnNext, and the form one (D5): ChoiceFieldWhoseParentCyclesTakesNewItems. Files
+/// built to make a walk over their objects run forever must finish in seconds (a hang fails the test instead of blocking
+/// the run). The drawing ones come later.
 struct HostileStructureTests {
     struct TimedOut: Error {}
 
@@ -40,6 +41,19 @@ struct HostileStructureTests {
     private func buttonHasAction(_ pdf: [UInt8]) throws -> Bool {
         let doc = try Core2Pdf.open(pdf)
         return try #require(doc.page(0).array("Annots")?[0]).has("A")
+    }
+
+    @Test func choiceFieldWhoseParentCyclesTakesNewItems() throws {
+        let widget = "/Type /Annot /Subtype /Widget /F 4 /P 3 0 R"
+        let form = Core2Pdf.form([
+            "<< \(widget) /FT /Tx /T (a) /Rect [72 700 250 720] /DA (/Helv 10 Tf 0 g) >>",
+            "<< \(widget) /FT /Tx /T (b) /Rect [72 670 250 690] /DA (/Helv 10 Tf 0 g) /V (old) /AA << /C 8 0 R >> >>",
+            "<< \(widget) /FT /Ch /T (c) /Rect [72 640 250 660] /DA (/Helv 10 Tf 0 g) /Parent 7 0 R >>",
+        ], acroExtra: "/CO [6 0 R]", more: ["<< /S /JavaScript /JS (getField\\('c'\\).setItems\\(['x', 'y']\\); event.value = 'ran';) >>"])
+        let result = try within { try FormEditor.fill(form, nil, ["a": "1"]).data }
+        let doc = try Core2Pdf.open(result)
+        let c = try #require((1..<doc.objectCount).map { doc.object($0) }.first { $0.isDict && $0.text("T") == "c" })
+        #expect(c.array("Opt")?.count == 2)
     }
 
     @Test func deletingAPageWalksSharedActionChainsOnce() throws {

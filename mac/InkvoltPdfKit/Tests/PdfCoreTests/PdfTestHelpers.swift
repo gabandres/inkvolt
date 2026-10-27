@@ -200,3 +200,34 @@ extension Core2Pdf {
 
 /// The PDF's bytes as text (Latin-1, as the Windows tests' `Encoding.Latin1.GetString`).
 func latin1(_ data: [UInt8]) -> String { String(data.map { Character(Unicode.Scalar($0)) }) }
+
+extension Core2Pdf {
+    /// A one-page form: the given field objects (numbered from 5) as widgets on page 3, with Helvetica in /DR as 4
+    /// (Core2Pdf.Form).
+    static func form(_ fields: [String], acroExtra: String = "", pageExtra: String = "", catalogExtra: String = "", more: [String] = [],
+                     extraAnnots: String = "") -> [UInt8] {
+        let refs = fields.indices.map { "\(5 + $0) 0 R" }.joined(separator: " ")
+        return build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [\(refs)] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> \(acroExtra) >> \(catalogExtra) >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [\(refs) \(extraAnnots)] /Resources << >> \(pageExtra) >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        ] + fields + more)
+    }
+
+    /// The same document without /NeedAppearances, so viewers must use the appearance streams written for it.
+    static func withoutNeedAppearances(_ data: [UInt8]) throws -> [UInt8] {
+        let doc = try open(data)
+        doc.catalog.dict("AcroForm")?.remove("NeedAppearances")
+        try doc.checkFailure()
+        return try doc.write("")
+    }
+
+    /// The top-level field named `name`.
+    static func field(_ doc: MuDoc, _ name: String) -> PObj? {
+        doc.catalog.dict("AcroForm")?.array("Fields")?.elements.first { $0.text("T") == name }
+    }
+}
+
+/// A form filled with `values` (FormEditor.SetValues in the Windows tests).
+func filled(_ form: [UInt8], _ values: [String: String]) throws -> [UInt8] { try FormEditor.setValues(form, nil, values) }

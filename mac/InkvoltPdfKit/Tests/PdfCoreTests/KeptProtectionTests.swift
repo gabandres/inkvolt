@@ -4,17 +4,24 @@ import Testing
 
 /// Ported from KeptProtectionTests.cs: edits of encrypted PDFs keep the protection, permissions and both passwords. On the
 /// Mac MuPDF writes an edit under the document's own encryption, so it keeps the method too (Windows upgrades RC4 to
-/// AES-128) and never needs the open password (Windows needs it for AES-256). Adapted: the edits are a rotation and a
-/// note (filling a form comes with D5); Aes256WithAnUnknownOpenPasswordAsksOrDropsIt keeps the open password
+/// AES-128) and never needs the open password (Windows needs it for AES-256). Adapted: Aes256WithAnUnknownOpenPasswordAsksOrDropsIt keeps the open password
 /// without asking, and drops it on request; RecoversTheUserPasswordFromTheOwnerPassword checks that an edit keeps a
 /// non-ASCII open password (there is nothing to recover on the Mac). Left out: extraction (D3).
 struct KeptProtectionTests {
     static let owner = "owner-pw"
     static let restricted = PdfPermissions(print: .lowResolution, copy: false, modify: true, annotate: true, fillForms: true, assemble: true)
 
-    /// Two pages encrypted with MuPDF's `method`.
+    /// Two pages, a text field "name" on the first, encrypted with MuPDF's `method`.
     static func encrypted(_ method: String, _ user: String, permissions: PdfPermissions = restricted) -> [UInt8] {
-        Encrypt.with(TestPdf.make(2), method, user: user, owner: owner, permissions: permissions)
+        let form = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [5 0 R] /Resources << >> >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>",
+        ])
+        return Encrypt.with(form, method, user: user, owner: owner, permissions: permissions)
     }
 
     static let methods: [(String, EncryptionMethod)] = [
@@ -28,6 +35,7 @@ struct KeptProtectionTests {
 
     static let edits: [(name: String, edit: @Sendable ([UInt8]) throws -> [UInt8])] = [
         ("rotate", { try PageEditor.rotate($0, owner, [0], 90) }),
+        ("fill", { try FormEditor.fill($0, owner, ["name": "Ada"]).data }),
         ("note", { try Annotations.addNote($0, owner, 0, 100, 100, "Kept", author: "Tester") }),
     ]
 
@@ -73,7 +81,9 @@ struct KeptProtectionTests {
 
     @Test func theEditIsInTheProtectedResult() throws {
         let pdf = Self.encrypted("aes-128", "u")
-        let noted = try Annotations.addNote(pdf, Self.owner, 0, 100, 100, "Kept", author: "Tester")
+        let filled = try FormEditor.fill(pdf, Self.owner, ["name": "Ada"]).data
+        #expect(try FormEditor.read(filled, "u").first { $0.fieldName == "name" }?.value == "Ada")
+        let noted = try Annotations.addNote(filled, Self.owner, 0, 100, 100, "Kept", author: "Tester")
         #expect(try Annotations.read(noted, "u").contains { $0.contents == "Kept" })
         let rotated = try PageEditor.rotate(noted, Self.owner, [0], 90)
         let e = try PdfEngine.open(rotated, password: "u")

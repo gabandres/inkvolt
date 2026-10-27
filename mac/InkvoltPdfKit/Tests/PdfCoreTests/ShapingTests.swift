@@ -4,8 +4,7 @@ import Testing
 
 /// Ported from ShapingTests.cs: complex-script shaping, bidi and the embedded fonts of Fill & Sign. Core Text shapes here
 /// where Windows uses HarfBuzz, with the same Arial (macOS keeps it in /System/Library/Fonts/Supplemental). Adapted:
-/// DevanagariFormsConjuncts shapes with the font Core Text falls back to for Devanagari (Windows: Nirmala UI). Left out:
-/// FormFieldAppearanceIsShaped (form appearances come with D5).
+/// DevanagariFormsConjuncts shapes with the font Core Text falls back to for Devanagari (Windows: Nirmala UI).
 struct ShapingTests {
     static var arial: TrueTypeFont { SystemFonts.get("arial.ttf")! }
 
@@ -60,5 +59,14 @@ struct ShapingTests {
         #expect(try Core2Pdf.allText(data).contains(text))
         // Only the glyphs used are embedded: far smaller than the system fonts they came from.
         #expect(data.count < 120_000, "\(data.count) bytes")
+    }
+
+    @Test func formFieldAppearanceIsShaped() throws {
+        let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 372 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"])
+        let result = try Core2Pdf.withoutNeedAppearances(filled(form, ["name": "مرحبا שלום"]))
+        let text = try Core2Pdf.allText(result)
+        #expect(text.contains("مرحبا"))
+        #expect(text.contains("שלום"))
+        #expect(try Core2Pdf.ink(result, 0, RectD(72, 162, 300, 30)) > 0.01, "the value is drawn")
     }
 }
