@@ -9,7 +9,9 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   imports an Apple framework (the probe, PrintMac, the app) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
-  what it flags before pushing.
+  what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac
+  (`sh mac/Vendor/mupdf/build.sh` once, then `swift test --package-path mac/InkvoltPdfKit`) and in CI's `pdf` job; every
+  MuPDF call goes through `MuPDFShim`'s fz_try, never straight from Swift.
 - **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the clone is `~/Repos/inkvolt` (pull, or copy changed files
   over with LF endings for text only: a CRLF entitlements file fails `codesign`, and converting a PNG breaks it).
   `sh mac/InkvoltPrint/build.sh` installs `/Applications/Inkvolt Print.app` (process `Inkvolt Print`); `open -n` it with

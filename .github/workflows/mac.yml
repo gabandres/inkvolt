@@ -1,4 +1,5 @@
-# Builds the macOS code on pushes that touch it: the probe, the package (PrintCore and PrintMac, tested) and the app.
+# Builds the macOS code on pushes that touch it: the probe, the package (PrintCore and PrintMac, tested), the app, and
+# Inkvolt PDF's package (PdfCore over MuPDF, tested).
 # The Windows PC builds PrintCore only, so this is the first check of everything that imports an Apple framework.
 name: mac
 
@@ -27,3 +28,23 @@ jobs:
       - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors
       - run: xcodebuild -project mac/InkvoltPrint/InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration Release -destination generic/platform=macOS -quiet build CODE_SIGNING_ALLOWED=NO # warnings are errors in the app target
+
+  # Inkvolt PDF's package over MuPDF: MuPDF built from its source by mac/Vendor/mupdf/build.sh, kept between runs until
+  # the script changes (a fresh build takes most of this job's time).
+  pdf:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
+          xcodebuild -version
+      - id: mupdf
+        uses: actions/cache@v6
+        with:
+          path: mac/InkvoltPdfKit/Frameworks
+          key: mupdf-${{ runner.os }}-${{ hashFiles('mac/Vendor/mupdf/build.sh') }}
+      - if: steps.mupdf.outputs.cache-hit != 'true'
+        run: sh mac/Vendor/mupdf/build.sh
+      - run: swift test --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors

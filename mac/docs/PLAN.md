@@ -86,7 +86,7 @@ mac/InkvoltPrintKit --build-system native`.
 
 | Step | What | .NET tests to port | Status |
 |---|---|---|---|
-| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Builds in CI; run pending |
+| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Done (2026-10-26): results in the research file's "Probe results on a Mac"; items 3 (Printers & Scanners deep link) and 10 (SMAppService, now testable with the development certificate) still open |
 | P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
 | P2 | IPP | IppAndPdfTests (IPP part) | Done: 22 tests (codec, text fixtures, status, supplies, Identify-Printer, from OtherBrandsTests, RobustnessTests and MaintenanceTests too). The HTTP client waits for P4 |
 | P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | Done: 22 tests (LEDM documents and manifest, CDM identity, supplies and status, brands, the hardened XML and JSON readers). The connection, eSCL and web-page tests wait for P4 and P8 |
@@ -257,9 +257,106 @@ mobile apps are. The app is a hand-made Xcode project (no XcodeGen). Store setup
 features; the app goes to review once the v1 scope is in. Print and PDF stay two apps (PDF can't be on the App Store:
 AGPL MuPDF and Sparkle). The repo is cloned at `~/Repos/inkvolt` on `ignia-mac`.
 
+## Inkvolt PDF v1
+
+Decided 2026-10-27 with the owner, as Inkvolt Print 1.1 waits for App Review:
+
+| | |
+|---|---|
+| Engine | MuPDF's C library for everything the document is: drawing, text, and the PDF objects that editing, forms and saving work on (the role PDFsharp has on Windows). One model of the document, so pages look and export as on Windows. No PDFKit for the document; the page view is our own |
+| Text shaping, form scripts, signatures | Core Text (or MuPDF's own HarfBuzz) for HarfBuzzSharp, JavaScriptCore for Jint, Security.framework for System.Security.Cryptography.Pkcs: Apple frameworks, no packages beyond MuPDF and Sparkle |
+| Bundle ID | `com.bermudezsystems.InkvoltPdf` |
+| Distribution | Developer ID, notarized, a DMG; updates through Sparkle 2 (EdDSA-signed appcast). Not sandboxed (Sparkle's unsandboxed setup; the app opens whatever file the user picks) |
+| License | AGPL-3.0 with MuPDF's notices and source offer, as `pdf/THIRD-PARTY-NOTICES.md` |
+
+In 1.0, the reader and everyday edits:
+- tabs (macOS window tabs), reading modes (continuous, single, two pages, cover), zoom, rotate view, full screen;
+- the side rail: thumbnails, outline, search, comments; find with match case and whole words; select and copy text;
+  links;
+- comments: highlight, underline, strike out, notes, free text, drawing (pen, highlighter, shapes, lines, arrows),
+  stamps, images;
+- forms: fill text fields, check boxes, radios and lists, with their calculations and formats (form JavaScript); Fill &
+  Sign (text, check marks, a drawn or typed signature);
+- organize pages: rotate, delete, move, insert (blank, from a file, from images), extract, combine files, new PDF from
+  images; bookmarks;
+- passwords: open protected files, protect with a password, keep a document's protection through edits;
+- saving as Windows does: incremental, so earlier signatures stay intact; undo and redo; recovery copies of unsaved
+  work;
+- print; Open in Inkvolt PDF from Inkvolt Print (its presets' last step);
+- Sparkle updates, What's New after an update; settings.
+
+Later versions, in roughly this order: edit text and images, redaction, OCR (Vision), export to Word, Excel and text
+(`DocLayout`, with `pdf/tools/export-corpus` as its check), digital signatures (verify, sign), compare files, sanitize,
+reduce file size, flatten, header and footer, watermark, measure, PDF/A, batch, layers, attachments, Read Aloud, the AI
+features.
+
+### Layout
+
+```
+mac/
+  InkvoltPdfKit/                 Swift package
+    Sources/CMuPDF/              MuPDF's headers as a C module (the library itself from mac/Vendor/mupdf)
+    Sources/PdfCore/             the Windows Core's rules over MuPDF: engine, document session, edits, forms, pages
+    Sources/PdfMac/              what touches AppKit and the system: the page view's tiles, Core Text, JavaScriptCore,
+                                 printing, the recognizer later
+    Tests/PdfCoreTests/          Swift Testing; reads pdf/tests fixtures and test PDFs in place
+  InkvoltPdf/                    the app (SwiftUI with AppKit for the page view): Xcode project, Info.plist,
+                                 entitlements (hardened runtime), build.sh, release.sh (Developer ID, notarytool, DMG,
+                                 Sparkle appcast)
+  Vendor/mupdf/                  build.sh: MuPDF at a pinned tag as a static XCFramework (arm64, x86_64), built from
+                                 its source (not kept in the repo), with the build's notices
+```
+
+Unlike PrintCore, PdfCore needs MuPDF, so it builds and tests on the Mac and in the `mac` CI job, not on the Windows PC
+(MuPDF could later be built for Windows' Swift too).
+
+### Module map (.NET to Swift)
+
+| `pdf/src/InkvoltPdf.Core` | Swift | Notes |
+|---|---|---|
+| `PdfEngine`, `PageText`, `TextLayer`, `Links`, `Geometry` | `PdfCore/Engine` | MuPDF on both; the closest port |
+| `DocumentSession`, `DocumentSession.Edit`, `Incremental`, `Recovery` | `PdfCore/Session` | PDFsharp's object edits become MuPDF `pdf_obj` edits; incremental saves with `pdf_save_document` |
+| `PdfSecurity`, `KeptProtection`, `PasswordStrength`, `SignedEdits` | `PdfCore/Security` | |
+| `PageEditor`, `PageRange`, `ImageImport`, `Bookmarks`, `BookmarkTree` | `PdfCore/Pages` | |
+| `Annotations`, `Annotations.Drawing`, `Appearances`, `DrawingGeometry`, `RubberStamps`, `TextStamps`, `PageMarks` | `PdfCore/Annotations` | appearance streams written as on Windows |
+| `FormActions*`, `FormScripts`, `JsFormHost`, `JsPrelude`, `TabLabels` | `PdfCore/Forms` + `PdfMac/Scripts` | Jint becomes JavaScriptCore behind a protocol, so PdfCore tests can use a fake |
+| `Shaping`, `FontKit`, `FontNames`, `FontPrograms`, `TextFonts`, `Bidi` | `PdfMac/Text` | HarfBuzzSharp becomes Core Text or MuPDF's HarfBuzz (decided at D4) |
+| `PrintLayout` | `PdfCore/Printing` | printing through `NSPrintOperation` with our own page drawing |
+
+Not in 1.0 (their modules port with their features): `ContentEditor`, `ContentLexer`, `Redaction`, `DocLayout`,
+`DocxWriter`, `XlsxWriter`, `DocumentExport`, `ExportGlyphs`, `ExportPage`, `Signatures`, `Signing`, `SigningIds`,
+`SignatureChanges`, `SignatureStamps`, `DocumentCompare`, `CompareReport`, `VisualCompare`, `WordDiff`, `Sanitizer`,
+`Optimizer`, `Flattener`, `HeaderFooter`, `Watermarks`, `Measurement`, `PdfA`, `Batch`, `Layers`, `Attachments`,
+`ReadAloudText`, `StructTree`, `FieldDetection`, `FormDesign`, `FormEditor`, `Conversion`, `Ai*`.
+
+### Steps
+
+As for Print: each step ports the module's .NET tests first, under the same names, then the code until they pass.
+
+| Step | What | .NET tests to port | Status |
+|---|---|---|---|
+| D0 | MuPDF for the Mac: `Vendor/mupdf/build.sh` (pinned tag, the Windows app's 1.25.2 or the current release), the XCFramework, `CMuPDF`, the package skeleton, the CI job; open a test PDF, draw a page, read its text | || Done (2026-10-27): MuPDF 1.25.2 (the Windows app's) built from its tag on `ignia-mac`, arm64 and x86_64 for macOS 15, as one static XCFramework (107 MB, not in git) with a `CMuPDF` module map; zlib's `fdopen` clash with the macOS SDK worked around (`-Dfdopen=fdopen`). The C shim `MuPDFShim` catches MuPDF's errors (fz_try) and hands Swift the message, marks them handled and keeps MuPDF quiet on stderr. `PdfEngine` opens, counts, sizes, draws and reads a page; `TestPdf` writes the tests' PDFs by hand (the Windows tests draw them with PDFsharp); 5 tests on `ignia-mac`. The `mac` CI job's `pdf` part builds MuPDF (cached until `build.sh` changes) and runs them |
+| D1 | Engine: open (passwords), page geometry, rendering (regions, cancel), text and words, links, outline | EngineTests, Core1EngineTests, Core1NavigationTests, PageTextTests, TextLayerTests, HostileStructureTests | |
+| D2 | Document session, edit transaction, undo steps, incremental save, kept protection, passwords, recovery | EditTransactionTests, RecoveryTests, KeptProtectionTests, SecurityTests, OwnerPasswordTests, SessionProtectionTests, PasswordStrengthTests, SignedEditTests | |
+| D3 | Pages: organize, ranges, insert from files and images, bookmarks | PageEditorTests, PageRangeTests, PageStructureTests, ImageImportTests, BookmarkTests, BookmarkTreeTests | |
+| D4 | Comments, drawing, stamps, images, text shaping for their appearances | DrawingAnnotationTests, DrawingGeometryTests, RubberStampTests, TextStampTests, Core2StampTests, LinkAndImageTests, ShapingTests, BidiLineTests | |
+| D5 | Forms: fill, appearances, actions, form JavaScript (JavaScriptCore), Fill & Sign | FormTests, Core2FormTests, FormActionTests, FormAppearanceTests, JsFormTests, Core2ScriptTests, TabLabelTests | |
+| D6 | Print layout | PrintLayoutTests | |
+| D7 | The app: document windows and tabs, the page view (tiled rendering, selection, find, VoiceOver), the side rail, tools, start page, settings, recovery prompt; Open in Inkvolt PDF from Inkvolt Print | | |
+| D8 | Release: Developer ID certificate, hardened runtime, notarytool with the API key, the DMG, Sparkle 2 (EdDSA key, appcast and where it's hosted), notices and the source offer | | |
+
+Open questions for the PDF app:
+- The MuPDF version: the Windows app's 1.25.2 (same rendering as Windows) or the current release.
+- Form JavaScript: JavaScriptCore with a port of `JsFormHost`/`JsPrelude` (Windows' behaviour, the same tests), or
+  MuPDF's own mujs form scripting.
+- The Developer ID Application certificate: whether the App Store Connect API key may create it or the Account Holder
+  must, in the developer portal.
+- Where the appcast and DMGs are hosted (GitHub Releases, or the site that hosts the privacy policy), and what
+  Sparkle's update check sends (no system profile: the privacy rule).
+
 ## Open decisions
 
-- Inkvolt PDF's bundle ID: proposed `com.bermudezsystems.InkvoltPdf`.
+None for Print. The PDF app's are at the end of its section.
 
 Decided 2026-10-27: development builds are signed with an Apple Development certificate of the team's, made through the
 App Store Connect API key and kept in `~/Library/Keychains/inkvolt-dev.keychain-db` on `ignia-mac` (its password in
