@@ -289,8 +289,8 @@ In 1.0, the reader and everyday edits:
 - Sparkle updates, What's New after an update; settings.
 
 Decided 2026-10-27 (the competitor review): text editing, OCR and export are in 1.0, so it stands against PDF Expert,
-which sells exactly those. Later versions, in roughly this order: redaction (with redaction by pattern, as Windows gets it
-first), digital signatures (verify, sign), compare files, sanitize,
+which sells exactly those. After 1.0, the E-steps of "Parity with Windows" below bring the rest, in roughly this order:
+redaction (with redaction by pattern, as Windows gets it first), digital signatures (verify, sign), compare files, sanitize,
 reduce file size, flatten, header and footer, watermark, measure, PDF/A, batch, layers, attachments, Read Aloud, the AI
 features.
 
@@ -351,6 +351,41 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | D6 | Print layout | PrintLayoutTests | Done (2026-10-27): `PrintLayout` and `PrintPlan` (PrintLayoutTests, 13 tests); the printing itself comes with D7 |
 | D7 | The app: document windows and tabs, the page view (tiled rendering, selection, find, VoiceOver), the side rail, tools, start page, settings, recovery prompt; Open in Inkvolt PDF from Inkvolt Print | | Started (2026-10-27): the reader, `mac/InkvoltPdf` (a SwiftPM app; `build.sh` makes, signs with the development identity and installs `/Applications/Inkvolt PDF.app`): open, Open Recent, Finder's Open With, window tabs; continuous scrolling, pinch and keyboard zoom with pages redrawn sharp in the background (stale renders cancelled); thumbnails and the outline in a sidebar; find with highlighted matches; selecting and copying text (word, line, all); the password prompt; damaged files refused with a message. `--self-test <report>` runs 17 checks per document in the real app: all pass on seven files (three real ones, as copies; a 300-page, a mixed-size and rotated, a navigation and a cupsfilter PDF), every page drawn at 0.5×, 1× and 2×. Not yet: tiles for very high zoom, selection across pages, clickable links, the icon; checked only through the self-test (no one at the screen) |
 | D8 | Release: Developer ID certificate, hardened runtime, notarytool with the API key, the DMG, Sparkle 2 (EdDSA key, appcast and where it's hosted), notices and the source offer | | |
+
+### Parity with Windows
+
+Decided 2026-10-27 with the owner: Inkvolt PDF on the Mac reaches full parity with the Windows app (and Inkvolt Print
+already has it, but for HP's clean-up tool, which has no macOS counterpart), so a person, an office or a school picks
+the platform, not the features. 1.0 is the first stage; the E-steps after it bring every other Windows feature. From the
+roadmap (`pdf/ROADMAP.md`) on, a feature counts as done only when it ships on both. One Inkvolt Pro key (the same
+signed format) unlocks Pro on both, and a business licence covers both.
+
+| Windows feature (`pdf/README.md`, "Using it") | Mac |
+|---|---|
+| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look) |
+| Bookmarks, organize pages, page edits, new PDFs from images | D3 (done in Core) |
+| Comments, draw, stamps, images, links | D4 |
+| Forms and Fill & Sign | D5 |
+| Edit Text & Images | D5a |
+| Recognize Text (OCR) | D5b (Vision) |
+| Export to Word, Excel or text | D5c |
+| Reload, recovery copies, password protection | D2 (done in Core) |
+| Print (with pages per sheet, booklet, poster) | D6 (done in Core) and D7 |
+| Scan, printer status when printing, Inkvolt Print's printer settings | D7, with Inkvolt Print's PrintCore (eSCL, the printer reading) |
+| Help › What's New, updates | D8 (Sparkle) |
+| Redaction (with redaction by pattern), Sanitize Document | E1 |
+| Signatures (verify), Sign Digitally | E2 (Security.framework; identities from the Keychain) |
+| Compare Files | E3 |
+| Reduce File Size, Flatten, Header & footer, Watermark | E4 |
+| Prepare Form | E5 |
+| Measure | E6 |
+| Save as PDF/A-2b | E7 |
+| Batch | E8 |
+| Attachments, Layers | E9 |
+| Read Aloud | E10 (AVSpeechSynthesizer) |
+| AI assistant (bring your own, off by default) | E11 |
+| PDF from Office files and web pages | E12 (web pages through WebKit; Office files through Word for Mac or LibreOffice when installed) |
+| Split view | E13 |
 
 Mac differences for the PDF app (so far):
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too

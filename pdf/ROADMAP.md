@@ -14,9 +14,10 @@ Every claim is checked: each item below has acceptance criteria that a test, a c
 locally, without a service, on what we already have (MuPDF, `DocLayout`, the edit transaction, Batch). Effort: S (about a
 week), M (2-4 weeks), L (more than a month).
 
-**Platforms.** Windows first. The Mac gets an item after its 1.0 (in the order of PLAN.md's "Later versions"), unless the
-item is already in the Mac 1.0 (text editing, OCR, Word/Excel export), where the Mac port takes the Windows behavior
-as its spec.
+**Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
+person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
+follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
+Windows": 1.0, then steps E1-E13), new items queue behind those steps on the Mac. One Pro key works on both.
 
 ## Free and Pro
 
