@@ -32,11 +32,20 @@ public enum CupsSetupProbe {
         } else {
             lines.append("  listed: not in cupsGetDests2")
         }
+        // The offline fixer's re-pointing (`setDeviceUri`), on the test queue: a documentation address, read back.
+        do {
+            try await LibCups().setDeviceUri(testQueue, "ipp://192.0.2.77/ipp/print")
+            let moved = (await LibCups().destinations() ?? []).first { $0.name == testQueue }?.deviceUri
+            lines.append("  setDeviceUri: ok, now \(moved == "ipp://192.0.2.77/ipp/print" ? "the new address" : moved ?? "not listed")")
+        } catch {
+            lines.append("  setDeviceUri: \(error)")
+        }
         lines.append("  delete: \(await delete(testQueue))")
         return lines
     }
 
-    private static func delete(_ name: String) async -> String {
+    /// CUPS-Delete-Printer: "ok", or cupsd's status.
+    public static func delete(_ name: String) async -> String {
         await LibCups.run {
             cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
             guard let r = ippNewRequest(IPP_OP_CUPS_DELETE_PRINTER) else { return "no request" }

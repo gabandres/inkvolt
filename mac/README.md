@@ -42,6 +42,7 @@ open "/Applications/Inkvolt Print.app" --args --report id --wait 2 --demo --idca
 open "/Applications/Inkvolt Print.app" --args --report st --wait 2 --demo --setup     # Set Up in macOS on a demo printer
 open "/Applications/Inkvolt Print.app" --args --report pp --wait 2 --papers           # the paper sizes each queue offers
 open "/Applications/Inkvolt Print.app" --args --report sp --wait 2 --setup-probe      # makes a test CUPS queue, then deletes it
+open "/Applications/Inkvolt Print.app" --args --report hw --wait 2 --hardware         # the selected real printer: glass, ID card, feeder, Set Up
 ```
 
 The report lands in `~/Library/Containers/com.bermudezsystems.InkvoltPrint/Data/Library/Application Support/InkvoltPrint/`.

@@ -9,7 +9,8 @@ import PrintMac
 /// cancels the user's own jobs in that CUPS queue first (as the print queue card's Cancel My Jobs); with `--demo`, `--scan`
 /// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--batch` scans its
 /// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
-/// JPEG; `--papers` lists the paper sizes Print Photos offers for each printer; `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
+/// JPEG; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
+/// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer; `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue. For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
@@ -39,6 +40,7 @@ enum Report {
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
+            if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
             if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
@@ -209,6 +211,72 @@ enum Report {
             lines.append("  \(name): \(PDFDocument(url: folder.appendingPathComponent(name))?.pageCount ?? 0) pages")
         }
         scan.splitAt = .none
+        return lines
+    }
+
+    /// The selected real printer through the new flows, as far as no one at the printer is needed: whatever is on the glass
+    /// scanned with photos looked for, the ID card's two sides, a feeder batch split at patch codes (the feeder may be
+    /// empty: its error is reported), and Set Up in macOS for real, the queue it makes deleted again.
+    private static func hardwareCheck(_ model: AppModel) async -> [String] {
+        for _ in 0..<80 where model.selected?.view.isOnline != true { try? await Task.sleep(for: .milliseconds(250)) }
+        guard let p = model.selected, p.isNetwork, p.view.isOnline else { return ["hardware: no connected network printer selected"] }
+        var lines = ["hardware: \(p.name), queue \(p.queueName == nil ? "none" : "set up"), host name \(p.hostName == nil ? "unknown" : "known")"]
+        let scan = p.scan
+        await scan.load()
+        scan.clear()
+        lines.append("  sources: \(scan.sources), resolutions \(scan.resolutions)")
+        // The glass, photos looked for.
+        scan.source = .platen
+        scan.format = .jpeg
+        scan.straighten = true
+        scan.findPhotos = true
+        let started = Date()
+        await scanAndWait(scan)
+        lines.append("  glass: " + String(format: "%.1f s, ", Date().timeIntervalSince(started)) + "\(scan.status) \(scan.problem ?? "")")
+        for page in scan.pages.pages {
+            lines.append("    page \(page.dpi) dpi, note '\(page.note)', looks blank \(page.looksBlank), photos \(page.photos?.count ?? -1)")
+        }
+        if !scan.pages.toSave.isEmpty {
+            let folder = AppModel.dataFolder.appendingPathComponent("hardware-glass", isDirectory: true)
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            await scan.save(to: folder, reveal: false)
+            lines.append("    saved: \(scan.status) \(scan.problem ?? "")")
+            for name in ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted() {
+                let size = ScanImaging.size((try? Data(contentsOf: folder.appendingPathComponent(name))).map(Array.init) ?? [])
+                lines.append("    \(name): \(size.map { "\($0.width) × \($0.height) px" } ?? "unreadable")")
+            }
+        }
+        scan.clear()
+        scan.findPhotos = false
+        // The ID card copy's two sides, not printed.
+        let card = IdCardCopyModel(printer: p, app: model)
+        await card.scanSide(printWhenDone: false)
+        await card.scanSide(printWhenDone: false)
+        let sheet = card.document?.page(at: 0)?.bounds(for: .mediaBox).size
+        lines.append("  id card: \(card.step), sheet \(sheet.map { "\(Int($0.width)) × \(Int($0.height)) pt" } ?? "none"), front \(card.front.map { "\(Int($0.size.width)) × \(Int($0.size.height))" } ?? "-") \(card.problem ?? "")")
+        // A feeder batch (the feeder may be empty).
+        if scan.sources.contains(.adf) {
+            scan.source = .adf
+            scan.format = .pdf
+            scan.splitAt = .patchCode
+            await scanAndWait(scan)
+            lines.append("  feeder batch: \(scan.status) \(scan.problem ?? "")")
+            scan.clear()
+            scan.splitAt = .none
+        }
+        // Set Up in macOS as the button does it, then the queue it made deleted.
+        let before = Set((await LibCups().destinations() ?? []).map(\.name))
+        let message = await model.setUpQueue(for: p)
+        let after = await LibCups().destinations() ?? []
+        let made = after.filter { !before.contains($0.name) }
+        lines.append("  set up: \(message)")
+        for d in made {
+            let uri = d.deviceUri?.split(separator: ":").first.map(String.init) ?? "-"
+            let local = d.deviceUri?.contains(".local") == true
+            lines.append("    made \(d.name): real queue \(CupsQueues.isRealQueue(d)), scheme \(uri), on the .local name \(local), model \(d.options["printer-make-and-model"] ?? "-")")
+            lines.append("    deleted: \(await CupsSetupProbe.delete(d.name))")
+        }
         return lines
     }
 
