@@ -156,7 +156,8 @@ public final class PdfEngine: @unchecked Sendable {
         self.main = main
         self.source = source
         self.password = password
-        isEncrypted = inkv_is_encrypted(main.ctx, main.doc) != 0
+        // Needs a password to open, as MuPDF says (a document that only restricts printing, copying or editing is not).
+        isEncrypted = inkv_needs_password(main.ctx, main.doc) != 0
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         let count = inkv_count_pages(main.ctx, main.doc, &err)
         guard count >= 0 else { throw PdfEngineError(message: Self.message(err)) }

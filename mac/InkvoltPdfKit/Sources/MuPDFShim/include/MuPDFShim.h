@@ -99,6 +99,33 @@ void inkv_free_outline(inkv_outline_item *items, int count);
 /// the bytes are malloc'ed for the caller (inkv_free). 0 on failure.
 int inkv_write_pdf(void *ctx, inkv_doc *doc, const char *options, uint8_t **out, size_t *length, char *err);
 
+
+// Editing (the role PDFsharp has on Windows): a document opened with inkv_open_pdf, changed through these, then written
+// with inkv_write_pdf (a whole new file) or inkv_append_pdf (an incremental update after the original bytes).
+
+/// fz_authenticate_password's bits as they are: 1 no password needed, 2 the user password, 4 the owner password; 0 wrong.
+int inkv_auth_bits(void *ctx, inkv_doc *doc, const char *password);
+
+/// The encryption dictionary: info = V, R, Length, P; its /Filter and the crypt method of its /StmF filter (/CFM; empty
+/// when none). 1: encrypted; 0: not; -1: failed.
+int inkv_encrypt_info(void *ctx, inkv_doc *doc, int info[4], char filter[32], char cfm[32], char *err);
+
+/// Turns pages by `degrees` (a multiple of 90) on top of their /Rotate. 0 on failure.
+int inkv_pdf_rotate(void *ctx, inkv_doc *doc, const int *pages, int count, int degrees, char *err);
+
+/// Deletes pages (indices in any order). 0 on failure.
+int inkv_pdf_delete_pages(void *ctx, inkv_doc *doc, const int *pages, int count, char *err);
+
+/// The page count as the PDF has it now (after edits). -1 on failure.
+int inkv_pdf_count(void *ctx, inkv_doc *doc, char *err);
+
+/// 1 when MuPDF can append an update to the document (not repaired, opened from bytes).
+int inkv_can_append(void *ctx, inkv_doc *doc);
+
+/// The original bytes followed by an incremental update holding the edits (encryption kept); malloc'ed (inkv_free).
+int inkv_append_pdf(void *ctx, inkv_doc *doc, const uint8_t *original, size_t original_length, uint8_t **out, size_t *length,
+                    char *err);
+
 void inkv_free(void *p);
 
 #endif

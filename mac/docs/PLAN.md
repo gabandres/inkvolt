@@ -337,11 +337,11 @@ As for Print: each step ports the module's .NET tests first, under the same name
 |---|---|---|---|
 | D0 | MuPDF for the Mac: `Vendor/mupdf/build.sh` (pinned tag, the Windows app's 1.25.2 or the current release), the XCFramework, `CMuPDF`, the package skeleton, the CI job; open a test PDF, draw a page, read its text | || Done (2026-10-27): MuPDF 1.25.2 (the Windows app's) built from its tag on `ignia-mac`, arm64 and x86_64 for macOS 15, as one static XCFramework (107 MB, not in git) with a `CMuPDF` module map; zlib's `fdopen` clash with the macOS SDK worked around (`-Dfdopen=fdopen`). The C shim `MuPDFShim` catches MuPDF's errors (fz_try) and hands Swift the message, marks them handled and keeps MuPDF quiet on stderr. `PdfEngine` opens, counts, sizes, draws and reads a page; `TestPdf` writes the tests' PDFs by hand (the Windows tests draw them with PDFsharp); 5 tests on `ignia-mac`. The `mac` CI job's `pdf` part builds MuPDF (cached until `build.sh` changes) and runs them |
 | D1 | Engine: open (passwords), page geometry, rendering (regions, cancel), text and words, links, outline | EngineTests, Core1EngineTests (with Core1TextTests), PageTextTests, Core1NavigationTests (the reading parts) | Done (2026-10-27): `PdfEngine` (a render instance and a text instance with their own locks, the last 32 pages and their display lists kept loaded per instance, renders stopped midway through MuPDF's cookie, a text cache of 48 pages), `PageText`, `RotatedView`, `RenderedImage.rotated`, `CancelToken`; the shim grew page caching, abortable drawing, characters with their boxes, links, the outline, image saving and whole-file writing. 33 tests on `ignia-mac`, the timing ones measured (a cancelled render stops early; text reads while a render runs). Moved: TextLayerTests to OCR, HostileStructureTests to the steps of what they test (D3, D5, later) |
-| D2 | Document session, edit transaction, undo steps, incremental save, kept protection, passwords, recovery | EditTransactionTests, RecoveryTests, KeptProtectionTests, SecurityTests, OwnerPasswordTests, SessionProtectionTests, PasswordStrengthTests, SignedEditTests | |
-| D3 | Pages: organize, ranges, insert from files and images, bookmarks | PageEditorTests, PageRangeTests, PageStructureTests, ImageImportTests, BookmarkTests, BookmarkTreeTests | |
-| D4 | Comments, drawing, stamps, images, text shaping for their appearances | DrawingAnnotationTests, DrawingGeometryTests, RubberStampTests, TextStampTests, Core2StampTests, LinkAndImageTests, ShapingTests, BidiLineTests | |
+| D2 | Document session, edit transaction, undo steps, incremental save, kept protection, passwords, recovery | EditTransactionTests, RecoveryTests, KeptProtectionTests, SecurityTests, OwnerPasswordTests, SessionProtectionTests, PasswordStrengthTests, SignedEditTests | Done (2026-10-27): `DocumentSession` (byte snapshots, undo and redo with step ids, atomic saves that keep the file's creation date, read-only files refused, changes on disk noticed, reloads), the edit transaction (`edit`: one edit at a time, the owner password asked until it works, a signed file's rewrite asked first, failures and cancellations commit nothing), `PdfEdit` (PDFsharp's open and save: an encrypted file edited only with its owner password; a signed file's edit appended by MuPDF, even after junk past %%EOF; anything else written whole with `encrypt=keep`), `PdfSecurity` (protect with AES-256 or AES-128, unprotect, read the method, revision and permissions), `PasswordStrength`, `SignedEdits`, `KeptProtection` (only to drop an open password), `RecoveryStore` with its own `RunFolder`, and `PageEditor`'s rotate and delete. 48 tests (81 in the package) on `ignia-mac`: SecurityTests, PasswordStrengthTests, OwnerPasswordTests, KeptProtectionTests, SessionProtectionTests, RecoveryTests, Core1SessionTests, EditTransactionTests (9 of 11), SignedEditTests (4 of 7). Left out until their steps: what needs forms (D5), comments (D4), extraction (D3) or signature verification (later); and the tests of the Windows incremental writer's own parsing and its .NET allocations. Each test file's header lists what was adapted |
+| D3 | Pages: organize, ranges, insert from files and images, bookmarks | PageEditorTests, PageRangeTests, PageStructureTests, ImageImportTests, BookmarkTests, BookmarkTreeTests || Started (2026-10-27): `PageRange` (with Core1TextTests' typographic dashes) and `BookmarkTree` with `Bookmark` (BookmarkTreeTests but its file round trip, which waits for `Bookmarks`), 12 tests; `PageEditor` has rotate and delete from D2 |
+| D4 | Comments, drawing, stamps, images, text shaping for their appearances | DrawingAnnotationTests, DrawingGeometryTests, RubberStampTests, TextStampTests, Core2StampTests, LinkAndImageTests, ShapingTests, BidiLineTests || Started (2026-10-27): the drawing types (`AnnotStyle`, `AnnotGeometry`, `LineEnding`…) and `DrawingGeometry` (DrawingGeometryTests, 12 tests); `TabLabels` for D7 (TabLabelTests, 5 tests) |
 | D5 | Forms: fill, appearances, actions, form JavaScript (JavaScriptCore), Fill & Sign | FormTests, Core2FormTests, FormActionTests, FormAppearanceTests, JsFormTests, Core2ScriptTests, TabLabelTests | |
-| D6 | Print layout | PrintLayoutTests | |
+| D6 | Print layout | PrintLayoutTests || Done (2026-10-27): `PrintLayout` and `PrintPlan` (PrintLayoutTests, 13 tests); the printing itself comes with D7 |
 | D7 | The app: document windows and tabs, the page view (tiled rendering, selection, find, VoiceOver), the side rail, tools, start page, settings, recovery prompt; Open in Inkvolt PDF from Inkvolt Print | | |
 | D8 | Release: Developer ID certificate, hardened runtime, notarytool with the API key, the DMG, Sparkle 2 (EdDSA key, appcast and where it's hosted), notices and the source offer | | |
 
@@ -356,21 +356,37 @@ Mac differences for the PDF app (so far):
 - The engine talks to MuPDF directly (through the shim), so the Windows workarounds for MuPDFCore (finalizers that
   crashed the process, reflection for abortable renders and freeing pages) have no Mac counterpart, and their tests
   aren't ported. Text comes from the page's content without annotations, as MuPDFCore's `includeAnnotations: false`.
+- `PdfEngine.isEncrypted` means "needs a password to open", as on Windows; `DocumentSession.hasEncryption` sees an
+  encryption dictionary (a file that only restricts printing or copying).
+- Saving an edit: MuPDF appends a signed file's edit as an incremental update (an encrypted signed file too, which the
+  Windows app has to rewrite, so the "encrypted signed file" warning and its test don't apply), and writes anything else
+  whole with `garbage=compact,encrypt=keep`: the encryption stays exactly as it was (method, permissions, both passwords,
+  the file ID), where Windows re-encrypts with PDFsharp and upgrades RC4 to AES-128. So an edit never needs the open
+  password, `OpenPasswordUnknownException` and the transaction's open-password question have no Mac counterpart, and
+  `KeptProtection.run` only drops an open password on request. MuPDF's write options are comma-separated, so a password
+  for Protect can't hold a comma.
+- A signed file with junk after %%EOF (more than MuPDF searches for its last startxref) is read up to its last valid
+  `startxref … %%EOF` (`PdfEdit.lastEnd`), and the update goes after all of the original bytes.
+- Recovery copies' descriptions are Swift JSON (dates in ISO 8601), as Inkvolt Print's recovery lists.
 - The tests write their PDFs by hand (`TestPdf`, `Core1TestPdf`); encrypted ones are written by MuPDF (AES-256), where
   the Windows tests use PDFsharp.
 
-Open questions for the PDF app:
-- The MuPDF version: the Windows app's 1.25.2 (same rendering as Windows) or the current release.
-- Form JavaScript: JavaScriptCore with a port of `JsFormHost`/`JsPrelude` (Windows' behaviour, the same tests), or
-  MuPDF's own mujs form scripting.
-- The Developer ID Application certificate: whether the App Store Connect API key may create it or the Account Holder
-  must, in the developer portal.
-- Where the appcast and DMGs are hosted (GitHub Releases, or the site that hosts the privacy policy), and what
-  Sparkle's update check sends (no system profile: the privacy rule).
+Decided 2026-10-27 for the PDF app:
+- MuPDF 1.25.2, the Windows app's version (the same rendering); both apps move to a newer one together.
+- Form JavaScript on JavaScriptCore: `JsPrelude` (already JavaScript) carried over, `JsFormHost` ported to JavaScriptCore,
+  so forms behave as on Windows, the Windows tests apply and the host's consent prompts stay (MuPDF's mujs is ES5 and
+  its own object model).
+- Updates through Sparkle 2, with the appcast and the DMGs on GitHub Releases of the inkvolt repo (no server of our own;
+  the source the AGPL asks for sits beside them). Sparkle's update check sends no system profile (the privacy rule).
+- Developer ID: Apple lets only the Account Holder create the certificate (the API refuses), so `devid-cert.sh request`
+  makes the key and signing request on `ignia-mac`, the owner uploads the request in the developer portal, and
+  `devid-cert.sh import` keeps "Developer ID Application: Bermudez Systems LLC (AE6TTXW92K)" (until 2027-11-26) in a
+  keychain of its own (`inkvolt-devid`, its password in `.env.local`). Checked: it signs with the hardened runtime and
+  Apple's timestamp over SSH.
 
 ## Open decisions
 
-None for Print. The PDF app's are at the end of its section.
+None.
 
 Decided 2026-10-27: development builds are signed with an Apple Development certificate of the team's, made through the
 App Store Connect API key and kept in `~/Library/Keychains/inkvolt-dev.keychain-db` on `ignia-mac` (its password in

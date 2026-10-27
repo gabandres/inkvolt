@@ -552,4 +552,158 @@ int inkv_write_pdf(void *vctx, inkv_doc *d, const char *options, uint8_t **out, 
     return 1;
 }
 
+int inkv_auth_bits(void *vctx, inkv_doc *d, const char *password) {
+    fz_context *ctx = vctx;
+    int bits = 0;
+    fz_try(ctx) bits = fz_authenticate_password(ctx, d->doc, password ? password : "");
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        bits = 0;
+    }
+    return bits;
+}
+
+static pdf_document *inkv_pdf(fz_context *ctx, inkv_doc *d) {
+    pdf_document *pdf = pdf_specifics(ctx, d->doc);
+    if (!pdf) fz_throw(ctx, FZ_ERROR_ARGUMENT, "This document isn't a PDF.");
+    return pdf;
+}
+
+static void inkv_name(fz_context *ctx, pdf_obj *name, char out[32]) {
+    const char *s = pdf_is_name(ctx, name) ? pdf_to_name(ctx, name) : "";
+    strncpy(out, s, 31);
+    out[31] = 0;
+}
+
+int inkv_encrypt_info(void *vctx, inkv_doc *d, int info[4], char filter[32], char cfm[32], char *err) {
+    fz_context *ctx = vctx;
+    int found = 0;
+    filter[0] = 0;
+    cfm[0] = 0;
+    fz_try(ctx) {
+        pdf_obj *e = pdf_dict_get(ctx, pdf_trailer(ctx, inkv_pdf(ctx, d)), PDF_NAME(Encrypt));
+        if (pdf_is_dict(ctx, e)) {
+            found = 1;
+            info[0] = pdf_dict_get_int(ctx, e, PDF_NAME(V));
+            info[1] = pdf_dict_get_int(ctx, e, PDF_NAME(R));
+            info[2] = pdf_dict_get(ctx, e, PDF_NAME(Length)) ? pdf_dict_get_int(ctx, e, PDF_NAME(Length)) : 40;
+            info[3] = pdf_dict_get_int(ctx, e, PDF_NAME(P));
+            inkv_name(ctx, pdf_dict_get(ctx, e, PDF_NAME(Filter)), filter);
+            pdf_obj *stmf = pdf_dict_get(ctx, e, PDF_NAME(StmF));
+            if (pdf_is_name(ctx, stmf) && strcmp(pdf_to_name(ctx, stmf), "Identity") != 0) {
+                pdf_obj *f = pdf_dict_get(ctx, pdf_dict_get(ctx, e, PDF_NAME(CF)), stmf);
+                inkv_name(ctx, pdf_dict_get(ctx, f, PDF_NAME(CFM)), cfm);
+            } else if (pdf_is_name(ctx, stmf)) {
+                strcpy(cfm, "Identity");
+            }
+        }
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return -1;
+    }
+    return found;
+}
+
+int inkv_pdf_rotate(void *vctx, inkv_doc *d, const int *pages, int count, int degrees, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        for (int i = 0; i < count; i++) {
+            pdf_obj *page = pdf_lookup_page_obj(ctx, pdf, pages[i]);
+            int r = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
+            pdf_dict_put_int(ctx, page, PDF_NAME(Rotate), (((r + degrees) % 360) + 360) % 360);
+        }
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+static int inkv_int_desc(const void *a, const void *b) { return *(const int *)b - *(const int *)a; }
+
+int inkv_pdf_delete_pages(void *vctx, inkv_doc *d, const int *pages, int count, char *err) {
+    fz_context *ctx = vctx;
+    int *sorted = NULL;
+    fz_var(sorted);
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        sorted = fz_malloc_array(ctx, count > 0 ? count : 1, int);
+        memcpy(sorted, pages, sizeof(int) * (size_t)count);
+        qsort(sorted, (size_t)count, sizeof(int), inkv_int_desc);
+        for (int i = 0; i < count; i++)
+            if (i == 0 || sorted[i] != sorted[i - 1]) pdf_delete_page(ctx, pdf, sorted[i]);
+    }
+    fz_always(ctx) fz_free(ctx, sorted);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_pdf_count(void *vctx, inkv_doc *d, char *err) {
+    fz_context *ctx = vctx;
+    int n = -1;
+    fz_try(ctx) n = pdf_count_pages(ctx, inkv_pdf(ctx, d));
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return -1;
+    }
+    return n;
+}
+
+int inkv_can_append(void *vctx, inkv_doc *d) {
+    fz_context *ctx = vctx;
+    int can = 0;
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        can = pdf_can_be_saved_incrementally(ctx, pdf) && !pdf->repair_attempted;
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        can = 0;
+    }
+    return can;
+}
+
+int inkv_append_pdf(void *vctx, inkv_doc *d, const uint8_t *original, size_t original_length, uint8_t **out, size_t *length,
+                    char *err) {
+    fz_context *ctx = vctx;
+    fz_buffer *buffer = NULL;
+    fz_output *output = NULL;
+    fz_var(buffer);
+    fz_var(output);
+    *out = NULL;
+    *length = 0;
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        pdf_write_options opts = pdf_default_write_options;
+        pdf_parse_write_options(ctx, &opts, "incremental=yes,encrypt=keep");
+        buffer = fz_new_buffer(ctx, original_length + 64 * 1024);
+        output = fz_new_output_with_buffer(ctx, buffer);
+        fz_write_data(ctx, output, original, original_length);
+        pdf_write_document(ctx, pdf, output, &opts);
+        fz_close_output(ctx, output);
+        unsigned char *bytes = NULL;
+        size_t n = fz_buffer_storage(ctx, buffer, &bytes);
+        uint8_t *copy = malloc(n ? n : 1);
+        if (!copy) fz_throw(ctx, FZ_ERROR_SYSTEM, "There isn't enough memory to write the PDF.");
+        if (n) memcpy(copy, bytes, n);
+        *out = copy;
+        *length = n;
+    }
+    fz_always(ctx) {
+        fz_drop_output(ctx, output);
+        fz_drop_buffer(ctx, buffer);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
 void inkv_free(void *p) { free(p); }
