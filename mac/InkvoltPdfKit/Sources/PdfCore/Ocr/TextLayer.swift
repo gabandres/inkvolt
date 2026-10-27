@@ -132,8 +132,9 @@ public enum TextLayer {
                 at += s.utf16.count
             }
             var order = Array(scalars.indices)
-            let highest = levels.max() ?? 0
-            let lowestOdd = levels.filter { $0 % 2 == 1 }.min() ?? highest + 1
+            let highest: UInt8 = levels.max() ?? 0
+            let odd: [UInt8] = levels.filter { $0 % 2 == 1 }
+            let lowestOdd: UInt8 = odd.min() ?? (highest &+ 1)
             var level = highest
             while level >= lowestOdd && level > 0 {
                 var i = 0
