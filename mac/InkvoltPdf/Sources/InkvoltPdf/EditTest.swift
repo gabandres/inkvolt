@@ -280,13 +280,15 @@ struct EditTest {
         let list = controller.sidebar.comments
         let topLevel = editor.comments.filter { c in c.replyTo.map { id in !editor.comments.contains { $0.id == id } } ?? true }.count
         let allShown = list.topCount
-        list.filter(kind: "Highlight", author: nil)
+        // A kind the document has (the filter menu lists only those).
+        let kind = count("Highlight") > 0 ? "Highlight" : "Rectangle"
+        list.filter(kind: kind, author: nil)
         let highlights = list.topCount
         list.filter(kind: nil, author: editor.author)
         let mine = list.topCount
         list.filter(kind: nil, author: nil)
-        check(allShown == topLevel && highlights == count("Highlight") && mine >= addedCount - 2,
-              "comments list: \(allShown) comments (\(list.rowCount) rows with replies), \(highlights) highlights, \(mine) by the author")
+        check(allShown == topLevel && highlights == count(kind == "Highlight" ? "Highlight" : "Square") && mine >= addedCount - 2,
+              "comments list: \(allShown) comments (\(list.rowCount) rows with replies), \(highlights) of kind \(kind), \(mine) by the author")
         pages.select(rect.id, reveal: true)
         await waitDrawn()
         snapshot(controller.window!.contentView!, "5-comments-sidebar.png")
@@ -457,7 +459,8 @@ struct EditTest {
     }
 }
 
-/// A two-page PDF of plain text made here, for the editing self-test and its snapshots (no real document's content).
+/// A three-page PDF made here, for the editing self-test and its snapshots (no real document's content): two pages of
+/// plain text and a "scan" (a picture of a line of words, no text layer) for text recognition and picture editing.
 enum SyntheticPdf {
     static func make() -> [UInt8] {
         let lines = [
@@ -474,14 +477,20 @@ enum SyntheticPdf {
             return s
         }
         let c1 = content("Page one"), c2 = content("Page two")
+        let scan = scanImage()
+        let c3 = "q 400 0 0 100 72 600 cm /Im1 Do Q\n"
         let objects = [
             "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 8 0 R] /Count 3 >>",
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
             "<< /Length \(c1.utf8.count) >>\nstream\n\(c1)endstream",
             "<< /Length \(c2.utf8.count) >>\nstream\n\(c2)endstream",
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 9 0 R /Resources << /XObject << /Im1 10 0 R >> >> >>",
+            "<< /Length \(c3.utf8.count) >>\nstream\n\(c3)endstream",
+            "<< /Type /XObject /Subtype /Image /Width \(scan.width) /Height \(scan.height) /ColorSpace /DeviceGray /BitsPerComponent 8 "
+                + "/Filter /ASCIIHexDecode /Length \(scan.hex.utf8.count) >>\nstream\n\(scan.hex)\nendstream",
         ]
         var out = "%PDF-1.7\n"
         var offsets: [Int] = []

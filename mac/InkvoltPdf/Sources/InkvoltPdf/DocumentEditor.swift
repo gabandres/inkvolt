@@ -10,6 +10,8 @@ final class DocumentEditor {
     /// Comments (markup annotations, drawings, stamps, pictures) and links of the current bytes.
     private(set) var comments: [AnnotationInfo] = []
     private(set) var links: [LinkInfo] = []
+    /// Fill & Sign's text, marks, signatures and pictures (their ids are those of comments above too).
+    private(set) var stamps: [TextStamp] = []
     /// The author written into new comments: the Mac user's full name.
     let author: String = {
         let full = NSFullUserName()
@@ -35,6 +37,8 @@ final class DocumentEditor {
         readFrom = ObjectIdentifier(session.engine)
         comments = ((try? Annotations.read(session.data, session.password)) ?? []).filter { !$0.hidden }
         links = (try? Links.read(session.data, session.password)) ?? []
+        let texts = (try? TextStamps.read(session.data, session.password)) ?? []
+        stamps = texts + ((try? SignatureStamps.read(session.data, session.password)) ?? [])
         onChanged?()
     }
 
@@ -49,11 +53,13 @@ final class DocumentEditor {
     /// Runs one edit as one undo step named `label`; false when nothing was committed (refused, declined, busy, failed:
     /// a failure is shown).
     @discardableResult
-    func run(_ label: String, _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
+    func run(_ label: String, contentOnly: Bool = false, _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
         guard let session else { return false }
         let window = document.windowControllers.first?.window
         Report.progress("edit \(label) started on \(session.data.count) bytes")
-        let result = await session.edit(EditRequest(label, edit), prompts: AppPrompts())
+        var request = EditRequest(label, edit)
+        request.contentOnly = contentOnly
+        let result = await session.edit(request, prompts: AppPrompts())
         Report.progress("edit \(label): \(result.outcome)")
         lastOutcome = result.outcome
         switch result.outcome {
@@ -176,6 +182,19 @@ final class DocumentEditor {
     /// are redrawn there, links moved.
     @discardableResult
     func setFrame(_ id: String, page: Int, frame: RectD, label: String) async -> Bool {
+        if let s = stamps.first(where: { $0.id == id }) {
+            switch s.kind {
+            case .signature, .image:
+                return await run(label, contentOnly: true) { data, pw in try SignatureStamps.put(data, pw, page, frame, nil, replaceId: id) }
+            case .text, .check, .cross:
+                let kind = s.kind, text = s.text, size = s.fontSize
+                return await run(label, contentOnly: true) { data, pw in
+                    try TextStamps.put(data, pw, page, frame, kind, text, size, replaceId: id)
+                }
+            case .stamp:
+                break
+            }
+        }
         if let c = comment(id) {
             if let g = c.geometry {
                 let moved = DrawingGeometry.withFrame(c.subtype, g, frame)
@@ -215,6 +234,9 @@ final class DocumentEditor {
 
     @discardableResult
     func delete(_ id: String) async -> Bool {
+        if let s = stamps.first(where: { $0.id == id }), s.kind != .stamp {
+            return await run(Self.removeLabel(s.kind), contentOnly: true) { data, pw in try TextStamps.remove(data, pw, id) }
+        }
         if link(id) != nil {
             return await run("Delete Link") { data, pw in try Links.delete(data, pw, id) }
         }
@@ -239,7 +261,10 @@ final class DocumentEditor {
         case "Line": return c.style.map { $0.endEnding != .none || $0.startEnding != .none } == true ? "Arrow" : "Line"
         case "Polygon": return "Polygon"
         case "PolyLine": return "Polyline"
-        case "Stamp": return c.subject == "Image" ? "Image" : "Stamp"
+        case "Stamp":
+            if c.subject == "Image" { return "Image" }
+            if isSignature(c) { return c.contents == "Initials" ? "Initials" : "Signature" }
+            return "Stamp"
         default: return c.subtype
         }
     }
@@ -256,9 +281,14 @@ final class DocumentEditor {
         case "Circle": "circle"
         case "Line": "line.diagonal"
         case "Polygon", "PolyLine": "pentagon"
-        case "Stamp": c.subject == "Image" ? "photo" : "seal"
+        case "Stamp": c.subject == "Image" ? "photo" : isSignature(c) ? "signature" : "seal"
         default: "text.bubble"
         }
+    }
+
+    /// A handwritten signature or initials placed by Fill & Sign (by its id).
+    static func isSignature(_ c: AnnotationInfo) -> Bool {
+        c.id.hasPrefix("InkvoltPdf-signature-") || c.id.hasPrefix("PdfDesk-signature-")
     }
 
     /// One line for VoiceOver: kind, page, author, text.
@@ -272,6 +302,159 @@ final class DocumentEditor {
 
     /// Kinds whose frame can be moved and resized.
     static func movable(_ c: AnnotationInfo) -> Bool { c.geometry != nil || c.subtype == "Stamp" }
+}
+
+/// What an edit on a worker hands back besides the bytes (a form's script messages, a recognition's counts).
+final class EditBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: T?
+    var value: T? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+}
+
+// MARK: Forms, Fill & Sign, text recognition, the page's own text and pictures
+
+extension DocumentEditor {
+    /// Writes field values (one undo step: "Fill form field"), running the form's keystroke, validate, calculate and
+    /// format scripts; what the scripts said comes back (nil when nothing was committed and nothing ran).
+    func fillForm(_ values: [String: String], host: FormActionHost?) async -> (committed: Bool, result: FormFillResult?) {
+        let label = values.count == 1 ? "Fill form field" : "Fill \(values.count) form fields"
+        let box = EditBox<FormFillResult>()
+        let host = host.map(SendableHost.init)
+        let ok = await run(label, contentOnly: true) { data, pw in
+            let r = try FormEditor.fill(data, pw, values, host: host?.host)
+            box.value = r
+            return r.data
+        }
+        return (ok, box.value)
+    }
+
+    /// Runs a widget's actions for `trigger` (off the main thread); the changes they made are committed as one step.
+    func formAction(_ w: FormWidget, _ trigger: FormTrigger, host: FormActionHost) async -> FormActionResult? {
+        guard let session else { return nil }
+        let data = session.data, pw = session.password
+        let h = SendableHost(host)
+        let r: FormActionResult? = await Task.detached {
+            try? FormEditor.runAction(data, pw, w.fieldName, w.pageIndex, w.annotIndex, trigger, h.host)
+        }.value
+        guard let r else { return nil }
+        if let updated = r.data {
+            await run(r.label, contentOnly: true) { d, _ in d == data ? updated : d }
+        }
+        return r
+    }
+
+    @discardableResult
+    func resetForm() async -> Bool {
+        await run("Reset form", contentOnly: true) { data, pw in try FormEditor.resetForm(data, pw) }
+    }
+
+    func importFormData(_ file: [UInt8], host: FormActionHost?) async -> (committed: Bool, result: FormFillResult?) {
+        let box = EditBox<FormFillResult>()
+        let host = host.map(SendableHost.init)
+        let ok = await run("Import form data", contentOnly: true) { data, pw in
+            let r = try FormEditor.importData(data, pw, file, host: host?.host)
+            box.value = r
+            return r.data
+        }
+        return (ok, box.value)
+    }
+
+    /// Fill & Sign text at `rect` (new, or replacing `id`); empty text with an id removes it.
+    @discardableResult
+    func putFillText(page: Int, rect: RectD, text: String, fontSize: Double, replacing id: String?) async -> Bool {
+        if let id, text.isEmpty {
+            return await run("Remove text", contentOnly: true) { data, pw in try TextStamps.remove(data, pw, id) }
+        }
+        return await run(id == nil ? "Add text" : "Edit text", contentOnly: true) { data, pw in
+            try TextStamps.put(data, pw, page, rect, .text, text, fontSize, replaceId: id)
+        }
+    }
+
+    @discardableResult
+    func putMark(page: Int, rect: RectD, kind: StampKind) async -> Bool {
+        await run(kind == .check ? "Add check mark" : "Add cross", contentOnly: true) { data, pw in
+            try TextStamps.put(data, pw, page, rect, kind, "", rect.height)
+        }
+    }
+
+    @discardableResult
+    func removeStamp(_ id: String, kind: StampKind) async -> Bool {
+        await run(Self.removeLabel(kind), contentOnly: true) { data, pw in try TextStamps.remove(data, pw, id) }
+    }
+
+    static func removeLabel(_ kind: StampKind) -> String {
+        switch kind {
+        case .check: "Remove check mark"
+        case .cross: "Remove cross"
+        case .signature: "Remove signature"
+        case .image: "Remove image"
+        default: "Remove text"
+        }
+    }
+
+    /// A handwritten signature or initials (a picture, not a digital signature) in `rect`.
+    @discardableResult
+    func putSignature(page: Int, rect: RectD, image: StampImage, initials: Bool) async -> Bool {
+        let label = initials ? "Initials" : "Signature"
+        return await run(initials ? "Add initials" : "Add signature", contentOnly: true) { data, pw in
+            try SignatureStamps.put(data, pw, page, rect, image, label: label)
+        }
+    }
+
+    /// Fill & Sign text's box for `text` with its top-left at `p` (Helvetica's widths, as the stamp draws it).
+    static func fillTextBox(_ text: String, at p: PointD, fontSize: Double) -> RectD {
+        let font = NSFont(name: "Helvetica", size: CGFloat(fontSize)) ?? .systemFont(ofSize: CGFloat(fontSize))
+        let lines = text.components(separatedBy: .newlines)
+        var width = 0.0
+        for line in lines {
+            let w = ((line.isEmpty ? " " : line) as NSString).size(withAttributes: [.font: font]).width
+            width = max(width, Double(w))
+        }
+        let height: Double = Double(lines.count) * fontSize * 1.2 + fontSize * 0.25
+        return RectD(p.x, p.y, width + fontSize * 0.4, height)
+    }
+
+    /// Recognize Text: the pages recognized and given an invisible text layer (one undo step); the counts come back.
+    /// Cancelling (`cancel`) commits nothing.
+    func recognizeText(pages: [Int], recognizer: @escaping Recognizer, cancel: CancelToken,
+                       progress: @escaping @Sendable (Int, Int) -> Void) async -> (outcome: EditOutcome?, report: RecognizeTextReport?) {
+        let box = EditBox<RecognizeTextReport>()
+        _ = await run("Recognize text") { data, pw in
+            let (out, report) = try PageOcr.recognizeText(data, pw, pages: pages, recognizer, cancel: cancel, progress: progress)
+            box.value = report
+            return out
+        }
+        return (lastOutcome, box.value)
+    }
+
+    @discardableResult
+    func replaceText(_ run: TextRun, _ text: String) async -> Bool {
+        await self.run("Edit text") { data, pw in try ContentEditor.replaceText(data, pw, run, text) }
+    }
+
+    @discardableResult
+    func moveImage(_ image: PageImage, to box: RectD) async -> Bool {
+        await run("Move picture") { data, pw in try ContentEditor.moveImage(data, pw, image, box) }
+    }
+
+    @discardableResult
+    func deleteImage(_ image: PageImage) async -> Bool {
+        await run("Delete picture") { data, pw in try ContentEditor.deleteImage(data, pw, image) }
+    }
+
+    @discardableResult
+    func replaceImage(_ image: PageImage, file: [UInt8], name: String) async -> Bool {
+        await run("Replace picture") { data, pw in try ContentEditor.replaceImage(data, pw, image, file, name) }
+    }
+}
+
+/// The app's form host, handed to an edit's worker (the host itself is thread-safe: it hops to the main thread).
+struct SendableHost: @unchecked Sendable {
+    let host: FormActionHost
+    init(_ host: FormActionHost) { self.host = host }
 }
 
 /// The questions an edit asks, as sheets-free alerts on the main thread (the edit waits on its worker meanwhile). The

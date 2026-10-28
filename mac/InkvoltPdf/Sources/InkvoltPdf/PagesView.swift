@@ -9,6 +9,8 @@ protocol PagesHost: AnyObject {
     /// Asks where a link leads (a normalized address, or a page), at `rect`.
     func askLink(at rect: NSRect, done: @escaping (_ uri: String?, _ page: Int) -> Void)
     func showInspector(_ id: String)
+    /// The Signature tool was used before a signature was made: offer to make one.
+    func askSignature()
     func selectionChanged()
     func toolChanged()
 }
@@ -26,6 +28,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     private(set) var pageRects: [NSRect] = []
     weak var editor: DocumentEditor?
     weak var host: PagesHost?
+    /// The form's fields and Edit Text & Images (the window controller owns them).
+    weak var form: FormFiller?
+    weak var content: ContentEditing?
+    /// The signature or initials the Signature tool puts down at the next click.
+    var pendingSignature: (image: StampImage, initials: Bool)?
 
     /// A selection of text on one page: UTF-16 carets of its `PageText`.
     struct TextSelection: Equatable {
@@ -50,6 +57,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard tool != oldValue else { return }
             drag = nil
             if !tool.selects && tool != .link { select(nil) }
+            if tool != .editContent { content?.select(nil) }
             window?.invalidateCursorRects(for: self)
             needsDisplay = true
             host?.toolChanged()
@@ -74,12 +82,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case box(page: Int, start: PointD, now: PointD)
         case line(page: Int, start: PointD, now: PointD)
         case ink(page: Int, points: [PointD])
+        /// A picture of the page's own content dragged with Edit Text & Images.
+        case contentMove(page: Int, start: PointD, box: RectD, by: PointD)
 
         var page: Int? {
             switch self {
             case .text, .pan: nil
             case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
-                 .line(let p, _, _), .ink(let p, _): p
+                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _): p
             }
         }
     }
@@ -176,6 +186,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                                                                  respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high.rawValue])
             }
             drawMarks(i, r)
+            form?.draw(i, r)
+            if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
         }
         requestVisible()
@@ -257,6 +269,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch drag {
         case .text, .pan:
             return
+        case .contentMove(_, _, let box, let by):
+            outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
         case .move(let id, _, _, let frame, let by):
             let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
             outline(viewRect(moved, r), px)
@@ -474,6 +488,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         default: cursor = .crosshair
         }
         for r in pageRects { addCursorRect(r, cursor: cursor) }
+        if tool.fillsFields, let form {
+            for w in form.fillable where w.pageIndex < pageRects.count {
+                addCursorRect(viewRect(w.rect, pageRects[w.pageIndex]), cursor: w.kind == .text ? .iBeam : .pointingHand)
+            }
+        }
     }
 
     // MARK: Mouse
@@ -488,6 +507,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         guard let hit = page(at: point) else { return }
         let p = pagePoint(point, on: hit.page)
+        if tool == .editContent {
+            contentDown(hit.page, p)
+            return
+        }
+        if tool.fillsFields, let form, let w = form.widget(page: hit.page, p) {
+            select(nil)
+            form.activate(w)
+            return
+        }
+        if form?.focused != nil { form?.clearFocus() }
         if tool.selects || tool == .link, let id = self.hit(page: hit.page, p) {
             select(id)
             if event.clickCount == 2 {
@@ -514,9 +543,24 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .line(page: hit.page, start: p, now: p)
         case .pen, .highlighter:
             drag = .ink(page: hit.page, points: [p])
-        case .note, .stamp, .image:
+        case .note, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature:
             drag = .box(page: hit.page, start: p, now: p)
+        case .editContent:
+            return
         }
+    }
+
+    /// Edit Text & Images: a picture is selected (and dragged), text is changed.
+    private func contentDown(_ page: Int, _ p: PointD) {
+        guard let content else { return }
+        select(nil)
+        if let image = content.image(page: page, p) {
+            content.select(image)
+            if image.blocked == nil { drag = .contentMove(page: page, start: p, box: image.box, by: PointD(0, 0)) }
+            return
+        }
+        content.select(nil)
+        if let run = content.run(page: page, p) { content.editRun(run) }
     }
 
     private func canMove(_ id: String) -> Bool {
@@ -586,6 +630,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case .ink(let page, var points):
             points.append(pagePoint(point, on: page))
             drag = .ink(page: page, points: points)
+        case .contentMove(let page, let start, let box, _):
+            let p = pagePoint(point, on: page)
+            let g = engine.page(page)
+            let d = DrawingGeometry.clampMove(box, p.x - start.x, p.y - start.y, g.width, g.height)
+            drag = .contentMove(page: page, start: start, box: box, by: PointD(d.dx, d.dy))
         }
         autoscroll(with: event)
     }
@@ -612,6 +661,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch finished {
         case .text, .pan:
             return
+        case .contentMove(_, _, let box, let by):
+            guard abs(by.x) + abs(by.y) >= 0.5, let image = content?.selectedImage else { return }
+            ghost = finished
+            content?.move(image, to: RectD(box.x + by.x, box.y + by.y, box.width, box.height))
         case .move(let id, let page, _, let frame, let by):
             guard abs(by.x) + abs(by.y) >= 0.5 else { return }
             ghost = finished
@@ -664,6 +717,19 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                     return
                 }
                 startEdit { await editor.addImage(page: page, center: b, image: image, pageSize: size) }
+            case .fillText, .fillCheck, .fillCross, .fillDate:
+                fillIn(tool, page: page, at: b)
+            case .signature:
+                guard let pending = pendingSignature else {
+                    NSSound.beep()
+                    host?.askSignature()
+                    return
+                }
+                let s = SignatureLibrary.size(pending.image, initials: pending.initials)
+                let x: Double = min(max(b.x - s.width / 2, 0), max(size.width - s.width, 0))
+                let y: Double = min(max(b.y - s.height / 2, 0), max(size.height - s.height, 0))
+                let rect = RectD(x, y, s.width, s.height)
+                startEdit { await editor.putSignature(page: page, rect: rect, image: pending.image, initials: pending.initials) }
             default:
                 return
             }
@@ -680,6 +746,46 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             ghost = finished
             let thinned = DrawingGeometry.simplify(points, Double(0.6 * onePixel))
             startEdit { await editor.addInk(page: page, strokes: [thinned], style: style) }
+        }
+    }
+
+    /// Fill & Sign's text and marks: a click on one of them changes (text) or removes (a mark) it, elsewhere a new one.
+    private func fillIn(_ tool: Tool, page: Int, at b: PointD) {
+        guard let editor else { return }
+        let fontSize = 11.0
+        let existing = editor.stamps.last { s in
+            s.pageIndex == page && (s.kind == .text || s.kind == .check || s.kind == .cross) && s.rect.inflate(2).contains(b.x, b.y)
+        }
+        if let s = existing {
+            if s.kind == .text {
+                host?.askText("Text", initial: s.text, at: viewRect(s.rect, pageRects[page])) { [weak self] text in
+                    guard let self, let text, text != s.text else { return }
+                    let rect = DocumentEditor.fillTextBox(text, at: PointD(s.rect.x, s.rect.y), fontSize: s.fontSize)
+                    self.startEdit { await editor.putFillText(page: page, rect: rect, text: text, fontSize: s.fontSize, replacing: s.id) }
+                }
+            } else {
+                startEdit { await editor.removeStamp(s.id, kind: s.kind) }
+            }
+            return
+        }
+        switch tool {
+        case .fillCheck, .fillCross:
+            let side = 12.0
+            let rect = RectD(b.x - side / 2, b.y - side / 2, side, side)
+            let kind: StampKind = tool == .fillCheck ? .check : .cross
+            startEdit { await editor.putMark(page: page, rect: rect, kind: kind) }
+        case .fillDate:
+            let text = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
+            let rect = DocumentEditor.fillTextBox(text, at: PointD(b.x, max(b.y - fontSize * 0.6, 0)), fontSize: fontSize)
+            startEdit { await editor.putFillText(page: page, rect: rect, text: text, fontSize: fontSize, replacing: nil) }
+        default:
+            // The text's top-left at the pointer, nudged up so its baseline sits where the click was.
+            let top = PointD(b.x, max(b.y - fontSize * 0.6, 0))
+            host?.askText("Text", initial: "", at: viewRect(RectD(top.x, top.y, 1, fontSize), pageRects[page])) { [weak self] text in
+                guard let self, let text, !text.isEmpty else { return }
+                let rect = DocumentEditor.fillTextBox(text, at: top, fontSize: fontSize)
+                self.startEdit { await editor.putFillText(page: page, rect: rect, text: text, fontSize: fontSize, replacing: nil) }
+            }
         }
     }
 
@@ -762,6 +868,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = convert(event.locationInWindow, from: nil)
         let menu = NSMenu()
+        if tool == .editContent, let content, let spot = page(at: point), let image = content.image(page: spot.page, pagePoint(point, on: spot.page)) {
+            content.select(image)
+            let replace = NSMenuItem(title: "Replace Picture…", action: #selector(ContentEditing.replaceSelected(_:)), keyEquivalent: "")
+            replace.target = content
+            let delete = NSMenuItem(title: "Delete Picture", action: #selector(ContentEditing.deleteSelected(_:)), keyEquivalent: "")
+            delete.target = content
+            menu.addItem(replace)
+            menu.addItem(delete)
+            return menu
+        }
         if let spot = page(at: point), let id = hit(page: spot.page, pagePoint(point, on: spot.page)) ?? linkAt(spot.page, pagePoint(point, on: spot.page)) {
             select(id)
             menu.addItem(withTitle: "Inspector…", action: #selector(DocumentWindowController.openInspector(_:)), keyEquivalent: "")
@@ -797,7 +913,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     // MARK: Keys
 
     override func keyDown(with event: NSEvent) {
-        if handleEditingKey(event) || handleToolKey(event) { return }
+        if form?.handleKey(event) == true || handleContentKey(event) || handleEditingKey(event) || handleToolKey(event) { return }
         guard let scroll = enclosingScrollView else { return super.keyDown(with: event) }
         let clip = scroll.contentView
         let page = clip.bounds.height - 40
@@ -823,7 +939,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// Shift-Tab (next and previous comment).
     private func handleEditingKey(_ event: NSEvent) -> Bool {
         let shift = event.modifierFlags.contains(.shift)
-        if event.keyCode == 48 { // Tab
+        if event.keyCode == 48 { // Tab: through the form's fields (else the comments)
+            if selectedId == nil, let form, form.hasFields { return form.focusNext(shift ? -1 : 1) }
             guard let editor, !editor.comments.isEmpty else { return false }
             selectNext(shift ? -1 : 1)
             return true
@@ -864,6 +981,22 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             if let editor { startEdit { await editor.setFrame(id, page: f.page, frame: moved, label: "Move") } }
             return true
         default:
+            return false
+        }
+    }
+
+    /// Edit Text & Images: Delete removes the selected picture, Esc lets go of it.
+    private func handleContentKey(_ event: NSEvent) -> Bool {
+        guard tool == .editContent, let content, content.selectedImage != nil else { return false }
+        switch event.specialKey {
+        case .delete, .deleteForward, .backspace:
+            content.deleteSelected(nil)
+            return true
+        default:
+            if event.keyCode == 53 {
+                content.select(nil)
+                return true
+            }
             return false
         }
     }

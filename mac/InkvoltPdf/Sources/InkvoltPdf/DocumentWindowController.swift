@@ -15,6 +15,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let findBar = FindBar()
     let toolStrip = ToolStrip()
     let diskBar = DiskBar()
+    let noticeBar = NoticeBar()
+    /// The form's fields on the pages, and Edit Text & Images.
+    private(set) var form: FormFiller!
+    private(set) var content: ContentEditing!
+    /// The progress sheet of the recognition or export running, and the last export's report (the self-test reads them).
+    var progressSheet: ProgressSheet?
+    var lastExport: ExportReport?
+    /// A long task started from a menu (the self-test awaits it).
+    private(set) var longTask: Task<Void, Never>?
+    private var signatureSheet: SignatureSheet?
     private let split = NSSplitViewController()
     private var diskTimer: Timer?
     private var ignoredDiskState: String?
@@ -70,13 +80,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [toolStrip, diskBar, findBar, scrollView])
+        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, findBar, scrollView])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for v in [toolStrip, diskBar, noticeBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
         diskBar.isHidden = true
+        noticeBar.isHidden = true
         content.view = stack
         findBar.onSearch = { [weak self] query in self?.find(query) }
         findBar.onNext = { [weak self] in self?.step(1) }
@@ -95,6 +106,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
         pages.editor = editor
         pages.host = self
+        form = FormFiller(controller: self)
+        self.content = ContentEditing(controller: self)
+        pages.form = form
+        pages.content = self.content
+        form.reload()
+        noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
         wireComments()
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
@@ -126,6 +143,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func windowWillClose(_ notification: Notification) {
+        progressSheet?.cancelClicked()
+        form.cancelEditor()
         diskTimer?.invalidate()
         inspectorPopover?.close()
         askPopover?.close()
@@ -145,6 +164,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private func contentChanged(_ change: ContentChange) {
         guard let engine = pdf.engine else { return }
         editor.reload()
+        form.reload()
+        content.invalidate()
         pages.reload(engine: engine)
         sidebar.reload(engine: engine)
         if !foundQuery.isEmpty { find(foundQuery) }
@@ -171,6 +192,111 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         toolStrip.onWidth = { [weak self] width in self?.applyWidth(width) }
         toolStrip.onStampMenu = { [weak self] view, rect in self?.popUp(self?.stampMenu(), view, rect) }
         toolStrip.onImageMenu = { [weak self] view, rect in self?.popUp(self?.imageMenu(), view, rect) }
+        toolStrip.onSignatureMenu = { [weak self] view, rect in self?.popUp(self?.signatureMenu(), view, rect) }
+    }
+
+    /// Says what just happened in the bar over the pages.
+    func notify(_ message: String, canUndo: Bool = false) {
+        Report.progress("notice: \(message.prefix(160))")
+        noticeBar.show(message, canUndo: canUndo)
+    }
+
+    /// Runs a long task started from a menu (one at a time).
+    func startLongTask(_ work: @escaping @MainActor () async -> Void) {
+        guard longTask == nil else { return NSSound.beep() }
+        longTask = Task { @MainActor in
+            await work()
+            self.longTask = nil
+        }
+    }
+
+    // MARK: Fill & Sign signatures
+
+    func signatureMenu() -> NSMenu {
+        let menu = NSMenu(title: "Signature")
+        let library = SignatureLibrary.shared
+        let entries: [(String, Selector, Bool)] = [
+            ("Draw Signature…", #selector(drawSignature(_:)), true), ("Type Signature…", #selector(typeSignature(_:)), true),
+            ("Draw Initials…", #selector(drawInitials(_:)), true), ("Type Initials…", #selector(typeInitials(_:)), true),
+            ("Use My Signature", #selector(useSignature(_:)), library.signature != nil),
+            ("Use My Initials", #selector(useInitials(_:)), library.initials != nil),
+        ]
+        for (i, entry) in entries.enumerated() where entry.2 {
+            if i == 4 { menu.addItem(.separator()) }
+            let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @objc func drawSignature(_ sender: Any?) { showSignatureSheet(initials: false, typing: false) }
+    @objc func typeSignature(_ sender: Any?) { showSignatureSheet(initials: false, typing: true) }
+    @objc func drawInitials(_ sender: Any?) { showSignatureSheet(initials: true, typing: false) }
+    @objc func typeInitials(_ sender: Any?) { showSignatureSheet(initials: true, typing: true) }
+    @objc func useSignature(_ sender: Any?) { armSignature(initials: false) }
+    @objc func useInitials(_ sender: Any?) { armSignature(initials: true) }
+
+    /// The sheet that makes a signature or initials; once made, the next click puts it down.
+    @discardableResult
+    func showSignatureSheet(initials: Bool, typing: Bool) -> SignatureSheet? {
+        guard let window, signatureSheet == nil else { return nil }
+        let sheet = SignatureSheet(initials: initials, typing: typing)
+        signatureSheet = sheet
+        sheet.done = { [weak self] image in
+            guard let self else { return }
+            self.signatureSheet = nil
+            if image != nil { self.armSignature(initials: initials) }
+        }
+        if let panel = sheet.window { window.beginSheet(panel) }
+        return sheet
+    }
+
+    /// The Signature tool with the signature (or initials) made: the next click on a page puts it there.
+    func armSignature(initials: Bool) {
+        guard let image = SignatureLibrary.shared.image(initials: initials) else {
+            showSignatureSheet(initials: initials, typing: false)
+            return
+        }
+        pages.pendingSignature = (image, initials)
+        pages.tool = .signature
+        window?.makeFirstResponder(pages)
+        notify("Click where the \(initials ? "initials go" : "signature goes"). Drag it with the hand tool to move it; Delete removes it.")
+    }
+
+    func askSignature() {
+        if let spot = toolStrip.frame(of: .signature) { popUp(signatureMenu(), spot.0, spot.1) }
+    }
+
+    // MARK: Form data
+
+    @objc func resetForm(_ sender: Any?) { form.resetForm(sender) }
+
+    @objc func exportFormData(_ sender: Any?) {
+        guard let window, let session = pdf.session else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (session.displayName as NSString).deletingPathExtension + ".xfdf"
+        panel.allowedContentTypes = FormDataPanel.types
+        panel.message = "Save the form's values as XFDF (or FDF: name the file .fdf)."
+        panel.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .OK, let url = panel.url else { return }
+                _ = self.form.exportData(to: url, url.pathExtension.lowercased() == "fdf" ? .fdf : .xfdf)
+            }
+        }
+    }
+
+    @objc func importFormData(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = FormDataPanel.types
+        panel.message = "Choose an XFDF or FDF file of form values."
+        panel.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }
+                self.startLongTask { _ = await self.form.importData([UInt8](data)) }
+            }
+        }
     }
 
     private func popUp(_ menu: NSMenu?, _ view: NSView, _ rect: NSRect) {
@@ -228,6 +354,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         window?.makeFirstResponder(pages)
         if tool == .stamp, let spot = toolStrip.frame(of: .stamp) { popUp(stampMenu(), spot.0, spot.1) }
         if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
+        if tool == .signature && pages.pendingSignature == nil { askSignature() }
+        if tool == .editContent { notify("Click text to change it, or a picture to move, replace or delete it.") }
     }
 
     func stampMenu() -> NSMenu {
@@ -358,6 +486,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return pages.selectedText != nil
         case #selector(reloadFromDisk(_:)):
             return pdf.session?.filePath != nil
+        case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
+            return !form.widgets.isEmpty
+        case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)):
+            return longTask == nil && progressSheet == nil
         default:
             return true
         }

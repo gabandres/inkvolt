@@ -11,9 +11,11 @@ import PdfCore
 ///
 /// Editing (`--edit`): after the reader's checks, each document goes through `EditTest` (every comment tool through the
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
-/// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies). `--synthetic` opens
-/// a PDF made here (two pages of text); `--snapshots <dir>` writes PNGs of the window there (for the synthetic document
-/// only: never a real file's pages). `--recovery-root <dir>` keeps recovery copies away from the user's;
+/// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
+/// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back). `--synthetic` opens
+/// two PDFs made here (two pages of text and a scan; a form, which gets only `FeatureTest`); `--snapshots <dir>` writes
+/// PNGs of the window there (for the synthetic documents only: never a real file's pages). `--recovery-root <dir>` keeps
+/// recovery copies away from the user's;
 /// `--crash-after-recovery` kills the app once a copy is written, and `--restore-recovery` restores what it left without
 /// asking. Put the flags without a value last: AppKit reads "-name value" pairs from the arguments, and a path left
 /// unpaired is opened as a document.
@@ -27,6 +29,7 @@ enum Report {
     private(set) static var restoresRecovery = false
     private(set) static var crashAfterRecovery = false
     private(set) static var syntheticPath: String?
+    private(set) static var syntheticFormPath: String?
     static let recoveryInterval = 0.5
     private static var quit = false
     private static var started = 0
@@ -54,7 +57,11 @@ enum Report {
             let file = (folder as NSString).appendingPathComponent("Synthetic.pdf")
             FileManager.default.createFile(atPath: file, contents: Data(SyntheticPdf.make()))
             syntheticPath = file
+            let formFile = (folder as NSString).appendingPathComponent("Synthetic Form.pdf")
+            FileManager.default.createFile(atPath: formFile, contents: Data(SyntheticPdf.form()))
+            syntheticFormPath = formFile
             NSDocumentController.shared.openDocument(withContentsOf: URL(fileURLWithPath: file), display: true) { _, _, _ in }
+            NSDocumentController.shared.openDocument(withContentsOf: URL(fileURLWithPath: formFile), display: true) { _, _, _ in }
         }
         // Nothing opened at all, or a document that never finishes: say so rather than hang.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1200) {
@@ -75,8 +82,13 @@ enum Report {
                 var check = EditTest(controller: controller, name: name)
                 await check.checkRecovered()
             } else if edits {
-                var edit = EditTest(controller: controller, name: name)
-                await edit.run()
+                let openedFrom = controller.pdf.fileURL?.path
+                if openedFrom != syntheticFormPath {
+                    var edit = EditTest(controller: controller, name: name)
+                    await edit.run()
+                }
+                var features = FeatureTest(controller: controller, name: name, openedFrom: openedFrom)
+                await features.run()
             }
             done()
         }
@@ -305,6 +317,8 @@ struct SelfTest {
                     e.close()
                 }
                 check(asked && wrong && opened == count, "password copy: asks for it, refuses a wrong one, opens \(opened) pages with it")
+            } catch is SignaturesWouldBreak {
+                check(true, "password copy: refused for a signed file (protecting it would break its signatures)")
             } catch {
                 check(false, "password copy: couldn't be made (\(type(of: error)))")
             }

@@ -393,7 +393,7 @@ final class FormActionRunner {
     }
 
     /// The fields a submit sends: exportable ones (no push buttons, signatures or NoExport), listed or not.
-    private func entries(_ names: [String]?, exclude: Bool, includeEmpty: Bool) -> [FormData.Entry] {
+    func entries(_ names: [String]?, exclude: Bool, includeEmpty: Bool) -> [FormData.Entry] {
         var list: [FormData.Entry] = []
         var seen = Set<String>()
         for f in pick(names, exclude) {

@@ -5,6 +5,7 @@ import PdfCore
 /// key that picks it while the pages have the focus (the Windows app's keys where it has one).
 enum Tool: Int, CaseIterable {
     case hand, text, highlight, underline, strikeOut, note, textBox, pen, highlighter, rectangle, ellipse, line, arrow, stamp, image, link
+    case fillText, fillCheck, fillCross, fillDate, signature, editContent
 
     var title: String {
         switch self {
@@ -24,6 +25,12 @@ enum Tool: Int, CaseIterable {
         case .stamp: "Stamp"
         case .image: "Image"
         case .link: "Link"
+        case .fillText: "Add Text"
+        case .fillCheck: "Check Mark"
+        case .fillCross: "Cross"
+        case .fillDate: "Date"
+        case .signature: "Signature"
+        case .editContent: "Edit Text & Images"
         }
     }
 
@@ -46,6 +53,12 @@ enum Tool: Int, CaseIterable {
         case .stamp: "s"
         case .image: "i"
         case .link: "n"
+        case .fillText: "a"
+        case .fillCheck: "c"
+        case .fillCross: "x"
+        case .fillDate: "d"
+        case .signature: "g"
+        case .editContent: "j"
         }
     }
 
@@ -67,6 +80,12 @@ enum Tool: Int, CaseIterable {
         case .stamp: "seal"
         case .image: "photo"
         case .link: "link"
+        case .fillText: "character.cursor.ibeam"
+        case .fillCheck: "checkmark"
+        case .fillCross: "xmark"
+        case .fillDate: "calendar"
+        case .signature: "signature"
+        case .editContent: "pencil.and.outline"
         }
     }
 
@@ -84,12 +103,22 @@ enum Tool: Int, CaseIterable {
         case .stamp: "Stamp: pick one, then click where it goes"
         case .image: "Image: pick a picture, then click where it goes"
         case .link: "Link: drag a box, then choose a web address or a page"
+        case .fillText: "Add text: click where it goes; click Fill & Sign text to change it"
+        case .fillCheck: "Check mark: click where it goes; click one to remove it"
+        case .fillCross: "Cross: click where it goes; click one to remove it"
+        case .fillDate: "Date: click where today's date goes"
+        case .signature: "Signature: draw or type one, then click where it goes"
+        case .editContent: "Edit text and images: click text to change it, or a picture to move, replace or delete it"
         }
     }
 
     /// Tools that select and edit existing comments with a press.
     var selects: Bool { self == .hand || self == .text }
     var marksText: Bool { self == .highlight || self == .underline || self == .strikeOut }
+    /// Fill & Sign's tools that put text or a mark (and change or remove one with a click).
+    var fillsIn: Bool { self == .fillText || self == .fillCheck || self == .fillCross || self == .fillDate }
+    /// Tools a press on a form field fills the field with (drawing and comment tools draw over fields instead).
+    var fillsFields: Bool { selects || fillsIn || self == .signature }
 
     var markupKind: TextMarkupKind? {
         switch self {
@@ -106,6 +135,8 @@ enum Tool: Int, CaseIterable {
         [.highlight, .underline, .strikeOut, .note, .textBox],
         [.pen, .highlighter, .rectangle, .ellipse, .line, .arrow],
         [.stamp, .image, .link],
+        [.fillText, .fillCheck, .fillCross, .fillDate, .signature],
+        [.editContent],
     ]
 }
 
@@ -163,7 +194,8 @@ final class ToolStyles {
         case .highlighter: return .marker()
         case .arrow: return .arrow(.red)
         case .textBox: return .textBox()
-        case .link: return AnnotStyle(color: AnnotColor(0.1, 0.4, 0.9), width: 1)
+        case .link, .editContent: return AnnotStyle(color: AnnotColor(0.1, 0.4, 0.9), width: 1)
+        case .fillText, .fillCheck, .fillCross, .fillDate, .signature: return AnnotStyle(color: AnnotColor(0, 0, 0), width: 1)
         default: return .pen(.red)
         }
     }
@@ -185,6 +217,7 @@ final class ToolStrip: NSView {
     /// The stamp and image segments ask for their choice right under them.
     var onStampMenu: ((NSView, NSRect) -> Void)?
     var onImageMenu: ((NSView, NSRect) -> Void)?
+    var onSignatureMenu: ((NSView, NSRect) -> Void)?
     static let widths: [Double] = [0.5, 1, 2, 3, 5, 8, 14]
 
     init() {
@@ -205,11 +238,12 @@ final class ToolStrip: NSView {
                 control.setImageScaling(.scaleProportionallyDown, forSegment: i)
                 control.setWidth(30, forSegment: i)
                 control.setToolTip("\(tool.help) (\(tool.key.uppercased()))", forSegment: i)
-                if tool == .stamp || tool == .image { control.setShowsMenuIndicator(true, forSegment: i) }
+                if tool == .stamp || tool == .image || tool == .signature { control.setShowsMenuIndicator(true, forSegment: i) }
             }
             control.target = self
             control.action = #selector(picked(_:))
-            control.setAccessibilityLabel(["Reading tools", "Text comments", "Drawing tools", "Stamps, images and links"][g])
+            control.setAccessibilityLabel(["Reading tools", "Text comments", "Drawing tools", "Stamps, images and links", "Fill & Sign",
+                                           "Edit page content"][g])
             controls.append(control)
             views.append(control)
         }
@@ -280,8 +314,9 @@ final class ToolStrip: NSView {
         for (g, group) in Tool.groups.enumerated() {
             controls[g].selectedSegment = group.firstIndex(of: tool) ?? -1
         }
-        showStyle(style, usesWidth: ![.hand, .text, .highlight, .underline, .strikeOut, .note, .stamp, .image].contains(tool),
-                  usesColor: ![.hand, .text, .stamp, .image].contains(tool))
+        let plain: Set<Tool> = [.hand, .text, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature, .editContent]
+        showStyle(style, usesWidth: !plain.contains(tool) && ![.highlight, .underline, .strikeOut, .note].contains(tool),
+                  usesColor: !plain.contains(tool))
         stampLabel.stringValue = tool == .stamp ? (stamp ?? "") : ""
     }
 
@@ -317,6 +352,7 @@ final class ToolStrip: NSView {
         if let spot = frame(of: tool) {
             if tool == .stamp { onStampMenu?(spot.0, spot.1) }
             if tool == .image { onImageMenu?(spot.0, spot.1) }
+            if tool == .signature { onSignatureMenu?(spot.0, spot.1) }
         }
     }
 

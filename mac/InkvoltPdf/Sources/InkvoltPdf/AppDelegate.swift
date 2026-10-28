@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close, Save, Save As, Revert,
-/// Reload), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments), Go (pages, comments), Tools (the tools
+/// Reload, Export To, Form Data), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments), Go (pages, comments), Tools (the tools
 /// with their single keys, the text marks, stamps, pictures, links, the inspector), Window.
 @MainActor
 enum MainMenu {
@@ -100,6 +100,21 @@ enum MainMenu {
         menu.addItem(item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]))
         menu.addItem(item("Revert to Saved", #selector(NSDocument.revertToSaved(_:))))
         menu.addItem(item("Reload from Disk", #selector(DocumentWindowController.reloadFromDisk(_:)), "r", [.command, .option]))
+        menu.addItem(.separator())
+        let export = NSMenu(title: "Export To")
+        export.addItem(item("Word…", #selector(DocumentWindowController.exportWord(_:))))
+        export.addItem(item("Excel (Tables)…", #selector(DocumentWindowController.exportExcel(_:))))
+        export.addItem(item("Plain Text…", #selector(DocumentWindowController.exportText(_:))))
+        let exportItem = item("Export To", nil)
+        exportItem.submenu = export
+        menu.addItem(exportItem)
+        let formData = NSMenu(title: "Form Data")
+        formData.addItem(item("Reset Form…", #selector(DocumentWindowController.resetForm(_:))))
+        formData.addItem(item("Import Form Data…", #selector(DocumentWindowController.importFormData(_:))))
+        formData.addItem(item("Export Form Data…", #selector(DocumentWindowController.exportFormData(_:))))
+        let formItem = item("Form Data", nil)
+        formItem.submenu = formData
+        menu.addItem(formItem)
         return menu
     }
 
@@ -157,7 +172,7 @@ enum MainMenu {
             entry.tag = tool.rawValue
             entry.image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: nil)
             menu.addItem(entry)
-            if tool == .text || tool == .textBox || tool == .arrow { menu.addItem(.separator()) }
+            if ([.text, .textBox, .arrow, .link, .signature] as [Tool]).contains(tool) { menu.addItem(.separator()) }
         }
         menu.addItem(.separator())
         menu.addItem(item("Highlight Selected Text", #selector(DocumentWindowController.highlightText(_:)), "h", [.command, .control]))
@@ -167,6 +182,13 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Picture from File…", #selector(DocumentWindowController.chooseImageFile(_:))))
         menu.addItem(item("Picture from Clipboard", #selector(DocumentWindowController.imageFromClipboard(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Draw Signature…", #selector(DocumentWindowController.drawSignature(_:))))
+        menu.addItem(item("Type Signature…", #selector(DocumentWindowController.typeSignature(_:))))
+        menu.addItem(item("Draw Initials…", #selector(DocumentWindowController.drawInitials(_:))))
+        menu.addItem(item("Type Initials…", #selector(DocumentWindowController.typeInitials(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Recognize Text (OCR)…", #selector(DocumentWindowController.recognizeText(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
         menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
