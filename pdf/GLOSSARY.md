@@ -27,6 +27,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
   with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.
+- **Accessibility check** (`Core/AccessibilityCheck*.cs`): the machine-checkable failure conditions of the Matterhorn
+  Protocol 1.1 (PDF/UA-1) run on a document: each **finding** has its condition number ("13-004"), page, element, what is
+  wrong and what fixes it; the **human checks** are the checklist of what only a person can judge. The **report** is the
+  findings, the ticked checklist and every condition's result as one web page (`AccessibilityReportHtml`). Runs from
+  Review › Accessibility Check… (the Accessibility pane) and in Batch.
 - **Batch preset** (`Core/BatchPresets.cs`): a saved batch (its actions in order with their settings, the output
   names and choices) as a plain JSON file with a version; never holds passwords. Run by the Batch window, a watched
   folder and the command line.

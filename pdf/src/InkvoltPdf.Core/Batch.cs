@@ -200,6 +200,17 @@ public sealed record CheckRedactionStep : BatchStep
     public override string Title => "Check redaction";
 }
 
+/// <summary>
+/// Accessibility check (<see cref="AccessibilityCheck"/>, PDF/UA-1 through the Matterhorn Protocol): its report is saved beside
+/// the result as a web page, and a file with any failure fails (its PDF isn't saved; the report is).
+/// </summary>
+public sealed record CheckAccessibilityStep : BatchStep
+{
+    public override bool ChangesPdf => false;
+
+    public override string Title => "Check accessibility";
+}
+
 public sealed record WatermarkStep(WatermarkOptions Options) : BatchStep
 {
     public override string Title => "Add watermark";
@@ -561,6 +572,9 @@ public static class BatchRunner
     /// <summary>The redaction check found something: the file fails.</summary>
     private sealed class RedactionCheckFailedException(string message) : Exception(message);
 
+    /// <summary>The accessibility check found failures: the file fails (its report is kept).</summary>
+    private sealed class AccessibilityCheckFailedException(string message) : Exception(message);
+
     private sealed class Job(BatchFile file, int index, BatchPlan plan, BatchHost host, OutputNames names, SemaphoreSlim prompts,
         IProgress<BatchProgress>? progress, CancellationToken cancel)
     {
@@ -622,6 +636,9 @@ public static class BatchRunner
                             break;
                         case CheckRedactionStep:
                             await Task.Run(() => CheckRedaction(data), cancel).ConfigureAwait(false);
+                            break;
+                        case CheckAccessibilityStep:
+                            await Task.Run(() => CheckAccessibility(data), cancel).ConfigureAwait(false);
                             break;
                         case OcrStep:
                             var words = await Task.Run(() => Recognize(data), cancel).ConfigureAwait(false);
@@ -796,6 +813,19 @@ public static class BatchRunner
             foreach (var f in report.Findings.Take(10)) _notes.Add($"{f.Where}: {RedactionCheck.Name(f.Kind)}");
             if (report.Findings.Count > 10) _notes.Add($"… and {report.Findings.Count - 10} more");
             throw new RedactionCheckFailedException($"Redaction check: {report.Summary}");
+        }
+
+        /// <summary>The accessibility check: its report beside the result, and a failure fails the file (the first ones go in its notes).</summary>
+        private void CheckAccessibility(byte[] data)
+        {
+            var report = AccessibilityCheck.Run(data, _password,
+                new Progress<(int Done, int Total)>(p => Report("Checking accessibility…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+            var html = AccessibilityReportHtml.Write(report, Path.GetFileName(file.NamedAs), DateTime.Now);
+            _outputs.Add(names.Place(_folder, _baseName + " accessibility.html", temp => File.WriteAllText(temp, html, new UTF8Encoding(false))));
+            if (report.Passed) return;
+            foreach (var f in report.Failures.Take(10)) _notes.Add($"{f.Condition} · {f.Where}: {f.Problem}");
+            if (report.Failures.Count > 10) _notes.Add($"… and {report.Failures.Count - 10} more (see the report)");
+            throw new AccessibilityCheckFailedException($"Accessibility check: {report.Summary}");
         }
 
         private int Pages(byte[] data)

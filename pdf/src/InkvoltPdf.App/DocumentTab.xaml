@@ -32,6 +32,8 @@
                           AutomationProperties.Name="Layers" />
             <ToggleButton x:Name="SignaturesRail" Style="{StaticResource RailButton}" Content="&#xEB95;" ToolTip="Signatures" Visibility="Collapsed"
                           AutomationProperties.Name="Signatures" />
+            <ToggleButton x:Name="AccessibilityRail" Style="{StaticResource RailButton}" Content="&#xE776;" ToolTip="Accessibility check" Visibility="Collapsed"
+                          AutomationProperties.Name="Accessibility check" />
         </StackPanel>
 
         <!-- Navigation pane -->
@@ -335,6 +337,62 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                    <!-- Accessibility check (PDF/UA-1, Matterhorn): what fails, each item jumps to its place; the person's checklist -->
+                    <DockPanel x:Name="AccessibilityPanel" Margin="10,0,10,8" Visibility="Collapsed">
+                        <TextBlock x:Name="A11ySummary" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="4,0,4,6" FontSize="12"
+                                   AutomationProperties.Name="Accessibility check result" />
+                        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                            <Button x:Name="A11yRecheck" Content="Check again" Margin="0,0,8,4" ToolTip="Check the document as it is now" />
+                            <Button x:Name="A11ySave" Content="Save report&#x2026;" Margin="0,0,0,4" ToolTip="Save the report, with your checklist, as a web page" />
+                        </WrapPanel>
+                        <TabControl x:Name="A11yTabs" Background="Transparent" BorderThickness="0" Padding="0,6,0,0">
+                            <TabItem x:Name="A11yFailuresTab" Header="What fails">
+                                <DockPanel>
+                                    <TextBlock x:Name="A11yNone" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="4,8,4,0" Style="{StaticResource Caption}" Visibility="Collapsed"
+                                               Text="Nothing fails the machine checks. A document is accessible once a person has also made the checks under For a person." />
+                                    <ListBox x:Name="A11yList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" HorizontalContentAlignment="Stretch"
+                                             AutomationProperties.Name="What fails: choose one to see it on its page">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type app:A11yItem}">
+                                                <StackPanel Margin="0,4">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,0" />
+                                                    <TextBlock Text="{Binding Fix}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                                <Setter Property="AutomationProperties.Name" Value="{Binding Spoken}" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                    </ListBox>
+                                </DockPanel>
+                            </TabItem>
+                            <TabItem x:Name="A11yPersonTab" Header="For a person">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <TextBlock TextWrapping="Wrap" Margin="4,8,4,8" Style="{StaticResource Caption}"
+                                                   Text="The machine can't judge these. Tick each once you've checked it; the saved report says which are done." />
+                                        <ItemsControl x:Name="A11yChecklist" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type app:A11yCheckItem}">
+                                                    <StackPanel Margin="0,0,0,10">
+                                                        <CheckBox IsChecked="{Binding Done}" AutomationProperties.Name="{Binding Question}" AutomationProperties.HelpText="{Binding How}">
+                                                            <TextBlock Text="{Binding Question}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                                        </CheckBox>
+                                                        <TextBlock Text="{Binding How}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="26,2,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+                    </DockPanel>
                 </Grid>
             </DockPanel>
         </Border>

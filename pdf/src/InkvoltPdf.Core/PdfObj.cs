@@ -23,6 +23,8 @@ internal static class PdfObj
         PdfReal r => r.Value,
         PdfInteger n => n.Value,
         PdfLongInteger l => l.Value,
+        PdfRealObject ro => ro.Value, // an indirect number (legal, rare)
+        PdfIntegerObject io => io.Value,
         _ => fallback,
     };
 
@@ -33,11 +35,17 @@ internal static class PdfObj
         PdfInteger n => n.Value,
         PdfLongInteger l => (int)l.Value,
         PdfReal r => (int)r.Value,
+        PdfIntegerObject io => io.Value,
         _ => null,
     };
 
     /// <summary>A PDF text string's value (null when the item isn't a string).</summary>
-    public static string? Str(PdfItem? item) => Resolve(item) is PdfString s ? s.Value : null;
+    public static string? Str(PdfItem? item) => Resolve(item) switch
+    {
+        PdfString s => s.Value,
+        PdfStringObject so => so.Value, // an indirect string (legal: IRS forms keep /Lang so)
+        _ => null,
+    };
 
     /// <summary>A name without its slash.</summary>
     public static string? Name(PdfItem? item) => Resolve(item) is PdfName n ? n.Value.TrimStart('/') : null;
@@ -52,6 +60,8 @@ internal static class PdfObj
         {
             case PdfString s:
                 return s.Value;
+            case PdfStringObject so:
+                return so.Value;
             case PdfDictionary { Stream: not null } d:
                 var bytes = StreamBytes(d);
                 if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);

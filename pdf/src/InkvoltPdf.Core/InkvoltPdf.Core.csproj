@@ -23,5 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
+    <InternalsVisibleTo Include="A11yCorpus" />
   </ItemGroup>
 </Project>

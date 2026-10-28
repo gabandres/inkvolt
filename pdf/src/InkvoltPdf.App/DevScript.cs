@@ -18,7 +18,9 @@ namespace InkvoltPdf.App;
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
 /// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
-/// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
+/// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) ·
+/// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
+/// a11yreport path (save the report) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
@@ -240,6 +242,22 @@ internal static class DevScript
                 foreach (var f in report.Findings) log.Add($"  {f.Kind} p{f.Page + 1} {f.Where}: {f.Text} ({f.Fix})");
                 break;
             }
+            case "a11y":
+            {
+                var report = await tab!.DevCheckAccessibility();
+                log.Add($"a11y: {report.Summary}");
+                foreach (var f in report.Failures) log.Add($"  {f.Condition} p{f.Page + 1} {f.Element}: {f.Problem}");
+                break;
+            }
+            case "a11yselect": tab!.A11yList.SelectedIndex = int.Parse(arg); break;
+            case "a11ytick":
+                foreach (var item in tab!.A11yChecklist.Items.OfType<A11yCheckItem>()) if (item.Question.StartsWith(arg, StringComparison.OrdinalIgnoreCase)) item.Done = true;
+                tab.A11yChecklist.Items.Refresh();
+                break;
+            case "a11yreport":
+                if (tab!.AccessibilityReport is { } a11y) File.WriteAllText(arg, AccessibilityReportHtml.Write(a11y, tab.Session.DisplayName, DateTime.Now));
+                log.Add($"a11yreport: {File.Exists(arg)}");
+                break;
             case "redact-patterns": log.Add($"redact-patterns: {(await tab!.MarkPatternMatches(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] }))?.Count ?? -1} matches"); break;
             case "apply-redactions": log.Add($"apply-redactions: {await tab!.ApplyRedactions(confirm: arg == "confirm")}"); break;
             case "attachments":

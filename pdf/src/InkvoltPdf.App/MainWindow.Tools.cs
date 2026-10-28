@@ -24,6 +24,7 @@ public partial class MainWindow
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
+        BindEdit(Cmd.CheckAccessibility, t => t.CheckAccessibilityAsync());
         BindEdit(Cmd.ExportComments, t => CommentFileActions.Export(this, t));
         BindEdit(Cmd.ImportComments, t => CommentFileActions.Import(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.SummarizeComments, t => CommentFileActions.Summarize(this, t));

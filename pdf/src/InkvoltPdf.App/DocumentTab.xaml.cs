@@ -72,7 +72,7 @@ public sealed record PageDragData(DocumentTab Source, int[] Pages);
 /// <summary>A transient message for the toast area, optionally with an action such as Undo.</summary>
 public sealed record Toast(string Message, string? ActionLabel = null, Action? Action = null, bool IsError = false);
 
-public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures }
+public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures, Accessibility }
 
 /// <summary>How <see cref="DocumentTab.TryEdit"/> ended.</summary>
 public partial class DocumentTab : UserControl, IDisposable
@@ -306,6 +306,7 @@ public partial class DocumentTab : UserControl, IDisposable
             AppSettings.Current.Save();
         };
         InitReview();
+        InitAccessibility();
         InitFormDesign(); // Prepare Form (DocumentTab.FormDesign.cs)
         InitEditContent(); // Edit Text & Images (DocumentTab.EditContent.cs)
         UpdatePill();
@@ -355,6 +356,7 @@ public partial class DocumentTab : UserControl, IDisposable
         AttachmentsPanel.Visibility = kind == NavPaneKind.Attachments ? Visibility.Visible : Visibility.Collapsed;
         LayersPanel.Visibility = kind == NavPaneKind.Layers ? Visibility.Visible : Visibility.Collapsed;
         SignaturesPanel.Visibility = kind == NavPaneKind.Signatures ? Visibility.Visible : Visibility.Collapsed;
+        AccessibilityPanel.Visibility = kind == NavPaneKind.Accessibility ? Visibility.Visible : Visibility.Collapsed;
         PagesRail.IsChecked = kind == NavPaneKind.Pages;
         BookmarksRail.IsChecked = kind == NavPaneKind.Bookmarks;
         SearchRail.IsChecked = kind == NavPaneKind.Search;
@@ -362,6 +364,7 @@ public partial class DocumentTab : UserControl, IDisposable
         AttachmentsRail.IsChecked = kind == NavPaneKind.Attachments;
         LayersRail.IsChecked = kind == NavPaneKind.Layers;
         SignaturesRail.IsChecked = kind == NavPaneKind.Signatures;
+        AccessibilityRail.IsChecked = kind == NavPaneKind.Accessibility;
         PaneTitle.Text = kind == NavPaneKind.None ? "" : kind.ToString();
         UpdatePaneDetail();
         if (kind == NavPaneKind.Pages) SyncThumbSelection();
@@ -383,6 +386,7 @@ public partial class DocumentTab : UserControl, IDisposable
             NavPaneKind.Attachments => _attachments.Count > 0 ? $"{_attachments.Count}" : "",
             NavPaneKind.Layers => $"{_layers.Count}",
             NavPaneKind.Signatures => $"{_signatures.Count(s => s.Status != SignatureStatus.Unsigned)} signed",
+            NavPaneKind.Accessibility => "PDF/UA",
             _ => "",
         };
     }

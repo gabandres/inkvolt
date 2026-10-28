@@ -172,6 +172,7 @@ public static class Cmd
     public static readonly RoutedUICommand Redact = Make("_Redact", nameof(Redact));
     public static readonly RoutedUICommand RedactPatterns = Make("Redact by _Pattern…", nameof(RedactPatterns));
     public static readonly RoutedUICommand CheckRedaction = Make("Chec_k Redaction…", nameof(CheckRedaction));
+    public static readonly RoutedUICommand CheckAccessibility = Make("Accessibilit_y Check…", nameof(CheckAccessibility));
     public static readonly RoutedUICommand Sanitize = Make("Sa_nitize Document…", nameof(Sanitize));
 
     // Comments and form data in and out (see CommentFileActions, FormDataActions)

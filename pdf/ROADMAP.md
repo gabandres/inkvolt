@@ -119,14 +119,25 @@ the checkout.
   folder all come out once, none twice, including files copied in slowly over the network.
 - **Effort** M. Windows; Mac with Batch.
 
-### 1.3 Accessibility checker
+### 1.3 Accessibility checker (done 2026-10-27)
 - **Leader.** Acrobat Pro: Accessibility Check against PDF/UA and WCAG, each rule passed, failed or "needs manual check"
   ([Adobe](https://helpx.adobe.com/acrobat/current/create-verify-pdf-accessibility.html)). The free PAC follows the
   Matterhorn Protocol (31 checkpoints, 136 failure conditions, 89 machine-checkable)
   ([axes4](https://support.axes4.com/hc/en-us/articles/7371943734930)). Why now: US Title II deadlines moved to
   April 26, 2027 (entities of 50,000+) and April 26, 2028 (smaller), WCAG 2.1 AA
   ([JD Supra](https://www.jdsupra.com/legalnews/doj-extends-title-ii-ada-web-2176958/)).
-- **Now.** Screen-reader names in the app; no checker; tags kept but not made.
+- **Now.** Windows: Review › Accessibility Check… (`AccessibilityCheck`) checks the Matterhorn Protocol 1.1's
+  machine-checkable conditions (83 of its 87, 5 of them through another condition, plus PDF/UA's basics: tagged, MarkInfo, PDF 1.x header, tag parents,
+  language codes): tags, role map, content tagged or artifact, metadata and title, languages, figures, formulas,
+  headings, tables, lists, contents, notes, annotations, links, fields, tab order, media, attachments, layers, XFA,
+  security, XObjects, fonts. Each failure has its Matterhorn number, page and element (choosing it scrolls there and
+  outlines it), what is wrong and what fixes it; the 48 human conditions are a 15-item checklist in the same pane; the
+  report saves as one accessible HTML page; Batch's Check Accessibility action writes it beside each file and fails a
+  file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
+  (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
+  OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
+  conditions for 49 (the other is a veraPDF inconsistency, see the tool's README); veraPDF's own 297 PDF/UA-1 test
+  files: 296 of 297 (the other can't be opened by PDFsharp). Still to do: the Mac.
 - **Beat it when:** a local checker covers the machine-checkable Matterhorn conditions and agrees with veraPDF's
   PDF/UA-1 result on a corpus of 50 files (tagged and untagged, Word, InDesign and LaTeX output); each failure links to
   the page and element, says in plain words what is wrong and what fixes it, and the human-check items are a checklist

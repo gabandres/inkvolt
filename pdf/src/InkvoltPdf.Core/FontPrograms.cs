@@ -123,6 +123,9 @@ internal sealed class TrueTypeProgram : FontProgram
 
     public bool HasCmap(int platform, int encoding) => _cmaps.ContainsKey((platform, encoding));
 
+    /// <summary>The (platform, encoding) of each cmap subtable read (formats 0, 4, 6 and 12).</summary>
+    internal IReadOnlyCollection<(int Platform, int Encoding)> Cmaps => _cmaps.Keys;
+
     /// <summary>Whether the font has a Unicode cmap (3,1), (3,10) or (0,*).</summary>
     public bool HasUnicodeCmap => _cmaps.Keys.Any(k => k.Platform == 0 || k is (3, 1) or (3, 10));
 
@@ -231,6 +234,12 @@ internal sealed class CffProgram : FontProgram
 
     public bool HasName(string name) => !IsCid && _names.Contains(name);
     public bool HasCid(int cid) => IsCid ? _cids.Contains(cid) : cid > 0 && cid < NumGlyphs;
+
+    /// <summary>The glyph names (charset) of a name-keyed program, .notdef left out.</summary>
+    internal IReadOnlyCollection<string> Names => _names;
+
+    /// <summary>The CIDs of a CID-keyed program, 0 (.notdef) left out.</summary>
+    internal IReadOnlyCollection<int> Cids => _cids;
 
     public static CffProgram? Read(byte[] b)
     {
@@ -387,6 +396,9 @@ internal sealed class Type1Program : FontProgram
     public string?[]? BuiltIn { get; private set; }
 
     public bool HasName(string name) => _names.Contains(name);
+
+    /// <summary>The glyph names in the program's CharStrings.</summary>
+    internal IReadOnlyCollection<string> Names => _names;
 
     public static Type1Program? Read(byte[] b)
     {

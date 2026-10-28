@@ -59,6 +59,7 @@ public sealed class BatchAutomationTests : IDisposable
                 Pages = [0, 2],
             }),
             new CheckRedactionStep(),
+            new CheckAccessibilityStep(),
             new WatermarkStep(new WatermarkOptions { Text = "DRAFT", FontSize = 60, Color = new AnnotColor(1, 0, 0), Opacity = 0.25, Rotation = -30, Layout = WatermarkLayout.Tiled, Behind = true }),
             new WatermarkStep(new WatermarkOptions { Image = new StampImage(2, 1, [255, 0, 0, 0, 0, 255], [255, 128]), ImageScale = 0.2, Color = new AnnotColor(0, 0, 1) }), // colors keep 8 bits a channel
             new HeaderFooterStep(new HeaderFooterOptions

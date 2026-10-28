@@ -266,7 +266,7 @@ public static class BatchPresets
 
     /// <summary>Each action's name in a preset, in the order the Batch window offers them.</summary>
     public static IReadOnlyList<string> ActionNames { get; } =
-        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "watermark", "headerFooter", "rotate", "flatten", "ocr", "saveAsPdfA", "export"];
+        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "watermark", "headerFooter", "rotate", "flatten", "ocr", "saveAsPdfA", "export"];
 
     private static string ActionName(BatchStep step) => step switch
     {
@@ -276,6 +276,7 @@ public static class BatchPresets
         SanitizeStep => "sanitize",
         RedactPatternsStep => "redactPatterns",
         CheckRedactionStep => "checkRedaction",
+        CheckAccessibilityStep => "checkAccessibility",
         WatermarkStep => "watermark",
         HeaderFooterStep => "headerFooter",
         RotateStep => "rotate",
@@ -416,6 +417,7 @@ public static class BatchPresets
                 Pages = f.Pages("pages"),
             }),
             "checkRedaction" => new CheckRedactionStep(),
+            "checkAccessibility" => new CheckAccessibilityStep(),
             "watermark" => ReadWatermark(f),
             "headerFooter" => ReadHeaderFooter(f),
             "rotate" => new RotateStep(f.Int("degrees", 90, -270, 270) is var d && d % 90 == 0 && d != 0

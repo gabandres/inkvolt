@@ -303,20 +303,58 @@ internal sealed class TextFont
         if (_program is not TrueTypeProgram tt) return -1;
         if (TwoByte) return _cidToGid is null ? code : code < _cidToGid.Length ? _cidToGid[code] : 0;
         // PDF 32000 9.6.6.4: a (3,1) cmap is reached through the glyph name's Unicode value, else (3,0) and (1,0) by code.
-        if (tt.HasCmap(3, 1) && !_symbolic)
+        // (A Unicode-platform cmap, (0,*), is read the same way: some Mac fonts have only that.)
+        if (tt.HasUnicodeCmap && !_symbolic)
         {
             var text = _names[code] is { } n ? GlyphNames.ToUnicode(n) : _simpleText[code];
-            if (text is { Length: > 0 } && tt.Lookup(3, 1, char.ConvertToUtf32(text, 0)) is var g and > 0) return g;
+            if (text is { Length: > 0 } && char.IsSurrogate(text, 0) == char.IsSurrogatePair(text, 0) && tt.LookupUnicode(char.ConvertToUtf32(text, 0)) is var g and > 0) return g;
         }
         if (tt.HasCmap(3, 0))
             foreach (var c in new[] { code, 0xF000 + code, 0xF100 + code, 0xF200 + code })
                 if (tt.Lookup(3, 0, c) is var g and > 0) return g;
+        // A (1,0) Mac cmap is reached through the glyph name's Mac Roman code (9.6.6.4); a symbolic font's by the code itself.
+        if (tt.HasCmap(1, 0) && !_symbolic && _names[code] is { } macName && MacCode(macName) is { } mc && tt.Lookup(1, 0, mc) is var mg and > 0) return mg;
         if (tt.HasCmap(1, 0) && tt.Lookup(1, 0, code) is var m and > 0) return m;
         if (tt.HasCmap(3, 1) && _simpleText[code] is { Length: > 0 } st && tt.Lookup(3, 1, char.ConvertToUtf32(st, 0)) is var u and > 0) return u;
         return 0;
     }
 
+    private static readonly Lazy<Dictionary<string, int>> MacCodes = new(() =>
+    {
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var c = 0; c < 256; c++)
+            if (GlyphNames.InEncoding("MacRomanEncoding", c) is { } n) map.TryAdd(n, c);
+        return map;
+    });
+
+    private static int? MacCode(string glyphName) => MacCodes.Value.TryGetValue(glyphName, out var c) ? c : null;
+
     private double? ProgramAdvance(int code) => _program is TrueTypeProgram tt && GidOf(code) is var g and > 0 ? tt.Advance(g) : null;
+
+    // ---- What the accessibility check reads (AccessibilityCheck.Fonts) ----
+
+    /// <summary>The embedded program, when it could be read.</summary>
+    internal FontProgram? Program => _program;
+
+    /// <summary>A code's glyph in an embedded TrueType program (0: .notdef), or -1 when the program isn't TrueType.</summary>
+    internal int GlyphIdOf(int code) => GidOf(code);
+
+    /// <summary>A simple font's glyph name for a code (from its encoding and /Differences), or null.</summary>
+    internal string? GlyphNameOf(int code) => !TwoByte && code is >= 0 and < 256 ? _names[code] : null;
+
+    /// <summary>The Unicode text a code stands for (ToUnicode, else the glyph name), or null when it can't be told.</summary>
+    internal string? UnicodeOf(int code) => TextOf(code);
+
+    /// <summary>The ToUnicode CMap's own value for a code, or null when it has none.</summary>
+    internal string? ToUnicodeOf(int code) => _toUnicode.GetValueOrDefault(code);
+
+    /// <summary>The width the PDF itself gives a code (/Widths or /W), or null.</summary>
+    internal double? DictionaryWidth(int code) =>
+        TwoByte ? (_cidWidths.TryGetValue(code, out var w) ? w : _cidFont is not null ? _dw : null)
+        : code is >= 0 and < 256 ? _widths[code] : null;
+
+    /// <summary>A code's advance in the embedded TrueType program, in thousandths of an em, or null.</summary>
+    internal double? ProgramWidth(int code) => _program is TrueTypeProgram tt && GidOf(code) is var g and >= 0 && g < tt.NumGlyphs ? tt.Advance(g) : null;
 
     /// <summary>Whether the font can draw a code: its glyph is in the embedded program, or the font isn't embedded.</summary>
     public bool HasGlyph(int code)

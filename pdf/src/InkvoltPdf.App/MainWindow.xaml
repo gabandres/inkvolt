@@ -285,6 +285,8 @@
                                     <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
                                     <Separator />
+                                    <MenuItem Command="app:Cmd.CheckAccessibility" />
+                                    <Separator />
                                     <!-- Bring your own AI: off by default (AiActions, DocumentTab.Ai) -->
                                     <MenuItem Header="A_I Assistant">
                                         <MenuItem Command="app:Cmd.AiSummarize" />

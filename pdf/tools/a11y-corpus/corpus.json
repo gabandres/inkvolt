@@ -1,0 +1,302 @@
+[
+ {
+  "name": "ref-01-magazine-danish",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-01_Magazine-danish.pdf",
+  "what": "PDF/UA Reference Suite 1.1 (PDF Association): magazine, Danish (Photoshop / Adobe PDF Library)",
+  "sha256": "aef89af13c9c94fc4f4e1a8c5872450cc4c8fff7de544d8ada6a0912425aa434"
+ },
+ {
+  "name": "ref-02-invoice",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-02_Invoice.pdf",
+  "what": "PDF/UA Reference Suite 1.1: invoice (PDFlib)",
+  "sha256": "fbae08464f192f532205833215505b78266e86df6283d9b0c439cb06927ce0b9"
+ },
+ {
+  "name": "ref-03-academicabstract",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-03_AcademicAbstract.pdf",
+  "what": "PDF/UA Reference Suite 1.1: academic abstract (LaTeX, acmart)",
+  "sha256": "e61257d371261867926eb006f8895569a95fcfbcb93fca3be04b8b9187cb93a0"
+ },
+ {
+  "name": "ref-04-presentation",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-04_Presentation.pdf",
+  "what": "PDF/UA Reference Suite 1.1: presentation (InDesign 15)",
+  "sha256": "90acb829ca8bfa037796592539d15010e9099d1cd2622aac1fce7d9fd3ae7575"
+ },
+ {
+  "name": "ref-05-bookchapter-german",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-05_BookChapter-german.pdf",
+  "what": "PDF/UA Reference Suite 1.1: book chapter, German (InDesign CC)",
+  "sha256": "fc525b8899da31779b6143c16053779cd560d4417018a901472de33c71252352"
+ },
+ {
+  "name": "ref-06-brochure",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-06_Brochure.pdf",
+  "what": "PDF/UA Reference Suite 1.1: brochure (InDesign CS6)",
+  "sha256": "aefd5ab48a908b9996ffadcb14d8ff31a2c653657cbe011a46f4cf61396a589e"
+ },
+ {
+  "name": "ref-07-formaldocument",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-07_FormalDocument.pdf",
+  "what": "PDF/UA Reference Suite 1.1: formal document (remediated by AbleDocs)",
+  "sha256": "14aecf649931454321ff3b13c6014422bb06c955d7274281a2f7a922458c281f"
+ },
+ {
+  "name": "ref-08-bookchapter",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-08_BookChapter.pdf",
+  "what": "PDF/UA Reference Suite 1.1: book chapter (remediated by AbleDocs)",
+  "sha256": "2b958600daec79373736f413f2712fcd9c604de2c352cbc1ec9d67cc5d7932f1"
+ },
+ {
+  "name": "ref-10-form",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-Ref-2-10_Form.pdf",
+  "what": "PDF/UA Reference Suite 1.1: fillable form (InDesign 15)",
+  "sha256": "06d5cacd7c5ba9573a57c6d99d3f357ee14a24cff0c138036840fc44c6311806"
+ },
+ {
+  "name": "pdfua-nutshell",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/PDFUA-in-a-Nutshell-PDFUA.pdf",
+  "what": "PDF Association brochure \"PDF/UA in a Nutshell\" (Illustrator CS6)",
+  "sha256": "d2c5be6d1fb2c5ed1fd6690c34b85ec8548f45a7f123f3309b7df1f51b03ed53"
+ },
+ {
+  "name": "rw-in-fa-due-diligence-services",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/In-fa-due-diligence-services.pdf",
+  "what": "real-world document (deskPDF)",
+  "sha256": "32bce9575bd78ad270922afa21a7eefbef68ac7fcfecfe3257034bb9903eecf9"
+ },
+ {
+  "name": "rw-letter-doc",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/Letter_DOC.pdf",
+  "what": "real-world letter (Word 2016)",
+  "sha256": "45a509ed1ba1b6e77aa38b1f41d89e7c36b924e1046731d73427b697777d4e67"
+ },
+ {
+  "name": "rw-pac-report-style-classmap",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/PAC_Report_style_classmap.pdf",
+  "what": "real-world report (InDesign CC 2015)",
+  "sha256": "11e71922d8f73ff2d35b87481cb76fd3447e3b1d96d5a831c66dc6d1755b1f6d"
+ },
+ {
+  "name": "rw-pdf-ada-standards",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/PDF_ADA_Standards.pdf",
+  "what": "real-world document (PDFMaker 15 for Word)",
+  "sha256": "4274f4be9219a92506b9e7bdcf5b62038d7723d7ccae1e653da96d4c8d3568d2"
+ },
+ {
+  "name": "rw-pexip-infinity-scheduling-meetings-quick",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/Pexip_Infinity_Scheduling_Meetings_Quickguide_v28.a.pdf",
+  "what": "real-world quick guide (madbuild)",
+  "sha256": "4c4a2720ec42d1b6984f748039c0e2ab2e6c55f20b71292ee462b03cf901c6f0"
+ },
+ {
+  "name": "rw-pexip-infinity-upgrading-quickguide",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/Pexip_Infinity_Upgrading_Quickguide_v28.a.pdf",
+  "what": "real-world quick guide (madbuild)",
+  "sha256": "0f78baed177a3a8c6cc1129378052709ae9b2d0a604cdf05d4636f7babe2357c"
+ },
+ {
+  "name": "rw-quick-reference-guide-graphic-designer-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/Quick-Reference-Guide-Graphic-Designer-acessible.pdf",
+  "what": "real-world guide (InDesign CC 2017)",
+  "sha256": "7bccac35313a25a3d1852606a36fa3555f84429f5d09fc0be4960994649e711b"
+ },
+ {
+  "name": "rw-intro-indesign-cs4",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/intro_indesign_cs4.pdf",
+  "what": "real-world document (PDFMaker 9 for Word)",
+  "sha256": "efc5d29f3a0ecdebf8c68204572d6e4e02a61c0f55734473f3b6e13555424f99"
+ },
+ {
+  "name": "rw-resume",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/resume.pdf",
+  "what": "real-world resume (Word)",
+  "sha256": "685c6c5f47bf5da3590f02d761227f2ba8d85217ab54636429ba4e311a70ed49"
+ },
+ {
+  "name": "rw-table-with-attributes",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/real-world-documents/table_with_attributes.pdf",
+  "what": "real-world tables (PDFMaker 10 for Word)",
+  "sha256": "6ccca6e6441619b316c455b6dc84bb3b35cd48ae8b627ed7fcd3b5614cf5fadf"
+ },
+ {
+  "name": "wcag-lijst-arial",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/lijst-arial.pdf",
+  "what": "Dutch test document, list (PDFMaker 20 for Word)",
+  "sha256": "4ed19c66654551a12acdcabdb215729a47ff7aa9d7c9cb4bf230ec58292a7d95"
+ },
+ {
+  "name": "wcag-mail-link-met-alt-tekst",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/mail-link-met-alt-tekst.pdf",
+  "what": "Dutch test document, e-mail link (PDFMaker 20 for Word)",
+  "sha256": "6597ea04d2f0a12ed8da5cfb592250b0d0ec489ab483f166a83ed407f67abf68"
+ },
+ {
+  "name": "wcag-table-pdfmaker",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/table-pdfmaker.pdf",
+  "what": "Dutch test document, table (PDFMaker 20 for Word)",
+  "sha256": "bc8bff014c05405d26e62789d951617e5c1eb74a86f3ec4fb19b303d26f2558f"
+ },
+ {
+  "name": "wcag-table-word",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/table-word.pdf",
+  "what": "Dutch test document, table (Word for Microsoft 365, hybrid xref)",
+  "sha256": "608203f29af582f2201843d423bba1a0b825788974cec1753ee6ea62f2cedd16"
+ },
+ {
+  "name": "wcag-test-document-11",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/test-document-11.pdf",
+  "what": "Dutch test document (PDFMaker 21 for Word)",
+  "sha256": "825c724095e3bd47faebfea3edfcb65e279ab34e6af7381fc43b13c4b8c55064"
+ },
+ {
+  "name": "wcag-test-document-13",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/1.7/wcag-algs-issues/test-document-13.pdf",
+  "what": "Dutch test document (PDFMaker 21 for Word)",
+  "sha256": "e01bc626566fc34d6749e896a72e40ed28cf346d16c2c1e240bb206553399dd9"
+ },
+ {
+  "name": "latex-tagged-2401.09965",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/WCAG_2_2/2.0/fixed-issues/2401.09965v1-tagged.pdf",
+  "what": "arXiv paper, tagged LaTeX (LuaHBTeX, PDF 2.0 header)",
+  "sha256": "b091f700fa5071e80ec092ce9044c973d73e0dedcd1240cdbcdf53f0b8817436"
+ },
+ {
+  "name": "word-ms2016",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/CLI/Issues/479/recursive_folder/MS2016.pdf",
+  "what": "Word 2016 export (hybrid xref)",
+  "sha256": "77b0bf2154718c211027ef8a9893d08a5613c402a3111e261ad15c7c7585a2dd"
+ },
+ {
+  "name": "word-example",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/CLI/Issues/479/recursive_folder/Example.pdf",
+  "what": "QuarkXPress 8 via Acrobat Distiller, form fields",
+  "sha256": "ed599f147d783b8d0551432b9eb3d862a13c064537a8d56ea889894039c15d9f"
+ },
+ {
+  "name": "libreoffice-126207",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/CLI/Malicious/Resources/Errors/status1/LIBRE_OFFICE-126207-4.pdf",
+  "what": "OpenOffice.org 2.4 Writer export, form fields",
+  "sha256": "c7895dfbd629fe8d76d9283906208cd7bca1c67597de79ebd1e53194b369436d"
+ },
+ {
+  "name": "textfield-pdfua",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-regression-tests/integration/PDF_UA-1/1217/textFieldPdfUa.pdf",
+  "what": "form with a text field, claims PDF/UA (iText DITO)",
+  "sha256": "76a237d4b1682895bf30b58f12a4748cbc6f999b1ed75f630aa35e055cea606a"
+ },
+ {
+  "name": "latex-attn-v7",
+  "url": "https://arxiv.org/pdf/1706.03762v7",
+  "what": "arXiv paper, untagged LaTeX (pdfTeX)",
+  "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697"
+ },
+ {
+  "name": "latex-resnet",
+  "url": "https://arxiv.org/pdf/1512.03385v1",
+  "what": "arXiv paper, untagged LaTeX (pdfTeX)",
+  "sha256": "1e0651b6810ecba34a3dbc5b5b0209226f889004607c1f203540a48d64e5a93a"
+ },
+ {
+  "name": "irs-fw9",
+  "url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf",
+  "what": "IRS form W-9, tagged XFA/AcroForm (Adobe Designer 6.5)",
+  "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+ },
+ {
+  "name": "nist-sp800-63-3",
+  "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63-3.pdf",
+  "what": "NIST standard (PDFMaker 17 for Word)",
+  "sha256": "915bb812cb705918461e642e84141c6ca2adc2ca0106e1d88f3884c61f07110a"
+ },
+ {
+  "name": "usgs-fs-2008-3062",
+  "url": "https://pubs.usgs.gov/fs/2008/3062/fs2008-3062.pdf",
+  "what": "USGS fact sheet (InDesign CS3)",
+  "sha256": "060afb340a67766144cef63a6c52fc1186c4617dca8cebd3292f122304137ae3"
+ },
+ {
+  "name": "vc-5-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/5%20Version%20identification/5-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 5 Version identification)",
+  "sha256": "33d9008d84746cb8cf7cf11f50d8e67a97b3640978d845050e18ee47bfb95310"
+ },
+ {
+  "name": "vc-5-t01-pass-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/5%20Version%20identification/5-t01-pass-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 5 Version identification)",
+  "sha256": "853fc52f5dca32dd257cac1da4ca9c1702623e357b48a361f835c4f271bd2c68"
+ },
+ {
+  "name": "vc-7.3-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.3%20Graphics/7.3-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.3 Graphics)",
+  "sha256": "98e57f3d54f85cadf14a457dbfbeeb74a7ca9a4c97807f093e3be484581b84e1"
+ },
+ {
+  "name": "vc-7.3-t01-pass-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.3%20Graphics/7.3-t01-pass-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.3 Graphics)",
+  "sha256": "9785e9bc4fb261d5b064a50675ef7fd3e81b3beb64b4050f1164766f35bba58b"
+ },
+ {
+  "name": "vc-7.4.2-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.4%20Headings/7.4.2%20Numbered%20headings/7.4.2-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.4 Headings)",
+  "sha256": "8ca9c3916ff06667f59389d69005cce78fa0596c01931147d7d300c7cf227986"
+ },
+ {
+  "name": "vc-7.4.4-t02-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.4%20Headings/7.4.4%20Unnumbered%20headings/7.4.4-t02-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.4 Headings)",
+  "sha256": "be8cc83121db0fa7ee64ae2d43fe26b201de550172f0367c78945abb70238a11"
+ },
+ {
+  "name": "vc-7.5-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.5%20Tables/7.5-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.5 Tables)",
+  "sha256": "54d49f7289d91b120fce690e59dc97f2ed7a3cadc09a2d4eef94ccc42f1da928"
+ },
+ {
+  "name": "vc-7.5-t01-pass-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.5%20Tables/7.5-t01-pass-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.5 Tables)",
+  "sha256": "d91d6aeb4203b6852a20aebbb2d1399f72ad5527e7056a2577168a2fde60eb4f"
+ },
+ {
+  "name": "vc-7.18.3-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.18%20Annotations/7.18.3%20Tab%20order/7.18.3-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.18 Annotations)",
+  "sha256": "cef9a9e6e3f0dd73b630d8a21cad7a275c9e3916f8ba3371cdc38a7be6c66374"
+ },
+ {
+  "name": "vc-7-18.3-t01-pass-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.18%20Annotations/7.18.3%20Tab%20order/7-18.3-t01-pass-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.18 Annotations)",
+  "sha256": "bc09655677b2c071c38d2cdd6b1dbfa84db9477ea54d734f7a63fc5f80692a71"
+ },
+ {
+  "name": "vc-7.18.5-t02-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.18%20Annotations/7.18.5%20Links/7.18.5-t02-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.18 Annotations)",
+  "sha256": "bc775a34b8c15d14c1609b61d89004f91b1ef8561e0e3fcd01a54ba338716b77"
+ },
+ {
+  "name": "vc-7.21.4.1-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.21%20Fonts/7.21.4%20Embedding/7.21.4.1%20General/7.21.4.1-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.21 Fonts)",
+  "sha256": "81d00fde7c6eeab103e76ecdb0968c64f28656585d7650615585e10610c9bb07"
+ },
+ {
+  "name": "vc-7.21.7-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.21%20Fonts/7.21.7%20Unicode%20character%20maps/7.21.7-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.21 Fonts)",
+  "sha256": "3071b0bd49e287e29ec8dcd783413c2ac5bf587878a4fa754b0804403db46371"
+ },
+ {
+  "name": "vc-7.9-t01-fail-a",
+  "url": "https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.9%20Notes%20and%20references/7.9-t01-fail-a.pdf",
+  "what": "veraPDF test corpus (PDF/UA-1, 7.9 Notes and references)",
+  "sha256": "32e3b981bf73febec6105e2244cc80ba82b067d4875ee51d9475fd03b63062b0"
+ }
+]

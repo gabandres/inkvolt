@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Accessibility check (Review › Accessibility Check…): checks a PDF against PDF/UA, the standard for PDFs people with screen readers can use, on your PC. Each problem says what is wrong, where (click it to see it on the page) and how to fix it; a checklist covers what only a person can judge, such as reading order and whether image descriptions make sense. Save the report as a web page. Also a Batch action, with a report beside each file.
 - Comments in and out (Review menu): export all comments as XFDF or FDF for Acrobat and other PDF apps, or as a CSV for a spreadsheet, with replies, colors, authors, dates and stamp and drawing appearances; import them into another copy without duplicating the ones already there. Summarize Comments makes a PDF with each page beside its comments, numbered and connected.
 - Form data in and out (Edit › Forms): export a form's values as XFDF, FDF, CSV or JSON and fill a form from any of them. Fill Forms from CSV fills one copy of the form per row of a spreadsheet and lists the rows it couldn't fill and why. Also in Batch, and from a terminal: inkvoltpdf --fill.
 - Batch presets: save the list of Batch actions under a name and pick it next time; export a preset to share it, import one from someone else (a plain JSON file). New Batch action: Save as PDF/A.
