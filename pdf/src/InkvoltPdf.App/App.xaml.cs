@@ -97,6 +97,7 @@ public partial class App : Application
         if (_pendingArgs.Count > 0) window.BringToFront();
         _pendingArgs.Clear();
         AppHelp.ShowWhatsNewOnce(window);
+        window.StartUpdateCheck();
     }
 
     /// <summary>Dev scripts run in Debug builds, or in any build when INKVOLTPDF_DEVSCRIPT=1.</summary>

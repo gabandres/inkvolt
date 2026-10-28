@@ -217,6 +217,12 @@ If `install.ps1`'s copy is installed too, both appear under "Open with"; uninsta
   nothing writes registry associations. Settings' "Open Default apps" opens the package's own Default apps page.
 - Settings and logs stay at `%LOCALAPPDATA%\InkvoltPdf`; Windows redirects that into the package's private folder, so a
   packaged and an unpackaged copy keep separate settings. Uninstalling the package removes them.
-- Single instance, file forwarding (named pipe) and everything else behave the same. Updates come from the Store.
+- Single instance, file forwarding (named pipe) and everything else behave the same. Updates come from the Store, and
+  only the packaged app checks for them in the app: ~30 s after startup (Settings › "Check for updates when Inkvolt PDF
+  starts") and Help › Check for Updates…, through `Windows.Services.Store` (`StoreContext`, initialized with the main
+  window). That is the one thing the app asks over the network by itself, and it talks only to Windows' own Store service
+  about this package; nothing about the user or their documents is sent. Sideloaded and dev packages get an error from
+  the Store, which the startup check only logs. A real update can only be seen from a Store-installed copy with an older
+  version than the one published.
 - `AppEnvironment.FindSuiteApp("InkvoltPrint")` finds a sibling app through its execution alias
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\inkvoltprint.exe`), App Paths, or its install folders.

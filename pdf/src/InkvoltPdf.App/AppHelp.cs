@@ -135,6 +135,7 @@ internal static class AppHelp
             ("Reopen last files", OnOff(s.ReopenTabs)),
             ("Recovery copies", OnOff(s.KeepRecoveryCopies)),
             ("Dark pages", OnOff(s.DarkPages)),
+            ("Update check at start", OnOff(s.CheckForUpdates)),
             ("AI assistant", s.AiEnabled ? $"on ({s.AiPreset})" : "off"),
             ("Open documents", openDocuments.ToString()),
             ("Inkvolt Print", Inkvolt.InkvoltPrintPath is null ? "not installed" : "installed"),

@@ -333,6 +333,17 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   then copies, the version, Windows, a settings summary and the log's last 200 lines, scrubbed of IP addresses, host names,
   UUIDs, serial-like IDs, file paths and the user's and PC's names (`InkvoltPrint.Core.Suite.Diagnostics`, shared with Inkvolt
   Print; tested there), and can open a new GitHub issue with the version filled in to paste them into. Nothing is sent by the app.
+- **Updates** (Store installs): about 30 seconds after startup Inkvolt PDF asks the Microsoft Store, through Windows'
+  own Store service (`Windows.Services.Store`), whether an update is ready, and **Help › Check for Updates…** asks now. A
+  ready update shows as "Update" in the title bar ("Update required" when the Store marks it mandatory; reading goes on
+  either way); Update asks about unsaved documents as closing does, closes them, and has the Store install the update
+  (Windows closes the app meanwhile; a canceled or failed install reopens the documents). Startup checks are silent
+  unless an update is ready (offline PCs, sideloaded and dev packages just log the error). Settings › "Check for updates
+  when Inkvolt PDF starts" (on by default) turns the startup check off. **Privacy**: it talks only to Windows' Store
+  service about this app's package; nothing about you or your documents is sent. Unpackaged copies never check (the menu
+  says the copy isn't from the Store). Decisions: `UpdateCheck` (Core, tested with a fake Store); Store calls:
+  `StoreUpdates`, `MainWindow.Updates.cs`; dev steps `updatefake none|ready|mandatory|error`, `updatecheck [startup]`,
+  `updatestate`.
 - **Settings** (Ctrl+,): *Reset to defaults* puts the dialog's choices back as a new install has them (saved with Save; recent
   files, signatures and the AI assistant's settings are kept).
 - **Password protection** (File › Protect with Password…): an open password (with a strength hint) and/or a

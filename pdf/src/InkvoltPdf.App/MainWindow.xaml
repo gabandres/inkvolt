@@ -67,6 +67,16 @@
                         <TextBlock x:Name="WatchText" FontSize="12" VerticalAlignment="Center" FontFamily="{DynamicResource ContentControlThemeFontFamily}" />
                     </StackPanel>
                 </Button>
+                <!-- A Microsoft Store update is ready (packaged installs; MainWindow.Updates.cs) -->
+                <Button x:Name="UpdateButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Height="30" Margin="6,6,0,0" Padding="8,0"
+                        Visibility="Collapsed" Click="OnUpdateButton" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.LiveSetting="Polite">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="UpdateIcon" Text="&#xE896;" FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock x:Name="UpdateText" Text="Update" FontSize="12" VerticalAlignment="Center" FontFamily="{DynamicResource ContentControlThemeFontFamily}" />
+                    </StackPanel>
+                </Button>
                 <TextBlock x:Name="AppTitle" DockPanel.Dock="Left" Text="Inkvolt PDF" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12" />
             </DockPanel>
         </Grid>
@@ -301,6 +311,7 @@
                                     <MenuItem Command="app:Cmd.CommandPalette" />
                                     <MenuItem Command="app:Cmd.WhatsNew" />
                                     <MenuItem Command="app:Cmd.ReportProblem" />
+                                    <MenuItem Command="app:Cmd.CheckForUpdates" />
                                     <MenuItem Header="Open _Log Folder" Click="OnOpenLog" />
                                     <Separator />
                                     <MenuItem Header="_About Inkvolt PDF" Click="OnAbout" />

@@ -30,7 +30,7 @@ namespace InkvoltPdf.App;
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
-/// dialogfill check0=on … [expand]</c>. Compare: <c>compare old.pdf new.pdf ·
+/// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
@@ -835,6 +835,10 @@ internal static class DevScript
             }
             case "aioff": AppSettings.Current.AiEnabled = false; tab?.RefreshAiPane(); break;
             case "aifake": AiService.DevHandler = _ => new DevAiHandler(arg); break;
+            // Store updates (no Store): updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate
+            case "updatefake": window.DevFakeStoreUpdates(new DevStoreUpdates(arg)); break;
+            case "updatecheck": await window.DevCheckForUpdatesAsync(user: arg != "startup"); log.Add(window.DevUpdateState()); break;
+            case "updatestate": log.Add(window.DevUpdateState()); break;
             case "aipane" when arg == "off": tab!.CloseAiPane(); break;
             case "aipane": tab!.ShowAiPane(); await Task.Delay(300); break;
             case "aisummarize":
@@ -1393,6 +1397,20 @@ internal static class DevScript
         enc.Frames.Add(BitmapFrame.Create(bmp));
         using var fs = File.Create(path);
         enc.Save(fs);
+    }
+
+    /// <summary><c>updatefake</c>: the Store's answer without the Store. Installing comes back canceled, so the app stays open.</summary>
+    private sealed class DevStoreUpdates(string spec) : IStoreUpdates
+    {
+        public Task<StoreUpdateInfo> FindAsync(CancellationToken cancel = default) => spec switch
+        {
+            "error" => Task.FromException<StoreUpdateInfo>(new System.Runtime.InteropServices.COMException("Dev: the Store didn't answer")),
+            "ready" => Task.FromResult(new StoreUpdateInfo(1, false)),
+            "mandatory" => Task.FromResult(new StoreUpdateInfo(1, true)),
+            _ => Task.FromResult(new StoreUpdateInfo(0, false)),
+        };
+
+        public Task<StoreInstallOutcome> InstallAsync(CancellationToken cancel = default) => Task.FromResult(StoreInstallOutcome.Canceled);
     }
 
     /// <summary>

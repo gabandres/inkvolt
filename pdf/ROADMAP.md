@@ -200,6 +200,15 @@ the checkout.
   redactions.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
+### 1.6 Store update check (done 2026-10-27)
+- **Why.** Store apps update when Windows gets to it, so people can sit on an old version for weeks.
+- **Now.** Windows: packaged installs ask the Store (`Windows.Services.Store`) ~30 s after startup and from Help › Check
+  for Updates…; a ready update shows in the title bar ("Update required" when mandatory, never blocking reading); Update
+  settles unsaved documents as closing does, then the Store installs it. Setting to turn the startup check off; only
+  Windows' Store service is asked. Decisions tested with a fake Store (`UpdateCheck`). Mac: the PDF app ships outside
+  the App Store, so its update check comes with that distribution.
+- **Effort** S.
+
 ## Wave 2
 
 ### 2.1 Paragraph text editing

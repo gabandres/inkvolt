@@ -354,7 +354,8 @@ public partial class MainWindow : Window
         var plus = NewTabButton.ActualWidth + NewTabButton.Margin.Left + NewTabButton.Margin.Right;
         var progress = OpenProgress.Visibility == Visibility.Visible ? OpenProgress.Width + OpenProgress.Margin.Left : 0;
         var watch = WatchButton.Visibility == Visibility.Visible ? WatchButton.ActualWidth + WatchButton.Margin.Left : 0;
-        var room = Math.Max(0, TabArea.ActualWidth - plus - progress - watch - DragStrip);
+        var update = UpdateButton.Visibility == Visibility.Visible ? UpdateButton.ActualWidth + UpdateButton.Margin.Left : 0;
+        var room = Math.Max(0, TabArea.ActualWidth - plus - progress - watch - update - DragStrip);
         TabStrip.MaxWidth = room;
         TabMaxWidth = _tabs.Count == 0 ? MaxTab : Math.Clamp(Math.Floor(room / _tabs.Count) - TabMargin, MinTab, MaxTab);
         if (TabStrip.SelectedItem is not null) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
@@ -1558,6 +1559,7 @@ public partial class MainWindow : Window
         BindAlways(Cmd.Settings, ShowSettings);
         BindAlways(Cmd.WhatsNew, () => AppHelp.ShowWhatsNew(this, AppHelp.Notes()));
         BindAlways(Cmd.ReportProblem, () => AppHelp.ShowReport(this, _tabs.Count));
+        BindAlways(Cmd.CheckForUpdates, () => _ = CheckForUpdatesAsync(UpdateCheckTrigger.User));
         BindAlways(Cmd.Shortcuts, () => ShortcutsWindow.Show(this, MainMenu));
         BindAlways(Cmd.FullScreen, ToggleFullScreen);
         BindAlways(Cmd.ToggleDarkMode, () => SetTheme(App.IsDark ? "Light" : "Dark"));
@@ -2083,6 +2085,13 @@ public partial class MainWindow : Window
         var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes", s.KeepRecoveryCopies);
         recovery.ToolTip = "Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)";
         var dark = dlg.AddCheck("Dark pages (inverted colors for night reading)", s.DarkPages);
+        // Store installs only: an unpackaged copy has nothing to ask the Store about.
+        CheckBox? updates = null;
+        if (AppEnvironment.IsPackaged)
+        {
+            updates = dlg.AddCheck("Check for updates when Inkvolt PDF starts", s.CheckForUpdates);
+            updates.ToolTip = "Asks the Microsoft Store, through Windows, whether a newer version is ready. Nothing else is sent.";
+        }
         var author = dlg.AddText("Author name on comments", s.AuthorName is { Length: > 0 } a ? a : Environment.UserName);
         dlg.AddNote("To make Inkvolt PDF your default PDF app: Windows Settings › Apps › Default apps › Inkvolt PDF.");
         var defaults = dlg.Add(null, new Button { Content = "Open Default apps", HorizontalAlignment = HorizontalAlignment.Left });
@@ -2105,6 +2114,7 @@ public partial class MainWindow : Window
             reopen.IsChecked = d.ReopenTabs;
             recovery.IsChecked = d.KeepRecoveryCopies;
             dark.IsChecked = d.DarkPages;
+            if (updates is not null) updates.IsChecked = d.CheckForUpdates;
             author.Text = Environment.UserName;
         };
         if (!dlg.ShowModal()) return;
@@ -2114,6 +2124,7 @@ public partial class MainWindow : Window
         s.ReopenTabs = reopen.IsChecked == true;
         s.KeepRecoveryCopies = recovery.IsChecked == true;
         s.DarkPages = dark.IsChecked == true;
+        if (updates is not null) s.CheckForUpdates = updates.IsChecked == true;
         var name = author.Text.Trim();
         s.AuthorName = name == Environment.UserName ? "" : name; // empty = follow the Windows user name
         s.Save();
@@ -2301,7 +2312,8 @@ public partial class MainWindow : Window
         dlg.Add(null, new TextBlock { Text = $"Inkvolt PDF {version?.ToString(3)}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         dlg.AddNote($"Read, search, print and organize PDFs. Native {RuntimeInformation.ProcessArchitecture} build.");
         dlg.AddNote("Copyright © 2026 Bermudez Systems LLC. Free software under the GNU Affero General Public License v3: you may use, share and change it; it comes with no warranty. Rendering, text and search: MuPDF (AGPL-3.0). Page editing: PDFsharp (MIT). Nothing you open leaves this computer.");
-        if (AppEnvironment.IsPackaged) dlg.AddNote("Installed as an app package; Windows keeps it up to date.");
+        if (AppEnvironment.IsPackaged)
+            dlg.AddNote("Installed as an app package; Windows keeps it up to date, and Help › Check for Updates looks for a new version now.");
         var notices = dlg.Add(null, new Button { Content = "Third-party notices…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) });
         notices.Click += (_, _) => ShowThirdPartyNotices(dlg);
         var source = dlg.Add(null, new Button { Content = "Source code (GitHub)", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) });
