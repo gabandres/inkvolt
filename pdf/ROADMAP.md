@@ -18,6 +18,7 @@ week), M (2-4 weeks), L (more than a month).
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
 follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
 Windows": 1.0, then steps E1-E13), new items queue behind those steps on the Mac. One Pro key works on both.
+Mac first, Windows to follow: moving and recoloring notes and text markups (the Mac's `AnnotationMoves`, D7 part d).
 
 ## Free and Pro
 
