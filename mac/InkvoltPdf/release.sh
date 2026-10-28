@@ -159,6 +159,6 @@ if (( PUBLISH )); then
   REPO=gabandres/inkvolt
   gh release create "pdf-mac-v$VERSION" "$DMG" --repo $REPO --target "$(git rev-parse HEAD)" --latest=false     --title "Inkvolt PDF for Mac $VERSION" --notes-file "$NOTES" || exit 102
   sha="$(gh api "repos/$REPO/contents/pdf-mac/appcast.xml?ref=appcast" --jq .sha 2>/dev/null)"
-  gh api -X PUT "repos/$REPO/contents/pdf-mac/appcast.xml" -f branch=appcast -f message="Inkvolt PDF for Mac $VERSION"     -f content="$(base64 -i $OUT/appcast.xml)" ${sha:+-f sha=$sha} > /dev/null || exit 102
+  gh api -X PUT "repos/$REPO/contents/pdf-mac/appcast.xml" -f branch=appcast -f message="Inkvolt PDF for Mac $VERSION"     -f content="$(base64 -i $OUT/appcast.xml)" ${sha:+-f} ${sha:+sha=$sha} > /dev/null || exit 102
   echo "PUBLISHED pdf-mac-v$VERSION"
 fi
