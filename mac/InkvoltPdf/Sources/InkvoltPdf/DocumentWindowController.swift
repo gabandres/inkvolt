@@ -136,6 +136,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         toolChanged()
         updateSubtitle()
         Report.documentOpened(self, name: document.name)
+        StartWindowController.documentOpened()
     }
 
     @available(*, unavailable)
@@ -146,8 +147,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Fit the width once the window has its size (pages narrower than the window stay at actual size).
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                self.fitWidth(nil, atMost: 1.5)
-                if self.pdf.startPage > 0 { self.go(min(self.pdf.startPage, self.engine.pageCount - 1)) }
+                self.applyOpeningZoom()
+                var page = self.pdf.startPage
+                if page == 0, !Report.isRunning || AppTest.isActive, let path = self.pdf.fileURL?.path, let last = AppSettings.lastPage(path) { page = last }
+                if page > 0 { self.go(min(page, self.engine.pageCount - 1)) }
                 self.pages.requestVisible()
                 self.window?.makeFirstResponder(self.pages)
             }
@@ -159,6 +162,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func windowWillClose(_ notification: Notification) {
+        // Reopen at last page: where this file was left.
+        if !Report.isRunning || AppTest.isActive, let path = pdf.fileURL?.path { AppSettings.remember(page: pages.currentPage, for: path) }
         progressSheet?.cancelClicked()
         form.cancelEditor()
         diskTimer?.invalidate()
@@ -703,6 +708,29 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func zoomOut(_ sender: Any?) { zoom(by: 0.8) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
     @objc func fitWidth(_ sender: Any?) { fitWidth(sender, atMost: 8) }
+
+    /// View › Zoom to Page: the whole current page in the window.
+    @objc func fitPage(_ sender: Any?) {
+        let available = scrollView.contentView.frame.size
+        let page = pages.currentPage
+        guard page >= 0, page < pages.pageRects.count, available.width > 0, available.height > 0 else { return }
+        let rect = pages.pageRects[page]
+        guard rect.width > 0, rect.height > 0 else { return }
+        let height = Double(rect.height) + PagesView.gap
+        let across = Double(available.width) / Double(pages.frame.width)
+        let down = Double(available.height) / height
+        setZoom(min(across, down))
+        go(page)
+    }
+
+    /// The zoom a document opens at (Settings › Open documents at).
+    func applyOpeningZoom() {
+        switch AppSettings.zoomMode {
+        case "FitPage": fitPage(nil)
+        case "ActualSize": setZoom(1)
+        default: fitWidth(nil, atMost: 1.5)
+        }
+    }
 
     func fitWidth(_ sender: Any?, atMost cap: Double) {
         let available = scrollView.contentView.frame.width

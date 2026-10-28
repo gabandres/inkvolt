@@ -19,6 +19,14 @@ final class RecoveryCopies {
     var interval = 20.0
     /// Documents whose copy is on disk now (the self-test waits on it).
     private var onDisk: Set<String> = []
+    /// Settings' Keep recovery copies: off, no copy is written and those written go.
+    var enabled = true {
+        didSet {
+            guard !enabled else { return }
+            scheduled.removeAll()
+            for id in written { remove(id) }
+        }
+    }
 
     func hasCopy(_ document: PdfDocument) -> Bool { onDisk.contains(document.recoveryId) }
 
@@ -94,7 +102,7 @@ final class RecoveryCopies {
     func changed(_ document: PdfDocument) {
         guard store != nil, let session = document.session else { return }
         let id = document.recoveryId
-        if !session.isDirty {
+        if !session.isDirty || !enabled {
             remove(id)
             return
         }
@@ -109,7 +117,7 @@ final class RecoveryCopies {
     }
 
     private func write(_ document: PdfDocument) {
-        guard let store, let session = document.session, session.isDirty else { return }
+        guard enabled, let store, let session = document.session, session.isDirty else { return }
         let id = document.recoveryId
         let stamp = session.diskStampWhenRead
         let page = (document.windowControllers.first as? DocumentWindowController)?.pages.currentPage ?? 0

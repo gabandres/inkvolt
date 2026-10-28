@@ -14,7 +14,9 @@ import PdfCore
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question); with
-/// `--quit`, every document is then closed through AppKit's close-all with unsaved changes. `--synthetic` opens
+/// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
+/// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
+/// through AppKit's close-all with unsaved changes. `--synthetic` opens
 /// two PDFs made here (two pages of text and a scan; a form, which gets only `FeatureTest`); `--snapshots <dir>` writes
 /// PNGs of the window there (for the synthetic documents only: never a real file's pages). `--recovery-root <dir>` keeps
 /// recovery copies away from the user's;
@@ -52,6 +54,9 @@ enum Report {
         restoresRecovery = args.contains("--restore-recovery")
         crashAfterRecovery = args.contains("--crash-after-recovery")
         write("# Inkvolt PDF self-test, \(Date())")
+        // Settings go to a suite of the self-test's own, never the user's.
+        AppSettings.clearTestSuite(AppTest.settingsSuite)
+        AppSettings.defaults = UserDefaults(suiteName: AppTest.settingsSuite) ?? .standard
         if let snapshots { try? FileManager.default.createDirectory(atPath: snapshots, withIntermediateDirectories: true) }
         if args.contains("--synthetic") {
             let folder = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-selftest-\(UUID().uuidString.prefix(8))")
@@ -75,7 +80,7 @@ enum Report {
     }
 
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
-        guard isRunning else { return }
+        guard isRunning, !AppTest.isActive else { return } // the app test's own documents get only its checks
         started += 1
         Task { @MainActor in
             var test = SelfTest(controller: controller, name: name)
@@ -115,7 +120,11 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery { await closeAllTest() }
+                    if edits && !restoresRecovery {
+                        var app = AppTest()
+                        await app.run()
+                        await closeAllTest()
+                    }
                     quitNow()
                 }
             }
@@ -163,6 +172,7 @@ enum Report {
     /// Quits without the save questions: the test's edits are let go (their recovery copies with them).
     private static func quitNow() {
         write("QUIT: \(finished) of \(started) documents finished")
+        AppSettings.clearTestSuite(AppTest.settingsSuite)
         for document in NSDocumentController.shared.documents { document.close() }
         NSApp.terminate(nil)
     }

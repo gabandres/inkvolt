@@ -150,12 +150,15 @@ private struct PresetEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
-                // Open in Inkvolt PDF waits for Inkvolt PDF on the Mac; a preset from the Windows app that has it saves only.
+                // Open in Inkvolt PDF: offered when Inkvolt PDF is installed (or the preset already has it, from Windows or before
+                // Inkvolt PDF was removed).
                 Picker("Then", selection: $preset.after) {
                     Text("Nothing more").tag(PresetAfter.none)
                     Text("Print a copy").tag(PresetAfter.print)
                     Text("Attach to a new email").tag(PresetAfter.email)
-                    if preset.after == .openInInkvoltPdf { Text("Open in Inkvolt PDF (Windows only)").tag(PresetAfter.openInInkvoltPdf) }
+                    if InkvoltPdfApp.url != nil || preset.after == .openInInkvoltPdf {
+                        Text(InkvoltPdfApp.url == nil ? "Open in Inkvolt PDF (not installed)" : "Open in Inkvolt PDF").tag(PresetAfter.openInInkvoltPdf)
+                    }
                 }
             }
         }

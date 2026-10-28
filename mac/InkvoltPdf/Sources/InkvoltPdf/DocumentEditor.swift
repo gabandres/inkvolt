@@ -12,11 +12,8 @@ final class DocumentEditor {
     private(set) var links: [LinkInfo] = []
     /// Fill & Sign's text, marks, signatures and pictures (their ids are those of comments above too).
     private(set) var stamps: [TextStamp] = []
-    /// The author written into new comments: the Mac user's full name.
-    let author: String = {
-        let full = NSFullUserName()
-        return full.isEmpty ? NSUserName() : full
-    }()
+    /// The author written into new comments: Settings' author name, else the Mac user's full name.
+    var author: String { AppSettings.author }
     /// Called after the comments and links were read again.
     var onChanged: (() -> Void)?
     /// The last edit's outcome, and how many edits have ended (the self-test reads them).

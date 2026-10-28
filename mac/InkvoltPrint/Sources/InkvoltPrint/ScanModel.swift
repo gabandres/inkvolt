@@ -581,8 +581,9 @@ final class ScanModel {
         await after(p.after, all)
     }
 
-    /// The preset's step after saving: print a copy of what was saved on this printer, or attach it to a new email in the
-    /// user's mail app (Inkvolt Print has no mail account of its own). "Open in Inkvolt PDF" waits for a Mac Inkvolt PDF.
+    /// The preset's step after saving: print a copy of what was saved on this printer, attach it to a new email in the
+    /// user's mail app (Inkvolt Print has no mail account of its own), or open the saved PDFs in Inkvolt PDF (as on Windows,
+    /// JPEG scans are only saved).
     private func after(_ step: PresetAfter, _ urls: [URL]) async {
         switch step {
         case .print:
@@ -603,6 +604,14 @@ final class ScanModel {
             }
             service.subject = urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : "Scans"
             service.perform(withItems: urls)
+        case .openInInkvoltPdf:
+            let pdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
+            guard !pdfs.isEmpty else { return }
+            guard let app = InkvoltPdfApp.url else {
+                problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved."
+                return
+            }
+            NSWorkspace.shared.open(pdfs, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
         default:
             break
         }

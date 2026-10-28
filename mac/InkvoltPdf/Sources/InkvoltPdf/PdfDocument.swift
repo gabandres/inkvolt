@@ -107,6 +107,7 @@ final class PdfDocument: NSDocument {
         RecoveryCopies.shared.closed(self)
         super.close()
         session?.close()
+        StartWindowController.documentClosed()
     }
 
     // MARK: Closing with unsaved changes

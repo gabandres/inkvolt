@@ -3,6 +3,8 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates: Updates
+    /// Set once the app is quitting (the start page doesn't come back while documents close).
+    static var isTerminating = false
 
     init(updates: Updates) {
         self.updates = updates
@@ -12,33 +14,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         Report.startIfAsked()
-        // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work.
+        AppSettings.applyTheme()
+        // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
+        RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
         RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(), ask: !Report.isRunning)
         updates.startTestIfAsked()
-        // Launched with no file (files from Finder arrive just after launch): the Open panel, as Preview does.
+        // Launched with no file (files from Finder arrive just after launch): the start page. After an update, once,
+        // What's New.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             MainActor.assumeIsolated {
-                if NSDocumentController.shared.documents.isEmpty && !Report.isRunning && !self.updates.isTesting {
-                    NSDocumentController.shared.openDocument(nil)
-                }
+                guard !Report.isRunning && !self.updates.isTesting else { return }
+                if NSDocumentController.shared.documents.isEmpty { StartWindowController.show() }
+                WhatsNew.showOnce()
             }
         }
     }
+
+    /// A click on the Dock icon with no window open: the start page.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { StartWindowController.show() }
+        return true
+    }
+
+    // MARK: App commands (the start page, new PDFs, scanning, settings, help)
+
+    @objc func newWindow(_ sender: Any?) { StartWindowController.show() }
+    @objc func newFromImages(_ sender: Any?) { NewDocuments.chooseImages() }
+    @objc func newFromClipboard(_ sender: Any?) { NewDocuments.fromClipboard() }
+    @objc func combineFiles(_ sender: Any?) { _ = CombineWindowController.show() }
+    @objc func scan(_ sender: Any?) { ScanWindowController.show() }
+    @objc func showSettings(_ sender: Any?) { SettingsWindowController.show(updates: updates) }
+    @objc func showAbout(_ sender: Any?) { AboutWindowController.show() }
+    @objc func showWhatsNew(_ sender: Any?) { WhatsNew.show(WhatsNew.notes()) }
+    @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
+    @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
 
     /// No untitled document: a viewer opens files.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
 
     /// A normal quit (after every document was saved or let go): the recovery copies go.
-    func applicationWillTerminate(_ notification: Notification) { RecoveryCopies.shared.quit() }
+    func applicationWillTerminate(_ notification: Notification) {
+        Self.isTerminating = true
+        RecoveryCopies.shared.quit()
+    }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 }
 
-/// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close, Save, Save As, Revert,
-/// Reload, Export To, Form Data, password protection, Page Setup, Print), Edit (Undo, Redo, Copy, Delete, Find), View
-/// (zoom, sidebar, comments), Go (pages, comments), Pages (organize, rotate, delete, insert, extract, crop, bookmarks),
-/// Tools (the tools with their single keys, the text marks, stamps, pictures, links, the inspector), Window.
+/// The menu bar, built in code: the app (About, Check for Updates…, Settings…), File (New Window, Open, Open Recent, new
+/// PDFs from pictures, the clipboard, combined files or the scanner, Close, Save, Save As, Revert, Reload, Export To, Form
+/// Data, password protection, Page Setup, Print), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments),
+/// Go (pages, comments), Pages (organize, rotate, delete, insert, extract, crop, bookmarks), Tools (the tools with their
+/// single keys, the text marks, stamps, pictures, links, the inspector, the command palette), Window, Help (What's New).
 @MainActor
 enum MainMenu {
     static func make(updates: Updates) -> NSMenu {
@@ -53,6 +81,9 @@ enum MainMenu {
         let window = windowMenu()
         main.addItem(submenu(window))
         NSApp.windowsMenu = window
+        let help = helpMenu()
+        main.addItem(submenu(help))
+        NSApp.helpMenu = help
         return main
     }
 
@@ -70,8 +101,10 @@ enum MainMenu {
 
     private static func appMenu(_ updates: Updates) -> NSMenu {
         let menu = NSMenu(title: "Inkvolt PDF")
-        menu.addItem(item("About Inkvolt PDF", #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
+        menu.addItem(item("About Inkvolt PDF", #selector(AppDelegate.showAbout(_:))))
         menu.addItem(updates.menuItem())
+        menu.addItem(.separator())
+        menu.addItem(item("Settings…", #selector(AppDelegate.showSettings(_:)), ","))
         menu.addItem(.separator())
         let services = NSMenu(title: "Services")
         let servicesItem = item("Services", nil)
@@ -89,6 +122,7 @@ enum MainMenu {
 
     private static func fileMenu() -> NSMenu {
         let menu = NSMenu(title: "File")
+        menu.addItem(item("New Window", #selector(AppDelegate.newWindow(_:)), "n"))
         menu.addItem(item("Open…", #selector(NSDocumentController.openDocument(_:)), "o"))
         // AppKit fills the submenu that holds Clear Menu with the recent documents.
         let recent = NSMenu(title: "Open Recent")
@@ -96,6 +130,11 @@ enum MainMenu {
         let recentItem = item("Open Recent", nil)
         recentItem.submenu = recent
         menu.addItem(recentItem)
+        menu.addItem(.separator())
+        menu.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
+        menu.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
+        menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
+        menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
@@ -151,6 +190,7 @@ enum MainMenu {
         let menu = NSMenu(title: "View")
         menu.addItem(item("Actual Size", #selector(DocumentWindowController.actualSize(_:)), "0"))
         menu.addItem(item("Zoom to Width", #selector(DocumentWindowController.fitWidth(_:)), "9"))
+        menu.addItem(item("Zoom to Page", #selector(DocumentWindowController.fitPage(_:)), "9", [.command, .option]))
         menu.addItem(item("Zoom In", #selector(DocumentWindowController.zoomIn(_:)), "+"))
         menu.addItem(item("Zoom Out", #selector(DocumentWindowController.zoomOut(_:)), "-"))
         menu.addItem(.separator())
@@ -223,6 +263,8 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
         menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
+        menu.addItem(.separator())
+        menu.addItem(item("Command Palette…", #selector(AppDelegate.showCommandPalette(_:)), "k", [.command, .shift]))
         return menu
     }
 
@@ -232,6 +274,13 @@ enum MainMenu {
         menu.addItem(item("Zoom", #selector(NSWindow.performZoom(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:))))
+        return menu
+    }
+
+    private static func helpMenu() -> NSMenu {
+        let menu = NSMenu(title: "Help")
+        menu.addItem(item("What's New in Inkvolt PDF", #selector(AppDelegate.showWhatsNew(_:))))
+        menu.addItem(item("Inkvolt PDF on GitHub", #selector(AppDelegate.openSourcePage(_:))))
         return menu
     }
 }

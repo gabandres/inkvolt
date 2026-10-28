@@ -36,6 +36,13 @@
 	<string>JiuKpBvTPxDMMBjMY+Fnila0cbnv8XhmA/q1h1g14pI=</string>
 	<key>SUEnableSystemProfiling</key>
 	<false/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_uscan._tcp</string>
+		<string>_uscans._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Inkvolt PDF looks for scanners on your network for File › Scan. Nothing is sent anywhere else.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software.</string>
 	<key>CFBundleDocumentTypes</key>

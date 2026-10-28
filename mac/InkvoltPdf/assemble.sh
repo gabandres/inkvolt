@@ -1,8 +1,10 @@
 #!/bin/sh
 # Builds Inkvolt PDF (release, warnings as errors) and makes an unsigned "Inkvolt PDF.app" at the path given: the binary,
-# Info.plist, PkgInfo, the icons (assets/*.iconset turned into .icns with iconutil) and Sparkle.framework in
+# Info.plist, PkgInfo, the icons (assets/*.iconset turned into .icns with iconutil), Sparkle.framework in
 # Contents/Frameworks (found through the rpath @executable_path/../Frameworks), without its XPC services: those are for
-# sandboxed apps only. build.sh and release.sh sign it with sign.sh.
+# sandboxed apps only; and in Resources what Help and About show: WHATS-NEW.md, THIRD-PARTY-NOTICES.md, Sparkle's license
+# text as it ships (Sparkle-LICENSE.txt, from the package checkout) and the AGPL (LICENSE.txt, pdf/LICENSE). build.sh and
+# release.sh sign it with sign.sh.
 #   sh mac/InkvoltPdf/assemble.sh <path/Inkvolt PDF.app>
 set -eu
 cd "$(dirname "$0")"
@@ -24,3 +26,6 @@ cp Info.plist "$app/Contents/Info.plist"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 iconutil -c icns assets/AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns"         # CFBundleIconFile
 iconutil -c icns assets/PdfDocument.iconset -o "$app/Contents/Resources/PdfDocument.icns" # CFBundleTypeIconFile
+cp WHATS-NEW.md THIRD-PARTY-NOTICES.md "$app/Contents/Resources/"
+cp .build/checkouts/Sparkle/LICENSE "$app/Contents/Resources/Sparkle-LICENSE.txt"
+cp ../../pdf/LICENSE "$app/Contents/Resources/LICENSE.txt"
