@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Inkvolt PDF</title>
+    <link>https://github.com/gabandres/inkvolt</link>
+    <description>Inkvolt PDF for macOS updates</description>
+    <language>en</language>
+    <item>
+      <title>Inkvolt PDF 1.0.0</title>
+      <pubDate>Wed, 28 Oct 2026 05:23:22 GMT</pubDate>
+      <sparkle:version>1.0.0</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">The first release of Inkvolt PDF for Mac.
+
+- Read PDFs in tabs, with thumbnails, the outline, find and clickable links.
+- Comment, highlight and draw; fill in forms; Fill &amp; Sign with your signature.
+- Edit the text and pictures already on a page.
+- Make scanned pages searchable (OCR) and export to Word, Excel or text.
+- Organize pages, add bookmarks, combine files, scan to PDF, protect with a password.
+- Print with pages per sheet, booklets and posters.
+- Nothing you open leaves your Mac: no account, no tracking.
+
+For Macs with Apple silicon, macOS 15 or later. Signed with Developer ID and notarized by Apple. Free software under the GNU AGPL v3; source in this repository.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.0.0/Inkvolt-PDF-1.0.0.dmg" length="33293747" type="application/octet-stream" sparkle:edSignature="RQ3Ox0reNfiqCCYmWo2O8SRCwT6FkfvOev+dJfKbRdnXUpTavowKybrSXTLEqFHBiKSJ0FyJiMT2JsnTcym/Ag==" />
+    </item>
+  </channel>
+</rss>
