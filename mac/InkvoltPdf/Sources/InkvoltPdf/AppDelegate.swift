@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         Report.startIfAsked()
+        // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work.
+        if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
+        RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(), ask: !Report.isRunning)
         updates.startTestIfAsked()
         // Launched with no file (files from Finder arrive just after launch): the Open panel, as Preview does.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -26,11 +29,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// No untitled document: a viewer opens files.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
 
+    /// A normal quit (after every document was saved or let go): the recovery copies go.
+    func applicationWillTerminate(_ notification: Notification) { RecoveryCopies.shared.quit() }
+
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 }
 
-/// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close), Edit (Copy, Find), View (zoom, sidebar),
-/// Go (pages), Window.
+/// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close, Save, Save As, Revert,
+/// Reload), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments), Go (pages, comments), Tools (the tools
+/// with their single keys, the text marks, stamps, pictures, links, the inspector), Window.
 @MainActor
 enum MainMenu {
     static func make(updates: Updates) -> NSMenu {
@@ -40,6 +47,7 @@ enum MainMenu {
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(goMenu()))
+        main.addItem(submenu(toolsMenu()))
         let window = windowMenu()
         main.addItem(submenu(window))
         NSApp.windowsMenu = window
@@ -88,12 +96,22 @@ enum MainMenu {
         menu.addItem(recentItem)
         menu.addItem(.separator())
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
+        menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
+        menu.addItem(item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]))
+        menu.addItem(item("Revert to Saved", #selector(NSDocument.revertToSaved(_:))))
+        menu.addItem(item("Reload from Disk", #selector(DocumentWindowController.reloadFromDisk(_:)), "r", [.command, .option]))
         return menu
     }
 
     private static func editMenu() -> NSMenu {
         let menu = NSMenu(title: "Edit")
+        menu.addItem(item("Undo", Selector(("undo:")), "z"))
+        menu.addItem(item("Redo", Selector(("redo:")), "z", [.command, .shift]))
+        menu.addItem(.separator())
+        menu.addItem(item("Cut", #selector(NSText.cut(_:)), "x"))
         menu.addItem(item("Copy", #selector(NSText.copy(_:)), "c"))
+        menu.addItem(item("Paste", #selector(NSText.paste(_:)), "v"))
+        menu.addItem(item("Delete", #selector(NSText.delete(_:))))
         menu.addItem(item("Select All", #selector(NSText.selectAll(_:)), "a"))
         menu.addItem(.separator())
         let find = NSMenu(title: "Find")
@@ -114,6 +132,7 @@ enum MainMenu {
         menu.addItem(item("Zoom Out", #selector(DocumentWindowController.zoomOut(_:)), "-"))
         menu.addItem(.separator())
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
+        menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         return menu
     }
@@ -124,6 +143,33 @@ enum MainMenu {
         menu.addItem(item("Previous Page", #selector(DocumentWindowController.previousPage(_:)), String(UnicodeScalar(NSUpArrowFunctionKey)!), [.command, .option]))
         menu.addItem(item("First Page", #selector(DocumentWindowController.firstPage(_:)), String(UnicodeScalar(NSHomeFunctionKey)!), []))
         menu.addItem(item("Last Page", #selector(DocumentWindowController.lastPage(_:)), String(UnicodeScalar(NSEndFunctionKey)!), []))
+        menu.addItem(.separator())
+        menu.addItem(item("Next Comment", #selector(DocumentWindowController.nextComment(_:)), "]", [.command, .option]))
+        menu.addItem(item("Previous Comment", #selector(DocumentWindowController.previousComment(_:)), "[", [.command, .option]))
+        return menu
+    }
+
+    /// Tools: each tool with its single key (active while the pages have the focus), then the commands.
+    private static func toolsMenu() -> NSMenu {
+        let menu = ToolsMenu(title: "Tools")
+        for tool in Tool.allCases {
+            let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)), tool.key, [])
+            entry.tag = tool.rawValue
+            entry.image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: nil)
+            menu.addItem(entry)
+            if tool == .text || tool == .textBox || tool == .arrow { menu.addItem(.separator()) }
+        }
+        menu.addItem(.separator())
+        menu.addItem(item("Highlight Selected Text", #selector(DocumentWindowController.highlightText(_:)), "h", [.command, .control]))
+        menu.addItem(item("Underline Selected Text", #selector(DocumentWindowController.underlineText(_:)), "u", [.command, .control]))
+        menu.addItem(item("Strike Out Selected Text", #selector(DocumentWindowController.strikeOutText(_:)), "x", [.command, .control]))
+        menu.addItem(item("Link Selected Text…", #selector(DocumentWindowController.linkSelectedText(_:)), "k"))
+        menu.addItem(.separator())
+        menu.addItem(item("Picture from File…", #selector(DocumentWindowController.chooseImageFile(_:))))
+        menu.addItem(item("Picture from Clipboard", #selector(DocumentWindowController.imageFromClipboard(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
+        menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
         return menu
     }
 

@@ -697,18 +697,22 @@ int inkv_append_pdf(void *vctx, inkv_doc *d, const uint8_t *original, size_t ori
         pdf_document *pdf = inkv_pdf(ctx, d);
         pdf_write_options opts = pdf_default_write_options;
         pdf_parse_write_options(ctx, &opts, "incremental=yes,encrypt=keep");
-        buffer = fz_new_buffer(ctx, original_length + 64 * 1024);
+        // MuPDF copies the file it opened into the output before the update (a buffer can't be read back, so it can't
+        // see that the original is there already): keep only the update, after the original bytes as given.
+        buffer = fz_new_buffer(ctx, 64 * 1024);
         output = fz_new_output_with_buffer(ctx, buffer);
-        fz_write_data(ctx, output, original, original_length);
         pdf_write_document(ctx, pdf, output, &opts);
         fz_close_output(ctx, output);
         unsigned char *bytes = NULL;
         size_t n = fz_buffer_storage(ctx, buffer, &bytes);
-        uint8_t *copy = malloc(n ? n : 1);
+        size_t base = pdf->file_size > 0 && (size_t)pdf->file_size <= n ? (size_t)pdf->file_size : 0;
+        size_t update = n - base;
+        uint8_t *copy = malloc(original_length + update + 1);
         if (!copy) fz_throw(ctx, FZ_ERROR_SYSTEM, "There isn't enough memory to write the PDF.");
-        if (n) memcpy(copy, bytes, n);
+        if (original_length) memcpy(copy, original, original_length);
+        if (update) memcpy(copy + original_length, bytes + base, update);
         *out = copy;
-        *length = n;
+        *length = original_length + update;
     }
     fz_always(ctx) {
         fz_drop_output(ctx, output);

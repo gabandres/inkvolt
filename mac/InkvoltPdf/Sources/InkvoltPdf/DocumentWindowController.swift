@@ -1,16 +1,29 @@
 import AppKit
 import PdfCore
+import UniformTypeIdentifiers
 
-/// A document's window (a tab when several are open): the sidebar (thumbnails, outline) beside the pages, with the find
-/// bar over them; zoom, page moves and find come here through the responder chain.
+/// A document's window (a tab when several are open): the sidebar (thumbnails, outline, comments) beside the pages, with
+/// the tools strip, the "changed on disk" bar and the find bar over them; zoom, page moves, find, the tools and the
+/// comment commands come here through the responder chain.
 @MainActor
-final class DocumentWindowController: NSWindowController, NSWindowDelegate {
-    let engine: PdfEngine
+final class DocumentWindowController: NSWindowController, NSWindowDelegate, PagesHost, NSMenuItemValidation, NSPopoverDelegate {
+    let pdf: PdfDocument
+    let editor: DocumentEditor
     let pages: PagesView
     let scrollView: NSScrollView
     let sidebar: SidebarController
     let findBar = FindBar()
+    let toolStrip = ToolStrip()
+    let diskBar = DiskBar()
     private let split = NSSplitViewController()
+    private var diskTimer: Timer?
+    private var ignoredDiskState: String?
+    private(set) var inspector: InspectorController?
+    private var inspectorPopover: NSPopover?
+    private var askPopover: NSPopover?
+
+    /// The engine over the document's current bytes (replaced after every edit, undo, redo and reload).
+    var engine: PdfEngine { pages.engine }
 
     /// Find results across the document, the one shown, and the query they're for.
     private(set) var found: [(page: Int, start: Int, end: Int)] = []
@@ -19,9 +32,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     private var findGeneration = 0
     /// Called when a find has finished (the self-test waits on it).
     var onFindFinished: (() -> Void)?
+    /// The self-test's answers to the text and link popovers (nil: ask the user).
+    var testText: String?
+    var testLink: (uri: String?, page: Int)?
 
-    init(document: PdfDocument, engine: PdfEngine) {
-        self.engine = engine
+    init(document: PdfDocument) {
+        pdf = document
+        let engine = document.engine!
+        editor = DocumentEditor(document: document)
         pages = PagesView(engine: engine)
         scrollView = NSScrollView()
         sidebar = SidebarController(engine: engine)
@@ -29,7 +47,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "InkvoltPdfDocument"
-        window.minSize = NSSize(width: 480, height: 360)
+        window.minSize = NSSize(width: 560, height: 360)
+        window.isRestorable = !Report.isRunning // the self-test's documents never come back at the next launch
         super.init(window: window)
         window.delegate = self
         shouldCascadeWindows = true
@@ -51,11 +70,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [findBar, scrollView])
+        let stack = NSStackView(views: [toolStrip, diskBar, findBar, scrollView])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
+        for v in [toolStrip, diskBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
+        diskBar.isHidden = true
         content.view = stack
         findBar.onSearch = { [weak self] query in self?.find(query) }
         findBar.onNext = { [weak self] in self?.step(1) }
@@ -63,14 +84,23 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         findBar.onDone = { [weak self] in self?.hideFind() }
 
         let side = NSSplitViewItem(sidebarWithViewController: sidebar)
-        side.minimumThickness = 150
-        side.maximumThickness = 320
+        side.minimumThickness = 200
+        side.maximumThickness = 360
         split.addSplitViewItem(side)
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
         sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 820))
         window.setFrameAutosaveName("InkvoltPdfDocument")
+
+        pages.editor = editor
+        pages.host = self
+        wireTools()
+        wireComments()
+        document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
+        editor.onChanged = { [weak self] in self?.commentsChanged() }
+        commentsChanged()
+        toolChanged()
         updateSubtitle()
         Report.documentOpened(self, name: document.name)
     }
@@ -84,15 +114,416 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 self.fitWidth(nil, atMost: 1.5)
+                if self.pdf.startPage > 0 { self.go(min(self.pdf.startPage, self.engine.pageCount - 1)) }
                 self.pages.requestVisible()
+                self.window?.makeFirstResponder(self.pages)
             }
+        }
+        diskTimer?.invalidate()
+        diskTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkDisk() }
         }
     }
 
     func windowWillClose(_ notification: Notification) {
+        diskTimer?.invalidate()
+        inspectorPopover?.close()
+        askPopover?.close()
         pages.renderer.cancelAll()
         sidebar.stop()
         NotificationCenter.default.removeObserver(self)
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) { checkDisk() }
+
+    /// Edit › Undo and Redo: the document's session steps.
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { pdf.undoBridge }
+
+    // MARK: Content changes
+
+    /// An edit, undo, redo or reload replaced the engine: the pages, thumbnails, comments and find follow.
+    private func contentChanged(_ change: ContentChange) {
+        guard let engine = pdf.engine else { return }
+        editor.reload()
+        pages.reload(engine: engine)
+        sidebar.reload(engine: engine)
+        if !foundQuery.isEmpty { find(foundQuery) }
+        if change == .reload { hideDiskBar() }
+        updateSubtitle()
+    }
+
+    private func commentsChanged() {
+        sidebar.comments.show(editor.comments, selected: pages.selectedId)
+        inspector?.refresh()
+        toolChanged() // the strip shows the selected comment's new look
+        pages.needsDisplay = true
+    }
+
+    // MARK: Tools
+
+    private func wireTools() {
+        toolStrip.onTool = { [weak self] tool in
+            guard let self else { return }
+            self.pages.tool = tool
+            self.window?.makeFirstResponder(self.pages)
+        }
+        toolStrip.onColor = { [weak self] color in self?.applyColor(color) }
+        toolStrip.onWidth = { [weak self] width in self?.applyWidth(width) }
+        toolStrip.onStampMenu = { [weak self] view, rect in self?.popUp(self?.stampMenu(), view, rect) }
+        toolStrip.onImageMenu = { [weak self] view, rect in self?.popUp(self?.imageMenu(), view, rect) }
+    }
+
+    private func popUp(_ menu: NSMenu?, _ view: NSView, _ rect: NSRect) {
+        let y: CGFloat = view.isFlipped ? rect.maxY + 4 : rect.minY - 4
+        menu?.popUp(positioning: nil, at: NSPoint(x: rect.minX, y: y), in: view)
+    }
+
+    func toolChanged() {
+        let tool = pages.tool
+        var style = pages.styles.style(tool)
+        if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
+        toolStrip.show(tool, style: style, stamp: pages.stamp.label)
+        if let id = pages.selectedId, let style = editor.comment(id)?.style {
+            toolStrip.showStyle(style, usesWidth: true, usesColor: true)
+        }
+    }
+
+    func selectionChanged() {
+        sidebar.comments.showSelected(pages.selectedId)
+        if let inspector, inspector.id != pages.selectedId { inspectorPopover?.close() }
+        toolChanged()
+    }
+
+    /// A color from the strip: the selected drawing's (one undo step), else the current tool's next comments.
+    func applyColor(_ color: AnnotColor?) {
+        guard let color else { return }
+        if let id = pages.selectedId, let c = editor.comment(id), var style = c.style {
+            if c.subtype == "FreeText" && style.color == nil { style.textColor = color } else { style.color = color }
+            Task { await editor.setStyle(id, style, label: "Change Color") }
+            return
+        }
+        var style = pages.styles.style(pages.tool)
+        if pages.tool == .textBox { style.textColor = color } else { style.color = color }
+        pages.styles.set(pages.tool, style)
+        toolChanged()
+        pages.needsDisplay = true
+    }
+
+    func applyWidth(_ width: Double) {
+        if let id = pages.selectedId, var style = editor.comment(id)?.style {
+            style.width = width
+            Task { await editor.setStyle(id, style, label: "Change Width") }
+            return
+        }
+        var style = pages.styles.style(pages.tool)
+        style.width = width
+        pages.styles.set(pages.tool, style)
+        toolChanged()
+    }
+
+    /// Tools › a tool (its single key while the pages have the focus).
+    @objc func chooseTool(_ sender: NSMenuItem) {
+        guard let tool = Tool(rawValue: sender.tag) else { return }
+        pages.tool = tool
+        window?.makeFirstResponder(pages)
+        if tool == .stamp, let spot = toolStrip.frame(of: .stamp) { popUp(stampMenu(), spot.0, spot.1) }
+        if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
+    }
+
+    func stampMenu() -> NSMenu {
+        let menu = NSMenu(title: "Stamp")
+        let designs = RubberStamps.builtIn + [RubberStamps.approvedBy(editor.author, Date())]
+        for (i, design) in designs.enumerated() {
+            let title = design.detail == nil ? design.label : "Approved by \(editor.author)"
+            let item = NSMenuItem(title: title, action: #selector(stampPicked(_:)), keyEquivalent: "")
+            item.tag = i
+            item.target = self
+            item.state = pages.stamp.label == design.label && pages.stamp.detail == design.detail ? .on : .off
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @objc func stampPicked(_ sender: NSMenuItem) {
+        let designs = RubberStamps.builtIn + [RubberStamps.approvedBy(editor.author, Date())]
+        guard sender.tag < designs.count else { return }
+        pages.stamp = designs[sender.tag]
+        pages.tool = .stamp
+        toolChanged()
+    }
+
+    func imageMenu() -> NSMenu {
+        let menu = NSMenu(title: "Image")
+        let file = NSMenuItem(title: "Choose Picture…", action: #selector(chooseImageFile(_:)), keyEquivalent: "")
+        file.target = self
+        let paste = NSMenuItem(title: "Picture from Clipboard", action: #selector(imageFromClipboard(_:)), keyEquivalent: "")
+        paste.target = self
+        menu.addItem(file)
+        menu.addItem(paste)
+        return menu
+    }
+
+    @objc func chooseImageFile(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.message = "Choose a picture, then click where it goes."
+        guard let window else { return }
+        panel.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .OK, let url = panel.url, let image = NSImage(contentsOf: url) else { return }
+                self.usePicture(image)
+            }
+        }
+    }
+
+    @objc func imageFromClipboard(_ sender: Any?) {
+        guard let image = NSImage(pasteboard: .general) else {
+            NSSound.beep()
+            return
+        }
+        usePicture(image)
+    }
+
+    /// The Image tool puts `image` down at the next click.
+    func usePicture(_ image: NSImage) {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), let stamp = Pictures.stampImage(cg) else {
+            pdf.showError("That picture can't be used.", nil)
+            return
+        }
+        pages.pendingImage = stamp
+        pages.tool = .image
+        window?.makeFirstResponder(pages)
+    }
+
+    @objc func highlightText(_ sender: Any?) { markOrChoose(.highlight) }
+    @objc func underlineText(_ sender: Any?) { markOrChoose(.underline) }
+    @objc func strikeOutText(_ sender: Any?) { markOrChoose(.strikeOut) }
+
+    /// Marks the selected text, or (nothing selected) picks the tool.
+    private func markOrChoose(_ kind: TextMarkupKind) {
+        if pages.selectedText != nil {
+            pages.markSelection(kind)
+        } else {
+            pages.tool = kind == .highlight ? .highlight : kind == .underline ? .underline : .strikeOut
+        }
+    }
+
+    /// Tools › Link Selected Text…: one link over the selected lines.
+    @objc func linkSelectedText(_ sender: Any?) {
+        guard let lines = pages.selectedLines, let first = lines.rects.first else {
+            NSSound.beep()
+            return
+        }
+        let anchor = pages.viewRect(first, pages.pageRects[lines.page])
+        askLink(at: anchor) { [weak self] uri, target in
+            guard let self else { return }
+            self.pages.clearSelection()
+            self.pages.startEdit {
+                await self.editor.run("Add Link") { data, pw in
+                    try Links.putOnText(data, pw, lines.page, lines.rects, uri: uri, targetPage: target)
+                }
+            }
+        }
+    }
+
+    @objc func openInspector(_ sender: Any?) {
+        guard let id = pages.selectedId else {
+            NSSound.beep()
+            return
+        }
+        showInspector(id)
+    }
+
+    @objc func replyToSelected(_ sender: Any?) {
+        guard let id = pages.selectedId else { return }
+        askReply(id)
+    }
+
+    @objc func showComments(_ sender: Any?) {
+        if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
+        sidebar.show(2)
+    }
+
+    @objc func nextComment(_ sender: Any?) { pages.selectNext(1) }
+    @objc func previousComment(_ sender: Any?) { pages.selectNext(-1) }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(chooseTool(_:)):
+            item.state = pages.tool.rawValue == item.tag ? .on : .off
+            return true
+        case #selector(openInspector(_:)), #selector(replyToSelected(_:)):
+            return pages.selectedId != nil
+        case #selector(linkSelectedText(_:)):
+            return pages.selectedText != nil
+        case #selector(reloadFromDisk(_:)):
+            return pdf.session?.filePath != nil
+        default:
+            return true
+        }
+    }
+
+    // MARK: PagesHost (popovers)
+
+    func askText(_ title: String, initial: String, at rect: NSRect, done: @escaping (String?) -> Void) {
+        if let testText {
+            done(testText)
+            return
+        }
+        let ask = AskController(.text(title), initial: initial, pageCount: engine.pageCount)
+        ask.done = done
+        present(ask, at: rect)
+    }
+
+    func askLink(at rect: NSRect, done: @escaping (_ uri: String?, _ page: Int) -> Void) {
+        if let testLink {
+            done(testLink.uri, testLink.page)
+            return
+        }
+        let ask = AskController(.link, initial: "", pageCount: engine.pageCount)
+        ask.doneLink = done
+        present(ask, at: rect)
+    }
+
+    private func present(_ ask: AskController, at rect: NSRect) {
+        askPopover?.close()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = ask
+        popover.delegate = self
+        ask.popover = popover
+        askPopover = popover
+        popover.show(relativeTo: rect.insetBy(dx: -2, dy: -2), of: pages, preferredEdge: .maxY)
+    }
+
+    func closePopovers() {
+        inspectorPopover?.close()
+        askPopover?.close()
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        guard let popover = notification.object as? NSPopover else { return }
+        if popover === askPopover {
+            (popover.contentViewController as? AskController)?.cancel()
+            askPopover = nil
+        }
+        if popover === inspectorPopover {
+            inspectorPopover = nil
+            inspector = nil
+        }
+    }
+
+    func showInspector(_ id: String) {
+        inspectorPopover?.close()
+        guard let f = pages.frame(of: id), f.page < pages.pageRects.count else { return }
+        let controller = InspectorController(id: id, editor: editor, pageCount: engine.pageCount)
+        controller.onGone = { [weak self] in self?.inspectorPopover?.close() }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = controller
+        popover.delegate = self
+        inspector = controller
+        inspectorPopover = popover
+        let rect = pages.viewRect(f.rect, pages.pageRects[f.page]).insetBy(dx: -4, dy: -4)
+        pages.scrollToVisible(rect)
+        popover.show(relativeTo: rect, of: pages, preferredEdge: .maxX)
+    }
+
+    func askReply(_ id: String) {
+        guard let f = pages.frame(of: id), f.page < pages.pageRects.count else { return }
+        pages.select(id, reveal: true)
+        let rect = pages.viewRect(f.rect, pages.pageRects[f.page])
+        askText("Reply", initial: "", at: rect) { [weak self] text in
+            guard let self, let text, !text.isEmpty else { return }
+            self.pages.startEdit { await self.editor.reply(to: id, text) }
+        }
+    }
+
+    // MARK: Comments list
+
+    private func wireComments() {
+        let list = sidebar.comments
+        list.onSelect = { [weak self] id in self?.pages.select(id, reveal: true) }
+        list.onReply = { [weak self] id in self?.askReply(id) }
+        list.onDelete = { [weak self] id in
+            guard let self else { return }
+            if self.pages.selectedId == id { self.pages.select(nil) }
+            self.pages.startEdit { await self.editor.delete(id) }
+        }
+        list.onInspect = { [weak self] id in
+            self?.pages.select(id, reveal: true)
+            self?.showInspector(id)
+        }
+    }
+
+    // MARK: Changed on disk
+
+    /// Shows the bar when another program changed (or removed) the file since it was opened or saved.
+    func checkDisk() {
+        guard let session = pdf.session, let path = session.filePath, session.hasChangedOnDisk() else {
+            if !diskBar.isHidden { hideDiskBar() }
+            return
+        }
+        let state = Self.diskState(path)
+        guard state != ignoredDiskState, diskBar.isHidden else { return }
+        let missing = session.isMissingOnDisk()
+        diskBar.show(missing ? "“\(session.displayName)” was moved or deleted by another program."
+                             : "“\(session.displayName)” was changed by another program.", canReload: !missing)
+        diskBar.onReload = { [weak self] in
+            guard let self else { return }
+            Task { await self.reloadFromDiskNow() }
+        }
+        diskBar.onIgnore = { [weak self] in
+            self?.ignoredDiskState = state
+            self?.hideDiskBar()
+        }
+        NSAccessibility.post(element: diskBar, notification: .announcementRequested, userInfo: [.announcement: diskBar.message])
+    }
+
+    private static func diskState(_ path: String) -> String {
+        let a = try? FileManager.default.attributesOfItem(atPath: path)
+        let size = (a?[.size] as? NSNumber)?.int64Value ?? -1
+        let time = (a?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        return "\(size)/\(time)"
+    }
+
+    private func hideDiskBar() { diskBar.isHidden = true }
+
+    @objc func reloadFromDisk(_ sender: Any?) {
+        Task { await self.reloadFromDiskNow() }
+    }
+
+    /// Reads the file again (discarding unsaved changes, after asking), with its password asked when it needs another.
+    @discardableResult
+    func reloadFromDiskNow() async -> Bool {
+        guard let session = pdf.session else { return false }
+        if session.isDirty && !Report.isRunning {
+            let alert = NSAlert()
+            alert.messageText = "Reload “\(session.displayName)” from disk?"
+            alert.informativeText = "Your unsaved changes to it will be lost."
+            alert.addButton(withTitle: "Reload")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        }
+        var password: String?
+        var wrong = false
+        while true {
+            do {
+                let done = try await session.reloadFromDiskAsync(password: password)
+                if done {
+                    pdf.syncFileDate()
+                    hideDiskBar()
+                }
+                return done
+            } catch is PasswordRequired {
+                guard let given = PasswordPrompt.ask(file: session.displayName, wrong: wrong) else { return false }
+                password = given
+                wrong = true
+            } catch {
+                pdf.showError("“\(session.displayName)” couldn't be read again.", error)
+                return false
+            }
+        }
     }
 
     // MARK: Zoom
@@ -296,5 +727,95 @@ final class FindBar: NSView, NSSearchFieldDelegate {
             return true
         }
         return false
+    }
+}
+
+/// The bar over the pages saying another program changed the file: Reload, Ignore.
+@MainActor
+final class DiskBar: NSView {
+    private let label = NSTextField(labelWithString: "")
+    private let reload = NSButton(title: "Reload", target: nil, action: nil)
+    private let ignore = NSButton(title: "Ignore", target: nil, action: nil)
+    var onReload: (() -> Void)?
+    var onIgnore: (() -> Void)?
+    var message: String { label.stringValue }
+
+    init() {
+        super.init(frame: .zero)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Warning")!)
+        icon.contentTintColor = .systemOrange
+        label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        for b in [reload, ignore] {
+            b.bezelStyle = .rounded
+            b.controlSize = .small
+            b.target = self
+        }
+        reload.action = #selector(reloadClicked)
+        ignore.action = #selector(ignoreClicked)
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let stack = NSStackView(views: [icon, label, spacer, reload, ignore])
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("File changed on disk")
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.systemYellow.withAlphaComponent(0.18).setFill()
+        dirtyRect.fill()
+    }
+
+    func show(_ text: String, canReload: Bool) {
+        label.stringValue = text
+        reload.isHidden = !canReload
+        isHidden = false
+    }
+
+    @objc private func reloadClicked() { onReload?() }
+    @objc private func ignoreClicked() { onIgnore?() }
+}
+
+/// Pictures for the Image tool: decoded to 8-bit RGB with an alpha plane (dropped when fully opaque), at most 2048 pixels
+/// across.
+enum Pictures {
+    static func stampImage(_ image: CGImage) -> StampImage? {
+        let longest = max(image.width, image.height)
+        guard longest > 0 else { return nil }
+        let k = min(1, 2048 / Double(longest))
+        let w = max(1, Int((Double(image.width) * k).rounded())), h = max(1, Int((Double(image.height) * k).rounded()))
+        var rgba = [UInt8](repeating: 0, count: w * h * 4)
+        let drawn = rgba.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.interpolationQuality = .high
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return nil }
+        var rgb = [UInt8](repeating: 0, count: w * h * 3)
+        var alpha = [UInt8](repeating: 255, count: w * h)
+        var opaque = true
+        for i in 0..<(w * h) {
+            let a = rgba[i * 4 + 3]
+            alpha[i] = a
+            if a < 255 { opaque = false }
+            for c in 0..<3 {
+                let v = Int(rgba[i * 4 + c])
+                rgb[i * 3 + c] = a == 0 ? 255 : UInt8(min(255, (v * 255 + Int(a) / 2) / Int(a)))
+            }
+        }
+        return StampImage(w, h, rgb, opaque ? nil : alpha)
     }
 }

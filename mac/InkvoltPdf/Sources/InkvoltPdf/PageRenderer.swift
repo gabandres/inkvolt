@@ -11,7 +11,8 @@ final class PageRenderer {
         var image: CGImage
     }
 
-    private let engine: PdfEngine
+    /// Replaced after an edit, undo, redo or reload (call `invalidate` then).
+    var engine: PdfEngine
     private let queue: DispatchQueue
     private let keepAtMost: Int
     private var cache: [Int: Image] = [:]
@@ -61,6 +62,13 @@ final class PageRenderer {
         guard cache.count > keepAtMost else { return }
         let far = cache.keys.sorted { distance($0, wanted) > distance($1, wanted) }
         for page in far.prefix(cache.count - keepAtMost) where !wanted.contains(page) { cache[page] = nil }
+    }
+
+    /// The content changed: every page is drawn again, its old picture shown until the new one arrives.
+    func invalidate() {
+        for p in pending.values { p.token.cancel() }
+        pending = [:]
+        for (page, entry) in cache { cache[page] = Image(scale: -1, image: entry.image) }
     }
 
     func cancelAll() {

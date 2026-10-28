@@ -1,16 +1,31 @@
 import AppKit
 import PdfCore
 
-/// All pages of a document stacked top to bottom, one point per PDF point (the scroll view's magnification zooms):
-/// each drawn from the engine at the zoom it is shown at, with the find matches and the text selection over it.
+/// What the pages view asks of its window: text for a note or text box, where a link leads, the inspector.
 @MainActor
-final class PagesView: NSView, NSUserInterfaceValidations {
+protocol PagesHost: AnyObject {
+    /// Asks for text in a popover at `rect` (this view's coordinates); `done` gets nil when cancelled.
+    func askText(_ title: String, initial: String, at rect: NSRect, done: @escaping (String?) -> Void)
+    /// Asks where a link leads (a normalized address, or a page), at `rect`.
+    func askLink(at rect: NSRect, done: @escaping (_ uri: String?, _ page: Int) -> Void)
+    func showInspector(_ id: String)
+    func selectionChanged()
+    func toolChanged()
+}
+
+/// All pages of a document stacked top to bottom, one point per PDF point (the scroll view's magnification zooms):
+/// each drawn from the engine at the zoom it is shown at, with the find matches, the text selection, and the comment
+/// tools over it (previews while drawing, the selected comment's frame and handles).
+@MainActor
+final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation {
     static let margin = 20.0, gap = 14.0
 
-    let engine: PdfEngine
+    private(set) var engine: PdfEngine
     let renderer: PageRenderer
     /// Each page's frame in this view.
     private(set) var pageRects: [NSRect] = []
+    weak var editor: DocumentEditor?
+    weak var host: PagesHost?
 
     /// A selection of text on one page: UTF-16 carets of its `PageText`.
     struct TextSelection: Equatable {
@@ -28,6 +43,52 @@ final class PagesView: NSView, NSUserInterfaceValidations {
     var matches: [Int: [(start: Int, end: Int)]] = [:] { didSet { needsDisplay = true } }
     var currentMatch: (page: Int, start: Int, end: Int)? { didSet { needsDisplay = true } }
 
+    // MARK: Tools state
+
+    var tool: Tool = .text {
+        didSet {
+            guard tool != oldValue else { return }
+            drag = nil
+            if !tool.selects && tool != .link { select(nil) }
+            window?.invalidateCursorRects(for: self)
+            needsDisplay = true
+            host?.toolChanged()
+        }
+    }
+    let styles = ToolStyles()
+    var stamp: StampDesign = RubberStamps.builtIn[0]
+    /// The picture the Image tool puts down next.
+    var pendingImage: StampImage?
+    /// The selected comment or link (its id).
+    private(set) var selectedId: String?
+    /// The edit a press started, until it has committed (the self-test awaits it).
+    private(set) var pendingEdit: Task<Void, Never>?
+
+    /// A press in progress.
+    enum Drag {
+        case text
+        case pan(start: NSPoint, origin: NSPoint)
+        case move(id: String, page: Int, start: PointD, frame: RectD, by: PointD)
+        case resize(id: String, page: Int, handle: Int, frame: RectD, now: RectD)
+        case lineEnd(id: String, page: Int, end: Int, points: [PointD])
+        case box(page: Int, start: PointD, now: PointD)
+        case line(page: Int, start: PointD, now: PointD)
+        case ink(page: Int, points: [PointD])
+
+        var page: Int? {
+            switch self {
+            case .text, .pan: nil
+            case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
+                 .line(let p, _, _), .ink(let p, _): p
+            }
+        }
+    }
+
+    private(set) var drag: Drag? { didSet { needsDisplay = true } }
+    /// The last drag's preview, kept until its page is drawn again with the edit in it.
+    private var ghost: Drag?
+    private var shiftDown = false
+
     init(engine: PdfEngine) {
         self.engine = engine
         renderer = PageRenderer(engine: engine, label: "inkvolt.pdf.render", qos: .userInitiated, keepAtMost: 12)
@@ -35,8 +96,12 @@ final class PagesView: NSView, NSUserInterfaceValidations {
         layoutPages()
         renderer.onRendered = { [weak self] page, _ in
             guard let self, page < self.pageRects.count else { return }
+            if self.ghost?.page == page { self.ghost = nil }
             self.setNeedsDisplay(self.pageRects[page])
         }
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Pages")
     }
 
     @available(*, unavailable)
@@ -45,6 +110,21 @@ final class PagesView: NSView, NSUserInterfaceValidations {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override var isOpaque: Bool { false }
+
+    /// The content changed (an edit, undo, redo, reload): the new engine, pages laid out again if their sizes changed,
+    /// and every page drawn again (the old pictures stay until the new ones arrive).
+    func reload(engine: PdfEngine) {
+        self.engine = engine
+        renderer.engine = engine
+        let old = pageRects
+        layoutPages()
+        if old != pageRects { window?.invalidateCursorRects(for: self) }
+        if let s = selection, s.page >= engine.pageCount { selection = nil }
+        renderer.invalidate()
+        if let id = selectedId, editor?.comment(id) == nil && editor?.link(id) == nil { select(nil) }
+        needsDisplay = true
+        requestVisible()
+    }
 
     private func layoutPages() {
         let widest = (0..<engine.pageCount).map { engine.page($0).width }.max() ?? 612
@@ -96,6 +176,7 @@ final class PagesView: NSView, NSUserInterfaceValidations {
                                                                  respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high.rawValue])
             }
             drawMarks(i, r)
+            drawEditing(i, r)
         }
         requestVisible()
     }
@@ -109,13 +190,159 @@ final class PagesView: NSView, NSUserInterfaceValidations {
             for b in text.rects(m.start, m.end) { viewRect(b, r).fill(using: .multiply) }
         }
         if let s = selection, s.page == page {
-            NSColor.selectedTextBackgroundColor.withAlphaComponent(0.55).setFill()
+            let color: NSColor = tool.marksText ? Palette.ns(styles.style(tool).color ?? .yellow) : .selectedTextBackgroundColor
+            color.withAlphaComponent(0.55).setFill()
             for b in text.rects(s.range.start, s.range.end) { viewRect(b, r).fill(using: .multiply) }
         }
     }
 
-    private func viewRect(_ b: RectD, _ page: NSRect) -> NSRect {
+    func viewRect(_ b: RectD, _ page: NSRect) -> NSRect {
         NSRect(x: page.minX + b.x, y: page.minY + b.y, width: b.width, height: b.height)
+    }
+
+    func viewPoint(_ p: PointD, _ page: NSRect) -> NSPoint { NSPoint(x: page.minX + p.x, y: page.minY + p.y) }
+
+    /// One screen point in this view's units (the handles and strokes keep their size at any zoom).
+    var onePixel: CGFloat { 1 / max(enclosingScrollView?.magnification ?? 1, 0.05) }
+
+    /// Links (with the Link tool), the selected comment's frame and handles, and the preview of a press.
+    private func drawEditing(_ page: Int, _ r: NSRect) {
+        guard let editor else { return }
+        let px = onePixel
+        if tool == .link {
+            for l in editor.links where l.pageIndex == page && l.id != selectedId {
+                let path = NSBezierPath(rect: viewRect(l.rect, r))
+                path.lineWidth = px
+                path.setLineDash([4 * px, 3 * px], count: 2, phase: 0)
+                NSColor.systemBlue.withAlphaComponent(0.8).setStroke()
+                path.stroke()
+            }
+        }
+        if let ghost, ghost.page == page { drawPreview(ghost, r) }
+        if let drag, drag.page == page { drawPreview(drag, r) }
+        if drag == nil, let id = selectedId, let frame = frame(of: id), frame.page == page {
+            drawSelection(frame.rect, r, handles: handles(of: id), lineEnds: lineEnds(of: id))
+        }
+    }
+
+    private func drawSelection(_ frame: RectD, _ r: NSRect, handles: [Int], lineEnds: [PointD]) {
+        let px = onePixel
+        let box = viewRect(frame, r).insetBy(dx: -2 * px, dy: -2 * px)
+        let path = NSBezierPath(rect: box)
+        path.lineWidth = px
+        NSColor.controlAccentColor.setStroke()
+        if lineEnds.isEmpty { path.stroke() }
+        let size: CGFloat = 7 * px
+        var points: [NSPoint] = handles.map { h in
+            let p = DrawingGeometry.handlePoint(RectD(Double(box.minX), Double(box.minY), Double(box.width), Double(box.height)), h)
+            return NSPoint(x: p.x, y: p.y)
+        }
+        points += lineEnds.map { viewPoint($0, r) }
+        for p in points {
+            let handle = NSRect(x: p.x - size / 2, y: p.y - size / 2, width: size, height: size)
+            NSColor.white.setFill()
+            handle.fill()
+            let outline = NSBezierPath(rect: handle)
+            outline.lineWidth = px
+            NSColor.controlAccentColor.setStroke()
+            outline.stroke()
+        }
+    }
+
+    private func drawPreview(_ drag: Drag, _ r: NSRect) {
+        let px = onePixel
+        let style = styles.style(tool)
+        let stroke = Palette.ns(style.color ?? .red).withAlphaComponent(CGFloat(style.highlighter ? 0.5 : max(style.opacity, 0.3)))
+        stroke.setStroke()
+        switch drag {
+        case .text, .pan:
+            return
+        case .move(let id, _, _, let frame, let by):
+            let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
+            outline(viewRect(moved, r), px)
+            if let c = editor?.comment(id), let g = c.geometry {
+                drawGeometry(c.subtype, DrawingGeometry.translate(g, by.x, by.y), c.style, r)
+            }
+        case .resize(let id, _, _, _, let now):
+            outline(viewRect(now, r), px)
+            if let c = editor?.comment(id), let g = c.geometry {
+                drawGeometry(c.subtype, DrawingGeometry.withFrame(c.subtype, g, now), c.style, r)
+            }
+        case .lineEnd(let id, _, _, let points):
+            if let c = editor?.comment(id) { drawGeometry("Line", AnnotGeometry(paths: [points]), c.style, r) }
+        case .box(_, let a, let b):
+            let box = DrawingGeometry.dragBox(a, b, square: shiftDown && (tool == .rectangle || tool == .ellipse))
+            let rect = viewRect(box, r)
+            let path = tool == .ellipse ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+            path.lineWidth = tool == .textBox || tool == .link ? px : CGFloat(style.width)
+            if tool == .textBox || tool == .link { path.setLineDash([4 * px, 3 * px], count: 2, phase: 0) }
+            path.stroke()
+        case .line(_, let a, let b):
+            let end = shiftDown ? DrawingGeometry.snapAngle(a, b) : b
+            let path = NSBezierPath()
+            path.move(to: viewPoint(a, r))
+            path.line(to: viewPoint(end, r))
+            path.lineWidth = CGFloat(style.width)
+            path.lineCapStyle = .round
+            path.stroke()
+            if tool == .arrow { arrowHead(a, end, r, CGFloat(style.width)) }
+        case .ink(_, let points):
+            guard points.count > 1 else { return }
+            let path = NSBezierPath()
+            path.move(to: viewPoint(points[0], r))
+            for p in points.dropFirst() { path.line(to: viewPoint(p, r)) }
+            path.lineWidth = CGFloat(style.width)
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.stroke()
+        }
+    }
+
+    private func outline(_ rect: NSRect, _ px: CGFloat) {
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = px
+        path.setLineDash([4 * px, 3 * px], count: 2, phase: 0)
+        NSColor.controlAccentColor.setStroke()
+        path.stroke()
+    }
+
+    /// A drawing's outline at a new place or size, while it is moved or resized.
+    private func drawGeometry(_ subtype: String, _ g: AnnotGeometry, _ style: AnnotStyle?, _ r: NSRect) {
+        let color = Palette.ns(style?.color ?? .red).withAlphaComponent(0.6)
+        color.setStroke()
+        let width = CGFloat(max(style?.width ?? 1, 1))
+        switch subtype {
+        case "Square", "Circle", "FreeText":
+            let rect = viewRect(g.box, r)
+            let path = subtype == "Circle" ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+            path.lineWidth = width
+            path.stroke()
+        default:
+            for points in g.paths where points.count > 1 {
+                let path = NSBezierPath()
+                path.move(to: viewPoint(points[0], r))
+                for p in points.dropFirst() { path.line(to: viewPoint(p, r)) }
+                path.lineWidth = width
+                path.lineCapStyle = .round
+                path.stroke()
+            }
+        }
+    }
+
+    private func arrowHead(_ a: PointD, _ b: PointD, _ r: NSRect, _ width: CGFloat) {
+        let angle = atan2(b.y - a.y, b.x - a.x)
+        let length = Double(max(width * 4, 8))
+        let tip = viewPoint(b, r)
+        let path = NSBezierPath()
+        for side in [-0.5, 0.5] {
+            let x: Double = b.x - length * cos(angle + side)
+            let y: Double = b.y - length * sin(angle + side)
+            path.move(to: tip)
+            path.line(to: viewPoint(PointD(x, y), r))
+        }
+        path.lineWidth = width
+        path.lineCapStyle = .round
+        path.stroke()
     }
 
     /// Asks for the visible pages at the zoom they're shown at, and lets go of the rest.
@@ -136,26 +363,182 @@ final class PagesView: NSView, NSUserInterfaceValidations {
         return (i, Double(point.x - r.minX), Double(point.y - r.minY))
     }
 
+    /// A point of this view in page `page`'s space, kept on the page.
+    func pagePoint(_ point: NSPoint, on page: Int) -> PointD {
+        let r = pageRects[page]
+        let x = min(max(Double(point.x - r.minX), 0), Double(r.width))
+        let y = min(max(Double(point.y - r.minY), 0), Double(r.height))
+        return PointD(x, y)
+    }
+
     /// The page at the middle of what is shown (the "current" page).
     var currentPage: Int {
         let v = visibleRect
         return page(at: NSPoint(x: v.midX, y: v.minY + min(v.height / 3, 200)))?.page ?? 0
     }
 
-    // MARK: Selection
+    // MARK: Comments: frames, handles, hits
+
+    /// The frame a comment or link shows when selected (page space).
+    func frame(of id: String) -> (page: Int, rect: RectD)? {
+        if let c = editor?.comment(id) {
+            if let g = c.geometry { return (c.pageIndex, DrawingGeometry.frame(c.subtype, g)) }
+            return (c.pageIndex, c.rect)
+        }
+        if let l = editor?.link(id) { return (l.pageIndex, l.rect) }
+        return nil
+    }
+
+    /// The resize handles a selected comment offers: none for notes and text marks, the corners for stamps and pictures
+    /// (which keep their proportions), the two ends of a line, all eight for the rest.
+    func handles(of id: String) -> [Int] {
+        if let c = editor?.comment(id) {
+            if c.subtype == "Line" { return [] }
+            if c.subtype == "Stamp" {
+                return [DrawingGeometry.topLeft, DrawingGeometry.topRight, DrawingGeometry.bottomRight, DrawingGeometry.bottomLeft]
+            }
+            return c.geometry == nil ? [] : Array(0...7)
+        }
+        return editor?.link(id) == nil ? [] : Array(0...7)
+    }
+
+    func lineEnds(of id: String) -> [PointD] {
+        guard let c = editor?.comment(id), c.subtype == "Line", let path = c.geometry?.paths.first, path.count == 2 else { return [] }
+        return path
+    }
+
+    /// The comment (or, with the Link tool, the link) under a page point: the selected one first, then the topmost.
+    func hit(page: Int, _ p: PointD) -> String? {
+        guard let editor else { return nil }
+        let tolerance = Double(4 * onePixel)
+        if tool == .link {
+            if let id = selectedId, let l = editor.link(id), l.pageIndex == page, l.rect.inflate(tolerance).contains(p.x, p.y) { return id }
+            return editor.links.last { $0.pageIndex == page && $0.rect.inflate(tolerance).contains(p.x, p.y) }?.id
+        }
+        func hits(_ c: AnnotationInfo) -> Bool {
+            guard c.pageIndex == page else { return false }
+            if tool == .text && Tool.markupSubtypes.contains(c.subtype) { return false } // text tool: those are text to select
+            if let g = c.geometry { return DrawingGeometry.hit(c.subtype, g, c.style, p, tolerance) }
+            if !c.quadRects.isEmpty { return c.quadRects.contains { $0.inflate(tolerance).contains(p.x, p.y) } }
+            return c.rect.inflate(tolerance).contains(p.x, p.y)
+        }
+        if let id = selectedId, let c = editor.comment(id), hits(c) { return id }
+        return editor.comments.last(where: hits)?.id
+    }
+
+    /// The handle (or line end) of the selected comment under a view point.
+    private func handle(at point: NSPoint) -> (page: Int, handle: Int)? {
+        guard let id = selectedId, let f = frame(of: id), f.page < pageRects.count else { return nil }
+        let r = pageRects[f.page]
+        let reach: CGFloat = 6 * onePixel
+        let ends = lineEnds(of: id)
+        for (i, e) in ends.enumerated() {
+            let v = viewPoint(e, r)
+            if abs(v.x - point.x) <= reach && abs(v.y - point.y) <= reach { return (f.page, 100 + i) }
+        }
+        let px = onePixel
+        let box = viewRect(f.rect, r).insetBy(dx: -2 * px, dy: -2 * px)
+        let frame = RectD(Double(box.minX), Double(box.minY), Double(box.width), Double(box.height))
+        for h in handles(of: id) {
+            let p = DrawingGeometry.handlePoint(frame, h)
+            if abs(CGFloat(p.x) - point.x) <= reach && abs(CGFloat(p.y) - point.y) <= reach { return (f.page, h) }
+        }
+        return nil
+    }
+
+    /// Selects a comment or link (nil: none) and shows it.
+    func select(_ id: String?, reveal: Bool = false) {
+        if id != nil { selection = nil }
+        guard id != selectedId || reveal else { return }
+        selectedId = id
+        needsDisplay = true
+        if reveal, let id, let f = frame(of: id), f.page < pageRects.count {
+            let rect = viewRect(f.rect, pageRects[f.page]).insetBy(dx: -40, dy: -40)
+            scrollToVisible(rect)
+        }
+        host?.selectionChanged()
+        if let id, let c = editor?.comment(id) {
+            NSAccessibility.post(element: self, notification: .announcementRequested,
+                                 userInfo: [.announcement: "Selected " + DocumentEditor.spoken(c)])
+        }
+        NSAccessibility.post(element: self, notification: .layoutChanged)
+    }
+
+    // MARK: Cursor
 
     override func resetCursorRects() {
-        for r in pageRects { addCursorRect(r, cursor: .iBeam) }
+        let cursor: NSCursor
+        switch tool {
+        case .text, .highlight, .underline, .strikeOut: cursor = .iBeam
+        case .hand: cursor = .openHand
+        default: cursor = .crosshair
+        }
+        for r in pageRects { addCursorRect(r, cursor: cursor) }
     }
+
+    // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        let p = convert(event.locationInWindow, from: nil)
-        guard let hit = page(at: p), let text = try? engine.text(hit.page), !text.isEmpty else {
+        shiftDown = event.modifierFlags.contains(.shift)
+        let point = convert(event.locationInWindow, from: nil)
+        if let h = handle(at: point), let id = selectedId {
+            startHandleDrag(id, h.page, h.handle)
+            return
+        }
+        guard let hit = page(at: point) else { return }
+        let p = pagePoint(point, on: hit.page)
+        if tool.selects || tool == .link, let id = self.hit(page: hit.page, p) {
+            select(id)
+            if event.clickCount == 2 {
+                host?.showInspector(id)
+                return
+            }
+            if let f = frame(of: id), canMove(id) {
+                drag = .move(id: id, page: f.page, start: p, frame: f.rect, by: PointD(0, 0))
+            }
+            return
+        }
+        select(nil)
+        switch tool {
+        case .hand:
+            if let clip = enclosingScrollView?.contentView {
+                drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
+                NSCursor.closedHand.push()
+            }
+        case .text, .highlight, .underline, .strikeOut:
+            startTextSelection(event, hit)
+        case .textBox, .rectangle, .ellipse, .link:
+            drag = .box(page: hit.page, start: p, now: p)
+        case .line, .arrow:
+            drag = .line(page: hit.page, start: p, now: p)
+        case .pen, .highlighter:
+            drag = .ink(page: hit.page, points: [p])
+        case .note, .stamp, .image:
+            drag = .box(page: hit.page, start: p, now: p)
+        }
+    }
+
+    private func canMove(_ id: String) -> Bool {
+        if let c = editor?.comment(id) { return DocumentEditor.movable(c) }
+        return editor?.link(id) != nil
+    }
+
+    private func startHandleDrag(_ id: String, _ page: Int, _ handle: Int) {
+        if handle >= 100 {
+            drag = .lineEnd(id: id, page: page, end: handle - 100, points: lineEnds(of: id))
+        } else if let f = frame(of: id) {
+            drag = .resize(id: id, page: page, handle: handle, frame: f.rect, now: f.rect)
+        }
+    }
+
+    private func startTextSelection(_ event: NSEvent, _ hit: (page: Int, x: Double, y: Double)) {
+        guard let text = try? engine.text(hit.page), !text.isEmpty else {
             selection = nil
             return
         }
         let caret = text.hitTest(hit.x, hit.y)
+        drag = .text
         switch event.clickCount {
         case 2: select(hit.page, text.wordAt(caret))
         case 3: select(hit.page, text.lineAt(caret))
@@ -164,16 +547,159 @@ final class PagesView: NSView, NSUserInterfaceValidations {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard var s = selection, let text = try? engine.text(s.page) else { return }
-        let p = convert(event.locationInWindow, from: nil)
-        let r = pageRects[s.page]
-        s.head = text.hitTest(Double(p.x - r.minX), Double(p.y - r.minY))
-        selection = s
+        shiftDown = event.modifierFlags.contains(.shift)
+        let point = convert(event.locationInWindow, from: nil)
+        guard let current = drag else { return }
+        switch current {
+        case .text:
+            guard var s = selection, let text = try? engine.text(s.page) else { return }
+            let r = pageRects[s.page]
+            s.head = text.hitTest(Double(point.x - r.minX), Double(point.y - r.minY))
+            selection = s
+        case .pan(let start, let origin):
+            guard let clip = enclosingScrollView?.contentView else { return }
+            let k = onePixel
+            let dx: CGFloat = (event.locationInWindow.x - start.x) * k
+            let dy: CGFloat = (event.locationInWindow.y - start.y) * k
+            clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: NSPoint(x: origin.x - dx, y: origin.y + dy), size: clip.bounds.size)).origin)
+            enclosingScrollView?.reflectScrolledClipView(clip)
+            return
+        case .move(let id, let page, let start, let frame, _):
+            let p = pagePoint(point, on: page)
+            let g = engine.page(page)
+            let d = DrawingGeometry.clampMove(frame, p.x - start.x, p.y - start.y, g.width, g.height)
+            drag = .move(id: id, page: page, start: start, frame: frame, by: PointD(d.dx, d.dy))
+        case .resize(let id, let page, let handle, let frame, _):
+            let p = pagePoint(point, on: page)
+            let keep = editor?.comment(id)?.subtype == "Stamp" || shiftDown
+            drag = .resize(id: id, page: page, handle: handle, frame: frame,
+                           now: DrawingGeometry.resize(frame, handle, p, minSize: 4, keepAspect: keep))
+        case .lineEnd(let id, let page, let end, var points):
+            var p = pagePoint(point, on: page)
+            if shiftDown { p = DrawingGeometry.snapAngle(points[1 - end], p) }
+            points[end] = p
+            drag = .lineEnd(id: id, page: page, end: end, points: points)
+        case .box(let page, let start, _):
+            drag = .box(page: page, start: start, now: pagePoint(point, on: page))
+        case .line(let page, let start, _):
+            drag = .line(page: page, start: start, now: pagePoint(point, on: page))
+        case .ink(let page, var points):
+            points.append(pagePoint(point, on: page))
+            drag = .ink(page: page, points: points)
+        }
         autoscroll(with: event)
     }
 
+    override func mouseUp(with event: NSEvent) {
+        shiftDown = event.modifierFlags.contains(.shift)
+        guard let finished = drag else { return }
+        drag = nil
+        if case .pan = finished { NSCursor.pop() }
+        if case .text = finished {
+            if let kind = tool.markupKind { markSelection(kind) }
+            return
+        }
+        commit(finished, click: event.clickCount)
+    }
+
+    /// Turns a finished press into its edit.
+    private func commit(_ finished: Drag, click: Int) {
+        guard let editor, let page = finished.page else { return }
+        let g = engine.page(page)
+        let size = (width: g.width, height: g.height)
+        let style = styles.style(tool)
+        let tool = self.tool
+        switch finished {
+        case .text, .pan:
+            return
+        case .move(let id, let page, _, let frame, let by):
+            guard abs(by.x) + abs(by.y) >= 0.5 else { return }
+            ghost = finished
+            let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
+            startEdit { await editor.setFrame(id, page: page, frame: moved, label: "Move") }
+        case .resize(let id, let page, _, let frame, let now):
+            guard now != frame else { return }
+            ghost = finished
+            startEdit { await editor.setFrame(id, page: page, frame: now, label: "Resize") }
+        case .lineEnd(let id, _, _, let points):
+            ghost = finished
+            startEdit { await editor.setGeometry(id, AnnotGeometry(paths: [points]), label: "Reshape") }
+        case .box(let page, let a, let b):
+            let dragged = abs(b.x - a.x) > 3 || abs(b.y - a.y) > 3
+            let box = DrawingGeometry.dragBox(a, b, square: shiftDown && (tool == .rectangle || tool == .ellipse))
+            switch tool {
+            case .rectangle, .ellipse:
+                guard dragged else { return }
+                ghost = finished
+                let kind: ShapeKind = tool == .ellipse ? .ellipse : .rectangle
+                startEdit { await editor.addShape(page: page, kind: kind, box: box, style: style) }
+            case .textBox:
+                let typewriter = !dragged
+                let boxStyle = typewriter ? AnnotStyle.typewriter(fontSize: style.fontSize, textColor: style.textColor) : style
+                let anchor = viewRect(dragged ? box : RectD(b.x, b.y, 1, 1), pageRects[page])
+                host?.askText("Text", initial: "", at: anchor) { [weak self] text in
+                    guard let self, let text, !text.isEmpty else { return }
+                    let target = typewriter ? editor.typewriterBox(text, at: b, style: boxStyle, pageWidth: size.width) : box
+                    self.startEdit { await editor.addFreeText(page: page, box: target, text: text, style: boxStyle) }
+                }
+            case .link:
+                let rect = dragged ? box : RectD(max(b.x - 40, 0), max(b.y - 7, 0), 80, 14)
+                guard rect.width >= 2 && rect.height >= 2 else { return }
+                host?.askLink(at: viewRect(rect, pageRects[page])) { [weak self] uri, target in
+                    guard let self else { return }
+                    self.startEdit { await editor.addLink(page: page, rect: rect, uri: uri, target: target) }
+                }
+            case .note:
+                let at = PointD(min(b.x, size.width - 20), min(b.y, size.height - 20))
+                host?.askText("Note", initial: "", at: viewRect(RectD(at.x, at.y, 20, 20), pageRects[page])) { [weak self] text in
+                    guard let self, let text else { return }
+                    self.startEdit { await editor.addNote(page: page, at: at, text: text, color: style.color) }
+                }
+            case .stamp:
+                let design = stamp
+                startEdit { await editor.addStamp(page: page, center: b, design: design, pageSize: size) }
+            case .image:
+                guard let image = pendingImage else {
+                    NSSound.beep()
+                    return
+                }
+                startEdit { await editor.addImage(page: page, center: b, image: image, pageSize: size) }
+            default:
+                return
+            }
+        case .line(let page, let a, let b):
+            let end = shiftDown ? DrawingGeometry.snapAngle(a, b) : b
+            guard abs(end.x - a.x) + abs(end.y - a.y) > 3 else { return }
+            ghost = .line(page: page, start: a, now: end)
+            var lineStyle = style
+            if tool == .arrow && lineStyle.endEnding == .none { lineStyle.endEnding = .openArrow }
+            let finalStyle = lineStyle
+            startEdit { await editor.addLine(page: page, from: a, to: end, style: finalStyle) }
+        case .ink(let page, let points):
+            guard points.count > 1 else { return }
+            ghost = finished
+            let thinned = DrawingGeometry.simplify(points, Double(0.6 * onePixel))
+            startEdit { await editor.addInk(page: page, strokes: [thinned], style: style) }
+        }
+    }
+
+    /// Runs an edit started here; `pendingEdit` until it is done.
+    func startEdit(_ edit: @escaping @MainActor () async -> Bool) {
+        pendingEdit = Task { @MainActor in
+            let ok = await edit()
+            if !ok {
+                ghost = nil
+                needsDisplay = true
+            }
+            pendingEdit = nil
+        }
+    }
+
+    // MARK: Text selection
+
     func select(_ page: Int, _ range: (start: Int, end: Int)) {
         selection = TextSelection(page: page, anchor: range.start, head: range.end)
+        if selectedId != nil { select(nil) }
     }
 
     func clearSelection() { selection = nil }
@@ -182,6 +708,19 @@ final class PagesView: NSView, NSUserInterfaceValidations {
     var selectedText: String? {
         guard let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else { return nil }
         return text.string(s.range.start, s.range.end)
+    }
+
+    /// Highlights, underlines or strikes out the selected text (the menu commands, and the text tools on release).
+    func markSelection(_ kind: TextMarkupKind) {
+        guard let editor, let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else {
+            NSSound.beep()
+            return
+        }
+        let rects = text.rects(s.range.start, s.range.end)
+        let tool: Tool = kind == .highlight ? .highlight : kind == .underline ? .underline : .strikeOut
+        let color = styles.style(tool).color ?? .yellow
+        selection = nil
+        startEdit { await editor.markText(kind, page: s.page, rects: rects, color: color) }
     }
 
     /// Puts the selected text on `pasteboard` (the general one for ⌘C); false when nothing is selected.
@@ -201,14 +740,64 @@ final class PagesView: NSView, NSUserInterfaceValidations {
         select(page, (0, text.length))
     }
 
+    /// Edit › Delete: the selected comment or link.
+    @objc func delete(_ sender: Any?) { deleteSelected() }
+
+    func deleteSelected() {
+        guard let editor, let id = selectedId else { return }
+        select(nil)
+        startEdit { await editor.delete(id) }
+    }
+
     func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(copy(_:)) { return selectedText != nil }
+        if item.action == #selector(delete(_:)) { return selectedId != nil }
         return true
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool { validateUserInterfaceItem(menuItem) }
+
+    // MARK: Context menu
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        let menu = NSMenu()
+        if let spot = page(at: point), let id = hit(page: spot.page, pagePoint(point, on: spot.page)) ?? linkAt(spot.page, pagePoint(point, on: spot.page)) {
+            select(id)
+            menu.addItem(withTitle: "Inspector…", action: #selector(DocumentWindowController.openInspector(_:)), keyEquivalent: "")
+            if editor?.comment(id) != nil {
+                menu.addItem(withTitle: "Reply…", action: #selector(DocumentWindowController.replyToSelected(_:)), keyEquivalent: "")
+            }
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Delete", action: #selector(delete(_:)), keyEquivalent: "")
+            return menu
+        }
+        if selectedText != nil {
+            menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Highlight", action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Underline", action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Strike Out", action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Link Selected Text…", action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
+            return menu
+        }
+        return nil
+    }
+
+    private func linkAt(_ page: Int, _ p: PointD) -> String? {
+        editor?.links.last { $0.pageIndex == page && $0.rect.contains(p.x, p.y) }?.id
+    }
+
+    /// The selected text's line boxes (for Link Selected Text).
+    var selectedLines: (page: Int, rects: [RectD])? {
+        guard let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else { return nil }
+        return (s.page, text.rects(s.range.start, s.range.end))
     }
 
     // MARK: Keys
 
     override func keyDown(with event: NSEvent) {
+        if handleEditingKey(event) || handleToolKey(event) { return }
         guard let scroll = enclosingScrollView else { return super.keyDown(with: event) }
         let clip = scroll.contentView
         let page = clip.bounds.height - 40
@@ -230,12 +819,128 @@ final class PagesView: NSView, NSUserInterfaceValidations {
         scrollTo(y: y)
     }
 
+    /// Delete, arrows (nudge; Shift: 10 pt), Return (inspector), Esc (deselect, then back to selecting text), Tab and
+    /// Shift-Tab (next and previous comment).
+    private func handleEditingKey(_ event: NSEvent) -> Bool {
+        let shift = event.modifierFlags.contains(.shift)
+        if event.keyCode == 48 { // Tab
+            guard let editor, !editor.comments.isEmpty else { return false }
+            selectNext(shift ? -1 : 1)
+            return true
+        }
+        if event.keyCode == 53 { // Esc
+            if drag != nil {
+                drag = nil
+            } else if selectedId != nil {
+                select(nil)
+            } else if tool != .text {
+                tool = .text
+            } else {
+                return false
+            }
+            return true
+        }
+        guard let id = selectedId else { return false }
+        switch event.specialKey {
+        case .delete, .deleteForward, .backspace:
+            deleteSelected()
+            return true
+        case .carriageReturn, .enter:
+            host?.showInspector(id)
+            return true
+        case .leftArrow, .rightArrow, .upArrow, .downArrow:
+            guard canMove(id), let f = frame(of: id) else { return false }
+            let step = shift ? 10.0 : 1.0
+            var dx = 0.0, dy = 0.0
+            switch event.specialKey {
+            case .leftArrow: dx = -step
+            case .rightArrow: dx = step
+            case .upArrow: dy = -step
+            default: dy = step
+            }
+            let g = engine.page(f.page)
+            let d = DrawingGeometry.clampMove(f.rect, dx, dy, g.width, g.height)
+            let moved = RectD(f.rect.x + d.dx, f.rect.y + d.dy, f.rect.width, f.rect.height)
+            if let editor { startEdit { await editor.setFrame(id, page: f.page, frame: moved, label: "Move") } }
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// A tool's single key (H, T, P, R…): only here, while the pages have the focus, so typing in a field never picks a
+    /// tool. The Tools menu shows the keys but leaves them to the focused view (`ToolsMenu`).
+    private func handleToolKey(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+              let chars = event.charactersIgnoringModifiers?.lowercased(),
+              let picked = Tool.allCases.first(where: { $0.key == chars }),
+              let controller = window?.windowController as? DocumentWindowController else { return false }
+        let item = NSMenuItem()
+        item.tag = picked.rawValue
+        controller.chooseTool(item)
+        return true
+    }
+
+    /// Selects the next (or previous) comment in page order, wrapping around, and shows it.
+    func selectNext(_ by: Int) {
+        guard let editor, !editor.comments.isEmpty else { return }
+        let list = editor.comments
+        let index = selectedId.flatMap { id in list.firstIndex { $0.id == id } }
+        let start = index ?? (by > 0 ? -1 : list.count)
+        let next = ((start + by) % list.count + list.count) % list.count
+        select(list[next].id, reveal: true)
+    }
+
     /// Scrolls so `y` (this view's coordinates) is at the top of what is shown.
     func scrollTo(y: Double) {
         guard let clip = enclosingScrollView?.contentView else { return }
         let maxY = max(frame.height - clip.bounds.height, 0)
         clip.scroll(to: NSPoint(x: clip.bounds.minX, y: min(max(y, 0), maxY)))
         enclosingScrollView?.reflectScrolledClipView(clip)
+    }
+
+    // MARK: VoiceOver
+
+    /// The comments of the pages in view, as elements VoiceOver can reach and press (pressing selects one).
+    override func accessibilityChildren() -> [Any]? {
+        guard let editor, let range = pages(in: visibleRect) else { return [] }
+        return editor.comments.filter { range.contains($0.pageIndex) }.compactMap { c -> CommentElement? in
+            guard let f = frame(of: c.id), f.page < pageRects.count else { return nil }
+            let element = CommentElement(id: c.id, view: self)
+            element.setAccessibilityLabel(DocumentEditor.spoken(c))
+            element.setAccessibilityFrameInParentSpace(viewRect(f.rect, pageRects[f.page]))
+            element.setAccessibilitySelected(c.id == selectedId)
+            return element
+        }
+    }
+}
+
+extension Tool {
+    static let markupSubtypes: Set<String> = ["Highlight", "Underline", "StrikeOut", "Squiggly"]
+}
+
+/// A comment on the page for VoiceOver: pressing it selects it.
+final class CommentElement: NSAccessibilityElement {
+    let id: String
+    private weak var view: PagesView?
+
+    @MainActor
+    init(id: String, view: PagesView) {
+        self.id = id
+        self.view = view
+        super.init()
+        setAccessibilityParent(view)
+        setAccessibilityRole(.button)
+        setAccessibilityRoleDescription("comment")
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        let id = id, view = view
+        MainActor.assumeIsolated {
+            view?.window?.makeFirstResponder(view)
+            view?.select(id, reveal: true)
+        }
+        return true
     }
 }
 

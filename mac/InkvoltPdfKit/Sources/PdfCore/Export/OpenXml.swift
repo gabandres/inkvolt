@@ -100,8 +100,12 @@ final class ZipWriter {
     init(_ sink: ByteSink) {
         self.sink = sink
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date())
-        time = UInt16((c.hour ?? 0) << 11 | (c.minute ?? 0) << 5 | (c.second ?? 0) / 2)
-        date = UInt16(max(0, (c.year ?? 1980) - 1980) << 9 | (c.month ?? 1) << 5 | (c.day ?? 1))
+        let hour: Int = c.hour ?? 0, minute: Int = c.minute ?? 0, second: Int = c.second ?? 0
+        let year: Int = max(0, (c.year ?? 1980) - 1980), month: Int = c.month ?? 1, day: Int = c.day ?? 1
+        let dosTime: Int = (hour << 11) | (minute << 5) | (second / 2)
+        let dosDate: Int = (year << 9) | (month << 5) | day
+        time = UInt16(dosTime)
+        date = UInt16(dosDate)
     }
 
     /// Adds an entry; `compress` deflates it when that makes it smaller.

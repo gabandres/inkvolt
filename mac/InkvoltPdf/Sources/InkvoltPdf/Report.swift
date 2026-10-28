@@ -8,10 +8,26 @@ import PdfCore
 /// copy; damaged copies) and appends pass/fail lines to the report. Only counts, sizes and timings are written, never a
 /// document's text. A file that can't be opened is reported as such. With `--quit` the app quits once every document
 /// is done.
+///
+/// Editing (`--edit`): after the reader's checks, each document goes through `EditTest` (every comment tool through the
+/// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
+/// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies). `--synthetic` opens
+/// a PDF made here (two pages of text); `--snapshots <dir>` writes PNGs of the window there (for the synthetic document
+/// only: never a real file's pages). `--recovery-root <dir>` keeps recovery copies away from the user's;
+/// `--crash-after-recovery` kills the app once a copy is written, and `--restore-recovery` restores what it left without
+/// asking. Put the flags without a value last: AppKit reads "-name value" pairs from the arguments, and a path left
+/// unpaired is opened as a document.
 @MainActor
 enum Report {
     private(set) static var path: String?
     private(set) static var password: String?
+    private(set) static var edits = false
+    private(set) static var snapshots: String?
+    private(set) static var recoveryRoot: String?
+    private(set) static var restoresRecovery = false
+    private(set) static var crashAfterRecovery = false
+    private(set) static var syntheticPath: String?
+    static let recoveryInterval = 0.5
     private static var quit = false
     private static var started = 0
     private static var finished = 0
@@ -25,12 +41,26 @@ enum Report {
         path = p
         password = value("--password")
         quit = args.contains("--quit")
+        edits = args.contains("--edit")
+        snapshots = value("--snapshots")
+        recoveryRoot = value("--recovery-root")
+        restoresRecovery = args.contains("--restore-recovery")
+        crashAfterRecovery = args.contains("--crash-after-recovery")
         write("# Inkvolt PDF self-test, \(Date())")
+        if let snapshots { try? FileManager.default.createDirectory(atPath: snapshots, withIntermediateDirectories: true) }
+        if args.contains("--synthetic") {
+            let folder = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-selftest-\(UUID().uuidString.prefix(8))")
+            try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            let file = (folder as NSString).appendingPathComponent("Synthetic.pdf")
+            FileManager.default.createFile(atPath: file, contents: Data(SyntheticPdf.make()))
+            syntheticPath = file
+            NSDocumentController.shared.openDocument(withContentsOf: URL(fileURLWithPath: file), display: true) { _, _, _ in }
+        }
         // Nothing opened at all, or a document that never finishes: say so rather than hang.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 600) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1200) {
             MainActor.assumeIsolated {
                 if finished < started || started == 0 { write("TIMEOUT: \(finished) of \(started) documents finished") }
-                if quit { NSApp.terminate(nil) }
+                if quit { quitNow() }
             }
         }
     }
@@ -41,6 +71,13 @@ enum Report {
         Task { @MainActor in
             var test = SelfTest(controller: controller, name: name)
             await test.run()
+            if restoresRecovery && controller.pdf.session?.isDirty == true {
+                var check = EditTest(controller: controller, name: name)
+                await check.checkRecovered()
+            } else if edits {
+                var edit = EditTest(controller: controller, name: name)
+                await edit.run()
+            }
             done()
         }
     }
@@ -56,7 +93,33 @@ enum Report {
         finished += 1
         guard quit else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            MainActor.assumeIsolated { if finished == started { NSApp.terminate(nil) } }
+            MainActor.assumeIsolated { if finished == started { quitNow() } }
+        }
+    }
+
+    /// Quits without the save questions: the test's edits are let go (their recovery copies with them).
+    private static func quitNow() {
+        write("QUIT: \(finished) of \(started) documents finished")
+        for document in NSDocumentController.shared.documents { document.close() }
+        NSApp.terminate(nil)
+    }
+
+    /// A line from the app itself (an error shown, a document recovered).
+    static func note(_ text: String) {
+        guard isRunning else { return }
+        write("NOTE \(text)")
+    }
+
+    /// Each check as it happens, beside the report (to find a step that never ends).
+    static func progress(_ text: String) {
+        guard let path, let data = (text + "\n").data(using: .utf8) else { return }
+        let file = path + ".progress"
+        if let handle = FileHandle(forWritingAtPath: file) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            FileManager.default.createFile(atPath: file, contents: data)
         }
     }
 

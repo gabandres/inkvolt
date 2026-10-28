@@ -54,6 +54,26 @@ struct SignedEditTests {
         _ = try PageEditor.rotate(TestPdf.encrypted(2, "pw"), "pw-owner", [0], 90)
     }
 
+    /// Mac only (the Windows AnAppendedEditCopiesTheFileOnce counts .NET allocations): an appended edit adds only its
+    /// update after the original bytes (MuPDF's copy of the file it opened is left out), so the file grows by about the
+    /// same amount per edit instead of doubling.
+    @Test func appendedEditsAddOnlyTheirUpdate() throws {
+        var pdf = Self.signed()
+        var growth: [Int] = []
+        for i in 0..<10 {
+            let (noted, report) = try SignedEdits.run { try Annotations.addNote(pdf, nil, 0, 50 + Double(i) * 10, 100, "Note \(i)", author: "Me") }
+            #expect(report.appended && Self.appended(pdf, noted))
+            growth.append(noted.count - pdf.count)
+            pdf = noted
+        }
+        #expect(growth.max()! < growth.min()! * 2)
+        #expect(try Annotations.read(pdf, nil).count == 10)
+        // Read without repairing: the update's offsets point at its objects.
+        let engine = try PdfEngine.open(pdf)
+        defer { engine.close() }
+        #expect(engine.pageCount == 2)
+    }
+
     @Test func junkAfterTheEndOfFileStillAppends() throws {
         // More than the 4 KB the Windows app used to search for the last startxref.
         let junk = "\n" + String(repeating: "% padding added by a mail gateway\n", count: 300)

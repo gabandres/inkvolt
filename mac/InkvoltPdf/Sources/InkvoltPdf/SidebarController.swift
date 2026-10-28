@@ -1,16 +1,17 @@
 import AppKit
 import PdfCore
 
-/// The sidebar: page thumbnails, or the document's outline (bookmarks). A click goes there.
+/// The sidebar: page thumbnails, the document's outline (bookmarks), or its comments. A click goes there.
 @MainActor
 final class SidebarController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     static let thumbWidth = 110.0
 
-    private let engine: PdfEngine
+    private var engine: PdfEngine
     private let thumbs: PageRenderer
     private let table = NSTableView()
     private let outlineView = NSOutlineView()
-    private let picker = NSSegmentedControl(labels: ["Pages", "Outline"], trackingMode: .selectOne, target: nil, action: nil)
+    private let picker = NSSegmentedControl(labels: ["Pages", "Outline", "Comments"], trackingMode: .selectOne, target: nil, action: nil)
+    let comments = CommentsList()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
     private(set) var outline: [OutlineItem] = []
@@ -60,9 +61,12 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         picker.action = #selector(pick)
         picker.selectedSegment = 0
         picker.setEnabled(!outline.isEmpty, forSegment: 1)
+        picker.setAccessibilityLabel("Sidebar shows")
         outlineScroll.isHidden = true
+        comments.isHidden = true
 
-        let stack = NSStackView(views: [picker, tableScroll, outlineScroll])
+        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments])
+        comments.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         stack.orientation = .vertical
         stack.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 0, right: 0)
         stack.spacing = 6
@@ -77,6 +81,29 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     @objc private func pick() {
         tableScroll.isHidden = picker.selectedSegment != 0
         outlineScroll.isHidden = picker.selectedSegment != 1
+        comments.isHidden = picker.selectedSegment != 2
+    }
+
+    /// Shows the thumbnails (0), the outline (1) or the comments (2).
+    func show(_ segment: Int) {
+        _ = view
+        picker.selectedSegment = segment
+        pick()
+    }
+
+    var shownSegment: Int { picker.selectedSegment }
+
+    /// The content changed: thumbnails drawn again from the new engine (old pictures kept meanwhile), the outline read
+    /// again.
+    func reload(engine: PdfEngine) {
+        self.engine = engine
+        thumbs.engine = engine
+        thumbs.invalidate()
+        outline = ((try? engine.outline()) ?? []).map(OutlineItem.init)
+        guard isViewLoaded else { return }
+        picker.setEnabled(!outline.isEmpty, forSegment: 1)
+        table.reloadData()
+        outlineView.reloadData()
     }
 
     func stop() { thumbs.cancelAll() }
@@ -103,13 +130,15 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         let cell = tableView.makeView(withIdentifier: ThumbCell.id, owner: nil) as? ThumbCell ?? ThumbCell()
         let g = engine.page(row)
         cell.label.stringValue = "\(row + 1)"
+        let scale = Self.thumbWidth / max(g.width, 1) * (view.window?.backingScaleFactor ?? 2)
         if let image = thumbs.image(row) {
             cell.picture.image = NSImage(cgImage: image.image, size: NSSize(width: Self.thumbWidth, height: Self.thumbWidth * g.height / max(g.width, 1)))
+            if image.scale < 0 { thumbs.request(row, scale: scale) } // drawn before an edit: again
         } else {
             cell.picture.image = nil
-            let scale = Self.thumbWidth / max(g.width, 1) * (view.window?.backingScaleFactor ?? 2)
             thumbs.request(row, scale: scale)
         }
+        cell.setAccessibilityLabel("Page \(row + 1)")
         return cell
     }
 
