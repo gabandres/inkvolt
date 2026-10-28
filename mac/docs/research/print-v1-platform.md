@@ -81,7 +81,7 @@ still work through Bonjour and typed addresses, and say "no IPv4 network" instea
 
 ## Probe results on a Mac (2026-10-26)
 
-InkvoltProbe's automatic run (`--auto`, `mac/Probe/README.md`) on the owner's MacBook Air M1: macOS 27.0.1, Xcode 27.1,
+InkvoltProbe's automatic run (`--auto`; the probe was removed on 2026-10-28, its source is in git history up to 14329e3) on the owner's MacBook Air M1: macOS 27.0.1, Xcode 27.1,
 ad-hoc signed, sandboxed with the six entitlements above. Printer: an HP LaserJet MFP M234dw on the same LAN, and a CUPS
 queue for it made with `lpadmin -m everywhere` (by an admin user). Local Network not answered yet (the alert open, then
 not granted) unless said otherwise. These replace the matching UNVERIFIED items below.

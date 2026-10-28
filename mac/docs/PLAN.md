@@ -44,7 +44,6 @@ mac/
   CLAUDE.md, README.md
   docs/PLAN.md                   this file
   docs/research/                 platform research, one file per question set
-  Probe/                         InkvoltProbe: throwaway sandboxed app that settles the open platform questions (P0)
   InkvoltPrintKit/               Swift package (from P1)
     Sources/PrintCore/           protocols and rules; Foundation only, so it also builds off the Mac
     Sources/PrintMac/            adapters: URLSession, BSD-socket SNMP, Bonjour (dns_sd), Local Network access; later
@@ -86,7 +85,7 @@ mac/InkvoltPrintKit --build-system native`.
 
 | Step | What | .NET tests to port | Status |
 |---|---|---|---|
-| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Done (2026-10-26): results in the research file's "Probe results on a Mac"; items 3 (Printers & Scanners deep link) and 10 (SMAppService, now testable with the development certificate) still open |
+| P0 | Probe app on `ignia-mac`: answer research open items 1 to 10; record results in the research file | | Done (2026-10-26): results in the research file's "Probe results on a Mac" (items 3 and 10 settled there later; the probe was removed on 2026-10-28, its source is in git history up to 14329e3); items 3 (Printers & Scanners deep link) and 10 (SMAppService, now testable with the development certificate) still open |
 | P1 | Package skeleton, CI job (`swift test` on a macOS runner), Model, SNMP | SnmpTests | Done: 42 tests. The connection and Windows queue tests wait for P4 and P7 |
 | P2 | IPP | IppAndPdfTests (IPP part) | Done: 22 tests (codec, text fixtures, status, supplies, Identify-Printer, from OtherBrandsTests, RobustnessTests and MaintenanceTests too). The HTTP client waits for P4 |
 | P3 | LEDM, CDM, other brands' status text | LedmTests, CdmTests, OtherBrandsTests | Done: 22 tests (LEDM documents and manifest, CDM identity, supplies and status, brands, the hardened XML and JSON readers). The connection, eSCL and web-page tests wait for P4 and P8 |

@@ -1,4 +1,4 @@
-# Builds the macOS code on pushes that touch it: the probe, the package (PrintCore and PrintMac, tested), the app, and
+# Builds the macOS code on pushes that touch it: the package (PrintCore and PrintMac, tested), the app, and
 # Inkvolt PDF's package (PdfCore over MuPDF, tested).
 # The Windows PC builds PrintCore only, so this is the first check of everything that imports an Apple framework.
 name: mac
@@ -25,7 +25,6 @@ jobs:
           if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
           xcodebuild -version
           swift --version
-      - run: swift build --package-path mac/Probe -Xswiftc -warnings-as-errors
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors
       - run: xcodebuild -project mac/InkvoltPrint/InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration Release -destination generic/platform=macOS -quiet build CODE_SIGNING_ALLOWED=NO # warnings are errors in the app target
 
