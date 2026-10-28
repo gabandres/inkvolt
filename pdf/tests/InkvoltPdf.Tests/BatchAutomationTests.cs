@@ -264,17 +264,21 @@ public sealed class BatchAutomationTests : IDisposable
         }
     }
 
-    /// <summary>A copy that closes the file between chunks (a tool appending to it): it keeps growing, with pauses well inside the quiet period.</summary>
-    private static async Task CopySlowlyInBursts(byte[] bytes, string path, int chunks)
+    /// <summary>
+    /// A copy that closes the file between chunks (a tool appending to it): it keeps growing, with pauses well inside the
+    /// quiet period. On a thread of its own: on a busy CI runner, pool continuations were delayed past the quiet period,
+    /// so the file looked finished halfway.
+    /// </summary>
+    private static Task CopySlowlyInBursts(byte[] bytes, string path, int chunks) => Task.Factory.StartNew(() =>
     {
         var size = (bytes.Length + chunks - 1) / chunks;
         for (var at = 0; at < bytes.Length; at += size)
         {
-            await using (var fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
-                await fs.WriteAsync(bytes.AsMemory(at, Math.Min(size, bytes.Length - at)));
-            await Task.Delay(80);
+            using (var fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
+                fs.Write(bytes, at, Math.Min(size, bytes.Length - at));
+            Thread.Sleep(80);
         }
-    }
+    }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
     [Fact]
     public async Task AWatchedFolderTakesEachFileOnceEvenWhenCopiedSlowly()

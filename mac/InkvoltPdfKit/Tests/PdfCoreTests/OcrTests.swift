@@ -5,7 +5,11 @@ import Testing
 /// Not a port (Windows' recognizer is the app's `PageOcr`, without tests of its own): Recognize Text on the Mac, with
 /// Apple's Vision on TestPdf's pages drawn as pictures (`TextLayerTests.scanned`), and with a fake recognizer for the
 /// parts that don't need Vision (skipping pages with text, excluded areas, cancelling).
-struct OcrTests {
+@Suite(.timeLimit(.minutes(3))) struct OcrTests {
+    /// Vision's recognizer never answers on GitHub's macOS runners (virtual machines): the tests that call it hung the
+    /// `pdf` job until its time limit. They run on a real Mac.
+    static let visionAnswers = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil
+
     /// A recognizer that returns fixed words in image pixels (scaled from page points at 300 dpi), and counts its calls.
     final class Fake: TextRecognizer, @unchecked Sendable {
         let words: [OcrWord]
@@ -32,7 +36,7 @@ struct OcrTests {
         return TextLayerTests.box(t, hit.start, hit.end)
     }
 
-    @Test(arguments: [0, 90]) func visionReadsTheScannedPageWhereTheTextIs(rotate: Int) throws {
+    @Test(.enabled(if: visionAnswers), arguments: [0, 90]) func visionReadsTheScannedPageWhereTheTextIs(rotate: Int) throws {
         let scan = try TextLayerTests.scanned(rotate)
         var original = TestPdf.make(1)
         if rotate != 0 { original = try PageEditor.rotate(original, nil, [0], rotate) }
@@ -51,7 +55,7 @@ struct OcrTests {
         }
     }
 
-    @Test func recognizeTextMakesTheScanSearchableAndSkipsPagesWithText() throws {
+    @Test(.enabled(if: visionAnswers)) func recognizeTextMakesTheScanSearchableAndSkipsPagesWithText() throws {
         let scan = try TextLayerTests.scanned(0)
         let doc = try PageEditor.insert(scan, nil, PdfSource(TestPdf.make(1, marker: "beta"), nil, "text.pdf"), nil, 1)
         var steps: [Int] = []
@@ -91,7 +95,7 @@ struct OcrTests {
         #expect(report == RecognizeTextReport(words: 0, pagesWithWords: 0, hadText: 0))
     }
 
-    @Test func cancelStopsRecognition() throws {
+    @Test(.enabled(if: visionAnswers)) func cancelStopsRecognition() throws {
         let scan = try TextLayerTests.scanned(0)
         let cancel = CancelToken()
         cancel.cancel()

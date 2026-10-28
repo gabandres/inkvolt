@@ -337,7 +337,8 @@ public class OtherBrandsTests
 
         Assert.Null(probe.Ipp);
         Assert.NotNull(probe.Scanner);
-        Assert.True(sw.Elapsed < PrinterConnection.IppProbeDeadline + TimeSpan.FromSeconds(2), $"took {sw.Elapsed}");
+        // One deadline per attempt (plain, then TLS) would be two; the margin is for a busy CI runner (7.2 s seen there).
+        Assert.True(sw.Elapsed < PrinterConnection.IppProbeDeadline * 2 - TimeSpan.FromSeconds(1), $"took {sw.Elapsed}");
     }
 
     // ------------------------------------------------------------------ eSCL
