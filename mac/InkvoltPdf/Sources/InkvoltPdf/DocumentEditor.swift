@@ -51,13 +51,14 @@ final class DocumentEditor {
     /// Runs one edit as one undo step named `label`; false when nothing was committed (refused, declined, busy, failed:
     /// a failure is shown).
     @discardableResult
-    func run(_ label: String, contentOnly: Bool = false, newPasswords: (password: String?, openPassword: String?)? = nil,
-             _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
+    func run(_ label: String, contentOnly: Bool = false, signaturesWarned: Bool = false,
+             newPasswords: (password: String?, openPassword: String?)? = nil, _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
         guard let session else { return false }
         let window = document.windowControllers.first?.window
         Report.progress("edit \(label) started on \(session.data.count) bytes")
         var request = EditRequest(label, edit)
         request.contentOnly = contentOnly
+        request.signaturesWarned = signaturesWarned
         request.newPasswords = newPasswords
         let result = await session.edit(request, prompts: AppPrompts())
         Report.progress("edit \(label): \(result.outcome)")

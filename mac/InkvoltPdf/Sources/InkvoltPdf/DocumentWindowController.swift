@@ -16,6 +16,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let toolStrip = ToolStrip()
     let diskBar = DiskBar()
     let noticeBar = NoticeBar()
+    /// The redaction marks' bar, and what the redaction commands keep (Redaction.swift).
+    let redactBar = RedactBar()
+    let redaction = RedactionState()
     /// The form's fields on the pages, and Edit Text & Images.
     private(set) var form: FormFiller!
     private(set) var content: ContentEditing!
@@ -93,11 +96,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, findBar, scrollView])
+        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, scrollView])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, noticeBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
         diskBar.isHidden = true
         noticeBar.isHidden = true
@@ -127,6 +130,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         form.reload()
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
+        wireRedaction()
         wireComments()
         wireBookmarks()
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
@@ -332,6 +336,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
         toolStrip.show(tool, style: style, stamp: pages.stamp.label)
+        updateRedactBar()
         if let id = pages.selectedId, let c = editor.comment(id), DocumentEditor.recolorable(c) {
             toolStrip.showStyle(AnnotStyle(color: c.color ?? .yellow, width: 1), usesWidth: false, usesColor: true)
         } else if let id = pages.selectedId, let style = editor.comment(id)?.style {
@@ -522,8 +527,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return pdf.session?.filePath != nil
         case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
             return !form.widgets.isEmpty
-        case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)):
-            return longTask == nil && progressSheet == nil
+        case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
+             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)):
+            return longTask == nil && progressSheet == nil && redaction.task == nil
+        case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
+            return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil
+        case #selector(redactSelectedText(_:)):
+            return pages.selectedText != nil
+        case #selector(redactSearchMatches(_:)):
+            return !found.isEmpty
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
             return true
@@ -842,6 +854,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         foundIndex = -1
         pages.matches = [:]
         pages.currentMatch = nil
+        updateRedactBar()
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             findBar.status = ""
             onFindFinished?()
@@ -877,6 +890,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             foundIndex = (results.firstIndex { $0.page >= page } ?? 0) - 1
             step(1)
         }
+        updateRedactBar()
         onFindFinished?()
     }
 

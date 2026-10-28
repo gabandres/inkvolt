@@ -13,10 +13,12 @@
 typedef struct inkv_doc inkv_doc;
 typedef struct inkv_cookie inkv_cookie;
 
-/// A character from a page's text: its code point and the box of its quad (MuPDF page space).
+/// A character from a page's text: its code point, the box of its quad (MuPDF page space) and MuPDF's flags for it
+/// (16 filled, 32 stroked, 64 clipped: neither of the first two for text drawn invisibly, render mode 3).
 typedef struct {
     int c;
     float x0, y0, x1, y1;
+    int flags;
 } inkv_char;
 
 /// A line of a page's text: its characters [first, first + count) and its baseline direction.

@@ -7,6 +7,7 @@ enum Tool: Int, CaseIterable {
     case hand, text, highlight, underline, strikeOut, note, textBox, pen, highlighter, rectangle, ellipse, line, arrow, stamp, image, link
     case fillText, fillCheck, fillCross, fillDate, signature, editContent
     case callout, polygon, polyline
+    case redact
 
     var title: String {
         switch self {
@@ -35,6 +36,7 @@ enum Tool: Int, CaseIterable {
         case .callout: "Callout"
         case .polygon: "Polygon"
         case .polyline: "Polyline"
+        case .redact: "Redact"
         }
     }
 
@@ -66,6 +68,7 @@ enum Tool: Int, CaseIterable {
         case .callout: "q"
         case .polygon: "v"
         case .polyline: "z"
+        case .redact: "f"
         }
     }
 
@@ -96,6 +99,7 @@ enum Tool: Int, CaseIterable {
         case .callout: "text.bubble"
         case .polygon: "pentagon"
         case .polyline: "point.topleft.down.to.point.bottomright.curvepath"
+        case .redact: "rectangle.fill"
         }
     }
 
@@ -122,6 +126,7 @@ enum Tool: Int, CaseIterable {
         case .callout: "Callout: press where it points, drag to where the text goes"
         case .polygon: "Polygon: click each corner; double-click, Return or a click on the first corner closes it"
         case .polyline: "Polyline: click each point; double-click or Return ends it"
+        case .redact: "Redact: drag over the areas to black out, click a mark to unmark it; nothing is removed until you apply the redactions"
         }
     }
 
@@ -150,6 +155,7 @@ enum Tool: Int, CaseIterable {
         [.stamp, .image, .link],
         [.fillText, .fillCheck, .fillCross, .fillDate, .signature],
         [.editContent],
+        [.redact],
     ]
 }
 
@@ -257,7 +263,7 @@ final class ToolStrip: NSView {
             control.target = self
             control.action = #selector(picked(_:))
             control.setAccessibilityLabel(["Reading tools", "Text comments", "Drawing tools", "Stamps, images and links", "Fill & Sign",
-                                           "Edit page content"][g])
+                                           "Edit page content", "Redaction"][g])
             controls.append(control)
             views.append(control)
         }

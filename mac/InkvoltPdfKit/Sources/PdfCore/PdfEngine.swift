@@ -318,20 +318,24 @@ public final class PdfEngine: @unchecked Sendable {
         }
         var result: [[(String, RectD)]] = []
         var directions: [(Double, Double)] = []
+        var invisible: [[Bool]] = []
         for li in 0..<Int(lineCount) {
             let line = lines![li]
             var list: [(String, RectD)] = []
+            var unseen: [Bool] = []
             list.reserveCapacity(Int(line.count))
             for ci in Int(line.first)..<Int(line.first + line.count) {
                 let c = chars![ci]
+                unseen.append(c.flags & (16 | 32) == 0) // neither filled nor stroked: drawn invisibly
                 let ch = Unicode.Scalar(UInt32(bitPattern: c.c)).map { String(Character($0)) } ?? "\u{FFFD}"
                 list.append((ch, RectD.fromEdges(Double(c.x0) - g.originX, Double(c.y0) - g.originY,
                                                  Double(c.x1) - g.originX, Double(c.y1) - g.originY)))
             }
             result.append(list)
+            invisible.append(unseen)
             directions.append((Double(line.dx), Double(line.dy))) // the baseline's direction (sideways text: vertical)
         }
-        return PageText(result, directions: directions)
+        return PageText(result, directions: directions, invisible: invisible)
     }
 
     /// A line of text as MuPDF reads it, in MuPDF page space (the page's origin not taken off): its text, its box and

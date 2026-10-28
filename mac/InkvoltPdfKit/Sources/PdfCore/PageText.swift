@@ -23,6 +23,8 @@ public final class PageText: @unchecked Sendable {
     private let units: [UInt16]
     /// The text as search reads it (hyphens at line breaks dropped).
     private let searchView: SearchView
+    /// The units of characters drawn invisibly (render mode 3, as an OCR layer's), when the engine said so.
+    private let invisibleUnits: Set<Int>
 
     public static let empty = PageText([])
 
@@ -35,7 +37,9 @@ public final class PageText: @unchecked Sendable {
     ///   - lines: each line is a list of (character string, box) in reading order.
     ///   - directions: per line, its baseline direction, e.g. (1, 0) for normal text and (0, 1) for text turned
     ///     clockwise. Missing or zero: taken from where the line's characters sit.
-    public init(_ lines: [[(String, RectD)]], directions: [(Double, Double)]? = nil) {
+    ///   - invisible: per line, which characters are drawn invisibly (neither filled nor stroked).
+    public init(_ lines: [[(String, RectD)]], directions: [(Double, Double)]? = nil, invisible: [[Bool]]? = nil) {
+        var unseen = Set<Int>()
         var units: [UInt16] = []
         var boxes: [RectD] = []
         var lineOf: [Int] = []
@@ -50,7 +54,11 @@ public final class PageText: @unchecked Sendable {
             }
             let start = units.count
             var lineBox = RectD.zero
-            for (ch, box) in line {
+            let hidden = invisible.flatMap { li < $0.count ? $0[li] : nil }
+            for (ci, (ch, box)) in line.enumerated() {
+                if let hidden, ci < hidden.count, hidden[ci] {
+                    for k in 0..<ch.utf16.count { unseen.insert(units.count + k) }
+                }
                 for unit in ch.utf16 {
                     units.append(unit)
                     boxes.append(box)
@@ -63,6 +71,7 @@ public final class PageText: @unchecked Sendable {
             spans.append(Line(start: start, end: units.count, box: lineBox, dx: dx, dy: dy, column: lineBox))
         }
         self.units = units
+        invisibleUnits = unseen
         searchView = SearchView(units)
         self.boxes = boxes
         self.lineOf = lineOf
@@ -229,6 +238,9 @@ public final class PageText: @unchecked Sendable {
 
     /// True when the point is over a line of text (for the I-beam cursor).
     public func isOverText(_ x: Double, _ y: Double) -> Bool { lines.contains { $0.box.inflate(1).contains(x, y) } }
+
+    /// Whether the UTF-16 unit at `index` belongs to a character drawn invisibly (render mode 3: an OCR layer's text).
+    public func isInvisible(_ index: Int) -> Bool { invisibleUnits.contains(index) }
 
     /// The box of the UTF-16 unit at `index` (a line break's is zero-width, at its line's end).
     public func boxAt(_ index: Int) -> RectD { boxes[index] }

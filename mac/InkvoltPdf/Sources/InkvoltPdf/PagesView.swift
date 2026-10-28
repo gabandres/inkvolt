@@ -16,6 +16,14 @@ protocol PagesHost: AnyObject {
     /// One of the document's links was clicked: go to its page, or open its address (asking first unless it is a web or
     /// mail address).
     func openLink(_ link: PageLink)
+    /// The areas marked for redaction changed.
+    func redactionsChanged()
+}
+
+/// An area marked for redaction (page space), black on the page once the marks are applied.
+struct RedactMark: Equatable {
+    var page: Int
+    var rect: RectD
 }
 
 /// All pages of a document stacked top to bottom, one point per PDF point (the scroll view's magnification zooms):
@@ -74,6 +82,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// Find matches per page, and the one shown.
     var matches: [Int: [(start: Int, end: Int)]] = [:] { didSet { needsDisplay = true } }
     var currentMatch: (page: Int, start: Int, end: Int)? { didSet { needsDisplay = true } }
+    /// The areas marked for redaction (the Redact tool, a selection, search matches, patterns), until applied or cleared.
+    private(set) var redactions: [RedactMark] = [] {
+        didSet {
+            needsDisplay = true
+            host?.redactionsChanged()
+        }
+    }
 
     // MARK: Tools state
 
@@ -165,6 +180,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         if old != pageRects { window?.invalidateCursorRects(for: self) }
         linkCache = [:]
         if let s = selection, max(s.anchorPage, s.headPage) >= engine.pageCount { selection = nil }
+        if redactions.contains(where: { $0.page >= engine.pageCount }) { redactions.removeAll { $0.page >= engine.pageCount } }
         renderer.invalidate()
         if let id = selectedId, editor?.comment(id) == nil && editor?.link(id) == nil { select(nil) }
         needsDisplay = true
@@ -246,6 +262,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 }
             }
             drawMarks(i, r)
+            drawRedactions(i, r)
             form?.draw(i, r)
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
@@ -266,6 +283,48 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             color.withAlphaComponent(0.55).setFill()
             for b in text.rects(range.start, range.end) { viewRect(b, r).fill(using: .multiply) }
         }
+    }
+
+    /// The areas marked for redaction: dark, with a red edge (as Windows draws them), so what is under shows through.
+    private func drawRedactions(_ page: Int, _ r: NSRect) {
+        let px = onePixel
+        for m in redactions where m.page == page {
+            let box = viewRect(m.rect, r)
+            NSColor.black.withAlphaComponent(0.45).setFill()
+            box.fill(using: .sourceOver)
+            let edge = NSBezierPath(rect: box)
+            edge.lineWidth = 1.5 * px
+            NSColor.systemRed.setStroke()
+            edge.stroke()
+        }
+    }
+
+    /// Marks areas for redaction (each once).
+    func addRedactions(_ marks: [RedactMark]) {
+        var all = redactions
+        for m in marks where !m.rect.isEmpty && !all.contains(m) { all.append(m) }
+        if all != redactions { redactions = all }
+    }
+
+    func removeRedaction(at index: Int) {
+        guard redactions.indices.contains(index) else { return }
+        redactions.remove(at: index)
+    }
+
+    func clearRedactions() {
+        if !redactions.isEmpty { redactions = [] }
+    }
+
+    /// The selected text's lines marked for redaction (grown by half a point, as on Windows); how many marks.
+    @discardableResult
+    func redactSelection() -> Int {
+        let marks: [RedactMark] = selectedSpans.flatMap { span -> [RedactMark] in
+            guard let text = try? engine.text(span.page) else { return [] }
+            return text.rects(span.start, span.end).map { RedactMark(page: span.page, rect: $0.inflate(0.5)) }
+        }
+        addRedactions(marks)
+        if !marks.isEmpty { selection = nil }
+        return marks.count
     }
 
     func viewRect(_ b: RectD, _ page: NSRect) -> NSRect {
@@ -344,6 +403,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch drag {
         case .text, .pan, .link:
             return
+        case .box(_, let a, let b) where tool == .redact:
+            let rect = viewRect(DrawingGeometry.dragBox(a, b, square: false), r)
+            NSColor.black.withAlphaComponent(0.45).setFill()
+            rect.fill(using: .sourceOver)
+            NSColor.systemRed.setStroke()
+            outline(rect, px)
         case .contentMove(_, _, let box, let by):
             outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
         case .move(let id, _, _, let frame, let by):
@@ -676,6 +741,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .box(page: hit.page, start: p, now: p)
         case .editContent:
             return
+        case .redact:
+            // A click on a mark unmarks it; a drag marks an area.
+            if let i = redactions.lastIndex(where: { $0.page == hit.page && $0.rect.contains(p.x, p.y) }) {
+                removeRedaction(at: i)
+                return
+            }
+            drag = .box(page: hit.page, start: p, now: p)
         }
     }
 
@@ -886,6 +958,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 let y: Double = min(max(b.y - s.height / 2, 0), max(size.height - s.height, 0))
                 let rect = RectD(x, y, s.width, s.height)
                 startEdit { await editor.putSignature(page: page, rect: rect, image: pending.image, initials: pending.initials) }
+            case .redact:
+                guard dragged, box.width >= 1, box.height >= 1 else { return }
+                addRedactions([RedactMark(page: page, rect: box)])
             default:
                 return
             }
@@ -1124,6 +1199,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             menu.addItem(withTitle: "Underline", action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: "Strike Out", action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: "Link Selected Text…", action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Redact", action: #selector(DocumentWindowController.redactSelectedText(_:)), keyEquivalent: "")
             return menu
         }
         return nil

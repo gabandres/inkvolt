@@ -13,7 +13,9 @@ import PdfCore
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
-/// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question); with
+/// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
+/// `RedactTest` (redaction marked and applied, the redaction check and its fix, Sanitize Document; `--only-redaction`
+/// runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
 /// through AppKit's close-all with unsaved changes. `--synthetic` opens
@@ -28,6 +30,8 @@ enum Report {
     private(set) static var path: String?
     private(set) static var password: String?
     private(set) static var edits = false
+    /// `--only-redaction`: with `--edit`, only `RedactTest` (quicker runs while working on redaction).
+    private(set) static var onlyRedaction = false
     private(set) static var snapshots: String?
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
@@ -49,6 +53,7 @@ enum Report {
         password = value("--password")
         quit = args.contains("--quit")
         edits = args.contains("--edit")
+        onlyRedaction = args.contains("--only-redaction")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -88,6 +93,9 @@ enum Report {
             if restoresRecovery && controller.pdf.session?.isDirty == true {
                 var check = EditTest(controller: controller, name: name)
                 await check.checkRecovered()
+            } else if edits && onlyRedaction {
+                var redact = RedactTest(controller: controller, name: name, openedFrom: controller.pdf.fileURL?.path)
+                await redact.run()
             } else if edits {
                 let openedFrom = controller.pdf.fileURL?.path
                 if openedFrom != syntheticFormPath {
@@ -100,6 +108,8 @@ enum Report {
                     var pagesTest = PagesTest(controller: controller, name: name, openedFrom: openedFrom)
                     await pagesTest.run()
                 }
+                var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
+                await redact.run()
             }
             done()
         }
@@ -120,7 +130,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery {
+                    if edits && !restoresRecovery && !onlyRedaction {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

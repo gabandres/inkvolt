@@ -363,6 +363,7 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
                     cs[ci].y0 = r.y0;
                     cs[ci].x1 = r.x1;
                     cs[ci].y1 = r.y1;
+                    cs[ci].flags = c->flags;
                     ci++;
                 }
                 ls[li].count = ci - ls[li].first;
