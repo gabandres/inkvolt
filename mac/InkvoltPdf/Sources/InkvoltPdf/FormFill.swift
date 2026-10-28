@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 /// `FormEditor.runAction`, outward steps through `AppFormHost`, which asks first.
 @MainActor
 final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
-    private weak var controller: DocumentWindowController?
+    private(set) weak var controller: DocumentWindowController?
     /// The form's widgets as last read (in tab order).
     private(set) var widgets: [FormWidget] = []
     /// The widget with the keyboard focus (Tab moves it), and the one whose editor is open.
@@ -570,9 +570,16 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
         return onMainSync { NSWorkspace.shared.open(url) }
     }
 
+    /// A form's print action: File > Print's panel (never during the self-test, which notes it).
     func print(_ fromPage: Int?, _ toPage: Int?) {
         note("print")
-        DispatchQueue.main.async { NSSound.beep() } // printing comes with the print step
+        let f = filler
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if Report.isRunning { return }
+                f?.controller?.pdf.printDocument(nil)
+            }
+        }
     }
 
     func alert(_ alert: FormAlert) -> Int {

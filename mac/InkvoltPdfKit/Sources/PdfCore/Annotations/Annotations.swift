@@ -114,14 +114,29 @@ public enum Annotations {
     static func addTextMarkupIn(_ doc: MuDoc, _ pageIndex: Int, _ kind: TextMarkupKind, _ lineRects: [RectD], _ color: AnnotColor,
                                 note: String?, author: String, id: String? = nil) {
         let page = doc.page(pageIndex)
-        typealias P = (x: Double, y: Double)
         // Quad corners in PDF space, in the reading orientation of the displayed page: upper-left, upper-right,
         // lower-left, lower-right.
-        var quads: [(ul: P, ur: P, ll: P, lr: P)] = []
+        var quads: [Quad] = []
         for r in lineRects where !r.isEmpty {
             quads.append((PageBoxes.toPdf(page, r.x, r.y), PageBoxes.toPdf(page, r.right, r.y),
                           PageBoxes.toPdf(page, r.x, r.bottom), PageBoxes.toPdf(page, r.right, r.bottom)))
         }
+        let (ap, x1, y1, x2, y2) = markupForm(doc, kind, quads, color)
+        let annot = newAnnot(doc, page, kind.rawValue, x1, y1, x2, y2, id, note ?? "", author, color)
+        var qp: [Double] = []
+        for q in quads { qp += [q.ul.x, q.ul.y, q.ur.x, q.ur.y, q.ll.x, q.ll.y, q.lr.x, q.lr.y] }
+        annot.set("QuadPoints", doc.realArray(qp))
+        setAppearance(doc, annot, ap)
+    }
+
+    /// A point and a text mark's quad (PDF space): upper-left, upper-right, lower-left, lower-right.
+    typealias QuadPoint = (x: Double, y: Double)
+    typealias Quad = (ul: QuadPoint, ur: QuadPoint, ll: QuadPoint, lr: QuadPoint)
+
+    /// A text mark's appearance over `quads` in `color`, and the rectangle it covers (PDF space).
+    static func markupForm(_ doc: MuDoc, _ kind: TextMarkupKind, _ quads: [Quad], _ color: AnnotColor)
+        -> (form: PObj, x1: Double, y1: Double, x2: Double, y2: Double) {
+        typealias P = QuadPoint
         let allX = quads.flatMap { [$0.ul.x, $0.ur.x, $0.ll.x, $0.lr.x] }
         let allY = quads.flatMap { [$0.ul.y, $0.ur.y, $0.ll.y, $0.lr.y] }
         let pad: Double = kind == .squiggly ? 2 : 1
@@ -168,12 +183,7 @@ public enum Annotations {
             resources = doc.dict([("ExtGState", doc.dict([("GS0", gs)]))])
             ops = "/GS0 gs\n" + ops
         }
-        let ap = doc.formXObject(Array(ops.utf8), x1, y1, x2, y2, resources)
-        let annot = newAnnot(doc, page, kind.rawValue, x1, y1, x2, y2, id, note ?? "", author, color)
-        var qp: [Double] = []
-        for q in quads { qp += [q.ul.x, q.ul.y, q.ur.x, q.ur.y, q.ll.x, q.ll.y, q.lr.x, q.lr.y] }
-        annot.set("QuadPoints", doc.realArray(qp))
-        setAppearance(doc, annot, ap)
+        return (doc.formXObject(Array(ops.utf8), x1, y1, x2, y2, resources), x1, y1, x2, y2)
     }
 
     /// Adds a sticky note: a /Text annotation drawn as a 20 pt note icon whose top-left is at (x, y), page space.
@@ -189,18 +199,24 @@ public enum Annotations {
     static func addNoteIn(_ doc: MuDoc, _ pageIndex: Int, _ x: Double, _ y: Double, _ text: String, author: String,
                           color: AnnotColor? = nil, id: String? = nil) {
         let page = doc.page(pageIndex)
-        let size = 20.0
+        let size = noteSize
         let r = PageBoxes.fromPageSpace(page, RectD(x, y, size, size))
         let col = color ?? .yellow
-        let c = "\(PdfNum.f(col.r)) \(PdfNum.f(col.g)) \(PdfNum.f(col.b))"
-        // A speech bubble with three text lines, drawn upright on rotated pages.
-        let ops = "q 0.35 G 0.8 w \(c) rg 1.5 6 m 1.5 18.5 l 18.5 18.5 l 18.5 6 l 9 6 l 5 1.5 l 6 6 l h B\n"
-            + "0.3 G 1 w 5 15 m 15 15 l 5 12 m 15 12 l 5 9 m 12 9 l S Q\n"
-        let ap = doc.formXObject(Array(ops.utf8), 0, 0, size, size, doc.dict(), matrix: doc.counterRotation(page))
+        let ap = noteForm(doc, page, col)
         let annot = newAnnot(doc, page, "Text", r.x1, r.y1, r.x2, r.y2, id, text, author, col)
         annot.set("Name", doc.name("Comment"))
         annot.set("Open", doc.bool(false))
         setAppearance(doc, annot, ap)
+    }
+
+    static let noteSize = 20.0
+
+    /// A sticky note's icon in `color`: a speech bubble with three text lines, drawn upright on rotated pages.
+    static func noteForm(_ doc: MuDoc, _ page: PObj, _ color: AnnotColor) -> PObj {
+        let c = "\(PdfNum.f(color.r)) \(PdfNum.f(color.g)) \(PdfNum.f(color.b))"
+        let ops = "q 0.35 G 0.8 w \(c) rg 1.5 6 m 1.5 18.5 l 18.5 18.5 l 18.5 6 l 9 6 l 5 1.5 l 6 6 l h B\n"
+            + "0.3 G 1 w 5 15 m 15 15 l 5 12 m 15 12 l 5 9 m 12 9 l S Q\n"
+        return doc.formXObject(Array(ops.utf8), 0, 0, noteSize, noteSize, doc.dict(), matrix: doc.counterRotation(page))
     }
 
     /// Changes a comment's text. A FreeText box (other than a Fill & Sign stamp) shows the new text: its appearance is

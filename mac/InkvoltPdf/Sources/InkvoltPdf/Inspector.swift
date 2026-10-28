@@ -79,6 +79,8 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         }
         if let style = c.style, c.geometry != nil {
             buildStyle(c, style)
+        } else if DocumentEditor.recolorable(c) {
+            buildColors()
         }
         if c.subtype != "Stamp" && !c.isInkvoltPdfStamp {
             let label = NSTextField(labelWithString: c.subtype == "FreeText" ? "Text" : "Comment")
@@ -127,6 +129,12 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
     }
 
     private func buildStyle(_ c: AnnotationInfo, _ style: AnnotStyle) {
+        buildColors()
+        buildLooks(c, style)
+    }
+
+    /// The color swatches (and Other Color…).
+    private func buildColors() {
         let colors = NSStackView()
         colors.spacing = 4
         colors.setAccessibilityLabel("Color")
@@ -144,7 +152,9 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         other.toolTip = "Other Color…"
         colors.addArrangedSubview(other)
         stack.addArrangedSubview(row("Color", colors))
+    }
 
+    private func buildLooks(_ c: AnnotationInfo, _ style: AnnotStyle) {
         let isText = c.subtype == "FreeText"
         if !(isText && style.color == nil) {
             let width = NSSlider(value: style.width, minValue: 0.5, maxValue: 20, target: self, action: #selector(widthChanged(_:)))
@@ -217,6 +227,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     func apply(color: AnnotColor) async -> Bool {
+        if let c = editor.comment(id), DocumentEditor.recolorable(c) { return await editor.setColor(id, color) }
         guard let c = editor.comment(id), var style = c.style else { return false }
         if c.subtype == "FreeText" && style.color == nil { style.textColor = color } else { style.color = color }
         return await editor.setStyle(id, style, label: "Change Color")

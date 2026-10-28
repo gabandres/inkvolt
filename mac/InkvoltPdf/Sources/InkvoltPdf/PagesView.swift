@@ -13,6 +13,9 @@ protocol PagesHost: AnyObject {
     func askSignature()
     func selectionChanged()
     func toolChanged()
+    /// One of the document's links was clicked: go to its page, or open its address (asking first unless it is a web or
+    /// mail address).
+    func openLink(_ link: PageLink)
 }
 
 /// All pages of a document stacked top to bottom, one point per PDF point (the scroll view's magnification zooms):
@@ -34,12 +37,34 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// The signature or initials the Signature tool puts down at the next click.
     var pendingSignature: (image: StampImage, initials: Bool)?
 
-    /// A selection of text on one page: UTF-16 carets of its `PageText`.
+    /// A selection of text, on one page or across several: from a caret (UTF-16, of its page's `PageText`) on the anchor
+    /// page to one on the head page; the pages between are selected whole.
     struct TextSelection: Equatable {
-        var page: Int
+        var anchorPage: Int
         var anchor: Int
+        var headPage: Int
         var head: Int
-        var range: (start: Int, end: Int) { (min(anchor, head), max(anchor, head)) }
+
+        init(page: Int, anchor: Int, head: Int) {
+            anchorPage = page
+            self.anchor = anchor
+            headPage = page
+            self.head = head
+        }
+
+        private var forward: Bool { anchorPage < headPage || (anchorPage == headPage && anchor <= head) }
+        var first: (page: Int, caret: Int) { forward ? (anchorPage, anchor) : (headPage, head) }
+        var last: (page: Int, caret: Int) { forward ? (headPage, head) : (anchorPage, anchor) }
+        var pages: ClosedRange<Int> { first.page...last.page }
+        var isEmpty: Bool { anchorPage == headPage && anchor == head }
+
+        /// The selected carets on `page` (whose text is `length` units long), nil when none of it is selected.
+        func range(on page: Int, length: Int) -> (start: Int, end: Int)? {
+            guard pages.contains(page) else { return nil }
+            let start = page == first.page ? min(first.caret, length) : 0
+            let end = page == last.page ? min(last.caret, length) : length
+            return end > start ? (start, end) : nil
+        }
     }
 
     private(set) var selection: TextSelection? {
@@ -56,6 +81,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         didSet {
             guard tool != oldValue else { return }
             drag = nil
+            vertices = nil
             if !tool.selects && tool != .link { select(nil) }
             if tool != .editContent { content?.select(nil) }
             window?.invalidateCursorRects(for: self)
@@ -84,10 +110,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case ink(page: Int, points: [PointD])
         /// A picture of the page's own content dragged with Edit Text & Images.
         case contentMove(page: Int, start: PointD, box: RectD, by: PointD)
+        /// A press on one of the document's links (followed on release, unless the mouse moved away).
+        case link(PageLink, page: Int, start: NSPoint)
 
         var page: Int? {
             switch self {
-            case .text, .pan: nil
+            case .text, .pan, .link: nil
             case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
                  .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _): p
             }
@@ -95,6 +123,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     private(set) var drag: Drag? { didSet { needsDisplay = true } }
+    /// The corners of the polygon (or points of the polyline) being drawn, on one page.
+    private(set) var vertices: (page: Int, points: [PointD])? { didSet { needsDisplay = true } }
     /// The last drag's preview, kept until its page is drawn again with the edit in it.
     private var ghost: Drag?
     private var shiftDown = false
@@ -108,6 +138,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard let self, page < self.pageRects.count else { return }
             if self.ghost?.page == page { self.ghost = nil }
             self.setNeedsDisplay(self.pageRects[page])
+        }
+        renderer.onTile = { [weak self] page, rect in
+            guard let self, page < self.pageRects.count else { return }
+            self.setNeedsDisplay(self.viewRect(rect, self.pageRects[page]))
         }
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -129,7 +163,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let old = pageRects
         layoutPages()
         if old != pageRects { window?.invalidateCursorRects(for: self) }
-        if let s = selection, s.page >= engine.pageCount { selection = nil }
+        linkCache = [:]
+        if let s = selection, max(s.anchorPage, s.headPage) >= engine.pageCount { selection = nil }
         renderer.invalidate()
         if let id = selectedId, editor?.comment(id) == nil && editor?.link(id) == nil { select(nil) }
         needsDisplay = true
@@ -150,17 +185,34 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     // MARK: Drawing
 
-    /// Pixels per point to draw at: the zoom times the screen's scale, in steps of √2 (so a pinch doesn't redraw every
-    /// frame), at most about 40 megapixels a page.
-    func renderScale(for page: Int) -> Double {
-        let zoom = enclosingScrollView?.magnification ?? 1
-        let backing = window?.backingScaleFactor ?? 2
+    /// A whole page is drawn as one picture of at most this many pixels; beyond it, tiles cover what is shown.
+    static let wholePagePixels = 16_000_000.0
+
+    /// Pixels per point the zoom wants: the zoom times the screen's scale, in steps of √2 (so a pinch doesn't redraw
+    /// every frame).
+    private func wantedScale() -> Double {
+        let zoom: Double = Double(enclosingScrollView?.magnification ?? 1)
+        let backing: Double = Double(window?.backingScaleFactor ?? 2)
         let raw = max(zoom * backing, 0.05)
-        let stepped = pow(2, (log2(raw) * 2).rounded(.up) / 2)
-        let g = engine.page(page)
-        let cap = (40_000_000 / max(g.width * g.height, 1)).squareRoot()
-        return min(stepped, cap)
+        return pow(2, (log2(raw) * 2).rounded(.up) / 2)
     }
+
+    /// Pixels per point the whole page is drawn at: the zoom's, at most `wholePagePixels` a page.
+    func renderScale(for page: Int) -> Double {
+        let g = engine.page(page)
+        let cap = (Self.wholePagePixels / max(g.width * g.height, 1)).squareRoot()
+        return min(wantedScale(), cap)
+    }
+
+    /// The scale tiles are drawn at when the zoom wants more than the whole page's picture has (nil: no tiles).
+    func tileScale(for page: Int) -> Double? {
+        let want = wantedScale()
+        return want > renderScale(for: page) + 0.001 ? want : nil
+    }
+
+    /// The tiles the visible part of the pages needs, and how many of them are drawn (the self-test waits on it).
+    private(set) var wantedTiles: [PageRenderer.TileKey] = []
+    var tilesReady: (wanted: Int, drawn: Int) { (wantedTiles.count, renderer.freshTiles(wantedTiles)) }
 
     /// The pages a rectangle of this view touches.
     func pages(in rect: NSRect) -> ClosedRange<Int>? {
@@ -185,6 +237,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 NSImage(cgImage: image.image, size: r.size).draw(in: r, from: .zero, operation: .sourceOver, fraction: 1,
                                                                  respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high.rawValue])
             }
+            if let scale = tileScale(for: i) {
+                for tile in renderer.tiles(i, scale: scale) {
+                    let box = viewRect(tile.rect, r)
+                    guard box.intersects(dirtyRect) else { continue }
+                    NSImage(cgImage: tile.image, size: box.size).draw(in: box, from: .zero, operation: .copy, fraction: 1,
+                                                                      respectFlipped: true, hints: nil)
+                }
+            }
             drawMarks(i, r)
             form?.draw(i, r)
             if tool == .editContent { content?.draw(i, r) }
@@ -194,17 +254,17 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     private func drawMarks(_ page: Int, _ r: NSRect) {
-        guard matches[page] != nil || selection?.page == page,
+        guard matches[page] != nil || selection?.pages.contains(page) == true,
               let text = try? engine.text(page) else { return }
         for m in matches[page] ?? [] {
             let current = currentMatch.map { $0.page == page && $0.start == m.start && $0.end == m.end } ?? false
             (current ? NSColor.systemOrange.withAlphaComponent(0.55) : NSColor.systemYellow.withAlphaComponent(0.4)).setFill()
             for b in text.rects(m.start, m.end) { viewRect(b, r).fill(using: .multiply) }
         }
-        if let s = selection, s.page == page {
+        if let s = selection, let range = s.range(on: page, length: text.length) {
             let color: NSColor = tool.marksText ? Palette.ns(styles.style(tool).color ?? .yellow) : .selectedTextBackgroundColor
             color.withAlphaComponent(0.55).setFill()
-            for b in text.rects(s.range.start, s.range.end) { viewRect(b, r).fill(using: .multiply) }
+            for b in text.rects(range.start, range.end) { viewRect(b, r).fill(using: .multiply) }
         }
     }
 
@@ -232,6 +292,21 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if let ghost, ghost.page == page { drawPreview(ghost, r) }
         if let drag, drag.page == page { drawPreview(drag, r) }
+        if let v = vertices, v.page == page, let first = v.points.first {
+            let style = styles.style(tool)
+            Palette.ns(style.color ?? .red).withAlphaComponent(0.8).setStroke()
+            let path = NSBezierPath()
+            path.move(to: viewPoint(first, r))
+            for p in v.points.dropFirst() { path.line(to: viewPoint(p, r)) }
+            path.lineWidth = CGFloat(style.width)
+            path.lineJoinStyle = .round
+            path.stroke()
+            for p in v.points {
+                let dot = viewPoint(p, r)
+                let size: CGFloat = 5 * px
+                NSBezierPath(ovalIn: NSRect(x: dot.x - size / 2, y: dot.y - size / 2, width: size, height: size)).fill()
+            }
+        }
         if drag == nil, let id = selectedId, let frame = frame(of: id), frame.page == page {
             drawSelection(frame.rect, r, handles: handles(of: id), lineEnds: lineEnds(of: id))
         }
@@ -267,7 +342,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let stroke = Palette.ns(style.color ?? .red).withAlphaComponent(CGFloat(style.highlighter ? 0.5 : max(style.opacity, 0.3)))
         stroke.setStroke()
         switch drag {
-        case .text, .pan:
+        case .text, .pan, .link:
             return
         case .contentMove(_, _, let box, let by):
             outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
@@ -284,6 +359,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         case .lineEnd(let id, _, _, let points):
             if let c = editor?.comment(id) { drawGeometry("Line", AnnotGeometry(paths: [points]), c.style, r) }
+        case .box(_, let a, let b) where tool == .callout:
+            let tip = viewPoint(a, r), end = viewPoint(b, r)
+            let leader = NSBezierPath()
+            leader.move(to: tip)
+            leader.line(to: end)
+            leader.lineWidth = CGFloat(style.width)
+            leader.stroke()
+            outline(NSRect(x: end.x, y: end.y - 12, width: 144, height: 24), px)
         case .box(_, let a, let b):
             let box = DrawingGeometry.dragBox(a, b, square: shiftDown && (tool == .rectangle || tool == .ellipse))
             let rect = viewRect(box, r)
@@ -362,9 +445,38 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// Asks for the visible pages at the zoom they're shown at, and lets go of the rest.
     func requestVisible() {
         guard let range = pages(in: visibleRect) else { return }
-        for i in range { renderer.request(i, scale: renderScale(for: i)) }
+        var tiles: [PageRenderer.TileKey] = []
+        for i in range {
+            renderer.request(i, scale: renderScale(for: i))
+            guard let scale = tileScale(for: i) else { continue }
+            let r = pageRects[i]
+            let shown = visibleRect.intersection(r)
+            guard !shown.isEmpty else { continue }
+            let region = RectD(Double(shown.minX - r.minX), Double(shown.minY - r.minY), Double(shown.width), Double(shown.height))
+            let g = engine.page(i)
+            tiles += renderer.requestTiles(i, scale: scale, region: region, size: (g.width, g.height))
+        }
+        wantedTiles = tiles
+        renderer.keepTiles(Set(tiles))
         let lo = max(range.lowerBound - 1, 0), hi = min(range.upperBound + 1, max(pageRects.count - 1, 0))
         renderer.keep(lo...hi)
+    }
+
+    // MARK: Links
+
+    private var linkCache: [Int: [PageLink]] = [:]
+
+    /// The document's own links on a page (the engine reads them once per content).
+    func pageLinks(_ page: Int) -> [PageLink] {
+        if let cached = linkCache[page] { return cached }
+        let links = (try? engine.links(page)) ?? []
+        linkCache[page] = links
+        return links
+    }
+
+    /// The link under a page point, if any (the topmost).
+    func pageLink(page: Int, _ p: PointD) -> PageLink? {
+        pageLinks(page).last { $0.area.contains(p.x, p.y) }
     }
 
     // MARK: Pages and points
@@ -488,6 +600,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         default: cursor = .crosshair
         }
         for r in pageRects { addCursorRect(r, cursor: cursor) }
+        if tool.selects, let range = pages(in: visibleRect) {
+            for i in range {
+                for l in pageLinks(i) { addCursorRect(viewRect(l.area, pageRects[i]), cursor: .pointingHand) }
+            }
+        }
         if tool.fillsFields, let form {
             for w in form.fillable where w.pageIndex < pageRects.count {
                 addCursorRect(viewRect(w.rect, pageRects[w.pageIndex]), cursor: w.kind == .text ? .iBeam : .pointingHand)
@@ -511,6 +628,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             contentDown(hit.page, p)
             return
         }
+        // The selected comment comes first, even over a form field (else a press there fills the field).
+        if tool.selects, event.clickCount == 1, let id = selectedId, self.hit(page: hit.page, p) == id, let f = frame(of: id), canMove(id) {
+            drag = .move(id: id, page: f.page, start: p, frame: f.rect, by: PointD(0, 0))
+            return
+        }
         if tool.fillsFields, let form, let w = form.widget(page: hit.page, p) {
             select(nil)
             form.activate(w)
@@ -529,6 +651,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             return
         }
         select(nil)
+        if tool.selects, event.clickCount == 1, let link = pageLink(page: hit.page, p) {
+            selection = nil
+            drag = .link(link, page: hit.page, start: point)
+            return
+        }
         switch tool {
         case .hand:
             if let clip = enclosingScrollView?.contentView {
@@ -537,8 +664,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         case .text, .highlight, .underline, .strikeOut:
             startTextSelection(event, hit)
-        case .textBox, .rectangle, .ellipse, .link:
+        case .textBox, .rectangle, .ellipse, .link, .callout:
             drag = .box(page: hit.page, start: p, now: p)
+        case .polygon, .polyline:
+            addVertex(hit.page, p, clicks: event.clickCount)
         case .line, .arrow:
             drag = .line(page: hit.page, start: p, now: p)
         case .pen, .highlighter:
@@ -595,10 +724,28 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let point = convert(event.locationInWindow, from: nil)
         guard let current = drag else { return }
         switch current {
+        case .link(_, let page, let start):
+            // Moved away from the link: a text selection (or a pan with the hand) from where the press began.
+            guard abs(point.x - start.x) + abs(point.y - start.y) > 4 * onePixel else { return }
+            if tool == .hand, let clip = enclosingScrollView?.contentView {
+                drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
+                NSCursor.closedHand.push()
+            } else if let text = try? engine.text(page), !text.isEmpty {
+                let r = pageRects[page]
+                let caret = text.hitTest(Double(start.x - r.minX), Double(start.y - r.minY))
+                selection = TextSelection(page: page, anchor: caret, head: caret)
+                drag = .text
+            } else {
+                drag = nil
+            }
         case .text:
-            guard var s = selection, let text = try? engine.text(s.page) else { return }
-            let r = pageRects[s.page]
-            s.head = text.hitTest(Double(point.x - r.minX), Double(point.y - r.minY))
+            guard var s = selection, let spot = page(at: point) else { return }
+            if let text = try? engine.text(spot.page), !text.isEmpty {
+                s.head = text.hitTest(spot.x, spot.y)
+            } else {
+                s.head = 0
+            }
+            s.headPage = spot.page
             selection = s
         case .pan(let start, let origin):
             guard let clip = enclosingScrollView?.contentView else { return }
@@ -648,6 +795,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             if let kind = tool.markupKind { markSelection(kind) }
             return
         }
+        if case .link(let link, _, _) = finished {
+            host?.openLink(link)
+            return
+        }
         commit(finished, click: event.clickCount)
     }
 
@@ -659,7 +810,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let style = styles.style(tool)
         let tool = self.tool
         switch finished {
-        case .text, .pan:
+        case .text, .pan, .link:
             return
         case .contentMove(_, _, let box, let by):
             guard abs(by.x) + abs(by.y) >= 0.5, let image = content?.selectedImage else { return }
@@ -681,6 +832,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let dragged = abs(b.x - a.x) > 3 || abs(b.y - a.y) > 3
             let box = DrawingGeometry.dragBox(a, b, square: shiftDown && (tool == .rectangle || tool == .ellipse))
             switch tool {
+            case .callout:
+                // Pressed at what it points to, released where the text goes (as on Windows).
+                let width = 144.0
+                let tip = a
+                askCalloutText(page, tip: tip, end: dragged && abs(b.x - a.x) + abs(b.y - a.y) > 8 ? b : nil, width: width, style: style)
             case .rectangle, .ellipse:
                 guard dragged else { return }
                 ghost = finished
@@ -749,6 +905,63 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
     }
 
+    /// The Polygon and Polyline tools: each click adds a corner; a double-click, a click on the first corner (polygon) or
+    /// Return finishes it; Esc drops it.
+    private func addVertex(_ page: Int, _ p: PointD, clicks: Int) {
+        guard var v = vertices, v.page == page else {
+            vertices = (page, [p])
+            return
+        }
+        if clicks >= 2 {
+            finishVertices()
+            return
+        }
+        if tool == .polygon, v.points.count >= 3, let first = v.points.first,
+           abs(first.x - p.x) + abs(first.y - p.y) <= Double(8 * onePixel) {
+            finishVertices()
+            return
+        }
+        v.points.append(p)
+        vertices = v
+    }
+
+    /// Adds the polygon or polyline drawn so far (a polygon needs three corners, a polyline two points).
+    func finishVertices() {
+        guard let v = vertices, let editor else { return }
+        vertices = nil
+        let closed = tool == .polygon
+        var points = v.points
+        if let last = points.last, points.count >= 2, abs(last.x - points[points.count - 2].x) + abs(last.y - points[points.count - 2].y) < 0.5 {
+            points.removeLast() // the double-click's second press
+        }
+        guard points.count >= (closed ? 3 : 2) else { return NSSound.beep() }
+        let style = styles.style(tool)
+        startEdit { await editor.addPolygon(page: v.page, vertices: points, closed: closed, style: style) }
+    }
+
+    /// The callout's text, then the callout: its box beside the tip (where the drag ended, else up and to the right).
+    private func askCalloutText(_ page: Int, tip: PointD, end: PointD?, width: Double, style: AnnotStyle) {
+        guard let editor else { return }
+        let g = engine.page(page)
+        let anchor = viewRect(RectD(end?.x ?? tip.x + 36, end?.y ?? tip.y - 36, 1, 1), pageRects[page])
+        host?.askText("Callout", initial: "", at: anchor) { [weak self] text in
+            guard let self, let text, !text.isEmpty else { return }
+            let height = Annotations.freeTextHeight(text, width: width, style)
+            var x: Double, y: Double
+            if let end {
+                x = end.x >= tip.x ? end.x : end.x - width
+                y = end.y - height / 2
+            } else {
+                x = tip.x + 36
+                y = tip.y - 36 - height
+            }
+            x = min(max(x, 0), max(g.width - width, 0))
+            y = min(max(y, 0), max(g.height - height, 0))
+            let box = RectD(x, y, width, height)
+            self.startEdit { await editor.addFreeText(page: page, box: box, text: text, style: style, callout: [tip]) }
+        }
+    }
+
     /// Fill & Sign's text and marks: a click on one of them changes (text) or removes (a mark) it, elsewhere a new one.
     private func fillIn(_ tool: Tool, page: Int, at b: PointD) {
         guard let editor else { return }
@@ -810,23 +1023,39 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     func clearSelection() { selection = nil }
 
-    /// The selected text, or nil when nothing is selected.
-    var selectedText: String? {
-        guard let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else { return nil }
-        return text.string(s.range.start, s.range.end)
+    /// The selected text on each page it covers (page order), empty when nothing is selected.
+    var selectedSpans: [(page: Int, start: Int, end: Int)] {
+        guard let s = selection, !s.isEmpty else { return [] }
+        var spans: [(page: Int, start: Int, end: Int)] = []
+        for p in s.pages where p < engine.pageCount {
+            guard let text = try? engine.text(p), let r = s.range(on: p, length: text.length) else { continue }
+            spans.append((p, r.start, r.end))
+        }
+        return spans
     }
 
-    /// Highlights, underlines or strikes out the selected text (the menu commands, and the text tools on release).
+    /// The selected text (pages joined by a line break), or nil when nothing is selected.
+    var selectedText: String? {
+        let parts: [String] = selectedSpans.compactMap { span in (try? engine.text(span.page))?.string(span.start, span.end) }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+
+    /// Highlights, underlines or strikes out the selected text, on every page it covers as one undo step (the menu
+    /// commands, and the text tools on release).
     func markSelection(_ kind: TextMarkupKind) {
-        guard let editor, let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else {
+        let marks: [(page: Int, rects: [RectD])] = selectedSpans.compactMap { span in
+            guard let text = try? engine.text(span.page) else { return nil }
+            let rects = text.rects(span.start, span.end)
+            return rects.isEmpty ? nil : (span.page, rects)
+        }
+        guard let editor, !marks.isEmpty else {
             NSSound.beep()
             return
         }
-        let rects = text.rects(s.range.start, s.range.end)
         let tool: Tool = kind == .highlight ? .highlight : kind == .underline ? .underline : .strikeOut
         let color = styles.style(tool).color ?? .yellow
         selection = nil
-        startEdit { await editor.markText(kind, page: s.page, rects: rects, color: color) }
+        startEdit { await editor.markText(kind, spans: marks, color: color) }
     }
 
     /// Puts the selected text on `pasteboard` (the general one for ⌘C); false when nothing is selected.
@@ -841,7 +1070,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     /// Select All: the text of the current page.
     @objc override func selectAll(_ sender: Any?) {
-        let page = selection?.page ?? currentPage
+        let page = selection?.headPage ?? currentPage
         guard let text = try? engine.text(page), !text.isEmpty else { return }
         select(page, (0, text.length))
     }
@@ -906,8 +1135,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     /// The selected text's line boxes (for Link Selected Text).
     var selectedLines: (page: Int, rects: [RectD])? {
-        guard let s = selection, s.anchor != s.head, let text = try? engine.text(s.page) else { return nil }
-        return (s.page, text.rects(s.range.start, s.range.end))
+        guard let span = selectedSpans.first, let text = try? engine.text(span.page) else { return nil }
+        return (span.page, text.rects(span.start, span.end))
     }
 
     // MARK: Keys
@@ -944,6 +1173,18 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard let editor, !editor.comments.isEmpty else { return false }
             selectNext(shift ? -1 : 1)
             return true
+        }
+        if vertices != nil {
+            switch event.specialKey {
+            case .carriageReturn, .enter:
+                finishVertices()
+                return true
+            default:
+                if event.keyCode == 53 {
+                    vertices = nil
+                    return true
+                }
+            }
         }
         if event.keyCode == 53 { // Esc
             if drag != nil {

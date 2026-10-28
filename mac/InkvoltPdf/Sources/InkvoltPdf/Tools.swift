@@ -6,6 +6,7 @@ import PdfCore
 enum Tool: Int, CaseIterable {
     case hand, text, highlight, underline, strikeOut, note, textBox, pen, highlighter, rectangle, ellipse, line, arrow, stamp, image, link
     case fillText, fillCheck, fillCross, fillDate, signature, editContent
+    case callout, polygon, polyline
 
     var title: String {
         switch self {
@@ -31,6 +32,9 @@ enum Tool: Int, CaseIterable {
         case .fillDate: "Date"
         case .signature: "Signature"
         case .editContent: "Edit Text & Images"
+        case .callout: "Callout"
+        case .polygon: "Polygon"
+        case .polyline: "Polyline"
         }
     }
 
@@ -59,6 +63,9 @@ enum Tool: Int, CaseIterable {
         case .fillDate: "d"
         case .signature: "g"
         case .editContent: "j"
+        case .callout: "q"
+        case .polygon: "v"
+        case .polyline: "z"
         }
     }
 
@@ -86,6 +93,9 @@ enum Tool: Int, CaseIterable {
         case .fillDate: "calendar"
         case .signature: "signature"
         case .editContent: "pencil.and.outline"
+        case .callout: "text.bubble"
+        case .polygon: "pentagon"
+        case .polyline: "point.topleft.down.to.point.bottomright.curvepath"
         }
     }
 
@@ -109,6 +119,9 @@ enum Tool: Int, CaseIterable {
         case .fillDate: "Date: click where today's date goes"
         case .signature: "Signature: draw or type one, then click where it goes"
         case .editContent: "Edit text and images: click text to change it, or a picture to move, replace or delete it"
+        case .callout: "Callout: press where it points, drag to where the text goes"
+        case .polygon: "Polygon: click each corner; double-click, Return or a click on the first corner closes it"
+        case .polyline: "Polyline: click each point; double-click or Return ends it"
         }
     }
 
@@ -132,8 +145,8 @@ enum Tool: Int, CaseIterable {
     /// The tool strip's groups.
     static let groups: [[Tool]] = [
         [.hand, .text],
-        [.highlight, .underline, .strikeOut, .note, .textBox],
-        [.pen, .highlighter, .rectangle, .ellipse, .line, .arrow],
+        [.highlight, .underline, .strikeOut, .note, .textBox, .callout],
+        [.pen, .highlighter, .rectangle, .ellipse, .line, .arrow, .polygon, .polyline],
         [.stamp, .image, .link],
         [.fillText, .fillCheck, .fillCross, .fillDate, .signature],
         [.editContent],
@@ -194,6 +207,7 @@ final class ToolStyles {
         case .highlighter: return .marker()
         case .arrow: return .arrow(.red)
         case .textBox: return .textBox()
+        case .callout: return .textBox(fontSize: 12, border: .red, fill: AnnotColor(1, 1, 1))
         case .link, .editContent: return AnnotStyle(color: AnnotColor(0.1, 0.4, 0.9), width: 1)
         case .fillText, .fillCheck, .fillCross, .fillDate, .signature: return AnnotStyle(color: AnnotColor(0, 0, 0), width: 1)
         default: return .pen(.red)

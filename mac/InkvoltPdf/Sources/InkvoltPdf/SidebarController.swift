@@ -1,36 +1,51 @@
 import AppKit
 import PdfCore
 
-/// The sidebar: page thumbnails, the document's outline (bookmarks), or its comments. A click goes there.
+/// The sidebar: page thumbnails, the document's bookmarks, or its comments. A click goes there. Several thumbnails can
+/// be chosen for the page commands (their context menu has them); bookmarks are added, renamed, deleted and dragged into
+/// a new order or under another one (the window controller makes each change an edit).
 @MainActor
 final class SidebarController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate {
     static let thumbWidth = 110.0
+    static let bookmarkType = NSPasteboard.PasteboardType("com.bermudezsystems.InkvoltPdf.bookmark")
 
     private var engine: PdfEngine
     private let thumbs: PageRenderer
-    private let table = NSTableView()
-    private let outlineView = NSOutlineView()
-    private let picker = NSSegmentedControl(labels: ["Pages", "Outline", "Comments"], trackingMode: .selectOne, target: nil, action: nil)
+    private let table = ThumbTable()
+    private let outlineView = KeyOutlineView()
+    private let readBookmarks: @MainActor () -> [Bookmark]
+    private let picker = NSSegmentedControl(labels: ["Pages", "Bookmarks", "Comments"], trackingMode: .selectOne, target: nil, action: nil)
     let comments = CommentsList()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
     private(set) var outline: [OutlineItem] = []
     private var following = false
+    private var draggedBookmark: [Int]?
 
     /// Go to a page, from a y in it when known.
     var onGo: ((Int, Double?) -> Void)?
+    /// The page commands' menu, for the thumbnails.
+    var pageMenuMaker: (() -> NSMenu?)?
+    /// True while the thumbnails' context menu is open (its commands act on the thumbnails chosen).
+    var menuOpen = false
+    /// Bookmark changes, made into edits by the window controller (paths of indexes from the top level).
+    var onAddBookmark: (() -> Void)?
+    var onRenameBookmark: (([Int]) -> Void)?
+    var onDeleteBookmark: (([Int]) -> Void)?
+    var onMoveBookmark: ((_ from: [Int], _ parent: [Int], _ index: Int) -> Void)?
 
-    init(engine: PdfEngine) {
+    init(engine: PdfEngine, bookmarks: @escaping @MainActor () -> [Bookmark]) {
         self.engine = engine
+        readBookmarks = bookmarks
         thumbs = PageRenderer(engine: engine, label: "inkvolt.pdf.thumbs", qos: .utility, keepAtMost: 120)
         super.init(nibName: nil, bundle: nil)
-        outline = ((try? engine.outline()) ?? []).map(OutlineItem.init)
+        outline = OutlineItem.tree(bookmarks())
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// Outline entries in the sidebar (the self-test counts them).
+    /// Bookmarks in the sidebar (the self-test counts them).
     var outlineCount: Int { outline.reduce(0) { $0 + $1.count } }
 
     override func loadView() {
@@ -40,6 +55,9 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         table.style = .sourceList
         table.dataSource = self
         table.delegate = self
+        table.allowsMultipleSelection = true
+        table.owner = self
+        table.setAccessibilityLabel("Page thumbnails")
         tableScroll.documentView = table
         tableScroll.hasVerticalScroller = true
         tableScroll.drawsBackground = false
@@ -53,6 +71,23 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         outlineView.delegate = self
         outlineView.target = self
         outlineView.action = #selector(outlineClicked)
+        outlineView.registerForDraggedTypes([Self.bookmarkType])
+        outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
+        outlineView.setAccessibilityLabel("Bookmarks")
+        outlineView.menu = bookmarkMenu()
+        outlineView.onKey = { [weak self] event in
+            guard let self, let path = self.clickedOrSelectedPath() else { return false }
+            switch event.specialKey {
+            case .delete, .deleteForward, .backspace:
+                self.onDeleteBookmark?(path)
+                return true
+            case .carriageReturn, .enter:
+                self.onRenameBookmark?(path)
+                return true
+            default:
+                return false
+            }
+        }
         outlineScroll.documentView = outlineView
         outlineScroll.hasVerticalScroller = true
         outlineScroll.drawsBackground = false
@@ -60,7 +95,6 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         picker.target = self
         picker.action = #selector(pick)
         picker.selectedSegment = 0
-        picker.setEnabled(!outline.isEmpty, forSegment: 1)
         picker.setAccessibilityLabel("Sidebar shows")
         outlineScroll.isHidden = true
         comments.isHidden = true
@@ -76,6 +110,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             guard let self, page < self.engine.pageCount else { return }
             self.table.reloadData(forRowIndexes: [page], columnIndexes: [0])
         }
+        expandOpen(outline)
     }
 
     @objc private func pick() {
@@ -84,7 +119,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         comments.isHidden = picker.selectedSegment != 2
     }
 
-    /// Shows the thumbnails (0), the outline (1) or the comments (2).
+    /// Shows the thumbnails (0), the bookmarks (1) or the comments (2).
     func show(_ segment: Int) {
         _ = view
         picker.selectedSegment = segment
@@ -93,28 +128,53 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
     var shownSegment: Int { picker.selectedSegment }
 
-    /// The content changed: thumbnails drawn again from the new engine (old pictures kept meanwhile), the outline read
+    /// The content changed: thumbnails drawn again from the new engine (old pictures kept meanwhile), the bookmarks read
     /// again.
     func reload(engine: PdfEngine) {
         self.engine = engine
         thumbs.engine = engine
         thumbs.invalidate()
-        outline = ((try? engine.outline()) ?? []).map(OutlineItem.init)
+        let chosen = selectedPages
+        outline = OutlineItem.tree(readBookmarks())
         guard isViewLoaded else { return }
-        picker.setEnabled(!outline.isEmpty, forSegment: 1)
         table.reloadData()
+        selectPages(chosen.filter { $0 < engine.pageCount })
         outlineView.reloadData()
+        expandOpen(outline)
     }
 
     func stop() { thumbs.cancelAll() }
 
-    /// Follows the page shown (without going anywhere).
+    /// Follows the page shown (without going anywhere); several thumbnails chosen stay chosen.
     func showCurrent(_ page: Int) {
-        guard isViewLoaded, page < engine.pageCount, table.selectedRow != page else { return }
+        guard isViewLoaded, page < engine.pageCount, table.selectedRow != page, table.selectedRowIndexes.count <= 1 else { return }
         following = true
         table.selectRowIndexes([page], byExtendingSelection: false)
         table.scrollRowToVisible(page)
         following = false
+    }
+
+    /// The thumbnails chosen (page numbers, in order).
+    var selectedPages: [Int] {
+        guard isViewLoaded else { return [] }
+        return table.selectedRowIndexes.map { $0 }.filter { $0 < engine.pageCount }
+    }
+
+    /// Chooses these thumbnails (without going to them).
+    func selectPages(_ pages: [Int]) {
+        guard isViewLoaded, !pages.isEmpty else { return }
+        following = true
+        table.selectRowIndexes(IndexSet(pages), byExtendingSelection: false)
+        table.scrollRowToVisible(pages[0])
+        following = false
+    }
+
+    /// The thumbnails' context menu: on a thumbnail not chosen, that one is chosen first.
+    func thumbMenu(row: Int) -> NSMenu? {
+        guard row >= 0 else { return nil }
+        if !table.selectedRowIndexes.contains(row) { selectPages([row]) }
+        menuOpen = true
+        return pageMenuMaker?()
     }
 
     // MARK: Thumbnails
@@ -143,11 +203,11 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
-        guard !following, table.selectedRow >= 0 else { return }
+        guard !following, table.selectedRow >= 0, table.selectedRowIndexes.count == 1 else { return }
         onGo?(table.selectedRow, nil)
     }
 
-    // MARK: Outline
+    // MARK: Bookmarks
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         (item as? OutlineItem)?.children.count ?? outline.count
@@ -171,21 +231,132 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         guard let item = outlineView.item(atRow: outlineView.clickedRow) as? OutlineItem, item.page >= 0 else { return }
         onGo?(item.page, item.targetY)
     }
+
+    private func expandOpen(_ items: [OutlineItem]) {
+        for item in items where item.open && !item.children.isEmpty {
+            outlineView.expandItem(item)
+            expandOpen(item.children)
+        }
+    }
+
+    /// The bookmark the menu was opened on, else the one selected.
+    func clickedOrSelectedPath() -> [Int]? {
+        let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+        return (outlineView.item(atRow: row) as? OutlineItem)?.path
+    }
+
+    /// The bookmark selected (a new bookmark goes after it).
+    var selectedBookmark: [Int]? { (outlineView.item(atRow: outlineView.selectedRow) as? OutlineItem)?.path }
+
+    /// Selects the bookmark at `path` (after an edit), its parents expanded.
+    func selectBookmark(_ path: [Int]) {
+        guard isViewLoaded else { return }
+        var items = outline
+        var found: OutlineItem?
+        for (depth, i) in path.enumerated() {
+            guard i < items.count else { return }
+            let item = items[i]
+            if depth < path.count - 1 { outlineView.expandItem(item) }
+            found = item
+            items = item.children
+        }
+        guard let found else { return }
+        let row = outlineView.row(forItem: found)
+        if row >= 0 { outlineView.selectRowIndexes([row], byExtendingSelection: false) }
+    }
+
+    private func bookmarkMenu() -> NSMenu {
+        let menu = NSMenu(title: "Bookmarks")
+        let add = NSMenuItem(title: "Add Bookmark", action: #selector(addClicked), keyEquivalent: "")
+        let rename = NSMenuItem(title: "Rename…", action: #selector(renameClicked), keyEquivalent: "")
+        let delete = NSMenuItem(title: "Delete", action: #selector(deleteClicked), keyEquivalent: "")
+        for item in [add, rename, delete] { item.target = self }
+        menu.addItem(add)
+        menu.addItem(.separator())
+        menu.addItem(rename)
+        menu.addItem(delete)
+        return menu
+    }
+
+    @objc private func addClicked() { onAddBookmark?() }
+    @objc private func renameClicked() { if let p = clickedOrSelectedPath() { onRenameBookmark?(p) } }
+    @objc private func deleteClicked() { if let p = clickedOrSelectedPath() { onDeleteBookmark?(p) } }
+
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+        guard let b = item as? OutlineItem else { return nil }
+        let p = NSPasteboardItem()
+        p.setString(b.key, forType: Self.bookmarkType)
+        return p
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+                     forItems draggedItems: [Any]) {
+        draggedBookmark = (draggedItems.first as? OutlineItem)?.path
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                     operation: NSDragOperation) {
+        draggedBookmark = nil
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?,
+                     proposedChildIndex index: Int) -> NSDragOperation {
+        guard let from = draggedBookmark else { return [] }
+        let parent = (item as? OutlineItem)?.path ?? []
+        if parent.count >= from.count && Array(parent.prefix(from.count)) == from { return [] } // into itself
+        return .move
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        guard let from = draggedBookmark else { return false }
+        let target = item as? OutlineItem
+        let count = target?.children.count ?? outline.count
+        return dropBookmark(from, parent: target?.path ?? [], index: index == NSOutlineViewDropOnItemIndex ? count : index)
+    }
+
+    /// Dropping the bookmark at `from` as child `index` of `parent` (what a drag ends with): moves it there.
+    @discardableResult
+    func dropBookmark(_ from: [Int], parent: [Int], index: Int) -> Bool {
+        if parent.count >= from.count && Array(parent.prefix(from.count)) == from { return false }
+        onMoveBookmark?(from, parent, index)
+        return true
+    }
 }
 
-/// An outline entry as the outline view holds it (an object, as NSOutlineView needs).
+/// The thumbnails' table: its context menu comes from the sidebar (the page commands).
+final class ThumbTable: NSTableView {
+    weak var owner: SidebarController?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let row = self.row(at: convert(event.locationInWindow, from: nil))
+        return owner?.thumbMenu(row: row)
+    }
+}
+
+/// A bookmark as the outline view holds it (an object, as NSOutlineView needs), with its path in the tree.
 final class OutlineItem: NSObject {
     let title: String
     let page: Int
     let targetY: Double?
+    let open: Bool
+    let path: [Int]
     let children: [OutlineItem]
 
-    init(_ node: OutlineNode) {
-        title = node.title
-        page = node.pageIndex
-        targetY = node.targetY
-        children = node.children.map(OutlineItem.init)
+    init(_ b: Bookmark, path: [Int]) {
+        title = b.title
+        page = b.pageIndex
+        targetY = b.top
+        open = b.open
+        self.path = path
+        children = b.children.enumerated().map { OutlineItem($0.element, path: path + [$0.offset]) }
     }
+
+    static func tree(_ bookmarks: [Bookmark]) -> [OutlineItem] {
+        bookmarks.enumerated().map { OutlineItem($0.element, path: [$0.offset]) }
+    }
+
+    /// Names the item on the pasteboard (its path).
+    var key: String { path.map(String.init).joined(separator: ".") }
 
     var count: Int { 1 + children.reduce(0) { $0 + $1.count } }
 }

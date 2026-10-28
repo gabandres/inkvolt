@@ -36,8 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// The menu bar, built in code: the app (with Check for Updates…), File (Open, Open Recent, Close, Save, Save As, Revert,
-/// Reload, Export To, Form Data), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments), Go (pages, comments), Tools (the tools
-/// with their single keys, the text marks, stamps, pictures, links, the inspector), Window.
+/// Reload, Export To, Form Data, password protection, Page Setup, Print), Edit (Undo, Redo, Copy, Delete, Find), View
+/// (zoom, sidebar, comments), Go (pages, comments), Pages (organize, rotate, delete, insert, extract, crop, bookmarks),
+/// Tools (the tools with their single keys, the text marks, stamps, pictures, links, the inspector), Window.
 @MainActor
 enum MainMenu {
     static func make(updates: Updates) -> NSMenu {
@@ -47,6 +48,7 @@ enum MainMenu {
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(goMenu()))
+        main.addItem(submenu(pagesMenu()))
         main.addItem(submenu(toolsMenu()))
         let window = windowMenu()
         main.addItem(submenu(window))
@@ -115,6 +117,12 @@ enum MainMenu {
         let formItem = item("Form Data", nil)
         formItem.submenu = formData
         menu.addItem(formItem)
+        menu.addItem(.separator())
+        menu.addItem(item("Protect with Password…", #selector(DocumentWindowController.protectDocument(_:))))
+        menu.addItem(item("Remove Password Protection…", #selector(DocumentWindowController.removeProtection(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Page Setup…", #selector(NSDocument.runPageLayout(_:)), "p", [.command, .shift]))
+        menu.addItem(item("Print…", #selector(NSDocument.printDocument(_:)), "p"))
         return menu
     }
 
@@ -164,15 +172,38 @@ enum MainMenu {
         return menu
     }
 
+    /// Pages: the organizer, the page commands (on the pages chosen in it or in the thumbnails, else the current page),
+    /// bookmarks.
+    private static func pagesMenu() -> NSMenu {
+        let menu = NSMenu(title: "Pages")
+        menu.addItem(item("Organize Pages", #selector(DocumentWindowController.toggleOrganizer(_:)), "o", [.command, .option]))
+        menu.addItem(.separator())
+        menu.addItem(item("Rotate Left", #selector(DocumentWindowController.rotatePagesLeft(_:)), "l"))
+        menu.addItem(item("Rotate Right", #selector(DocumentWindowController.rotatePagesRight(_:)), "r"))
+        menu.addItem(item("Duplicate Pages", #selector(DocumentWindowController.duplicatePages(_:))))
+        menu.addItem(item("Delete Pages", #selector(DocumentWindowController.deletePages(_:)), String(UnicodeScalar(NSBackspaceCharacter)!), [.command, .option]))
+        menu.addItem(.separator())
+        menu.addItem(item("Insert Pages from File…", #selector(DocumentWindowController.insertPagesFromFile(_:)), "i", [.command, .option]))
+        menu.addItem(item("Insert Blank Page", #selector(DocumentWindowController.insertBlankPage(_:))))
+        menu.addItem(item("Extract Pages…", #selector(DocumentWindowController.extractPages(_:))))
+        menu.addItem(item("Crop Pages…", #selector(DocumentWindowController.cropPages(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Add Bookmark", #selector(DocumentWindowController.addBookmark(_:)), "d"))
+        menu.addItem(item("Show Bookmarks", #selector(DocumentWindowController.showBookmarks(_:)), "2", [.command, .option]))
+        return menu
+    }
+
     /// Tools: each tool with its single key (active while the pages have the focus), then the commands.
     private static func toolsMenu() -> NSMenu {
         let menu = ToolsMenu(title: "Tools")
-        for tool in Tool.allCases {
-            let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)), tool.key, [])
-            entry.tag = tool.rawValue
-            entry.image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: nil)
-            menu.addItem(entry)
-            if ([.text, .textBox, .arrow, .link, .signature] as [Tool]).contains(tool) { menu.addItem(.separator()) }
+        for (g, group) in Tool.groups.enumerated() {
+            if g > 0 { menu.addItem(.separator()) }
+            for tool in group {
+                let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)), tool.key, [])
+                entry.tag = tool.rawValue
+                entry.image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: nil)
+                menu.addItem(entry)
+            }
         }
         menu.addItem(.separator())
         menu.addItem(item("Highlight Selected Text", #selector(DocumentWindowController.highlightText(_:)), "h", [.command, .control]))

@@ -19,8 +19,9 @@ final class DocumentEditor {
     }()
     /// Called after the comments and links were read again.
     var onChanged: (() -> Void)?
-    /// The last edit's outcome (the self-test reads it).
+    /// The last edit's outcome, and how many edits have ended (the self-test reads them).
     private(set) var lastOutcome: EditOutcome?
+    private(set) var finishedEdits = 0
     /// The engine the comments were read from (they are read once per content).
     private var readFrom: ObjectIdentifier?
 
@@ -53,15 +54,18 @@ final class DocumentEditor {
     /// Runs one edit as one undo step named `label`; false when nothing was committed (refused, declined, busy, failed:
     /// a failure is shown).
     @discardableResult
-    func run(_ label: String, contentOnly: Bool = false, _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
+    func run(_ label: String, contentOnly: Bool = false, newPasswords: (password: String?, openPassword: String?)? = nil,
+             _ edit: @escaping @Sendable ([UInt8], String?) throws -> [UInt8]) async -> Bool {
         guard let session else { return false }
         let window = document.windowControllers.first?.window
         Report.progress("edit \(label) started on \(session.data.count) bytes")
         var request = EditRequest(label, edit)
         request.contentOnly = contentOnly
+        request.newPasswords = newPasswords
         let result = await session.edit(request, prompts: AppPrompts())
         Report.progress("edit \(label): \(result.outcome)")
         lastOutcome = result.outcome
+        finishedEdits += 1
         switch result.outcome {
         case .done:
             if readFrom != ObjectIdentifier(session.engine) { reload() } // normally read already, as the content changed
@@ -91,6 +95,20 @@ final class DocumentEditor {
         }
     }
 
+    /// A text mark over text on several pages (a selection across pages): one comment per page, one undo step.
+    @discardableResult
+    func markText(_ kind: TextMarkupKind, spans: [(page: Int, rects: [RectD])], color: AnnotColor) async -> Bool {
+        if spans.count == 1 { return await markText(kind, page: spans[0].page, rects: spans[0].rects, color: color) }
+        let author = author
+        let label = kind == .highlight ? "Highlight" : kind == .underline ? "Underline" : "Strike Out"
+        let marks: [MarkSpan] = spans.map { MarkSpan(page: $0.page, rects: $0.rects) }
+        return await run(label) { data, pw in
+            var out = data
+            for m in marks { out = try Annotations.addTextMarkup(out, pw, m.page, kind, m.rects, color, note: nil, author: author) }
+            return out
+        }
+    }
+
     @discardableResult
     func addNote(page: Int, at p: PointD, text: String, color: AnnotColor?) async -> Bool {
         let author = author
@@ -99,13 +117,28 @@ final class DocumentEditor {
         }
     }
 
-    /// A text box: `box` as given, or (typewriter) a line at `at` sized to the text.
+    /// A text box: `box` as given, or (typewriter) a line at `at` sized to the text; with `callout` (its tip) a callout.
     @discardableResult
-    func addFreeText(page: Int, box: RectD, text: String, style: AnnotStyle) async -> Bool {
+    func addFreeText(page: Int, box: RectD, text: String, style: AnnotStyle, callout: [PointD]? = nil) async -> Bool {
         let author = author
-        return await run("Add Text Box") { data, pw in
-            try Annotations.addFreeText(data, pw, page, box, text, style, author: author)
+        return await run(callout == nil ? "Add Text Box" : "Add Callout") { data, pw in
+            try Annotations.addFreeText(data, pw, page, box, text, style, author: author, callout: callout)
         }
+    }
+
+    /// A closed polygon or an open polyline through `vertices`.
+    @discardableResult
+    func addPolygon(page: Int, vertices: [PointD], closed: Bool, style: AnnotStyle) async -> Bool {
+        let author = author
+        return await run(closed ? "Polygon" : "Polyline") { data, pw in
+            try Annotations.addPolygon(data, pw, page, vertices, closed: closed, style, author: author)
+        }
+    }
+
+    /// A note's or a text mark's new color (drawings change color through `setStyle`).
+    @discardableResult
+    func setColor(_ id: String, _ color: AnnotColor) async -> Bool {
+        await run("Change Color") { data, pw in try Annotations.setColor(data, pw, id, color) }
     }
 
     /// The box a typewriter line of `text` needs at `at` (its top-left), kept on the page.
@@ -200,6 +233,10 @@ final class DocumentEditor {
                 let moved = DrawingGeometry.withFrame(c.subtype, g, frame)
                 return await setGeometry(id, moved, label: label)
             }
+            if Self.recolorable(c) {
+                let dx = frame.x - c.rect.x, dy = frame.y - c.rect.y
+                return await run(label) { data, pw in try Annotations.move(data, pw, id, dx: dx, dy: dy) }
+            }
             if c.subtype == "Stamp" {
                 return await run(label) { data, pw in try RubberStamps.move(data, pw, id, page, frame) }
             }
@@ -254,7 +291,7 @@ final class DocumentEditor {
         case "StrikeOut": return "Strike-out"
         case "Squiggly": return "Squiggly underline"
         case "Text": return "Note"
-        case "FreeText": return c.isInkvoltPdfStamp ? "Fill & Sign text" : "Text box"
+        case "FreeText": return c.isInkvoltPdfStamp ? "Fill & Sign text" : c.geometry?.callout.isEmpty == false ? "Callout" : "Text box"
         case "Ink": return c.style?.highlighter == true ? "Highlighter drawing" : "Drawing"
         case "Square": return "Rectangle"
         case "Circle": return "Ellipse"
@@ -300,8 +337,17 @@ final class DocumentEditor {
         return s
     }
 
-    /// Kinds whose frame can be moved and resized.
-    static func movable(_ c: AnnotationInfo) -> Bool { c.geometry != nil || c.subtype == "Stamp" }
+    /// Kinds that can be moved (drawings and stamps are resized too; notes and text marks only move).
+    static func movable(_ c: AnnotationInfo) -> Bool { c.geometry != nil || c.subtype == "Stamp" || recolorable(c) }
+
+    /// Notes and text marks: moved with `Annotations.move` and recolored with `Annotations.setColor`.
+    static func recolorable(_ c: AnnotationInfo) -> Bool { c.subtype == "Text" || Tool.markupSubtypes.contains(c.subtype) }
+}
+
+/// One page's part of a text mark across pages.
+struct MarkSpan: Sendable {
+    var page: Int
+    var rects: [RectD]
 }
 
 /// What an edit on a worker hands back besides the bytes (a form's script messages, a recognition's counts).

@@ -109,6 +109,52 @@ final class PdfDocument: NSDocument {
         session?.close()
     }
 
+    // MARK: Closing with unsaved changes
+
+    /// The self-test's answer to the "Save changes?" question (nil: AppKit asks the user, as it always does).
+    enum CloseAnswer { case save, dontSave, cancel }
+    var testCloseAnswer: CloseAnswer?
+    /// How often the question was answered from `testCloseAnswer`.
+    private(set) var closeQuestions = 0
+
+    /// Closing a window (or tab) or quitting with unsaved changes: AppKit's question (Save, Don't Save, Cancel; quitting
+    /// with several such documents first offers to review them, then asks this for each). The self-test answers it from
+    /// `testCloseAnswer` through the same callback AppKit's sheet uses.
+    override func canClose(withDelegate delegate: Any, shouldClose shouldCloseSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        guard let answer = testCloseAnswer, isDocumentEdited else {
+            super.canClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo)
+            return
+        }
+        closeQuestions += 1
+        let reply: (Bool) -> Void = { ok in
+            guard let selector = shouldCloseSelector, let target = delegate as? NSObject else { return }
+            typealias Callback = @convention(c) (NSObject, Selector, NSDocument, ObjCBool, UnsafeMutableRawPointer?) -> Void
+            let call = unsafeBitCast(target.method(for: selector), to: Callback.self)
+            call(target, selector, self, ObjCBool(ok), contextInfo)
+        }
+        switch answer {
+        case .cancel:
+            reply(false)
+        case .dontSave:
+            reply(true)
+        case .save:
+            guard let url = fileURL else { return reply(false) }
+            save(to: url, ofType: fileType ?? "com.adobe.pdf", for: .saveOperation) { error in reply(error == nil) }
+        }
+    }
+
+    // MARK: Printing
+
+    /// File › Print…: the window's print operation (its pages through the core's print layout).
+    override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
+        try MainActor.assumeIsolated {
+            guard let controller = windowControllers.first as? DocumentWindowController else { throw CocoaError(.featureUnsupported) }
+            let info = printInfo.copy() as! NSPrintInfo
+            for (key, value) in printSettings { info.dictionary().setObject(value, forKey: key.rawValue as NSString) }
+            return controller.printOperation(info)
+        }
+    }
+
     // MARK: Undo and redo
 
     func undo() {

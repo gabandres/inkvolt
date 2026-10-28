@@ -12,7 +12,9 @@ import PdfCore
 /// Editing (`--edit`): after the reader's checks, each document goes through `EditTest` (every comment tool through the
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
-/// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back). `--synthetic` opens
+/// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
+/// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question); with
+/// `--quit`, every document is then closed through AppKit's close-all with unsaved changes. `--synthetic` opens
 /// two PDFs made here (two pages of text and a scan; a form, which gets only `FeatureTest`); `--snapshots <dir>` writes
 /// PNGs of the window there (for the synthetic documents only: never a real file's pages). `--recovery-root <dir>` keeps
 /// recovery copies away from the user's;
@@ -89,6 +91,10 @@ enum Report {
                 }
                 var features = FeatureTest(controller: controller, name: name, openedFrom: openedFrom)
                 await features.run()
+                if openedFrom != syntheticFormPath {
+                    var pagesTest = PagesTest(controller: controller, name: name, openedFrom: openedFrom)
+                    await pagesTest.run()
+                }
             }
             done()
         }
@@ -105,8 +111,53 @@ enum Report {
         finished += 1
         guard quit else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            MainActor.assumeIsolated { if finished == started { quitNow() } }
+            MainActor.assumeIsolated {
+                guard finished == started, !closing else { return }
+                closing = true
+                Task { @MainActor in
+                    if edits && !restoresRecovery { await closeAllTest() }
+                    quitNow()
+                }
+            }
         }
+    }
+
+    private static var closing = false
+
+    /// Quitting with several documents changed: AppKit's close-all asks each one (here answered from the test): one
+    /// answering Cancel stops it and stays open; then Don't Save for all closes every one.
+    private static func closeAllTest() async {
+        let docs = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }
+        guard docs.count >= 2 else { return }
+        var lines = ["== closing \(docs.count) documents with unsaved changes"]
+        for d in docs {
+            if let c = d.windowControllers.first as? DocumentWindowController, !d.isDocumentEdited {
+                await c.editor.addNote(page: 0, at: PointD(16, 48), text: "Unsaved at quit", color: nil)
+            }
+            d.testCloseAnswer = .dontSave
+        }
+        let edited = docs.filter(\.isDocumentEdited).count
+        let keeper = docs[docs.count - 1]
+        keeper.testCloseAnswer = .cancel
+        let probe = CloseProbe()
+        NSDocumentController.shared.closeAllDocuments(withDelegate: probe,
+                                                      didCloseAllSelector: #selector(CloseProbe.documentController(_:didCloseAll:contextInfo:)),
+                                                      contextInfo: nil)
+        for _ in 0..<200 where probe.closedAll == nil { try? await Task.sleep(for: .milliseconds(50)) }
+        let stopped = probe.closedAll == false && NSDocumentController.shared.documents.contains { $0 === keeper } && keeper.isDocumentEdited
+        lines.append("\(stopped ? "PASS" : "FAIL") close all: \(edited) of \(docs.count) edited; the one answering Cancel stayed open and edited")
+        keeper.testCloseAnswer = .dontSave
+        probe.closedAll = nil
+        NSDocumentController.shared.closeAllDocuments(withDelegate: probe,
+                                                      didCloseAllSelector: #selector(CloseProbe.documentController(_:didCloseAll:contextInfo:)),
+                                                      contextInfo: nil)
+        for _ in 0..<200 where probe.closedAll == nil { try? await Task.sleep(for: .milliseconds(50)) }
+        let all = probe.closedAll == true && NSDocumentController.shared.documents.isEmpty
+        let asked = docs.reduce(0) { $0 + $1.closeQuestions }
+        lines.append("\(all ? "PASS" : "FAIL") close all again with Don't Save: every document closed (\(asked) questions answered)")
+        let passed: Int = (stopped ? 1 : 0) + (all ? 1 : 0)
+        lines.append("RESULT: \(passed == 2 ? "PASS" : "FAIL") (\(passed) passed, \(2 - passed) failed)")
+        write(lines.joined(separator: "\n"))
     }
 
     /// Quits without the save questions: the test's edits are let go (their recovery copies with them).
@@ -300,6 +351,27 @@ struct SelfTest {
             let sharp = await waitForSharp(page)
             let drawn = draw()
             check(sharp && drawn, "view at \(label): page \(page + 1) drawn sharp (\(String(format: "%.1f", controller.scrollView.magnification))x)")
+        }
+        // Very high zoom: tiles of the part shown instead of a giant picture of the whole page.
+        if count > 0 {
+            controller.setZoom(8)
+            controller.go(count > 1 ? count / 2 : 0)
+            var t = (wanted: 0, drawn: 0)
+            for _ in 0..<150 {
+                controller.pages.requestVisible()
+                t = controller.pages.tilesReady
+                if t.wanted == 0 || t.drawn == t.wanted { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            let page = controller.pages.currentPage
+            let base = controller.pages.renderer.image(page).map { $0.image.width * $0.image.height } ?? 0
+            let biggest = controller.pages.renderer.largestTilePixels
+            let tiled = controller.pages.tileScale(for: page) != nil
+            let limit = Int(PagesView.wholePagePixels * 1.02)
+            let side = PageRenderer.tilePixels + 2
+            let drawn = draw()
+            check((t.wanted > 0 || !tiled) && t.drawn == t.wanted && biggest <= side * side && base <= limit && drawn,
+                  "800%: \(t.drawn) of \(t.wanted) tiles drawn for page \(page + 1) (largest \(biggest) px, whole page \(base) px)")
         }
         controller.fitWidth(nil)
         controller.go(0)

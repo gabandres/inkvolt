@@ -31,6 +31,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private(set) var inspector: InspectorController?
     private var inspectorPopover: NSPopover?
     private var askPopover: NSPopover?
+    /// The page grid (Pages > Organize Pages), made the first time it is shown, and the stack it shows in.
+    var organizer: OrganizerView?
+    var contentStack: NSStackView?
+    /// The Protect with Password sheet while it is open.
+    var protectSheet: ProtectSheet?
+    /// The self-test: addresses that links opened (nil: open them for real), and its answer to "Open this link?".
+    var testOpenedLinks: [String]?
+    var testLinkAnswer = false
+    /// How many times "Open this link?" was asked.
+    private(set) var linkQuestions = 0
 
     /// The engine over the document's current bytes (replaced after every edit, undo, redo and reload).
     var engine: PdfEngine { pages.engine }
@@ -52,7 +62,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         editor = DocumentEditor(document: document)
         pages = PagesView(engine: engine)
         scrollView = NSScrollView()
-        sidebar = SidebarController(engine: engine)
+        sidebar = SidebarController(engine: engine) { [weak document] in
+            guard let s = document?.session else { return [] }
+            return (try? Bookmarks.read(s.data, s.password)) ?? []
+        }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 820),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.tabbingMode = .preferred
@@ -89,6 +102,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         diskBar.isHidden = true
         noticeBar.isHidden = true
         content.view = stack
+        contentStack = stack
         findBar.onSearch = { [weak self] query in self?.find(query) }
         findBar.onNext = { [weak self] in self?.step(1) }
         findBar.onPrevious = { [weak self] in self?.step(-1) }
@@ -114,6 +128,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
         wireComments()
+        wireBookmarks()
+        sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
         editor.onChanged = { [weak self] in self?.commentsChanged() }
         commentsChanged()
@@ -150,6 +166,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         askPopover?.close()
         pages.renderer.cancelAll()
         sidebar.stop()
+        organizer?.stop()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -168,6 +185,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         content.invalidate()
         pages.reload(engine: engine)
         sidebar.reload(engine: engine)
+        organizer?.reload(engine: engine)
         if !foundQuery.isEmpty { find(foundQuery) }
         if change == .reload { hideDiskBar() }
         updateSubtitle()
@@ -309,7 +327,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
         toolStrip.show(tool, style: style, stamp: pages.stamp.label)
-        if let id = pages.selectedId, let style = editor.comment(id)?.style {
+        if let id = pages.selectedId, let c = editor.comment(id), DocumentEditor.recolorable(c) {
+            toolStrip.showStyle(AnnotStyle(color: c.color ?? .yellow, width: 1), usesWidth: false, usesColor: true)
+        } else if let id = pages.selectedId, let style = editor.comment(id)?.style {
             toolStrip.showStyle(style, usesWidth: true, usesColor: true)
         }
     }
@@ -323,6 +343,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// A color from the strip: the selected drawing's (one undo step), else the current tool's next comments.
     func applyColor(_ color: AnnotColor?) {
         guard let color else { return }
+        if let id = pages.selectedId, let c = editor.comment(id), DocumentEditor.recolorable(c) {
+            Task { await editor.setColor(id, color) }
+            return
+        }
         if let id = pages.selectedId, let c = editor.comment(id), var style = c.style {
             if c.subtype == "FreeText" && style.color == nil { style.textColor = color } else { style.color = color }
             Task { await editor.setStyle(id, style, label: "Change Color") }
@@ -472,6 +496,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.show(2)
     }
 
+    @objc func showBookmarks(_ sender: Any?) {
+        if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
+        sidebar.show(1)
+    }
+
     @objc func nextComment(_ sender: Any?) { pages.selectNext(1) }
     @objc func previousComment(_ sender: Any?) { pages.selectNext(-1) }
 
@@ -490,6 +519,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return !form.widgets.isEmpty
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)):
             return longTask == nil && progressSheet == nil
+        case #selector(toggleOrganizer(_:)):
+            item.state = organizerShown ? .on : .off
+            return true
+        case #selector(deletePages(_:)):
+            return engine.pageCount > 1
+        case #selector(removeProtection(_:)):
+            return pdf.session?.hasEncryption == true
+        case #selector(protectDocument(_:)):
+            item.title = pdf.session?.hasEncryption == true ? "Change Password Protection…" : "Protect with Password…"
+            return protectSheet == nil
         default:
             return true
         }
@@ -704,6 +743,41 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc private func scrolled() {
         updateSubtitle()
         sidebar.showCurrent(pages.currentPage)
+        window?.invalidateCursorRects(for: pages) // the links of the pages now in view
+    }
+
+    // MARK: Links
+
+    /// A link in the document was clicked: its page (and place), or its address, opened as on Windows: web and mail
+    /// addresses straight away, anything else after asking.
+    func openLink(_ link: PageLink) {
+        guard let uri = link.uri else {
+            guard link.pageIndex >= 0 && link.pageIndex < engine.pageCount else { return NSSound.beep() }
+            go(link.pageIndex, targetY: link.targetY)
+            return
+        }
+        guard let url = URL(string: uri.trimmingCharacters(in: .whitespacesAndNewlines)) else { return NSSound.beep() }
+        if !Links.isSafe(uri) {
+            linkQuestions += 1
+            let allowed: Bool
+            if testOpenedLinks != nil {
+                allowed = testLinkAnswer
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "Open this link?"
+                alert.informativeText = "The document wants to open \(uri). Only continue if you trust the document."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Open Link")
+                alert.addButton(withTitle: "Cancel")
+                allowed = alert.runModal() == .alertFirstButtonReturn
+            }
+            guard allowed else { return }
+        }
+        if testOpenedLinks != nil {
+            testOpenedLinks?.append(uri)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func updateSubtitle() {
