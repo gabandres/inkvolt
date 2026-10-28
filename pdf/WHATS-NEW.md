@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.2.0
 - Edit Text & Images: click text to edit its whole paragraph. What you type rewraps in the paragraph's box with its alignment and line spacing, and you're asked first when it would run into what follows.
 - What's in This PDF (Review menu, also in Document Properties and Sanitize): one report of everything a PDF carries besides its pages and what it does when opened: scripts and what they call, every web address, file and program it can reach (marked when no click is needed), attached files, authors and other metadata, signatures, earlier versions and what they still show, hidden layers and text, form values. Save it as a web page or JSON. Nothing in the file is contacted. Also a Batch action.
 
