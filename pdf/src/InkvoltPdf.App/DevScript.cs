@@ -19,6 +19,7 @@ namespace InkvoltPdf.App;
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
 /// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
 /// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) ·
+/// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
 /// a11yreport path (save the report) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
@@ -36,13 +37,14 @@ namespace InkvoltPdf.App;
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
 /// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
-/// the editor on text run i, then <c>key Enter</c> commits) <c>· imagesel p i|none · moveimage p i x y w h · imageaction delete|replace file</c>.
+/// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
+/// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · imageaction delete|replace file</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
-/// <c>· closedialog</c> (close the topmost dialog) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
+/// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
 /// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -240,6 +242,14 @@ internal static class DevScript
                 var report = await Task.Run(() => RedactionCheck.Run(tab!.Session.Data, tab.Session.Password));
                 log.Add($"redaction-check: {report.Summary}");
                 foreach (var f in report.Findings) log.Add($"  {f.Kind} p{f.Page + 1} {f.Where}: {f.Text} ({f.Fix})");
+                break;
+            }
+            case "inventory":
+            {
+                // inventory: What's in This PDF's report, logged (the dialog itself: cmd WhatsInThisPdf with later dialogshot).
+                var report = await Task.Run(() => DocumentInventory.Run(tab!.Session.Data, tab.Session.Password));
+                log.Add($"inventory: {report.Summary}");
+                foreach (var i in report.Items) log.Add($"  {i.Section} {(i.Page >= 0 ? $"p{i.Page + 1} " : "")}{i.What} | {i.Where}{(i.WithoutClick ? " | no click" : "")}: {Trunc(i.Detail)}");
                 break;
             }
             case "a11y":
@@ -449,6 +459,24 @@ internal static class DevScript
                 log.Add($"content: {tab!.DevContentState()}");
                 break;
             }
+            case "editpara":
+            {
+                // editpara p i [text]: open the paragraph editor on paragraph i of page p (and type text); commit with "key Enter"
+                var a = arg.Split(' ', 3);
+                var para = v!.DevContent(int.Parse(a[0]) - 1)!.Paragraphs[int.Parse(a[1])];
+                v.DevEditParagraph(para, a.Length > 2 ? a[2] : null);
+                await Task.Delay(300);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
+            }
+            case "paragraphs":
+            {
+                var c = v!.DevContent(int.Parse(arg) - 1);
+                foreach (var (p, i) in (c?.Paragraphs ?? []).Select((p, i) => (p, i)))
+                    log.Add($"paragraph {i}: {p.Lines.Count} lines {p.Align} step {p.LineStep:0.#} box {p.Box.X:0},{p.Box.Y:0} {p.Box.Width:0}x{p.Box.Height:0}" +
+                            $"{(p.Blocked is null ? "" : $" blocked ({p.Blocked})")} '{(p.Text.Length > 60 ? p.Text[..60] + "…" : p.Text)}'");
+                break;
+            }
             case "imagesel":
             {
                 // imagesel p i|none
@@ -504,6 +532,16 @@ internal static class DevScript
                 // shotwin out.png: snapshot of the topmost open dialog.
                 Shot(Application.Current.Windows.OfType<Window>().Last(w => w != window && w.IsVisible), arg);
                 break;
+            case "dialogbutton":
+            {
+                // dialogbutton Text: press the topmost dialog's button whose text is Text ({sp} for spaces; use with "later").
+                var text = arg.Replace("{sp}", " ");
+                var top = Application.Current.Windows.OfType<Window>().LastOrDefault(w => w != window && w.IsVisible);
+                var button = top is null ? null : Descendants<System.Windows.Controls.Button>(top).FirstOrDefault(b => b.Content as string == text);
+                log.Add($"dialogbutton {text}: {(button is null ? "not found" : "pressed")}");
+                button?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                break;
+            }
             case "closedialog":
                 // closedialog: close the topmost open dialog, as its Cancel button would (use with "later").
                 Application.Current.Windows.OfType<Window>().LastOrDefault(w => w != window && w.IsVisible)?.Close();

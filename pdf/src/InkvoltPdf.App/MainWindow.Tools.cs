@@ -22,6 +22,7 @@ public partial class MainWindow
         BindEdit(Cmd.ReduceSize, t => FileTools.ReduceSize(this, t));
         BindEdit(Cmd.Flatten, t => FileTools.Flatten(this, t));
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
+        BindEdit(Cmd.WhatsInThisPdf, t => InventoryActions.Show(this, t, this));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
         BindEdit(Cmd.CheckAccessibility, t => t.CheckAccessibilityAsync());

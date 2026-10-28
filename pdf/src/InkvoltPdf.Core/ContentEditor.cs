@@ -26,6 +26,9 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
 
     internal ContentEditor.RunInfo? Info { get; init; }
 
+    /// <summary>Where its baseline starts on the page (page space, the text rise included).</summary>
+    internal PointD Origin { get; init; }
+
     /// <summary>The run's width as drawn (points along the baseline, to the end of its last glyph).</summary>
     public double OldWidth { get; init; }
 
@@ -74,6 +77,16 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
 {
     public static PageContent Empty { get; } = new([], []);
 
+    /// <summary>The page's text runs grouped into paragraphs (see <see cref="ContentEditor.GroupParagraphs"/>); upright text only.</summary>
+    public IReadOnlyList<TextParagraph> Paragraphs { get; init; } = [];
+
+    /// <summary>The paragraph a run belongs to, or null (turned text, only spaces).</summary>
+    public TextParagraph? ParagraphOf(TextRun run) => Paragraphs.FirstOrDefault(p => p.Runs.Contains(run));
+
+    /// <summary>The paragraph under a point: the one holding the run there, else one of several lines whose box holds the point.</summary>
+    public TextParagraph? ParagraphAt(double x, double y, double slop = 1) =>
+        RunAt(x, y, slop) is { } run ? ParagraphOf(run) : Paragraphs.FirstOrDefault(p => p.Lines.Count > 1 && p.Box.Contains(x, y));
+
     /// <summary>The text run under a point (the smallest when several overlap), or null.</summary>
     public TextRun? RunAt(double x, double y, double slop = 1) =>
         Runs.Where(r => r.Box.Inflate(slop).Contains(x, y)).MinBy(r => r.Box.Width * r.Box.Height);
@@ -87,6 +100,9 @@ public sealed class ContentEditException(string message, IReadOnlyList<string>? 
 {
     /// <summary>Characters the font has no glyph for (empty for other reasons).</summary>
     public IReadOnlyList<string> Missing { get; } = missing ?? [];
+
+    /// <summary>A paragraph's new text would run into this (what follows below it, page space); null for other reasons.</summary>
+    public RectD? Overlaps { get; init; }
 }
 
 /// <summary>
@@ -96,7 +112,7 @@ public sealed class ContentEditException(string message, IReadOnlyList<string>? 
 /// one); text and pictures inside form XObjects are listed but not edited. Each edit is bytes in → bytes out,
 /// saved through <see cref="PdfObj.Save"/> (signed files appended to, protection kept).
 /// </summary>
-public static class ContentEditor
+public static partial class ContentEditor
 {
     private const int MaxDepth = 8;
 
@@ -106,7 +122,7 @@ public static class ContentEditor
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         var page = doc.Pages[pageIndex];
-        return Walk(page, pageIndex, Parse(page, cancel), cancel).Content;
+        return WithParagraphs(Walk(page, pageIndex, Parse(page, cancel), cancel).Content);
     }
 
     /// <summary>Several pages' text runs and pictures (a page that can't be read comes back empty).</summary>
@@ -120,7 +136,7 @@ public static class ContentEditor
             try
             {
                 var page = doc.Pages[p];
-                result[p] = Walk(page, p, Parse(page, cancel), cancel).Content;
+                result[p] = WithParagraphs(Walk(page, p, Parse(page, cancel), cancel).Content);
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or InvalidCastException or IndexOutOfRangeException)
             {
@@ -531,7 +547,19 @@ public static class ContentEditor
     /// <summary>One glyph or TJ adjustment of a run, with the text it stands for.</summary>
     internal sealed record RunItem(int Code, double Number, string Text, bool IsNumber, bool Trailing = false);
 
-    internal sealed record RunInfo(List<RunItem> Items, bool Hex);
+    /// <summary>
+    /// A run as its operator draws it: its glyphs and adjustments; the text matrix where its first glyph starts
+    /// (<see cref="Tm"/>), the line matrix after the operator (<see cref="TlmAfter"/>), the CTM, the text rise, and how
+    /// far the operator advances the text matrix (text space). A paragraph rewrite needs these to keep what follows in place.
+    /// </summary>
+    internal sealed record RunInfo(List<RunItem> Items, bool Hex)
+    {
+        public Mat Tm { get; init; } = Mat.Identity;
+        public Mat TlmAfter { get; init; } = Mat.Identity;
+        public Mat Ctm { get; init; } = Mat.Identity;
+        public double Rise { get; init; }
+        public double Advance { get; init; }
+    }
 
     private sealed class Walked
     {
@@ -660,7 +688,7 @@ public static class ContentEditor
                     }
                     var arg = op.Operands.Count > 0 ? op.Operands[^1] : null;
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
-                    tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm,
+                    tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
                         blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null));
                     break;
                 }
@@ -723,7 +751,7 @@ public static class ContentEditor
     }
 
     /// <summary>Records a text-showing operator as a run and returns the text matrix after it.</summary>
-    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, string? blocked)
+    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked)
     {
         var font = gs.Font;
         var items = new List<RunItem>();
@@ -806,8 +834,9 @@ public static class ContentEditor
             HScale = gs.Th,
             GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
             OldWidth = end * scale,
+            Origin = new PointD(bx0, by0),
         };
-        var info = new RunInfo(items, hex);
+        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv };
         if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null ? info : null });
         if (why is null) w.Runs[id] = info;
         return new Mat(1, 0, 0, 1, adv, 0).Times(tm);

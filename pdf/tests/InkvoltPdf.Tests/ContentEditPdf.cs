@@ -17,7 +17,9 @@ internal static class ContentEditPdf
 
     /// <param name="formInherits">/Fm1 has no /Resources of its own (it borrows the page's).</param>
     /// <param name="damagedPart">A last content stream that claims Flate but holds bytes that don't inflate.</param>
-    public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null, bool formInherits = false, bool damagedPart = false)
+    /// <param name="fontText">The characters the fonts hold (default <see cref="FontText"/>).</param>
+    public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null, bool formInherits = false, bool damagedPart = false,
+        string fontText = FontText)
     {
         TestPdf.UseFonts();
         byte[] seed;
@@ -28,8 +30,8 @@ internal static class ContentEditPdf
             page.Height = XUnit.FromPoint(792);
             using (var gfx = XGraphics.FromPdfPage(page))
             {
-                gfx.DrawString(FontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.WinAnsi)), XBrushes.Black, new XPoint(72, 72));
-                gfx.DrawString(FontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode)), XBrushes.Black, new XPoint(72, 96));
+                gfx.DrawString(fontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.WinAnsi)), XBrushes.Black, new XPoint(72, 72));
+                gfx.DrawString(fontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode)), XBrushes.Black, new XPoint(72, 96));
             }
             using var ms = new MemoryStream();
             doc.Save(ms, false);

@@ -144,6 +144,9 @@ public static class Sanitizer
         return new SanitizeResult(saved, removed, remaining);
     }
 
+    /// <summary>An XMP packet's properties that Sanitize counts as metadata (null: unreadable, which counts too).</summary>
+    internal static List<(string Name, string Value)>? XmpProperties(PdfDictionary stream) => Pass.XmpData(stream);
+
     /// <summary>A random 16-byte file identifier, as PDFsharp holds it (one character per byte).</summary>
     private static string FreshId() => Encoding.Latin1.GetString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
 
@@ -640,7 +643,13 @@ public static class Sanitizer
         /// packet its new document IDs and placeholder dates). Document IDs, history and derivation link a copy to
         /// its original, so they count. An unreadable packet counts as data.
         /// </summary>
-        private static bool XmpHasData(PdfDictionary stream)
+        private static bool XmpHasData(PdfDictionary stream) => XmpData(stream) is not { Count: 0 };
+
+        /// <summary>
+        /// The properties of an XMP packet that say something (see <see cref="XmpHasData"/>), as (name, value) in packet
+        /// order; null when the packet can't be read (it counts as data).
+        /// </summary>
+        internal static List<(string Name, string Value)>? XmpData(PdfDictionary stream)
         {
             try
             {
@@ -652,18 +661,24 @@ public static class Sanitizer
                 var fresh = xmp.Root?.Attributes().Any(a => a.Name.LocalName == "xmptk" && a.Value == "3.1-701") == true
                             && xmp.Descendants().Any(e => e.Name.LocalName == "Producer" && e.Value.StartsWith("PDFsharp", StringComparison.Ordinal))
                             && !xmp.Descendants().Any(e => e.Name.LocalName is "OriginalDocumentID" or "History" or "DerivedFrom");
+                var list = new List<(string, string)>();
                 foreach (var desc in xmp.Descendants(Rdf + "Description"))
                 {
                     foreach (var attr in desc.Attributes())
-                        if (!attr.IsNamespaceDeclaration && attr.Name != Rdf + "about" && Meaningful(attr.Name.LocalName, attr.Value, fresh)) return true;
+                        if (!attr.IsNamespaceDeclaration && attr.Name != Rdf + "about" && Meaningful(attr.Name.LocalName, attr.Value, fresh)) list.Add((attr.Name.LocalName, attr.Value.Trim()));
                     foreach (var el in desc.Elements())
-                        if (Meaningful(el.Name.LocalName, string.Concat(el.DescendantNodes().OfType<XText>().Select(t => t.Value)), fresh)) return true;
+                    {
+                        // A list (rdf:Seq, Bag, Alt) reads as its items joined.
+                        var items = el.Descendants(Rdf + "li").Select(li => li.Value.Trim()).Where(v => v.Length > 0).ToList();
+                        var value = items.Count > 0 ? string.Join("; ", items) : string.Concat(el.DescendantNodes().OfType<XText>().Select(t => t.Value));
+                        if (Meaningful(el.Name.LocalName, value, fresh)) list.Add((el.Name.LocalName, value.Trim()));
+                    }
                 }
-                return false;
+                return list;
             }
             catch (Exception ex) when (ex is XmlException or InvalidOperationException or NotImplementedException or ArgumentException)
             {
-                return true;
+                return null;
             }
 
             static bool Meaningful(string name, string value, bool fresh)

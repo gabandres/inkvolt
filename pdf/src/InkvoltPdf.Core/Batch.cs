@@ -211,6 +211,17 @@ public sealed record CheckAccessibilityStep : BatchStep
     public override string Title => "Check accessibility";
 }
 
+/// <summary>
+/// What's in this PDF (<see cref="DocumentInventory"/>): its report is saved beside the result as a web page and as JSON.
+/// Never fails a file: it reports, it doesn't judge.
+/// </summary>
+public sealed record ReportContentsStep : BatchStep
+{
+    public override bool ChangesPdf => false;
+
+    public override string Title => "Report contents";
+}
+
 public sealed record WatermarkStep(WatermarkOptions Options) : BatchStep
 {
     public override string Title => "Add watermark";
@@ -640,6 +651,9 @@ public static class BatchRunner
                         case CheckAccessibilityStep:
                             await Task.Run(() => CheckAccessibility(data), cancel).ConfigureAwait(false);
                             break;
+                        case ReportContentsStep:
+                            await Task.Run(() => ReportContents(data), cancel).ConfigureAwait(false);
+                            break;
                         case OcrStep:
                             var words = await Task.Run(() => Recognize(data), cancel).ConfigureAwait(false);
                             if (words.Count > 0) data = await EditAsync(data, (d, pw) => TextLayer.AddInvisibleText(d, pw, words)).ConfigureAwait(false);
@@ -826,6 +840,20 @@ public static class BatchRunner
             foreach (var f in report.Failures.Take(10)) _notes.Add($"{f.Condition} · {f.Where}: {f.Problem}");
             if (report.Failures.Count > 10) _notes.Add($"… and {report.Failures.Count - 10} more (see the report)");
             throw new AccessibilityCheckFailedException($"Accessibility check: {report.Summary}");
+        }
+
+        /// <summary>What's in this PDF: its report beside the result, as a web page and as JSON.</summary>
+        private void ReportContents(byte[] data)
+        {
+            var report = DocumentInventory.Run(data, _password,
+                new Progress<(int Done, int Total)>(p => Report("Looking through the file…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+            var name = Path.GetFileName(file.NamedAs);
+            var now = DateTime.Now;
+            var html = InventoryReportFiles.Html(report, name, now);
+            var json = InventoryReportFiles.Json(report, name, now);
+            _outputs.Add(names.Place(_folder, _baseName + " contents.html", temp => File.WriteAllText(temp, html, new UTF8Encoding(false))));
+            _outputs.Add(names.Place(_folder, _baseName + " contents.json", temp => File.WriteAllText(temp, json, new UTF8Encoding(false))));
+            if (!report.IsEmpty) _notes.Add($"Contents: {report.Summary}");
         }
 
         private int Pages(byte[] data)

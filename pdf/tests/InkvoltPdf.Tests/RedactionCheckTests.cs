@@ -254,7 +254,7 @@ public class RedactionCheckTests
     }
 
     /// <summary>Appends an incremental update replacing object <paramref name="number"/>.</summary>
-    private static byte[] Append(byte[] pdf, int number, string body)
+    internal static byte[] Append(byte[] pdf, int number, string body, string trailerExtra = "")
     {
         var text = Encoding.Latin1.GetString(pdf);
         var at = text.LastIndexOf("startxref", StringComparison.Ordinal);
@@ -262,7 +262,7 @@ public class RedactionCheckTests
         var size = int.Parse(System.Text.RegularExpressions.Regex.Match(text, @"/Size (\d+)").Groups[1].Value);
         var update = $"{number} 0 obj\n{body}\nendobj\n";
         var xref = pdf.Length + 1 + Encoding.Latin1.GetByteCount(update);
-        var tail = $"\n{update}xref\n{number} 1\n{pdf.Length + 1:D10} 00000 n \ntrailer\n<< /Size {size} /Root 1 0 R /Prev {prevXref} >>\nstartxref\n{xref}\n%%EOF\n";
+        var tail = $"\n{update}xref\n{number} 1\n{pdf.Length + 1:D10} 00000 n \ntrailer\n<< /Size {size} /Root 1 0 R /Prev {prevXref} {trailerExtra}>>\nstartxref\n{xref}\n%%EOF\n";
         return [.. pdf, .. Encoding.Latin1.GetBytes(tail)];
     }
 

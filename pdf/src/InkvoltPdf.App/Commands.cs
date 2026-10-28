@@ -175,6 +175,7 @@ public static class Cmd
     public static readonly RoutedUICommand CheckRedaction = Make("Chec_k Redaction…", nameof(CheckRedaction));
     public static readonly RoutedUICommand CheckAccessibility = Make("Accessibilit_y Check…", nameof(CheckAccessibility));
     public static readonly RoutedUICommand Sanitize = Make("Sa_nitize Document…", nameof(Sanitize));
+    public static readonly RoutedUICommand WhatsInThisPdf = Make("_What's in This PDF…", nameof(WhatsInThisPdf));
 
     // Comments and form data in and out (see CommentFileActions, FormDataActions)
     public static readonly RoutedUICommand ExportComments = Make("E_xport Comments…", nameof(ExportComments));

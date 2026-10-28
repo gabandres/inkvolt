@@ -27,6 +27,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
   with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.
+- **Document inventory** (`Core/DocumentInventory.cs`, `InventoryReportFiles.cs`): "What's in this PDF": everything a
+  file carries besides what its pages show (scripts and what they call, actions that run by themselves, addresses and
+  whether they are reached without a click, attachments, metadata, signatures, earlier versions, hidden content, form
+  values, covers that hide nothing), each item with where it is and the Sanitize kind that removes it. Nothing is
+  changed or contacted. Review › What's in This PDF…, Batch, saved as HTML or JSON.
 - **Accessibility check** (`Core/AccessibilityCheck*.cs`): the machine-checkable failure conditions of the Matterhorn
   Protocol 1.1 (PDF/UA-1) run on a document: each **finding** has its condition number ("13-004"), page, element, what is
   wrong and what fixes it; the **human checks** are the checklist of what only a person can judge. The **report** is the

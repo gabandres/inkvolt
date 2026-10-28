@@ -45,7 +45,7 @@ public static class SanitizeActions
         }
         if (tab.IsDisposed || !ReferenceEquals(data, tab.Session.Data)) return; // changed or closed meanwhile
 
-        if (Ask(host, found) is not { } items || !await tab.SettleAsync()) return;
+        if (Ask(host, found, tab) is not { } items || !await tab.SettleAsync()) return;
         SanitizeResult? result = null;
         var signed = found[SanitizeItem.Signatures] > 0;
         var outcome = await tab.TryEdit("Sanitize document", (d, pw) =>
@@ -64,9 +64,10 @@ public static class SanitizeActions
     }
 
     /// <summary>The dialog: one check box per kind found (with its count). Null when cancelled.</summary>
-    private static HashSet<SanitizeItem>? Ask(Window owner, SanitizeReport found)
+    private static HashSet<SanitizeItem>? Ask(Window owner, SanitizeReport found, DocumentTab tab)
     {
         var dlg = new FormDialog(owner, "Sanitize Document", "Sanitize", 540);
+        dlg.AddFooterButton("See What's in It…").Click += (_, _) => _ = InventoryActions.Show(dlg, tab, null);
         var rewrite = new List<string>();
         if (found.EarlierRevisions > 0) rewrite.Add(Count(found.EarlierRevisions, "earlier version", "earlier versions") + " kept by incremental saves");
         if (found.UnusedObjects > 0) rewrite.Add(Count(found.UnusedObjects, "unused object", "unused objects"));
@@ -93,7 +94,8 @@ public static class SanitizeActions
             checks.Add((item, box));
         }
         foreach (var note in found.Notes) dlg.AddNote(note);
-        dlg.AddNote("Text drawn in white or outside the page isn't looked for: it can't be told reliably from text that shows.");
+        dlg.AddNote("Text drawn in white or outside the page isn't removed here (it can't be told reliably from text that shows): " +
+                    "See What's in It lists it, and redacting its area removes it.");
         dlg.Validate(() => checks.Any(c => c.Box.IsChecked == true) || found.EarlierRevisions > 0 || found.UnusedObjects > 0
             ? null
             : "Nothing to remove: this document holds none of these.");

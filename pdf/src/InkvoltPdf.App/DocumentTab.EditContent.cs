@@ -8,7 +8,7 @@ namespace InkvoltPdf.App;
 
 /// <summary>
 /// Edit Text &amp; Images: the bar and the page reading around the page view's <see cref="ViewerTool.EditContent"/> mode.
-/// Each change (text replaced in its own font, a picture moved, resized, replaced or deleted) is one edit through
+/// Each change (text replaced in its own font, a paragraph rewrapped in its box, a picture moved, resized, replaced or deleted) is one edit through
 /// <see cref="DocumentTab.TryEdit"/> (undo, signed files appended to with a warning, protected files kept protected).
 /// </summary>
 public partial class DocumentTab
@@ -25,6 +25,7 @@ public partial class DocumentTab
         Viewer.ToolChanged += (_, _) => UpdateEditContentUi();
         Viewer.ContentNeeded += (_, page) => RequestContent(page);
         Viewer.RunEdited += (_, e) => _ = EditRun(e);
+        Viewer.ParagraphEdited += (_, e) => _ = EditParagraph(e);
         Viewer.ImageMoved += (_, m) => _ = MoveImage(m);
         Viewer.ContentActionRequested += (_, a) => _ = OnContentAction(a);
         Viewer.ContentRefused += (_, message) =>
@@ -150,6 +151,36 @@ public partial class DocumentTab
                 });
     }
 
+    /// <summary>
+    /// A paragraph's new text, rewrapped in its box. Characters its font lacks: nothing changes (said live in the editor
+    /// too). Text that would run into what follows below: asked first, never written silently.
+    /// </summary>
+    private async Task EditParagraph(ParagraphEdit e)
+    {
+        var check = e.Paragraph.Check(e.Text);
+        if (check.Missing.Count > 0)
+        {
+            var list = string.Join(", ", check.Missing.Take(8).Select(c => c == " " ? "space" : $"“{c}”"));
+            Notify($"Not changed: the font “{e.Paragraph.Runs[0].FontName}” has no {list} in this PDF.", error: true);
+            return;
+        }
+        var allow = false;
+        if (check.Overlaps is not null)
+        {
+            var was = e.Paragraph.Lines.Count;
+            if (!Prompt.Confirm(Window.GetWindow(this), "The text runs into what follows",
+                    $"The new text takes {check.LineCount} lines (it had {was}), so its last lines would run into the text or picture below it. " +
+                    "Change it anyway? Undo takes it back.", "Change Anyway", warning: true))
+            {
+                Notify("Not changed: shorten the text to keep it in its place.");
+                return;
+            }
+            allow = true;
+        }
+        var outcome = await TryEdit("Edit paragraph", (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow), veil: false);
+        if (outcome == EditOutcome.Busy) Notify("Not changed: the last change is still being applied. Try again in a moment.", error: true);
+    }
+
     private async Task MoveImage(ImageMove m)
     {
         var page = m.Image.PageIndex;
@@ -211,8 +242,11 @@ public partial class DocumentTab
         var page = Viewer.CurrentPage;
         var c = Viewer.DevContent(page);
         var sel = Viewer.SelectedImage;
+        var para = Viewer.EditedParagraph;
         return $"editing={IsEditingContent} page={page + 1} runs={c?.Runs.Count.ToString() ?? "-"} images={c?.Images.Count.ToString() ?? "-"} " +
+               $"paragraphs={c?.Paragraphs.Count.ToString() ?? "-"} " +
                $"selected={(sel is null ? "-" : $"{sel.Box.X:0},{sel.Box.Y:0} {sel.Box.Width:0}x{sel.Box.Height:0}")} editor='{Viewer.EditedRun?.Text}'" +
+               (para is null ? "" : $" paragraph={para.Lines.Count} lines {para.Align} '{para.Text}'") +
                (c is null ? "" : " texts=[" + string.Join(" | ", c.Runs.Take(30).Select(r => r.Blocked is null ? r.Text : $"({r.Text})")) + "]");
     }
 

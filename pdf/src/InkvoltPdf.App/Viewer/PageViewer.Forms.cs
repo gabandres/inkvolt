@@ -697,7 +697,7 @@ public sealed partial class PageViewer
                 Focus();
                 e.Handled = true;
                 break;
-            case Key.Enter when _editor is ListBox || _editorRun is not null:
+            case Key.Enter when _editor is ListBox || _editorRun is not null && !(shift && _editorParagraph is not null): // Shift+Enter: a line break in a paragraph
                 CommitEditor();
                 Focus();
                 e.Handled = true;

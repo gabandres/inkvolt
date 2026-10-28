@@ -91,7 +91,7 @@ the checkout.
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac with its redaction step.
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax; Batch's action with E8).
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
@@ -197,8 +197,8 @@ the checkout.
   earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
   picture. Fix redacts, sanitizes and rewrites. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Still to do: the Mac, glyph-spacing inference around pixel
-  redactions.
+  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28; Batch's action with E8). Still to
+  do: glyph-spacing inference around pixel redactions.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
 ### 1.6 Store update check (done 2026-10-27)
@@ -217,7 +217,21 @@ the checkout.
   embedded-only fonts allow only size and color, otherwise it falls back to Minion Pro
   ([Adobe](https://helpx.adobe.com/acrobat/using/edit-text-pdfs1.html)). PDF Expert detects paragraphs and keeps font,
   size and opacity ([Readdle](https://support.readdle.com/pdfexpert/edit-pdfs/edit-text-in-pdf-files)).
-- **Now.** One text operator at a time, in its embedded font only, no reflow (README, Known limits).
+- **Now.** Part a (Windows, 2026-10-28): a click selects the paragraph (`ContentEditor.GroupParagraphs`: runs on one
+  baseline make a line; lines join under DocLayout's rules for Word export, same font, size within 5% and color, at
+  most 0.65 em apart at a steady line step, left edges (a first-line indent allowed), centers or right edges lined up,
+  split where a line ended short), with its alignment (left, right, centered, justified from three lines) and line
+  step. Typing rewraps it in its box in its own embedded font (missing characters refused by name, as before), Shift+Enter
+  a line break; the old show operators leave the text position as they found it, so text placed after them stays put;
+  the box grows downward, and when it would reach the next text or picture below the editor says so live and the app
+  asks before writing. One edit, one undo step, signed files appended. Tests: `ParagraphEditTests` (each alignment, 20
+  words added re-extract in order with nothing overlapping, the overflow report, missing glyphs, a signed file); on the
+  export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8 files' first 3 pages took 20 more words,
+  all re-extracted in order, no unreported overlap. A single run on one line still uses the one-run editor. Still to do:
+  characters the subset lacks from the closest installed font; font, size, color, bold and italic for a selection;
+  text inside form XObjects; paragraphs on turned pages or in turned text (they edit line by line); mixed-font
+  paragraphs (blocked: edited line by line); hyphenated line ends kept as typed ("respon-sible"); kerning of rewritten
+  lines; the Acrobat and pdf.js check.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
@@ -266,7 +280,7 @@ the checkout.
   LaTeX files after Make Accessible plus alt text.
 - **Effort** L. Windows; Mac after 1.0.
 
-### 2.5 What's in this PDF (differentiator)
+### 2.5 What's in this PDF (differentiator, Windows done 2026-10-28)
 - **The gap.** Acrobat's sanitize step removes hidden data when redacting
   ([Adobe](https://helpx.adobe.com/acrobat/current/removing-sensitive-content-pdfs.html)), but no app gives one readable
   report of what a file carries and what it would do when opened.
@@ -275,6 +289,19 @@ the checkout.
   open); attachments; metadata and authors per object; earlier revisions recoverable from incremental saves (with the
   text that changed); hidden layers, white or off-page text; form values; the 1.5 redaction check. Saved as HTML or
   JSON. Test: a corpus with each item planted reports all of them; Sanitize afterwards reports none.
+- **Now.** Windows: Review › What's in This PDF… (`DocumentInventory`, also from Document Properties and the Sanitize
+  dialog, and Batch's Report What's in Each File). Scripts with their trigger and what they call (web, mail, submit,
+  network, files, print, timers, eval); actions that run on open, close, save, print, page open and close, or field
+  display (navigation to a page left out); every URI, Submit, Launch, GoToR/GoToE, ImportData target, address inside a
+  script and external stream, marked "no click needed" when automatic or on pointer enter/exit; attachments (name tree,
+  attachment comments, /AF); Info, XMP (document, pages, pictures, fonts), PieceInfo, comment authors with pages, article
+  properties; signatures (name, date, reason, location); earlier revisions and the text they show that the current one
+  doesn't; hidden layers, hidden comments and fields, white and off-page text; form values; covers that hide nothing (the
+  redaction check's own findings, its echoes left out). Each item says whether Sanitize removes it. HTML (no scripts) or
+  JSON (format marker, version, fields in a fixed order). Tests (`DocumentInventoryTests`): Sanitize's planted corpus with
+  an appended revision lists every planted item, and after Sanitize with everything the report is empty; white,
+  off-page and boxed text; automatic, pointer and click triggers; signatures; script calls; HTML and JSON; Batch. Still
+  to do: the Mac (with E1's Sanitize).
 - **Effort** S (most of it is Sanitize's scan). Windows; Mac with Sanitize.
 
 ## Wave 3

@@ -465,6 +465,7 @@ public static class FileActions
         Row("Created", meta?.Created?.ToString("g"));
         Row("Modified", meta?.Modified?.ToString("g"));
         dlg.Add("Document", info);
+        if (s.IsPdf) dlg.AddFooterButton("What's in This PDF…").Click += (_, _) => _ = InventoryActions.Show(dlg, tab, null);
 
         TextBox? title = null, author = null, subject = null, keywords = null;
         if (meta is not null)

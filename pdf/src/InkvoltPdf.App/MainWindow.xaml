@@ -294,6 +294,7 @@
                                     <MenuItem x:Name="ApplyRedactMenu" Header="_Apply Redactions…" Click="OnApplyRedactions" />
                                     <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
+                                    <MenuItem Command="app:Cmd.WhatsInThisPdf" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CheckAccessibility" />
                                     <Separator />
