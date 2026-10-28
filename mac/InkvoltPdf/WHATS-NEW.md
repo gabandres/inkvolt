@@ -6,6 +6,11 @@ collects what's done since the last release and is never shown. Short lines, in 
 
 ## Next
 
+## 1.1.0
+- Redact: black out areas, selected text or every search match, or find Social Security, phone and card numbers, email addresses, dates, bank account numbers (IBAN), IP addresses, your own words or your own pattern, check the marks, then apply. What's under them is gone from the file, not just covered.
+- Redaction check: after you apply redactions, Inkvolt PDF checks that nothing of what you redacted is left anywhere in the file and offers to fix what it finds. Tools › Check Redaction… checks any PDF for text still under black boxes or highlights, unapplied redaction marks and more.
+- Sanitize Document (Tools menu): remove metadata, hidden layers, hidden comments and fields, scripts, links, attached files and earlier versions from a PDF before you share it.
+
 ## 1.0.0
 - Read PDFs in tabs: smooth scrolling and zoom, thumbnails, the outline, find (match case, whole words), select and copy text, clickable links, full screen.
 - Comments: highlight, underline, strike out, notes, text boxes, callouts, drawing (pen, highlighter, shapes, lines, arrows, polygons), stamps, pictures and links; replies, colors and a list of every comment.
