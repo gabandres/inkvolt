@@ -6,6 +6,21 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.1.0</title>
+      <pubDate>Wed, 28 Oct 2026 22:00:41 GMT</pubDate>
+      <sparkle:version>1.1.0</sparkle:version>
+      <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Redaction and Sanitize come to Inkvolt PDF for Mac.
+
+- Redact areas, selected text, search matches or patterns (Social Security, phone and card numbers, emails, dates, IBANs and your own words), review the marks, then apply: what's under them is removed from the file.
+- After applying, a redaction check makes sure nothing of what you redacted is left anywhere in the file; Tools › Check Redaction… checks any PDF.
+- Sanitize Document removes metadata, hidden content, scripts, links, attachments and earlier versions before you share a PDF.
+
+For Macs with Apple silicon, macOS 15 or later. Signed with Developer ID and notarized by Apple. Free software under the GNU AGPL v3; source in this repository.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.1.0/Inkvolt-PDF-1.1.0.dmg" length="33628744" type="application/octet-stream" sparkle:edSignature="aplV8oGR6wl2HeciwdnzKb5lkx5e8MhzOUWUxU4snKeE9slfKOPBwoQiPbdQmJZZuRb6kQc3rhCwHDEh3IWeDA==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.0.0</title>
       <pubDate>Wed, 28 Oct 2026 05:23:22 GMT</pubDate>
       <sparkle:version>1.0.0</sparkle:version>
