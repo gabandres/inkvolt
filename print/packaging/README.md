@@ -198,7 +198,7 @@ select or insert.
 
 ### Spanish listing (es)
 
-Added in Partner Center on 2026-10-29 (Store listings › Manage additional languages › Spanish, with the en-us screenshots). Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images, so a new language goes through Partner Center or the submission API's zip. When the en-us description changes, change this one to match. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
+Not live yet. On 2026-10-29 the live version is in English only, and the draft submission (Submission 11) has `es` and `es-019` listings with no title, description or screenshots, so it can't be submitted (`msstore submission status` lists MissingTitle, MissingDescription and NoScreenshotsOfAnyType for each). Fill one of the two languages, or both, in Partner Center, with the en-us screenshots and the text below. Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images, so a new language goes through Partner Center or the submission API's zip. When the en-us description changes, change this one to match. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
 
 Short description:
 
