@@ -149,6 +149,51 @@ Keywords (up to 7): PDF, PDF editor, fill and sign, digital signature, annotate,
 The AI paragraph is the metadata disclosure Store policy 11.16 (Live Generative AI Content, policies 7.20) asks for. Also
 tick the generative AI question in Partner Center when submitting (below).
 
+### Spanish listing (es)
+
+Not live yet. Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images: add the language in Partner Center (Store listings › Manage additional languages › Spanish) with the en-us screenshots, or upload them through the submission API's zip. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
+
+Short description:
+
+> Lector y editor de PDF rápido y privado: llena y firma formularios, comenta, dibuja, organiza páginas, elimina información confidencial y aplica OCR. Sin cuenta, sin anuncios, sin telemetría.
+
+Description:
+
+> Inkvolt PDF abre documentos grandes al instante y mantiene tus archivos en tu PC. Lee, llena, firma, anota y reorganiza PDF con una interfaz limpia de Windows 11, en pestañas, en modo claro u oscuro.
+>
+> • Lectura cómoda: vista continua o a dos páginas, búsqueda rápida, marcadores, páginas oscuras para leer de noche y lectura en voz alta.
+> • Llenar y firmar: llena cualquier formulario, escribe en cualquier parte de la página y agrega tu firma a mano o tus iniciales.
+> • Firmas digitales: firma con un certificado o una tarjeta inteligente, agrega una marca de tiempo confiable y revisa en detalle el estado de cada firma.
+> • Comentarios y dibujo: resaltado, subrayado, notas, pluma, formas, flechas, cuadros de texto y llamadas.
+> • Organizar: reordena, gira, inserta, extrae, divide y combina páginas; crea PDF a partir de imágenes o del portapapeles.
+> • Editar texto: haz clic en un párrafo para reescribirlo con su propia fuente, o cambia la fuente, el tamaño o el color de una parte.
+> • Eliminar información confidencial de verdad: se borran el texto y las imágenes que hay debajo, no solo se tapan con un recuadro negro. What's in This PDF muestra cada script, enlace, archivo adjunto y elemento oculto que lleva un archivo antes de compartirlo.
+> • Haz que los documentos escaneados se puedan buscar con el reconocimiento de texto de Windows, protege archivos con contraseña y reduce su tamaño.
+> • Escanea directamente a un PDF con Inkvolt Print.
+>
+> Sin cuenta, sin nube, sin anuncios, sin telemetría. Tus documentos nunca salen de tu PC.
+>
+> La aplicación está en inglés.
+>
+> Gratis y de código abierto (AGPL-3.0). Código fuente: https://github.com/gabandres/inkvolt
+
+Features:
+
+> - Lectura cómoda: vista continua o a dos páginas, búsqueda rápida, marcadores, páginas oscuras para leer de noche y lectura en voz alta.
+> - Llenar y firmar: llena cualquier formulario, escribe en cualquier parte de la página y agrega tu firma a mano o tus iniciales.
+> - Firmas digitales: firma con un certificado o una tarjeta inteligente, agrega una marca de tiempo confiable y revisa el estado de cada firma.
+> - Comentarios y dibujo: resaltado, subrayado, notas, pluma, formas, flechas, cuadros de texto y llamadas.
+> - Organizar: reordena, gira, inserta, extrae, divide y combina páginas; crea PDF a partir de imágenes o del portapapeles.
+> - Editar texto: haz clic en un párrafo para reescribirlo con su propia fuente, o cambia la fuente, el tamaño o el color de una parte.
+> - Eliminar información confidencial de verdad: se borran el texto y las imágenes que hay debajo, no solo se tapan con un recuadro negro.
+> - Haz que los escaneos se puedan buscar con el reconocimiento de texto de Windows, protege archivos con contraseña y reduce su tamaño.
+> - Escanea directamente a un PDF con Inkvolt Print.
+> - What's in This PDF: mira cada script, enlace, archivo adjunto y elemento oculto que lleva un archivo antes de compartirlo.
+
+Keywords: PDF, editor de PDF, firmar PDF, firma digital, anotar PDF, unir PDF, OCR.
+
+License terms: Inkvolt PDF es software libre bajo la Licencia Pública General Affero de GNU v3.0. Código fuente y licencia: https://github.com/gabandres/inkvolt
+
 ### Privacy policy
 
 Partner Center asks for a privacy policy URL; publish a short page (e.g. on the product site or a public gist) saying:

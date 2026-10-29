@@ -196,6 +196,48 @@ Partner Center sits behind a web firewall that rejects a listing save (403 "Acce
 save listing") when the text looks like SQL: "; drop a PDF" did. Keep semicolons away from words like drop, delete,
 select or insert.
 
+### Spanish listing (es)
+
+Not live yet. Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images: add the language in Partner Center (Store listings › Manage additional languages › Spanish) with the en-us screenshots, or upload them through the submission API's zip. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
+
+Short description:
+
+> Estado de la impresora, tinta y tóner, escaneo, copias e impresión para impresoras de red HP, Canon, Epson, Brother y otras. Sin cuenta, sin nube, sin telemetría.
+
+Description:
+
+> Inkvolt Print es una aplicación ligera y privada para tus impresoras. Hecha para impresoras HP, también funciona con Canon, Epson, Brother y otras impresoras AirPrint, Mopria o IPP Everywhere. Encuentra tu impresora en la red y muestra lo importante: si está lista o en reposo, los niveles de tinta o tóner, los problemas de papel y los contadores de uso, actualizados al momento.
+>
+> • Encuentra impresoras automáticamente o agrega una por su dirección IP. También aparecen las impresoras ya configuradas en Windows, incluidas las USB, con el estado que informa su controlador. Las impresoras de red más antiguas muestran estado y tóner por SNMP.
+> • Configura la impresora en Windows con un clic, con el controlador del propio Windows: no hay que descargar controladores.
+> • Escanea desde el cristal o el alimentador de documentos (AirScan, o el controlador de Windows del escáner), varias páginas a la vez; revisa y recorta las páginas, omite las que estén en blanco y guarda como JPEG o como PDF con texto que se puede buscar (el reconocimiento de texto se hace en tu PC). Ajustes de escaneo de un clic.
+> • Copia, incluidas copias de identificaciones en una sola hoja, e imprime fotos en tamaños estándar.
+> • Imprime PDF con copias, rangos de páginas e impresión a doble cara. Arrastra un PDF a la ventana, o haz clic derecho en un PDF en el Explorador de archivos y ábrelo con Inkvolt Print.
+> • Mira y cancela trabajos en la cola de impresión, y resuelve problemas comunes como una impresora en pausa o sin conexión.
+> • Cambia la configuración de la propia impresora, guardando la contraseña de administrador en el Administrador de credenciales de Windows si así lo eliges.
+>
+> Sin cuenta de HP, sin servicio en la nube, sin anuncios, sin telemetría, sin servicios en segundo plano. Inkvolt Print solo se comunica con tu impresora, en tu red.
+>
+> La aplicación está en inglés.
+>
+> Gratis y de código abierto (licencia MIT). Código fuente: https://github.com/gabandres/inkvolt
+>
+> Inkvolt Print es un proyecto independiente, sin relación con HP Inc., Canon, Seiko Epson ni Brother, y sin su respaldo. HP y LaserJet son marcas comerciales de HP Inc. Canon, Epson y Brother son marcas comerciales de sus dueños. Se mencionan solo para describir las impresoras con las que funciona Inkvolt Print.
+
+Features:
+
+> - Encuentra impresoras automáticamente o agrega una por su dirección IP; también las ya configuradas en Windows, incluidas las USB.
+> - Configura la impresora en Windows con un clic, con el controlador del propio Windows: no hay que descargar controladores.
+> - Escanea desde el cristal o el alimentador, revisa y recorta las páginas, omite las que estén en blanco y guarda como JPEG o PDF con texto buscable.
+> - Copia, incluidas copias de identificaciones en una sola hoja, e imprime fotos en tamaños estándar.
+> - Imprime PDF con copias, rangos de páginas e impresión a doble cara; arrastra un PDF a la ventana o ábrelo desde el Explorador de archivos.
+> - Mira y cancela trabajos en la cola de impresión, y resuelve problemas comunes como una impresora en pausa o sin conexión.
+> - Cambia la configuración de la propia impresora, con la contraseña de administrador guardada en el Administrador de credenciales de Windows.
+
+Keywords: impresora, escáner, escanear a PDF, tinta y tóner, imprimir PDF, copiar, impresora de red.
+
+License terms: Inkvolt Print es de código abierto bajo la licencia MIT. Código fuente y licencia: https://github.com/gabandres/inkvolt
+
 ### Privacy policy
 
 Partner Center asks for a privacy policy URL; publish a short page saying:
