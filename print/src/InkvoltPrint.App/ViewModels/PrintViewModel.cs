@@ -270,6 +270,7 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
                 progress, _cts.Token, onSpooling: () => IsSpooling = true);
             SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
                        $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");
+            RatingRequest.NoteSuccess(state);
         }
         catch (OperationCanceledException)
         {

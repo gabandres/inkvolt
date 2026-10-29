@@ -6,6 +6,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.2.1
+- Once you've saved a few documents with Inkvolt PDF over at least two days, it asks one time whether you'd like to rate it in the Microsoft Store, in the Store's own window. It never asks again, whatever you choose.
+
 ## 1.2.0
 - Edit Text & Images: click text to edit its whole paragraph. What you type rewraps in the paragraph's box with its alignment and line spacing, and you're asked first when it would run into what follows.
 - Paragraph editing: characters the PDF's copy of a font doesn't have (an embedded font usually holds only the letters the document used) are now drawn from the closest font on your PC, named under the editor; the rest of the paragraph stays in its own font.

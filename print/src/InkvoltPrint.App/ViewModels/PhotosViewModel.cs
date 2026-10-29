@@ -550,6 +550,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
             SetMessage("Sending the photos to the printer…");
             var sent = await PhotoPrinting.PrintAsync(queue, settings, photos, layout, "Photos");
             SetMessage($"Sent to the printer: {Count(sent, "sheet")}.");
+            RatingRequest.NoteSuccess(state);
         }
         catch (Exception ex)
         {

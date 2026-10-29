@@ -1331,6 +1331,7 @@ public partial class MainWindow : Window
         AppSettings.Current.AddRecent(path);
         RefreshRecent();
         ShowToast(new Toast($"Saved {Path.GetFileName(path)}", "Show in folder", () => Shell.ShowInFolder(path)));
+        NoteSavedForRating();
         return true;
     }
 

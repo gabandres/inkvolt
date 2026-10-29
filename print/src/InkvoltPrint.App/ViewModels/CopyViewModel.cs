@@ -335,6 +335,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
             SetMessage("Sending the copy to the printer…");
             await print(queue);
             SetMessage($"Sent to the printer: {what}.");
+            RatingRequest.NoteSuccess(state);
         }
         catch (Exception ex)
         {

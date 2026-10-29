@@ -874,6 +874,7 @@ public sealed partial class ScanViewModel : ObservableObject
             _savedPdfs = jpg ? [] : all;
             MarkSaved(changes);
             Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}.";
+            RatingRequest.NoteSuccess(_state);
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
         catch (Exception ex)
@@ -1088,6 +1089,7 @@ public sealed partial class ScanViewModel : ObservableObject
                 + (before.Count == 0 ? "" : $" Already saved the first time, not written again: {string.Join(", ", before.Select(Path.GetFileName))}.")
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
+            RatingRequest.NoteSuccess(_state);
         }
         catch (Exception ex)
         {

@@ -351,6 +351,8 @@ public sealed class AppSettings
     public bool KeepRecoveryCopies { get; set; } = true;
     /// <summary>Packaged installs: ask the Microsoft Store for updates a while after startup (MainWindow.Updates.cs).</summary>
     public bool CheckForUpdates { get; set; } = true;
+    /// <summary>Packaged installs: saved documents counted toward the one Store rating request (MainWindow.Rating.cs).</summary>
+    public InkvoltPrint.Core.Suite.RatingProgress? Rating { get; set; }
     public List<string> OpenTabs { get; set; } = [];
     /// <summary>Show pages with inverted colors (night reading).</summary>
     public bool DarkPages { get; set; }
@@ -579,6 +581,7 @@ public sealed class AppSettings
             .Select(x => x.p)
             .Take(MaxRecent)];
         Prune();
+        Rating = InkvoltPrint.Core.Suite.RatingProgress.Merge(Rating, disk.Rating);
     }
 
     private void SetBaseline()

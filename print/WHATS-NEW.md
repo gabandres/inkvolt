@@ -6,6 +6,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.0.8
+- Once Inkvolt Print has saved a few of your scans or sent a few prints over at least two days, it asks one time whether you'd like to rate it in the Microsoft Store, in the Store's own window. It never asks again, whatever you choose.
+
 ## 1.0.7
 - Add a printer: searches your network for printers that don't show up by themselves, puts back printers you removed, helps with USB printers, and takes an address or printer URL.
 - Unsaved scans come back after a crash in more cases (after a save, while a dialog was open), and a printer with unsaved scans stays listed.
