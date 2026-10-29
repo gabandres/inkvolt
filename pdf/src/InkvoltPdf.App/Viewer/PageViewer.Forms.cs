@@ -717,6 +717,8 @@ public sealed partial class PageViewer
         if (e.NewFocus is DependencyObject d && sender is DependencyObject s && IsDescendant(s, d)) return;
         // The drawing style bar works on the open text box (it hands the focus back).
         if (_editorDrawing is not null && e.NewFocus is DependencyObject f && EditorCompanion is { } companion && IsDescendant(companion, f)) return;
+        // The paragraph editor's look bar works on its selection.
+        if (_editorParagraph is not null && e.NewFocus is DependencyObject lf && InLookBar(lf)) return;
         CommitEditor();
     }
 
@@ -760,6 +762,10 @@ public sealed partial class PageViewer
             else if (_editorDrawing is { } dt && _editor is TextBox dtb)
             {
                 CommitDrawingText(dt, dtb.Text);
+            }
+            else if (_editorParagraph is { } para && _editor is System.Windows.Controls.RichTextBox prb)
+            {
+                CommitParagraph(para, prb);
             }
             else if (_editorRun is { } run && _editor is TextBox rtb)
             {

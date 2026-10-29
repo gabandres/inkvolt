@@ -10,7 +10,7 @@ namespace InkvoltPdf.Tests;
 /// Edit Text &amp; Images, paragraphs (roadmap 2.1, first part): a page's lines grouped into paragraphs with their
 /// alignment and line step, and a paragraph's text replaced, rewrapped in its box in its own embedded font.
 /// </summary>
-public class ParagraphEditTests(ITestOutputHelper output)
+public partial class ParagraphEditTests(ITestOutputHelper output)
 {
     /// <summary>What the test fonts hold: no "@", "#" or "€".</summary>
     private const string Chars = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 .,;:!?'-";
@@ -250,15 +250,139 @@ public class ParagraphEditTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void CharactersTheEmbeddedFontLacksAreRefusedByName()
+    public void CharactersNoFontHereHasAreRefusedByName()
     {
         var (pdf, _) = Page(ParagraphAlign.Justified);
         var p = Body0(pdf);
-        var text = Body + " mail me @ home #1";
-        Assert.Equal(["@", "#"], p.Check(text).Missing);
+        const string none = "\U0010FFFD"; // private use: no installed font draws it
+        var text = Body + " mail me @ home " + none;
+        var check = p.Check(text);
+        Assert.Equal([none], check.Missing);
         var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, text));
-        Assert.Equal(["@", "#"], ex.Missing);
-        Assert.Contains("“@”", ex.Message);
+        Assert.Equal([none], ex.Missing);
+        Assert.Contains("U+10FFFD", ex.Message);
+        Assert.Contains("any font on this PC", ex.Message);
+    }
+
+    // ---- Characters the embedded subset lacks (part b) ----
+
+    [Theory]
+    [InlineData("FA")]
+    [InlineData("FU")]
+    public void CharactersTheSubsetLacksComeFromTheClosestInstalledFont(string key)
+    {
+        // The subset is Arial's: the stand-in is Arial itself, named; the rest stays in the paragraph's own font.
+        var seed = ContentEditPdf.Make("", fontText: Chars);
+        string Show(string s) => key == "FA" ? $"({s})" : ContentEditPdf.Cid(seed, s);
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder($"BT /{key} {N(Size)} Tf {N(Step)} TL 72 {N(Top)} Td {Show(lines[0])} Tj");
+        foreach (var l in lines.Skip(1)) sb.Append($" T* {Show(l)} Tj");
+        sb.Append(" 0 -80 Td ").Append(Show("Next block starts here")).Append(" Tj ET");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        var text = Body + " mail me @ home #1 for €5";
+        var check = p.Check(text);
+        Assert.Empty(check.Missing);
+        Assert.Equal(["@", "#", "€"], check.Borrowed);
+        Assert.Equal(["Arial"], check.StandIns);
+        Assert.Null(check.Overlaps);
+
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        Assert.Contains(Words(text), Words(ContentEditPdf.Text(edited)));
+        var after = ContentEditor.Read(edited, null, 0);
+        var q = Body0(edited);
+        Assert.Null(q.Blocked);
+        Assert.Equal(text, q.Text);
+        Assert.Equal(p.Lead.FontName, q.Lead.FontName);
+        // Only the borrowed characters are in the stand-in font, at the paragraph's size and color.
+        var borrowed = q.Runs.Where(r => r.FontName != p.Lead.FontName).ToList();
+        Assert.Equal(["@", "#", "€"], borrowed.Select(r => r.Text));
+        Assert.All(borrowed, r => Assert.Contains("arial", r.FontName, StringComparison.OrdinalIgnoreCase));
+        Assert.All(borrowed, r => Assert.Equal(p.FontSize, r.FontSize, 1));
+        // Glyph boxes in order on the line: nothing drawn over its neighbors.
+        var line = Core2Pdf.Lines(edited).Single(l => l.Text.Contains('@'));
+        for (var i = 1; i < line.Chars.Count; i++) Assert.True(line.Chars[i].Box.X >= line.Chars[i - 1].Box.X - 0.01, $"{line.Text} at {i}");
+        // What follows is still in the paragraph's font (the font is set back after each stand-in).
+        var next = after.Runs.Single(r => r.Text == "Next block starts here");
+        Assert.Equal(p.Lead.FontName, next.FontName);
+
+        // Edited again, the borrowed characters are part of the paragraph.
+        var again = ContentEditor.ReplaceParagraph(edited, null, q, q.Text.Replace("@ home", "@ work", StringComparison.Ordinal) + " @ last");
+        var r2 = Body0(again);
+        Assert.Null(r2.Blocked);
+        Assert.EndsWith("for €5 @ last", r2.Text);
+        Assert.Contains("mail me @ work", Words(ContentEditPdf.Text(again)));
+        Assert.Equal(next.Box.Y, ContentEditor.Read(again, null, 0).Runs.Single(r => r.Text == "Next block starts here").Box.Y, 2);
+    }
+
+    [Fact]
+    public void BorrowedCharactersKeepCharacterSpacingAndJustification()
+    {
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var w = Measure(lines[i]);
+            var spaces = lines[i].Count(c => c == ' ');
+            var tw = i < lines.Count - 1 ? (Width - w) / spaces : 0;
+            sb.Append($"BT /FA {N(Size)} Tf {N(tw)} Tw {N(Left)} {N(Top - i * Step)} Td ({lines[i]}) Tj ET\n");
+        }
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.Equal(ParagraphAlign.Justified, p.Align);
+        var text = "Write to me @ the office #4 or the lab #5 " + Body;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited, "Write");
+        Assert.Equal(text, q.Text);
+        Assert.Equal(ParagraphAlign.Justified, q.Align);
+        // Every line but the last reaches the right edge, stand-ins and all.
+        Assert.All(q.Lines.Take(q.Lines.Count - 1), l => Assert.Equal(p.Box.Right, l.Right, 0));
+    }
+
+    [Fact]
+    public void TheStandInMatchesTheFontsClassWeightAndSlant()
+    {
+        // Fonts not installed, described by their names and descriptor flags (2 serif, 1 fixed pitch, 64 italic).
+        static string Pick(string name, int flags = 32) => StandInFonts.RankFor(LooseFont(name, flags))[0].Name;
+        Assert.Equal("Arial Italic", Pick("Helvetica-Oblique"));
+        Assert.Equal("Times New Roman Bold", Pick("ABCDEF+TimesNewRomanPS-BoldMT"));
+        Assert.Contains(Pick("ABCDEF+Garamondish-BoldItalic", 2 | 32 | 64), new[] { "Times New Roman Bold Italic", "Georgia Bold Italic", "Cambria Bold Italic", "Palatino Linotype Bold Italic", "Constantia Bold Italic" });
+        Assert.Contains(Pick("ABCDEF+Unknownmono", 1 | 32), new[] { "Courier New", "Consolas", "Lucida Console" });
+        Assert.Contains(Pick("ABCDEF+Unknownsans", 32), new[] { "Arial", "Segoe UI", "Calibri", "Verdana", "Tahoma", "Trebuchet MS" });
+    }
+
+    [Fact]
+    public void AmongItsClassTheStandInIsTheOneWithTheClosestWidths()
+    {
+        // A sans font with Verdana's widths (wide) and one with Arial's: each gets the installed font they came from.
+        foreach (var (file, expected) in new[] { ("verdana.ttf", "Verdana"), ("arial.ttf", "Arial"), ("tahoma.ttf", "Tahoma") })
+        {
+            if (SystemFonts.Get(file) is not { } tt) continue;
+            var widths = Enumerable.Range(32, 95).Select(c => (int)Math.Round(tt.Advance(c) * 1000)).ToArray();
+            Assert.Equal(expected, StandInFonts.RankFor(LooseFont("ABCDEF+Someface", 32, widths))[0].Name);
+        }
+    }
+
+    /// <summary>A non-embedded simple font with a descriptor: its name, flags and (from 32 on) widths, else 500 each.</summary>
+    private static TextFont LooseFont(string name, int flags, int[]? widths = null)
+    {
+        var doc = new PdfSharp.Pdf.PdfDocument();
+        var descriptor = new PdfSharp.Pdf.PdfDictionary(doc);
+        descriptor.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/FontDescriptor");
+        descriptor.Elements["/FontName"] = new PdfSharp.Pdf.PdfName("/" + name);
+        descriptor.Elements["/Flags"] = new PdfSharp.Pdf.PdfInteger(flags);
+        var font = new PdfSharp.Pdf.PdfDictionary(doc);
+        font.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/Font");
+        font.Elements["/Subtype"] = new PdfSharp.Pdf.PdfName("/TrueType");
+        font.Elements["/BaseFont"] = new PdfSharp.Pdf.PdfName("/" + name);
+        font.Elements["/Encoding"] = new PdfSharp.Pdf.PdfName("/WinAnsiEncoding");
+        font.Elements["/FirstChar"] = new PdfSharp.Pdf.PdfInteger(32);
+        font.Elements["/LastChar"] = new PdfSharp.Pdf.PdfInteger(126);
+        var w = new PdfSharp.Pdf.PdfArray(doc);
+        for (var i = 0; i < 95; i++) w.Elements.Add(new PdfSharp.Pdf.PdfInteger(widths?[i] ?? 500));
+        font.Elements["/Widths"] = w;
+        font.Elements["/FontDescriptor"] = descriptor;
+        return TextFont.For(font);
     }
 
     [Fact]
@@ -326,6 +450,148 @@ public class ParagraphEditTests(ITestOutputHelper output)
         Assert.True(report.RemovedItemKept);
         Assert.Equal(pdf, edited.AsSpan(0, pdf.Length).ToArray());
         Assert.Contains("three parties", Words(ContentEditPdf.Text(edited)));
+    }
+
+    // ---- Review of part a: the edges ----
+
+    /// <summary>
+    /// Body's lines as a left-aligned paragraph drawn through <paramref name="prefix"/> (a cm and/or text matrix set-up)
+    /// with "Next block starts here" placed relative to it; <paramref name="tm"/> starts the first line.
+    /// </summary>
+    private static byte[] Drawn(string tm, string prefix = "", string suffix = "", int rotate = 0, string extra = "")
+    {
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder($"{prefix} BT /FA {N(Size)} Tf {extra} {N(Step)} TL {tm} ({lines[0]}) Tj");
+        foreach (var l in lines.Skip(1)) sb.Append($" T* ({l}) Tj");
+        sb.Append($" 0 -60 Td (Next block starts here) Tj ET {suffix}");
+        return ContentEditPdf.Make(sb.ToString(), rotate: rotate, fontText: Chars);
+    }
+
+    /// <summary>Twenty words added re-extract in order, the paragraph keeps its lines' left edge and step, what follows stays.</summary>
+    private void AssertReflows(byte[] pdf)
+    {
+        var before = ContentEditor.Read(pdf, null, 0);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        var next = before.Runs.Single(r => r.Text == "Next block starts here");
+        var text = Body + " " + Twenty;
+        var check = p.Check(text);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        Assert.Contains(Words(text), Words(ContentEditPdf.Text(edited)));
+        var after = ContentEditor.Read(edited, null, 0);
+        var q = Body0(edited);
+        Assert.Equal(text, q.Text);
+        Assert.Equal(check.LineCount, q.Lines.Count);
+        Assert.Equal(p.LineStep, q.LineStep, 1);
+        Assert.All(q.Lines, l => Assert.Equal(p.Lines[0].X, l.X, 1));
+        Assert.True(q.Box.Right <= p.Box.Right + 0.5, $"{q.Box.Right} > {p.Box.Right}");
+        var next2 = after.Runs.Single(r => r.Text == "Next block starts here");
+        Assert.Equal(next.Box.X, next2.Box.X, 2);
+        Assert.Equal(next.Box.Y, next2.Box.Y, 2);
+        output.WriteLine($"{p.Box} → {q.Box}, {q.Lines.Count} lines");
+    }
+
+    [Fact]
+    public void AParagraphOnATurnedPageReflows() =>
+        // /Rotate 90 with the text turned back upright: as shown, it is an ordinary paragraph.
+        AssertReflows(Drawn($"0 1 -1 0 300 {N(Left)} Tm", rotate: 90));
+
+    [Fact]
+    public void AParagraphInAFlippedCoordinateSystemReflows() =>
+        // As browsers write PDFs: the CTM flips y, and the text matrix flips it back.
+        AssertReflows(Drawn($"1 0 0 -1 {N(Left)} {N(792 - Top)} Tm", prefix: "q 1 0 0 -1 0 792 cm", suffix: "Q"));
+
+    [Fact]
+    public void AParagraphScaledByTheCtmWithSpacingAndHorizontalScalingReflows() =>
+        // Drawn at twice the scale: the paragraph's step and widths are the page's, not text space's.
+        AssertReflows(Drawn($"{N(Left * 2)} {N(Top * 2)} Td", prefix: "q 0.5 0 0 0.5 0 0 cm", suffix: "Q", extra: "0.3 Tc 90 Tz"));
+
+    [Fact]
+    public void AParagraphWrittenBottomUpIsRewrittenInReadingOrder()
+    {
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder();
+        for (var i = lines.Count - 1; i >= 0; i--) sb.Append($"BT /FA {N(Size)} Tf {N(Left)} {N(Top - i * Step)} Td ({lines[i]}) Tj ET\n");
+        sb.Append($"BT /FA {N(Size)} Tf {N(Left)} {N(Top - (lines.Count - 1) * Step - 60)} Td (Next block starts here) Tj ET");
+        AssertReflows(ContentEditPdf.Make(sb.ToString(), fontText: Chars));
+    }
+
+    [Fact]
+    public void ARightToLeftParagraphIsEditedLineByLine()
+    {
+        // Rewrapping lays words out left to right: a Hebrew or Arabic paragraph would come out in the wrong order.
+        const string hebrew = "שלום עולם זה טקסט בעברית";
+        var seed = ContentEditPdf.Make("", fontText: Chars + hebrew);
+        var line = ContentEditPdf.Cid(seed, hebrew);
+        var pdf = ContentEditPdf.Make($"BT /FU {N(Size)} Tf {N(Step)} TL 200 {N(Top)} Td {line} Tj T* {line} Tj T* {line} Tj ET", fontText: Chars + hebrew);
+        var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single();
+        Assert.Equal(3, p.Lines.Count);
+        Assert.NotNull(p.Blocked);
+        Assert.Contains("right to left", p.Blocked);
+    }
+
+    [Fact]
+    public void ClickingBetweenTheLinesOfABlockedParagraphFindsNothing()
+    {
+        var fu = ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), " bold words");
+        var lines = Wrap(Body, Width);
+        var pdf = ContentEditPdf.Make(
+            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FU 11 Tf {fu} Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars);
+        var content = ContentEditor.Read(pdf, null, 0);
+        var p = content.Paragraphs.Single(q => q.Lines.Count > 1);
+        Assert.NotNull(p.Blocked);
+        // Between its first two lines, at their left edge: no run there, and the paragraph can't be edited as one.
+        Assert.Null(content.ParagraphAt(p.Lines[0].X + 2, (p.Lines[0].Bottom + p.Lines[1].Y) / 2, slop: 0));
+    }
+
+    [Fact]
+    public void SpacesDrawnOnTheirOwnGoWithTheParagraph()
+    {
+        // Some generators draw each word and each space with its own operator: the spaces are part of the old text too.
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            sb.Append($"BT /FA {N(Size)} Tf {N(Left)} {N(Top - i * Step)} Td");
+            var words = lines[i].Split(' ');
+            for (var k = 0; k < words.Length; k++) sb.Append(k == 0 ? $" ({words[k]}) Tj" : $" ( ) Tj ({words[k]}) Tj");
+            sb.Append(" ET\n");
+        }
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.Equal(Body, p.Text);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, Twenty);
+        Assert.Equal(Words(Twenty), Words(ContentEditPdf.Text(edited)));
+        Assert.DoesNotContain(ContentEditor.Read(edited, null, 0).Runs, r => r.Text == " ");
+    }
+
+    [Fact]
+    public void AParagraphWithASuperscriptInItIsEditedLineByLine()
+    {
+        // A footnote mark is text of its own (smaller, raised): rewrapping the words around it would leave it behind.
+        var lines = Wrap(Body, Width);
+        var mark = 72 + Measure(lines[1]) + 1;
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL 72 {N(Top)} Td ({lines[0]}) Tj");
+        foreach (var l in lines.Skip(1)) sb.Append($" T* ({l}) Tj");
+        sb.Append($" ET BT /FA 7 Tf 4 Ts {N(mark)} {N(Top - Step)} Td (1) Tj ET");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.NotNull(p.Blocked);
+        Assert.Contains("inside it", p.Blocked);
+    }
+
+    [Fact]
+    public void EmptyTextTakesTheParagraphAwayAndWhatFollowsStays()
+    {
+        var (pdf, _) = Page(ParagraphAlign.Left);
+        var p = Body0(pdf);
+        var next = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "Next block starts here");
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, "  \r\n ");
+        var after = ContentEditor.Read(edited, null, 0);
+        Assert.DoesNotContain(after.Runs, r => r.Text.Contains("quick", StringComparison.Ordinal));
+        var next2 = after.Runs.Single(r => r.Text == "Next block starts here");
+        Assert.Equal(next.Box.X, next2.Box.X, 2);
+        Assert.Equal(next.Box.Y, next2.Box.Y, 2);
     }
 
     /// <summary>

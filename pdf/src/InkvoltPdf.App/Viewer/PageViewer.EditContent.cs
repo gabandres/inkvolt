@@ -14,8 +14,11 @@ public enum ContentAction { Delete, Replace }
 /// <summary>Text typed over a run (committed with Enter or by clicking elsewhere).</summary>
 public sealed record RunEdit(TextRun Run, string Text);
 
-/// <summary>A paragraph's new text (committed with Enter or by clicking elsewhere; Shift+Enter is a line break in it).</summary>
-public sealed record ParagraphEdit(TextParagraph Paragraph, string Text);
+/// <summary>
+/// A paragraph's new text (committed with Enter or by clicking elsewhere; Shift+Enter is a line break in it) and the
+/// stretches of it with a look of their own.
+/// </summary>
+public sealed record ParagraphEdit(TextParagraph Paragraph, string Text, IReadOnlyList<TextSpan> Spans);
 
 /// <summary>A picture dragged or nudged to a new box (page space).</summary>
 public sealed record ImageMove(PageImage Image, RectD Box);
@@ -67,6 +70,9 @@ public sealed partial class PageViewer
 
     /// <summary>The run whose editor is open.</summary>
     public TextRun? EditedRun => _editorRun;
+
+    /// <summary>The live note under the open editor (null: none).</summary>
+    public string? EditorNote => _runInfoText?.Text;
 
     /// <summary>The paragraph whose editor is open (null: none, or a single run's).</summary>
     public TextParagraph? EditedParagraph => _editorParagraph;
@@ -318,32 +324,28 @@ public sealed partial class PageViewer
         CaretBrush = Brushes.Black,
     };
 
-    /// <summary>An editor over a whole paragraph: wrapping in its box with its alignment, growing downward as it fills.</summary>
+    /// <summary>
+    /// An editor over a whole paragraph: wrapping in its box with its alignment, growing downward as it fills, its
+    /// stretches in their looks, with the look bar over it for the selection.
+    /// </summary>
     private void OpenParagraphEditor(TextParagraph p)
     {
-        var run = p.Runs[0];
-        var box = NewTextEditor(run, p.Text);
-        box.AcceptsReturn = true;
-        box.TextWrapping = TextWrapping.Wrap;
-        box.TextAlignment = p.Align switch
-        {
-            ParagraphAlign.Center => TextAlignment.Center,
-            ParagraphAlign.Right => TextAlignment.Right,
-            ParagraphAlign.Justified => TextAlignment.Justify,
-            _ => TextAlignment.Left,
-        };
-        box.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
-        box.ToolTip = "Type, then press Enter or click elsewhere. Shift+Enter starts a new line. Esc cancels.";
+        var run = p.Lead;
+        _paraK = 1;
+        var box = NewParagraphEditor(p);
+        ScaleParagraphEditor(box, p, _zoom * PtToDip); // its sizes at the zoom before anything reads them
+        box.ToolTip = "Type, then press Enter or click elsewhere. Shift+Enter starts a new line. Esc cancels. The bar above changes the selection's look.";
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
         System.Windows.Automation.AutomationProperties.SetName(box, "Paragraph text");
         System.Windows.Automation.AutomationProperties.SetHelpText(box,
-            "Edits this paragraph in its own font; the text rewraps in the paragraph's box. Enter applies, Shift+Enter starts a new line, Escape cancels.");
+            "Edits this paragraph in its own font; the text rewraps in the paragraph's box. The bar above gives the selected text another font, size, color, bold or italic. Enter applies, Shift+Enter starts a new line, Escape cancels.");
         ShowEditor(box, null, null);
         _editorRun = run; // ShowEditor closes any previous editor first
         _editorParagraph = p;
         box.TextChanged += (_, _) => UpdateRunInfo();
         box.SizeChanged += (_, _) => PlaceRunInfo();
         box.SelectAll();
+        ShowLookBar(p, box);
         ShowRunInfo();
     }
 
@@ -389,12 +391,13 @@ public sealed partial class PageViewer
 
     private void UpdateRunInfo()
     {
-        if (_editorRun is not { } run || _editor is not TextBox tb || _runInfoText is null || _runInfo is null) return;
-        if (_editorParagraph is { } p)
+        if (_editorParagraph is { } p && _editor is RichTextBox rb && _runInfoText is not null && _runInfo is not null)
         {
-            UpdateParagraphInfo(p, tb.Text);
+            var (text, spans) = ParagraphContent(rb, p);
+            UpdateParagraphInfo(p, text, spans);
             return;
         }
+        if (_editorRun is not { } run || _editor is not TextBox tb || _runInfoText is null || _runInfo is null) return;
         var check = run.Check(tb.Text);
         string note;
         var problem = false;
@@ -421,27 +424,36 @@ public sealed partial class PageViewer
         System.Windows.Automation.AutomationProperties.SetName(_runInfoText, note);
     }
 
-    private void UpdateParagraphInfo(TextParagraph p, string text)
+    private void UpdateParagraphInfo(TextParagraph p, string text, IReadOnlyList<TextSpan> spans)
     {
-        var check = p.Check(text);
+        var check = p.Check(text, spans);
         string note;
         string? brush = null;
         if (check.Missing.Count > 0)
         {
-            var list = string.Join(", ", check.Missing.Take(10).Select(c => c == " " ? "space" : $"“{c}”")) + (check.Missing.Count > 10 ? " …" : "");
-            note = $"The font “{p.Runs[0].FontName}” has no {list} in this PDF, so those can't be typed here.";
+            note = $"Neither the font “{p.Lead.FontName}” nor any font on this PC has {CharList(check.Missing)}, so those can't be typed here.";
             brush = "SystemFillColorCriticalBrush";
         }
         else
         {
             var lines = check.LineCount == 1 ? "1 line" : $"{check.LineCount.ToString(CultureInfo.CurrentCulture)} lines";
             var was = check.LineCount == p.Lines.Count ? "as before" : $"was {p.Lines.Count.ToString(CultureInfo.CurrentCulture)}";
-            if (check.Overlaps is not null)
+            if (check.LookProblem is { } lp)
+            {
+                note = $"{lines} ({was}), but {lp}.";
+                brush = "SystemFillColorCriticalBrush";
+            }
+            else if (check.Overlaps is not null)
             {
                 note = $"{lines} ({was}): it would run into what follows below. You'll be asked before it is written.";
                 brush = "SystemFillColorCautionBrush";
             }
             else note = $"{lines} ({was}), in the paragraph's box. Enter applies, Shift+Enter starts a new line.";
+            // Characters the paragraph's font lacks: never drawn from another font silently.
+            if (check.Borrowed.Count > 0)
+                note += $"\n{CharList(check.Borrowed)} {(check.Borrowed.Count == 1 ? "isn't" : "aren't")} in this PDF's copy of “{p.Lead.FontName}”: drawn in " +
+                        $"{string.Join(" and ", check.StandIns)}, the closest font on this PC.";
+            if (check.Faces.Count > 0) note += $"\nDrawn in {string.Join(", ", check.Faces)} where the look asks for it (fonts on this PC, embedded as used).";
         }
         _runInfoText!.Text = note;
         _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "TextFillColorSecondaryBrush");
@@ -449,30 +461,34 @@ public sealed partial class PageViewer
         System.Windows.Automation.AutomationProperties.SetName(_runInfoText, note);
     }
 
-    /// <summary>Lays the paragraph editor over the paragraph's box (its width; as tall as its text) and the note under it.</summary>
-    private void PositionParagraphEditor(TextParagraph p, TextBox tb, double k)
+    /// <summary>Characters for a note: “@”, “#” (a space as "space"), at most ten.</summary>
+    private static string CharList(IReadOnlyList<string> chars) =>
+        string.Join(", ", chars.Take(10).Select(c => c == " " ? "space" : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) == UnicodeCategory.PrivateUse ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”"))
+        + (chars.Count > 10 ? " …" : "");
+
+    /// <summary>Lays the paragraph editor over the paragraph's box (its width; as tall as its text), the look bar over it and the note under it.</summary>
+    private void PositionParagraphEditor(TextParagraph p, RichTextBox tb, double k)
     {
         var r = ToSurfaceRect(p.PageIndex, p.Box);
         var turn = ((int)Math.Round(_viewRotation / 90.0) * 90 % 360 + 360) % 360;
         var (length, thickness) = turn is 90 or 270 ? (r.Height, r.Width) : (r.Width, r.Height);
-        tb.FontSize = Math.Max(6, p.FontSize * k);
-        TextBlock.SetLineStackingStrategy(tb, LineStackingStrategy.BlockLineHeight);
-        TextBlock.SetLineHeight(tb, Math.Max(tb.FontSize, p.LineStep * k));
-        // The box's width inside the border and the text box's own margins (2 px a side), so its lines break where the page's do
+        ScaleParagraphEditor(tb, p, k);
+        // The box's width inside the border and the text box's own margins, so its lines break where the page's do
         // when the screen font is the PDF's.
-        tb.Width = Math.Max(length, 40) + 6;
+        tb.Width = Math.Max(length, 40) + 12;
         tb.Height = double.NaN;
         tb.MinHeight = Math.Max(thickness, tb.FontSize * 1.2) + 2;
         tb.LayoutTransform = turn == 0 ? Transform.Identity : Frozen(new RotateTransform(turn));
         Canvas.SetLeft(tb, r.X - 1);
         Canvas.SetTop(tb, r.Y - 1);
+        PlaceLookBar(r);
         PlaceRunInfo();
     }
 
     /// <summary>The note under the paragraph editor as it grows (beside it when the page is turned).</summary>
     private void PlaceRunInfo()
     {
-        if (_editorParagraph is not { } p || _editor is not TextBox tb || _runInfo is null || p.PageIndex >= _rects.Length) return;
+        if (_editorParagraph is not { } p || _editor is not RichTextBox tb || _runInfo is null || p.PageIndex >= _rects.Length) return;
         var r = ToSurfaceRect(p.PageIndex, p.Box);
         var turn = ((int)Math.Round(_viewRotation / 90.0) * 90 % 360 + 360) % 360;
         _runInfo.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -493,12 +509,12 @@ public sealed partial class PageViewer
     /// <summary>Lays the editor over its run (font size and the page's turn applied) and the note under it.</summary>
     private void PositionRunEditor(double k)
     {
-        if (_editorRun is not { } run || _editor is not TextBox tb) return;
-        if (_editorParagraph is { } para)
+        if (_editorParagraph is { } para && _editor is RichTextBox prb)
         {
-            PositionParagraphEditor(para, tb, k);
+            PositionParagraphEditor(para, prb, k);
             return;
         }
+        if (_editorRun is not { } run || _editor is not TextBox tb) return;
         var r = ToSurfaceRect(run.PageIndex, run.Box);
         var turn = ((int)Math.Round((run.Angle + _viewRotation) / 90) * 90 % 360 + 360) % 360;
         var straight = Math.Abs(run.Angle - Math.Round(run.Angle / 90) * 90) < 1;
@@ -523,17 +539,21 @@ public sealed partial class PageViewer
 
     private void CommitRunText(TextRun run, string text)
     {
-        if (_editorParagraph is { } p)
-        {
-            if (text.Replace("\r\n", "\n").TrimEnd() != p.Text) ParagraphEdited?.Invoke(this, new ParagraphEdit(p, text));
-            return;
-        }
         if (text != run.Text) RunEdited?.Invoke(this, new RunEdit(run, text));
+    }
+
+    /// <summary>A paragraph's text and looks, when either changed.</summary>
+    private void CommitParagraph(TextParagraph p, RichTextBox box)
+    {
+        var (text, spans) = ParagraphContent(box, p);
+        var same = text == p.Text && spans.Count == p.Spans.Count && spans.Zip(p.Spans).All(x => x.First == x.Second);
+        if (!same) ParagraphEdited?.Invoke(this, new ParagraphEdit(p, text, spans));
     }
 
     private void CloseRunInfo()
     {
         if (_runInfo is not null) _overlay.Children.Remove(_runInfo);
+        CloseLookBar();
         _runInfo = null;
         _runInfoText = null;
         _editorRun = null;
@@ -721,7 +741,16 @@ public sealed partial class PageViewer
     internal void DevEditParagraph(TextParagraph p, string? text)
     {
         OpenParagraphEditor(p);
-        if (text is not null && _editor is TextBox tb) tb.Text = text.Replace("\\n", "\n");
+        if (text is null || _editor is not RichTextBox rb) return;
+        var para = new System.Windows.Documents.Paragraph { Margin = new Thickness(0), TextAlignment = rb.Document.Blocks.OfType<System.Windows.Documents.Paragraph>().FirstOrDefault()?.TextAlignment ?? TextAlignment.Left };
+        var lines = text.Split("\\n");
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (i > 0) para.Inlines.Add(new System.Windows.Documents.LineBreak());
+            para.Inlines.Add(new System.Windows.Documents.Run(lines[i]));
+        }
+        rb.Document.Blocks.Clear();
+        rb.Document.Blocks.Add(para);
     }
 
     internal void DevMoveImage(PageImage image, RectD box)

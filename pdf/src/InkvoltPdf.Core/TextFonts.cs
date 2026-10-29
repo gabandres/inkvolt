@@ -51,6 +51,10 @@ internal sealed class TextFont
     public double Descent { get; } = -0.2;
     public bool Bold { get; }
     public bool Italic { get; }
+    /// <summary>The descriptor's /Flags (1 fixed pitch, 2 serif, 64 italic, …); 0 without a descriptor.</summary>
+    public int Flags { get; }
+    /// <summary>The descriptor's x-height in ems, when it gives one.</summary>
+    public double? XHeight { get; }
 
     private TextFont(PdfDictionary font)
     {
@@ -110,6 +114,8 @@ internal sealed class TextFont
         _embedded = descriptor is not null && Embedded(descriptor);
         _hasWidths = PdfObj.Array(font.Elements["/Widths"]) is not null;
         var flags = descriptor is null ? 0 : (int)PdfObj.Num(descriptor.Elements["/Flags"]);
+        Flags = flags;
+        if (descriptor is not null && PdfObj.Num(descriptor.Elements["/XHeight"]) is var xh and > 0 and < 1500) XHeight = xh / 1000;
         _symbolic = (flags & 4) != 0 && (flags & 32) == 0;
         if (descriptor is not null)
         {

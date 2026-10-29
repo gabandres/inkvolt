@@ -26,6 +26,18 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
 
     internal ContentEditor.RunInfo? Info { get; init; }
 
+    /// <summary>The name its font has in the resources (no slash).</summary>
+    internal string FontKey { get; init; } = "";
+
+    /// <summary>Drawn in a font a paragraph edit added for characters the paragraph's own font lacks (see <see cref="StandInFonts"/>).</summary>
+    internal bool StandIn => FontKey.StartsWith(ContentEditor.StandInKey, StringComparison.Ordinal);
+
+    /// <summary>Inside the marked content a paragraph edit puts around text it gave a look of its own (see <see cref="TextLook"/>); else null.</summary>
+    internal ContentEditor.LookTag? Tag { get; init; }
+
+    /// <summary>Part of a paragraph an edit gave its own font, size or color.</summary>
+    internal bool Styled => Tag is not null;
+
     /// <summary>Where its baseline starts on the page (page space, the text rise included).</summary>
     internal PointD Origin { get; init; }
 
@@ -46,12 +58,20 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
         double w = 0, end = 0;
         foreach (var p in parts)
         {
-            if (p.Code is not { } c)
+            var size = Size * (p.Look?.Scale ?? 1); // a part of another size is written at its own font size
+            if (p.StandIn is { } s)
             {
-                w -= p.Number / 1000 * Size * HScale;
+                // Drawn in a stand-in font, with no character spacing (see ContentEditor.WriteLine).
+                w += s.Width * size * HScale;
+                end = w;
                 continue;
             }
-            var glyph = Font!.WidthOf(c) / 1000 * Size * HScale;
+            if (p.Code is not { } c)
+            {
+                w -= p.Number / 1000 * size * HScale;
+                continue;
+            }
+            var glyph = Font!.WidthOf(c) / 1000 * size * HScale;
             end = w + glyph;
             w += glyph + (CharSpacing + (!Font.TwoByte && c == 32 ? WordSpacing : 0)) * HScale;
         }
@@ -83,9 +103,12 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
     /// <summary>The paragraph a run belongs to, or null (turned text, only spaces).</summary>
     public TextParagraph? ParagraphOf(TextRun run) => Paragraphs.FirstOrDefault(p => p.Runs.Contains(run));
 
-    /// <summary>The paragraph under a point: the one holding the run there, else one of several lines whose box holds the point.</summary>
+    /// <summary>
+    /// The paragraph under a point: the one holding the run there, else (between lines) one of several lines whose box
+    /// holds the point and that can be edited as one (a blocked one's lines are edited one by one, so there is nothing between them).
+    /// </summary>
     public TextParagraph? ParagraphAt(double x, double y, double slop = 1) =>
-        RunAt(x, y, slop) is { } run ? ParagraphOf(run) : Paragraphs.FirstOrDefault(p => p.Lines.Count > 1 && p.Box.Contains(x, y));
+        RunAt(x, y, slop) is { } run ? ParagraphOf(run) : Paragraphs.FirstOrDefault(p => p.Lines.Count > 1 && p.Blocked is null && p.Box.Contains(x, y));
 
     /// <summary>The text run under a point (the smallest when several overlap), or null.</summary>
     public TextRun? RunAt(double x, double y, double slop = 1) =>
@@ -115,6 +138,9 @@ public sealed class ContentEditException(string message, IReadOnlyList<string>? 
 public static partial class ContentEditor
 {
     private const int MaxDepth = 8;
+
+    /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
+    internal const string StandInKey = "InkFb";
 
     /// <summary>The page's text runs and pictures.</summary>
     public static PageContent Read(byte[] data, string? password, int pageIndex, CancellationToken cancel = default)
@@ -213,8 +239,8 @@ public static partial class ContentEditor
         return (parts, enc, middle);
     }
 
-    /// <summary>A glyph code, or (with no code) a TJ adjustment, of rewritten text.</summary>
-    internal readonly record struct Part(int? Code, double Number);
+    /// <summary>A glyph code, or (with no code) a TJ adjustment, of rewritten text; or characters drawn in stand-in fonts (<see cref="StandIn"/>).</summary>
+    internal readonly record struct Part(int? Code, double Number, ShapedLine? StandIn = null, PartLook? Look = null);
 
     internal static string OneLine(string text) => text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' ');
 
@@ -240,7 +266,7 @@ public static partial class ContentEditor
             tokens.Add(info.Hex ? ContentLexer.HexString(bytes) : ContentLexer.Literal(bytes));
             codes.Clear();
         }
-        foreach (var (c, n) in parts)
+        foreach (var (c, n, _, _) in parts)
         {
             if (c is { } code) codes.Add(code);
             else if (Math.Abs(n) > 1e-9)
@@ -559,6 +585,8 @@ public static partial class ContentEditor
         public Mat Ctm { get; init; } = Mat.Identity;
         public double Rise { get; init; }
         public double Advance { get; init; }
+        /// <summary>The operators that set the fill color in effect (to set it back after text of another color); null when that can't be told.</summary>
+        public string? FillOp { get; init; }
     }
 
     private sealed class Walked
@@ -580,6 +608,7 @@ public static partial class ContentEditor
         public double Size = 1, Tc, Tw, Th = 1, Tl, Rise;
         public int Render;
         public int Fill;
+        public string? FillOp = "0 g", FillSpace = "DeviceGray";
         public GState Clone() => (GState)MemberwiseClone();
     }
 
@@ -595,6 +624,7 @@ public static partial class ContentEditor
         gs = gs.Clone();
         var stack = new Stack<GState>();
         var marked = new Stack<bool>(); // marked-content sequences: does one carry /ActualText?
+        var looks = new Stack<LookTag?>(); // and is one a look a paragraph edit gave its text?
         var actualText = 0;
         Mat tm = Mat.Identity, tlm = Mat.Identity;
         for (var i = 0; i < ops.Count; i++)
@@ -615,12 +645,15 @@ public static partial class ContentEditor
                     break;
                 case "g" when op.Operands.Count >= 1:
                     gs.Fill = Gray(op.N(0));
+                    gs.FillOp = FillOp(op, 1);
                     break;
                 case "rg" when op.Operands.Count >= 3:
                     gs.Fill = Rgb(op.N(0), op.N(1), op.N(2));
+                    gs.FillOp = FillOp(op, 3);
                     break;
                 case "k" when op.Operands.Count >= 4:
                     gs.Fill = Rgb((1 - op.N(0)) * (1 - op.N(3)), (1 - op.N(1)) * (1 - op.N(3)), (1 - op.N(2)) * (1 - op.N(3)));
+                    gs.FillOp = FillOp(op, 4);
                     break;
                 case "sc" or "scn" when op.Operands.Count is 1 or 3 or 4 && op.Operands.All(o => o.Kind == CKind.Number):
                     gs.Fill = op.Operands.Count switch
@@ -629,9 +662,15 @@ public static partial class ContentEditor
                         3 => Rgb(op.N(0), op.N(1), op.N(2)),
                         _ => Rgb((1 - op.N(0)) * (1 - op.N(3)), (1 - op.N(1)) * (1 - op.N(3)), (1 - op.N(2)) * (1 - op.N(3))),
                     };
+                    gs.FillOp = gs.FillSpace is { } space ? $"/{EscapeName(space)} cs {FillOp(op, op.Operands.Count)}" : null;
+                    break;
+                case "sc" or "scn":
+                    gs.FillOp = null; // a pattern
                     break;
                 case "cs":
                     gs.Fill = 0;
+                    gs.FillSpace = op.Operands.Count > 0 && op.Operands[0].Kind == CKind.Name ? op.Operands[0].Name : null;
+                    gs.FillOp = gs.FillSpace is { } cs0 && cs0.StartsWith("Device", StringComparison.Ordinal) ? $"/{EscapeName(cs0)} cs" : null;
                     break;
                 case "BT":
                     tm = tlm = Mat.Identity;
@@ -645,11 +684,15 @@ public static partial class ContentEditor
                     {
                         marked.Push(has);
                         if (has) actualText++;
+                        looks.Push(op.Name == "BDC" && op.Operands.Count >= 2 && op.Operands[0].Name == LookTagName && props is { Kind: CKind.Dict } ld
+                            ? LookTag.Read(ld)
+                            : looks.Count > 0 ? looks.Peek() : null);
                     }
                     break;
                 }
                 case "EMC":
                     if (marked.Count > 0 && marked.Pop()) actualText--;
+                    if (looks.Count > 0) looks.Pop();
                     break;
                 case "Tf" when op.Operands.Count >= 2:
                     gs.FontKey = op.Operands[0].Name;
@@ -689,7 +732,8 @@ public static partial class ContentEditor
                     var arg = op.Operands.Count > 0 ? op.Operands[^1] : null;
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
                     tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
-                        blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null));
+                        blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
+                        looks.Count > 0 ? looks.Peek() : null);
                     break;
                 }
                 case "Do" when op.Operands.Count > 0 && op.Operands[0].Kind == CKind.Name:
@@ -718,6 +762,10 @@ public static partial class ContentEditor
     }
 
     private static int Gray(double g) => Rgb(g, g, g);
+
+    /// <summary>A color operator written again from its numbers (the last <paramref name="count"/> operands).</summary>
+    private static string FillOp(COp op, int count) =>
+        string.Join(' ', op.Operands.TakeLast(count).Select(o => ContentLexer.Number(o.Num))) + " " + op.Name;
 
     private static int Rgb(double r, double g, double b)
     {
@@ -751,7 +799,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>Records a text-showing operator as a run and returns the text matrix after it.</summary>
-    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked)
+    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked, LookTag? tag = null)
     {
         var font = gs.Font;
         var items = new List<RunItem>();
@@ -835,9 +883,13 @@ public static partial class ContentEditor
             GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
             OldWidth = end * scale,
             Origin = new PointD(bx0, by0),
+            FontKey = gs.FontKey,
+            Tag = tag,
         };
-        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv };
-        if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null ? info : null });
+        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp };
+        // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
+        var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
+        if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });
         if (why is null) w.Runs[id] = info;
         return new Mat(1, 0, 0, 1, adv, 0).Times(tm);
     }

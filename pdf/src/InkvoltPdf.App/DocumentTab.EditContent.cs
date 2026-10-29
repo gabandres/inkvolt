@@ -157,11 +157,16 @@ public partial class DocumentTab
     /// </summary>
     private async Task EditParagraph(ParagraphEdit e)
     {
-        var check = e.Paragraph.Check(e.Text);
+        var check = e.Paragraph.Check(e.Text, e.Spans);
+        if (check.LookProblem is { } lp)
+        {
+            Notify($"Not changed: {lp}.", error: true);
+            return;
+        }
         if (check.Missing.Count > 0)
         {
             var list = string.Join(", ", check.Missing.Take(8).Select(c => c == " " ? "space" : $"“{c}”"));
-            Notify($"Not changed: the font “{e.Paragraph.Runs[0].FontName}” has no {list} in this PDF.", error: true);
+            Notify($"Not changed: neither the font “{e.Paragraph.Lead.FontName}” nor any font on this PC has {list}.", error: true);
             return;
         }
         var allow = false;
@@ -177,7 +182,7 @@ public partial class DocumentTab
             }
             allow = true;
         }
-        var outcome = await TryEdit("Edit paragraph", (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow), veil: false);
+        var outcome = await TryEdit("Edit paragraph", (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans), veil: false);
         if (outcome == EditOutcome.Busy) Notify("Not changed: the last change is still being applied. Try again in a moment.", error: true);
     }
 
@@ -247,6 +252,7 @@ public partial class DocumentTab
                $"paragraphs={c?.Paragraphs.Count.ToString() ?? "-"} " +
                $"selected={(sel is null ? "-" : $"{sel.Box.X:0},{sel.Box.Y:0} {sel.Box.Width:0}x{sel.Box.Height:0}")} editor='{Viewer.EditedRun?.Text}'" +
                (para is null ? "" : $" paragraph={para.Lines.Count} lines {para.Align} '{para.Text}'") +
+               (Viewer.EditorNote is { } note ? $" note='{note.Replace('\n', ' ')}'" : "") +
                (c is null ? "" : " texts=[" + string.Join(" | ", c.Runs.Take(30).Select(r => r.Blocked is null ? r.Text : $"({r.Text})")) + "]");
     }
 

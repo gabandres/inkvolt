@@ -26,6 +26,8 @@ internal sealed class TrueTypeFont
     /// <summary>Ascent and descent as fractions of the em (descent negative).</summary>
     public double Ascent { get; }
     public double Descent { get; }
+    /// <summary>The x-height in ems (OS/2 version 2 and later), when the font gives one.</summary>
+    public double? XHeight { get; private init; }
     /// <summary>Glyph bounding box (head table) in font units: xMin, yMin, xMax, yMax.</summary>
     public short[] BBox { get; private init; } = [0, 0, 1000, 1000];
 
@@ -142,7 +144,11 @@ internal sealed class TrueTypeFont
             if (lookup is null) return null;
             var bbox = new short[4];
             for (var i = 0; i < 4; i++) bbox[i] = BinaryPrimitives.ReadInt16BigEndian(span[(head.Offset + 36 + 2 * i)..]);
-            return new TrueTypeFont(family, bytes, upem, ascent, descent, advances, lookup) { BBox = bbox };
+            double? xHeight = null;
+            if (tables.TryGetValue("OS/2", out var os2) && os2.Length >= 88 && BinaryPrimitives.ReadUInt16BigEndian(span[os2.Offset..]) >= 2
+                && BinaryPrimitives.ReadInt16BigEndian(span[(os2.Offset + 86)..]) is var sx and > 0)
+                xHeight = sx / upem;
+            return new TrueTypeFont(family, bytes, upem, ascent, descent, advances, lookup) { BBox = bbox, XHeight = xHeight };
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or ArgumentOutOfRangeException)
         {

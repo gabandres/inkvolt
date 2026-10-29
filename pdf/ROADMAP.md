@@ -221,17 +221,37 @@ the checkout.
   baseline make a line; lines join under DocLayout's rules for Word export, same font, size within 5% and color, at
   most 0.65 em apart at a steady line step, left edges (a first-line indent allowed), centers or right edges lined up,
   split where a line ended short), with its alignment (left, right, centered, justified from three lines) and line
-  step. Typing rewraps it in its box in its own embedded font (missing characters refused by name, as before), Shift+Enter
-  a line break; the old show operators leave the text position as they found it, so text placed after them stays put;
-  the box grows downward, and when it would reach the next text or picture below the editor says so live and the app
-  asks before writing. One edit, one undo step, signed files appended. Tests: `ParagraphEditTests` (each alignment, 20
-  words added re-extract in order with nothing overlapping, the overflow report, missing glyphs, a signed file); on the
-  export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8 files' first 3 pages took 20 more words,
-  all re-extracted in order, no unreported overlap. A single run on one line still uses the one-run editor. Still to do:
-  characters the subset lacks from the closest installed font; font, size, color, bold and italic for a selection;
-  text inside form XObjects; paragraphs on turned pages or in turned text (they edit line by line); mixed-font
-  paragraphs (blocked: edited line by line); hyphenated line ends kept as typed ("respon-sible"); kerning of rewritten
-  lines; the Acrobat and pdf.js check.
+  step. Typing rewraps it in its box, Shift+Enter a line break; the old show operators leave the text position as they
+  found it, so text placed after them stays put; the box grows downward, and when it would reach the next text or
+  picture below the editor says so live and the app asks before writing. One edit, one undo step, signed files
+  appended. Review of part a (2026-10-28): right-to-left paragraphs (rewrapped left to right they'd read backwards),
+  paragraphs with other text on their lines (a raised footnote mark, a symbol in another font: it would be left
+  behind) are edited line by line; spaces drawn by operators of their own go with the paragraph; a click between the
+  lines of a paragraph that can't be edited as one no longer opens its first line. Turned pages, flipped (browser) and
+  scaled coordinate systems, Tc/Tz, lines written bottom-up and emptied paragraphs were checked and work.
+  Part b (2026-10-28): characters the embedded subset lacks come from the installed font closest to it
+  (`StandInFonts`: its own family when installed, Helvetica as Arial, Times as Times New Roman; else 14 common Windows
+  families ranked by class (serif/sans/mono from name and flags), weight and slant, then x-height and the widths of the
+  characters both have; script fallbacks past those), embedded as a subset (`CidFontWriter`) under `/InkFbN_` names,
+  only for those characters, named under the editor; character spacing is 0 inside them and the font, size, spacing
+  and rise are set back after. Characters no font here has are still refused by name. Runs in those fonts are part of
+  the paragraph when it is read again (a second edit keeps them). Part c (2026-10-28): font (the installed families),
+  size, color, bold and italic for a stretch (`TextLook`, `TextSpan`; the editor is a rich text box with a bar above
+  it: font list, A−/A+, B, I, six colors and the paragraph's own). Another family, bold or italic is drawn in an
+  installed face (same embedding as part b); size changes Tf, color writes rg and sets back the paragraph's own fill
+  operators exactly (gray, RGB, CMYK, a named color space; a pattern refuses a color change); each stretch sits in an
+  `/InkvoltLook` marked-content sequence holding the family, bold and italic asked for, so the paragraph reads back
+  as one with its looks (`TextParagraph.Spans`); a line with bigger text moves down (step = 0.25 of the line above's
+  scale + 0.75 of its own), read back as the paragraph's own step. Text typed without looks keeps the looks of what
+  didn't change (a character diff; typed letters inside a word take the look before them). Adjacent stretches in one
+  font are one operator. Decisions: a look's family must be one of the 14 (others fall back to the closest);
+  a styled space at a line's end isn't drawn, so its look goes. Tests: `ParagraphEditTests` (41, with
+  `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
+  files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
+  still uses the one-run editor (no stand-ins there yet). Still to do: text inside form XObjects; paragraphs in turned
+  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
+  line ends kept as typed ("respon-sible"); kerning of rewritten lines; stand-in fonts for the one-run editor; fonts
+  beyond the 14 families in the look bar; the Acrobat and pdf.js check.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

@@ -469,6 +469,25 @@ internal static class DevScript
                 log.Add($"content: {tab!.DevContentState()}");
                 break;
             }
+            case "parastyle":
+            {
+                // parastyle start length bold|italic|plain|size N|color RRGGBB|font Name: a look for text of the open paragraph editor
+                var a = arg.Split(' ', 4);
+                var value = a.Length > 3 ? a[3] : "";
+                TextLook look = a[2] switch
+                {
+                    "bold" => new TextLook(Bold: true),
+                    "italic" => new TextLook(Italic: true),
+                    "size" => new TextLook(Size: double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)),
+                    "color" => new TextLook(Color: Convert.ToInt32(value, 16)),
+                    "font" => new TextLook(Font: value),
+                    _ => TextLook.Plain,
+                };
+                v!.DevStyleParagraph(int.Parse(a[0]), int.Parse(a[1]), look);
+                await Task.Delay(200);
+                log.Add($"looks: {v.DevParagraphLooks()} | {tab!.DevContentState()}");
+                break;
+            }
             case "paragraphs":
             {
                 var c = v!.DevContent(int.Parse(arg) - 1);
