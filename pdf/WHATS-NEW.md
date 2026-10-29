@@ -5,12 +5,12 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
-- Paragraph editing: characters the PDF's copy of a font doesn't have (an embedded font usually holds only the letters the document used) are now drawn from the closest font on your PC, named under the editor; the rest of the paragraph stays in its own font.
-- Paragraph editing: give part of a paragraph another font, size, color, bold or italic from the bar above the editor. Edit the paragraph again later and those looks are still there.
-- Paragraph editing is more careful: right-to-left paragraphs and paragraphs with a footnote mark or symbol inside them are edited line by line, and spaces drawn on their own go with the text they belonged to.
 
 ## 1.2.0
 - Edit Text & Images: click text to edit its whole paragraph. What you type rewraps in the paragraph's box with its alignment and line spacing, and you're asked first when it would run into what follows.
+- Paragraph editing: characters the PDF's copy of a font doesn't have (an embedded font usually holds only the letters the document used) are now drawn from the closest font on your PC, named under the editor; the rest of the paragraph stays in its own font.
+- Paragraph editing: give part of a paragraph another font, size, color, bold or italic from the bar above the editor. Edit the paragraph again later and those looks are still there.
+- Paragraph editing is more careful: right-to-left paragraphs and paragraphs with a footnote mark or symbol inside them are edited line by line, and spaces drawn on their own go with the text they belonged to.
 - What's in This PDF (Review menu, also in Document Properties and Sanitize): one report of everything a PDF carries besides its pages and what it does when opened: scripts and what they call, every web address, file and program it can reach (marked when no click is needed), attached files, authors and other metadata, signatures, earlier versions and what they still show, hidden layers and text, form values. Save it as a web page or JSON. Nothing in the file is contacted. Also a Batch action.
 
 ## 1.1.0
