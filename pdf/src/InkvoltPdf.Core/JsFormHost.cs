@@ -52,7 +52,7 @@ public static partial class FormEditor
         private readonly List<Field> _fields;
         private readonly bool _readOnly;
         private readonly FormActionRunner? _runner;
-        private readonly Stopwatch _spent = new();
+        private readonly ThreadClock.Stopwatch _spent = new(); // processor time, so a busy PC doesn't use up the budget
         private readonly PausableTimeout _timeout = new(ScriptTimeout);
         private readonly Dictionary<string, Dictionary<string, JsValue>> _props = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Prepared<Script>> _prepared = new(StringComparer.Ordinal);
@@ -890,9 +890,16 @@ public static partial class FormEditor
         /// The per-script time limit, measured only while script code runs: the clock stops while the host shows a dialog
         /// or sends a request (see <see cref="Outside{T}"/>), so waiting for the user never times a script out.
         /// </summary>
+        /// <summary>
+        /// The limit counts the script thread's processor time (<see cref="ThreadClock"/>), so a script isn't stopped
+        /// because other programs keep the PC busy; the wall clock stops it at <see cref="WallFactor"/> times the limit
+        /// whatever the load, so the window never waits long.
+        /// </summary>
         private sealed class PausableTimeout(TimeSpan limit) : Constraint
         {
-            private readonly Stopwatch _clock = new();
+            private const int WallFactor = 8;
+            private readonly ThreadClock.Stopwatch _clock = new();
+            private readonly Stopwatch _wall = new();
             private int _paused;
             private TimeSpan _limit = TimeSpan.Zero;
 
@@ -900,7 +907,7 @@ public static partial class FormEditor
 
             public override void Check()
             {
-                if (_clock.Elapsed > _limit) throw new TimeoutException("form script took too long");
+                if (_clock.Elapsed > _limit || _wall.Elapsed > _limit * WallFactor) throw new TimeoutException("form script took too long");
             }
 
             /// <summary>A longer limit while set (engine setup); Jint re-arms the constraint at every run, so it must stick.</summary>
@@ -913,16 +920,21 @@ public static partial class FormEditor
                 _limit = Longer ?? limit;
                 _paused = 0;
                 _clock.Restart();
+                _wall.Restart();
             }
 
             public void Pause()
             {
-                if (_paused++ == 0) _clock.Stop();
+                if (_paused++ != 0) return;
+                _clock.Stop();
+                _wall.Stop();
             }
 
             public void Resume()
             {
-                if (_paused > 0 && --_paused == 0) _clock.Start();
+                if (_paused <= 0 || --_paused != 0) return;
+                _clock.Start();
+                _wall.Start();
             }
         }
     }

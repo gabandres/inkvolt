@@ -195,7 +195,8 @@ public class FieldDetectionTests
         cts.Cancel();
         Assert.Throws<OperationCanceledException>(() => FieldDetection.Suggest(0, 800, 800, text, shapes, [], [], cts.Token));
 
-        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var watch = new ThreadClock.Stopwatch(); // this thread's processor time: other work on the PC doesn't count
+        watch.Start();
         var found = FieldDetection.Suggest(0, 800, 800, text, shapes, [], []);
         Assert.Equal(3600, found.Count);
         Assert.All(found, s => Assert.Equal(DesignFieldKind.CheckBox, s.Kind));
