@@ -473,6 +473,25 @@ struct EditTest {
 /// A three-page PDF made here, for the editing self-test and its snapshots (no real document's content): two pages of
 /// plain text and a "scan" (a picture of a line of words, no text layer) for text recognition and picture editing.
 enum SyntheticPdf {
+    /// A justified paragraph of three lines under page two's rule, for paragraph editing (each line but the last spread
+    /// to 440 points with word spacing, as a typesetter does).
+    static func paragraph() -> String {
+        let lines = [
+            "This paragraph is here for the self-test of paragraph editing: a click on it",
+            "opens the whole paragraph, which rewraps inside its own box when words are",
+            "added, keeps its alignment and its line step, and goes back with one undo.",
+        ]
+        let font = NSFont(name: "Helvetica", size: 10) ?? .systemFont(ofSize: 10)
+        var s = ""
+        for (i, line) in lines.enumerated() {
+            let w = Double((line as NSString).size(withAttributes: [.font: font]).width)
+            let spaces = Double(line.filter { $0 == " " }.count)
+            let tw = i < lines.count - 1 ? max(0, (440 - w) / spaces) : 0
+            s += String(format: "BT /F1 10 Tf %.3f Tw 72 %d Td (%@) Tj ET\n", tw, 560 - 14 * i, line)
+        }
+        return s
+    }
+
     static func make() -> [UInt8] {
         let lines = [
             "Inkvolt PDF self-test document",
@@ -487,7 +506,7 @@ enum SyntheticPdf {
             s += "ET\n0.6 G 72 600 m 540 600 l S\n"
             return s
         }
-        let c1 = content("Page one"), c2 = content("Page two")
+        let c1 = content("Page one"), c2 = content("Page two") + paragraph()
         let scan = scanImage()
         let c3 = "q 400 0 0 100 72 600 cm /Im1 Do Q\n"
         let objects = [

@@ -347,16 +347,186 @@ struct FeatureTest {
 
     // MARK: Edit Text & Images
 
+    /// The paragraph on `page` whose text is `text`, as the page reads now.
+    private func paragraph(_ page: Int, _ text: String) async -> TextParagraph? {
+        await controller.content.ensure(page).paragraphs.first { $0.text == text }
+    }
+
+    /// Waits until the document's content has changed `count` times since `generation` (an edit's or undo's change reaches
+    /// the window on the main queue after the edit itself is done), at most 5 s.
+    private func afterChanges(_ generation: Int, _ count: Int = 1) async {
+        for _ in 0..<100 where controller.content.generation < generation + count {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    /// A click on the paragraph's first line; the paragraph editor it opened, if it holds that paragraph (else why not, in
+    /// counts and kinds only).
+    private func openParagraph(_ page: Int, _ p: TextParagraph) async -> (editor: ParagraphEditor?, why: String) {
+        controller.go(page)
+        let line = p.lines[0]
+        let at = PointD(line.x + min(12, line.width / 2), line.centerY)
+        var c = PageContent.empty
+        // Right after an edit the window may still be laying the pages out again: the page drawn, then the click (tried
+        // three times).
+        for _ in 0..<3 {
+            await waitDrawn()
+            c = await controller.content.ensure(page) // a click finds text only on a page whose content is read
+            await press(page, [at])
+            if let editor = controller.content.paragraphEditor, editor.paragraph.text == p.text { return (editor, "") }
+        }
+        let run = controller.content.run(page: page, at)
+        let why = "editor: \(controller.content.paragraphEditor.map { "\($0.paragraph.lines.count) lines, other text" } ?? "none"); "
+            + "the paragraph on the page: \(c.paragraphs.contains { $0.text == p.text }); run under the click: "
+            + (run.map { r in "\(r.blocked == nil ? "editable" : "blocked"), its paragraph "
+                + (c.paragraphOf(r).map { "\($0.lines.count) lines\($0.blocked == nil ? "" : " blocked")\($0.text == p.text ? "" : ", other text")" } ?? "none") }
+                ?? "none")
+        return (nil, why)
+    }
+
+    /// Paragraph editing (roadmap 2.1): the first paragraph of several lines that can be edited as one is opened with a
+    /// click, given eight more of its own words (rewrapped in its box), then a character its font lacks (drawn from the
+    /// closest font on this Mac), then its first word bold and red through the look bar; the file saved and read
+    /// back with the text and looks; undo takes the three edits back. Only counts, kinds and font names are reported.
+    private mutating func editParagraphs(_ count: Int) async {
+        let content = controller.content!
+        content.testParagraphs = true
+        defer { content.testParagraphs = false }
+        // The first with room below for the words added (a paragraph that runs into what follows is edited line by line
+        // afterwards), else the first at all.
+        func moreWords(_ p: TextParagraph) -> String { p.text + " " + p.text.split(separator: " ").prefix(8).joined(separator: " ") }
+        var found: (page: Int, p: TextParagraph)?
+        var roomy: (page: Int, p: TextParagraph)?
+        for page in 0..<count where roomy == nil {
+            let c = await content.ensure(page)
+            for p in c.paragraphs where p.blocked == nil && p.lines.count >= 2 && p.text.filter(\.isLetter).count >= 20
+                && p.text.split(separator: " ").count >= 6 && p.check(p.text).missing.isEmpty {
+                if found == nil { found = (page, p) }
+                if p.check(moreWords(p)).overlaps == nil {
+                    roomy = (page, p)
+                    break
+                }
+            }
+        }
+        guard let pick = roomy ?? found else {
+            return skip("edit paragraphs: no paragraph of several lines to edit as one in the first \(count) pages")
+        }
+        let (page, p) = pick
+        func undoTitle() -> String { controller.window?.undoManager?.undoMenuItemTitle ?? "" }
+
+        // More words: rewrapped in the paragraph's box.
+        let opened = await openParagraph(page, p)
+        guard let editor = opened.editor else {
+            return check(false, "Edit Text & Images: a click on a \(p.lines.count)-line paragraph on page \(page + 1) opens the paragraph editor (\(opened.why))")
+        }
+        let more = moreWords(p)
+        editor.type(more)
+        let predicted = p.check(more)
+        var g = content.generation
+        editor.applyClicked(nil)
+        await settle()
+        await afterChanges(g)
+        let q = await paragraph(page, more)
+        check(q != nil && q?.lines.count == predicted.lineCount && undoTitle() == "Undo Edit paragraph",
+              "Edit Text & Images: a \(p.lines.count)-line \(p.align) paragraph on page \(page + 1) took 8 more words, rewrapped to "
+                  + "\(q?.lines.count ?? 0) lines (\(predicted.lineCount) predicted\(predicted.overlaps != nil ? ", confirmed over what follows" : ""); “\(undoTitle())”)")
+        guard let q else { return }
+        if q.blocked != nil {
+            // It ran into what follows, or reads back with other text on its lines: edited line by line from now on.
+            return skip("paragraph: on page \(page + 1) it reads back with other text on its lines after the words were added, so the stand-in "
+                        + "and look checks are left out")
+        }
+
+        // A character the paragraph's font lacks: drawn from the closest font on this Mac.
+        var steps = 1
+        var last = q
+        if let ch = ["@", "#", "€", "§", "¶", "→", "✓", "Ω"].first(where: { q.check(q.text + " " + $0).borrowed.contains($0) }) {
+            let text = q.text + " " + ch
+            let names = q.check(text).standIns
+            let opened = await openParagraph(page, q)
+            if let editor = opened.editor {
+                editor.type(text)
+                g = content.generation
+                editor.applyClicked(nil)
+                await settle()
+                await afterChanges(g)
+            }
+            let r = await paragraph(page, text)
+            let alike = await content.ensure(page).paragraphs.filter { $0.text.hasPrefix(q.text) }.count
+            let notes = opened.editor == nil ? "not opened: \(opened.why)"
+                : r == nil ? "not read back (\(alike) paragraphs start as it did)"
+                : r?.blocked != nil ? "blocked" : "\(r?.check(text).borrowed.count ?? 0) borrowed"
+            check(r != nil && r?.blocked == nil && r?.check(text).borrowed == [ch],
+                  "paragraph: a character its font lacks drawn from \(names.joined(separator: ", ")) and read back as part of the paragraph (\(notes))")
+            if let r {
+                last = r
+                steps += 1
+            }
+        } else {
+            skip("paragraph: its font has every character tried, so nothing is drawn from another font")
+        }
+
+        // Looks for a selection: the first word bold and red. (Not larger: a line with bigger text may then line up with
+        // text above it at the paragraph's step and be read back with it, on Windows too; the unit tests cover sizes.)
+        let firstWord = last.text.split(separator: " ").first.map(String.init) ?? ""
+        let red = 0xC00000
+        let openedAgain = await openParagraph(page, last)
+        if let editor = openedAgain.editor {
+            editor.select(NSRange(location: 0, length: firstWord.utf16.count))
+            editor.toggleBold(nil)
+            editor.setColor(red)
+            let faces = last.check(last.text, editor.content().spans).faces
+            g = content.generation
+            editor.applyClicked(nil)
+            await settle()
+            await afterChanges(g)
+            let styled = await paragraph(page, last.text)
+            let span = styled?.spans.first
+            let pieces = await content.ensure(page).paragraphs.filter { last.text.hasPrefix($0.text) || $0.text.hasPrefix(firstWord) }.count
+            let lookNote = styled == nil ? "not read back; \(pieces) paragraph(s) hold its start"
+                : "\(styled?.blocked == nil ? "editable" : "blocked"), \(styled?.spans.count ?? 0) span(s), the first at \(span?.start ?? -1) for "
+                    + "\(span?.length ?? -1) of \(firstWord.utf16.count), color \(span?.look.color == red), bold \(span?.look.bold != nil)"
+            check(span?.start == 0 && span?.length == firstWord.utf16.count && span?.look.color == red
+                  && span?.look.bold != nil && styled?.blocked == nil,
+                  "paragraph: its first word given a look through the bar (bold, red\(faces.isEmpty ? "" : "; drawn in \(faces.joined(separator: ", "))")) "
+                      + "and read back with it (\(lookNote))")
+            if styled != nil { steps += 1 }
+        } else {
+            check(false, "paragraph: opened again for a look (\(openedAgain.why))")
+        }
+
+        // Saved and read back: the text and its looks.
+        let saved = await saveAs("paragraph.pdf")
+        var readOk = false
+        if saved.error == nil, let bytes = readBack(saved.url),
+           let c = try? ContentEditor.read(bytes, controller.pdf.session?.password, page),
+           let back = c.paragraphs.first(where: { $0.text == last.text }) {
+            readOk = back.spans.first?.look.color == red && back.blocked == nil
+        }
+        check(saved.error == nil && readOk, "paragraph edits saved and read back from the file, the text and its looks")
+
+        // Undo takes them back.
+        g = content.generation
+        for _ in 0..<steps { controller.window?.undoManager?.undo() }
+        await settle()
+        await afterChanges(g, steps)
+        let restored = await paragraph(page, p.text) != nil
+        check(restored, "undo took the \(steps) paragraph edits back")
+    }
+
     private mutating func editContent() async {
         let content = controller.content!
         pages.tool = .editContent
         let count = min(controller.engine.pageCount, 10)
-        // Text: the first editable run with a word in it, rewritten with its own letters reversed.
+        // Text: the first editable run with a word in it that a click edits alone (not part of a paragraph edited as one),
+        // rewritten with its own letters reversed.
         content.select(nil)
         var edited = false, overPicture = false
         for page in 0..<count {
             let c = await content.ensure(page)
-            guard let run = c.runs.first(where: { r in r.blocked == nil && r.text.filter(\.isLetter).count >= 4 }),
+            guard let run = c.runs.first(where: { r in
+                      r.blocked == nil && r.text.filter(\.isLetter).count >= 4 && ContentEditing.editableParagraph(c, r) == nil
+                  }),
                   let replacement = Self.replacement(run) else { continue }
             overPicture = Self.onPicture(run, c)
             let (found, title) = await rewrite(page, run, replacement)
@@ -372,7 +542,7 @@ struct FeatureTest {
             var tried = false
             for page in 0..<count {
                 let c = await content.ensure(page)
-                guard let run = c.runs.first(where: { Self.onPicture($0, c) && Self.replacement($0) != nil }),
+                guard let run = c.runs.first(where: { Self.onPicture($0, c) && Self.replacement($0) != nil && ContentEditing.editableParagraph(c, $0) == nil }),
                       let replacement = Self.replacement(run) else { continue }
                 let (found, title) = await rewrite(page, run, replacement)
                 check(found && title == "Undo Edit text" && content.selectedImage == nil,
@@ -382,6 +552,8 @@ struct FeatureTest {
             }
             if !tried { skip("edit text over a picture: no editable run on a picture in the first \(count) pages") }
         }
+
+        await editParagraphs(count)
 
         // Pictures: dragged to move, Delete removes, undo brings it back.
         var moved = false

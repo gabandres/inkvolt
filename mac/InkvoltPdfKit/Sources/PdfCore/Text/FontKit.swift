@@ -17,6 +17,12 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
     let descent: Double
     /// The font's bounding box in thousandths of an em: xMin, yMin, xMax, yMax.
     let bbox: [Double]
+    /// The x-height in ems, when the font gives one.
+    let xHeight: Double?
+    /// Its full name for people ("Arial Bold Italic").
+    let fullName: String
+    /// Core Text's own last resort (a box for any character): never a font to draw with.
+    var isLastResort: Bool { postScriptName == "LastResort" }
 
     private let lock = NSLock()
     private var glyphs: [UInt32: Int] = [:]
@@ -30,6 +36,9 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
         descent = -Double(CTFontGetDescent(font)) / 1000
         let b = CTFontGetBoundingBox(font)
         bbox = [Double(b.minX), Double(b.minY), Double(b.maxX), Double(b.maxY)]
+        let xh = Double(CTFontGetXHeight(font)) / 1000
+        xHeight = xh > 0 ? xh : nil
+        fullName = CTFontCopyFullName(font) as String
     }
 
     static func == (a: TrueTypeFont, b: TrueTypeFont) -> Bool { a === b }

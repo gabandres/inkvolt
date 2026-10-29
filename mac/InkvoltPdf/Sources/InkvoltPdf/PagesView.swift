@@ -760,7 +760,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let image = content.image(page: page, p)
         if let run = content.run(page: page, p), !content.isSelected(image) {
             content.select(nil)
-            content.editRun(run)
+            content.editText(run)
             return
         }
         content.select(image)

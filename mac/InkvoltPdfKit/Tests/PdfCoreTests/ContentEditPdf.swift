@@ -14,10 +14,11 @@ enum ContentEditPdf {
     /// - Parameters:
     ///   - formInherits: /Fm1 has no /Resources of its own (it borrows the page's).
     ///   - damagedPart: a last content stream that claims Flate but holds bytes that don't inflate.
+    ///   - fontText: the characters the fonts hold (default `fontText`).
     static func make(_ content: String, rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
-                     damagedPart: Bool = false) -> [UInt8] {
+                     damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText) -> [UInt8] {
         let doc = try! MuDoc.create()
-        let (fa, fu) = fonts(doc)
+        let (fa, fu) = fonts(doc, ArialSubset.holding(fontText))
         let red = [UInt8](repeating: 0, count: 24).enumerated().map { $0.offset % 3 == 0 ? UInt8(255) : 0 }
         let image = ImageImport.imageStream(doc, 4, 2, red, "DeviceRGB")
         let xobjects = doc.dict([("Im1", image)])
@@ -48,8 +49,8 @@ enum ContentEditPdf {
     }
 
     /// /FA and /FU (references), sharing one descriptor and font program.
-    private static func fonts(_ doc: MuDoc) -> (PObj, PObj) {
-        let font = ArialSubset.shared
+    private static func fonts(_ doc: MuDoc, _ font: ArialSubset) -> (PObj, PObj) {
+        let fontText = font.fontText
         let program = doc.addStream(font.bytes, dict: doc.dict([("Length1", doc.int(font.bytes.count))]), deflate: true)
         let descriptor = doc.add(doc.dict([
             ("Type", doc.name("FontDescriptor")), ("FontName", doc.name("AAAAAA+ArialMT")), ("Flags", doc.int(32)),
@@ -119,25 +120,44 @@ enum ContentEditPdf {
 
     /// A string in the Unicode font /FU (glyph ids of the subset), as a hex string. (The Windows helper encodes it with
     /// the font of a seed PDF; the subset here is the same for every PDF.)
-    static func cid(_ text: String) -> String {
-        let font = ArialSubset.shared
+    static func cid(_ text: String, fontText: String = ContentEditPdf.fontText) -> String {
+        let font = ArialSubset.holding(fontText)
         return "<" + text.unicodeScalars.map { String(format: "%04X", font.gid(Int($0.value))) }.joined() + ">"
     }
 }
 
-/// The system's Arial with every glyph but those of `ContentEditPdf.fontText` (and the glyphs they are built from)
-/// emptied, as PDFsharp writes its subsets: the glyph ids and the cmap stay, the outlines of unused glyphs go.
+/// The system's Arial with every glyph but those of a text (`ContentEditPdf.fontText` unless asked) and the glyphs they
+/// are built from emptied, as PDFsharp writes its subsets: the glyph ids and the cmap stay, the outlines of unused glyphs go.
 final class ArialSubset: Sendable {
-    static let shared = ArialSubset()
+    static let shared = holding(ContentEditPdf.fontText)
+
+    private final class Made: @unchecked Sendable {
+        let lock = NSLock()
+        var byText: [String: ArialSubset] = [:]
+    }
+
+    private static let made = Made()
+
+    /// The subset holding `fontText`'s characters (made once per text).
+    static func holding(_ fontText: String) -> ArialSubset {
+        made.lock.lock()
+        defer { made.lock.unlock() }
+        if let hit = made.byText[fontText] { return hit }
+        let subset = ArialSubset(fontText)
+        made.byText[fontText] = subset
+        return subset
+    }
 
     let bytes: [UInt8]
+    let fontText: String
     private let program: TrueTypeProgram
 
-    private init() {
+    private init(_ fontText: String) {
+        self.fontText = fontText
         let path = "/System/Library/Fonts/Supplemental/Arial.ttf"
         let full = Array(try! Data(contentsOf: URL(fileURLWithPath: path)))
         let source = TrueTypeProgram.read(full)!
-        let keep = Set([0] + ContentEditPdf.fontText.unicodeScalars.map { source.lookupUnicode(Int($0.value)) })
+        let keep = Set([0] + fontText.unicodeScalars.map { source.lookupUnicode(Int($0.value)) })
         bytes = Self.subset(full, keep)
         program = TrueTypeProgram.read(bytes)!
     }

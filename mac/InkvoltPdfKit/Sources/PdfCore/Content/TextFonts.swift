@@ -62,10 +62,21 @@ final class TextFont: @unchecked Sendable {
     private(set) var descent = -0.2
     let bold: Bool
     let italic: Bool
+    /// The descriptor's /Flags (1 fixed pitch, 2 serif, 64 italic, …); 0 without a descriptor.
+    let flags: Int
+    /// The descriptor's x-height in ems, when it gives one.
+    let xHeight: Double?
+    /// A Type 3 font (glyphs drawn as pictures): its text can't be edited, but a paragraph edit's stand-in fonts are these.
+    let isType3: Bool
+    /// The installed fonts closest to this one, by style (`StandInFonts.rankFor`).
+    private var standInRanks: [Int: [StandInFont]] = [:]
 
     init(_ font: PObj) {
         let subtype = font.name("Subtype")
-        var n = (font.name("BaseFont") ?? "").trimmingCharacters(in: .whitespaces)
+        isType3 = subtype == "Type3"
+        // A Type 3 font has no /BaseFont; one Inkvolt wrote names its font in its descriptor.
+        let baseFont = font.name("BaseFont") ?? (subtype == "Type3" ? font.dict("FontDescriptor")?.name("FontName") : nil)
+        var n = (baseFont ?? "").trimmingCharacters(in: .whitespaces)
         let chars = Array(n.utf16)
         if chars.count > 7 && chars[6] == 43 && chars.prefix(6).allSatisfy({ (65...90).contains($0) }) { n = String(n.dropFirst(7)) }
         let name = n.replacingOccurrences(of: ",", with: " ") // "Arial,Bold" → "Arial Bold"
@@ -117,6 +128,8 @@ final class TextFont: @unchecked Sendable {
         embedded = descriptor.map { $0.has("FontFile") || $0.has("FontFile2") || $0.has("FontFile3") } ?? false
         hasWidths = font.array("Widths") != nil
         let flags = Int(descriptor?.number("Flags") ?? 0)
+        self.flags = flags
+        if let xh = descriptor?.number("XHeight"), xh > 0 && xh < 1500 { xHeight = xh / 1000 } else { xHeight = nil }
         symbolic = flags & 4 != 0 && flags & 32 == 0
         if let descriptor {
             let asc = descriptor.number("Ascent") ?? 0
@@ -141,6 +154,16 @@ final class TextFont: @unchecked Sendable {
         if name.hasPrefix("Times-Roman") { return "Times-Roman" }
         guard let cut = name.firstIndex(where: { $0 == "," || $0 == "-" || $0 == " " }), cut > name.startIndex else { return name }
         return String(name[..<cut])
+    }
+
+    /// A list cached per style for this font, made once (`StandInFonts`).
+    func standIns(_ style: Int, _ make: () -> [StandInFont]) -> [StandInFont] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let hit = standInRanks[style] { return hit }
+        let list = make()
+        standInRanks[style] = list
+        return list
     }
 
     // ---- Reading ----

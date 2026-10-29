@@ -480,6 +480,13 @@ extension DocumentEditor {
     }
 
     @discardableResult
+    func replaceParagraph(_ paragraph: TextParagraph, _ text: String, allowOverlap: Bool, spans: [TextSpan]) async -> Bool {
+        await run("Edit paragraph") { data, pw in
+            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+        }
+    }
+
+    @discardableResult
     func moveImage(_ image: PageImage, to box: RectD) async -> Bool {
         await run("Move picture") { data, pw in try ContentEditor.moveImage(data, pw, image, box) }
     }

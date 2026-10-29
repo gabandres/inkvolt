@@ -251,7 +251,9 @@ the checkout.
   still uses the one-run editor (no stand-ins there yet). Still to do: text inside form XObjects; paragraphs in turned
   text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
   line ends kept as typed ("respon-sible"); kerning of rewritten lines; stand-in fonts for the one-run editor; fonts
-  beyond the 14 families in the look bar; the Acrobat and pdf.js check.
+  beyond the 14 families in the look bar; the Acrobat and pdf.js check. The Mac has parts a–c too (2026-10-28,
+  `mac/docs/PLAN.md` step E1b): the same grouping, layout, writing and looks over MuPDF, the stand-ins and looks drawn
+  from 14 macOS families picked through Core Text and embedded as Type 3 fonts; `ParagraphEditTests`' 41 cases pass there.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
@@ -259,7 +261,7 @@ the checkout.
   bold and italic change for a selection; text inside form XObjects edits too. Test: on the export corpus, 20 words
   added to a paragraph re-extract in order, nothing overlaps the next block, and the page opens in Acrobat and pdf.js
   with the same text; a file whose fonts aren't installed is still editable (where Acrobat isn't).
-- **Effort** L. Windows, then the Mac (its 1.0 has the line-level editor; this follows after 1.0).
+- **Effort** L. Windows, then the Mac (its 1.0 had the line-level editor; parts a–c came to it on 2026-10-28).
 
 ### 2.2 Better OCR
 - **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),

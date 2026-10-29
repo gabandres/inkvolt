@@ -4,7 +4,7 @@ import Foundation
 
 /// A glyph placed on a line: its origin (offsets applied) in ems from the line's start, the text it stands for, and
 /// whether it belongs to a right-to-left run.
-struct PlacedGlyph {
+struct PlacedGlyph: Sendable {
     var font: TrueTypeFont
     var glyph: Int
     var x: Double
@@ -15,7 +15,7 @@ struct PlacedGlyph {
 
 /// A shaped line: glyphs in the order they are written to the content stream (logical order), and its advance width in
 /// ems.
-struct ShapedLine {
+struct ShapedLine: Sendable {
     var text: String
     var glyphs: [PlacedGlyph]
     var width: Double
@@ -159,10 +159,16 @@ final class Type3FontWriter {
     }
 
     private let namePrefix: String
+    private let describe: Bool
     private var fonts: [Used] = []
     private var codes: [Key: (Used, Int)] = [:]
 
-    init(namePrefix: String = "/PdU") { self.namePrefix = namePrefix }
+    /// - Parameter describe: give each font a descriptor naming the system font it was drawn from (a paragraph edit's
+    ///   stand-in fonts, so the text reads back in the font it was drawn in).
+    init(namePrefix: String = "/PdU", describe: Bool = false) {
+        self.namePrefix = namePrefix
+        self.describe = describe
+    }
 
     var isEmpty: Bool { fonts.isEmpty }
 
@@ -289,15 +295,25 @@ final class Type3FontWriter {
             widths.append(doc.real(w))
         }
         if x1 <= x0 || y1 <= y0 { (x0, y0, x1, y1) = (u.font.bbox[0], u.font.bbox[1], u.font.bbox[2], u.font.bbox[3]) }
+        let bbox = doc.reals(x0.rounded(.down), y0.rounded(.down), x1.rounded(.up), y1.rounded(.up))
         let font = doc.dict([
             ("Type", doc.name("Font")), ("Subtype", doc.name("Type3")),
-            ("FontBBox", doc.reals(x0.rounded(.down), y0.rounded(.down), x1.rounded(.up), y1.rounded(.up))),
+            ("FontBBox", bbox),
             ("FontMatrix", doc.reals(0.001, 0, 0, 0.001, 0, 0)), ("CharProcs", charProcs),
             ("Encoding", doc.dict([("Type", doc.name("Encoding")), ("Differences", differences)])),
             ("FirstChar", doc.int(1)), ("LastChar", doc.int(u.byCode.count - 1)), ("Widths", doc.array(widths)),
             ("Resources", doc.dict()),
             ("ToUnicode", doc.addStream(Self.toUnicode(u.byCode), deflate: true)),
         ])
+        if describe {
+            let f = u.font
+            font.set("FontDescriptor", doc.add(doc.dict([
+                ("Type", doc.name("FontDescriptor")), ("FontName", doc.name(f.postScriptName)), ("Flags", doc.int(32)),
+                ("FontBBox", doc.reals(x0.rounded(.down), y0.rounded(.down), x1.rounded(.up), y1.rounded(.up))), ("ItalicAngle", doc.int(0)),
+                ("Ascent", doc.real((f.ascent * 1000).rounded())), ("Descent", doc.real((f.descent * 1000).rounded())),
+                ("CapHeight", doc.real((f.ascent * 800).rounded())), ("StemV", doc.int(80)),
+            ])))
+        }
         return doc.add(font)
     }
 
