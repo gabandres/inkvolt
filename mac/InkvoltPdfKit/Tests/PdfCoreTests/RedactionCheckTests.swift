@@ -241,8 +241,8 @@ struct RedactionCheckTests {
         #expect(boxed.findings.contains { $0.kind == .areaNotRemoved && $0.text.contains("original") })
     }
 
-    /// Appends an incremental update replacing object `number`.
-    static func append(_ pdf: [UInt8], _ number: Int, _ body: String) throws -> [UInt8] {
+    /// Appends an incremental update replacing object `number` (`trailerExtra`: more entries for its trailer).
+    static func append(_ pdf: [UInt8], _ number: Int, _ body: String, trailerExtra: String = "") throws -> [UInt8] {
         let text = latin1(pdf)
         let at = try #require(text.range(of: "startxref", options: .backwards))
         let prevXref = try #require(Int(text[at.upperBound...].split(separator: "\n")[0].trimmingCharacters(in: .whitespaces)))
@@ -250,7 +250,7 @@ struct RedactionCheckTests {
         let size = text[sizeMatch].dropFirst(6)
         let update = "\(number) 0 obj\n\(body)\nendobj\n"
         let xref = pdf.count + 1 + latin1Bytes(update).count
-        let tail = "\n\(update)xref\n\(number) 1\n\(String(format: "%010d", pdf.count + 1)) 00000 n \ntrailer\n<< /Size \(size) /Root 1 0 R /Prev \(prevXref) >>\nstartxref\n\(xref)\n%%EOF\n"
+        let tail = "\n\(update)xref\n\(number) 1\n\(String(format: "%010d", pdf.count + 1)) 00000 n \ntrailer\n<< /Size \(size) /Root 1 0 R /Prev \(prevXref) \(trailerExtra)>>\nstartxref\n\(xref)\n%%EOF\n"
         return pdf + latin1Bytes(tail)
     }
 

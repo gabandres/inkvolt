@@ -300,8 +300,8 @@ the checkout.
   redaction check's own findings, its echoes left out). Each item says whether Sanitize removes it. HTML (no scripts) or
   JSON (format marker, version, fields in a fixed order). Tests (`DocumentInventoryTests`): Sanitize's planted corpus with
   an appended revision lists every planted item, and after Sanitize with everything the report is empty; white,
-  off-page and boxed text; automatic, pointer and click triggers; signatures; script calls; HTML and JSON; Batch. Still
-  to do: the Mac (with E1's Sanitize).
+  off-page and boxed text; automatic, pointer and click triggers; signatures; script calls; HTML and JSON; Batch. The
+  Mac: done (2026-10-28, with E1's Sanitize; Batch's action with E8).
 - **Effort** S (most of it is Sanitize's scan). Windows; Mac with Sanitize.
 
 ## Wave 3

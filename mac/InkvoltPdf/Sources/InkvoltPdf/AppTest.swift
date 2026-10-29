@@ -267,8 +267,10 @@ struct AppTest {
     private mutating func whatsNew() {
         let notes = WhatsNew.notes()
         let first = notes.first
-        check(first?.version.description == "1.0.0" && (first?.items.count ?? 0) >= 5,
-              "What's New: the bundled notes read, \(notes.count) version(s), 1.0.0 with \(first?.items.count ?? 0) items")
+        let original = notes.first { $0.version.description == "1.0.0" }
+        check(!(first?.items.isEmpty ?? true) && (original?.items.count ?? 0) >= 5,
+              "What's New: the bundled notes read, \(notes.count) version(s), the newest (\(first?.version.description ?? "none")) with "
+              + "\(first?.items.count ?? 0) items, 1.0.0 with \(original?.items.count ?? 0)")
         AppSettings.lastVersionSeen = "0.9.0"
         let shown = WhatsNew.showOnce(current: "1.0.0")
         let text = WhatsNewWindowController.shared?.textView.string ?? ""

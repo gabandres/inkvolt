@@ -6,18 +6,21 @@ import PdfCore
 /// selected text, from the search matches or by pattern, shown over the pages until applied; Apply blacks them out for
 /// good (the pages become pictures, their remaining text recognized and laid back invisibly, one undo step) and then
 /// checks the result in the background; Tools › Check Redaction… checks any PDF; Sanitize Document removes what the
-/// document carries besides its pages, then says what went.
+/// document carries besides its pages, then says what went (What's in This PDF, which lists it first: Inventory.swift).
 @MainActor
 final class RedactionState {
     /// The sheets while they are open (the self-test drives them).
     var patternSheet: RedactPatternSheet?
     var reportSheet: RedactionReportSheet?
     var sanitizeSheet: SanitizeSheet?
+    var inventorySheet: InventorySheet?
     /// The check after Apply, or a fix, while it runs (the self-test awaits it).
     var task: Task<Void, Never>?
     /// The last check's report and the last sanitize's result (the self-test reads them).
     var lastReport: RedactionCheckReport?
     var lastSanitize: SanitizeResult?
+    /// The last What's in This PDF report (the self-test reads it).
+    var lastInventory: InventoryReport?
     /// The self-test's recognizer for the text left on redacted pages (nil: Vision).
     var testRecognizer: Recognizer?
     /// The last choices of Redact by Pattern, offered again (until the app quits).
@@ -426,6 +429,10 @@ extension DocumentWindowController {
         guard let window else { return }
         let sheet = SanitizeSheet(found)
         redaction.sanitizeSheet = sheet
+        sheet.seeContents = { [weak self, weak sheet] in
+            guard let self, let panel = sheet?.window else { return }
+            self.startLongTask { await self.showInventory(on: panel, offerSanitize: false) }
+        }
         sheet.done = { [weak self] items in
             guard let self else { return }
             self.redaction.sanitizeSheet = nil
@@ -836,6 +843,9 @@ final class SanitizeSheet: NSWindowController {
     private(set) var checks: [(item: SanitizeItem, box: NSButton)] = []
     let problem = NSTextField(wrappingLabelWithString: "")
     var done: ((Set<SanitizeItem>?) -> Void)?
+    /// See What's in It…: What's in This PDF over this sheet.
+    var seeContents: (() -> Void)?
+    let seeButton = NSButton(title: "See What's in It…", target: nil, action: nil)
 
     init(_ found: SanitizeReport) {
         self.found = found
@@ -868,7 +878,8 @@ final class SanitizeSheet: NSWindowController {
             views.append(box)
         }
         for n in found.notes { views.append(Self.note(n)) }
-        views.append(Self.note("Text drawn in white or outside the page isn't looked for: it can't be told reliably from text that shows."))
+        views.append(Self.note("Text drawn in white or outside the page isn't removed here (it can't be told reliably from text that shows): "
+            + "See What's in It lists it, and redacting its area removes it."))
         problem.textColor = .systemRed
         problem.preferredMaxLayoutWidth = 500
         problem.isHidden = true
@@ -879,7 +890,9 @@ final class SanitizeSheet: NSWindowController {
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let buttons = NSStackView(views: [spacer, cancel, sanitize])
+        seeButton.target = self
+        seeButton.action = #selector(seeClicked)
+        let buttons = NSStackView(views: [seeButton, spacer, cancel, sanitize])
         views.append(buttons)
         let stack = NSStackView(views: views)
         stack.orientation = .vertical
@@ -912,6 +925,8 @@ final class SanitizeSheet: NSWindowController {
     }
 
     @objc func cancelClicked() { finish(nil) }
+
+    @objc func seeClicked() { seeContents?() }
 
     private func finish(_ items: Set<SanitizeItem>?) {
         if let panel = window, let parent = panel.sheetParent { parent.endSheet(panel) }

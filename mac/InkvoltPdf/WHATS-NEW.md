@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- What's in This PDF (Tools menu, and See What's in It… in Sanitize Document): one report of everything a PDF carries besides its pages: scripts and what they do, actions that run by themselves, every web address, file and program it can reach (marked when no click is needed), attachments, metadata and comment authors, signatures, earlier versions, hidden layers and text, form values and covers that hide nothing. It says what Sanitize removes, and saves as a web page or JSON. Nothing in the file is contacted.
+- Redact by Pattern: a mistake in your own pattern is described in plain words.
 
 ## 1.1.0
 - Redact: black out areas, selected text or every search match, or find Social Security, phone and card numbers, email addresses, dates, bank account numbers (IBAN), IP addresses, your own words or your own pattern, check the marks, then apply. What's under them is gone from the file, not just covered.

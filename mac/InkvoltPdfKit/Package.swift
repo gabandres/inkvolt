@@ -14,9 +14,7 @@ let package = Package(
         .target(name: "MuPDFShim", dependencies: ["MuPDF"]),
         // JavaScriptCore's watchdog (the time limit of form scripts), declared in C: see ScriptLimits.c.
         .target(name: "ScriptLimits", linkerSettings: [.linkedFramework("JavaScriptCore")]),
-        // ICU's regex parse errors (where and why a pattern is wrong), declared in C: see IcuRegex.c.
-        .target(name: "IcuRegex", linkerSettings: [.linkedLibrary("icucore")]),
-        .target(name: "PdfCore", dependencies: ["MuPDFShim", "ScriptLimits", "IcuRegex"]),
+        .target(name: "PdfCore", dependencies: ["MuPDFShim", "ScriptLimits"]),
         .testTarget(name: "PdfCoreTests", dependencies: ["PdfCore"]),
     ]
 )

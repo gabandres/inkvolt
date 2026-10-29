@@ -1,6 +1,5 @@
 import Darwin
 import Foundation
-import IcuRegex
 
 /// What redaction by pattern looks for: the built-in kinds, then the user's own phrases and expression.
 public enum RedactionPattern: Int, CaseIterable, Hashable, Sendable {
@@ -130,15 +129,13 @@ public enum RedactionPatterns {
     /// What is wrong with a user's expression, in plain words; nil when it is fine (or empty).
     public static func validateExpression(_ expression: String?) -> String? {
         guard let expression, !expression.isEmpty else { return nil }
-        let units = Array(expression.utf16)
-        var offset: Int32 = 0
-        var name = [CChar](repeating: 0, count: 64)
-        let code = inkv_regex_check(units, Int32(units.count), 0, &offset, &name, 64)
-        if code != 0 {
-            let error = String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-            return "The pattern has a mistake near character \(offset): \(reason(error))."
+        guard let regex = try? NSRegularExpression(pattern: expression) else {
+            // NSRegularExpression says only that the pattern can't be read, not where: the usual mistake, a parenthesis
+            // or bracket without its partner, is looked for here and pointed at.
+            if let (at, why) = unpaired(expression) { return "The pattern has a mistake near character \(at): \(why)." }
+            return "The pattern has a mistake: it can't be read as a regular expression (perhaps a repeat with nothing to repeat, "
+                + "a \\ before something it can't escape, or a {…} repeat written wrong)."
         }
-        guard let regex = try? NSRegularExpression(pattern: expression) else { return "The pattern isn't valid." }
         do {
             if try !TimedRegex.matches(regex, in: "", seconds: expressionTimeout).isEmpty {
                 return "This pattern matches empty text, so it would mark nothing useful. Make at least one part required."
@@ -149,26 +146,39 @@ public enum RedactionPatterns {
         return nil
     }
 
-    /// ICU's error, in words.
-    private static func reason(_ error: String) -> String {
-        switch error {
-        case "U_REGEX_MISMATCHED_PAREN": "a parenthesis has no partner"
-        case "U_REGEX_MISSING_CLOSE_BRACKET": "a [ has no closing ]"
-        case "U_REGEX_BAD_ESCAPE_SEQUENCE": "a \\ is followed by something it can't escape"
-        case "U_REGEX_PROPERTY_SYNTAX": "a \\p{…} names no known property"
-        case "U_REGEX_RULE_SYNTAX": "something there can't be read (a repeat with nothing to repeat, perhaps)"
-        case "U_REGEX_BAD_INTERVAL": "a {…} repeat isn't written right"
-        case "U_REGEX_MAX_LT_MIN": "a {min,max} repeat has max below min"
-        case "U_REGEX_NUMBER_TOO_BIG": "a number is too big"
-        case "U_REGEX_INVALID_BACK_REF": "a back reference names a group there isn't"
-        case "U_REGEX_INVALID_RANGE": "a range in [ ] runs backwards"
-        case "U_REGEX_INVALID_FLAG": "a (?…) option isn't known"
-        case "U_REGEX_LOOK_BEHIND_LIMIT": "a look-behind must have a fixed or limited length"
-        case "U_REGEX_INVALID_CAPTURE_GROUP_NAME": "a group's name isn't valid"
-        case "U_REGEX_SET_CONTAINS_STRING": "a [ ] set holds more than single characters"
-        case "U_REGEX_UNIMPLEMENTED": "that feature isn't supported"
-        default: error.isEmpty ? "it can't be read" : error
+    /// The first parenthesis or bracket without its partner, as (its position, counted from 1; what is wrong); nil when
+    /// they pair up. Escapes (\x, \Q…\E) are skipped; a [ inside a set opens a set of its own (ICU's nested sets).
+    static func unpaired(_ pattern: String) -> (Int, String)? {
+        let c = Array(pattern)
+        var groups: [Int] = []
+        var sets: [Int] = []
+        var i = 0
+        while i < c.count {
+            if c[i] == "\\" {
+                guard i + 1 < c.count else { return (i + 1, "a \\ at the end has nothing to escape") }
+                if c[i + 1] == "Q" {
+                    var j = i + 2
+                    while j + 1 < c.count && !(c[j] == "\\" && c[j + 1] == "E") { j += 1 }
+                    i = j + 2
+                } else {
+                    i += 2
+                }
+                continue
+            }
+            if !sets.isEmpty {
+                if c[i] == "[" { sets.append(i) } else if c[i] == "]" { sets.removeLast() }
+            } else if c[i] == "[" {
+                sets.append(i)
+            } else if c[i] == "(" {
+                groups.append(i)
+            } else if c[i] == ")" {
+                if groups.popLast() == nil { return (i + 1, "a ) has no ( before it") }
+            }
+            i += 1
         }
+        if let open = sets.first { return (open + 1, "a [ has no closing ]") }
+        if let open = groups.last { return (open + 1, "a ( has no closing )") }
+        return nil
     }
 
     /// The matches on one page, in reading order.

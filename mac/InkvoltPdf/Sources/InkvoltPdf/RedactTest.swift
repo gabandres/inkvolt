@@ -6,7 +6,9 @@ import PdfCore
 /// redaction bar's buttons; a word's selection and its search matches marked; Redact by Pattern through its sheet (a bad
 /// expression refused first); Apply from the bar (the pages become pictures, their text recognized again, the check
 /// after it); on the synthetic document a dark box drawn over a word, found by Check Redaction and fixed from its report;
-/// Sanitize Document through its sheet. Every result saved into a temporary folder and read back, then undone. Only
+/// What's in This PDF from its menu item (its report as `DocumentInventory` lists it, saved as a web page and as JSON
+/// and read back, Go to page, Sanitize… and the Sanitize sheet's See What's in It…); Sanitize Document through its
+/// sheet, and What's in This PDF after it. Every result saved into a temporary folder and read back, then undone. Only
 /// counts and kinds are written, never a document's text or its name.
 @MainActor
 struct RedactTest {
@@ -137,6 +139,7 @@ struct RedactTest {
         await patterns(target)
         await apply(target)
         if synthetic { await badRedaction() } else { skip("check and fix a dark box over text: synthetic document only") }
+        await inventory()
         await sanitize()
         pages.clearRedactions()
         if pages.tool == .redact { pages.tool = .hand }
@@ -202,7 +205,7 @@ struct RedactTest {
         sheet.phrases.string = ""
         sheet.expression.stringValue = "CASE-("
         sheet.findClicked()
-        let refused = !sheet.problem.isHidden && sheet.problem.stringValue.contains("near character") && controller.redaction.patternSheet != nil
+        let refused = !sheet.problem.isHidden && sheet.problem.stringValue.contains("near character 6") && controller.redaction.patternSheet != nil
         sheet.expression.stringValue = ""
         sheet.findClicked()
         let empty = sheet.problem.stringValue.hasPrefix("Choose something") && controller.redaction.patternSheet != nil
@@ -325,6 +328,92 @@ struct RedactTest {
         check(wholeWordHits("quick", 0) > 0, "undo takes the fix and the box away (\(undone) steps)")
     }
 
+    // MARK: What's in This PDF
+
+    private mutating func inventory() async {
+        guard let s = session else { return }
+        let expected = try? DocumentInventory.run(s.data, s.password)
+        send(#selector(DocumentWindowController.whatsInThisPdf(_:)))
+        await waitTasks()
+        guard let sheet = controller.redaction.inventorySheet, let expected else { return check(false, "What's in This PDF: its report shown") }
+        snapshot(sheet.window?.contentView, "e1-05-inventory.png")
+        let sections = Set(expected.items.map(\.section))
+        let rows = sections.reduce(0) { n, section in n + min(expected.items(in: section).count, InventorySheet.maxRows) }
+        let sameItems = sheet.report.items == expected.items
+        let listed = sameItems && sheet.headings.count == sections.count && sheet.rowCount == rows
+            && sheet.summary.stringValue.hasPrefix(expected.summary) && InventorySheet.text(sheet.report, sheet.fileName).contains(expected.summary)
+        let offers = (sheet.sanitizeButton != nil) == !expected.counts.isClean
+        if !listed {
+            lines.append("  (sheet: \(sheet.report.items.count) items, \(sheet.headings.count) headings, \(sheet.rowCount) rows; "
+                + "expected \(expected.items.count) items in \(sections.count) sections, \(rows) rows)")
+        }
+        let offered = expected.counts.isClean ? "not offered (nothing to remove)" : "offered"
+        check(listed && offers, "What's in This PDF… from the Tools menu: \(expected.items.count) items in \(sections.count) sections, as "
+              + "DocumentInventory lists them; Sanitize… \(offered)")
+
+        // Save Report: the web page and JSON, read back.
+        let htmlFile = path("contents.html"), jsonFile = path("contents.json")
+        let savedHtml = sheet.save(to: htmlFile), savedJson = sheet.save(to: jsonFile)
+        let page = (try? String(contentsOf: htmlFile, encoding: .utf8)) ?? ""
+        let titles = sections.allSatisfy { page.contains(">\(DocumentInventory.title($0)) (") }
+        let htmlOk = savedHtml && page.hasPrefix("<!DOCTYPE html>") && !page.contains("<script") && !page.contains("src=") && titles
+        let root = (try? Data(contentsOf: jsonFile)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        let format = root?["format"] as? String == InventoryReportFiles.jsonFormat && root?["version"] as? Int == InventoryReportFiles.jsonVersion
+        let jsonItems = (root?["items"] as? [Any])?.count == expected.items.count
+        let jsonOk = savedJson && format && jsonItems && root?["file"] as? String == sheet.fileName && root?["pages"] as? Int == expected.pages
+        check(htmlOk && jsonOk, "Save Report: the web page (no scripts, every section) and the JSON (format, \(expected.items.count) items, "
+              + "the file's name) saved and read back")
+
+        // An item on a page goes to it; otherwise Close.
+        if let item = expected.items.first(where: { $0.page >= 0 }) {
+            let button = NSButton()
+            button.tag = item.page
+            sheet.goClicked(button)
+            await settle()
+            check(controller.redaction.inventorySheet == nil && pages.currentPage == item.page,
+                  "Go to page \(item.page + 1) from an item: the sheet closes on that page")
+        } else {
+            sheet.closeClicked()
+            check(controller.redaction.inventorySheet == nil, "What's in This PDF closed (no item on a page to go to)")
+        }
+
+        // Sanitize… from the report (or Sanitize Document from the menu), then See What's in It… over its sheet.
+        if !expected.counts.isClean {
+            send(#selector(DocumentWindowController.whatsInThisPdf(_:)))
+            await waitTasks()
+            controller.redaction.inventorySheet?.sanitizeClicked()
+        } else {
+            send(#selector(DocumentWindowController.sanitizeDocument(_:)))
+        }
+        await waitTasks()
+        guard let sanitizeSheet = controller.redaction.sanitizeSheet else {
+            return check(false, "Sanitize Document's sheet shown after What's in This PDF")
+        }
+        sanitizeSheet.seeButton.performClick(nil)
+        await waitTasks()
+        let over = controller.redaction.inventorySheet
+        let onTop = over != nil && over?.window?.sheetParent === sanitizeSheet.window && over?.sanitizeButton == nil && over?.report.items == expected.items
+        over?.closeClicked()
+        let stillOpen = controller.redaction.sanitizeSheet === sanitizeSheet && controller.redaction.inventorySheet == nil
+        sanitizeSheet.cancelClicked()
+        let opened = expected.counts.isClean ? "Sanitize Document" : "Sanitize… from the report opens Sanitize Document"
+        check(onTop && stillOpen && controller.redaction.sanitizeSheet == nil,
+              "\(opened); its See What's in It… shows the report over the sheet (no Sanitize… there), Close goes back to the sheet")
+    }
+
+    /// After Sanitize: What's in This PDF lists nothing of the kinds removed.
+    private mutating func inventoryAfterSanitize(_ chosen: Set<SanitizeItem>) async {
+        send(#selector(DocumentWindowController.whatsInThisPdf(_:)))
+        await waitTasks()
+        guard let sheet = controller.redaction.inventorySheet else { return check(false, "What's in This PDF after Sanitize: its report shown") }
+        let left = sheet.report.items.filter { $0.removedBy.map(chosen.contains) ?? false }
+        let count = sheet.report.items.count
+        sheet.closeClicked()
+        if !left.isEmpty { lines.append("  (still listed: \(left.map { "\($0.section)/\($0.what)" }.joined(separator: ", ")))") }
+        check(left.isEmpty && controller.redaction.inventorySheet == nil,
+              "What's in This PDF after Sanitize: nothing of the \(chosen.count) kinds removed is listed (\(count == 1 ? "1 item" : "\(count) items") left)")
+    }
+
     // MARK: Sanitize
 
     private mutating func sanitize() async {
@@ -362,6 +451,7 @@ struct RedactTest {
         let removed = chosen.reduce(0) { $0 + (result?.removed[$1] ?? 0) }
         check(boxes && done && clean, "Sanitize Document (its sheet: \(chosen.count) kinds found and ticked, \(removed) items): removed, "
               + "the saved file scanned again holds none of them and no earlier version")
+        if done { await inventoryAfterSanitize(chosen) }
         check(undo("Sanitize document"), "undo Sanitize")
     }
 }

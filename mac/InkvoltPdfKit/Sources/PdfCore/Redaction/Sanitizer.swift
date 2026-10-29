@@ -145,6 +145,10 @@ public enum Sanitizer {
         return SanitizeResult(data: saved, removed: report, remaining: remaining)
     }
 
+    /// An XMP packet's properties that Sanitize counts as metadata (nil: unreadable, which counts too); What's in This
+    /// PDF (`DocumentInventory`) lists them.
+    static func xmpProperties(_ stream: PObj) -> [(name: String, value: String)]? { Pass.xmpData(stream) }
+
     private enum NewIdentifier {
         /// Set; the encryption (none, or AES-256's, which doesn't depend on it) is kept as it is.
         case done
@@ -616,7 +620,7 @@ public enum Sanitizer {
         static func xmpHasData(_ stream: PObj) -> Bool { xmpData(stream).map { !$0.isEmpty } ?? true }
 
         /// The properties of an XMP packet that say something, as (name, value) in packet order; nil when the packet
-        /// can't be read (it counts as data).
+        /// can't be read (it counts as data). Shared with What's in This PDF (`Sanitizer.xmpProperties`).
         static func xmpData(_ stream: PObj) -> [(name: String, value: String)]? {
             guard let bytes = stream.streamData,
                   let xml = try? XMLDocument(data: Data(bytes), options: [.nodeLoadExternalEntitiesNever]),

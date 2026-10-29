@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import PdfCore
 
-/// Ported from RedactionPatternTests.cs. Adapted: the user's expression is ICU's syntax (NSRegularExpression), so a
-/// bad one is described from ICU's error ("near character" kept); a pattern that takes too long throws
+/// Ported from RedactionPatternTests.cs. Adapted: the user's expression is ICU's syntax (NSRegularExpression), whose
+/// error gives no position, so a bad one is pointed at by our own scan for an unpaired parenthesis or bracket ("near
+/// character" kept) and anything else is said to be unreadable (checked with "*a"); a pattern that takes too long throws
 /// `RedactionSearchTimeout` (Windows: `TimeoutException` with a `RegexMatchTimeoutException` inside). Left out:
 /// BatchRedactsPatternsInEveryFile (Batch comes with E8).
 struct RedactionPatternTests {
@@ -163,6 +164,8 @@ struct RedactionPatternTests {
         #expect(RedactionPatterns.validateExpression(#"\bCASE-\d+"#) == nil)
         #expect(RedactionPatterns.validateExpression("CASE-(")?.contains("near character") == true)
         #expect(RedactionPatterns.validateExpression("[a-")?.contains("near character") == true)
+        #expect(RedactionPatterns.validateExpression("*a")?.contains("can't be read") == true)
+        #expect(RedactionPatterns.validateExpression(#"\(a\[b"#) == nil)
         #expect(RedactionPatterns.validateExpression("x*")?.contains("empty text") == true)
         #expect(throws: PdfEditError.self) { try RedactionPatterns.find(Self.page("text"), 0, RedactionPatternOptions(expression: "(")) }
     }

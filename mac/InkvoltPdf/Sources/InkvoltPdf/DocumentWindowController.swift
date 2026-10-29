@@ -528,7 +528,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
             return !form.widgets.isEmpty
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
-             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)):
+             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)):
             return longTask == nil && progressSheet == nil && redaction.task == nil
         case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
             return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil

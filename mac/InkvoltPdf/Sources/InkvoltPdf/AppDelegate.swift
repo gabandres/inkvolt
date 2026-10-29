@@ -268,6 +268,7 @@ enum MainMenu {
         menu.addItem(item("Clear Redaction Marks", #selector(DocumentWindowController.clearRedactionMarks(_:))))
         menu.addItem(item("Check Redaction…", #selector(DocumentWindowController.checkRedaction(_:))))
         menu.addItem(item("Sanitize Document…", #selector(DocumentWindowController.sanitizeDocument(_:))))
+        menu.addItem(item("What's in This PDF…", #selector(DocumentWindowController.whatsInThisPdf(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
         menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))

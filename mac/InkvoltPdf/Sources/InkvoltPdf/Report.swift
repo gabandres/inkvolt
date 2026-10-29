@@ -14,7 +14,7 @@ import PdfCore
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
-/// `RedactTest` (redaction marked and applied, the redaction check and its fix, Sanitize Document; `--only-redaction`
+/// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
 /// runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
