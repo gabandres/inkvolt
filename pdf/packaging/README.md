@@ -151,7 +151,7 @@ tick the generative AI question in Partner Center when submitting (below).
 
 ### Spanish listing (es)
 
-Not live yet. Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images: add the language in Partner Center (Store listings › Manage additional languages › Spanish) with the en-us screenshots, or upload them through the submission API's zip. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
+Added in Partner Center on 2026-10-29 (Store listings › Manage additional languages › Spanish, with the en-us screenshots). Partner Center refuses a listing language without its own screenshots (CommitFailed, `NoScreenshotsOfAnyType`), and `msstore submission update` can't upload images, so a new language goes through Partner Center or the submission API's zip. When the en-us description changes, change this one to match. A listing left out of `submission update` stays in the draft: delete the draft (`msstore submission delete <id> --no-confirm`) to drop it. The app itself is in English, and the description says so.
 
 Short description:
 
