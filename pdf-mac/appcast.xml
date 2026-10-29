@@ -6,6 +6,21 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.2.0</title>
+      <pubDate>Thu, 29 Oct 2026 02:28:58 GMT</pubDate>
+      <sparkle:version>1.2.0</sparkle:version>
+      <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">What's in This PDF comes to Inkvolt PDF for Mac.
+
+- Tools › What's in This PDF… (also See What's in It… in Sanitize Document): one report of everything a PDF carries besides its pages: scripts and what they do, web addresses, files and programs it can reach, attachments, metadata, signatures, earlier versions, hidden layers and text, form values. Each item says whether Sanitize removes it. Save it as a web page or JSON. Nothing in the file is contacted.
+- Edit Text &amp; Images: clicking text on top of a picture edits the text.
+- Redact by Pattern: a mistake in your own pattern is described in plain words.
+
+For Macs with Apple silicon, macOS 15 or later. Signed with Developer ID and notarized by Apple. Free software under the GNU AGPL v3; source in this repository.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.2.0/Inkvolt-PDF-1.2.0.dmg" length="33718665" type="application/octet-stream" sparkle:edSignature="zn8OILwR4WxxFciz5WdkWHpsQkUBrnIdvrVL7xRlyKWcIqysANog81l0m1dtlSUJebS+bMuGdZld/+Ckpm5DCg==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.1.0</title>
       <pubDate>Wed, 28 Oct 2026 22:00:41 GMT</pubDate>
       <sparkle:version>1.1.0</sparkle:version>
