@@ -202,14 +202,25 @@ struct EditTest {
         await press(page, [at(0.25, 0.33)])
         let stamps = editor.comments.filter { $0.subtype == "Stamp" && $0.author == editor.author }
         check(stamps.count == 2 && stamps.contains { $0.subject == "Image" }, "stamp (Approved) and picture: \(stamps.count) stamps")
-        controller.testLink = ("https://example.com/inkvolt", -1)
-        pages.tool = .link
-        await press(page, [at(0.1, 0.9), at(0.2, 0.92), at(0.3, 0.94)])
-        controller.testLink = (nil, 0)
-        await press(page, [at(0.6, 0.92)])
-        let newLinks = editor.links.count - linksBefore
-        check(newLinks == 2 && editor.links.contains { $0.uri == "https://example.com/inkvolt" } && editor.links.contains { $0.targetPage == 0 },
-              "links (dragged to a web address, clicked to page 1): \(newLinks)")
+        // The new links go where the page has none of its own: with the Link tool a press on a link selects it (as on
+        // Windows), so it can be moved or changed.
+        let ownLinks = editor.links.filter { $0.pageIndex == page }.map { $0.rect.inflate(4) }
+        func free(_ r: RectD) -> Bool { !ownLinks.contains { !$0.intersect(r).isEmpty } }
+        let rows = [0.9, 0.86, 0.82, 0.78, 0.74, 0.7, 0.95] + stride(from: 0.66, to: 0.05, by: -0.04).map { $0 }
+        let dragRow = rows.first { free(.fromEdges(W * 0.1, H * $0, W * 0.3, H * ($0 + 0.04))) }
+        let clickRow = rows.first { free(RectD(W * 0.6 - 40, H * ($0 + 0.02) - 7, 80, 14)) }
+        if let dragRow, let clickRow {
+            controller.testLink = ("https://example.com/inkvolt", -1)
+            pages.tool = .link
+            await press(page, [at(0.1, dragRow), at(0.2, dragRow + 0.02), at(0.3, dragRow + 0.04)])
+            controller.testLink = (nil, 0)
+            await press(page, [at(0.6, clickRow + 0.02)])
+            let newLinks = editor.links.count - linksBefore
+            check(newLinks == 2 && editor.links.contains { $0.uri == "https://example.com/inkvolt" } && editor.links.contains { $0.targetPage == 0 },
+                  "links (dragged to a web address, clicked to page 1, clear of the page's \(ownLinks.count) links): \(newLinks)")
+        } else {
+            lines.append("SKIP links: no room clear of the page's \(ownLinks.count) links")
+        }
         controller.testText = nil
         controller.testLink = nil
         let addedCount = editor.comments.count - commentsBefore

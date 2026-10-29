@@ -752,16 +752,19 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     /// Edit Text & Images: a picture is selected (and dragged), text is changed.
+    /// A press in Edit Text & Images. Text on a picture wins, except over the selected picture, so it can be dragged
+    /// (as on Windows): a picture lying over or under a line of text doesn't take the click meant for the text.
     private func contentDown(_ page: Int, _ p: PointD) {
         guard let content else { return }
         select(nil)
-        if let image = content.image(page: page, p) {
-            content.select(image)
-            if image.blocked == nil { drag = .contentMove(page: page, start: p, box: image.box, by: PointD(0, 0)) }
+        let image = content.image(page: page, p)
+        if let run = content.run(page: page, p), !content.isSelected(image) {
+            content.select(nil)
+            content.editRun(run)
             return
         }
-        content.select(nil)
-        if let run = content.run(page: page, p) { content.editRun(run) }
+        content.select(image)
+        if let image, image.blocked == nil { drag = .contentMove(page: page, start: p, box: image.box, by: PointD(0, 0)) }
     }
 
     private func canMove(_ id: String) -> Bool {

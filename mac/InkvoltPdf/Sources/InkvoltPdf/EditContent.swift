@@ -84,7 +84,7 @@ final class ContentEditing: NSObject {
             path.stroke()
         }
         for image in c.images {
-            let selected = selectedImage.map { $0.pageIndex == page && $0.id == image.id } ?? false
+            let selected = isSelected(image)
             let path = NSBezierPath(rect: pages.viewRect(image.box, r))
             path.lineWidth = selected ? 2 * px : px
             if !selected { path.setLineDash([5 * px, 3 * px], count: 2, phase: 0) }
@@ -97,6 +97,12 @@ final class ContentEditing: NSObject {
 
     func image(page: Int, _ p: PointD) -> PageImage? { content[page]?.imageAt(p.x, p.y) }
     func run(page: Int, _ p: PointD) -> TextRun? { content[page]?.runAt(p.x, p.y, slop: 2) }
+
+    /// Whether `image` (nil: no) is the selected picture.
+    func isSelected(_ image: PageImage?) -> Bool {
+        guard let image, let s = selectedImage else { return false }
+        return s.pageIndex == image.pageIndex && s.id == image.id
+    }
 
     func select(_ image: PageImage?) {
         selectedImage = image

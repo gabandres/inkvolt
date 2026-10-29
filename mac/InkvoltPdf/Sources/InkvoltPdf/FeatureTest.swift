@@ -61,6 +61,29 @@ struct FeatureTest {
         await settle()
     }
 
+    /// Edit Text & Images: a click on the run's middle, `text` typed for it; whether the page then has it, and the undo title.
+    private func rewrite(_ page: Int, _ run: TextRun, _ text: String) async -> (found: Bool, title: String) {
+        controller.go(page)
+        controller.testText = text
+        await press(page, [PointD(run.box.centerX, run.box.centerY)])
+        controller.testText = nil
+        let after = await controller.content!.ensure(page)
+        return (after.runs.contains { $0.text == text }, controller.window?.undoManager?.undoMenuItemTitle ?? "")
+    }
+
+    /// A run's text with its letters reversed (or a letter added where that reads the same), if its font has every glyph.
+    private static func replacement(_ run: TextRun) -> String? {
+        guard run.blocked == nil && run.text.filter(\.isLetter).count >= 4 else { return nil }
+        var text = String(run.text.reversed())
+        if text == run.text { text = run.text + String(run.text.prefix(1)) }
+        return run.check(text).missing.isEmpty ? text : nil
+    }
+
+    /// Whether a picture lies where a click on the run's middle lands.
+    private static func onPicture(_ run: TextRun, _ c: PageContent) -> Bool {
+        c.imageAt(run.box.centerX, run.box.centerY) != nil
+    }
+
     private func key(_ characters: String, code: UInt16, shift: Bool = false) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: shift ? .shift : [], timestamp: ProcessInfo.processInfo.systemUptime,
                          windowNumber: controller.window?.windowNumber ?? 0, context: nil, characters: characters,
@@ -329,25 +352,36 @@ struct FeatureTest {
         pages.tool = .editContent
         let count = min(controller.engine.pageCount, 10)
         // Text: the first editable run with a word in it, rewritten with its own letters reversed.
-        var edited = false
+        content.select(nil)
+        var edited = false, overPicture = false
         for page in 0..<count {
             let c = await content.ensure(page)
-            guard let run = c.runs.first(where: { r in r.blocked == nil && r.text.filter(\.isLetter).count >= 4 }) else { continue }
-            var replacement = String(run.text.reversed())
-            if replacement == run.text { replacement = run.text + String(run.text.prefix(1)) }
-            guard run.check(replacement).missing.isEmpty else { continue }
-            controller.go(page)
-            controller.testText = replacement
-            await press(page, [PointD(run.box.centerX, run.box.centerY)])
-            controller.testText = nil
-            let after = await content.ensure(page)
-            let found = after.runs.contains { $0.text == replacement }
-            let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
-            check(found && title == "Undo Edit text", "Edit Text & Images: a \(run.text.count)-character run on page \(page + 1) rewritten (“\(title)”)")
+            guard let run = c.runs.first(where: { r in r.blocked == nil && r.text.filter(\.isLetter).count >= 4 }),
+                  let replacement = Self.replacement(run) else { continue }
+            overPicture = Self.onPicture(run, c)
+            let (found, title) = await rewrite(page, run, replacement)
+            check(found && title == "Undo Edit text",
+                  "Edit Text & Images: a \(run.text.count)-character run on page \(page + 1)\(overPicture ? " over a picture" : "") rewritten (“\(title)”)")
             edited = true
             break
         }
         if !edited { skip("edit text: no editable run in the first \(count) pages") }
+
+        // Text over a picture: the click edits the text, not the picture (as on Windows), unless that picture is selected.
+        if edited && !overPicture {
+            var tried = false
+            for page in 0..<count {
+                let c = await content.ensure(page)
+                guard let run = c.runs.first(where: { Self.onPicture($0, c) && Self.replacement($0) != nil }),
+                      let replacement = Self.replacement(run) else { continue }
+                let (found, title) = await rewrite(page, run, replacement)
+                check(found && title == "Undo Edit text" && content.selectedImage == nil,
+                      "Edit Text & Images: a run over a picture on page \(page + 1) rewritten, the picture not selected (“\(title)”)")
+                tried = true
+                break
+            }
+            if !tried { skip("edit text over a picture: no editable run on a picture in the first \(count) pages") }
+        }
 
         // Pictures: dragged to move, Delete removes, undo brings it back.
         var moved = false
@@ -365,6 +399,8 @@ struct FeatureTest {
             await waitDrawn()
             let (dx, dy) = room(image)
             let ctr = PointD(image.box.centerX, image.box.centerY)
+            // Text on the picture's middle takes a click there unless the picture is selected (by a click on a bare part of it).
+            if content.run(page: page, ctr) != nil, let top = content.image(page: page, ctr) { content.select(top) }
             await press(page, [ctr, PointD(ctr.x + dx / 2, ctr.y + dy / 2), PointD(ctr.x + dx, ctr.y + dy)])
             let after = await content.ensure(page)
             let shifted = after.images.contains { abs($0.box.x - image.box.x - dx) < 1 && abs($0.box.y - image.box.y - dy) < 1 }
