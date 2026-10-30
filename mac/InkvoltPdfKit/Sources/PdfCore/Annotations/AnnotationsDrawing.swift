@@ -94,6 +94,22 @@ extension Annotations {
         }
     }
 
+    /// Adds a measurement (a Line, PolyLine or Polygon carrying `scale` as its /Measure), labeled with its value.
+    static func addMeasurement(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ subtype: String, _ points: [PointD],
+                               _ s: AnnotStyle, _ author: String, _ id: String?, _ scale: MeasureScale) throws -> [UInt8] {
+        let g = AnnotGeometry(paths: [points])
+        try validate(subtype, g, s)
+        return try PageEditor.edit(data, password) { doc in
+            try checkPage(doc, pageIndex)
+            let page = doc.page(pageIndex)
+            let annot = newAnnot(doc, page, subtype, 0, 0, 0, 0, id, "", author, s.color ?? AnnotStyle.black)
+            var onPage = scale
+            onPage.userUnit = PageMarks.userUnit(page)
+            annot.set("Measure", Measurements.measureDict(doc, onPage))
+            apply(doc, page, annot, subtype, g, s)
+        }
+    }
+
     /// A drawing annotation Inkvolt PDF can describe and redraw (Fill & Sign stamps are managed by `TextStamps`).
     static func isDrawing(_ a: PObj, _ subtype: String) -> Bool {
         ["Ink", "Square", "Circle", "Line", "Polygon", "PolyLine"].contains(subtype)
@@ -206,6 +222,9 @@ extension Annotations {
         }
 
         var rectPts: [Pt] = []
+        var labelCorners: [Pt] = []
+        var labelOps: [UInt8] = []
+        var resources: PObj?
         let pad: Double
         switch subtype {
         case "Ink":
@@ -230,6 +249,16 @@ extension Annotations {
                 ending(&ops, s.startEnding, pts[0], dir(pts[1], pts[0]), w, endFill)
                 ending(&ops, s.endEnding, pts[pts.count - 1], dir(pts[pts.count - 2], pts[pts.count - 1]), w, endFill)
             }
+            // A measurement: its value as the comment's text and drawn as a label, recomputed whenever it is redrawn.
+            if let label = Measurements.label(page, annot, subtype, g.paths[0], s) {
+                labelOps = label.ops
+                labelCorners = label.corners
+                annot.set("Contents", doc.text(label.text))
+                let it = label.kind == .distance ? "LineDimension" : label.kind == .perimeter ? "PolyLineDimension" : "PolygonDimension"
+                annot.set("IT", doc.name(it))
+                if subtype == "Line" { annot.set("Cap", doc.bool(true)) }
+                resources = Measurements.labelResources(doc)
+            }
             rectPts = pts
             pad = w / 2 + (ends ? endingSize(w) + w : 0) + 1
         default: // Square, Circle
@@ -247,10 +276,13 @@ extension Annotations {
             return
         }
 
-        let rx1 = rectPts.map(\.x).min()! - pad, ry1 = rectPts.map(\.y).min()! - pad
-        let rx2 = rectPts.map(\.x).max()! + pad, ry2 = rectPts.map(\.y).max()! + pad
+        var rx1 = rectPts.map(\.x).min()! - pad, ry1 = rectPts.map(\.y).min()! - pad
+        var rx2 = rectPts.map(\.x).max()! + pad, ry2 = rectPts.map(\.y).max()! + pad
+        for (lx, ly) in labelCorners {
+            (rx1, ry1, rx2, ry2) = (min(rx1, lx - 1), min(ry1, ly - 1), max(rx2, lx + 1), max(ry2, ly + 1))
+        }
         annot.set("Rect", doc.realArray([rx1, ry1, rx2, ry2]))
-        setAppearance(doc, annot, appearance(doc, Array(ops.utf8), nil, rx1, ry1, rx2, ry2, nil, s))
+        setAppearance(doc, annot, appearance(doc, Array(ops.utf8) + labelOps, resources, rx1, ry1, rx2, ry2, nil, s))
     }
 
     private static func applyFreeText(_ doc: MuDoc, _ page: PObj, _ annot: PObj, _ g: AnnotGeometry, _ s: AnnotStyle, _ prologue: String) {
