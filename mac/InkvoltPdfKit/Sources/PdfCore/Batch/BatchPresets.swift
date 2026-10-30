@@ -214,17 +214,17 @@ public enum BatchPresets {
             case .export(let format, let dpi):
                 w.string("format", format.rawValue)
                 w.number("dpi", Double(dpi))
-            case .unprotect, .checkRedaction, .reportContents, .ocr:
+            case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr:
                 break
             }
         }
     }
 
-    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the actions it
-    /// has that the Mac doesn't yet, checkAccessibility and saveAsPdfA, are refused by name).
-    public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "reportContents", "watermark",
+    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the action it
+    /// has that the Mac doesn't yet, saveAsPdfA, is refused by name).
+    public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark",
                                      "headerFooter", "rotate", "flatten", "ocr", "export"]
-    static let windowsOnlyActions = ["checkAccessibility", "saveAsPdfA"]
+    static let windowsOnlyActions = ["saveAsPdfA"]
 
     private static func actionName(_ step: BatchStep) -> String {
         switch step {
@@ -234,6 +234,7 @@ public enum BatchPresets {
         case .sanitize: "sanitize"
         case .redactPatterns: "redactPatterns"
         case .checkRedaction: "checkRedaction"
+        case .checkAccessibility: "checkAccessibility"
         case .reportContents: "reportContents"
         case .watermark: "watermark"
         case .headerFooter: "headerFooter"
@@ -472,6 +473,8 @@ public enum BatchPresets {
                 pages: try f.pages("pages")))
         case "checkRedaction":
             step = .checkRedaction
+        case "checkAccessibility":
+            step = .checkAccessibility
         case "reportContents":
             step = .reportContents
         case "watermark":

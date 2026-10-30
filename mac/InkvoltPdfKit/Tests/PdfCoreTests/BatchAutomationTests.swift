@@ -3,8 +3,8 @@ import Testing
 @testable import PdfCore
 
 /// Ported from BatchAutomationTests.cs (same names): batch presets (JSON in and out), the watched folder and the command
-/// line (roadmap 1.2). Adapted: the Everything preset leaves out the two actions the Mac doesn't have (Check
-/// accessibility, Save as PDF/A; a preset naming them is refused saying so) and SaveAsPdfAIsABatchAction isn't ported;
+/// line (roadmap 1.2). Adapted: the Everything preset leaves out the action the Mac doesn't have (Save as
+/// PDF/A; a preset naming it is refused saying so) and SaveAsPdfAIsABatchAction isn't ported;
 /// the JSON refusals are the Mac's words for the same mistakes; ALockedFileWaitsUntilItIsLetGo holds an flock on the
 /// file (what "held open" means on a Mac); the command line's `/?` isn't a Mac spelling. Serialized with ProTests
 /// (`ProGated`): the command line asks the Pro check that those tests flip.
@@ -60,6 +60,7 @@ extension ProGated {
             .redactPatterns(RedactionPatternOptions(patterns: [.zipCode, .email], phrases: ["Acme Corp", "Jane \"JD\" Doe"], wholeWord: false, matchCase: true,
                                                     expression: #"CASE-\d{4}"#, pages: [0, 2])),
             .checkRedaction,
+            .checkAccessibility,
             .reportContents,
             .watermark(WatermarkOptions(text: "DRAFT", fontSize: 60, color: AnnotColor(1, 0, 0), opacity: 0.25, rotation: -30, layout: .tiled, behind: true)),
             .watermark(WatermarkOptions(image: StampImage(2, 1, [255, 0, 0, 0, 0, 255], [255, 128]), color: AnnotColor(0, 0, 1), imageScale: 0.2)), // colors keep 8 bits a channel
