@@ -360,6 +360,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | E6 | Measure: distance, perimeter, area, Calibrate, Set Measuring Scale | MeasurementTests | Done (2026-10-30): `PdfCore/Annotations/Measurement.swift`: `MeasureGeometry`, `MeasureScale` (`from`, `calibrate`, `parse` for .NET's `TryParse`, the values and their "N2" text), `Measurements` (page viewports read, looked up per point and written first on the page as "Inkvolt PDF scale", measurements added as Line, PolyLine and Polygon comments with /Measure /RL and /IT LineDimension, PolyLineDimension, PolygonDimension, read back with their values, /UserUnit applied); `Annotations.apply` draws the white-backed Helvetica label and sets /Contents, /IT and /Cap whenever a measurement is drawn or reshaped, so a measured file reads the same on both platforms (the same entries and label as Windows writes). `MeasureDraft` (a measurement under way: clicks, the pointer, Shift, double-click, Return, Delete, Esc, the value so far) and `MeasureScales` (a version's scales read once) keep the Windows viewer's and tab's rules in PdfCore, tested by MeasureDraftTests (a Mac addition). 11 tests ported with the same names and 7 added (641 in the package, 0 warnings on `ignia-mac`). The app (`Measure.swift`): Tools › Measure › Measure Distance, Measure Perimeter, Measure Area, Calibrate Scale from a Known Length (tools without a key, as on Windows) and Set Measuring Scale… (a sheet: on the page = real, decimals, this page or all pages); the page view draws the measurement under way with its value by the pointer (a tracking area follows the pointer); each measurement is one undo step at the page's scale, said in the notice bar ("Area: 0.50 sq in, perimeter 3.41 in (scale 1 in = 1 in)."); Calibrate asks the real length of the line just drawn. Free, as on Windows: no `Pro.allows`. The `--edit --synthetic` self-test adds `MeasureTest` (`--only-measure` runs it alone): 11 checks, all pass on `ignia-mac` (each tool through the page view's own clicks, pointer moves and keys, both sheets through their own completion, a reshape, undo, the label drawn and the viewport read back; it runs before `SignTest`, since a signed document declines the scale's page edits); the whole `--edit --synthetic --quit` run, 198 checks, all pass. Not checked by anyone at the screen yet: see "Measure (E6)" under Mac differences for what a person must look at |
 | Pro | Inkvolt Pro: the licence key, its check, Help › Inkvolt Pro… | ProTests | Done (2026-10-30): `PdfCore/Pro`: `Pro` (the gate, off as on Windows, with the same flip trigger), `ProKeys` (the key format verified with CryptoKit `P256.Signing`; `issue` for tests), `MemoryProStore`; the app's `ProWindowController` (both copy states, Get Inkvolt Pro ($19), Enter Key, Remove Licence) with the key in the settings (`SettingsProStore`). ProTests (16) read `pdf/tools/pro-key/test-vector.json` in place |
 | E8 | Batch, with presets, watched folders and the command line (roadmap 1.2) | BatchTests, BatchAutomationTests | Done (2026-10-30): `PdfCore/Batch`: `Batch` (files, names, the steps, the plan, `BatchRunner` on a task group with an `AsyncSemaphore` and the `WeightedGate`, `OutputNames`), `BatchPresets` (the Windows JSON, byte for byte, read with JSON5 comments and trailing commas allowed), `BatchCommandLine` (`--batch`, `--watch`, `--help`), `WatchedFolder` (held files and the watcher's lock through flock); `PngDecoder` for a preset's watermark picture. The app: File › Batch… (`BatchWindowController` and `ActionSheet`: the files, the actions with their sheets, the results folder and names, passwords asked per file, Stop, presets in Application Support and as files behind the Pro seam), Watched Folders… (`FolderWatches` started with the app, `WatchedFoldersWindowController`), the start page's Batch card, `InkvoltPdf --batch` and `--watch` from a terminal (`CommandLineRun`). Not on the Mac yet: the Check Accessibility and Save as PDF/A actions (1.3, E7), comment exports and summaries and form data as CSV or JSON (1.4), `--fill` (1.4). 38 tests |
+| 1.3 | Accessibility checker (the Mac half of roadmap 1.3; Make Accessible is roadmap 2.4, later) | AccessibilityCheckTests, HostileStructureTests | Done (2026-10-30): `PdfCore/Accessibility`: `AccessibilityCheck` (the 137 Matterhorn conditions and PDF/UA's basics, word for word but for the Mac's commands; the 15 human checks), `AccessibilityChecker` (the document, the tags, content with its fonts, annotations, fonts, as Windows' `Checker`), `AccessibilityReportHtml`, `HybridXref`; `.checkAccessibility` in Batch and its presets. `InkvoltPdf/Accessibility.swift`: Tools › Accessibility Check…, the sidebar's Accessibility pane. All 35 tests of AccessibilityCheckTests.cs ported with the same names, plus the pane's words and 9 hostile files; `--only-accessibility` drives the pane (17 checks, all pass on ignia-mac). Corpus (`pdf/tools/a11y-corpus`'s PDFs, opt-in `AccessibilityCorpusTests`, ignia-mac against Windows' `check`): the 50 corpus files the same pass or fail for 50, the same failing conditions for 49; veraPDF's 297 test files the same for 296. Both differences are Windows failing to read a file the way MuPDF does (below). |
 
 ### Parity with Windows
 
@@ -390,8 +391,9 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Reduce File Size, Flatten, Header & footer, Watermark | E4 (done 2026-10-30) |
 | Prepare Form | E5 (done 2026-10-30) |
 | Measure | E6 (done 2026-10-30) |
+| Accessibility Check, with its report and Batch's action | Roadmap 1.3 (done 2026-10-30; Make Accessible with 2.4) |
 | Save as PDF/A-2b | E7 |
-| Batch (with presets, watched folders, the command line) | E8 (done 2026-10-30; the Check Accessibility and Save as PDF/A actions come with 1.3 and E7, comment exports and `--fill` with 1.4) |
+| Batch (with presets, watched folders, the command line) | E8 (done 2026-10-30; the Check Accessibility action with 1.3, 2026-10-30; the Save as PDF/A action comes with E7, comment exports and `--fill` with 1.4) |
 | Help › Inkvolt Pro… | Pro (done 2026-10-30) |
 | Attachments, Layers | E9 |
 | Read Aloud | E10 (AVSpeechSynthesizer) |
@@ -520,8 +522,8 @@ Mac differences for the PDF app (so far):
   being known (no `OpenPasswordUnknown`).
 - Batch: a file counts as signed when a signature verifies as one (not an empty field); a "%PDF-" file MuPDF opens
   without pages fails as "This PDF has no pages"; result names follow the Windows rules (no `< > : " / \ | ? *`, no
-  device names, 120 characters) so results move between the two. Presets refuse `checkAccessibility` and `saveAsPdfA`
-  by name, saying they are Windows-only for now. The watched folder takes a file only when `open` with `O_EXLOCK` gets
+  device names, 120 characters) so results move between the two. Presets refuse `saveAsPdfA`
+  by name, saying it is Windows-only for now. The watched folder takes a file only when `open` with `O_EXLOCK` gets
   it (an app that locks what it writes keeps it off; the quiet period covers the rest) and holds `.inkvolt-watch.lock`
   with flock. The command line is the app's binary (`/Applications/Inkvolt PDF.app/Contents/MacOS/InkvoltPdf`);
   `--fill` isn't there (FormMerge comes with 1.4).
@@ -556,6 +558,30 @@ Mac differences for the PDF app (so far):
   mouse (also at 50 % and 400 % zoom, in dark mode); Shift's 45° steps with a real mouse; both sheets' layout and focus;
   the labels on the page (white-backed, upright on a turned page); and a file measured on the Mac opened in the Windows
   app and in Acrobat (the entries match the Windows tests', but no file has crossed yet).
+
+- Accessibility check (roadmap 1.3): the command is Tools › Accessibility Check… (Windows: Review), the pane is the sidebar's fifth
+  segment, a symbol that appears with the first check (the four words already fill the sidebar). Fixes that name a command name
+  the Mac's: File › Remove Password Protection…, Pages › Flatten…, Tools › Prepare Form; the Mac has no Document Properties, Attach a
+  File or Read Aloud yet, so those fixes and checks say a PDF editor's document properties, the program that wrote the file, and VoiceOver
+  (⌘F5). Saving the report offers Open Report in the pane (Windows: Open on its toast). Text in a corrupt file differs by reader: MuPDF
+  rebuilds what it can, so a file PDFsharp refuses is checked as far as it reads (`7.5-t01-fail-c.pdf`, with an external stream: Windows
+  says it can't be checked, the Mac fails it, as veraPDF does). Limits Windows doesn't have, none reached by a real file: at most 2,500,000
+  parsed drawing steps of forms are kept, a form drawn again isn't read again, 500,000,000 drawing steps per document (then a note),
+  16,000,000 places per table (then a note, and that table's cells aren't compared), each rendition and appearance stream walked once, and
+  XFA's `dynamicRender` found by a one-pass scan rather than a timed regular expression. `TextFont`'s glyph lookup now follows Windows' (Unicode-platform
+  cmaps, Mac cmaps by glyph name), which it had fallen behind.
+  Reported, not fixed, on Windows: (a) wcag-table-word.pdf's 15-003 (a known difference in `a11y-corpus`'s README, called a veraPDF inconsistency) is
+  Windows' false report: the file has three revisions, and PDFsharp reads an older version of its TH tags, without their /A /Scope; MuPDF reads the
+  current ones, so the Mac agrees with veraPDF on this file. (b) `Rendition` has only a depth limit, so a selector listing itself 100 times is
+  100^8 walks, with no cancel check. (c) `Table`'s grid can take gigabytes for a crafted table's spans. (d) The XFA regular expression's
+  `RegexMatchTimeoutException` isn't among the exceptions `Run` or the app catch (read from the code, not run).
+  What a person must look at: everything on screen. Off-screen snapshots of the window (ignia-mac, dark mode) showed the pane's text wrapping, the
+  selected row, the orange outline and the checklist as intended, but no one has seen them on a screen or used them with a mouse or VoiceOver. To check: the
+  fifth segment's symbol and its tooltip; the sidebar's width once it appears; the outline fading after 2 seconds; light mode; the
+  three buttons in a narrow sidebar; a long list scrolling; keyboard from the list to the checklist; VoiceOver reading a row and a checkbox; the saved report in Safari, in both color modes;
+  Batch's Add Action listing it.
+  Found on the way: AppKit opens any argument naming something on disk as a document, so `--self-test … --snapshots <folder>` stopped behind an error alert
+  over SSH; self-test runs now turn that off (`main.swift`). Whether this was also the stall E5 saw on the whole suite wasn't tested.
 
 - Prepare Form (E5): the commands are in Tools (Windows: Edit › Forms; ⌥⌘F for Ctrl+Alt+F), Detect Fields is also Tools › Detect Form Fields, and there is no start page card, as on Windows. The bar
   sits over the pages and the panel is a split view inspector (Windows floats both). The rules of clicks, drags, keys and typed values are PdfCore's `FormDesigner` and `FormDesignRules` (Windows keeps them in

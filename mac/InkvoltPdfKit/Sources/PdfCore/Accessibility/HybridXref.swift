@@ -113,7 +113,9 @@ enum HybridXref {
                 p = sectionAt
                 break
             }
-            for k in 0..<max(count, 0) where entries.count < maxObjects {
+            var k = -1
+            while k + 1 < count && entries.count < maxObjects {
+                k += 1
                 skipSpace()
                 guard let offset = digits(10) else { throw Damaged() }
                 skipSpace()

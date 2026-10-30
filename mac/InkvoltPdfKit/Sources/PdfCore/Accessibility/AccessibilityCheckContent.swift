@@ -291,8 +291,8 @@ extension AccessibilityChecker {
         var usable = false
         if let alt = clip.array("Alt"), alt.count % 2 == 0 {
             usable = true
-            for (i, x) in alt.elements.enumerated() {
-                guard let s = x.text, i % 2 == 0 || !s.isEmpty else {
+            for i in 0..<alt.count {
+                guard let s = alt[i]?.text, i % 2 == 0 || !s.isEmpty else {
                     usable = false
                     break
                 }
