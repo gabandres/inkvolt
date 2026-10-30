@@ -21,7 +21,7 @@ public sealed record OcrLayer(List<OcrWord> Words, string? Language);
 /// copied and searched. Each word is written with text render mode 3 (no paint), stretched along its box and turned
 /// with it, in a content stream of its own placed before the page's content (so the existing content's graphics state,
 /// balanced or not, can't leak into it), with an embedded subset Unicode font whose /ToUnicode returns the words as
-/// recognized. The layer starts with comment lines (<see cref="Marker"/> and the language, then one per word: its suspect reasons, box,
+/// recognized. The layer starts with comment lines (<see cref="Marker"/> and the language, the page's frame, then one per word: its suspect reasons, box,
 /// angle and text as UTF-8 hex), so its words can be read back (<see cref="Words"/>), reviewed and corrected: a corrected
 /// layer replaces the old one in place.
 /// </summary>
@@ -52,7 +52,8 @@ public static class TextLayer
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
         var result = new Dictionary<int, OcrLayer>();
         for (var i = 0; i < doc.PageCount; i++)
-            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { Count: > 0 } words) result[i] = new OcrLayer(words, LanguageOf(layer.Text));
+            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { Count: > 0 } words)
+                result[i] = new OcrLayer(InFrameOf(doc.Pages[i], words, layer.Text), LanguageOf(layer.Text));
         return result;
     }
 
@@ -79,13 +80,18 @@ public static class TextLayer
         if (page < 0 || page >= doc.PageCount || FindLayer(doc.Pages[page]) is not { } layer || ParseWords(layer.Text) is not { } words)
             throw new InvalidOperationException("This page has no recognized text to correct.");
         if (index < 0 || index >= words.Count) throw new ArgumentOutOfRangeException(nameof(index));
+        words = InFrameOf(doc.Pages[page], words, layer.Text);
         words[index] = change(words[index]);
         SetLayer(doc, doc.Pages[page], words, LanguageOf(layer.Text));
         return PdfObj.Save(doc);
     }
 
+    // Further than this (pt) from a page's corner no word lies, even on the largest page PDF allows; a layer is untrusted input.
+    private const double MaxCoordinate = 1e6;
+
     private static bool Usable(OcrWord w) =>
-        !string.IsNullOrWhiteSpace(w.Text) && !w.Rect.IsEmpty && double.IsFinite(w.Rect.Width) && double.IsFinite(w.Rect.Height) && double.IsFinite(w.Angle);
+        !string.IsNullOrWhiteSpace(w.Text) && !w.Rect.IsEmpty && double.IsFinite(w.Angle) &&
+        new[] { w.Rect.X, w.Rect.Y, w.Rect.Width, w.Rect.Height }.All(n => double.IsFinite(n) && Math.Abs(n) <= MaxCoordinate);
 
     /// <summary>The page's Inkvolt text layer: its place in /Contents and its text.</summary>
     private static (int Index, string Text)? FindLayer(PdfPage page)
@@ -105,7 +111,10 @@ public static class TextLayer
         return first.Length > Marker.Length ? first[Marker.Length..].Trim().ToString() : null;
     }
 
-    /// <summary>The words kept in a layer's comment lines, in order; null when they can't be read.</summary>
+    /// <summary>
+    /// The words kept in a layer's comment lines, in order; null when they can't be read. A word no page could have (a box
+    /// out of range, not a number, empty) is left out, as writing the layer leaves it out.
+    /// </summary>
     private static List<OcrWord>? ParseWords(string layer)
     {
         var words = new List<OcrWord>();
@@ -117,8 +126,13 @@ public static class TextLayer
             try
             {
                 double N(int i) => double.Parse(f[i], CultureInfo.InvariantCulture);
-                words.Add(new OcrWord(Encoding.UTF8.GetString(Convert.FromHexString(f[7])), new RectD(N(2), N(3), N(4), N(5)), N(6),
-                    (SuspectReasons)int.Parse(f[1], CultureInfo.InvariantCulture)));
+                var word = new OcrWord(Encoding.UTF8.GetString(Convert.FromHexString(f[7])), new RectD(N(2), N(3), N(4), N(5)), N(6),
+                    (SuspectReasons)int.Parse(f[1], CultureInfo.InvariantCulture));
+                if (Usable(word)) words.Add(word);
+            }
+            catch (OverflowException)
+            {
+                // a number too big for its kind: a word no page has
             }
             catch (FormatException)
             {
@@ -126,6 +140,45 @@ public static class TextLayer
             }
         }
         return words;
+    }
+
+    /// <summary>
+    /// The page's frame when the layer was written, from its line "%f rotate x1 y1 x2 y2" (the /Rotate and the visible
+    /// box, PDF user space): the words' boxes are in that page space. Null when the layer has none (written before it was
+    /// kept) or it can't be read.
+    /// </summary>
+    private static (double Bx1, double By2, double W, double H, int Rot)? FrameOf(string layer)
+    {
+        foreach (var raw in layer.Split('\n'))
+        {
+            if (raw.StartsWith("%w ", StringComparison.Ordinal)) break;
+            if (!raw.StartsWith("%f ", StringComparison.Ordinal)) continue;
+            var f = raw.TrimEnd('\r').Split(' ');
+            if (f.Length != 6 || !int.TryParse(f[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var rot) || rot is not (0 or 90 or 180 or 270)) return null;
+            var n = new double[4];
+            for (var i = 0; i < 4; i++)
+                if (!double.TryParse(f[i + 2], NumberStyles.Float, CultureInfo.InvariantCulture, out n[i]) || !double.IsFinite(n[i])) return null;
+            return n[2] > n[0] && n[3] > n[1] ? (n[0], n[3], n[2] - n[0], n[3] - n[1], rot) : null;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The words in the page's space as it is now: a page turned or cropped since its layer was written moves each word's
+    /// centre with it and turns the word as much as the page. A layer without its frame is taken as in today's.
+    /// </summary>
+    private static List<OcrWord> InFrameOf(PdfPage page, List<OcrWord> words, string layer)
+    {
+        var now = PdfObj.Frame(page);
+        if (FrameOf(layer) is not { } was || was == now) return words;
+        return [.. words.Select(w =>
+        {
+            var (x, y) = PdfObj.ToPdf(was, w.Rect.CenterX, w.Rect.CenterY);
+            var (cx, cy) = PdfObj.ToPage(now, x, y);
+            var angle = (w.Angle + now.Rot - was.Rot) % 360;
+            angle = angle > 180 ? angle - 360 : angle <= -180 ? angle + 360 : angle;
+            return w with { Rect = new RectD(cx - w.Rect.Width / 2, cy - w.Rect.Height / 2, w.Rect.Width, w.Rect.Height), Angle = angle };
+        }).Where(Usable)];
     }
 
     /// <summary>Writes the page's text layer: in place of its Inkvolt layer when it has one, else before its content.</summary>
@@ -146,6 +199,9 @@ public static class TextLayer
         var ops = new StringBuilder(Marker);
         if (language is { Length: > 0 } && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')) ops.Append(' ').Append(language);
         ops.Append('\n');
+        // The page's frame, so the boxes follow the page when it is turned or cropped later (FrameOf).
+        var (fx1, fy1, fx2, fy2) = PdfObj.VisibleBox(page);
+        ops.Append(CultureInfo.InvariantCulture, $"%f {PdfObj.Frame(page).Rot} {PdfObj.F(fx1)} {PdfObj.F(fy1)} {PdfObj.F(fx2)} {PdfObj.F(fy2)}\n");
         foreach (var w in words)
             ops.Append(CultureInfo.InvariantCulture,
                 $"%w {(int)w.Suspect} {PdfObj.F(w.Rect.X)} {PdfObj.F(w.Rect.Y)} {PdfObj.F(w.Rect.Width)} {PdfObj.F(w.Rect.Height)} {PdfObj.F(w.Angle)} {Convert.ToHexString(Encoding.UTF8.GetBytes(w.Text.Trim()))}\n");

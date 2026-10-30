@@ -185,7 +185,8 @@ internal static class PdfObj
 
     // ---- Page geometry: page space = points, top-left origin of the displayed (cropped, rotated) page ----
 
-    private static (double Bx1, double By2, double W, double H, int Rot) Frame(PdfPage page)
+    /// <summary>What maps page space to PDF user space: the visible box's left and top, its size, and the /Rotate.</summary>
+    internal static (double Bx1, double By2, double W, double H, int Rot) Frame(PdfPage page)
     {
         var (x1, y1, x2, y2) = VisibleBox(page);
         return (x1, y2, x2 - x1, y2 - y1, ((page.Rotate % 360) + 360) % 360);
@@ -209,9 +210,11 @@ internal static class PdfObj
     }
 
     /// <summary>PDF user space → page space.</summary>
-    public static (double X, double Y) ToPage(PdfPage page, double x, double y)
+    public static (double X, double Y) ToPage(PdfPage page, double x, double y) => ToPage(Frame(page), x, y);
+
+    internal static (double X, double Y) ToPage((double Bx1, double By2, double W, double H, int Rot) frame, double x, double y)
     {
-        var (bx1, by2, w, h, rot) = Frame(page);
+        var (bx1, by2, w, h, rot) = frame;
         double u = x - bx1, v = by2 - y;
         return rot switch
         {
@@ -223,9 +226,11 @@ internal static class PdfObj
     }
 
     /// <summary>Page space → PDF user space.</summary>
-    public static (double X, double Y) ToPdf(PdfPage page, double px, double py)
+    public static (double X, double Y) ToPdf(PdfPage page, double px, double py) => ToPdf(Frame(page), px, py);
+
+    internal static (double X, double Y) ToPdf((double Bx1, double By2, double W, double H, int Rot) frame, double px, double py)
     {
-        var (bx1, by2, w, h, rot) = Frame(page);
+        var (bx1, by2, w, h, rot) = frame;
         var (u, v) = rot switch
         {
             90 => (py, h - px),
