@@ -105,7 +105,7 @@ public sealed class SupplyChartView : FrameworkElement
     {
         if (Data is not { } data)
         {
-            AutomationProperties.SetName(this, null);
+            ClearValue(AutomationProperties.NameProperty); // null isn't a valid name
             return;
         }
         var parts = data.Lines.Select(l =>

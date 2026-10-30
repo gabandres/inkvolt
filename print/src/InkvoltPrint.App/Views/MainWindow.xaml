@@ -212,6 +212,25 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- Firmware watch (roadmap 1.5): the last change, until dismissed or 30 days old -->
+                                <Border Margin="0,12,0,0" Padding="12,10" CornerRadius="4" BorderThickness="1"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                        Visibility="{Binding FirmwareNotice, Converter={StaticResource VisibleWhen}}"
+                                        AutomationProperties.Name="{Binding FirmwareNotice.Text}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,2,10,0" VerticalAlignment="Top" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding FirmwareNotice.Text}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding FirmwareNoticeHint}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                <Button Content="{Binding FirmwareNoticeAction}" Command="{Binding ActOnFirmwareNoticeCommand}" Style="{StaticResource LinkButton}"
+                                                        Margin="0,0,16,0" Visibility="{Binding FirmwareNoticeAction, Converter={StaticResource VisibleWhen}}" />
+                                                <Button Content="Dismiss" Command="{Binding DismissFirmwareNoticeCommand}" Style="{StaticResource LinkButton}"
+                                                        AutomationProperties.Name="Dismiss the firmware notice" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
                                 <!-- A printer listed from its Windows queue: say where the status comes from, and what that leaves out -->
                                 <TextBlock Text="{Binding StatusSourceNote}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                                            Visibility="{Binding StatusSourceNote, Converter={StaticResource VisibleWhen}}" />
@@ -1435,6 +1454,14 @@
                                         <TextBlock Style="{StaticResource Caption}"
                                                    Text="HP firmware updates can include “dynamic security”, which stops toner cartridges with non-HP chips (many compatible and refilled ones) from working. If you use them, keep automatic installs off and read HP's release notes before updating." />
                                     </DockPanel>
+                                    <!-- Roadmap 1.5: one button, automatic updates off, read back, said in the tab's message line -->
+                                    <StackPanel Orientation="Horizontal" Margin="26,12,0,0"
+                                                Visibility="{Binding CanKeepCartridges, Converter={StaticResource VisibleWhen}}">
+                                        <Button Content="Keep my cartridges working" Command="{Binding KeepCartridgesWorkingCommand}" VerticalAlignment="Center"
+                                                AutomationProperties.HelpText="{Binding KeepCartridgesHint}" />
+                                        <TextBlock Text="{Binding KeepCartridgesHint}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="420" />
+                                    </StackPanel>
                                     <Button Content="Printer web page" Command="{Binding OpenWebPageCommand}" Style="{StaticResource LinkButton}"
                                             HorizontalAlignment="Left" Margin="26,10,0,0"
                                             Visibility="{Binding CanOpenWebPage, Converter={StaticResource VisibleWhen}}" />

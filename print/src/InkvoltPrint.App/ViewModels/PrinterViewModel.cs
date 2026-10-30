@@ -715,7 +715,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ListStatus));
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies) { DaysLeft = _history?.DaysLeft });
+        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies) { DaysLeft = _history?.DaysLeft, FirmwareChange = FirmwareNotice });
     }
 
     /// <summary>
@@ -820,6 +820,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
+        WatchFirmware(p.Firmware?.Display);
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
@@ -973,8 +974,59 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }.OfType<InfoRow>().ToList());
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies) { DaysLeft = _history?.DaysLeft });
+        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies) { DaysLeft = _history?.DaysLeft, FirmwareChange = FirmwareNotice });
         return true;
+    }
+
+    /// <summary>The last firmware change while its notice shows on the status card (roadmap 1.5); the tray alerts it once.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FirmwareNoticeHint), nameof(FirmwareNoticeAction))]
+    public partial FirmwareChange? FirmwareNotice { get; set; }
+
+    /// <summary>Under the notice: why it matters, and where to act on it.</summary>
+    public string? FirmwareNoticeHint => FirmwareNotice is null ? null
+        : Settings is not null
+            ? "If it came from HP, cartridges with non-HP chips may stop working. Keep my cartridges working, on the Printer settings tab, turns automatic updates off."
+            : "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings.";
+
+    /// <summary>The notice's button: the Firmware card for an HP printer whose settings Inkvolt Print writes, else the web page.</summary>
+    public string? FirmwareNoticeAction => FirmwareNotice is null ? null
+        : Settings is not null ? "Firmware settings"
+        : _pc.Browser is not null && Host is not null ? "Printer web page"
+        : null;
+
+    partial void OnSettingsChanged(SettingsViewModel? oldValue, SettingsViewModel? newValue)
+    {
+        OnPropertyChanged(nameof(FirmwareNoticeHint));
+        OnPropertyChanged(nameof(FirmwareNoticeAction));
+    }
+
+    /// <summary>The connection's firmware version against the one remembered: a change is kept and shown until dismissed (30 days at most).</summary>
+    private void WatchFirmware(string? version)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var known = _state.GetFirmware(Uuid);
+        var record = FirmwareWatch.Observe(known, version, today);
+        if (record is not null && !ReferenceEquals(record, known))
+        {
+            _state.SetFirmware(Uuid, record);
+            if (known is not null) Log.Write($"[{Name}] firmware version changed"); // never the versions: they can identify a unit
+        }
+        FirmwareNotice = FirmwareWatch.Notice(record, today);
+    }
+
+    [RelayCommand]
+    private void DismissFirmwareNotice()
+    {
+        if (_state.GetFirmware(Uuid) is { } record) _state.SetFirmware(Uuid, record with { Dismissed = true });
+        FirmwareNotice = null;
+    }
+
+    [RelayCommand]
+    private void ActOnFirmwareNotice()
+    {
+        if (Settings is not null) SelectedSection = SettingsSection;
+        else OpenWebPage();
     }
 
     private SupplyHistoryView? _history;

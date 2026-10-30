@@ -36,7 +36,7 @@ public sealed record AlertRules
     public TimeSpan MaxGap { get; init; } = TimeSpan.FromHours(2);
 
     public TimeSpan HoldFor(AlertKind kind) =>
-        AlertCondition.IsSupply(kind) ? TimeSpan.Zero : kind == AlertKind.Offline ? OfflineHold : ErrorHold;
+        AlertCondition.IsSupply(kind) || kind == AlertKind.FirmwareChanged ? TimeSpan.Zero : kind == AlertKind.Offline ? OfflineHold : ErrorHold;
 }
 
 /// <summary>An alert to show now. <see cref="Uuid"/> picks the printer to open when it's clicked.</summary>
@@ -135,7 +135,7 @@ public sealed class AlertTracker
 
     /// <summary>Whether a snapshot shows this kind of problem at all (else what was known stands).</summary>
     private static bool Observable(AlertKind kind, PrinterSnapshot snap) =>
-        kind == AlertKind.Offline || (snap.Reachable && (AlertCondition.IsSupply(kind) ? snap.Supplies is not null : snap.Status is not null));
+        kind == AlertKind.Offline || (snap.Reachable && (kind == AlertKind.FirmwareChanged || (AlertCondition.IsSupply(kind) ? snap.Supplies is not null : snap.Status is not null)));
 
     /// <summary>Alerts due and not shown yet: called after each check and on a timer (quiet hours ending).</summary>
     public IReadOnlyList<AlertNotice> Release(DateTimeOffset now)
@@ -194,7 +194,7 @@ public sealed class AlertTracker
 
     /// <summary>A printer's worst ongoing problem in a few words ("Paper jam", "Offline"), or null when there's none.</summary>
     public string? Problem(string uuid) =>
-        Current(uuid).OrderByDescending(t => AlertCondition.LevelOf(t.Kind)).ThenBy(t => t.Kind)
+        Current(uuid).Where(t => AlertCondition.LevelOf(t.Kind) > AlertLevel.Ok).OrderByDescending(t => AlertCondition.LevelOf(t.Kind)).ThenBy(t => t.Kind)
             .Select(t => t.Kind == AlertKind.Offline ? "Offline" : t.Condition!.Title).FirstOrDefault();
 
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>

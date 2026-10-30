@@ -149,8 +149,18 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   include Dynamic Security" ([The Register](https://www.theregister.com/2025/03/19/hp_printer_lawsuit_settled/));
   Australia's regulator made HP compensate buyers in 2018 ([ACCC](https://www.accc.gov.au/media-release/hp-to-compensate-printer-customers)).
   Epson pushes firmware through its updater app ([Epson](https://epson.com/support/updating-your-printers-firmware-using-epson-software-updater)).
-- **Now.** The version is shown; HP's automatic-update setting is read and written over LEDM, with the Dynamic
-  Security explanation (README, Firmware).
+- **Now (built 2026-10-30, Windows).** Every printer's firmware version is kept in `state.json` with the day first seen
+  (`Core/History/FirmwareWatch`); a new version shows "Firmware changed from X to Y on date" on the status card (Firmware
+  settings for an HP printer Inkvolt Print writes to, the printer's web page for CDM, IPP and SNMP printers, Dismiss; gone
+  after 30 days) and, with alerts on, one notification (`AlertKind.FirmwareChanged` through `AlertTracker`: never told
+  twice for one change, restarts included; it never colors the tray icon). The HP Firmware card has **Keep my cartridges
+  working**: confirmed, automatic updates written Off (`Core/Ledm/CartridgeGuard`, the card's own write), read back, and
+  what the printer kept said in plain words. Tests: `FirmwareWatchTests` (15: the record, the notice's life, the M234dw's
+  fixture readings with a version change giving one notice and one alert and none after a restart, the tray level; the
+  button's PUT equal byte for byte to the Firmware card's Off write, already off, read-only, a printer that keeps
+  installing, the password step; all against captured documents in memory, no printer written to). **Pending on
+  hardware:** a real update noticed, and the button on a printer set to install automatically (README, "Not done").
+  Mac: not started (the Settings tab has the LEDM firmware mode already).
 - **Beat it when:** every printer's firmware version is kept with the date first seen, and a change shows a notice
   ("Firmware changed from X to Y on date") on the status card and, with alerts on, as a notification; the HP card has
   one button, **Keep my cartridges working**, that sets automatic updates off, reads the setting back and says what it

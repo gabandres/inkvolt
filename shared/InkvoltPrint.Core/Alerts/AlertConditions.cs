@@ -2,8 +2,9 @@ using InkvoltPrint.Core.Model;
 
 namespace InkvoltPrint.Core.Alerts;
 
-/// <summary>What an alert is about. Supplies and waste boxes come from the supplies; the rest from the printer's status.</summary>
-public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline }
+/// <summary>What an alert is about. Supplies and waste boxes come from the supplies; <see cref="FirmwareChanged"/> from the firmware
+/// watch (news, not a problem: it never colors the tray icon); the rest from the printer's status.</summary>
+public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged }
 
 /// <summary>The tray icon's state, in rank order: an error outranks a low supply, which outranks a printer that's off.</summary>
 public enum AlertLevel { Ok, Offline, Warning, Error }
@@ -16,6 +17,9 @@ public sealed record PrinterSnapshot(string Uuid, string Name, bool Reachable, P
 {
     /// <summary>Days left per supply (<see cref="History.SupplyRow.KeyOf(Consumable)"/>) where the history can tell: the low-supply alert names them.</summary>
     public IReadOnlyDictionary<string, int>? DaysLeft { get; init; }
+
+    /// <summary>The printer's last firmware change while its notice shows (<see cref="History.FirmwareWatch.Notice"/>): alerted once.</summary>
+    public History.FirmwareChange? FirmwareChange { get; init; }
 }
 
 /// <summary>A problem seen on a printer. <see cref="Key"/> is stable while it lasts ("SupplyLow|Black toner|K").</summary>
@@ -27,6 +31,7 @@ public sealed record AlertCondition(string Key, AlertKind Kind, string Title, st
     {
         AlertKind.SupplyLow or AlertKind.WasteAlmostFull => AlertLevel.Warning,
         AlertKind.Offline => AlertLevel.Offline,
+        AlertKind.FirmwareChanged => AlertLevel.Ok,
         _ => AlertLevel.Error,
     };
 
@@ -60,6 +65,9 @@ public static class AlertConditions
         }
         if (snap.Status is { } status) AddStatus(found, snap.Name, status);
         foreach (var s in snap.Supplies ?? []) AddSupply(found, snap.Name, s, rules, isActive, snap.DaysLeft);
+        if (snap.FirmwareChange is { } fw)
+            found.Add(new($"{AlertKind.FirmwareChanged}|{fw.Key}", AlertKind.FirmwareChanged, $"{snap.Name}: firmware changed",
+                $"{fw.Text} If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."));
         return found;
     }
 
