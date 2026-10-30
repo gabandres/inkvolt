@@ -234,7 +234,7 @@ public enum Measurements {
     /// The scale the page's viewports give at `at` (page space), or nil when none does.
     public static func pageScale(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ at: PointD) throws -> MeasureScale? {
         let doc = try PdfEdit.openToRead(data, password)
-        if pageIndex < 0 || pageIndex >= (try doc.pageCount()) { return nil }
+        if try pageIndex < 0 || pageIndex >= doc.pageCount() { return nil }
         return pageScale(doc.page(pageIndex), at)
     }
 
@@ -331,7 +331,7 @@ public enum Measurements {
     /// The measurements on a page (annotations with a rectilinear measure), with their values.
     public static func read(_ data: [UInt8], _ password: String?, _ pageIndex: Int) throws -> [MeasurementInfo] {
         let doc = try PdfEdit.openToRead(data, password)
-        if pageIndex < 0 || pageIndex >= (try doc.pageCount()) { return [] }
+        if try pageIndex < 0 || pageIndex >= doc.pageCount() { return [] }
         let page = doc.page(pageIndex)
         var list: [MeasurementInfo] = []
         for a in page.array("Annots")?.elements ?? [] where a.isDict {
