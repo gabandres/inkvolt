@@ -8,6 +8,11 @@ using InkvoltPdf.Core;
 // find <file.pdf> <text>                   The objects whose dictionary holds the text ("/ZapfDingbats").
 // tags <file.pdf> [type]                   The structure tree as PDFsharp reads it (each tag, its attributes), or only the
 //                                           subtrees of one type ("Table").
+// tag [--all] <out-folder> <file.pdf>...  Make Accessible on each untagged file (tagged ones are skipped, or with --all their
+//                                           tags replaced) into the folder,
+//                                           each figure given a stand-in alternate text (as a person would type one), then
+//                                           checked: PASS/FAIL and the conditions that fail.
+// pdfa <out-folder> <file.pdf>...          Save as PDF/A-2a (the files must be tagged: run tag first), for veraPDF -f 2a.
 // compare <verapdf.xml> <folder> [out.csv]  Our result against veraPDF's PDF/UA-1 report (verapdf --format xml), file by file
 //                                           and by condition (veraPDF's rules mapped to Matterhorn numbers, Map below).
 switch (args)
@@ -18,6 +23,59 @@ switch (args)
             var r = Check(f);
             Console.WriteLine($"{Path.GetFileName(f)} {(r is null ? "ERROR" : r.Passed ? "PASS" : "FAIL")} {(r is null ? "" : string.Join(' ', r.FailedConditions))}");
         }
+        return 0;
+    case ["tag", .. var tagArgs] when tagArgs.Length > 0:
+    {
+        var all = tagArgs[0] == "--all";
+        var outDir = tagArgs[all ? 1 : 0];
+        var files = tagArgs[(all ? 2 : 1)..];
+        Directory.CreateDirectory(outDir);
+        foreach (var f in files)
+        {
+            var name = Path.GetFileName(f);
+            try
+            {
+                var data = File.ReadAllBytes(f);
+                if (!all && AccessibilityCheck.Run(data, null).Tagged)
+                {
+                    Console.WriteLine($"{name} skipped (tagged)");
+                    continue;
+                }
+                using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, null);
+                var plan = AutoTag.Plan(engine, data, null);
+                var figures = 0;
+                for (var i = 0; i < plan.Blocks.Count; i++)
+                    if (plan.Blocks[i].Kind == TagBlockKind.Figure)
+                    {
+                        var n = ++figures;
+                        plan = AutoTag.With(plan, i, b => b with { Alt = $"Figure {n} on page {b.Page + 1}" });
+                    }
+                var tagged = AutoTag.Write(data, null, plan, new AccessibleOptions { Title = plan.Title ?? Path.GetFileNameWithoutExtension(f), Language = plan.Language ?? "en" });
+                var path = Path.Combine(outDir, name);
+                File.WriteAllBytes(path, tagged);
+                var r = AccessibilityCheck.Run(tagged, null);
+                Console.WriteLine($"{name} {(r.Passed ? "PASS" : "FAIL")} {string.Join(' ', r.FailedConditions)} ({plan.Blocks.Count} blocks, {figures} figures)");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or ArgumentException or NotSupportedException)
+            {
+                Console.WriteLine($"{name} ERROR {ex.Message}");
+            }
+        }
+        return 0;
+    }
+    case ["pdfa", var outDir, .. var files]:
+        Directory.CreateDirectory(outDir);
+        foreach (var f in files)
+            try
+            {
+                var r = PdfA.Convert(File.ReadAllBytes(f), null, conformance: PdfAConformance.A);
+                File.WriteAllBytes(Path.Combine(outDir, Path.GetFileName(f)), r.Data);
+                Console.WriteLine($"{Path.GetFileName(f)} saved; {string.Join("; ", r.Changes)}");
+            }
+            catch (PdfAException ex)
+            {
+                Console.WriteLine($"{Path.GetFileName(f)} refused: {string.Join(" ", ex.Blockers)}");
+            }
         return 0;
     case ["show", var file]:
     {

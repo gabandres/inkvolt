@@ -9,6 +9,9 @@ public sealed record ExportSpan(string Text, string Font, double Size, bool Bold
     /// <summary>The font is monospaced.</summary>
     public bool Mono { get; init; }
 
+    /// <summary>Where the run is on the page as shown, when something needs that after a page was turned (<see cref="DocLayout.AnalyzeForTags"/>).</summary>
+    public RectD? PageBox { get; init; }
+
     /// <summary>Same look as <paramref name="other"/> (text and position aside).</summary>
     public bool SameLook(ExportSpan other) =>
         Font == other.Font && Math.Abs(Size - other.Size) < 0.25 && Bold == other.Bold && Italic == other.Italic && Color == other.Color;
@@ -98,7 +101,11 @@ public sealed record ExportLine(IReadOnlyList<ExportSpan> Spans, RectD Box, bool
 /// A picture on a page: encoded bytes (PNG or JPEG, see <see cref="Extension"/>) and where it is drawn. <see cref="Ref"/>:
 /// the name a writer gave it once stored (its bytes are then dropped).
 /// </summary>
-public sealed record ExportImage(byte[] Data, string Extension, int PixelWidth, int PixelHeight, RectD Box, string? Ref = null);
+public sealed record ExportImage(byte[] Data, string Extension, int PixelWidth, int PixelHeight, RectD Box, string? Ref = null)
+{
+    /// <summary>Where it is on the page as shown, when something needs that after a page was turned (<see cref="DocLayout.AnalyzeForTags"/>).</summary>
+    public RectD? PageBox { get; init; }
+}
 
 /// <summary>
 /// What an export reads from one page: its text lines, pictures and the thin lines and box outlines it draws (for ruled

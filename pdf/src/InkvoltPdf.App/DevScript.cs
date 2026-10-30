@@ -21,7 +21,9 @@ namespace InkvoltPdf.App;
 /// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) ·
 /// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
-/// a11yreport path (save the report) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
+/// a11yreport path (save the report) · tag title|language (Make Accessible without its window) · ro (the reading order
+/// pane: opens it, logs this page's pieces) · rosel i|pic · romove i by · roalt text · rodecorative · roapply · pdfa2a (with
+/// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
@@ -322,6 +324,36 @@ internal static class DevScript
                 break;
             }
             case "a11yselect": tab!.A11yList.SelectedIndex = int.Parse(arg); break;
+            case "tag":
+            {
+                var parts = arg.Split('|', 2);
+                if (await AccessibleActions.PlanAsync(window, tab!) is not { } tags) { log.Add("tag: no plan"); break; }
+                tags = tags with { Title = parts[0].Length > 0 ? parts[0] : tags.Title ?? "Untitled", Language = parts.Length > 1 ? parts[1] : tags.Language ?? "en" };
+                log.Add($"tag: {await AccessibleActions.WriteAsync(window, tab!, tags, ask: false)}, {tags.Blocks.Count} pieces, {tags.FiguresWithoutAlt} without alt text");
+                break;
+            }
+            case "ro":
+                if (window.ActiveTab is { } rt && rt.ReadingOrderPanel.Visibility != Visibility.Visible) await rt.ShowReadingOrderAsync();
+                log.Add($"ro: {tab!.RoSummary.Text}");
+                foreach (var item in tab.RoList.Items.OfType<ReadingOrderItem>()) log.Add($"  {item.Number} {item.Kind}: {Trunc(item.Preview)}");
+                break;
+            case "rosel": // an index, or "pic": the page's first picture still without alternate text
+                tab!.RoList.SelectedIndex = arg == "pic"
+                    ? tab.RoList.Items.OfType<ReadingOrderItem>().ToList().FindIndex(i => i.NeedsAlt)
+                    : int.Parse(arg);
+                break;
+            case "romove":
+            {
+                var a = arg.Split(' ');
+                tab!.RoList.SelectedIndex = int.Parse(a[0]);
+                tab.RoList.Focus();
+                var by = int.Parse(a[1]);
+                for (var i = 0; i < Math.Abs(by); i++) tab.RoMove(Math.Sign(by));
+                break;
+            }
+            case "roalt": tab!.RoAlt.Text = arg; break;
+            case "rodecorative": tab!.RoDecorative.IsChecked = !(tab.RoDecorative.IsChecked == true); tab.RoDecorative.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); break;
+            case "roapply": tab!.RoApply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); await Task.Delay(50); while (tab.IsBusy) await Task.Delay(50); break;
             case "a11ytick":
                 foreach (var item in tab!.A11yChecklist.Items.OfType<A11yCheckItem>()) if (item.Question.StartsWith(arg, StringComparison.OrdinalIgnoreCase)) item.Done = true;
                 tab.A11yChecklist.Items.Refresh();
@@ -1091,7 +1123,8 @@ internal static class DevScript
                 log.Add(tab.DevMeasurements());
                 break;
             case "measurements": log.Add(tab!.DevMeasurements()); break;
-            case "pdfa": await PdfAActions.SaveAs(window, tab!); break; // savepath out.pdf first; answer the prompts with later/prompt
+            case "pdfa": await PdfAActions.SaveAs(window, tab!); break;
+            case "pdfa2a": await PdfAActions.SaveAs(window, tab!, PdfAConformance.A); break; // savepath out.pdf first; answer the prompts with later/prompt
             case "converters":
                 log.Add($"converters: office=[{string.Join(", ", OfficeConverter.InstalledApps)}] webview2={WebCapture.RuntimeVersion ?? "none"} menu={window.OfficeMenu.Visibility}");
                 break;

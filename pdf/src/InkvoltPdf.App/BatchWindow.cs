@@ -440,7 +440,9 @@ internal sealed class BatchWindow : Window
         Item("Flatten…", () => AskFlatten(null));
         var ocr = PageOcr.Engine is not null;
         Item("Recognize Text (OCR)", () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
+        Item("Make Accessible (Tag)", () => new MakeAccessibleStep());
         Item("Save as PDF/A-2b", () => new SaveAsPdfAStep());
+        Item("Save as PDF/A-2a (Tagged)", () => new SaveAsPdfAStep { Conformance = PdfAConformance.A });
         menu.Items.Add(new Separator());
         Item("Export to Word (.docx)", () => new ExportStep(BatchExportFormat.Word));
         Item("Export Tables to Excel (.xlsx)", () => new ExportStep(BatchExportFormat.Excel));
@@ -665,8 +667,12 @@ internal sealed class BatchWindow : Window
                 if (f.Options.Annotations) kinds.Add("comments");
                 if (f.Options.FormFields) kinds.Add("form fields");
                 return string.Join(" and ", kinds) is { Length: > 0 } k ? char.ToUpperInvariant(k[0]) + k[1..] + (f.Options.PrintableOnly ? ", only what prints" : "") : "";
+            case SaveAsPdfAStep { Conformance: PdfAConformance.A }:
+                return "An accessible archival copy (ISO 19005-2, level A: the tags kept); the file must be tagged (Make Accessible before it); a file that can't be made one fails, saying why";
             case SaveAsPdfAStep:
                 return "An archival copy (ISO 19005-2, level B); a file that can't be made one fails, saying why";
+            case MakeAccessibleStep:
+                return "Tags each file from its layout (headings, paragraphs, lists, tables, pictures; running headers and page numbers as decoration), with its title and language; the notes say how many pictures need alternate text";
             case OcrStep:
                 return PageOcr.Engine is { } e ? $"Pages without text, with Windows' {e.RecognizerLanguage.DisplayName} recognizer" : PageOcr.Unavailable;
             case ExportStep x:
@@ -1058,6 +1064,8 @@ internal sealed class BatchWindow : Window
             "flatten" => new FlattenStep(new FlattenOptions()),
             "ocr" => new OcrStep(),
             "pdfa" => new SaveAsPdfAStep(),
+            "pdfa2a" => new SaveAsPdfAStep { Conformance = PdfAConformance.A },
+            "makeaccessible" or "tag" => new MakeAccessibleStep { Language = rest.Length > 0 ? rest : null },
             "export" => new ExportStep(rest.ToLowerInvariant() switch
             {
                 "word" => BatchExportFormat.Word,

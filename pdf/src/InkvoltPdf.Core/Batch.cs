@@ -247,7 +247,23 @@ public sealed record FlattenStep(FlattenOptions Options) : BatchStep
 /// <summary>An archival PDF/A-2b copy (<see cref="PdfA.Convert"/>); a file that can't be made one fails, saying why.</summary>
 public sealed record SaveAsPdfAStep : BatchStep
 {
-    public override string Title => "Save as PDF/A";
+    public override string Title => Conformance == PdfAConformance.A ? "Save as PDF/A-2a" : "Save as PDF/A";
+
+    /// <summary>A (PDF/A-2a) keeps the tags: the file must be tagged (Make Accessible before it in the list).</summary>
+    public PdfAConformance Conformance { get; init; }
+}
+
+/// <summary>
+/// Make Accessible (<see cref="AutoTag"/>): tags each file from its layout, with the title (metadata, else the first
+/// heading, else the file name) and language (the file's, else read from the text) it proposes; tags a file had are
+/// replaced. Pictures can't get alternate text here: the notes say how many need it.
+/// </summary>
+public sealed record MakeAccessibleStep : BatchStep
+{
+    public override string Title => "Make accessible";
+
+    /// <summary>The language when a file doesn't say one and it can't be told from the text (null: left unset).</summary>
+    public string? Language { get; init; }
 }
 
 /// <summary>Text recognition of pages without text, added as an invisible text layer (the recognizer comes from <see cref="BatchHost.Recognize"/>).</summary>
@@ -789,11 +805,26 @@ public static class BatchRunner
                     });
                 case RotateStep r: return PageEditor.Rotate(d, pw, all, r.Degrees);
                 case FlattenStep f: return Flattener.Flatten(d, pw, f.Options);
-                case SaveAsPdfAStep:
+                case SaveAsPdfAStep a:
                 {
-                    var r = PdfA.Convert(d, pw);
-                    _notes.Add(r.Changes.Count == 0 ? "PDF/A-2b: nothing needed changing" : $"PDF/A-2b: {string.Join("; ", r.Changes)}");
+                    var r = PdfA.Convert(d, pw, conformance: a.Conformance);
+                    var level = a.Conformance == PdfAConformance.A ? "PDF/A-2a" : "PDF/A-2b";
+                    _notes.Add(r.Changes.Count == 0 ? $"{level}: nothing needed changing" : $"{level}: {string.Join("; ", r.Changes)}");
                     return r.Data;
+                }
+                case MakeAccessibleStep m:
+                {
+                    using var engine = PdfEngine.Open(d, InputFileTypes.PDF, pw);
+                    var tags = AutoTag.Plan(engine, d, pw, cancel: cancel);
+                    var title = tags.Title ?? Path.GetFileNameWithoutExtension(file.NamedAs);
+                    var language = tags.Language ?? m.Language;
+                    var tagged = AutoTag.Write(d, pw, tags, new AccessibleOptions { Title = title, Language = language }, cancel);
+                    _notes.Add($"Tagged: {tags.Blocks.Count} {(tags.Blocks.Count == 1 ? "piece" : "pieces")} in reading order, title \"{title}\", " +
+                               (language is null ? "no language (none could be told)" : $"language {language}{(tags.LanguageGuessed && tags.Language is not null ? " (read from the text)" : "")}") +
+                               (tags.WasTagged ? "; its earlier tags replaced" : ""));
+                    if (tags.FiguresWithoutAlt > 0)
+                        _notes.Add($"{tags.FiguresWithoutAlt} {(tags.FiguresWithoutAlt == 1 ? "picture needs" : "pictures need")} alternate text: open the file and use Review › Reading Order and Alt Text");
+                    return tagged;
                 }
                 default: throw new NotSupportedException(step.Title);
             }

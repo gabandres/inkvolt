@@ -256,6 +256,25 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   tick each once checked. **Save report…** writes the result, the checklist with its ticks and every condition's result
   as one accessible web page (no scripts, nothing else needed). Batch has it as an action. The results agree with
   veraPDF's PDF/UA-1 validation on a 50-file corpus (`tools/a11y-corpus`). Free, as the roadmap's "Free and Pro" says.
+- **Make Accessible (Tag)…** (Review menu, command palette): tags an untagged PDF on this PC, from the layout Export to
+  Word reads: headings (H1-H6, the first an H1, none skipped; numbered section titles at their depth), paragraphs, lists
+  (L, LI, LBody), tables (TR, TH with a column scope for a bold first row, TD with column spans), pictures and charts
+  (Figure with its box), links (Link with the link annotation, described by its text), form fields and comments (Form,
+  Annot); running headers, footers and page numbers become artifacts, as do rules and backgrounds. Every piece of page
+  content goes in marked content with an MCID (or an artifact), in the reading order the layout found (columns too); a
+  passage clearly in another language gets its own language. It asks for the title (the document's, else its first
+  heading) and the language (the document's, else read from the text), and sets the tab order (Tabs S) on every page,
+  shows the title in the title bar, says it is PDF/UA (XMP), embeds the standard Helvetica, Times and Courier faces as
+  Save as PDF/A does, and gives Word's Symbol and Wingdings bullets an ActualText. Tags a document already had are
+  replaced (pictures in the same place keep their alternate text). One undo step; a signed document's edit is appended.
+- **Reading Order and Alt Text** (Review menu, command palette; opens after Make Accessible): the Reading order pane
+  lists the current page's pieces in the order a screen reader reads them, numbered, with the same numbers as boxes on
+  the page; drag a piece, or press Alt+Up / Alt+Down, to move it within its page; choose one to see it on the page. A
+  picture gets its alternate text typed, is marked Decorative (screen readers skip it), or **Suggest with AI…** asks your
+  own AI model (AI Assistant Settings; a vision model) to describe it: the picture and the text near it are sent only
+  after the window that shows what goes where, and the answer lands in the box for you to check. **Apply changes**
+  writes the tags again (one undo step). After Make Accessible and alternate text, the untagged LaTeX files of the
+  accessibility corpus pass every check but one about their math fonts (glyphs without Unicode), as veraPDF says too.
 - **Sanitize Document** (Review menu, command palette): removes what a document carries besides its pages. The dialog
   counts what it found, one check box per kind (all on): metadata (document properties, XMP of the document, pages,
   images and fonts, comment authors and dates, article properties, other apps' private data; the file identifier is
@@ -427,6 +446,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Courier New) are embedded from Windows' metric-compatible fonts. When something can't be kept without changing the
   look (another font that isn't embedded, CMYK color without a profile, a digital signature, PostScript), nothing is
   saved and the reasons are listed. A summary says what was changed.
+- **Save as PDF/A-2a (Accessible Archive)** (File menu, command palette): the same archival copy at level A, which keeps
+  the document's tags and needs a language: an untagged document is offered Make Accessible first. A document that says
+  it is PDF/UA keeps saying so (with the extension schema PDF/A asks for).
 - **Batch** (File › Batch…, command palette): the same actions for many files. Add PDFs and images (Add Files, Add
   Folder with or without subfolders, or drag them in; images become PDFs first, on pages the size of the image, Letter or
   A4), then a list of actions in order: Reduce File Size, Protect with Password, Remove Password Protection, Sanitize,
@@ -435,8 +457,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
   file; a file that fails any isn't saved), Report What's in Each File ("name contents.html" and "name contents.json"
   beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
-  Flatten, Recognize Text (OCR), Save as PDF/A-2b (last of the changes; a file that can't be made PDF/A fails, saying
-  why), Export to Word, Excel or text, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
+  Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
+  say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
+  can't be made PDF/A fails, saying why), Export to Word, Excel or text, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
   Export Form Data (XFDF, FDF, CSV or JSON); a file without comments or a form gets no file and a note. Each action has the same
   settings as its own command. The results go to a folder with names from a template (`<<name>>`, `<<n>>` or
   `<<n:3>>`, `<<date>>`, `<<folder>>`), subfolders kept if you like; a name already taken gets a number ("report
@@ -553,7 +576,10 @@ and written to `<form> merge report.csv`. A form with an open password takes it 
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
 | `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `CommentFiles` (`.Xfdf.cs`, `.Csv.cs`: comments out and in as XFDF, FDF, CSV; the import's allow-list and cleaning) + `CommentSummary` (Summarize Comments) + `Fdf` (FDF syntax, read and written) + `Csv`, `FormDataFiles` (form data as XFDF, FDF, CSV, JSON) + `FormMerge` (Fill Forms from CSV) + `FormEditor.Data.cs` (fields as data, value checks), `AccessibilityCheck` (`.Run.cs`: document-level checks; `.Structure.cs`: tags, role map, tables, headings; `.Content.cs`: marked content, languages, annotations, fields; `.Fonts.cs`: font rules) + `AccessibilityReportHtml` (the report page) + `HybridXref` (objects of Word's hybrid-reference files that PDFsharp alone misses), `Redaction` + `RedactionPatterns` (redact by pattern: finding SSNs, phones, cards, dates, …) + `RedactionCheck` (`RedactionCheck.Data.cs`: what is left of a redaction: covered text, unapplied marks, leftovers in every object, earlier versions and raw bytes), `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`; helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
-| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `DocumentTab.Measure.cs` + `Viewer/PageViewer.Measure.cs` Measure (Core: `Measurement.cs`: `MeasureGeometry`, `MeasureScale`, `Measurements`); `PdfAActions.cs` Save as PDF/A-2b (Core: `PdfA.cs`, with `IccProfiles`); `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate; presets are Core's `BatchPresets.cs`, the watcher `WatchedFolder.cs`, the command line `BatchCommandLine.cs`, the Pro check and key format `Pro.cs`: `Pro`, `ProKeys`); `BatchAutomation.cs` the presets saved on this PC, the app's watched folders (`FolderWatches`) and the Watched Folders window; `ProWindow.cs` Help › Inkvolt Pro (the key in the settings, `SettingsProStore`); `CommandLine.cs` `--batch` / `--watch` without a window (the console, OCR); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document; `InventoryActions.cs` What's in This PDF (Core: `DocumentInventory.cs`, `InventoryReportFiles.cs`); `RedactPatternActions.cs` Redact by Pattern (the dialog, also Batch's); `RedactionCheckActions.cs` Check Redaction (the report and its fix; the check after Apply is in `DocumentTab.Review.cs`); `DocumentTab.Accessibility.cs` Accessibility Check (the pane, its checklist, the saved report); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
+| `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `DocumentTab.Measure.cs` + `Viewer/PageViewer.Measure.cs` Measure (Core: `Measurement.cs`: `MeasureGeometry`, `MeasureScale`, `Measurements`); `PdfAActions.cs` Save as PDF/A-2b (Core: `PdfA.cs`, with `IccProfiles`); `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate; presets are Core's `BatchPresets.cs`, the watcher `WatchedFolder.cs`, the command line `BatchCommandLine.cs`, the Pro check and key format `Pro.cs`: `Pro`, `ProKeys`); `BatchAutomation.cs` the presets saved on this PC, the app's watched folders (`FolderWatches`) and the Watched Folders window; `ProWindow.cs` Help › Inkvolt Pro (the key in the settings, `SettingsProStore`); `CommandLine.cs` `--batch` / `--watch` without a window (the console, OCR); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`); `SanitizeActions.cs` Sanitize Document; `InventoryActions.cs` What's in This PDF (Core: `DocumentInventory.cs`, `InventoryReportFiles.cs`); `RedactPatternActions.cs` Redact by Pattern (the dialog, also Batch's); `RedactionCheckActions.cs` Check Redaction (the report and its fix; the check after Apply is in `DocumentTab.Review.cs`); `DocumentTab.Accessibility.cs` Accessibility Check (the pane, its checklist, the saved report); `AccessibleActions.cs`
+Make Accessible (the plan, the title and language window, writing it) + `DocumentTab.ReadingOrder.cs` (the Reading order
+pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
+the plan from `DocLayout`; `AutoTag.Write.cs`: marked content, the structure tree; `AutoTag.Language.cs`); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
@@ -596,6 +622,9 @@ Redaction check: `apply-redactions` (the check follows: `dialogshot`, then `prom
 place the check looks, and `redaction-check-box.pdf`, a box over text, from `RedactionCheckTests`);
 Accessibility check: `a11y` (the check; the pane opens, the failures logged), `a11yselect i` (choose a failure: the page scrolls
 to it), `a11ytick question` (tick a person's check), `a11yreport out.html`, `cmd CheckAccessibility`, `batchstep checkaccessibility`;
+Make Accessible: `tag title|language` (without its window), `ro` (the Reading order pane, this page's pieces logged), `rosel i|pic`,
+`romove i by`, `roalt text`, `rodecorative`, `roapply`, `pdfa2a` (with `savepath`), `batchstep makeaccessible [language]`, `batchstep pdfa2a`;
+`tools/a11y-corpus` `tag`, `pdfa` and `run.ps1 -Tag` run Make Accessible on the corpus and check the results with veraPDF;
 `tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`. Speed: `scrollbench [ms] [px/s]` scrolls the view for a while and logs the frame rate and
 blank pages (`tools/bench` runs it on its corpus; see its README).
@@ -709,7 +738,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   sits by the line and isn't moved apart from it. A page's /UserUnit (very large drawings) is applied. A
   measurement made before the page was turned keeps its label's angle (as other comments do). Not tested in Acrobat
   itself: the dictionaries follow the PDF standard and Acrobat's own measurements.
-- PDF/A: level 2b only (not 1, 3, or the accessible "a" level: no tagging is added). Fonts that aren't embedded are
+- PDF/A: levels 2b and 2a (2a keeps tags a document has: Make Accessible adds them); not 1 or 3. Fonts that aren't embedded are
   embedded only for the standard Latin faces, in their style (bold, italic), and only when the document's widths are
   that face's (other designs under a similar name, such as Helvetica Neue or condensed faces, refuse); Symbol and ZapfDingbats (often check marks in older forms), and other
   fonts, refuse the conversion, as do CMYK colors without a profile (the copy's output intent is sRGB) and signed
@@ -740,7 +769,14 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Split view: the second pane is for reading: comments, fields and drawings are edited, and search and find matches
   shown, in the main pane. One split per tab (two panes), not remembered when the tab is closed. Two different
   documents side by side: use Compare Files.
-- Accessibility Check: checks, doesn't fix (tagging, reading order and alt text come with roadmap item 2.4). Not
+- Make Accessible: tags from the layout as Export to Word reads it, so its mistakes carry over (a chart with many
+  labels can read as a table; a bold numbered line as a heading); check the order in the Reading order pane. Content
+  inside a form XObject goes with the tag of the place it is drawn (one tag for the whole form). Not written: Caption,
+  Note, TOC, Formula and nested lists (lists are flat); table header cells only for a bold first row. Fonts it can't
+  fix: glyphs with no Unicode value (TeX math fonts) and other fonts that aren't embedded. Scanned pages without text
+  get only their pictures tagged (run Recognize Text first). The Reading order pane reorders within a page, not across
+  pages, and doesn't change a piece's kind. The Inkvolt Pro check isn't wired for it yet (everything is free for now).
+- Accessibility Check: checks; Make Accessible fixes tagging, reading order and alternate text. Not
   checked: Ruby and Warichu tags (09-007, 09-008), printer's marks' appearances (28-018), a TrueType font's Differences
   without a Windows Unicode cmap (31-023); glyph widths only against
   TrueType programs (not CFF or Type 1); glyphs and widths of composite fonts whose CMap isn't Identity (their characters
@@ -782,7 +818,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
   summary to export (CSV), geospatial (GEO) scales.
-- PDF/A: PDF/A-1b and 3b, the accessible level (tags), CMYK documents (a CMYK output intent), embedding installed
+- PDF/A: PDF/A-1b and 3b, CMYK documents (a CMYK output intent), embedding installed
   fonts other than the standard ones.
 - PDF from Office and web: Office files in batches, LibreOffice when Office isn't installed, a whole website or
   several pages into one PDF, a page's own print-friendly mode or reader view.

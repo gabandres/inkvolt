@@ -11,7 +11,8 @@ pwsh -File pdf/tools/a11y-corpus/run.ps1 -Synthetic    # also veraPDF's own PDF/
 pwsh -File pdf/tools/a11y-corpus/run.ps1 -Install      # install veraPDF unattended into C:\Tools\verapdf first
 ```
 
-Run it after changing `AccessibilityCheck*.cs`, `TextFonts.cs`, `FontPrograms.cs` or `HybridXref.cs`.
+Run it after changing `AccessibilityCheck*.cs`, `TextFonts.cs`, `FontPrograms.cs` or `HybridXref.cs`; with `-Tag` after
+changing `AutoTag*.cs` or `DocLayout.cs`.
 
 **veraPDF is for testing only and never ships.** It needs Java 8 or later (`winget install Microsoft.OpenJDK.21`);
 `-Install` fetches the installer from software.verapdf.org and installs it without questions. The PDFs go to
@@ -27,6 +28,19 @@ of veraPDF's own PDF/UA-1 test files (one pass and one fail for headings, tables
 
 **Result (2026-10-27, veraPDF 1.30.3):** the same pass or fail for 50 of 50 files; the same failing conditions for 49 of 50.
 With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296.
+
+## Make Accessible on the corpus
+
+`run.ps1 -Tag` also runs Make Accessible (`AutoTag`) and checks what it writes: the untagged files as they are (into
+`C:\Temp\a11y-tagged\untagged`), and 12 Word and office files with their own tags replaced (`...\retagged`), as an
+untagged export of theirs would be tagged; each figure gets a stand-in alternate text, as a person would type one.
+veraPDF validates both folders and the comparison runs as above. `tag [--all] <out> <pdf>…` and `pdfa <out> <pdf>…`
+(Save as PDF/A-2a, for `verapdf -f 2a`) do the steps one at a time.
+
+**Result (2026-10-30, veraPDF 1.30.3):** the 2 untagged files (pdfTeX papers) pass every condition but 31-027, glyphs
+of the TeX math fonts without Unicode (veraPDF: 7.21.7-1 only). Of the 12 re-tagged files, 5 pass veraPDF PDF/UA-1;
+the other 7 fail only on form-field tooltips (28-005) or fonts (31-009, 31-014, 31-030), which tagging doesn't change.
+Same pass/fail and conditions as the checker for 14 of 14. Saved as PDF/A-2a, the Word files pass veraPDF 2a and ua1.
 
 ## Known differences
 

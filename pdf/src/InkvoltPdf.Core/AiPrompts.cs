@@ -34,6 +34,34 @@ public static partial class AiPrompts
         "know. Be concise. Use only the passage and general knowledge, and say when something can't be told from the passage. " +
         "Answer in the language of the passage.";
 
+    public const string AltTextSystem =
+        "You write alternate text for pictures in documents, for people who use screen readers. Say what the picture shows " +
+        "and what it means in the document, in one or two plain sentences (at most 250 characters). Don't start with " +
+        "\"Image of\" or \"Picture of\". For a chart, give its kind and main finding. Write in the document's language. " +
+        "Answer with the alternate text only.";
+
+    /// <summary>The request for a figure's alternate text: the picture, and the text around it on its page for context.</summary>
+    public static IReadOnlyList<AiMessage> AltText(byte[] png, string nearby, string? language, int page)
+    {
+        var context = AiText.Clean(nearby);
+        if (context.Length > 1500) context = context[..1500];
+        var lang = string.IsNullOrEmpty(language) ? "" : $" The document's language is {language}.";
+        var text = $"Write the alternate text for this picture on page {page + 1}.{lang}" +
+                   (context.Length > 0 ? $"\n\nText near it on the page:\n\"\"\"\n{context}\n\"\"\"" : "");
+        return [AiMessage.System(AltTextSystem), AiMessage.User(text) with { Images = [png] }];
+    }
+
+    /// <summary>A model's answer as alternate text: one paragraph, without quotes or a leading label, at most 250 characters (whole words).</summary>
+    public static string CleanAltText(string answer)
+    {
+        var s = string.Join(' ', answer.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim().Trim('"', '“', '”', '\'');
+        foreach (var label in new[] { "Alternate text:", "Alt text:", "Alt:" })
+            if (s.StartsWith(label, StringComparison.OrdinalIgnoreCase)) s = s[label.Length..].Trim().Trim('"', '“', '”');
+        if (s.Length <= 250) return s;
+        var cut = s.LastIndexOf(' ', 250);
+        return (cut > 150 ? s[..cut] : s[..250]).TrimEnd(',', ';', ':') + "…";
+    }
+
     /// <summary>The first requests of a summary: one for the whole text when it fits, else one per chunk (the map step).</summary>
     public static IReadOnlyList<IReadOnlyList<AiMessage>> SummaryRequests(IReadOnlyList<AiChunk> chunks)
     {
@@ -204,10 +232,19 @@ public static partial class AiPrompts
         for (var r = 0; r < requests.Count; r++)
         {
             if (requests.Count > 1) sb.Append($"══════ Request {r + 1} of {requests.Count} ══════\n");
-            foreach (var m in requests[r]) sb.Append($"── {m.Role} ──\n{m.Content}\n\n");
+            foreach (var m in requests[r])
+            {
+                sb.Append($"── {m.Role} ──\n{m.Content}\n");
+                foreach (var png in m.Images) sb.Append($"[a picture: PNG, {PngSize(png)}, {png.Length / 1024.0:0.#} KB]\n");
+                sb.Append('\n');
+            }
         }
         return sb.ToString().TrimEnd() + "\n";
     }
+
+    private static string PngSize(byte[] png) => png.Length >= 24
+        ? $"{System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16))} × {System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20))} pixels"
+        : "?";
 
     private static string Capital(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 

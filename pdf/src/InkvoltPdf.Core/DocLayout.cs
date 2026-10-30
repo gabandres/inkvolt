@@ -33,6 +33,9 @@ public sealed record DocParagraph(IReadOnlyList<ExportSpan> Runs, RectD Box) : D
     /// <summary>Space above and below (points), as the page leaves it; null: the writer's usual spacing.</summary>
     public double? SpaceBefore { get; init; }
     public double? SpaceAfter { get; init; }
+
+    /// <summary>Where its runs are on the page as shown, in reading order (only from <see cref="DocLayout.AnalyzeForTags"/>).</summary>
+    public IReadOnlyList<RectD> Sources { get; init; } = [];
 }
 
 /// <summary>
@@ -98,6 +101,29 @@ internal static partial class DocLayout
         var laid = upright.Select(p => LayOut(p, body)).ToList();
         laid = AssignHeadings(laid, body);
         return new DocLayoutResult(Dehyphenate(laid, upright), header, footer);
+    }
+
+    /// <summary>
+    /// <see cref="AnalyzeDocument"/> for tagging: each paragraph and picture also says where it is on the page as shown
+    /// (<see cref="DocParagraph.Sources"/>, <see cref="ExportImage.PageBox"/>), whatever turning a page for layout did, and
+    /// <paramref name="pages"/>' running headers and footers come back as boxes on each page.
+    /// </summary>
+    public static (DocLayoutResult Layout, IReadOnlyList<IReadOnlyList<RectD>> Running) AnalyzeForTags(IReadOnlyList<ExportPage> pages)
+    {
+        var marked = pages.Select(p => p with
+        {
+            Lines = [.. p.Lines.Select(l => l with { Spans = [.. l.Spans.Select(s => s with { PageBox = s.Box })] })],
+            // The writer's Ref tells a repeated logo: without its bytes, the same size at the same place.
+            Images = [.. p.Images.Select(i => i with { PageBox = i.Box, Ref = $"{i.PixelWidth}x{i.PixelHeight}" })],
+        }).ToList();
+        var (stripped, header, footer) = Running(marked);
+        var running = marked.Select((p, i) => (IReadOnlyList<RectD>)
+            [.. p.Lines.Except(stripped[i].Lines, ReferenceEqualityComparer.Instance).OfType<ExportLine>().Select(l => l.Box),
+             .. p.Images.Except(stripped[i].Images, ReferenceEqualityComparer.Instance).OfType<ExportImage>().Select(x => x.Box)]).ToList();
+        var upright = stripped.Select(Upright).ToList();
+        var body = BodySize(upright);
+        var laid = AssignHeadings([.. upright.Select(p => LayOut(p, body))], body);
+        return (new DocLayoutResult(Dehyphenate(laid, upright), header, footer), running);
     }
 
     /// <summary>
@@ -1091,6 +1117,7 @@ internal static partial class DocLayout
         {
             Size = size, LineCount = lines.Count, List = list, Align = align, Indent = indent, FirstLine = firstLine, Tabs = tabs,
             LinePitch = lines.Count > 1 ? (lines[^1].Box.Y - lines[0].Box.Y) / (lines.Count - 1) : 0,
+            Sources = [.. lines.SelectMany(l => l.Spans).Where(s => s.PageBox is not null).Select(s => s.PageBox!.Value)],
         };
     }
 

@@ -5,6 +5,9 @@
 #   pwsh -File pdf/tools/a11y-corpus/run.ps1                    download what's missing, run veraPDF, compare
 #   pwsh -File pdf/tools/a11y-corpus/run.ps1 -Synthetic         also veraPDF's own PDF/UA-1 test files (297, small)
 #   pwsh -File pdf/tools/a11y-corpus/run.ps1 -Install           install veraPDF unattended into C:\Tools\verapdf first
+#   pwsh -File pdf/tools/a11y-corpus/run.ps1 -Tag               also Make Accessible (AutoTag) on the untagged files and, with
+#                                                               their tags replaced, the Word and office files; both checked
+#                                                               by veraPDF and compared
 #
 # The PDFs go to -Corpus (outside the repo; none are committed). A file whose SHA-256 differs from corpus.json's (the
 # publisher replaced it) is reported; the comparison still runs on what was downloaded.
@@ -14,7 +17,9 @@ param(
     [string]$VeraPdf = 'C:\Tools\verapdf\verapdf.bat',
     [switch]$Synthetic,
     [string]$SyntheticFolder = 'C:\Temp\a11y-vc',
-    [switch]$Install
+    [switch]$Install,
+    [switch]$Tag,
+    [string]$TaggedFolder = 'C:\Temp\a11y-tagged'
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -77,6 +82,20 @@ foreach ($c in Get-Content (Join-Path $here 'corpus.json') -Raw | ConvertFrom-Js
 }
 $failed = Compare-Folder $Corpus 'the corpus'
 if ($changed) { Write-Warning "$changed file(s) differ from the pinned versions." }
+
+if ($Tag) {
+    # Make Accessible: the untagged files as they are; the Word and office files (all tagged by their writer) with their
+    # tags replaced, as an untagged export of theirs would be tagged. Figures get a stand-in alternate text.
+    $untagged = Join-Path $TaggedFolder 'untagged'
+    $retagged = Join-Path $TaggedFolder 'retagged'
+    foreach ($f in $untagged, $retagged) { if (Test-Path $f) { Remove-Item $f -Recurse -Force } }
+    & dotnet $dll.FullName tag $untagged (Get-ChildItem $Corpus -Filter *.pdf | ForEach-Object FullName) | Where-Object { $_ -notmatch 'skipped' } | Out-Host
+    $office = 'word-example', 'word-ms2016', 'rw-letter-doc', 'rw-resume', 'wcag-table-word', 'libreoffice-126207', 'nist-sp800-63-3',
+              'usgs-fs-2008-3062', 'rw-pdf-ada-standards', 'wcag-lijst-arial', 'wcag-test-document-11', 'rw-table-with-attributes'
+    & dotnet $dll.FullName tag --all $retagged ($office | ForEach-Object { Join-Path $Corpus "$_.pdf" }) | Out-Host
+    $failed += Compare-Folder $untagged 'the untagged files after Make Accessible'
+    $failed += Compare-Folder $retagged 'the office files with their tags replaced'
+}
 
 if ($Synthetic) {
     # veraPDF's own PDF/UA-1 test files: one pass and one fail file per rule, from github.com/veraPDF/veraPDF-corpus.

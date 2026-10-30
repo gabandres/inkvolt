@@ -1,3 +1,5 @@
+using InkvoltPdf.Core;
+
 namespace InkvoltPdf.App;
 
 /// <summary>Commands for new-from-images, comparing files, batches, password protection, reducing size, flattening, sanitizing, headers and footers, watermarks, bookmarks and Read Aloud.</summary>
@@ -16,6 +18,7 @@ public partial class MainWindow
         Bind(Cmd.MeasureCalibrate, t => ToggleTool(t, Viewer.ViewerTool.MeasureCalibrate), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.MeasureScale, t => _ = t.SetMeasureScale(), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.SaveAsPdfA, t => _ = PdfAActions.SaveAs(this, t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
+        Bind(Cmd.SaveAsPdfA2a, t => _ = PdfAActions.SaveAs(this, t, PdfAConformance.A), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
         BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
         BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.HasEncryption);
@@ -26,6 +29,8 @@ public partial class MainWindow
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
         BindEdit(Cmd.CheckAccessibility, t => t.CheckAccessibilityAsync());
+        BindEdit(Cmd.MakeAccessible, t => AccessibleActions.MakeAccessible(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.ReadingOrder, t => t.ShowReadingOrderAsync(), t => !t.IsOrganizing);
         BindEdit(Cmd.ExportComments, t => CommentFileActions.Export(this, t));
         BindEdit(Cmd.ImportComments, t => CommentFileActions.Import(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.SummarizeComments, t => CommentFileActions.Summarize(this, t));
