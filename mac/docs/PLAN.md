@@ -399,6 +399,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Split view | E13 |
 | Better OCR, stage A (roadmap 2.2: cleaning before recognition, suspect words, writing the cleaned page back) | E14 (below) |
 | Export to PowerPoint and HTML (roadmap 3.2) | E15 (below) |
+| Speed on huge files: the benchmark and Find across long documents (roadmap 3.6) | E16 (below) |
 
 Mac differences for the PDF app (so far):
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
@@ -617,6 +618,12 @@ E15, Export to PowerPoint and HTML (Windows 2026-10-30; after E14, on the Word e
   strong, em and code always nest (what stays open is the start both runs share); `FigureAlts` walks an array once, like a
   dictionary; `ExportShapes.Read` takes the cancel token, cuts a rule more than a page's size off the page at its edges, reads
   such a fill on its part on the page and keeps such an outline as a picture.
+
+E16, Speed on huge files (Windows 2026-10-30; after E15). Windows reads text for a long Find in worker processes (`pdf/src/InkvoltPdf.Core/FindWorkers.cs`, `PdfEngine.Find.cs`) because of a lock in MuPDFCore, its native wrapper, and **the Mac may not have that problem**: `MuPDFShim` calls MuPDF directly, and `inkv_new_context` passes `fz_new_context` no lock functions, so separate contexts share nothing to wait on. That is read from the code, not measured. What to do, in this order:
+- **Measure first**: port the corpus and measures of `pdf/tools/bench` (`Corpus.cs`, `Measures.cs`; the corpus is deterministic, so the SHA-256s in `RESULTS.md` say whether it is the same file), and time Find on `text.pdf` with 1, 2, 4 and 8 text instances on threads, each with its own context and document. What the system allocator costs under eight threads is the unknown.
+- **If threads scale**, which is the likely result, keep Find in one process: a search reads pages on threads, with Windows' behavior and tests. Port from `FindWorkerTests` only what applies: hits equal to one thread's on a mixed document, page order, Cancel, text remembered for later searches, no extra instances for a small file. Reading stays in `MuPDFShim`'s fz_try; a native crash there takes the app with it, where a Windows worker's crash costs only the worker.
+- **If they don't**, port the workers: the app's own executable with `--find-worker`, a socket or pipe only this launch knows, the parent watched from the child (no Job Objects here), the same refusals of a bad switch, nothing on a command line but the pipe's name, a file with a password staying in process. Hardened runtime and notarization allow an app to start itself, but the release's DMG has to be tested for it, as the Store smoke test does on Windows.
+- `PageText`'s find is shared logic already (D1). The in-memory document can be shared by mapping the bytes (`vm_` or an anonymous shared mapping); no temp file, as on Windows.
 
 Decided 2026-10-30 for E2: PdfCore imports Security.framework (with CryptoKit and Vision, already there) rather than
 taking the CMS through a protocol from the app: the tests need the real verification, and Security is the Mac's

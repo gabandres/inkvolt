@@ -5,6 +5,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
 
 - **Document session** (`Core/DocumentSession.cs`): one open document: its bytes, the MuPDF engine over them, the
   passwords that open them, undo/redo steps and the saved/dirty state. The tab shows it; it never touches WPF.
+- **Find worker** (`Core/FindWorkers.cs`, its parent's side in `Core/PdfEngine.Find.cs`): the app started again with
+  `--find-worker <pipe name>`, reading pages' text for one long search and sending each page's text and hits back over
+  a private pipe. It writes nothing and shows nothing, and ends with the search or the app. A worker that fails loses
+  nothing: this process's threads read its pages.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
