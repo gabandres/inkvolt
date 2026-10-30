@@ -102,6 +102,10 @@ public sealed class PdfEngine : IDisposable
     // skips pages that can't match without reading them again. Written once per page (Interlocked).
     private readonly string?[] _pageStrings;
     private long _rememberedChars;
+    // Whole page texts (with their boxes) kept for the engine's lifetime while they are few characters in all (a drawing
+    // set's title blocks): a later search or selection on them never goes back to MuPDF. Written once per page.
+    private readonly PageText?[] _pageTexts;
+    private long _keptChars;
     // Extra MuPDF instances for reading many pages' text at once (FindAll), each with its own lock (reader.Gate).
     private readonly Lock _readerGate = new();
     private readonly List<TextReader> _readers = [];       // every one opened, under _readerGate
@@ -126,6 +130,7 @@ public sealed class PdfEngine : IDisposable
         _loaded = new LoadedPages(doc, LoadedPagesKept);
         _pages = new PageGeometry[doc.Pages.Count];
         _pageStrings = new string?[_pages.Length];
+        _pageTexts = new PageText?[_pages.Length];
         for (var i = 0; i < _pages.Length; i++)
         {
             _loaded.Touch(i); // reading every page's size loads it: keep only the last few
@@ -543,6 +548,7 @@ public sealed class PdfEngine : IDisposable
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (Volatile.Read(ref _pageTexts[page]) is { } kept) return kept;
             if (_textCache.TryGetValue(page, out var hit))
             {
                 _textLru.Remove(page);
@@ -551,7 +557,7 @@ public sealed class PdfEngine : IDisposable
             }
 
             var text = ExtractText(TextDoc(page), page);
-            Remember(page, text.Text);
+            Remember(page, text);
             if (cache)
             {
                 _textCache[page] = text;
@@ -617,10 +623,19 @@ public sealed class PdfEngine : IDisposable
     /// <summary>Test hook: pages whose text was read from MuPDF so far (any instance).</summary>
     internal int Extractions => Volatile.Read(ref _extractions);
 
-    private void Remember(int page, string text)
+    /// <summary>
+    /// Characters of whole page texts kept for the engine's lifetime (about 40 MB with their boxes): a drawing set's 400
+    /// sheets keep theirs; a long book keeps its strings only.
+    /// </summary>
+    internal static long KeptTextChars { get; set; } = 1_000_000;
+
+    private void Remember(int page, PageText text)
     {
-        if (Interlocked.Read(ref _rememberedChars) + text.Length > MaxRememberedChars) return;
-        if (Interlocked.CompareExchange(ref _pageStrings[page], text, null) is null) Interlocked.Add(ref _rememberedChars, text.Length);
+        var length = text.Text.Length;
+        if (Interlocked.Read(ref _keptChars) + length <= KeptTextChars && Interlocked.CompareExchange(ref _pageTexts[page], text, null) is null)
+            Interlocked.Add(ref _keptChars, length);
+        if (Interlocked.Read(ref _rememberedChars) + length > MaxRememberedChars) return;
+        if (Interlocked.CompareExchange(ref _pageStrings[page], text.Text, null) is null) Interlocked.Add(ref _rememberedChars, length);
     }
 
     /// <summary>One page's outcome in <see cref="FindAll"/>: its matches (and its text when there are any), or why it couldn't be read.</summary>
@@ -630,7 +645,7 @@ public sealed class PdfEngine : IDisposable
     /// <see cref="PageText.Find"/> on every page, as one search: pages are read on <see cref="FindThreads"/> threads (each
     /// with its own MuPDF instance) and come back in page order as soon as each page and those
     /// before it are done, so the first matches show before the end. A page whose text was read before (by any call) and
-    /// can't match is not read again. A page that can't be read comes back with its <see cref="PageMatches.Error"/>.
+    /// can't match is not read again, nor one whose whole text is kept. A page that can't be read comes back with its <see cref="PageMatches.Error"/>.
     /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
     /// <exception cref="ObjectDisposedException">The engine was disposed (the document changed) meanwhile.</exception>
@@ -724,8 +739,8 @@ public sealed class PdfEngine : IDisposable
     {
         if (Volatile.Read(ref _pageStrings[page]) is { } known && !PageText.Matches(known, query, matchCase, wholeWord, ignoreAccents))
             return new PageMatches(page, null, []);
-        PageText? text = null;
-        if (_textGate.TryEnter())
+        var text = Volatile.Read(ref _pageTexts[page]);
+        if (text is null && _textGate.TryEnter())
         {
             try
             {
@@ -745,7 +760,7 @@ public sealed class PdfEngine : IDisposable
                 reader.Loaded.Touch(page);
                 text = ExtractText(reader.Doc, page);
             }
-            Remember(page, text.Text);
+            Remember(page, text);
         }
         var hits = text.Find(query, matchCase, wholeWord, ignoreAccents);
         return new PageMatches(page, hits.Count > 0 ? text : null, hits);

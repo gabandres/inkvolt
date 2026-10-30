@@ -29,15 +29,30 @@ public class FindAllTests
         }
     }
 
+    /// <summary>Runs <paramref name="test"/> with whole page texts kept up to <paramref name="chars"/> characters.</summary>
+    private static void WithKeptTexts(long chars, Action test)
+    {
+        var keep = PdfEngine.KeptTextChars;
+        PdfEngine.KeptTextChars = chars;
+        try
+        {
+            test();
+        }
+        finally
+        {
+            PdfEngine.KeptTextChars = keep;
+        }
+    }
+
     [Fact]
-    public void ASecondSearchReadsOnlyThePagesThatCanMatch()
+    public void ASecondSearchReadsOnlyThePagesThatCanMatch() => WithKeptTexts(0, () =>
     {
         using var engine = PdfEngine.Open(TestPdf.Make(8), InputFileTypes.PDF, null);
         Assert.Equal(8, engine.FindAll("fox", false, false).Sum(m => m.Hits.Count));
         var read = engine.Extractions;
         Assert.Equal(8, read);
 
-        // Nothing matches: every page's text is remembered, none is read again.
+        // Nothing matches: every page's text is remembered as a string, none is read again.
         Assert.All(engine.FindAll("zebra", false, false), m => Assert.Empty(m.Hits));
         Assert.Equal(read, engine.Extractions);
 
@@ -46,10 +61,25 @@ public class FindAllTests
         Assert.Equal(6, found.Page);
         Assert.Equal(read + 1, engine.Extractions);
         Assert.NotEmpty(found.Text!.GetRects(found.Hits[0].Start, found.Hits[0].End));
+    });
+
+    [Fact]
+    public void PagesWithLittleTextAreKeptWholeAndNeverReadAgain()
+    {
+        using var engine = PdfEngine.Open(TestPdf.Make(8), InputFileTypes.PDF, null);
+        Assert.Equal(8, engine.FindAll("fox", false, false).Count(m => m.Hits.Count > 0));
+        Assert.Equal(8, engine.Extractions);
+
+        // A drawing set's title blocks: every later search, and the view's text, come from what was kept.
+        var found = engine.FindAll("Page 7", false, true).Single(m => m.Hits.Count > 0);
+        Assert.NotEmpty(found.Text!.GetRects(found.Hits[0].Start, found.Hits[0].End));
+        Assert.Equal(8, engine.FindAll("lazy dog", false, false).Count(m => m.Hits.Count > 0));
+        Assert.Same(found.Text, engine.GetText(6));
+        Assert.Equal(8, engine.Extractions);
     }
 
     [Fact]
-    public void PagesAlreadyReadForTheViewAreNotReadAgain()
+    public void PagesAlreadyReadForTheViewAreNotReadAgain() => WithKeptTexts(0, () =>
     {
         using var engine = PdfEngine.Open(TestPdf.Make(3), InputFileTypes.PDF, null);
         engine.GetText(0);
@@ -59,7 +89,7 @@ public class FindAllTests
         // Page 1 is in the view's cache and page 2 had never been read; page 1's string says it matches, so it is read
         // again for its boxes (it wasn't cached as a whole).
         Assert.Equal(read + 2, engine.Extractions);
-    }
+    });
 
     [Fact]
     public void ACancelledSearchStops()
