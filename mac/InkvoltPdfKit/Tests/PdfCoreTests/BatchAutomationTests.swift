@@ -4,7 +4,7 @@ import Testing
 
 /// Ported from BatchAutomationTests.cs (same names): batch presets (JSON in and out), the watched folder and the command
 /// line (roadmap 1.2). Adapted: the Everything preset leaves out the action the Mac doesn't have (Check accessibility; a
-/// preset naming it is refused saying so, as is Save as PDF/A's PDF/A-2a level);
+/// preset naming it is refused saying so);
 /// the JSON refusals are the Mac's words for the same mistakes; ALockedFileWaitsUntilItIsLetGo holds an flock on the
 /// file (what "held open" means on a Mac); the command line's `/?` isn't a Mac spelling. Serialized with ProTests
 /// (`ProGated`): the command line asks the Pro check that those tests flip.
@@ -69,6 +69,7 @@ extension ProGated {
             .unprotect,
             .export(.jpeg, dpi: 300),
             .export(.word, dpi: 150),
+            .makeAccessible(language: "es-PR"),
             .saveAsPdfA,
             .protect(ProtectStep("open-secret", "owner-secret", PdfPermissions(print: .lowResolution, copy: false), .aes128)),
         ], outputFolder: "/Users/me/Results/Scans")
@@ -161,7 +162,6 @@ extension ProGated {
         ("{ \"version\": 1, \"actions\": [] }", "list is empty"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"stamp\" } ] }", "Action 1: \"stamp\" isn't an action"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"checkAccessibility\" } ] }", "Inkvolt PDF for Windows"),
-        ("{ \"version\": 1, \"actions\": [ { \"action\": \"saveAsPdfA\", \"conformance\": \"a\" } ] }", "Inkvolt PDF for Windows"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"ocr\" }, { \"action\": \"rotate\", \"degres\": 90 } ] }", "Action 2 (rotate): \"degres\" isn't a setting"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"rotate\", \"degrees\": 45 } ] }", "should be 90, -90 or 180"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"watermark\", \"text\": \"X\", \"opacity\": \"half\" } ] }", "\"opacity\" should be a number"),

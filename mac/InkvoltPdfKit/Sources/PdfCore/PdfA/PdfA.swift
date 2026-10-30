@@ -2,7 +2,15 @@ import CoreText
 import Foundation
 import MuPDFShim
 
-/// A document can't be made PDF/A-2b; `blockers` says why (nothing was changed) (the Windows app's `PdfAException`).
+/// PDF/A-2 levels: B keeps the look; A also keeps the structure (tags, language, Unicode text) for accessibility.
+public enum PdfAConformance: String, Equatable, Sendable {
+    case b = "B", a = "A"
+
+    /// How the app says the level.
+    public var name: String { self == .a ? "PDF/A-2a" : "PDF/A-2b" }
+}
+
+/// A document can't be made PDF/A-2b (or 2a); `blockers` says why (nothing was changed) (the Windows app's `PdfAException`).
 public struct PdfAError: Error, Equatable, Sendable, CustomStringConvertible {
     public var blockers: [String]
     public init(_ blockers: [String]) { self.blockers = blockers }
@@ -30,33 +38,32 @@ public struct PdfAResult: Sendable {
 /// or external content, digital signatures (a rewrite would break them), widgets without appearances. `validate`
 /// checks the rules handled here; it is not a full validator.
 ///
-/// Level A (PDF/A-2a, Windows' `PdfAConformance.A`: the tags kept, a language required, every character's Unicode value)
-/// needs Make Accessible, which isn't on the Mac yet (roadmap 2.4): when it comes, `convert` takes the level, checks the
-/// tags and language before `Pass` runs, writes "A" into the packet (`Xmp.buildPdfA`) and `validate` checks the tags.
+/// Level A (PDF/A-2a): the tags kept, a language required, every character's Unicode value (`FontUnicode`); a document that
+/// says it is PDF/UA keeps saying so, with the extension schema PDF/A requires for that. Make Accessible makes such a
+/// document.
 public enum PdfA {
     static let forbiddenActions: Set<String> = ["Launch", "Sound", "Movie", "ResetForm", "ImportData", "Hide", "SetOCGState", "Rendition", "Trans",
                                                 "GoTo3DView", "JavaScript", "RichMediaExecute", "SetState", "NOP"]
     static let allowedNamed: Set<String> = ["NextPage", "PrevPage", "FirstPage", "LastPage"]
     static let removedAnnotations: Set<String> = ["Sound", "Movie", "Screen", "3D", "RichMedia", "FileAttachment", "TrapNet"]
     static let flagInvisible = 1, flagHidden = 2, flagPrint = 4, flagNoView = 32, flagToggleNoView = 256
-    /// The conformance level written and checked (B; see the type's remarks for A).
-    static let level = "B"
 
-    /// What stops `data` from being made PDF/A-2b (empty: it can be). Nothing is changed.
+    /// What stops `data` from being made PDF/A-2b or 2a (empty: it can be). Nothing is changed.
     /// - Throws: `OwnerPasswordRequired` for an encrypted document opened without its permissions password.
-    public static func check(_ data: [UInt8], _ password: String?) throws -> [String] {
+    public static func check(_ data: [UInt8], _ password: String?, conformance: PdfAConformance = .b) throws -> [String] {
         do {
-            _ = try convert(data, password)
+            _ = try convert(data, password, conformance: conformance)
             return []
         } catch let e as PdfAError {
             return e.blockers
         }
     }
 
-    /// Makes a PDF/A-2b copy of the document (see the type's remarks).
-    /// - Throws: `PdfAError` when something can't be made conforming without changing the look; `OwnerPasswordRequired`
-    ///   for an encrypted document opened without its permissions password.
-    public static func convert(_ data: [UInt8], _ password: String?, now: Date? = nil) throws -> PdfAResult {
+    /// Makes a PDF/A-2b copy of the document (see the type's remarks). `.a` (PDF/A-2a) needs a tagged document with a
+    /// language (Make Accessible makes one); its tags are kept.
+    /// - Throws: `PdfAError` when something can't be made conforming without changing the look, or (2a) it isn't tagged;
+    ///   `OwnerPasswordRequired` for an encrypted document opened without its permissions password.
+    public static func convert(_ data: [UInt8], _ password: String?, now: Date? = nil, conformance: PdfAConformance = .b) throws -> PdfAResult {
         var data = data
         var changes: [String] = []
         if SignedEdits.looksSigned(data) && Signatures.verify(data, password).contains(where: { $0.status != .unsigned }) {
@@ -78,6 +85,20 @@ public enum PdfA {
         data = sanitized.data
 
         let doc = try PdfEdit.open(data, nil, failure: "This PDF can't be converted")
+        var pdfUa = false
+        if conformance == .a {
+            var blockers: [String] = []
+            let catalog = doc.catalog
+            if !catalog.has("StructTreeRoot") || catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true {
+                blockers.append("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Tools › Make Accessible).")
+            }
+            if !AutoTag.isLanguage(catalog.text("Lang")) { blockers.append("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).") }
+            if !blockers.isEmpty { throw PdfAError(blockers) }
+            pdfUa = Xmp.saysPdfUa(Xmp.read(doc))
+            // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.
+            let fonts = try FontUnicode.complete(doc)
+            if fonts > 0 { changes.append("\(count(fonts, "font", "fonts")) given the Unicode values of their characters") }
+        }
         let pass = try Pass(doc, changes)
         try pass.run()
         if !pass.blockers.isEmpty { throw PdfAError(unique(pass.blockers)) }
@@ -91,7 +112,7 @@ public enum PdfA {
         InfoDict.setDate(doc, "ModDate", now ?? Date())
         cleanInfo(doc) // the XMP packet carries the same values (6.6.2.3): trimmed, without control characters
         InfoDict.get(doc, create: false)?.remove("Trapped") // optional, and a wrong value would break conformance
-        let packet = Xmp.buildPdfA(Xmp.Values(doc))
+        let packet = Xmp.buildPdfA(Xmp.Values(doc), conformance: conformance.rawValue, pdfUa: pdfUa)
         let catalog = doc.catalog
         if let stream = catalog["Metadata"], stream.isStream {
             stream.setStream(packet, deflate: false)
@@ -107,27 +128,27 @@ public enum PdfA {
         }
         try doc.checkFailure()
         let result = try doc.write("garbage=compact")
-        let left = validate(result)
+        let left = validate(result, conformance: conformance)
         if !left.isEmpty { throw PdfAError(left) }
         return PdfAResult(data: result, changes: changes)
     }
 
     // ───────────── what the app says (the Windows app's PdfAActions) ─────────────
 
-    /// The copy's suggested file name: "Report (PDF-A).pdf" for "Report.pdf".
-    public static func copyName(_ displayName: String) -> String {
-        ((displayName as NSString).deletingPathExtension) + " (PDF-A).pdf"
+    /// The copy's suggested file name: "Report (PDF-A).pdf" for "Report.pdf", "Report (PDF-A-2a).pdf" at level A.
+    public static func copyName(_ displayName: String, conformance: PdfAConformance = .b) -> String {
+        ((displayName as NSString).deletingPathExtension) + (conformance == .a ? " (PDF-A-2a).pdf" : " (PDF-A).pdf")
     }
 
     /// Why nothing was saved: each blocker on a line of its own.
-    public static func refusalMessage(_ blockers: [String]) -> String {
-        "Nothing was saved. This document has what PDF/A-2b doesn't allow, and changing it would change how the document looks:\n\n"
+    public static func refusalMessage(_ blockers: [String], conformance: PdfAConformance = .b) -> String {
+        "Nothing was saved. This document has what \(conformance.name) doesn't allow, and changing it would change how the document looks:\n\n"
             + blockers.map { "• " + $0 }.joined(separator: "\n")
     }
 
     /// What the saved copy is and what was changed to get there.
-    public static func savedMessage(_ fileName: String, _ changes: [String]) -> String {
-        "\(fileName) is an archival copy (PDF/A-2b). To get there:\n\n"
+    public static func savedMessage(_ fileName: String, _ changes: [String], conformance: PdfAConformance = .b) -> String {
+        "\(fileName) is an archival copy (\(conformance.name)\(conformance == .a ? ", tagged for accessibility" : "")). To get there:\n\n"
             + changes.map { "• " + capitalized($0) }.joined(separator: "\n")
             + "\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF."
     }
@@ -216,9 +237,10 @@ extension TrueTypeFont {
 extension Xmp {
     static let pdfaid = "http://www.aiim.org/pdfa/ns/id/"
 
-    /// A new packet for a PDF/A-2b file: the Info-backed properties, dates and IDs (as `build` writes them), plus
-    /// pdfaid:part 2 and the conformance. Only schemas PDF/A predefines.
-    static func buildPdfA(_ info: Values, conformance: String = PdfA.level) -> [UInt8] {
+    /// A new packet for a PDF/A-2 file: the Info-backed properties, dates and IDs (as `build` writes them), plus pdfaid:part
+    /// 2 and the conformance. Only schemas PDF/A predefines, and with `pdfUa` pdfuaid:part 1 with the extension schema PDF/A
+    /// asks for it.
+    static func buildPdfA(_ info: Values, conformance: String = "B", pdfUa: Bool = false) -> [UInt8] {
         let xml = document(info, original: nil)
         let r = rdfElement(xml)!
         let d = XMLElement(name: "rdf:Description", uri: rdf)
@@ -231,6 +253,42 @@ extension Xmp {
         d.addChild(part)
         d.addChild(level)
         r.addChild(d)
+        if pdfUa { addPdfUaSchema(r) }
         return packet(xml)
+    }
+
+    /// pdfuaid:part 1 and the extension schema that describes it.
+    private static func addPdfUaSchema(_ r: XMLElement) {
+        let pdfaExtension = "http://www.aiim.org/pdfa/ns/extension/", pdfaSchema = "http://www.aiim.org/pdfa/ns/schema#", pdfaProperty = "http://www.aiim.org/pdfa/ns/property#"
+        func element(_ name: String, _ uri: String, _ value: String? = nil, _ children: [XMLElement] = []) -> XMLElement {
+            let e = XMLElement(name: name, uri: uri)
+            if let value { e.stringValue = value }
+            for c in children { e.addChild(c) }
+            return e
+        }
+        func description(_ namespaces: [(String, String)], _ children: [XMLElement]) -> XMLElement {
+            let d = XMLElement(name: "rdf:Description", uri: rdf)
+            d.addAttribute(XMLNode.attribute(withName: "rdf:about", uri: rdf, stringValue: "") as! XMLNode)
+            for (prefix, uri) in namespaces { d.addNamespace(XMLNode.namespace(withName: prefix, stringValue: uri) as! XMLNode) }
+            for c in children { d.addChild(c) }
+            return d
+        }
+        func resource(_ children: [XMLElement]) -> XMLElement {
+            let li = element("rdf:li", rdf, nil, children)
+            li.addAttribute(XMLNode.attribute(withName: "rdf:parseType", uri: rdf, stringValue: "Resource") as! XMLNode)
+            return li
+        }
+        r.addChild(description([("pdfuaid", pdfUaId)], [element("pdfuaid:part", pdfUaId, "1")]))
+        let property = resource([
+            element("pdfaProperty:name", pdfaProperty, "part"), element("pdfaProperty:valueType", pdfaProperty, "Integer"),
+            element("pdfaProperty:category", pdfaProperty, "internal"),
+            element("pdfaProperty:description", pdfaProperty, "Indicates, which part of ISO 14289 standard is followed"),
+        ])
+        let schema = resource([
+            element("pdfaSchema:schema", pdfaSchema, "PDF/UA Universal Accessibility Schema"), element("pdfaSchema:namespaceURI", pdfaSchema, pdfUaId),
+            element("pdfaSchema:prefix", pdfaSchema, "pdfuaid"), element("pdfaSchema:property", pdfaSchema, nil, [element("rdf:Seq", rdf, nil, [property])]),
+        ])
+        r.addChild(description([("pdfaExtension", pdfaExtension), ("pdfaSchema", pdfaSchema), ("pdfaProperty", pdfaProperty)],
+                               [element("pdfaExtension:schemas", pdfaExtension, nil, [element("rdf:Bag", rdf, nil, [schema])])]))
     }
 }

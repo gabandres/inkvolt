@@ -214,17 +214,20 @@ public enum BatchPresets {
             case .export(let format, let dpi):
                 w.string("format", format.rawValue)
                 w.number("dpi", Double(dpi))
+            case .makeAccessible(let language):
+                w.string("language", language)
+            case .saveAsPdfA2a:
+                w.string("conformance", "a")
             case .unprotect, .checkRedaction, .reportContents, .ocr, .saveAsPdfA:
                 break
             }
         }
     }
 
-    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the actions it
-    /// has that the Mac doesn't yet, checkAccessibility, is refused by name, as is saveAsPdfA's
-    /// PDF/A-2a level).
+    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the action it
+    /// has that the Mac doesn't yet, checkAccessibility, is refused by name).
     public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "reportContents", "watermark",
-                                     "headerFooter", "rotate", "flatten", "ocr", "saveAsPdfA", "export"]
+                                     "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "export"]
     static let windowsOnlyActions = ["checkAccessibility"]
 
     private static func actionName(_ step: BatchStep) -> String {
@@ -241,7 +244,8 @@ public enum BatchPresets {
         case .rotate: "rotate"
         case .flatten: "flatten"
         case .ocr: "ocr"
-        case .saveAsPdfA: "saveAsPdfA"
+        case .makeAccessible: "makeAccessible"
+        case .saveAsPdfA, .saveAsPdfA2a: "saveAsPdfA"
         case .export: "export"
         }
     }
@@ -489,11 +493,11 @@ public enum BatchPresets {
                                            links: try f.bool("links", false), printableOnly: try f.bool("printableOnly", false)))
         case "ocr":
             step = .ocr
+        case "makeAccessible":
+            let language = try f.text("language", nil)
+            step = .makeAccessible(language: (language ?? "").isEmpty ? nil : language)
         case "saveAsPdfA":
-            if try f.choice("conformance", "b", ["b", "a"]) == "a" {
-                throw BatchPresetError("Action \(n) (saveAsPdfA): PDF/A-2a (\"conformance\": \"a\") is an action of Inkvolt PDF for Windows that the Mac doesn't have yet (it needs Make Accessible); leave \"conformance\" out for PDF/A-2b.")
-            }
-            step = .saveAsPdfA
+            step = try f.choice("conformance", "b", ["b", "a"]) == "a" ? .saveAsPdfA2a : .saveAsPdfA
         default:
             step = .export(try f.choice("format", BatchExportFormat.text, BatchExportFormat.allCases), dpi: try f.int("dpi", 150, 36, 1200))
         }
