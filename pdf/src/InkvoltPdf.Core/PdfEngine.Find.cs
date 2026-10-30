@@ -423,6 +423,7 @@ public sealed partial class PdfEngine
                             Monitor.PulseAll(_sync);
                         }
                     }
+                    link.Idle();
                     // About a tenth of a second of work at a time, so a slow worker doesn't hold many pages and the pipe isn't asked for each one.
                     var ms = Stopwatch.GetElapsedTime(asked).TotalMilliseconds;
                     if (ms < 50) batch = Math.Min(batch * 2, MaxWorkerBatch);
@@ -598,6 +599,9 @@ public sealed partial class PdfEngine
             Volatile.Write(ref _waitingSince, Stopwatch.GetTimestamp());
             return answer;
         }
+
+        /// <summary>Nothing is asked of it for now.</summary>
+        public void Idle() => Volatile.Write(ref _waitingSince, 0);
 
         public void KillIfStalled(int stallMs)
         {
