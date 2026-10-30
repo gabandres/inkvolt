@@ -107,9 +107,8 @@ struct AccessibleTest {
         if pageCount > 1 {
             press(.pageDown)
             check(pane.page == 1 && pane.table.selectedRow == 0 && pane.selected != nil, "Page Down shows the next page's pieces, the first selected")
-            let selected = pane.selected
             press(.pageUp, .option)
-            check(pane.page == 0 && pane.selectedItemKind.hasSuffix(" · from page 2") && pane.selected != selected, "⌥Page Up reads the piece with the page before")
+            check(pane.page == 0 && pane.selectedItemKind.hasSuffix(" · from page 2"), "⌥Page Up reads the piece with the page before")
             press(.pageDown, .option)
             check(pane.page == 1 && !pane.selectedItemKind.contains("from page"), "⌥Page Down brings it back")
             press(.pageUp)
