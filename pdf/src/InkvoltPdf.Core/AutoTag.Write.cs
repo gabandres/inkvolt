@@ -84,7 +84,8 @@ public static partial class AutoTag
                     if (i > 0 && blocks[i - 1] is { Kind: TagBlockKind.Caption } c1 && c1.Page == b.Page) above = c1;
                     else if (i + 1 < blocks.Count && blocks[i + 1] is { Kind: TagBlockKind.Caption } c2 && c2.Page == b.Page && !TableAt(i + 2, b.Page)) below = c2;
                 }
-                if (Block(b, above, below) is { } e) top.Add((b.Page, e));
+                // Its page for what each page adds after its blocks: the one it is read with.
+                if (Block(b, above, below) is { } e) top.Add((ReadingPage(b), e));
                 if (below is not null) i++;
             }
             var extras = new Dictionary<int, List<PdfDictionary>>();

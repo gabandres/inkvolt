@@ -61,6 +61,12 @@ public sealed record TagBlock(int Page, TagBlockKind Kind, RectD Box)
 
     /// <summary>A figure that only decorates: marked as an artifact, no alternate text needed.</summary>
     public bool Decorative { get; init; }
+
+    /// <summary>
+    /// The page it is read with when that isn't its own (a sidebar continuing an article from the page before): its
+    /// content stays on <see cref="Page"/>, the structure reads it among that page's pieces. Null: its own page.
+    /// </summary>
+    public int? ReadWith { get; init; }
 }
 
 /// <summary>
@@ -287,16 +293,40 @@ public static partial class AutoTag
         return sb.ToString().Trim();
     }
 
-    /// <summary>The plan's blocks with one moved: within its page, <paramref name="by"/> places up (negative) or down.</summary>
+    /// <summary>The page a block is read with: its own, or the one it was moved to (<see cref="TagBlock.ReadWith"/>).</summary>
+    public static int ReadingPage(TagBlock b) => b.ReadWith ?? b.Page;
+
+    /// <summary>
+    /// The plan with one block read with the page before (<paramref name="by"/> -1: after that page's last piece) or after
+    /// (1: before its first piece); back on its own page it is its own page's piece again. The plan unchanged when there is
+    /// no such page.
+    /// </summary>
+    public static TagPlan MoveToPage(TagPlan plan, int index, int by)
+    {
+        if (index < 0 || index >= plan.Blocks.Count || by is not (-1 or 1)) return plan;
+        var b = plan.Blocks[index];
+        var page = ReadingPage(b) + by;
+        if (page < 0 || page >= plan.Pages) return plan;
+        var blocks = plan.Blocks.ToList();
+        blocks.RemoveAt(index);
+        var moved = b with { ReadWith = page == b.Page ? null : page };
+        // Pieces are kept in page order of their reading page: after the last one read with a page before or on it, or
+        // before the first one read with a page after it.
+        var at = by < 0 ? blocks.FindLastIndex(x => ReadingPage(x) <= page) + 1 : blocks.FindIndex(x => ReadingPage(x) >= page);
+        blocks.Insert(at < 0 ? blocks.Count : at, moved);
+        return plan with { Blocks = blocks };
+    }
+
+    /// <summary>The plan's blocks with one moved among those read with its page, <paramref name="by"/> places up (negative) or down.</summary>
     public static TagPlan Move(TagPlan plan, int index, int by)
     {
         if (index < 0 || index >= plan.Blocks.Count || by == 0) return plan;
-        var page = plan.Blocks[index].Page;
+        var page = ReadingPage(plan.Blocks[index]);
         var target = index;
         for (var step = Math.Abs(by); step > 0; step--)
         {
             var next = target + Math.Sign(by);
-            if (next < 0 || next >= plan.Blocks.Count || plan.Blocks[next].Page != page) break;
+            if (next < 0 || next >= plan.Blocks.Count || ReadingPage(plan.Blocks[next]) != page) break;
             target = next;
         }
         if (target == index) return plan;

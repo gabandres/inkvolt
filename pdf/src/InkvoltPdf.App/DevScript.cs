@@ -22,7 +22,7 @@ namespace InkvoltPdf.App;
 /// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
 /// a11yreport path (save the report) · tag title|language (Make Accessible without its window) · ro (the reading order
-/// pane: opens it, logs this page's pieces) · rosel i|pic · romove i by · roalt text · rodecorative · roapply · pdfa2a (with
+/// pane: opens it, logs this page's pieces) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · roapply · pdfa2a (with
 /// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
@@ -351,6 +351,14 @@ internal static class DevScript
                 for (var i = 0; i < Math.Abs(by); i++) tab.RoMove(Math.Sign(by));
                 break;
             }
+            case "ropage": // i by: the piece read with the page before (-1) or after (1), as Alt+Page Up/Down
+            {
+                var a = arg.Split(' ');
+                tab!.RoList.SelectedIndex = int.Parse(a[0]);
+                tab.RoMoveToPage(int.Parse(a[1]));
+                break;
+            }
+            case "roshow": tab!.RoShowPage(int.Parse(arg)); break; // -1 or 1: the page before's or after's pieces, as Page Up/Down
             case "roalt": tab!.RoAlt.Text = arg; break;
             case "rodecorative": tab!.RoDecorative.IsChecked = !(tab.RoDecorative.IsChecked == true); tab.RoDecorative.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); break;
             case "roapply": tab!.RoApply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); await Task.Delay(50); while (tab.IsBusy) await Task.Delay(50); break;

@@ -73,7 +73,7 @@ switch (args)
         foreach (var b in AutoTag.Plan(engine, data, null).Blocks)
         {
             var text = string.Join(" / ", b.Kind is TagBlockKind.List or TagBlockKind.Contents ? b.Items.Select(i => new string('>', i.Level) + i.Text) : [b.Text]).ReplaceLineEndings(" ");
-            Console.WriteLine($"p{b.Page + 1} {b.Kind}{(b.Kind == TagBlockKind.Table ? $" h{b.HeaderRows}{(b.HeaderColumn ? "+rows" : "")}" : "")} {(text.Length > 100 ? text[..100] : text)}");
+            Console.WriteLine($"p{b.Page + 1} [{b.Box.X:0},{b.Box.Y:0} {b.Box.Width:0}x{b.Box.Height:0}] {b.Kind}{(b.Kind == TagBlockKind.Table ? $" h{b.HeaderRows}{(b.HeaderColumn ? "+rows" : "")}" : "")} {(text.Length > 100 ? text[..100] : text)}");
         }
         return 0;
     }

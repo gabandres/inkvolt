@@ -67,6 +67,7 @@ public static partial class AutoTag
         }
         FlushList();
         MergeChartFigures(result, fromTables);
+        FigureLabels(result);
         Captions(result);
         return result;
     }
@@ -266,6 +267,15 @@ public static partial class AutoTag
             blocks[other] = blocks[other] with { Box = union, Sources = [union] };
             blocks.RemoveAt(at);
         }
+    }
+
+    /// <summary>Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too) is part of the figure: its content goes in the Figure.</summary>
+    private static void FigureLabels(List<TagBlock> blocks)
+    {
+        var figures = blocks.Where(b => b.Kind == TagBlockKind.Figure).ToList();
+        if (figures.Count == 0) return;
+        blocks.RemoveAll(b => b.Kind == TagBlockKind.Paragraph && b.Text.Length <= 200 && !CaptionStart().IsMatch(b.Text) &&
+                              figures.Any(f => f.Page == b.Page && Area(f.Box.Inflate(b.Text.Length <= 20 ? 24 : b.Text.Length <= 40 ? 12 : 2).Intersect(b.Box)) >= 0.75 * Area(b.Box)));
     }
 
     /// <summary>"Figure 2:", "Table 1." and the like right before or after a figure or table (near it, overlapping it across): its caption.</summary>

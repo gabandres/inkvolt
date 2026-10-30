@@ -209,6 +209,43 @@ public class AutoTagTests
     }
 
     [Fact]
+    public void A_piece_moves_to_another_page_and_is_read_there_while_its_content_stays()
+    {
+        var pdf = ExportTestPdf.Make();
+        var plan = Plan(pdf);
+        var at = plan.Blocks.ToList().FindIndex(b => b.Page == 1); // page 2's heading
+        var heading = plan.Blocks[at];
+
+        // Read with page 1: after page 1's last piece.
+        var moved = AutoTag.MoveToPage(plan, at, -1);
+        var now = moved.Blocks.ToList().IndexOf(heading with { ReadWith = 0 });
+        Assert.Equal(moved.Blocks.ToList().FindLastIndex(b => AutoTag.ReadingPage(b) == 0), now);
+        Assert.Equal(1, moved.Blocks[now].Page); // its content is still on page 2
+        Assert.Equal(0, AutoTag.ReadingPage(moved.Blocks[now]));
+        Assert.Same(moved, AutoTag.MoveToPage(moved, now, -1)); // no page before the first
+        // Moving within its reading page now stays among page 1's pieces.
+        Assert.Equal(0, AutoTag.ReadingPage(AutoTag.Move(moved, now, -100).Blocks[0]));
+
+        // The tree reads it after page 1's last piece; the checker still passes.
+        var tagged = AutoTag.Write(pdf, null, WithAlt(moved));
+        using (var doc = PdfReader.Open(new MemoryStream(tagged), PdfDocumentOpenMode.Import))
+        {
+            var top = Tree(doc).Where(t => t.Depth == 1).ToList();
+            var h = top.FindIndex(t => t.Elem.Elements["/Pg"] is PdfReference r && r.ObjectNumber == doc.Pages[1].Reference!.ObjectNumber);
+            Assert.True(h > 0);
+            Assert.StartsWith("H", top[h].Type);
+            Assert.All(top.Take(h), t => Assert.True(t.Elem.Elements["/Pg"] is not PdfReference r || r.ObjectNumber == doc.Pages[0].Reference!.ObjectNumber, t.Type));
+        }
+        Assert.True(AccessibilityCheck.Run(tagged, null).Passed);
+
+        // Back with its own page: before page 2's first piece, read with its own page again.
+        var back = AutoTag.MoveToPage(moved, now, 1);
+        Assert.Null(back.Blocks[now].ReadWith);
+        Assert.Equal(heading, back.Blocks[now]);
+        Assert.Equal(plan.Blocks, back.Blocks);
+    }
+
+    [Fact]
     public void Decorative_figure_is_an_artifact_and_needs_no_alt_text()
     {
         var pdf = ExportTestPdf.Make();
