@@ -7,6 +7,9 @@ let cliArguments = Array(CommandLine.arguments.dropFirst())
 if BatchCommandLine.isCommand(cliArguments) {
     exit(Int32(CommandLineRun.run(cliArguments)))
 }
+// The self-test's arguments are its own: AppKit would open a path among them as a document, and "--snapshots <folder>"
+// stops on the modal alert saying a folder can't be opened.
+if cliArguments.contains("--self-test") { UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"]) }
 let app = NSApplication.shared
 AppSettings.noteFirstRun() // before Sparkle writes its keys: a new install sees no What's New
 let updates = Updates() // Sparkle's updater, started here, before the app finishes launching
