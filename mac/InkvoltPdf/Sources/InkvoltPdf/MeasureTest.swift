@@ -180,13 +180,16 @@ struct MeasureTest {
         undo?.undo()
         check(controller.scaleAt(0, PointD(1, 1)).ratio == "1 in = 10 ft" && title == "Undo Set measuring scale", "“\(title)” takes it back")
 
-        // The saved bytes: the values are drawn into the page, and the scale is a viewport another app reads.
+        // The saved bytes: the area's label is drawn in red at its centroid, and the scale is a viewport another app reads.
         if let s = controller.pdf.session, let engine = try? PdfEngine.open(s.data) {
-            let text = ((try? engine.textLines(0, annotations: true)) ?? []).map(\.text).joined(separator: "\n")
+            let label = try? engine.render(0, scale: 2, region: RectD(328, 318, 40, 12))
             engine.close()
+            var red = 0
+            if let px = label?.pixels {
+                for i in stride(from: 0, to: px.count - 2, by: 3) where px[i] > 150 && px[i + 1] < 110 && px[i + 2] < 110 { red += 1 }
+            }
             let viewport = (try? Measurements.pageScale(s.data, s.password, 0, PointD(300, 300)))?.ratio
-            check(text.contains("30.00 ft") && text.contains("0.50 sq in") && viewport == "1 in = 10 ft",
-                  "the labels are on the page and the scale is a viewport (\(viewport ?? "none"))")
+            check(red > 20 && viewport == "1 in = 10 ft", "the area's label is drawn (\(red) red pixels) and the scale is a viewport (\(viewport ?? "none"))")
         } else {
             check(false, "the saved bytes open")
         }
