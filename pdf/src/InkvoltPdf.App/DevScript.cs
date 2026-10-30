@@ -13,7 +13,7 @@ namespace InkvoltPdf.App;
 /// <c>wait ms · shot out.png · page N · zoom 150|fitwidth|fitpage · layout Continuous|Facing|… · find text ·
 /// findnext · tool hand|select|snapshot|addtext|check|note|redact|pen|marker|rect|ellipse|line|arrow|textbox|callout · selectall · rotateview cw|ccw|0|90|180|270 · keys text (real key messages, Shift
 /// for capitals and symbols; {tab} {enter} {sp}; sent to the open dialog if there is one) · editor · nav pages|bookmarks|search · select 1,3 · rotate 90 ·
-/// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
+/// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· findworkers word · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
 /// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
@@ -80,6 +80,23 @@ internal static class DevScript
         }
         await File.WriteAllLinesAsync(scriptPath + ".log", log.ToArray());
         Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// <c>findworkers word</c>: searches the open document in worker processes started at once and in this process, and
+    /// logs what the workers did and both counts. The Store smoke test's proof that the installed package can start them.
+    /// </summary>
+    private static string FindWorkersCheck(DocumentTab tab, string word)
+    {
+        var session = tab.Session;
+        using var plain = PdfEngine.Open(session.Data, MuPDFCore.InputFileTypes.PDF, null);
+        var expected = plain.FindAll(word, false, false).Sum(m => m.Hits.Count);
+        using var engine = PdfEngine.Open(session.Data, MuPDFCore.InputFileTypes.PDF, null);
+        engine.WorkerPlan = new FindWorkerPlan(Environment.ProcessPath!, [], 2) { PaysMs = 0, MinPages = 0, InProcessWaits = true };
+        var hits = engine.FindAll(word, false, false).Sum(m => m.Hits.Count);
+        var stats = engine.LastFindWorkers!;
+        var left = engine.FindWorkerPids.Count(pid => System.Diagnostics.Process.GetProcesses().Any(p => p.Id == pid));
+        return $"findworkers: started={stats.Started} failed={stats.Failed} pages={stats.PagesFromWorkers} of {engine.PageCount} hits={hits} in process={expected} left running={left}";
     }
 
     /// <summary>
@@ -201,7 +218,7 @@ internal static class DevScript
             case "redo": tab!.Redo(); break;
             case "scroll": tab!.ActiveView.ScrollToVerticalOffset(tab.ActiveView.VerticalOffset + double.Parse(arg)); break;
             case "scrollbench": log.Add(await ScrollBench(window, arg)); break;
-            case "findworkers": log.Add(FindWorkersCheck(tab!)); break;
+            case "findworkers": log.Add(FindWorkersCheck(tab!, arg)); break;
             case "copytext": log.Add($"selected text: {v!.GetSelectedText().Length} chars: {Trunc(v.GetSelectedText())}"); break;
             case "state": log.Add($"page={v!.CurrentPage + 1}/{v.PageCount} zoom={v.Zoom:P0} mode={v.ZoomMode} layout={v.Layout} rotation={v.ViewRotation} dirty={tab!.Session.IsDirty} undo={tab.Session.UndoLabel ?? "-"} redo={tab.Session.RedoLabel ?? "-"} selected={string.Join(',', tab.SelectedPages.Select(p => p + 1))} {v.Diagnostics}"); break;
             case "log": log.Add(arg); break;

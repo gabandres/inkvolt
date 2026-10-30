@@ -210,7 +210,7 @@ public sealed partial class PdfEngine
             {
                 lock (_sync)
                 {
-                    if (_plan is { PaysMs: <= 0, MinPages: <= 0 }) StartWorkers(); // tests: from the start
+                    if (_plan is { PaysMs: <= 0, MinPages: <= 0 }) StartWorkers(_plan.Workers); // tests: from the start
                     for (var t = 0; t < Math.Min(FindThreads, _count); t++)
                     {
                         var thread = new Thread(Work) { IsBackground = true, Priority = ThreadPriority.Normal, Name = "Inkvolt PDF find" };
@@ -358,14 +358,16 @@ public sealed partial class PdfEngine
             var left = _count - _next;
             if (left < _plan.MinPages || left == 0) return;
             var elapsed = Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds;
-            if (elapsed * left / _done < _plan.PaysMs) return;
-            StartWorkers();
+            if (elapsed < _plan.ProbeMs) return;
+            var estimate = elapsed * left / _done;
+            if (estimate < _plan.PaysMs) return;
+            StartWorkers(Math.Max(2, (int)Math.Ceiling(_plan.Workers * estimate / _plan.FullCrewMs)));
         }
 
-        private void StartWorkers()
+        private void StartWorkers(int want)
         {
             _planned = true;
-            _reserved = FindWorkers.Reserve(_plan!.Workers);
+            _reserved = FindWorkers.Reserve(Math.Min(want, _plan!.Workers), _plan.Workers);
             _readAhead = _plan.ReadAhead;
             var keep = Math.Max(0, KeptTextChars - Interlocked.Read(ref _engine._keptChars));
             for (var w = 0; w < _reserved; w++)

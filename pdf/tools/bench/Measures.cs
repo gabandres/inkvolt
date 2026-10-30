@@ -25,13 +25,15 @@ public sealed record Measured(
     bool Optimized,
     int FindWorkers = 0,
     int FindWorkerPages = 0,
-    double FindWorkersPeakMb = 0)
+    double FindWorkersPeakMb = 0,
+    double[]? PageAgainMs = null)
 {
     /// <summary>Time to the first page on screen: read the file, open it, render page 1.</summary>
     public double FirstPageMs => ReadMs + OpenMs + FirstRenderMs;
     public double PageMsAverage => PageMs.Length == 0 ? 0 : PageMs.Average();
     public double PageMsMax => PageMs.Length == 0 ? 0 : PageMs.Max();
     public int PagesOver200 => PageMs.Count(m => m > 200);
+    public double PageAgainMsAverage => PageAgainMs is { Length: > 0 } again ? again.Average() : 0;
     /// <summary>The app's peak and its workers' added up: an upper bound on what the search took, as the peaks needn't coincide.</summary>
     public double PeakWithWorkersMb => PeakWorkingSetMb + FindWorkersPeakMb;
 }
@@ -73,6 +75,7 @@ public static class Measures
         double findMs;
         int hits;
         FindWorkerStats? workers;
+        double[] again;
         using (var engine = OpenEngine())
         {
             for (var p = 0; p < Math.Min(scrollPages, pages); p++)
@@ -81,6 +84,16 @@ public static class Measures
                 engine.Render(p, scale);
                 pageMs.Add(Ms(sw));
             }
+
+            // Scrolling back: the same pages again, while the engine still has them loaded (with their display lists).
+            var pageAgainMs = new List<double>();
+            for (var p = 0; p < Math.Min(scrollPages, pages); p++)
+            {
+                sw.Restart();
+                engine.Render(p, scale);
+                pageAgainMs.Add(Ms(sw));
+            }
+            again = [.. pageAgainMs];
 
             // Find: every page searched as the app's search does (FindAll: pages read on threads or, past a second's work, in worker processes; in order).
             engine.WorkerPlan = _plan;
@@ -102,7 +115,7 @@ public static class Measures
 
         var peak = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0;
         return new Measured(Path.GetFileName(path), bytes, pages, readMs, openMs, firstRenderMs, [.. pageMs], findWord, findMs, hits, commentsMs, comments, peak, optimized,
-            workers?.Started ?? 0, workers?.PagesFromWorkers ?? 0, (workers?.PeakBytes ?? 0) / 1048576.0);
+            workers?.Started ?? 0, workers?.PagesFromWorkers ?? 0, (workers?.PeakBytes ?? 0) / 1048576.0, again);
     }
 
     /// <summary>A test's app that crashes: a search with workers under way, their process ids on the output, then this process killed.</summary>
@@ -129,7 +142,9 @@ public static class Measures
         string[] args = Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase) ? [typeof(Measures).Assembly.Location] : [];
         if (int.TryParse(Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS"), out var count))
         {
+            // Started at once, whatever the search's pace says, when INKVOLTPDF_BENCH_WORKERS_NOW is set: what they cost a short search.
             if (count > 0) _plan = new FindWorkerPlan(exe, args, count);
+            if (count > 0 && Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS_NOW") == "1") _plan = _plan! with { PaysMs = 0, MinPages = 0 };
             return;
         }
         FindWorkers.Use(exe, args);

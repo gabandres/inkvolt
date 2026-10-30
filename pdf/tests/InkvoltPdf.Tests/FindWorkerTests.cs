@@ -252,7 +252,7 @@ public class FindWorkerTests
         // The pace decides: asked to start whenever more than a millisecond of pages is left, they start at the first check.
         var data = TestPdf.Make(600);
         using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
-        engine.WorkerPlan = new FindWorkerPlan(WorkerExe, [], 2) { PaysMs = 1, MinPages = 1 };
+        engine.WorkerPlan = new FindWorkerPlan(WorkerExe, [], 2) { PaysMs = 1, MinPages = 1, ProbeMs = 0 };
         Assert.Equal(600, engine.FindAll("fox", false, false).Count(m => m.Hits.Count > 0));
         Assert.Equal(2, engine.LastFindWorkers!.Started);
         AssertAllGone(engine);
@@ -348,9 +348,9 @@ public class FindWorkerTests
     [InlineData(4, 16L << 30, 0, 2)]
     [InlineData(3, 16L << 30, 0, 0)]         // one worker isn't worth a process: the two threads do as well
     [InlineData(2, 16L << 30, 0, 0)]
-    [InlineData(12, 1L << 30, 0, 2)]         // 1 GB free: half of it, at 250 MB a worker
-    [InlineData(12, 400L << 20, 0, 0)]
-    [InlineData(12, 16L << 30, 900L << 20, 2)] // the document's shared copy counts against the 1.2 GB they may take
+    [InlineData(12, 1L << 30, 0, 5)]         // 1 GB free: half of it, at 100 MB a worker
+    [InlineData(12, 300L << 20, 0, 0)]
+    [InlineData(12, 16L << 30, 900L << 20, 3)] // the document's shared copy counts against the 1.2 GB they may take
     public void WorkersAreBoundedByCoresAndMemory(int cores, long available, long document, int expected)
     {
         Assert.Equal(expected, FindWorkers.CountFor(cores, available, document));

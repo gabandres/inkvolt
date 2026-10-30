@@ -17,10 +17,17 @@ namespace InkvoltPdf.Core;
 internal sealed record FindWorkerPlan(string Exe, IReadOnlyList<string> Args, int Workers)
 {
     /// <summary>
-    /// Workers start once the search's pace says more than this is left. Measured on the Snapdragon X, busy: a worker is
-    /// reading 150 to 300 ms after it is asked for, and 8 of them cost 8 times the CPU, so under a second there's nothing to gain.
+    /// Workers start once the search's pace says more than this is left, about 1,000 pages of a text. Measured on the busy
+    /// Snapdragon X: they are reading some 400 ms after they are asked for, so a search with a second left (the bench's
+    /// 250-page file) ends no sooner with them, while it takes eight more processes.
     /// </summary>
-    public double PaysMs { get; init; } = 1000;
+    public double PaysMs { get; init; } = 2000;
+
+    /// <summary>The pace is read after this long at the earliest: the first page's time is mostly opening the document again.</summary>
+    public double ProbeMs { get; init; } = 200;
+
+    /// <summary>A search this far from its end by its pace gets all the workers; a shorter one, proportionally fewer (at least two).</summary>
+    public double FullCrewMs { get; init; } = 4000;
 
     /// <summary>Fewer pages left than this never start workers, however slow each one is.</summary>
     public int MinPages { get; init; } = 16;
@@ -64,9 +71,9 @@ public static class FindWorkers
 
     private const string PipePrefix = "InkvoltPdf.find.";
     private const int PipeHexDigits = 32;
-    private const int MaxCount = 8;                       // beyond eight, a 12-core laptop only heats up: see tools/bench/RESULTS.md
+    private const int MaxCount = 8;                       // a long text gains nothing past 6 and the drawing set little past 8: tools/bench/RESULTS.md
     private const long MemoryBudget = 1200L * 1048576;    // the 1.5 GB target, less what the app itself holds
-    private const long WorkerBytes = 250L * 1048576;      // measured peak of a worker on the drawing set; 90 MB on a long text
+    private const long WorkerBytes = 100L * 1048576;      // measured peak of a worker: 77 MB on the long text, 56 MB on the drawing set
 
     private static readonly Lock Gate = new();
     private static string? _exe;
@@ -104,12 +111,12 @@ public static class FindWorkers
         return count == 0 ? null : new FindWorkerPlan(exe, _args, count);
     }
 
-    /// <summary>Takes up to <paramref name="want"/> of the plan's workers: several tabs searching at once share them.</summary>
-    internal static int Reserve(int want)
+    /// <summary>Takes up to <paramref name="want"/> workers, <paramref name="most"/> at most in this process: several tabs searching at once share them.</summary>
+    internal static int Reserve(int want, int most)
     {
         lock (Gate)
         {
-            var granted = Math.Max(0, want - _running);
+            var granted = Math.Clamp(most - _running, 0, want);
             _running += granted;
             return granted;
         }
