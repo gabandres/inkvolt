@@ -132,7 +132,8 @@ public sealed class ContentEditException(string message, IReadOnlyList<string>? 
 /// Edit Text &amp; Images, first step: replaces the text of one text-showing operator in the same embedded font (only
 /// when every glyph is in it; no other font is substituted and nothing reflows), and moves, resizes, replaces or
 /// deletes one picture by rewriting its placement. Works on the page's own content (all its content streams, read as
-/// one); text and pictures inside form XObjects are listed but not edited. Each edit is bytes in → bytes out,
+/// one) and on text inside form XObjects (see <c>ContentEditor.Forms.cs</c>); pictures inside them are listed but not
+/// edited. Each edit is bytes in → bytes out,
 /// saved through <see cref="PdfObj.Save"/> (signed files appended to, protection kept).
 /// </summary>
 public static partial class ContentEditor
@@ -196,10 +197,11 @@ public static partial class ContentEditor
 
         var (parts, enc, middle) = Plan(info, now, text);
         if (enc.Missing.Count > 0) throw MissingGlyphs(font, enc.Missing);
+        var target = TargetOf(doc, page, streams, ops, walk, now);
         font.Prepare(doc, enc.Codes, middle);
-        var op = ops[now.Id];
+        var op = target.OpOf(now);
         var replacement = WriteShow(op, info, font, parts);
-        WriteContent(doc, page, streams, ops, [(op.Start, op.End, replacement)]);
+        WriteTarget(doc, page, target, [(op.Start, op.End, replacement)]);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
     }
@@ -401,8 +403,8 @@ public static partial class ContentEditor
     private static bool Near(RectD a, RectD b) =>
         Math.Abs(a.X - b.X) < 1 && Math.Abs(a.Y - b.Y) < 1 && Math.Abs(a.Width - b.Width) < 1 && Math.Abs(a.Height - b.Height) < 1;
 
-    /// <summary>Adds an image XObject to the page's own resources (copying shared ones first), under a fresh name.</summary>
-    private static string AddXObject(PdfDocument doc, PdfPage page, PdfDictionary xobject)
+    /// <summary>Adds an XObject to the page's own resources (copying shared ones first), under a fresh name.</summary>
+    private static string AddXObject(PdfDocument doc, PdfPage page, PdfDictionary xobject, string prefix = "InkImg")
     {
         var res = page.Elements["/Resources"] switch
         {
@@ -419,9 +421,9 @@ public static partial class ContentEditor
         };
         res.Elements["/XObject"] = xo;
         var n = 1;
-        while (xo.Elements.ContainsKey($"/InkImg{n}")) n++;
-        xo.Elements[$"/InkImg{n}"] = xobject.Reference!;
-        return $"InkImg{n}";
+        while (xo.Elements.ContainsKey($"/{prefix}{n}")) n++;
+        xo.Elements[$"/{prefix}{n}"] = xobject.Reference!;
+        return $"{prefix}{n}";
     }
 
     // ---- Content ----
@@ -587,6 +589,22 @@ public static partial class ContentEditor
         public double Advance { get; init; }
         /// <summary>The operators that set the fill color in effect (to set it back after text of another color); null when that can't be told.</summary>
         public string? FillOp { get; init; }
+        /// <summary>The form XObject the run is drawn in (null: the page's own content).</summary>
+        public FormPlace? Form { get; init; }
+    }
+
+    /// <summary>
+    /// Where a run inside a form XObject (a drawing the page reuses) sits: the form, its content parsed, the operator's
+    /// index in it, the resources its operators use, the form this one is drawn by (null: the page), and the Do that
+    /// draws it (its id in the enclosing content and the name it uses).
+    /// </summary>
+    internal sealed record FormPlace(PdfDictionary Form, byte[] Bytes, List<COp> Ops, int Index, PdfDictionary? Resources, FormPlace? Outer, int DoId, string DoName)
+    {
+        /// <summary>This form and the ones it is drawn through, innermost first.</summary>
+        public IEnumerable<PdfDictionary> Chain()
+        {
+            for (var f = this; f is not null; f = f.Outer) yield return f.Form;
+        }
     }
 
     private sealed class Walked
@@ -595,10 +613,14 @@ public static partial class ContentEditor
         public readonly List<PageImage> Images = [];
         public readonly Dictionary<int, RunInfo> Runs = [];
         public readonly Dictionary<int, Mat> ImageCtm = [];
+        /// <summary>How many times each form XObject is drawn on the page (at any depth).</summary>
+        public readonly Dictionary<PdfDictionary, int> FormUses = new(ReferenceEqualityComparer.Instance);
         /// <summary>Things inside form XObjects get negative ids (they aren't page operators).</summary>
         public int Nested;
         public PageContent Content => new(TextRuns, Images);
     }
+
+    private const string FormImageBlocked = "it is part of a form XObject (a drawing the page reuses), and only the page's own pictures can be edited in this version";
 
     private sealed class GState
     {
@@ -615,11 +637,20 @@ public static partial class ContentEditor
     private static Walked Walk(PdfPage page, int pageIndex, List<COp> ops, CancellationToken cancel)
     {
         var w = new Walked();
-        Run(w, page, pageIndex, ops, PdfObj.Dict(page.Elements["/Resources"]), new GState(), 0, null, cancel);
+        Run(w, page, pageIndex, ops, PdfObj.Dict(page.Elements["/Resources"]), new GState(), 0, null, cancel, null);
+        // Text in a form drawn through another form that the page draws more than once: editing it would change every
+        // copy (only a form the page draws directly is copied for the edit), so it is edited nowhere.
+        for (var i = 0; i < w.TextRuns.Count; i++)
+        {
+            var run = w.TextRuns[i];
+            if (run.Info?.Form is not { Outer: not null } form || !form.Chain().Any(f => w.FormUses.GetValueOrDefault(f) > 1)) continue;
+            w.TextRuns[i] = run with { Blocked = "it is inside a drawing (a form XObject) that the page draws more than once through another drawing, and an edit would change every copy", Info = null };
+            w.Runs.Remove(run.Id);
+        }
         return w;
     }
 
-    private static void Run(Walked w, PdfPage page, int pageIndex, List<COp> ops, PdfDictionary? resources, GState gs, int depth, string? blocked, CancellationToken cancel)
+    private static void Run(Walked w, PdfPage page, int pageIndex, List<COp> ops, PdfDictionary? resources, GState gs, int depth, string? blocked, CancellationToken cancel, FormPlace? form)
     {
         gs = gs.Clone();
         var stack = new Stack<GState>();
@@ -733,7 +764,7 @@ public static partial class ContentEditor
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
                     tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
                         blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
-                        looks.Count > 0 ? looks.Peek() : null);
+                        looks.Count > 0 ? looks.Peek() : null, form is null ? null : form with { Index = i });
                     break;
                 }
                 case "Do" when op.Operands.Count > 0 && op.Operands[0].Kind == CKind.Name:
@@ -741,7 +772,7 @@ public static partial class ContentEditor
                     var xobj = PdfObj.Dict(PdfObj.Dict(resources?.Elements["/XObject"])?.Elements["/" + op.Operands[0].Name]);
                     if (xobj is null) break;
                     var sub = PdfObj.NameOf(xobj, "/Subtype");
-                    if (sub == "/Image") AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked);
+                    if (sub == "/Image") AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
                         var m = PdfObj.Array(xobj.Elements["/Matrix"]) is { Elements.Count: 6 } a
@@ -749,13 +780,16 @@ public static partial class ContentEditor
                             : Mat.Identity;
                         var inner = gs.Clone();
                         inner.Ctm = m.Times(gs.Ctm);
-                        Run(w, page, pageIndex, ContentLexer.Parse(PdfObj.StreamBytes(xobj), cancel), PdfObj.Dict(xobj.Elements["/Resources"]) ?? resources, inner, depth + 1,
-                            "it is part of a form XObject (a drawing the page reuses), and only the page's own content can be edited in this version", cancel);
+                        w.FormUses[xobj] = w.FormUses.GetValueOrDefault(xobj) + 1;
+                        var bytes = PdfObj.StreamBytes(xobj);
+                        var formOps = ContentLexer.Parse(bytes, cancel);
+                        var place = new FormPlace(xobj, bytes, formOps, -1, PdfObj.Dict(xobj.Elements["/Resources"]) ?? resources, form, id, op.Operands[0].Name);
+                        Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked, cancel, place);
                     }
                     break;
                 }
                 case "BI":
-                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (op.Broken ? "where its data ends can't be told for sure, so changing it could damage the page" : null));
+                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? "where its data ends can't be told for sure, so changing it could damage the page" : null));
                     break;
             }
         }
@@ -799,7 +833,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>Records a text-showing operator as a run and returns the text matrix after it.</summary>
-    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked, LookTag? tag = null)
+    private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked, LookTag? tag, FormPlace? form)
     {
         var font = gs.Font;
         var items = new List<RunItem>();
@@ -886,7 +920,7 @@ public static partial class ContentEditor
             FontKey = gs.FontKey,
             Tag = tag,
         };
-        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp };
+        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form };
         // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
         var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
         if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });

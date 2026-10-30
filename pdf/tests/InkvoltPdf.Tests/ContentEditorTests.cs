@@ -223,16 +223,16 @@ public class ContentEditorTests
     }
 
     [Fact]
-    public void TextInAFormXObjectIsListedButNotEditable()
+    public void TextInAFormXObjectIsListedWithItsOwnIdsAndEdited()
     {
         var pdf = ContentEditPdf.Make("q /Fm1 Do Q BT /FA 12 Tf 72 600 Td (draft) Tj ET", form: "BT /FA 12 Tf 72 700 Td (Hello) Tj ET");
         var content = ContentEditor.Read(pdf, null, 0);
         var inForm = content.Runs.Single(r => r.Text == "Hello");
-        Assert.Contains("form XObject", inForm.Blocked);
+        Assert.Null(inForm.Blocked);
         Assert.True(inForm.Id < 0);
         Assert.Null(content.Runs.Single(r => r.Text == "draft").Blocked);
-        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, inForm, "Hell"));
-        Assert.Contains("can't be edited", ex.Message);
+        var edited = ContentEditor.ReplaceText(pdf, null, inForm, "Hell");
+        Assert.Equal(["Hell", "draft"], ContentEditor.Read(edited, null, 0).Runs.Select(r => r.Text));
     }
 
     [Fact]

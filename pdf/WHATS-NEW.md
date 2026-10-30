@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Edit Text & Images now edits text inside reused drawings (form XObjects: stamped or flattened pages, and the blocks some programs make), as paragraphs or line by line. A drawing shown more than once, or on several pages, is copied for the place you clicked, so the others don't change.
 
 ## 1.2.1
 - Once you've saved a few documents with Inkvolt PDF over at least two days, it asks one time whether you'd like to rate it in the Microsoft Store, in the Store's own window. It never asks again, whatever you choose.

@@ -139,7 +139,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   and a click opens it in a multi-line editor: the text rewraps in the paragraph's box with its alignment (left, right,
   centered or justified) and line spacing, Shift+Enter starts a new line, and the note says how many lines it takes
   and, live, when it would run into the text or picture below; then Enter asks before writing it there. A single
-  piece of text on one line is edited as above, without wrapping. Pictures show a frame: click one to select it, drag to move it, drag a
+  piece of text on one line is edited as above, without wrapping. Text inside a form XObject (a drawing the page
+  reuses: stamped or flattened pages, some generators' every block) edits the same way, in the drawing itself; a
+  drawing the page shows more than once, or that other pages share, is copied for the place you clicked first, so the
+  other places stay as they were. Pictures show a frame: click one to select it, drag to move it, drag a
   handle to resize it (Shift keeps its proportions), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
   Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
   places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
@@ -632,8 +635,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   that mixes fonts, sizes or colors, text on a turned page or turned text, and a single piece of text on one line are
   edited one text operator at a time (often a line, sometimes a word or a letter), without reflow. A rewritten
   paragraph loses its kerning; a line break typed into it starts a new paragraph for the next edit; a word hyphenated
-  at a line end keeps its hyphen in the editor. Text and pictures inside form XObjects (reused
-  drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can Type 3
+  at a line end keeps its hyphen in the editor. Pictures inside form XObjects (reused
+  drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text
+  in a drawing drawn through another drawing that the page or other pages use more than once, Type 3
   fonts, vertical text, CJK fonts with predefined CMaps, invisible OCR text, or text carrying ActualText. Simple CFF
   (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
   replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
@@ -735,7 +739,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 - Edit Text & Images: fall back to a matching installed font when the embedded one lacks a character, reflow
-  paragraphs that mix fonts or sit on turned pages, keep kerning in rewritten lines, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
+  paragraphs that mix fonts or sit on turned pages, keep kerning in rewritten lines, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement

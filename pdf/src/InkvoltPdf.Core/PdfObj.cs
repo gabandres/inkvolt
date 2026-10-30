@@ -153,6 +153,18 @@ internal static class PdfObj
         return d;
     }
 
+    /// <summary>Replaces a stream's content (deflated when it is worth it), dropping the filters it had.</summary>
+    public static void SetStream(PdfDictionary d, byte[] content)
+    {
+        d.Elements.Remove("/DecodeParms");
+        var compress = content.Length > 64;
+        var bytes = compress ? Deflate(content) : content;
+        if (d.Stream is null) d.CreateStream(bytes);
+        else d.Stream.Value = bytes;
+        if (compress) d.Elements["/Filter"] = new PdfName("/FlateDecode");
+        else d.Elements.Remove("/Filter");
+    }
+
     public static byte[] Deflate(byte[] data)
     {
         using var ms = new MemoryStream();

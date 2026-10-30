@@ -309,6 +309,9 @@ public static partial class ContentEditor
         if (blocked is null && runs.Any(r => !SameLook(own, r) || !r.StandIn && !r.Styled && (r.Bold != own.Bold || r.Italic != own.Italic)))
             blocked = "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font only";
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = "part of it can't be read for editing";
+        // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
+        if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
+            blocked = "part of it is inside a form XObject (a drawing the page reuses) and part outside, and a paragraph is rewritten in one piece of content only";
         // Rewrapping lays words out left to right, so right-to-left text would come out in the wrong order.
         if (blocked is null && runs.Any(r => TrueTypeFont.CodePoints(r.Text).Any(c => Bidi.Classify(c) is Bidi.Cls.R or Bidi.Cls.AL)))
             blocked = "it is written right to left, and this version rewraps left-to-right text only";
@@ -695,12 +698,15 @@ public static partial class ContentEditor
                 throw new ContentEditException("The page changed since this paragraph was picked. Pick it again.");
             now.Add(found);
         }
-        // Spaces drawn on their own on its lines go too (when they are still there).
-        var spaces = paragraph.Spaces
-            .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
-            .Where(r => r is not null && now.All(n => n.Id != r.Id)).Select(r => r!).ToList();
         var anchor = Anchor(now);
         var font = anchor.Font!;
+        if (now.Any(r => !ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)))
+            throw new ContentEditException("The page changed since this paragraph was picked. Pick it again.");
+        // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
+        var spaces = paragraph.Spaces
+            .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
+            .Where(r => r is not null && now.All(n => n.Id != r.Id) && ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)).Select(r => r!).ToList();
+        var target = TargetOf(doc, page, streams, ops, walk, anchor);
         var layout = LayOut(paragraph, now, text, spans);
         if (layout.Check.Missing.Count > 0)
         {
@@ -715,23 +721,33 @@ public static partial class ContentEditor
             { Overlaps = o };
         font.Prepare(doc, layout.Codes, layout.Encoded);
 
-        // Characters the font lacks: drawn in stand-in fonts, embedded as subsets under names no page font has.
-        var fontRes = PdfObj.Dict(PdfObj.Dict(page.Elements["/Resources"])?.Elements["/Font"]);
-        var k = 1;
-        while (fontRes?.Elements.Keys.Any(key => key.StartsWith($"/{StandInKey}{k}_", StringComparison.Ordinal)) == true) k++;
-        var writer = new CidFontWriter($"/{StandInKey}{k}_");
+        // Characters the font lacks: drawn in stand-in fonts, embedded as subsets under names no font of the content has.
+        var writer = new CidFontWriter(StandInPrefix(target));
 
         var edits = new List<(int Start, int End, string Text)>();
         foreach (var run in now)
         {
-            var op = ops[run.Id];
+            var op = target.OpOf(run);
             edits.Add((op.Start, op.End, run == anchor ? WriteParagraph(page, op, run, font, layout, writer) : Removed(op, run)));
         }
-        if (!writer.IsEmpty) AddFonts(doc, page, writer.BuildFonts(doc));
-        foreach (var run in spaces) edits.Add((ops[run.Id].Start, ops[run.Id].End, Removed(ops[run.Id], run)));
-        WriteContent(doc, page, streams, ops, edits);
+        if (!writer.IsEmpty) AddFonts(doc, target.ResourceOwner, writer.BuildFonts(doc));
+        foreach (var run in spaces)
+        {
+            var op = target.OpOf(run);
+            edits.Add((op.Start, op.End, Removed(op, run)));
+        }
+        WriteTarget(doc, page, target, edits);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
+    }
+
+    /// <summary>A name prefix for stand-in fonts that no font of the content's resources has yet.</summary>
+    private static string StandInPrefix(Target target)
+    {
+        var fontRes = PdfObj.Dict(target.Resources?.Elements["/Font"]);
+        var k = 1;
+        while (fontRes?.Elements.Keys.Any(key => key.StartsWith($"/{StandInKey}{k}_", StringComparison.Ordinal)) == true) k++;
+        return $"/{StandInKey}{k}_";
     }
 
     /// <summary>Whether two sets of spans give every character of <paramref name="text"/> the same look.</summary>
@@ -873,25 +889,5 @@ public static partial class ContentEditor
         Look(null);
         OwnFont(1);
         Close();
-    }
-
-    /// <summary>Adds fonts to the page's own font resources (copying shared dictionaries first).</summary>
-    private static void AddFonts(PdfDocument doc, PdfPage page, PdfDictionary fonts)
-    {
-        var res = page.Elements["/Resources"] switch
-        {
-            PdfDictionary d => d,
-            PdfReference r when r.Value is PdfDictionary shared => shared.Clone(),
-            _ => new PdfDictionary(doc),
-        };
-        page.Elements["/Resources"] = res;
-        var fd = res.Elements["/Font"] switch
-        {
-            PdfDictionary d => d,
-            PdfReference r when r.Value is PdfDictionary shared => shared.Clone(),
-            _ => new PdfDictionary(doc),
-        };
-        res.Elements["/Font"] = fd;
-        foreach (var (name, item) in fonts.Elements) fd.Elements[name] = item;
     }
 }

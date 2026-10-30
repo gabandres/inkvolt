@@ -248,7 +248,13 @@ the checkout.
   a styled space at a line's end isn't drawn, so its look goes. Tests: `ParagraphEditTests` (41, with
   `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
   files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
-  still uses the one-run editor (no stand-ins there yet). Still to do: text inside form XObjects; paragraphs in turned
+  still uses the one-run editor (no stand-ins there yet). Part d (2026-10-30): text inside form XObjects edits as
+  paragraphs and as single runs (`ContentEditor.Forms.cs`: each run inside a form knows its form, its operator in it
+  and the Do that draws it; the edit rewrites the form's own stream, stand-in fonts go to the form's resources or the
+  page's when it borrows them; a form the page draws more than once or that other pages share is copied for the Do
+  clicked, under `/InkFmN`; a form drawn through another form edits only when nothing in its chain is shared;
+  pictures inside forms stay as they were; a paragraph half in a form is edited line by line).
+  `ParagraphEditTests.Forms` (9). Still to do: paragraphs in turned
   text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
   line ends kept as typed ("respon-sible"); kerning of rewritten lines; stand-in fonts for the one-run editor; fonts
   beyond the 14 families in the look bar; the Acrobat and pdf.js check.
