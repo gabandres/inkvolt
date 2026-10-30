@@ -682,13 +682,11 @@ extension AutoTag {
         var artifactOnly = false
     }
 
-    /// What every walk over one document shares: fonts once each, and what each form holds once each. A form that draws
-    /// itself, or a chain of forms drawing each other many times over, ends here instead of recursing without end.
+    /// What every walk over one document shares: fonts once each, and what each form holds once each.
     fileprivate final class WalkShared {
         let cancel: CancelToken?
         var fonts: [ObjId: TextFont] = [:]
         var forms: [UInt: (hasText: Bool, hasArtifact: Bool, artifactOnly: Bool)] = [:]
-        var walking = Set<UInt>()
 
         init(_ cancel: CancelToken?) { self.cancel = cancel }
     }
@@ -702,13 +700,15 @@ extension AutoTag {
         private let frame: PageFrame?
         private let resources: PObj?
         private let shared: WalkShared
-        private let depth: Int
+        /// Reading a form's own content: what the forms it draws hold doesn't matter (a form drawing itself ends here;
+        /// Windows' walk goes on into them, without end for such a form).
+        private let insideForm: Bool
 
-        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, depth: Int = 0) {
+        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, insideForm: Bool = false) {
             self.frame = frame
             self.resources = resources
             self.shared = shared
-            self.depth = depth
+            self.insideForm = insideForm
         }
 
         private struct State {
@@ -851,7 +851,7 @@ extension AutoTag {
                         if let b = x.array("BBox"), b.count == 4 {
                             corners = [(b.num(0), b.num(1)), (b.num(2), b.num(3)), (b.num(0), b.num(3)), (b.num(2), b.num(1))]
                         }
-                        let info = try formInfo(x)
+                        let info = insideForm ? (hasText: false, hasArtifact: false, artifactOnly: false) : try formInfo(x)
                         items.append(Item(startOp: i, endOp: i, kind: .form, box: box(corners, m.times(st.ctm)), inArtifact: inArtifact, hasText: info.hasText,
                                           form: x, hasArtifact: info.hasArtifact, artifactOnly: info.artifactOnly))
                     }
@@ -864,16 +864,14 @@ extension AutoTag {
 
         private static let tj = Array("Tj".utf8), tJ = Array("TJ".utf8), artifact = Array("/Artifact".utf8)
 
-        /// What a form holds, read once for each form (a form within itself holds nothing more).
+        /// What a form holds, read once for each form.
         private func formInfo(_ x: PObj) throws -> (hasText: Bool, hasArtifact: Bool, artifactOnly: Bool) {
             let key = x.identity
             if let known = shared.forms[key] { return known }
-            guard depth < 32, shared.walking.insert(key).inserted else { return (false, false, false) }
-            defer { shared.walking.remove(key) }
             let bytes = x.streamData ?? []
             var info = (hasText: bytes.firstRange(of: Self.tj) != nil || bytes.firstRange(of: Self.tJ) != nil, hasArtifact: false, artifactOnly: false)
             if bytes.firstRange(of: Self.artifact) != nil {
-                let inner = try PageWalk(nil, x.dict("Resources") ?? resources, shared, depth: depth + 1)
+                let inner = try PageWalk(nil, x.dict("Resources") ?? resources, shared, insideForm: true)
                     .items(ContentLexer.parse(bytes, cancel: shared.cancel), strip: false)
                 info.hasArtifact = inner.contains(where: \.inArtifact)
                 info.artifactOnly = !inner.isEmpty && inner.allSatisfy(\.inArtifact)
