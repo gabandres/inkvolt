@@ -60,7 +60,8 @@ enum TagTest {
             let mcids = all(#"MCID (\d+)"#, text).map { Int($0[1])! }
             #expect(mcids == Array(0..<mcids.count))
             if mcids.isEmpty { continue }
-            let entry = try #require(parents(doc, try #require(page.int("StructParents"))))
+            let key = try #require(page.int("StructParents"))
+            let entry = try #require(parents(doc, key))
             #expect(entry.count == mcids.count)
             for m in mcids {
                 let owner = try #require(entry[m])
