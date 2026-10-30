@@ -48,7 +48,7 @@ public class WiaTests
         Assert.Equal(2550, caps.Platen!.MaxWidth);   // 8500 thousandths = 2550 three-hundredths
         Assert.Equal(3507, caps.Platen.MaxHeight);
         Assert.Equal(4200, caps.Adf!.MaxHeight);     // 14 in
-        Assert.Equal(["RGB24", "Grayscale8"], caps.Platen.ColorModes);
+        Assert.Equal(["RGB24", "Grayscale8", "BlackAndWhite1"], caps.Platen.ColorModes); // 0: the threshold type
         Assert.Equal([75, 100, 150, 200, 300, 400, 600, 1200], caps.Platen.Resolutions); // the usual ones its 25-dpi steps allow
         Assert.True(caps.Platen.OffersJpeg);
         Assert.Equal("Example Scan 300", caps.MakeAndModel);

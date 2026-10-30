@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Suite;
 
@@ -31,6 +32,9 @@ public sealed record ScanPreset
     /// <summary>Both sides of each page, when the feeder is used and can.</summary>
     public bool TwoSided { get; init; }
     public bool Color { get; init; } = true;
+
+    /// <summary>Black and white (1 bit) where the scanner offers it, else grey; <see cref="Color"/> off. Inkvolt PDF's presets set it.</summary>
+    public bool BlackAndWhite { get; init; }
     public int Resolution { get; init; } = 300;
 
     /// <summary><see cref="ScanChoices.PageSizes"/> key; null = Letter or A4 by region.</summary>
@@ -183,6 +187,26 @@ public static partial class ScanPresets
         var counters = current.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.First().NextNumber);
         return edited.Select(p => counters.TryGetValue(p.Id, out var n) ? p with { NextNumber = n } : p).ToList();
     }
+
+    /// <summary>
+    /// Inkvolt PDF's Scan dialog: its current choices saved under <paramref name="name"/> (made unique), a searchable PDF when
+    /// <paramref name="ocr"/>. The scanner isn't part of it: the preset is matched to whichever scanner is chosen (<see cref="PresetPlan"/>).
+    /// </summary>
+    public static ScanPreset FromChoices(IEnumerable<ScanPreset> existing, string name, ScanSource source, ScanColor color, int dpi,
+        string? pageSize, bool ocr, bool skipBlank) => new()
+    {
+        Id = NewId(),
+        Name = UniqueName(existing.Select(p => p.Name), Cut(name.Trim())),
+        Source = source == ScanSource.Platen ? PresetSource.Glass : PresetSource.Feeder,
+        TwoSided = source == ScanSource.AdfDuplex,
+        Color = color == ScanColor.Color,
+        BlackAndWhite = color == ScanColor.BlackAndWhite,
+        Resolution = Math.Clamp(dpi, MinResolution, MaxResolution),
+        PageSize = ScanChoices.PageSizes.Any(s => s.Key == pageSize) ? pageSize : null,
+        FileType = ocr ? PresetFileType.SearchablePdf : PresetFileType.Pdf,
+        Review = true,
+        SkipBlank = skipBlank,
+    };
 
     public static ScanPreset Create(IEnumerable<ScanPreset> existing) =>
         new() { Id = NewId(), Name = UniqueName(existing.Select(p => p.Name), "New preset") };

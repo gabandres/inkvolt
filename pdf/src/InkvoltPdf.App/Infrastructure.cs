@@ -373,13 +373,19 @@ public sealed class AppSettings
     /// <summary>Add an RFC 3161 timestamp (sends only a hash of the signature to <see cref="TimestampUrl"/>).</summary>
     public bool SignTimestamp { get; set; }
     public string TimestampUrl { get; set; } = "http://timestamp.digicert.com";
-    /// <summary>Scan dialog (Inkvolt suite): the last scanner (its Inkvolt Print UUID) and the choices made for it.</summary>
+    /// <summary>Scan dialog (Inkvolt suite): the last scanner (a network one's UUID, "wia:…" or "twain:…") and the choices made for it.</summary>
     public string ScanDevice { get; set; } = "";
     public string ScanSource { get; set; } = "";
     public bool ScanColor { get; set; } = true;
     public int ScanResolution { get; set; } = 300;
     public string ScanPageSize { get; set; } = "";
     public bool ScanOcr { get; set; } = true;
+    /// <summary>Black and white last chosen (<see cref="ScanColor"/> is then false).</summary>
+    public bool ScanBlackAndWhite { get; set; }
+    /// <summary>Leave out blank pages (the empty backs of one-sided sheets).</summary>
+    public bool ScanSkipBlank { get; set; } = true;
+    /// <summary>Scan presets saved in the Scan dialog (Inkvolt Print's preset shape; matched to each scanner when chosen).</summary>
+    public List<InkvoltPrint.Core.Presets.ScanPreset> ScanPresets { get; set; } = [];
     /// <summary>Export to Word / Excel / text: recognize scanned pages, open the file when done.</summary>
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;

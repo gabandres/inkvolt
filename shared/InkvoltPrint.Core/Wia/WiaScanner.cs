@@ -200,8 +200,8 @@ public static class WiaCapabilities
     /// <summary>
     /// The scanner as the Scan tab sees it: glass and feeder from the document handling capabilities (glass only when the driver
     /// has none), their sizes (the feeder's from the sheet feed size, else the glass's; a feeder of any length gets Legal), color
-    /// and grey as offered, resolutions from the driver's list or range (as eSCL ranges are turned into choices). Pages always
-    /// arrive as JPEG (converted when the driver sends another format).
+    /// and grey as offered (black and white too when the driver offers its threshold type), resolutions from the driver's list or
+    /// range (as eSCL ranges are turned into choices). Pages always arrive as JPEG (converted when the driver sends another format).
     /// </summary>
     public static ScannerCapabilities From(WiaScannerInfo info, string name)
     {
@@ -214,6 +214,7 @@ public static class WiaCapabilities
         if (info.DataTypes.Count == 0 || info.DataTypes.Contains(WiaIds.DataColor)) colors.Add("RGB24");
         if (info.DataTypes.Count == 0 || info.DataTypes.Contains(WiaIds.DataGrayscale)) colors.Add("Grayscale8");
         if (colors.Count == 0) colors.Add("RGB24"); // black and white only: asked for color, the driver gives what it has
+        if (info.DataTypes.Contains(WiaIds.DataThreshold)) colors.Add("BlackAndWhite1");
         var resolutions = Resolutions(info.Resolutions);
         InputCaps Input(int w, int h) => new(0, w, 0, h, colors, ["image/jpeg"], resolutions, []);
         return new ScannerCapabilities("WIA", name, null,
@@ -234,7 +235,8 @@ public static class WiaCapabilities
     }
 
     /// <summary>
-    /// What to set for <paramref name="request"/>: the source (both sides front first), color (24-bit) or grey (8-bit) as offered,
+    /// What to set for <paramref name="request"/>: the source (both sides front first), color (24-bit), grey (8-bit) or black and
+    /// white (1-bit threshold; grey when not offered) as offered,
     /// the offered resolution nearest the one asked for, the area (the source's whole area when none is asked) in pixels at that
     /// resolution, and the pages per transfer (<see cref="WiaScanSettings.Pages"/>).
     /// </summary>
@@ -244,7 +246,9 @@ public static class WiaCapabilities
         var input = caps.For(source)!;
         var feeder = source != ScanSource.Platen;
         var res = input.Resolutions.Count == 0 ? request.Resolution : input.Resolutions.MinBy(r => Math.Abs(r - request.Resolution));
-        var grey = request.Color == ScanColor.Grayscale ? input.ColorModes.Contains("Grayscale8") : !input.ColorModes.Contains("RGB24");
+        var bw = request.Color == ScanColor.BlackAndWhite && input.ColorModes.Contains("BlackAndWhite1");
+        var grey = !bw && (request.Color is ScanColor.Grayscale or ScanColor.BlackAndWhite
+            ? input.ColorModes.Contains("Grayscale8") : !input.ColorModes.Contains("RGB24"));
         var width = Math.Clamp(request.Width ?? input.MaxWidth, Math.Max(input.MinWidth, 1), input.MaxWidth);
         var height = Math.Clamp(request.Height ?? input.MaxHeight, Math.Max(input.MinHeight, 1), input.MaxHeight);
         int? handling = info.Handling is null ? null
@@ -255,8 +259,8 @@ public static class WiaCapabilities
                 _ => WiaIds.SelectFlatbed,
             };
         int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
-        return new WiaScanSettings(handling, feeder, grey ? WiaIds.DataGrayscale : WiaIds.DataColor, grey ? 8 : 24, res,
-            Pixels(width, res), Pixels(height, res), pages);
+        var (dataType, depth) = bw ? (WiaIds.DataThreshold, 1) : grey ? (WiaIds.DataGrayscale, 8) : (WiaIds.DataColor, 24);
+        return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages);
     }
 
     private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, (int)((long)threeHundredths * dpi / 300));

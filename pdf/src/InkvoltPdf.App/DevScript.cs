@@ -29,6 +29,7 @@ namespace InkvoltPdf.App;
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
+/// scanselect text · scanchoose glass|feeder|duplex Color|Grayscale|BlackAndWhite dpi</c> (choose the open Scan dialog's scanner and settings; "-" keeps one) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli] ·
@@ -663,6 +664,17 @@ internal static class DevScript
                 // scandialog: the open Scan dialog's scanners and choices (use with "later" while Cmd Scan is open).
                 log.Add(Application.Current.Windows.OfType<ScanDialog>().FirstOrDefault()?.DevDescribe() ?? "scandialog: none open");
                 break;
+            case "scanselect":
+                // scanselect text: choose the open Scan dialog's first scanner whose label has text ({sp} for spaces; use with "later").
+                log.Add($"scanselect: {Application.Current.Windows.OfType<ScanDialog>().First().DevSelect(arg.Replace("{sp}", " "))}");
+                break;
+            case "scanchoose":
+            {
+                // scanchoose glass|feeder|duplex|- Color|Grayscale|BlackAndWhite|- dpi|-: the open Scan dialog's choices (use with "later").
+                var a = arg.Split(' ');
+                Application.Current.Windows.OfType<ScanDialog>().First().DevChoose(a[0], a[1], a[2]);
+                break;
+            }
             case "scanpage":
             {
                 // scanpage <file.jpg> [dpi]: hand the open Scan dialog a page as if scanned (then press its finish button).

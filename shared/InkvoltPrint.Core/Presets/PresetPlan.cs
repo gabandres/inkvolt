@@ -33,6 +33,7 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
 
         var colors = ScanChoices.Colors(caps, source);
         var color = preset.Color && colors.Contains(ScanColor.Color) ? ScanColor.Color
+            : !preset.Color && preset.BlackAndWhite && colors.Contains(ScanColor.BlackAndWhite) ? ScanColor.BlackAndWhite
             : colors.Contains(ScanColor.Grayscale) ? ScanColor.Grayscale : colors[0];
 
         // The closest the source offers; between two equally close, the sharper one.

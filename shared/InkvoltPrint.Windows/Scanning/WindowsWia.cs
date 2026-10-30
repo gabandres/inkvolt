@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using InkvoltPrint.Core.Wia;
 
@@ -186,7 +187,7 @@ public sealed class WindowsWia : IWiaSystem
     /// maps to other exception types (access denied, out of memory, not implemented), so none escapes a caller that catches
     /// <see cref="WiaException"/>.
     /// </summary>
-    private static T Wrap<T>(Func<T> call)
+    internal static T Wrap<T>(Func<T> call)
     {
         try
         {
@@ -199,7 +200,7 @@ public sealed class WindowsWia : IWiaSystem
     }
 
     /// <summary>Lets go of COM objects now rather than when the finalizer gets to them (their native memory is invisible to the GC).</summary>
-    private static void Release(params object?[] objects)
+    internal static void Release(params object?[] objects)
     {
         foreach (var o in objects)
             if (o is not null && Marshal.IsComObject(o)) Marshal.FinalReleaseComObject(o);
@@ -259,6 +260,62 @@ public sealed class WindowsWia : IWiaSystem
         catch (COMException)
         {
             return false; // the driver refused this one; it scans with its own value (the document handling select is read back)
+        }
+    }
+
+    /// <summary>A WIA ImageFile as a JPEG ImageFile (quality 90) through WIA's own ImageProcess (GDI+ underneath).</summary>
+    internal static object ToJpeg(object image)
+    {
+        object? process = null, infos = null, info = null, filters = null, filter = null, props = null, format = null, quality = null;
+        try
+        {
+            process = Activator.CreateInstance(Type.GetTypeFromProgID("WIA.ImageProcess")!)!;
+            infos = ((dynamic)process).FilterInfos;
+            object convert = "Convert";
+            info = ((dynamic)infos!).Item(ref convert);
+            string filterId = ((dynamic)info!).FilterID;
+            filters = ((dynamic)process).Filters;
+            ((dynamic)filters!).Add(filterId, 0);
+            object one = 1;
+            filter = ((dynamic)filters!).Item(ref one);
+            props = ((dynamic)filter!).Properties;
+            object formatKey = "FormatID", qualityKey = "Quality";
+            format = ((dynamic)props!).Item(ref formatKey);
+            ((dynamic)format!).Value = WiaIds.FormatJpeg;
+            quality = ((dynamic)props!).Item(ref qualityKey);
+            ((dynamic)quality!).Value = 90;
+            return ((dynamic)process).Apply(image);
+        }
+        finally
+        {
+            Release(quality, format, props, filter, filters, info, infos, process);
+        }
+    }
+
+    /// <summary>
+    /// A .bmp (a TWAIN driver's page) as JPEG bytes, through the same ImageProcess as WIA pages; the file goes through a temporary
+    /// file, the one way WIA's scripting library loads an image, and is deleted at once.
+    /// </summary>
+    internal static byte[] JpegFromBmp(byte[] bmp)
+    {
+        if (Type.GetTypeFromProgID("WIA.ImageFile") is not { } type)
+            throw new WiaException(WiaErrors.GeneralError, "Windows Image Acquisition isn't available to convert the page.");
+        var path = Path.Combine(Path.GetTempPath(), $"inkvolt-scan-{Guid.NewGuid():N}.bmp");
+        object? file = null, jpeg = null, data = null;
+        try
+        {
+            File.WriteAllBytes(path, bmp);
+            file = Activator.CreateInstance(type)!;
+            ((dynamic)file).LoadFile(path);
+            jpeg = ToJpeg(file);
+            data = ((dynamic)jpeg).FileData;
+            return ((dynamic)data!).BinaryData as byte[] is { Length: > 0 } bytes
+                ? bytes : throw new WiaException(WiaErrors.InvalidDriverResponse, "The page couldn't be converted.");
+        }
+        finally
+        {
+            Release(data, jpeg, file);
+            try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -322,8 +379,9 @@ public sealed class WindowsWia : IWiaSystem
 
         public byte[]? TransferPage(WiaScanSettings s)
         {
-            // JPEG straight from the driver when it offers it; otherwise BMP (every driver has it), turned into JPEG here.
-            var format = Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
+            // JPEG straight from the driver when it offers it; otherwise BMP (every driver has it), turned into JPEG here. Black and
+            // white (1 bit) is always BMP: drivers list JPEG for their color and grey types, and refuse it for the threshold one.
+            var format = s.Depth > 1 && Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
             object? image = null, jpeg = null, data = null;
             try
             {
@@ -343,34 +401,6 @@ public sealed class WindowsWia : IWiaSystem
 
         private static int Limit(object props, int id, int wanted) =>
             Property(props, id) is { } p && Values(p) is { Max: { } max } ? Math.Min(wanted, max) : wanted;
-
-        private static object ToJpeg(object image)
-        {
-            object? process = null, infos = null, info = null, filters = null, filter = null, props = null, format = null, quality = null;
-            try
-            {
-                process = Activator.CreateInstance(Type.GetTypeFromProgID("WIA.ImageProcess")!)!;
-                infos = ((dynamic)process).FilterInfos;
-                object convert = "Convert";
-                info = ((dynamic)infos!).Item(ref convert);
-                string filterId = ((dynamic)info!).FilterID;
-                filters = ((dynamic)process).Filters;
-                ((dynamic)filters!).Add(filterId, 0);
-                object one = 1;
-                filter = ((dynamic)filters!).Item(ref one);
-                props = ((dynamic)filter!).Properties;
-                object formatKey = "FormatID", qualityKey = "Quality";
-                format = ((dynamic)props!).Item(ref formatKey);
-                ((dynamic)format!).Value = WiaIds.FormatJpeg;
-                quality = ((dynamic)props!).Item(ref qualityKey);
-                ((dynamic)quality!).Value = 90;
-                return ((dynamic)process).Apply(image);
-            }
-            finally
-            {
-                Release(quality, format, props, filter, filters, info, infos, process);
-            }
-        }
 
         public void Dispose() => Release((object)_item, (object)_device);
     }

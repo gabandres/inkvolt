@@ -30,8 +30,8 @@ public static class WiaIds
     // WIA_DPS_DOCUMENT_HANDLING_SELECT
     public const int SelectFeeder = 0x001, SelectFlatbed = 0x002, SelectDuplex = 0x004, SelectFrontFirst = 0x008;
 
-    // WIA_IPA_DATATYPE
-    public const int DataGrayscale = 2, DataColor = 3;
+    // WIA_IPA_DATATYPE (threshold: black and white, 1 bit)
+    public const int DataThreshold = 0, DataGrayscale = 2, DataColor = 3;
 
     public const string FormatBmp = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}", FormatJpeg = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}",
         FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}";
@@ -161,10 +161,10 @@ public static class WiaErrors
         CoverOpen => "The scanner's cover is open. Close it and try again.",
         LampOff => "The scanner's lamp is off. Turn the scanner off and on again, then try again.",
         NotAnswering => "The scanner hasn't finished its last request (its driver may have stopped answering). Wait a moment and try " +
-                        "again; if it still doesn't answer, turn the scanner off and on, or restart Inkvolt Print.",
+                        "again; if it still doesn't answer, turn the scanner off and on, or close and reopen this app.",
         RpcServerUnavailable or RpcCallFailed or RpcDisconnected =>
-            "Windows' scanning service stopped answering (it may have restarted). Try again: Inkvolt Print connects to the scanner again.",
-        AccessDenied => "Windows didn't allow Inkvolt Print to use the scanner. Close other scanning apps and try again.",
+            "Windows' scanning service stopped answering (it may have restarted). Try again: the scanner is connected again.",
+        AccessDenied => "Windows didn't allow this app to use the scanner. Close other scanning apps and try again.",
         OutOfMemory => "There wasn't enough memory for this scan. Try a lower resolution or fewer pages.",
         DeviceLocked => "The scanner is locked (some have a lock switch for moving them). Unlock it and try again.",
         IncorrectHardwareSetting => "The scanner's settings or switches don't allow this scan. Check the scanner, or try other settings.",
