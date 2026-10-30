@@ -1467,3 +1467,24 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
     }
     return 1;
 }
+
+int inkv_pdf_version(void *vctx, inkv_doc *d) {
+    fz_context *ctx = vctx;
+    int version = 0;
+    fz_try(ctx) version = pdf_version(ctx, inkv_pdf(ctx, d));
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        return 0;
+    }
+    return version;
+}
+
+int inkv_set_pdf_version(void *vctx, inkv_doc *d, int version, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) inkv_pdf(ctx, d)->version = version;
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}

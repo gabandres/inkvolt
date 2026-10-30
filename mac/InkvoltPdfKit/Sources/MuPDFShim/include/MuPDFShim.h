@@ -271,4 +271,11 @@ void inkv_free_export(inkv_export *e);
 int inkv_render_region_rgba(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
                             uint8_t **pixels, int *width, int *height, char *err);
 
+/// The PDF version a whole write puts in the file's header (10 × major + minor: 17 for 1.7), the catalog's /Version
+/// included; 0 on failure.
+int inkv_pdf_version(void *ctx, inkv_doc *doc);
+
+/// Sets the version a whole write puts in the header (PDF/A-2 wants 1.4 to 1.7). 0 on failure.
+int inkv_set_pdf_version(void *ctx, inkv_doc *doc, int version, char *err);
+
 #endif

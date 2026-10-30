@@ -189,7 +189,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     static let offered: [BatchStep] = [
         .optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect, .sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })),
         .redactPatterns(RedactionPatternOptions()), .checkRedaction, .reportContents, .watermark(WatermarkOptions(text: "DRAFT")),
-        .headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions()), .ocr,
+        .headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions()), .ocr, .saveAsPdfA,
         .export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.text, dpi: 150), .export(.png, dpi: 150), .export(.jpeg, dpi: 150),
         .export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150),
     ]
@@ -646,7 +646,7 @@ enum ActionSheet {
         alert.messageText = step.title
         let read: () -> BatchStep?
         switch step {
-        case .unprotect, .checkRedaction, .reportContents, .ocr:
+        case .unprotect, .checkRedaction, .reportContents, .ocr, .saveAsPdfA:
             return done(step)
         case .optimize(let o):
             alert.informativeText = "Pictures shown larger than the chosen resolution are downsampled and stored as JPEG; identical streams merged, uncompressed ones compressed."

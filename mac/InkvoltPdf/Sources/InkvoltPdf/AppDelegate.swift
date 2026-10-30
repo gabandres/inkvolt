@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// The menu bar, built in code: the app (About, Check for Updates…, Settings…), File (New Window, Open, Open Recent, new
-/// PDFs from pictures, the clipboard, combined files or the scanner, Close, Save, Save As, Revert, Reload, Export To, Form
+/// PDFs from pictures, the clipboard, combined files or the scanner, Close, Save, Save As, Save as PDF/A-2b, Revert, Reload, Export To, Form
 /// Data, password protection, Page Setup, Print), Edit (Undo, Redo, Copy, Delete, Find), View (zoom, sidebar, comments),
 /// Go (pages, comments), Pages (organize, rotate, delete, insert, extract, crop, bookmarks), Tools (the tools with their
 /// single keys, the text marks, stamps, pictures, links, the inspector, the command palette), Window, Help (What's New).
@@ -153,6 +153,7 @@ enum MainMenu {
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
         menu.addItem(item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]))
+        menu.addItem(item("Save as PDF/A-2b…", #selector(DocumentWindowController.saveAsPdfA(_:))))
         menu.addItem(item("Revert to Saved", #selector(NSDocument.revertToSaved(_:))))
         menu.addItem(item("Reload from Disk", #selector(DocumentWindowController.reloadFromDisk(_:)), "r", [.command, .option]))
         menu.addItem(.separator())

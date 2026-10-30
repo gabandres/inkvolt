@@ -9,7 +9,8 @@ import PdfCore
 /// document's text. A file that can't be opened is reported as such. With `--quit` the app quits once every document
 /// is done.
 ///
-/// Editing (`--edit`): after the reader's checks, each document goes through `EditTest` (every comment tool through the
+/// Editing (`--edit`): after the reader's checks, `PdfATest` on the synthetic text document (`--only-pdfa` runs it
+/// alone), then each document goes through `EditTest` (every comment tool through the
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
@@ -37,6 +38,8 @@ enum Report {
     private(set) static var onlyMeasure = false
     /// `--only-prepare-form`: with `--edit`, only `PrepareFormTest` (quicker runs while working on Prepare Form).
     private(set) static var onlyPrepareForm = false
+    /// `--only-pdfa`: with `--edit`, only `PdfATest` (quicker runs while working on Save as PDF/A).
+    private(set) static var onlyPdfA = false
     private(set) static var snapshots: String?
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
@@ -61,6 +64,7 @@ enum Report {
         onlyRedaction = args.contains("--only-redaction")
         onlyMeasure = args.contains("--only-measure")
         onlyPrepareForm = args.contains("--only-prepare-form")
+        onlyPdfA = args.contains("--only-pdfa")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -105,6 +109,11 @@ enum Report {
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
                 }
+            } else if edits && onlyPdfA {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var pdfa = PdfATest(controller: controller, name: name)
+                    await pdfa.run()
+                }
             } else if edits && onlyMeasure {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var measure = MeasureTest(controller: controller, name: name)
@@ -115,6 +124,12 @@ enum Report {
                 await redact.run()
             } else if edits {
                 let openedFrom = controller.pdf.fileURL?.path
+                if openedFrom != nil && openedFrom == syntheticPath {
+                    // First, while the document is as made: the edits after it add a Fill & Sign check mark, whose
+                    // ZapfDingbats a PDF/A copy refuses (as on Windows).
+                    var pdfa = PdfATest(controller: controller, name: name)
+                    await pdfa.run()
+                }
                 if openedFrom != syntheticFormPath {
                     var edit = EditTest(controller: controller, name: name)
                     await edit.run()
@@ -158,7 +173,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyPdfA {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

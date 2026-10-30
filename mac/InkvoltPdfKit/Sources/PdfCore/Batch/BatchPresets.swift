@@ -214,17 +214,18 @@ public enum BatchPresets {
             case .export(let format, let dpi):
                 w.string("format", format.rawValue)
                 w.number("dpi", Double(dpi))
-            case .unprotect, .checkRedaction, .reportContents, .ocr:
+            case .unprotect, .checkRedaction, .reportContents, .ocr, .saveAsPdfA:
                 break
             }
         }
     }
 
     /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the actions it
-    /// has that the Mac doesn't yet, checkAccessibility and saveAsPdfA, are refused by name).
+    /// has that the Mac doesn't yet, checkAccessibility, is refused by name, as is saveAsPdfA's
+    /// PDF/A-2a level).
     public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "reportContents", "watermark",
-                                     "headerFooter", "rotate", "flatten", "ocr", "export"]
-    static let windowsOnlyActions = ["checkAccessibility", "saveAsPdfA"]
+                                     "headerFooter", "rotate", "flatten", "ocr", "saveAsPdfA", "export"]
+    static let windowsOnlyActions = ["checkAccessibility"]
 
     private static func actionName(_ step: BatchStep) -> String {
         switch step {
@@ -240,6 +241,7 @@ public enum BatchPresets {
         case .rotate: "rotate"
         case .flatten: "flatten"
         case .ocr: "ocr"
+        case .saveAsPdfA: "saveAsPdfA"
         case .export: "export"
         }
     }
@@ -487,6 +489,11 @@ public enum BatchPresets {
                                            links: try f.bool("links", false), printableOnly: try f.bool("printableOnly", false)))
         case "ocr":
             step = .ocr
+        case "saveAsPdfA":
+            if try f.choice("conformance", "b", ["b", "a"]) == "a" {
+                throw BatchPresetError("Action \(n) (saveAsPdfA): PDF/A-2a (\"conformance\": \"a\") is an action of Inkvolt PDF for Windows that the Mac doesn't have yet (it needs Make Accessible); leave \"conformance\" out for PDF/A-2b.")
+            }
+            step = .saveAsPdfA
         default:
             step = .export(try f.choice("format", BatchExportFormat.text, BatchExportFormat.allCases), dpi: try f.int("dpi", 150, 36, 1200))
         }
