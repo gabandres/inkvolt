@@ -8,12 +8,14 @@ import Testing
 struct MeasureDraftTests {
     @Test func aDistanceEndsAtItsSecondClick() throws {
         var d = MeasureDraft(.distance)
-        #expect(d.click(page: 0, PointD(72, 100)) == nil)
+        let first = d.click(page: 0, PointD(72, 100))
+        #expect(first == nil)
         #expect(d.isActive && d.points.count == 1)
         d.move(page: 0, PointD(144, 100))
         #expect(d.value(.default) == "1.00 in")
         #expect(d.described(.default) == "1 point(s), 0.00 in") // without the pointer
-        let done = try #require(d.click(page: 0, PointD(216, 100)))
+        let second = d.click(page: 0, PointD(216, 100))
+        let done = try #require(second)
         #expect(done.page == 0 && done.points == [PointD(72, 100), PointD(216, 100)])
         #expect(!d.isActive && d.hover == nil && d.described(.default) == nil)
     }
@@ -22,12 +24,14 @@ struct MeasureDraftTests {
         var d = MeasureDraft(.area)
         _ = d.click(page: 1, PointD(0, 0))
         _ = d.click(page: 1, PointD(72, 0))
-        #expect(d.finish() == nil) // two corners: it goes on
+        let early = d.finish()
+        #expect(early == nil) // two corners: it goes on
         #expect(d.isActive)
         _ = d.click(page: 1, PointD(72, 72))
         // The double-click's first press adds the corner, its second ends the area without adding another.
         _ = d.click(page: 1, PointD(0, 72))
-        let done = try #require(d.click(page: 1, PointD(0, 72), clicks: 2))
+        let ended = d.click(page: 1, PointD(0, 72), clicks: 2)
+        let done = try #require(ended)
         #expect(done.points.count == 4)
         let scale = try MeasureScale.from(1, "in", 10, "ft")
         #expect(scale.format(.area, done.points) == "100.00 sq ft")
@@ -35,7 +39,8 @@ struct MeasureDraftTests {
         var r = MeasureDraft(.perimeter)
         _ = r.click(page: 0, PointD(0, 0))
         _ = r.click(page: 0, PointD(72, 0))
-        #expect(try #require(r.finish()).points.count == 2)
+        let line = r.finish()
+        #expect(line?.points.count == 2)
     }
 
     @Test func theValueSoFarFollowsThePointer() throws {
@@ -57,11 +62,12 @@ struct MeasureDraftTests {
         _ = d.click(page: 0, PointD(10, 0))
         _ = d.click(page: 0, PointD(10, 0)) // the same spot again isn't a point
         #expect(d.points.count == 2)
-        #expect(d.removeLast())
+        let took = [d.removeLast()]
         #expect(d.points == [PointD(0, 0)])
-        #expect(d.removeLast())
+        let tookLast = d.removeLast()
         #expect(!d.isActive)
-        #expect(!d.removeLast())
+        let tookNone = d.removeLast()
+        #expect(took == [true] && tookLast && !tookNone)
         _ = d.click(page: 0, PointD(0, 0))
         _ = d.click(page: 2, PointD(5, 5)) // a click on another page starts over there
         #expect(d.page == 2 && d.points == [PointD(5, 5)])
@@ -75,7 +81,8 @@ struct MeasureDraftTests {
         _ = d.click(page: 0, PointD(100, 100))
         d.move(page: 0, PointD(200, 103), shift: true)
         #expect(abs(d.hover!.y - 100) < 1e-9)
-        let done = try #require(d.click(page: 0, PointD(200, 103), shift: true))
+        let snapped = d.click(page: 0, PointD(200, 103), shift: true)
+        let done = try #require(snapped)
         #expect(abs(done.points[1].y - 100) < 1e-9)
     }
 
