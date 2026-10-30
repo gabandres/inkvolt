@@ -37,20 +37,24 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Uninstallers: remove this copy's "Open with" and Start-with-Windows entries, then exit (no window, no single-instance hand-off).
+        // Uninstallers: remove this copy's "Open with", Start-with-Windows and notification entries, then exit (no window, no single-instance hand-off).
         if (e.Args.Contains(ShellIntegration.UnregisterArgument))
         {
             Shutdown(ShellIntegration.Unregister());
             return;
         }
+        // The Store package started by its startup task behaves as --background; one started by a toast clicked after it
+        // had exited opens that printer once the window is up.
+        var activation = PackagedActivation.Read();
+        var args = activation.StartupTask ? [.. e.Args, StartWithWindows.Argument] : e.Args;
         // --demo: one made-up printer, no network (Demo.cs). Like the dev aids, it runs beside a normal copy.
         // --try: the same, labelled as a demo (the "Try a demo printer" link on the no-printers screen).
-        var tryDemo = e.Args.Contains("--try");
-        var demo = tryDemo || e.Args.Contains("--demo");
-        var devRun = demo || e.Args.Any(a => a is "--snapshot" or "--autoprint");
+        var tryDemo = args.Contains("--try");
+        var demo = tryDemo || args.Contains("--demo");
+        var devRun = demo || args.Any(a => a is "--snapshot" or "--autoprint");
         if (!devRun)
         {
-            _instance = SingleInstance.TryAcquire(e.Args);
+            _instance = SingleInstance.TryAcquire(args);
             if (_instance is null)
             {
                 Shutdown(); // the running copy got our arguments
@@ -58,10 +62,10 @@ public partial class App : Application
             }
             // Listening at once: "Open with" on several files starts a copy per file, and those that lose the race hand their
             // file over while this one is still starting (held until the window is up, below).
-            _instance.Listen(args => Dispatcher.InvokeAsync(() =>
+            _instance.Listen(forwarded => Dispatcher.InvokeAsync(() =>
             {
-                if (_forwardedEarly is { } early) early.Add(args);
-                else HandleForwarded(args);
+                if (_forwardedEarly is { } early) early.Add(forwarded);
+                else HandleForwarded(forwarded);
             }));
         }
 
@@ -93,13 +97,13 @@ public partial class App : Application
                     System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
         };
 
-        var pc = !demo ? PcEnvironment.Real : e.Args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
+        var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         _vm = new MainViewModel(pc.LoadState(), pc);
         // The Pro check reads the key from the file both Inkvolt apps share, then from state.json (demo: memory only).
         Core.Pro.Store = demo ? new Core.Suite.MemoryProStore()
             : new Core.Suite.SharedProStore(new StateProStore(_vm.State), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
         WindowFrame.FollowAllWindows();
-        WindowFrame.ApplyTheme(Array.IndexOf(e.Args, "--theme") is var t and >= 0 && t + 1 < e.Args.Length ? e.Args[t + 1] : _vm.State.Theme);
+        WindowFrame.ApplyTheme(Array.IndexOf(args, "--theme") is var t and >= 0 && t + 1 < args.Length ? args[t + 1] : _vm.State.Theme);
         MainWindow = new MainWindow { DataContext = _vm };
         if (!devRun)
         {
@@ -111,12 +115,12 @@ public partial class App : Application
             MainWindow.Title = "Inkvolt Print (demo printer)";
             ((MainWindow)MainWindow).AppName.Text = "Inkvolt Print · Demo";
         }
-        if (DevSnapshot.Size(e.Args) is var (width, height))
+        if (DevSnapshot.Size(args) is var (width, height))
         {
             MainWindow.Width = width;
             MainWindow.Height = height;
         }
-        if (!tryDemo && (!devRun || e.Args.Contains("--tray")))
+        if (!tryDemo && (!devRun || args.Contains("--tray")))
         {
             if (demo) (_vm.State.Tray ??= new TraySettings()).Enabled = true; // demo state is in memory only
             Tray = new TrayController(this, _vm, _vm.State, pc);
@@ -125,7 +129,7 @@ public partial class App : Application
         }
         // After an update, What's New once, when the window is first on screen (now, or later from the notification area).
         // --demo --whatsnew-from 1.0.2: as if updated from that version (dev aid).
-        var whatsNewFrom = demo && Array.IndexOf(e.Args, "--whatsnew-from") is var wn and >= 0 && wn + 1 < e.Args.Length ? e.Args[wn + 1] : null;
+        var whatsNewFrom = demo && Array.IndexOf(args, "--whatsnew-from") is var wn and >= 0 && wn + 1 < args.Length ? args[wn + 1] : null;
         if (!devRun || whatsNewFrom is not null)
         {
             var window = MainWindow;
@@ -139,11 +143,13 @@ public partial class App : Application
             }
         }
         // Started with Windows (--background): straight to the notification area, when it's still turned on.
-        if (Tray is { KeepsRunning: true } && e.Args.Contains(StartWithWindows.Argument)) Tray.HideWindow(atStartup: true);
+        if (Tray is { KeepsRunning: true } && args.Contains(StartWithWindows.Argument)) Tray.HideWindow(atStartup: true);
         else MainWindow.Show();
+        // A toast clicked after the packaged app had exited: open that printer (the icon off: the window is up, which is all a click does then).
+        if (activation.ToastArguments is { } toastArguments && Tray is { } tray) Dispatcher.BeginInvoke(() => tray.HandleToast(toastArguments));
 
         // Demo runs keep theirs apart, under %TEMP% like their scans; the --try window and snapshots keep none.
-        if (!devRun || (demo && !tryDemo && !e.Args.Contains("--snapshot")))
+        if (!devRun || (demo && !tryDemo && !args.Contains("--snapshot")))
         {
             _keeper = new ScanKeeper(_vm, demo ? Path.Combine(Path.GetTempPath(), "Inkvolt Print demo recovery") : Path.Combine(AppState.DataDirectory, "recovery"));
             SessionEnding += (_, _) =>
@@ -162,35 +168,35 @@ public partial class App : Application
         }
 
         // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
-        if (FirstPdf(e.Args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
+        if (FirstPdf(args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
         // InkvoltPrint.exe photo.jpg … ("Open with" on pictures) → Photos for the last-used printer.
-        else if (Pictures(e.Args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
+        else if (Pictures(args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
         // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.
-        if (PresetArg(e.Args) is { } preset && !e.Args.Contains("--snapshot")) _ = _vm.RunPresetWhenReadyAsync(preset);
+        if (PresetArg(args) is { } preset && !args.Contains("--snapshot")) _ = _vm.RunPresetWhenReadyAsync(preset);
         // Then what other launches handed over while this one was starting, in the order they came.
-        var forwarded = _forwardedEarly;
+        var forwardedEarly = _forwardedEarly;
         _forwardedEarly = null;
-        foreach (var args in forwarded ?? []) HandleForwarded(args);
-        if (Array.IndexOf(e.Args, "--autoprint") is var ap and >= 0 && ap + 1 < e.Args.Length)
-            _ = DevAutoPrint.RunAsync(_vm, e.Args[ap + 1],
-                copies: int.TryParse(e.Args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
-                twoSided: e.Args.Contains("--two-sided"));
-        if (e.Args.Contains("--simulate-alerts") && demo && !e.Args.Contains("--snapshot"))
+        foreach (var forwarded in forwardedEarly ?? []) HandleForwarded(forwarded);
+        if (Array.IndexOf(args, "--autoprint") is var ap and >= 0 && ap + 1 < args.Length)
+            _ = DevAutoPrint.RunAsync(_vm, args[ap + 1],
+                copies: int.TryParse(args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
+                twoSided: args.Contains("--two-sided"));
+        if (args.Contains("--simulate-alerts") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
-        if (Array.IndexOf(e.Args, "--snapshot") is var i and >= 0 && i + 1 < e.Args.Length)
-            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, e.Args[i + 1], e.Args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
-                scans: !e.Args.Contains("--scan") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
-                scrollToEnd: e.Args.Contains("--scroll-end"),
-                copy: e.Args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
-                crop: int.TryParse(e.Args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
-                printer: int.TryParse(e.Args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
-                fix: !e.Args.Contains("--fix") ? null
-                    : e.Args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() is { } how && how is "all" or "waiting" or "cancel" ? how : "check",
-                preset: PresetArg(e.Args),
-                then: e.Args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
-                editPresets: !e.Args.Contains("--presets") ? 0 : int.TryParse(e.Args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
-                tray: e.Args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: e.Args.Contains("--simulate-alerts"),
-                args: e.Args);
+        if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
+            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
+                scans: !args.Contains("--scan") ? 0 : int.TryParse(args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
+                scrollToEnd: args.Contains("--scroll-end"),
+                copy: args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
+                crop: int.TryParse(args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
+                printer: int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
+                fix: !args.Contains("--fix") ? null
+                    : args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() is { } how && how is "all" or "waiting" or "cancel" ? how : "check",
+                preset: PresetArg(args),
+                then: args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
+                editPresets: !args.Contains("--presets") ? 0 : int.TryParse(args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
+                tray: args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: args.Contains("--simulate-alerts"),
+                args: args);
         _started = true;
     }
 

@@ -11,10 +11,11 @@ public interface IUserRegistry
 }
 
 /// <summary>
-/// What an installed, unpackaged Inkvolt Print writes to HKCU for Explorer and sign-in: "Open with" ProgIds for PDFs and
-/// pictures, their OpenWithProgids entries, the Applications\InkvoltPrint.exe key, and the Start-with-Windows Run value
-/// (App/ShellIntegration, App/Tray/StartWithWindows). <see cref="Unregister"/> removes exactly that, and only where it
-/// points at the given exe, so uninstalling one copy leaves another copy's entries alone (<c>InkvoltPrint.exe --unregister</c>).
+/// What an installed, unpackaged Inkvolt Print writes to HKCU for Explorer, sign-in and notifications: "Open with" ProgIds
+/// for PDFs and pictures, their OpenWithProgids entries, the Applications\InkvoltPrint.exe key, the Start-with-Windows Run
+/// value and the toast identity (App/ShellIntegration, App/Tray/StartWithWindows, App/Tray/ToastAlerts).
+/// <see cref="Unregister"/> removes exactly that, and only where it points at the given exe, so uninstalling one copy leaves
+/// another copy's entries alone (<c>InkvoltPrint.exe --unregister</c>).
 /// </summary>
 public static class ShellRegistration
 {
@@ -22,6 +23,18 @@ public static class ShellRegistration
     public const string ApplicationKey = @"Software\Classes\Applications\InkvoltPrint.exe";
     public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     public const string RunValue = "Inkvolt Print";
+
+    /// <summary>The Store package's startup task (<c>uap5:StartupTask</c> in packaging/AppxManifest.template.xml): Start with Windows there.</summary>
+    public const string StartupTaskId = "InkvoltPrintTray";
+
+    /// <summary>
+    /// The application user model ID an unpackaged copy sends its toast notifications under, registered at
+    /// <see cref="AppUserModelIdKey"/> (DisplayName, IconUri, and <see cref="AppUserModelIdExeValue"/> naming the copy that
+    /// wrote it) so Windows shows them under the app's name. A packaged copy uses its package's own ID and registers nothing.
+    /// </summary>
+    public const string AppUserModelId = "BermudezSystems.InkvoltPrint";
+    public const string AppUserModelIdKey = $@"Software\Classes\AppUserModelId\{AppUserModelId}";
+    public const string AppUserModelIdExeValue = "InkvoltPrintExe";
 
     public static readonly string[] PdfTypes = [".pdf"];
 
@@ -104,6 +117,11 @@ public static class ShellRegistration
         {
             registry.DeleteValue(RunKey, RunValue);
             removed.Add($@"{RunKey}\{RunValue}");
+        }
+        if (registry.KeyExists(AppUserModelIdKey) && PointsAt(registry.GetString(AppUserModelIdKey, AppUserModelIdExeValue), exePath))
+        {
+            registry.DeleteTree(AppUserModelIdKey);
+            removed.Add(AppUserModelIdKey);
         }
         return removed;
     }

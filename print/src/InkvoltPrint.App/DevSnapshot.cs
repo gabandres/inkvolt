@@ -33,7 +33,8 @@ namespace InkvoltPrint.App;
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
-/// Without <c>--snapshot</c>, <c>--demo --tray --simulate-alerts</c> shows the real notification after the printers connect.
+/// Without <c>--snapshot</c>, <c>--demo --tray --simulate-alerts</c> shows the real notifications after the printers connect (toasts in the
+/// packaged copy, one per printer; balloons from a build in bin\).
 /// </summary>
 internal static class DevSnapshot
 {

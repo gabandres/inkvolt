@@ -109,6 +109,18 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Leader.** The maker apps run at sign-in and show notifications with buttons; our Store package can't start with
   Windows (README: "the manifest's `StartupTask` extension, not built or tried yet"), and alerts are tray balloons, one
   at a time. The Mac has launch at login (`SMAppService`) and `UNUserNotification` alerts (PLAN.md).
+- **Now (built 2026-10-30, Windows).** The manifest template declares the startup task (`InkvoltPrintTray`, `Enabled="false"`);
+  Settings › Notification area and alerts offers Start with Windows in the Store package too (`StartupTask.GetAsync`,
+  `RequestEnableAsync`, `Disable`; the checkbox shows Windows' state and its note names Task Manager or a policy), and the
+  app started by the task reads the StartupTask activation as `--background`. Alerts are WinRT toasts (`Core/Alerts/AlertToasts`
+  writes the XML, `App/Tray/ToastAlerts` sends it): one per printer with Open printer and Pause alerts (one hour) buttons,
+  tag and group so a newer alert replaces the showing one, clicks handled through the toast's Activated event in the packaged
+  and the unpackaged copy (the latter under an AppUserModelId registered in HKCU with the app's name and icon, removed by
+  `--unregister`), a toast clicked after the packaged app exited reopening it on that printer; balloons stay as the fallback
+  (dev builds from bin\, demo mode unpackaged). Tests: `AlertToastTests` (the XML, escaping, grouping, arguments, tag, the
+  manifest's task) and `ShellRegistrationTests` (the identity's removal); `AlertTracker`'s decisions are untouched (AlertTests
+  as they were). **Pending on hardware:** the packaged smoke run seeing the task in Task Manager's Startup apps and a
+  `--simulate-alerts` toast whose button opens the printer (README, "Not done"). Mac: the parity check in the release checklist.
 - **Beat it when:** the Store package offers Start with Windows (`uap5:StartupTask`, off by default,
   `RequestEnableAsync`, the toggle reflecting Windows' own state); alerts are WinRT toasts with Open printer and Pause
   alerts buttons, one per printer, clicks handled in the packaged and the unpackaged copy. Test: `AlertTracker`
