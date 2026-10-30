@@ -129,6 +129,20 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   requested resolution with the engine already used for Print a PDF (`Windows.Data.Pdf`; PDFKit on the Mac), so
   review, crop, straighten, skip-blank, batch split, OCR and presets work unchanged. Test: the demo inkjet's feeder
   set to PDF-only scans a six-page batch identical, page by page, to its JPEG run (same split, same OCR text).
+- **Now (built 2026-10-30, Windows).** `EsclClient` asks a source that offers PDF and no JPEG for `application/pdf` and hands
+  each document's pages over as JPEG (`Core/Escl/ScannerPdf`): a page that is one DCT picture is taken out byte for byte (no
+  re-encoding: the page a JPEG scan gives), anything else is drawn at the scan's resolution by `Windows.Data.Pdf`
+  (`Windows/Printing/ScannedPdfPages`, set at start-up in the app and the CLI); one PDF per page or one per run. Each page
+  remembers its PDF, so a PDF save of untouched pages, all of them in order, writes the scanner's own PDF (`KeepAsSent`), else
+  it is made from the pages and the status line says why (`WhyNotAsSent`); the scan's status line says the scanner sent PDF.
+  Demo mode: the inkjet's feeder offers PDF only, so `--demo --printer 2 --source feeder --split blank --scan --snapshot`
+  shows the batch split, straightened and the note. `FixtureHandler` answers a PDF job with a PDF (the JPEGs embedded as they
+  are; a feeder batch in one). `inkvoltprint scanpdf <file>` shows what the Scan tab gets from a PDF. Tests: `ScannerPdfTests`
+  (13: the PDF-only feeder's six pages byte for byte its JPEG run, so the split, straightening, crop and OCR are the same; the
+  settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
+  taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
+  encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
+  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only; Mac (PDFKit) not started.
 - **Effort** S. Windows and Mac.
 
 ### 1.4 Alerts that survive the Store package

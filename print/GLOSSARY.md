@@ -37,6 +37,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   scanners, the offline fixer's checks and repairs, saved passwords, the browser. Chosen once at start-up: the real PC or
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).
 - **Made-up PC**: demo mode's environment. Nothing it does reaches the network or this PC; nothing prints for real.
+- **PDF-only source** (of a scanner): a glass or feeder whose eSCL capabilities offer PDF and no JPEG. Scanned as PDF, its pages
+  handed over as JPEG like any other scanner's (`ScannerPdf`); a file saved from them untouched is **as sent**: the scanner's own PDF.
 - **Recording** (of a printer): every reply the app reads from one printer, scrubbed, in the fixtures' layout, so the test
   transports (`FixtureHandler`, `SnmpAgent`) serve it as that printer (`Core/Recording/PrinterRecorder`). **Scrubbing** gives
   each identifier a stand-in of the same shape, the same one everywhere (`FixtureScrubber`); Report a problem's masks

@@ -12,6 +12,7 @@ var host = args.ElementAtOrDefault(1);
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 var ct = cts.Token;
+InkvoltPrint.Core.Escl.ScannerPdf.Renderer = new InkvoltPrint.Windows.Printing.ScannedPdfPages(); // PDF-only scanners, as the app
 
 switch (cmd)
 {
@@ -62,6 +63,21 @@ switch (cmd)
             Console.WriteLine($"thumb bytes={thumb.Image.Length}");
             var full = await pdf.RenderAsync(2, dpi: 300);
             Console.WriteLine($"page2 300dpi bytes={full.Image.Length} {full.WidthInches}x{full.HeightInches}");
+        }
+        break;
+    case "scanpdf" when host is not null:
+        {
+            // Offline: a scanner's PDF as the Scan tab gets it (pictures taken out as they are, else drawn by Windows' PDF engine).
+            var bytes = await File.ReadAllBytesAsync(host, ct);
+            var dpiArg = int.TryParse(Opt("--dpi"), out var sd) ? sd : 300;
+            var sw = Stopwatch.StartNew();
+            var pages = await InkvoltPrint.Core.Escl.ScannerPdf.PagesAsync(bytes, dpiArg, ct);
+            foreach (var (page, n) in pages.Select((p, i) => (p, i + 1)))
+            {
+                var (w, h, comps) = PdfWriter.JpegInfo(page);
+                Console.WriteLine($"page {n}: {w}x{h}, {comps} channel(s), {page.Length} bytes, {(InkvoltPrint.Core.Escl.ScannerPdf.OriginOf(page)!.Rendered ? $"drawn at {dpiArg} dpi" : "taken out as it is")}");
+            }
+            Console.WriteLine($"{pages.Count} pages in {sw.ElapsedMilliseconds} ms");
         }
         break;
     case "pdfbench" when host is not null:
@@ -145,6 +161,7 @@ switch (cmd)
                                                            (read-only: every reply the app reads, scrubbed, as test fixtures)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
+            inkvoltprint scanpdf <in.pdf> [--dpi 300]      (offline: a scanner's PDF as the Scan tab takes its pages)
             inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)
             """);
         break;

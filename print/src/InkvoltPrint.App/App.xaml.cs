@@ -87,6 +87,8 @@ public partial class App : Application
 
         SettingsViewModel.AskPassword = (printer, rejected, fingerprint) => PasswordDialog.AskAdmin(MainWindow, printer, rejected, fingerprint);
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
+        // Scanners that send only PDF: pages that aren't one JPEG picture are drawn by Windows' PDF engine (roadmap 1.3).
+        Core.Escl.ScannerPdf.Renderer = new InkvoltPrint.Windows.Printing.ScannedPdfPages();
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
         Prompt.EditPresets = (presets, printer) => ScanPresetsDialog.Open(MainWindow, presets, printer);

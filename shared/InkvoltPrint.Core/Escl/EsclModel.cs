@@ -17,6 +17,9 @@ public sealed record InputCaps(
 
     /// <summary>Inkvolt asks for JPEG pages; a source listing formats without JPEG can't be scanned from.</summary>
     public bool OffersJpeg => DocumentFormats.Count == 0 || DocumentFormats.Contains("image/jpeg", StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>PDF and no JPEG (some feeders): scanned as PDF, its pages taken out as JPEG (<see cref="ScannerPdf"/>).</summary>
+    public bool PdfOnly => !OffersJpeg && DocumentFormats.Contains(ScannerPdf.MediaType, StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record ScannerCapabilities(
@@ -189,14 +192,16 @@ public static class EsclXml
     public static readonly XNamespace Scan = "http://schemas.hp.com/imaging/escl/2011/05/03";
     public static readonly XNamespace Pwg = "http://www.pwg.org/schemas/2010/12/sm";
 
-    /// <summary>Always requests JPEG pages; PDF assembly and OCR happen locally so every page can be previewed.</summary>
-    public static XDocument BuildScanSettings(ScanRequest req, ScannerCapabilities caps)
+    /// <summary>
+    /// Requests JPEG pages (PDF assembly and OCR happen locally so every page can be previewed), or PDF from a source that
+    /// offers nothing else (<paramref name="format"/>: <see cref="ScannerPdf.MediaType"/>; its pages are taken out as JPEG).
+    /// </summary>
+    public static XDocument BuildScanSettings(ScanRequest req, ScannerCapabilities caps, string format = "image/jpeg")
     {
         var input = caps.For(req.Source) ?? throw new InvalidOperationException($"Scanner has no {req.Source} source");
         var width = Math.Clamp(req.Width ?? input.MaxWidth, input.MinWidth, input.MaxWidth);
         var height = Math.Clamp(req.Height ?? input.MaxHeight, input.MinHeight, input.MaxHeight);
-        var res = input.Resolutions.Count == 0 ? req.Resolution
-            : input.Resolutions.MinBy(r => Math.Abs(r - req.Resolution));
+        var res = Resolution(req, input);
         var color = req.Color == ScanColor.Color ? "RGB24" : "Grayscale8";
         // A missing mode falls back to the other of color/grey before black-and-white (which loses too much for OCR).
         if (input.ColorModes.Count > 0 && !input.ColorModes.Contains(color))
@@ -221,9 +226,13 @@ public static class EsclXml
             new XElement(Scan + "ColorMode", color),
             new XElement(Scan + "XResolution", res),
             new XElement(Scan + "YResolution", res),
-            new XElement(Pwg + "DocumentFormat", "image/jpeg"));
-        if (input.HasDocumentFormatExt) settings.Add(new XElement(Scan + "DocumentFormatExt", "image/jpeg"));
+            new XElement(Pwg + "DocumentFormat", format));
+        if (input.HasDocumentFormatExt) settings.Add(new XElement(Scan + "DocumentFormatExt", format));
         if (req.Source == ScanSource.AdfDuplex) settings.Add(new XElement(Scan + "Duplex", true));
         return new XDocument(new XDeclaration("1.0", "UTF-8", null), settings);
     }
+
+    /// <summary>The resolution a scan asks for: the source's closest to the request's.</summary>
+    public static int Resolution(ScanRequest req, InputCaps input) =>
+        input.Resolutions.Count == 0 ? req.Resolution : input.Resolutions.MinBy(r => Math.Abs(r - req.Resolution));
 }

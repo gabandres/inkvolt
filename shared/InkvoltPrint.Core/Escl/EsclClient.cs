@@ -35,17 +35,20 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
 
     /// <summary>
     /// Runs one scan job and yields each page as JPEG bytes. Platen jobs return one page; feeder jobs
-    /// return pages until the device answers 404 (feeder empty). Cancelling deletes the job on the device.
+    /// return pages until the device answers 404 (feeder empty). Cancelling deletes the job on the device. A source that sends
+    /// only PDF is scanned as PDF and each document's pages handed over as JPEG (<see cref="ScannerPdf.PagesAsync"/>).
     /// </summary>
     public async IAsyncEnumerable<byte[]> ScanAsync(ScanRequest request, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var caps = await GetCapabilitiesAsync(ct).ConfigureAwait(false) ?? throw new InvalidOperationException("Not an eSCL scanner");
-        if (caps.For(request.Source) is { OffersJpeg: false })
-            throw new ScanException("This scanner doesn't send JPEG pages from this source, which Inkvolt Print needs.");
+        var input = caps.For(request.Source);
+        var pdf = input is { PdfOnly: true };
+        if (input is { OffersJpeg: false } && !pdf)
+            throw new ScanException("This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs.");
         var status = await GetStatusAsync(ct).ConfigureAwait(false);
         if (status.Problem(feeder: request.Source != ScanSource.Platen) is { } problem) throw new ScanException(problem);
 
-        var job = await CreateJobAsync(EsclXml.BuildScanSettings(request, caps), ct).ConfigureAwait(false);
+        var job = await CreateJobAsync(EsclXml.BuildScanSettings(request, caps, pdf ? ScannerPdf.MediaType : "image/jpeg"), ct).ConfigureAwait(false);
         var done = false;
         try
         {
@@ -57,7 +60,11 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
                 var bytes = await NextDocumentAsync(job, ct).ConfigureAwait(false);
                 lastLoad = System.Diagnostics.Stopwatch.GetElapsedTime(started);
                 if (bytes is null) break;
-                yield return JpegFix.PatchZeroHeight(bytes);
+                if (pdf)
+                    // One PDF per page, or the whole feeder run in one: either way, its pages in order.
+                    foreach (var jpeg in await ScannerPdf.PagesAsync(bytes, EsclXml.Resolution(request, input!), ct).ConfigureAwait(false))
+                        yield return jpeg;
+                else yield return JpegFix.PatchZeroHeight(bytes);
                 if (request.Source == ScanSource.Platen) break;
             }
             done = true;

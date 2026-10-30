@@ -11,7 +11,9 @@ namespace InkvoltPrint.Core.Net;
 /// <c>/eSCL/ScannerCapabilities</c> → <c>eSCL_ScannerCapabilities.xml</c>. An IPP Get-Printer-Attributes request to
 /// <c>/ipp/print</c> is answered from <c>ipp_print.ipp.txt</c> (<see cref="Ipp.IppText"/>), and so is Identify-Printer when
 /// that document lists it. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a document is 404 (so IPP
-/// and product images are simply "not supported").
+/// and product images are simply "not supported"). A scan job that asks for <c>application/pdf</c> (a scanner whose
+/// capabilities offer only PDF from a source) gets its pages as a PDF, the JPEGs embedded as they are: one PDF per glass page,
+/// the whole feeder batch in one PDF, as many feeders send it.
 /// </summary>
 /// <param name="document">Document name → bytes, or null when there is none.</param>
 /// <param name="scanPage">JPEG returned for each eSCL scan job (one page); null: scanning fails with 404.</param>
@@ -27,6 +29,8 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
     private const string JobPath = "/eSCL/ScanJobs/demo-1";
     private int _pagesLeft;
     private (int Width, int Height) _area = (2550, 3300);
+    private bool _pdf;
+    private int _dpi = 300;
     private readonly Queue<byte[]> _batch = new();
 
     private bool CanScan => scanPage is not null || scanArea is not null;
@@ -59,6 +63,8 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
         {
             var settings = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             if (settings.Length > 0) _area = Region(settings, _area);
+            _pdf = settings.Contains(">application/pdf<", StringComparison.Ordinal);
+            _dpi = System.Text.RegularExpressions.Regex.Match(settings, @"XResolution>(\d+)<") is { Success: true } r ? int.Parse(r.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 300;
             var pages = settings.Contains(">Feeder<", StringComparison.Ordinal) ? feederBatch?.Invoke() : null;
             bool batch;
             lock (_batch)
@@ -75,10 +81,16 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
         if (request.Method == HttpMethod.Get && path == JobPath + "/NextDocument")
         {
             lock (_batch)
-                if (_batch.Count > 0) return Reply(request, HttpStatusCode.OK, _batch.Dequeue(), "image/jpeg");
-            return CanScan && Interlocked.Exchange(ref _pagesLeft, 0) == 1
-                ? Reply(request, HttpStatusCode.OK, scanArea?.Invoke(_area.Width, _area.Height) ?? scanPage!(), "image/jpeg")
-                : Reply(request, HttpStatusCode.NotFound);
+                if (_batch.Count > 0)
+                {
+                    if (!_pdf) return Reply(request, HttpStatusCode.OK, _batch.Dequeue(), "image/jpeg");
+                    var all = _batch.ToList();
+                    _batch.Clear();
+                    return Reply(request, HttpStatusCode.OK, Pdf(all), Escl.ScannerPdf.MediaType);
+                }
+            if (!CanScan || Interlocked.Exchange(ref _pagesLeft, 0) != 1) return Reply(request, HttpStatusCode.NotFound);
+            var page = scanArea?.Invoke(_area.Width, _area.Height) ?? scanPage!();
+            return _pdf ? Reply(request, HttpStatusCode.OK, Pdf([page]), Escl.ScannerPdf.MediaType) : Reply(request, HttpStatusCode.OK, page, "image/jpeg");
         }
         if (request.Method == HttpMethod.Post && request.Content?.Headers.ContentType?.MediaType == "application/ipp")
         {
@@ -109,6 +121,14 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
             return ok;
         }
         return Reply(request, HttpStatusCode.NotFound);
+    }
+
+    /// <summary>JPEG pages as a scanner's PDF: each embedded as it is, at the job's resolution.</summary>
+    private byte[] Pdf(IReadOnlyList<byte[]> pages)
+    {
+        using var ms = new MemoryStream();
+        Core.Pdf.PdfWriter.Write(ms, [.. pages.Select(p => new Core.Pdf.PdfPage(p, _dpi))], "Scan");
+        return ms.ToArray();
     }
 
     /// <summary>The ScanSettings' region (Width, Height); the previous one if it can't be read.</summary>

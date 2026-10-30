@@ -125,12 +125,29 @@ internal static class Demo
     public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>
     {
         [FixtureHandler.DemoHost] = new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan),
-        [InkjetHost] = new FixtureHandler(name => Document(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
+        [InkjetHost] = new FixtureHandler(name => InkjetDocument(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
         // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
         [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),
         // A newer HP model: status, supplies and identity over CDM only (no LEDM, no IPP or eSCL fixtures).
         [CdmHost] = new FixtureHandler(name => Document(CdmPrefix + name)),
     });
+
+    /// <summary>
+    /// The inkjet's documents, its feeder sending PDF only (roadmap 1.3: some feeders offer nothing else): the review shows the
+    /// pictures taken out of each PDF, and a preset saving PDF without changes keeps the scanner's own.
+    /// </summary>
+    private static byte[]? InkjetDocument(string resource) => Document(resource) is not { } bytes ? null
+        : resource.EndsWith("ScannerCapabilities.xml", StringComparison.Ordinal) ? FeederPdfOnly(bytes) : bytes;
+
+    /// <summary>The capabilities with JPEG taken out of the named "feeder" profile (the part before the glass's).</summary>
+    internal static byte[] FeederPdfOnly(byte[] capabilities)
+    {
+        var text = System.Text.Encoding.UTF8.GetString(capabilities);
+        var glass = text.IndexOf("<scan:Platen>", StringComparison.Ordinal);
+        var feeder = System.Text.RegularExpressions.Regex.Replace(text[..glass],
+            @"\s*<(pwg:DocumentFormat|scan:DocumentFormatExt)>image/jpeg</\1>", "");
+        return System.Text.Encoding.UTF8.GetBytes(feeder + text[glass..]);
+    }
 
     private static byte[]? OfficeDocument(string resource) => Document(resource) is not { } bytes ? null
         : resource.EndsWith("ProductConfigDyn.xml", StringComparison.Ordinal) || resource.EndsWith("ScannerCapabilities.xml", StringComparison.Ordinal)

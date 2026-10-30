@@ -18,6 +18,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - The Scan settings' captions stay clear of the scrollbar, as does What's New's text.
 - Links and the scan review's page buttons (turn, crop, delete) are easier to hit (at least 24 px) and show a focus ring when reached with Tab.
 - Add a printer's address box shows an example until you type.
+- Scanners that only send PDF from the feeder now scan like the others: the pages show up for review, and turning, cropping, straightening, skipping blank pages, splitting into files, text recognition and presets all work. Saved as PDF without changes, the file is exactly the PDF the scanner sent.
 - For anyone helping test printers: `inkvoltprint record <address> <folder>` saves everything Inkvolt Print reads from a printer, with serial numbers, addresses and names taken out, so your printer's quirks can become part of Inkvolt Print's tests. It only reads; nothing on the printer changes.
 
 ## 1.0.8

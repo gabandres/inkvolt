@@ -673,6 +673,7 @@ public sealed partial class ScanViewModel : ObservableObject
                 straightened == 0 ? "" : straightened == 1 ? "1 page was straightened." : $"{straightened} pages were straightened.",
                 request.Source == ScanSource.AdfDuplex && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
                     ? "Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better." : "",
+                PdfNote(added, request),
             }.Concat(job.Notes).Where(n => n.Length > 0));
             Message = added.Count == 0
                 ? "The scanner returned no pages."
@@ -937,20 +938,24 @@ public sealed partial class ScanViewModel : ObservableObject
                         foreach (var image in await page.ImagesAsync()) await File.WriteAllBytesAsync(targets[n][k++], image);
                     continue;
                 }
-                var pages = await PdfPagesAsync(files[n]);
+                var asSent = ScannerPdf.KeepAsSent(ToSave(files[n]));
+                var pages = asSent is null ? await PdfPagesAsync(files[n]) : null;
                 var target = targets[n][0];
                 var title = Path.GetFileNameWithoutExtension(target);
                 await Task.Run(() =>
                 {
                     var tmp = target + ".partial";
-                    using (var fs = File.Create(tmp)) PdfWriter.Write(fs, pages, title);
+                    using (var fs = File.Create(tmp))
+                        if (asSent is not null) fs.Write(asSent); // the scanner's own PDF, as it sent it
+                        else PdfWriter.Write(fs, pages!, title);
                     File.Move(tmp, target, overwrite: true); // never leave a half-written PDF behind
                 });
             }
             LastSavedPath = all[0];
             _savedPdfs = jpg ? [] : all;
             MarkSaved(changes);
-            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}.";
+            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}."
+                      + (jpg ? "" : AsSentNote(files));
             RatingRequest.NoteSuccess(_state);
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
@@ -963,6 +968,30 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>What <see cref="ScannerPdf.KeepAsSent"/> needs to know of a file's pages: where each came from, and whether it changed.</summary>
+    private static List<PageToSave> ToSave(List<ScanPageViewModel> file) =>
+        [.. file.Select(p => new PageToSave(p.FromPdf, p.IsEdited || p.HasPhotos || p.Ocr))];
+
+    /// <summary>After a PDF save from a scanner that sends PDF: whether the files are its own PDF, and if not, why.</summary>
+    private static string AsSentNote(List<List<ScanPageViewModel>> files)
+    {
+        var plans = files.Select(ToSave).Where(f => f.Any(p => p.Origin is not null)).ToList();
+        if (plans.Count == 0) return "";
+        if (plans.All(f => ScannerPdf.KeepAsSent(f) is not null))
+            return plans.Count == 1 ? " It is the scanner's own PDF, as it sent it." : " They are the scanner's own PDFs, as it sent them.";
+        return " " + plans.Select(ScannerPdf.WhyNotAsSent).OfType<string>().First();
+    }
+
+    /// <summary>After a scan from a source that sends only PDF: what that means, in words.</summary>
+    private static string PdfNote(List<ScanPageViewModel> added, ScanRequest request)
+    {
+        if (added.FirstOrDefault(p => p.FromPdf is not null)?.FromPdf is not { } origin) return "";
+        var from = request.Source == ScanSource.Platen ? "the glass" : "the feeder";
+        return origin.Rendered
+            ? $"This scanner sends PDF from {from}: its pages were drawn as pictures at {request.Resolution} dpi for the review."
+            : $"This scanner sends PDF from {from}: its pictures were taken out as they came, so the review, text recognition and presets work as usual.";
     }
 
     /// <summary>The PDF's pages: each page with its text layer, or for a scan of photos on the glass, each photo (no text).</summary>
@@ -1149,7 +1178,9 @@ public sealed partial class ScanViewModel : ObservableObject
                 folder ??= into;
                 Directory.CreateDirectory(into);
                 var stem = FileNameTemplate.FileName(preset.FileName, ctx);
-                List<string> written = jpg ? await WriteImagesAsync(file, into, stem) : [await WritePdfAsync(await PdfPagesAsync(file), into, stem)];
+                var asSent = jpg ? null : ScannerPdf.KeepAsSent(ToSave(file));
+                List<string> written = jpg ? await WriteImagesAsync(file, into, stem)
+                    : [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem)];
                 _savedParts.Add(file, written);
                 saved.AddRange(written);
                 done++;
@@ -1164,6 +1195,7 @@ public sealed partial class ScanViewModel : ObservableObject
             Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")}"
                 + $"{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")} in {folder}."
                 + (before.Count == 0 ? "" : $" Already saved the first time, not written again: {string.Join(", ", before.Select(Path.GetFileName))}.")
+                + (jpg ? "" : AsSentNote(files))
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
             RatingRequest.NoteSuccess(_state);
@@ -1202,13 +1234,18 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     }
 
-    /// <summary>Writes the PDF next to its final name, then moves it there only if that name is still free (else the next one).</summary>
-    private static Task<string> WritePdfAsync(List<PdfPage> pages, string folder, string stem) => Task.Run(() =>
+    /// <summary>
+    /// Writes the PDF next to its final name, then moves it there only if that name is still free (else the next one): made from
+    /// <paramref name="pages"/>, or the scanner's own PDF <paramref name="asSent"/> as it is.
+    /// </summary>
+    private static Task<string> WritePdfAsync(List<PdfPage>? pages, byte[]? asSent, string folder, string stem) => Task.Run(() =>
     {
         var tmp = TempName(folder);
         try
         {
-            using (var fs = File.Create(tmp)) PdfWriter.Write(fs, pages, stem);
+            using (var fs = File.Create(tmp))
+                if (asSent is not null) fs.Write(asSent);
+                else PdfWriter.Write(fs, pages!, stem);
             return FileNameTemplate.PlaceSet([tmp], folder, stem, ".pdf", File.Exists, TryMove)[0];
         }
         finally
@@ -1329,6 +1366,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
         Original = jpeg;
         Dpi = dpi;
         _ocr = ocr;
+        FromPdf = ScannerPdf.OriginOf(jpeg);
         try
         {
             var (w, h, _) = PdfWriter.JpegInfo(jpeg);
@@ -1343,6 +1381,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     public byte[] Original { get; }
     public int Dpi { get; }
+
+    /// <summary>The scanner's PDF this page came out of (a scanner that sends only PDF), or null for a JPEG page.</summary>
+    public PdfOrigin? FromPdf { get; }
 
     /// <summary>Gets an OCR text layer when saved as PDF.</summary>
     public bool Ocr => _ocr;
