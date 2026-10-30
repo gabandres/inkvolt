@@ -69,8 +69,10 @@ there are business users.
 the one check every Pro feature asks (presets, watched folders, the command line); behind it the licence is real: a key
 `INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
 signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
-the public key in Core, kept in the settings, entered and removed in Help › Inkvolt Pro…, issued with `pdf/tools/pro-key`
-(the private key stays off the repo). **Enforcement is off**: `Pro.Enforced` in `Pro.cs` is false, so everyone gets
+the public key in the suite's shared library (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProCheck`, `ProKeyFile`, moved there
+the same day for Inkvolt Print's 1.6, so one key licenses both apps), kept in `%LOCALAPPDATA%\Inkvolt\pro-key.txt` where
+both apps read it, entered and removed in Help › Inkvolt Pro…, issued with `pdf/tools/pro-key`
+(the private key stays off the repo). **Enforcement is off**: `ProCheck.Enforced` (Core's `Pro.Enforced`) is false, so everyone gets
 everything while Inkvolt PDF launches; a key is still verified and shown, and buying is presented as supporting the
 project or as a licence a business can invoice. It flips on, in a release noted in WHATS-NEW, once Inkvolt PDF has a
 few thousand installs or about 50 Store ratings; from then on a locked feature shows what it does and a button to the

@@ -99,6 +99,21 @@ public class ShellRegistrationTests
     public void Nothing_registered_nothing_removed() => Assert.Empty(ShellRegistration.Unregister(new FakeRegistry(), Exe));
 
     [Fact]
+    public void The_toast_identity_goes_with_the_copy_that_wrote_it_and_stays_for_another()
+    {
+        var r = new FakeRegistry();
+        r.Set(ShellRegistration.AppUserModelIdKey, "DisplayName", "Inkvolt Print");
+        r.Set(ShellRegistration.AppUserModelIdKey, "IconUri", @"C:\Users\someone\AppData\Local\InkvoltPrint\InkvoltPrint.ico");
+        r.Set(ShellRegistration.AppUserModelIdKey, ShellRegistration.AppUserModelIdExeValue, OtherExe);
+        Assert.Empty(ShellRegistration.Unregister(r, Exe));
+        Assert.True(r.KeyExists(ShellRegistration.AppUserModelIdKey));
+
+        r.Set(ShellRegistration.AppUserModelIdKey, ShellRegistration.AppUserModelIdExeValue, Exe);
+        Assert.Equal([ShellRegistration.AppUserModelIdKey], ShellRegistration.Unregister(r, Exe));
+        Assert.False(r.KeyExists(ShellRegistration.AppUserModelIdKey));
+    }
+
+    [Fact]
     public void Matching_ignores_case_and_slashes() =>
         Assert.True(ShellRegistration.PointsAt($"\"{Exe.ToUpperInvariant().Replace('\\', '/')}\" --background", Exe));
 

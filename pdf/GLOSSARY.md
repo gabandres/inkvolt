@@ -50,8 +50,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Form data file** (`Core/FormDataFiles.cs`): a form's values outside it, as XFDF, FDF, CSV (one row) or JSON.
 - **Merge** (`Core/FormMerge.cs`): Fill Forms from CSV: one filled copy of a form per CSV row, rows with refused values
   reported instead of saved.
-- **Pro check** (`Core/Pro.cs`): `Pro.Allows(feature)`, the one place a Pro feature asks whether it may run: yes with a
-  **licence** (a signed key, `ProKeys`, kept in the settings and verified on the PC), and yes for everyone while
-  `Pro.Enforced` is off (the launch period).
+- **Pro check** (`Core/Pro.cs`, on the suite's `ProCheck` in `InkvoltPrint.Core/Suite`): `Pro.Allows(feature)`, the one
+  place a Pro feature asks whether it may run: yes with a **licence** (a signed key, `ProKeys`, kept in the file both
+  Inkvolt apps read and verified on the PC), and yes for everyone while `Pro.Enforced` is off (the launch period).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

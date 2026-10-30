@@ -21,6 +21,8 @@
             <Button Content="Report a problem…" Click="Report_Click" Margin="0,0,8,8"
                     ToolTip="Copy the details a report needs, then open a GitHub issue to paste them in. Nothing is sent by Inkvolt Print." />
             <Button Content="Open log folder" Click="LogFolder_Click" Margin="0,0,8,8" />
+            <Button Content="Inkvolt Pro…" Click="Pro_Click" Margin="0,0,8,8"
+                    ToolTip="Enter or remove an Inkvolt Pro licence key (one key for Inkvolt Print and Inkvolt PDF). Everything is free while the apps launch." />
         </WrapPanel>
         <Button Content="Close" IsCancel="True" IsDefault="True" MinWidth="96" HorizontalAlignment="Right" Margin="0,12,0,0"
                 Style="{DynamicResource AccentButtonStyle}" />

@@ -4,5 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPrint.Tests" />
+    <!-- Suite/ProCheck.Enforced (the Pro gate) is flipped by each app's Pro, its tests and its dev aids; ProKeys' encoding helpers by the tests -->
+    <InternalsVisibleTo Include="InkvoltPrint" />
+    <InternalsVisibleTo Include="InkvoltPdf.Core" />
+    <InternalsVisibleTo Include="InkvoltPdf.Tests" />
   </ItemGroup>
 </Project>

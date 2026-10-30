@@ -21,7 +21,9 @@ namespace InkvoltPrint.App.Tray;
 /// live connections stop (<see cref="PrinterViewModel.Suspend"/>) and each printer is read every 5 minutes instead (15 on
 /// battery or a metered network, backing off to an hour from one that doesn't answer; nothing at all with no printers or no
 /// network), with the same read-only status calls as the window. Whichever reads a printer, the window or these checks,
-/// feeds the <see cref="AlertTracker"/>, whose alerts go out as the icon's notifications; clicking one opens that printer.
+/// feeds the <see cref="AlertTracker"/>, whose alerts go out as toast notifications, one per printer with Open printer and
+/// Pause alerts buttons (<see cref="ToastAlerts"/>), or where those aren't available as the icon's balloons; clicking one
+/// opens that printer.
 /// </summary>
 public sealed class TrayController : IDisposable
 {
@@ -34,6 +36,8 @@ public sealed class TrayController : IDisposable
     private readonly HashSet<PrinterViewModel> _watched = [];
     private readonly Dictionary<string, (DateTimeOffset Due, int Failures, DateTimeOffset Checked)> _schedule = new(StringComparer.OrdinalIgnoreCase);
     private NotifyIcon? _icon;
+    private ToastAlerts? _toasts;
+    private bool _toastsTried;
     private CancellationTokenSource? _poll, _wake;
     private string? _noticeUuid, _savedShown;
     private bool _hidden, _powerEvents, _alertsOn;
@@ -107,6 +111,12 @@ public sealed class TrayController : IDisposable
                 _icon.Activated += () => ShowWindow();
                 _icon.MenuRequested += OpenMenu;
                 _icon.BalloonClicked += () => { if (_noticeUuid is { } uuid) OpenPrinter(uuid); else ShowWindow(); };
+            }
+            if (!_toastsTried)
+            {
+                _toastsTried = true;
+                _toasts = ToastAlerts.TryCreate(IsDemo, HandleToast);
+                Log.Write(_toasts is null ? "Alerts go out as the icon's balloons" : "Alerts go out as toast notifications");
             }
             _timer.Start();
             if (!_powerEvents)
@@ -204,8 +214,10 @@ public sealed class TrayController : IDisposable
             LastNotices = notices;
             var (title, text) = NoticeText(notices);
             _noticeUuid = notices[0].Uuid;
-            _icon.Notify(title, text, IconFor(notices.Max(n => n.Level)));
-            Log.Write($"Alert shown: {string.Join(", ", notices.Select(n => n.Kind))}"); // kinds only, no names or addresses
+            // One toast per printer; a balloon for all of them where toasts aren't available (Windows shows one balloon at a time).
+            var toasted = _toasts is not null && AlertToasts.PerPrinter(notices).All(_toasts.Show);
+            if (!toasted) _icon.Notify(title, text, IconFor(notices.Max(n => n.Level)));
+            Log.Write($"Alert shown ({(toasted ? "toast" : "balloon")}): {string.Join(", ", notices.Select(n => n.Kind))}"); // kinds only, no names or addresses
             Prompt.Announce(title);
         }
         UpdateIcon();
@@ -220,11 +232,29 @@ public sealed class TrayController : IDisposable
 
     private string ShownText() => JsonSerializer.Serialize(_tracker.Shown().OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase));
 
-    /// <summary>One alert: its own title and text. Several at once (Windows shows one notification at a time): a line each.</summary>
+    /// <summary>A balloon's text. One alert: its own title and text. Several at once (Windows shows one balloon at a time): a line each.</summary>
     public static (string Title, string Text) NoticeText(IReadOnlyList<AlertNotice> notices) =>
         notices.Count == 1
             ? (notices[0].Title, notices[0].Body)
             : ($"{notices.Count} printer alerts", string.Join("\n", notices.Select(n => $"{n.PrinterName}: {n.Title}")));
+
+    /// <summary>A toast's body or button was clicked (also a toast clicked after the packaged app exited, at its next start).</summary>
+    public void HandleToast(string? arguments)
+    {
+        switch (AlertToasts.ParseArguments(arguments))
+        {
+            case (ToastAction.OpenPrinter, var uuid):
+                OpenPrinter(uuid);
+                break;
+            case (ToastAction.PauseAlerts, _):
+                Pause(AlertToasts.PauseFor);
+                Log.Write("Alerts paused from a notification");
+                break;
+            default:
+                ShowWindow();
+                break;
+        }
+    }
 
     private static string IconFor(AlertLevel level) => level switch
     {
@@ -267,7 +297,7 @@ public sealed class TrayController : IDisposable
             _tracker.Observe(new PrinterSnapshot(inkjet.Uuid, inkjet.Name, true, jam, supplies), now.AddMinutes(-2));
             notices.AddRange(_tracker.Observe(new PrinterSnapshot(inkjet.Uuid, inkjet.Name, true, jam, supplies), now));
         }
-        Show(notices); // read at the same moment: one notification for both, as Windows shows one at a time
+        Show(notices); // read at the same moment: a toast per printer, or one balloon for both
     }
 
     // ---------------------------------------------------------------- pause

@@ -54,9 +54,10 @@ would do and where to get Pro, and never takes away a result already made.
 | 3.4 Job notifications | All of it | |
 | 3.5 Open in Inkvolt PDF on the Mac | All of it | |
 
-The seam: Inkvolt PDF's `Pro.Allows(feature)` (`pdf/src/InkvoltPdf.Core/Pro.cs`, today always yes) moves to
-`InkvoltPrint.Core/Suite` with 1.6, so both apps ask one check and read one key; Inkvolt Print's Pro features ask it
-and nowhere else.
+The seam (built with 1.6): the key format, its verification, the gate and the store are `ProKeys`, `ProCheck` and
+`ProKeyFile` in `InkvoltPrint.Core/Suite`; each app's `Pro.Allows(feature)` (`InkvoltPrint.Core/Pro.cs`,
+`InkvoltPdf.Core/Pro.cs`) sits on one `ProCheck` for its product, so both apps ask one check and read one key
+(`%LOCALAPPDATA%\Inkvolt\pro-key.txt`); Inkvolt Print's Pro features ask it and nowhere else.
 
 ## Wave 1 (next)
 
@@ -108,6 +109,18 @@ and nowhere else.
 - **Leader.** The maker apps run at sign-in and show notifications with buttons; our Store package can't start with
   Windows (README: "the manifest's `StartupTask` extension, not built or tried yet"), and alerts are tray balloons, one
   at a time. The Mac has launch at login (`SMAppService`) and `UNUserNotification` alerts (PLAN.md).
+- **Now (built 2026-10-30, Windows).** The manifest template declares the startup task (`InkvoltPrintTray`, `Enabled="false"`);
+  Settings › Notification area and alerts offers Start with Windows in the Store package too (`StartupTask.GetAsync`,
+  `RequestEnableAsync`, `Disable`; the checkbox shows Windows' state and its note names Task Manager or a policy), and the
+  app started by the task reads the StartupTask activation as `--background`. Alerts are WinRT toasts (`Core/Alerts/AlertToasts`
+  writes the XML, `App/Tray/ToastAlerts` sends it): one per printer with Open printer and Pause alerts (one hour) buttons,
+  tag and group so a newer alert replaces the showing one, clicks handled through the toast's Activated event in the packaged
+  and the unpackaged copy (the latter under an AppUserModelId registered in HKCU with the app's name and icon, removed by
+  `--unregister`), a toast clicked after the packaged app exited reopening it on that printer; balloons stay as the fallback
+  (dev builds from bin\, demo mode unpackaged). Tests: `AlertToastTests` (the XML, escaping, grouping, arguments, tag, the
+  manifest's task) and `ShellRegistrationTests` (the identity's removal); `AlertTracker`'s decisions are untouched (AlertTests
+  as they were). **Pending on hardware:** the packaged smoke run seeing the task in Task Manager's Startup apps and a
+  `--simulate-alerts` toast whose button opens the printer (README, "Not done"). Mac: the parity check in the release checklist.
 - **Beat it when:** the Store package offers Start with Windows (`uap5:StartupTask`, off by default,
   `RequestEnableAsync`, the toggle reflecting Windows' own state); alerts are WinRT toasts with Open printer and Pause
   alerts buttons, one per printer, clicks handled in the packaged and the unpackaged copy. Test: `AlertTracker`
@@ -136,8 +149,19 @@ and nowhere else.
 
 ### 1.6 The Pro key
 - **Why.** Every Pro item below needs it. Inkvolt PDF has the key format, the check and the window since 2026-10-30
-  (`pdf/src/InkvoltPdf.Core/Pro.cs`, `pdf/tools/pro-key`; `products` in the key already names `print`); what's left is
-  moving the check where both apps read it.
+  (`pdf/tools/pro-key`; `products` in the key already names `print`); what was left was moving the check where both
+  apps read it.
+- **Now (built 2026-10-30, Windows).** The key format and verification (`ProKeys`), the check with the gate
+  (`ProCheck`, `Enforced` off while the apps launch) and the key's home (`ProKeyFile`: `%LOCALAPPDATA%\Inkvolt\pro-key.txt`,
+  a Store copy's redirected package folder looked in too) live in `InkvoltPrint.Core/Suite`; Inkvolt PDF's `Pro` sits on
+  them unchanged for its callers (its 17 ProTests pass as they were), Inkvolt Print has its own `Pro` and `ProFeature`
+  (`InkvoltPrint.Core/Pro.cs`: the Pro items below, all allowed while the gate is off) and Help › Inkvolt Pro… with the
+  same two copy states; a key's `products` decide which app it licenses, a print-only key is refused by Inkvolt PDF in
+  plain words and the other way round. `pdf/tools/pro-key` references the shared library. Tests (`ProTests` in
+  `print/tests`, 12): the vector against the built-in key, every changed character refused, a test pair's key passes and
+  another pair's fails, the products, the gate, a key installed by one app's check found by the other's, a settings key
+  moved into the file, a packaged copy's redirected file, the newest copy winning. Pending on hardware: the Store copies
+  of both apps sharing one key (README, "Not done"). Mac: not started.
 - **Beat it when:** `Pro` lives in `InkvoltPrint.Core/Suite` (both apps reference it); a key is a short text (name,
   issue date, ECDSA P-256 signature; Inkvolt PDF's format) pasted or opened from a file, checked against the public key in the app, stored per
   user and found by both apps; a wrong or altered key says which; no network call exists in the code path. Test: keys

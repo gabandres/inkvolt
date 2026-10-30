@@ -64,6 +64,12 @@ sizes, store logo, splash screen; the same set as Inkvolt PDF's minus its PDF fi
   entries, the same ones the unpackaged app registers in HKCU (`src/InkvoltPrint.App/ShellIntegration.cs`). Inkvolt Print opens
   a PDF in its Print tab and pictures in its Photos tab. It never becomes the default app for either unless the user picks it.
   No protocol: Inkvolt Print handles none.
+- Startup task `InkvoltPrintTray` (`uap5:StartupTask`, `Enabled="false"`): Start with Windows for the packaged copy, turned on
+  only from Settings › Notification area and alerts (`StartupTask.RequestEnableAsync`); Task Manager › Startup apps lists it.
+  Started by it, the app reads the StartupTask activation and goes straight to the notification area. Check after packing:
+  the smoke run, then the checkbox, then Task Manager (README, "Not done").
+- Toast notifications need no manifest entry: the packaged copy sends them under its package identity, and a toast clicked
+  after it exited starts it with the toast's arguments (`AppInstance.GetActivatedEventArgs`), opening that printer.
 
 ## Elevation (add printer by IP, offline fixer, HP clean-up)
 
@@ -305,4 +311,6 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
 - `InkvoltApps.Find` (`src/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\inkvoltpdf.exe` / `inkvoltprint.exe`), then App Paths, then the install folders.
   Inkvolt PDF uses the same code, so "Open in Inkvolt PDF" and Inkvolt PDF's "Printer Settings (Inkvolt Print)" work packaged too.
+- Start with Windows is the manifest's startup task, not the HKCU `Run` value; alerts are toasts under the package identity
+  (an unpackaged copy registers an AppUserModelId in HKCU for them).
 - Single instance, file forwarding and everything else behave the same. Updates come from the Store.

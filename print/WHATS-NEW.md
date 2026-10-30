@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Alerts are proper Windows notifications now: one per printer, with Open printer and Pause alerts buttons, kept in Notification Center. A newer alert for the same printer replaces the one still showing.
+- Microsoft Store version: Start with Windows is offered in Settings › Notification area and alerts, straight into the notification area; Task Manager's Startup apps lists it and can turn it off.
+- Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. One key covers Inkvolt Print and Inkvolt PDF on this PC: enter it in either app and the other finds it. Everything stays free while the apps launch; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps the Pro features for you when they start asking for a key.
 
 ## 1.0.8
 - Once Inkvolt Print has saved a few of your scans or sent a few prints over at least two days, it asks one time whether you'd like to rate it in the Microsoft Store, in the Store's own window. It never asks again, whatever you choose.

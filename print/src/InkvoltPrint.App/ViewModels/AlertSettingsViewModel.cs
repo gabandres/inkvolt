@@ -16,6 +16,16 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
         StartupUnavailable = StartWithWindows.Unavailable(tray.IsDemo);
         _startWithWindows = StartupUnavailable is null && StartWithWindows.IsOn;
         tray.Changed += OnTrayChanged;
+        if (StartupUnavailable is null) _ = ReadStartupAsync(); // the Store package asks Windows for the task's state
+    }
+
+    private async Task ReadStartupAsync()
+    {
+        var on = await StartWithWindows.RefreshAsync();
+        if (on == _startWithWindows && StartupNote is null) return;
+        _startWithWindows = on;
+        OnPropertyChanged(nameof(StartWithWindowsOn));
+        OnPropertyChanged(nameof(StartupNote));
     }
 
     /// <summary>The dialog closed.</summary>
@@ -56,15 +66,19 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
         set
         {
             if (_startWithWindows == value || StartupUnavailable is not null) return;
-            if (StartWithWindows.Set(value)) _startWithWindows = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(StartupNote));
+            _ = SetStartupAsync(value);
         }
     }
 
-    /// <summary>A note under the checkbox: why it's unavailable, or that Task Manager turned it off.</summary>
-    public string? StartupNote => StartupUnavailable
-        ?? (_startWithWindows && StartWithWindows.TurnedOffInTaskManager ? "Turned off in Task Manager › Startup apps; turn it on there." : null);
+    private async Task SetStartupAsync(bool on)
+    {
+        if (await StartWithWindows.SetAsync(on)) _startWithWindows = on;
+        OnPropertyChanged(nameof(StartWithWindowsOn)); // the checkbox follows Windows' answer, not the click
+        OnPropertyChanged(nameof(StartupNote));
+    }
+
+    /// <summary>A note under the checkbox: why it's unavailable, or that Task Manager (or a policy) turned it off.</summary>
+    public string? StartupNote => StartupUnavailable ?? StartWithWindows.Note;
 
     // ---------------------------------------------------------------- alerts
 

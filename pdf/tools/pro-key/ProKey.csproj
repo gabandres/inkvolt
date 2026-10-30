@@ -8,6 +8,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
+    <!-- The key format and public key live in the suite's shared library (Suite/ProKeys.cs), read by both apps -->
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
   </ItemGroup>
 </Project>

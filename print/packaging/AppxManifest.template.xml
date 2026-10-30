@@ -97,6 +97,12 @@
             <uap5:ExecutionAlias Alias="inkvoltprint.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
+        <!-- Start with Windows (Settings › Notification area and alerts): off until the person turns it on there
+             (StartupTask.RequestEnableAsync); Task Manager's Startup apps lists and can turn it off. Started this way, the app
+             goes straight to the notification area (App.xaml.cs reads the StartupTask activation). TaskId: Core.Suite.ShellRegistration.StartupTaskId -->
+        <uap5:Extension Category="windows.startupTask" Executable="InkvoltPrint.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="InkvoltPrintTray" Enabled="false" DisplayName="Inkvolt Print" />
+        </uap5:Extension>
       </Extensions>
     </Application>
   </Applications>

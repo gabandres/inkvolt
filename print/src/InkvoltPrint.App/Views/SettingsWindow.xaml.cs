@@ -117,7 +117,7 @@ public partial class SettingsWindow : Window
         WindowFrame.ApplyTheme(null);
         if (_tray is not null)
         {
-            if (StartWithWindows.Unavailable(_tray.IsDemo) is null && StartWithWindows.IsOn) StartWithWindows.Set(false);
+            if (StartWithWindows.Unavailable(_tray.IsDemo) is null) _ = StartWithWindows.SetAsync(false);
             _tray.Apply();
         }
         Log.Write("Settings reset to defaults");
