@@ -44,6 +44,9 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// </summary>
     internal double Left, Right, Center, Ascent, Descent;
 
+    /// <summary>The kerning its own text carried, by pair of codes (see <see cref="ContentEditor.Kerning"/>): rewritten lines keep it where the pair survives.</summary>
+    internal IReadOnlyDictionary<(int, int), double>? Kerning { get; init; }
+
     /// <summary>
     /// What <paramref name="text"/> would look like here, its stretches with the looks <paramref name="spans"/> give them:
     /// its box, line count, missing characters and what it would run into.
@@ -271,8 +274,41 @@ public static partial class ContentEditor
         return text.Length * line.Box.Width / Math.Max(1, line.Text.Length);
     }
 
-    private static List<Part> Parts(TextRun run, IEnumerable<int> codes) =>
-        [.. codes.Select(c => c == TextFont.Gap ? new Part(null, -run.GapEms * 1000) : new Part(c, 0))];
+    /// <summary>Codes as parts (a gap as an adjustment), with the kerning <paramref name="kerning"/> gives each pair of neighbors.</summary>
+    private static List<Part> Parts(TextRun run, IReadOnlyList<int> codes, IReadOnlyDictionary<(int, int), double>? kerning = null, PartLook? look = null)
+    {
+        var parts = new List<Part>(codes.Count * 2);
+        for (var i = 0; i < codes.Count; i++)
+        {
+            var c = codes[i];
+            if (i > 0 && kerning is not null && kerning.TryGetValue((codes[i - 1], c), out var k)) parts.Add(new Part(null, k, null, look));
+            parts.Add(c == TextFont.Gap ? new Part(null, -run.GapEms * 1000, null, look) : new Part(c, 0, null, look));
+        }
+        return parts;
+    }
+
+    /// <summary>
+    /// The kerning the original text carried: each TJ adjustment between two glyphs of a word (not a word gap, not
+    /// one after the last glyph, at most 0.25 em either way), by the pair of codes around it; the first seen wins.
+    /// </summary>
+    internal static Dictionary<(int, int), double> Kerning(IEnumerable<RunInfo> runs)
+    {
+        var table = new Dictionary<(int, int), double>();
+        foreach (var info in runs)
+        {
+            var items = info.Items;
+            for (var i = 1; i + 1 < items.Count; i++)
+            {
+                var it = items[i];
+                if (!it.IsNumber || it.Trailing || it.Text.Length > 0 || Math.Abs(it.Number) > 250 || Math.Abs(it.Number) < 0.5) continue;
+                var before = items[i - 1];
+                var after = items[i + 1];
+                if (before.IsNumber || after.IsNumber || before.Text == " " || after.Text == " ") continue;
+                table.TryAdd((before.Code, after.Code), it.Number);
+            }
+        }
+        return table;
+    }
 
     private static TextParagraph Paragraph(PageContent content, List<PLine> lines)
     {
@@ -371,6 +407,7 @@ public static partial class ContentEditor
             Below = below,
             Spaces = spaces,
             Spans = SpansOf(plain, at),
+            Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
             Center = center,
@@ -640,9 +677,7 @@ public static partial class ContentEditor
             var codes = _font.Encode(chunk).Codes;
             Codes.AddRange(codes);
             Text.Append(chunk);
-            var parts = Parts(_run, codes);
-            if (look is not null) for (var i = 0; i < parts.Count; i++) parts[i] = parts[i] with { Look = look };
-            return parts;
+            return Parts(_run, codes, _p.Kerning, look);
         }
 
         /// <summary>The parts of [start, end): stretches in its own font, and stretches of each other font shaped, each with its look.</summary>

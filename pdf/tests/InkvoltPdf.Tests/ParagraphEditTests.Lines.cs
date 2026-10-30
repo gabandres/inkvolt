@@ -43,4 +43,43 @@ public partial class ParagraphEditTests
         Assert.Contains("responsible", Words(ContentEditPdf.Text(edited)));
         Assert.Equal("Now then " + p.Text, Body0(edited, "Now then").Text);
     }
+
+    [Fact]
+    public void KerningOfTheOriginalLinesIsKeptWhereThePairSurvives()
+    {
+        // The generator kerned "fo" by -40, "ov" and "vo" by -25 (TJ adjustments inside words); the word gaps are plain spaces.
+        static string Kerned(string line) => "[(" + line.Replace("fo", "f) -40 (o").Replace("ov", "o) -25 (v").Replace("vo", "v) -25 (o") + ")] TJ";
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td {Kerned(lines[0])}");
+        foreach (var l in lines.Skip(1)) sb.Append($" T* {Kerned(l)}");
+        sb.Append(" 0 -60 Td (Next block starts here) Tj ET");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        Assert.Equal(Body, p.Text);
+        var text = "Now then " + p.Text + " for the fox";
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var content = ContentEditPdf.Content(edited);
+        // "fox" moved along its line, and "for" and "fox" were typed at the end: each pair keeps its kerning; "vow" and "over" too.
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(content, @"f\) -40 \(o").Count);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(content, @"o\) -25 \(v")); // "over"
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(content, @"v\) -25 \(o")); // "vow"
+        Assert.Equal(text, Body0(edited, "Now then").Text);
+        Assert.Contains(Words(text), Words(ContentEditPdf.Text(edited)));
+        // Lines without the pair get no adjustment of theirs.
+        var plain = ContentEditor.ReplaceParagraph(pdf, null, p, "No such pairs in here at all");
+        Assert.DoesNotContain("-40", ContentEditPdf.Content(plain));
+    }
+
+    [Fact]
+    public void TheOneRunEditorKernsTheChangedMiddleLikeTheRestOfTheRun()
+    {
+        var pdf = ContentEditPdf.Make("BT /FA 20 Tf 72 692 Td [(Hel) -30 (lo World)] TJ ET");
+        var run = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "Hello World");
+        var edited = ContentEditor.ReplaceText(pdf, null, run, "Hello Hello");
+        var content = ContentEditPdf.Content(edited);
+        // The kept start keeps its adjustment as before; the typed "Hello" gets the same pair kerned.
+        Assert.Contains("[(Hel) -30 (lo Hel) -30 (lo)] TJ", content);
+        Assert.Contains("Hello Hello", ContentEditPdf.Text(edited));
+    }
 }

@@ -271,7 +271,8 @@ public static partial class ContentEditor
         var ownText = middle;
         IReadOnlyList<string> missing = enc.Missing;
         List<string> borrowed = [], names = [];
-        if (enc.Missing.Count == 0) parts.AddRange(Parts(run, enc.Codes));
+        var kerning = Kerning([info]); // the run's own pairs, kept where they survive in the new text
+        if (enc.Missing.Count == 0) parts.AddRange(Parts(run, enc.Codes, kerning));
         else
         {
             // Characters the font lacks: each stretch of them drawn in the closest installed font that has them.
@@ -303,7 +304,7 @@ public static partial class ContentEditor
                     var e = font.Encode(chunk.ToString());
                     own.AddRange(e.Codes);
                     ownSb.Append(chunk);
-                    parts.AddRange(Parts(run, e.Codes));
+                    parts.AddRange(Parts(run, e.Codes, kerning));
                 }
                 else parts.Add(new Part(null, 0, TextShaper.Shape(chunk.ToString(), cur.Font)));
                 chunk.Clear();

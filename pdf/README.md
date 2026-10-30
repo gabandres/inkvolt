@@ -635,7 +635,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   embedded one lacks a character (most embedded fonts are subsets), and no font, size or color changes. A paragraph
   that mixes fonts, sizes or colors, text on a turned page or turned text, and a single piece of text on one line are
   edited one text operator at a time (often a line, sometimes a word or a letter), without reflow. A rewritten
-  paragraph loses its kerning; a line break typed into it starts a new paragraph for the next edit; a word hyphenated
+  paragraph keeps the kerning its text carried for each pair of letters that is still there (new pairs get none,
+  and a font's own kerning table isn't read); a line break typed into it starts a new paragraph for the next edit; a word hyphenated
   at a line end keeps its hyphen as typed ("respon-sible" stays one word; a soft hyphen the line break added is
   dropped). Pictures inside form XObjects (reused
   drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text
@@ -741,7 +742,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 - Edit Text & Images: fall back to a matching installed font when the embedded one lacks a character, reflow
-  paragraphs that mix fonts or sit on turned pages, keep kerning in rewritten lines, change font, size and color, add pictures inline (today: Add Image
+  paragraphs that mix fonts or sit on turned pages, kern new letter pairs from the font's own table, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
