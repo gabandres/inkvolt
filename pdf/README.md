@@ -359,6 +359,18 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   text in reading order, a paragraph per line, table rows tab-separated. Scanned pages without text are recognized
   with Windows' OCR first (on the PC); without an OCR language they are kept as pictures in Word. XPS, EPUB and the
   other formats Inkvolt PDF opens export too.
+- **Export to PowerPoint and HTML** (File › Export, command palette, Batch), with the same range, OCR and "open when
+  done". **PowerPoint (.pptx)**: one slide per page. Each paragraph is an editable text box where the page has it, in its
+  font, size, color and line spacing (a list is one box with real bullets); the page's first top heading is the slide's
+  title, so slides have names in PowerPoint's outline and for a screen reader; tables are tables; pictures are pictures
+  (stored once, with the alternate text from the PDF's tags); lines, rectangles and ellipses are shapes in their colors
+  (other drawn shapes stay as pictures, and charts and diagrams as a picture of the figure, as in Word); sideways text
+  is a turned box. A slide's order is its reading order. A presentation has one slide size, so it is the size most pages
+  have: pages of another size are shrunk to fit and centered. **HTML (.html)**: one file that reflows to any screen, with
+  real headings (never skipping a level), paragraphs, bulleted and numbered lists (nested by indent), tables and
+  pictures embedded in it, alternate text from the PDF's tags, and the language the PDF says or its words suggest. A
+  running header and footer appear once. Everything taken from the PDF is escaped: the file has no scripts, links or
+  anything that loads from elsewhere, and its Content-Security-Policy forbids them as well.
 - **Reload** (F5) and an info bar when another program changes the open file; a reload that needs the file's password
   asks for it (after Remove Protection, the file on disk still has one). **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, side rail, pane and page (both panes of a split view); high-contrast aware;
@@ -491,7 +503,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
   Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
   say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
-  can't be made PDF/A fails, saying why), Export to Word, Excel or text, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
+  can't be made PDF/A fails, saying why), Export to Word, Excel, text, PowerPoint or HTML, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
   Export Form Data (XFDF, FDF, CSV or JSON); a file without comments or a form gets no file and a note. Each action has the same
   settings as its own command. The results go to a folder with names from a template (`<<name>>`, `<<n>>` or
   `<<n:3>>`, `<<date>>`, `<<folder>>`), subfolders kept if you like; a name already taken gets a number ("report
@@ -647,7 +659,7 @@ Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i
 Recognize Text: `dialogok RecognizeText combo1=N check2=on` (combo0 the pages, combo1 the language in Windows' order,
 check0 clean first, check1 suspect words, check2 replace the scans), then `suspects` (the Suspect words pane: opens it,
 logs its words), `suspectsel i`, `suspectfix text|keep`, `findcount word` (how often search finds it); scans to try it on:
-`pdf/tools/ocr-corpus` (`make`). Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`; `check0` is OCR,
+`pdf/tools/ocr-corpus` (`make`). Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`, `ExportPowerPoint`, `ExportHtml`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
 `key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).
@@ -656,7 +668,7 @@ Measuring: `setscale 1 in = 10 ft [all]`, `measure distance|perimeter|area|calib
 PDF/A: `savepath out.pdf` then `pdfa` (answer its prompts with `later … prompt Button`); `PdfATests` runs veraPDF on its
 converted samples when `INKVOLTPDF_VERAPDF` names `verapdf.bat` (extra inputs from a folder in `INKVOLTPDF_PDFA_INPUTS`; the
 converted files stay in `INKVOLTPDF_SAMPLES\pdfa`). PDF from Office and web: `converters` (what is installed), `convert file.docx|page.html` (as File › Open), `webpage address|file`.
-Batch: `batch folder;file` (opens the window), `batchstep watermark DRAFT|bates CASE- continue|export text|…`, `batchout folder [template]`,
+Batch: `batch folder;file` (opens the window), `batchstep watermark DRAFT|bates CASE- continue|export text|export powerpoint|export html|…`, `batchout folder [template]`,
 `batchoption signed=edit passwords=skip …`, `batchpw password|skip`, `batchrun`, `batchshot out.png`, `batchask headerfooter out.png` (an
 action's dialog), `batchstate`, `batchstep pdfa`; presets and watched folders: `presetsave name`, `presetload name`, `watch folder;preset name`,
 `watchshot out.png`, `watchstate`; Inkvolt Pro: `prowindow [presets|watched|cli]` (Help › Inkvolt Pro, or as a locked feature opens it), `pro key|remove`,
@@ -768,6 +780,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   aligning them, so two separate scans of the same paper, or a page shifted by a few points, look different all over.
   The annotated copy lists text changes only (visual differences aren't in it), and needs the permissions password of a
   protected changed file. PDFs only (not XPS or EPUB).
+- **PowerPoint and HTML export**: a presentation has one slide size, so pages of another size are shrunk. Fonts that aren't on the PC are replaced by one of their kind, and a wider one wraps sooner, so dense forms come out crowded. PowerPoint's tabs have no leaders, so a contents page loses its dots. Only lines, rectangles and ellipses become shapes: rounded, dashed or see-through ones stay pictures, and are left out where text lies on them. HTML keeps no page layout, colors or fonts, only structure and emphasis; a picture on a page that was turned upright stays unturned there. Neither carries links. Alternate text comes from Figure tags: matched by their box, or in order when a page has as many tags without a box as pictures left. Pictures in the HTML are held in memory until the file is written. Checked in PowerPoint and the W3C validator; LibreOffice and a screen reader haven't been run (`tools/export-corpus` runs LibreOffice when it is installed).
 - Export to Word rebuilds the layout from what the pages draw, so it is a starting point for editing, not a copy:
   text flows in one column (multi-column pages become their columns one after another, not Word columns); text boxes,
   callouts and text over pictures become ordinary paragraphs where they fall; a paragraph split across pages or

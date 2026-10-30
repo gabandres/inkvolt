@@ -18,7 +18,13 @@ locality) are used in their usual sense: the interface is everything a caller mu
   permissions, through an edit.
 - **Signed edit** (`Core/SignedEdits.cs`): an edit of a signed document is appended after the signed bytes when it can
   be; otherwise it needs the user's consent to rewrite the file.
-- **Document export** (`Core/DocumentExport.cs`): a document's pages to Word, Excel (the tables found) or plain text:
+- **Simple shape** (`ExportShape`, `Core/ExportShapes.cs`): a line, rectangle or ellipse a page draws, which becomes a shape on
+  a PowerPoint slide. MuPDF reports only a path's bounds, so what the rendered page shows decides; any other path stays a
+  picture.
+- **Slide page** (`SlidePage`, from `DocLayout.AnalyzeSlides`): a page laid out for a slide. Unlike the flow Word and HTML
+  use, every line stays on its page, so a running head shows on the slide, and it says where those are so one never becomes
+  the slide's title.
+- **Document export** (`Core/DocumentExport.cs`): a document's pages to Word, Excel (the tables found), plain text, PowerPoint or HTML:
   reads each page (a damaged page exports empty, a page without text goes to the recognizer when one is given), lays the
   document out (`DocLayout`) and writes the format, or reports that nothing was extracted and saves nothing. Used by
   File › Export, Batch and `tools/export-corpus`.

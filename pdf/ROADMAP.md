@@ -470,6 +470,23 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   requests. Test: export-corpus runs open in PowerPoint and LibreOffice with no repair prompt; the HTML passes the W3C
   validator and reads in order in a screen reader.
 - **Effort** M. Windows; Mac after its Word export.
+- **Now.** Windows done 2026-10-30: File › Export (and the command palette, Batch, presets, the command line through
+  presets). PowerPoint: `PptxWriter`, one slide per page; a presentation has one slide size, so it is the size most pages
+  have and pages of another size are shrunk and centered. Each paragraph is an editable text box where the page has it, a
+  list one box with real bullets, the page's first top heading the slide's title (a running head never), tables are
+  tables, pictures are stored once, sideways lines are turned boxes. `ExportShapes` tells lines, rectangles and ellipses
+  apart by looking at a rendering, since MuPDF gives only a path's bounds; any other path stays as it looks, a picture. A
+  slide's order is its reading order. HTML: `HtmlWriter`, one file that reflows: headings that never skip a level,
+  nested and numbered lists, tables, pictures as data with the tags' alternate text (`ExportTags`), the running header
+  and footer once. Everything from the PDF is escaped; no script, link or request, with a Content-Security-Policy too.
+  **Checked** (`tools/export-corpus`, 7 real documents, 174 pages): every .pptx passes the Open XML SDK's validator and
+  opens in PowerPoint (16.0, on this PC) with every slide and shape it was written with; every
+  .html passes the W3C's Nu validator (run locally) with no errors, has no active content, and 3,617 of 3,641 lines
+  read in the plain-text export's order. Word's page counts are unchanged.
+  **Not checked yet:** LibreOffice (not installed on the PC that ran this: `run.ps1` runs it when it is) and a real
+  screen reader (the order test reads the file's order, which is what one follows).
+  **Still to do:** the Mac (PLAN.md's E15). Slides don't keep a font that isn't installed: a wider one wraps sooner, so
+  dense forms come out crowded (the Word export's limit too). Links aren't carried over, in either format.
 
 ### 3.3 Compare: Office files, scans and formatting
 - **Leader.** ABBYY (Corporate) compares a Word file or a scan with a PDF, OCR in the background; it ignores formatting

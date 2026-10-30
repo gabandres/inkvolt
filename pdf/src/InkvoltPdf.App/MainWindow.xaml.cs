@@ -1708,6 +1708,8 @@ public partial class MainWindow : Window
         Bind(Cmd.ExportWord, t => _ = ExportActions.Export(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportExcel, t => _ = ExportActions.Export(this, t, this, ExportFormat.Excel), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportText, t => _ = ExportActions.Export(this, t, this, ExportFormat.Text), t => t.PageView.PageCount > 0);
+        Bind(Cmd.ExportPowerPoint, t => _ = ExportActions.Export(this, t, this, ExportFormat.PowerPoint), t => t.PageView.PageCount > 0);
+        Bind(Cmd.ExportHtml, t => _ = ExportActions.Export(this, t, this, ExportFormat.Html), t => t.PageView.PageCount > 0);
         Bind(Cmd.Properties, t => _ = FileActions.ShowProperties(this, t));
 
         Bind(Cmd.Undo, t => t.Undo(), t => t.Session.CanUndo);

@@ -82,7 +82,7 @@ internal sealed class DocxWriter : IDisposable
             Entry($"word/{kind}1.xml", w => Running(w, kind == "header" ? "hdr" : "ftr", running, textWidth));
             var pictures = running.Pictures.Select(p => p.Image.Ref).OfType<string>().Distinct().ToList();
             if (pictures.Count > 0)
-                Entry($"word/_rels/{kind}1.xml.rels", w => Relationships(w, pictures.Select(r => (r, RelBase + "image", _targets[r]))));
+                Entry($"word/_rels/{kind}1.xml.rels", w => OpenXmlParts.Relationships(w, pictures.Select(r => (r, RelBase + "image", _targets[r]))));
             parts.Add(($"/word/{kind}1.xml", $"application/vnd.openxmlformats-officedocument.wordprocessingml.{kind}+xml"));
         }
         Entry("word/document.xml", w => Document(w, pages, layout.Header, layout.Footer));
@@ -90,8 +90,8 @@ internal sealed class DocxWriter : IDisposable
         Entry("word/numbering.xml", Numbering);
         Entry("word/settings.xml", Settings);
         Entry("word/fontTable.xml", FontTable);
-        Entry("word/_rels/document.xml.rels", w => Relationships(w, _rels));
-        Entry("_rels/.rels", w => Relationships(w,
+        Entry("word/_rels/document.xml.rels", w => OpenXmlParts.Relationships(w, _rels));
+        Entry("_rels/.rels", w => OpenXmlParts.Relationships(w,
         [
             ("rId1", RelBase + "officeDocument", "word/document.xml"),
             ("rId2", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "docProps/core.xml"),
@@ -113,20 +113,6 @@ internal sealed class DocxWriter : IDisposable
     public void Dispose() => _zip.Dispose();
 
     private void Entry(string name, Action<XmlWriter> write) => OpenXmlParts.Entry(_zip, name, write);
-
-    private static void Relationships(XmlWriter w, IEnumerable<(string Id, string Type, string Target)> rels)
-    {
-        w.WriteStartElement("Relationships", "http://schemas.openxmlformats.org/package/2006/relationships");
-        foreach (var (id, type, target) in rels)
-        {
-            w.WriteStartElement("Relationship", "http://schemas.openxmlformats.org/package/2006/relationships");
-            w.WriteAttributeString("Id", id);
-            w.WriteAttributeString("Type", type);
-            w.WriteAttributeString("Target", target);
-            w.WriteEndElement();
-        }
-        w.WriteEndElement();
-    }
 
     // ---- document.xml ----
 
@@ -911,6 +897,20 @@ internal static class OpenXmlParts
             if (c == '\r') sb.Append('\n');
         }
         return sb?.ToString() ?? text;
+    }
+
+    public static void Relationships(XmlWriter w, IEnumerable<(string Id, string Type, string Target)> rels)
+    {
+        w.WriteStartElement("Relationships", "http://schemas.openxmlformats.org/package/2006/relationships");
+        foreach (var (id, type, target) in rels)
+        {
+            w.WriteStartElement("Relationship", "http://schemas.openxmlformats.org/package/2006/relationships");
+            w.WriteAttributeString("Id", id);
+            w.WriteAttributeString("Type", type);
+            w.WriteAttributeString("Target", target);
+            w.WriteEndElement();
+        }
+        w.WriteEndElement();
     }
 
     public static void ContentTypes(XmlWriter w, IEnumerable<(string Part, string Type)> overrides)

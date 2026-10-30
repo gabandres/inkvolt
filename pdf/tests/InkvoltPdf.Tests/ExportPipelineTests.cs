@@ -32,6 +32,8 @@ public sealed class ExportPipelineTests : IDisposable
     [InlineData(ExportFormat.Word)]
     [InlineData(ExportFormat.Excel)]
     [InlineData(ExportFormat.Text)]
+    [InlineData(ExportFormat.PowerPoint)]
+    [InlineData(ExportFormat.Html)]
     public void ExportsToAFileWithNothingLeftBehind(ExportFormat format)
     {
         using var engine = Open(ExportTestPdf.Make());
@@ -53,6 +55,8 @@ public sealed class ExportPipelineTests : IDisposable
     [InlineData(ExportFormat.Word)]
     [InlineData(ExportFormat.Excel)]
     [InlineData(ExportFormat.Text)]
+    [InlineData(ExportFormat.PowerPoint)]
+    [InlineData(ExportFormat.Html)]
     public void NothingExtractedSavesNothing(ExportFormat format)
     {
         using var engine = Open(Blank(2));

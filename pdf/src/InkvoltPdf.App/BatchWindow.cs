@@ -447,6 +447,8 @@ internal sealed class BatchWindow : Window
         Item("Export to Word (.docx)", () => new ExportStep(BatchExportFormat.Word));
         Item("Export Tables to Excel (.xlsx)", () => new ExportStep(BatchExportFormat.Excel));
         Item("Export as Plain Text (.txt)", () => new ExportStep(BatchExportFormat.Text));
+        Item("Export to PowerPoint (.pptx)", () => new ExportStep(BatchExportFormat.PowerPoint));
+        Item("Export to HTML (.html)", () => new ExportStep(BatchExportFormat.Html));
         Item("Export Pages as Images…", () => AskImages(null));
         menu.Items.Add(new Separator());
         Item("Export Comments…", () => AskReview(null, comments: true));
@@ -681,6 +683,8 @@ internal sealed class BatchWindow : Window
                     BatchExportFormat.Word => "A .docx beside each result",
                     BatchExportFormat.Excel => "The tables found, as an .xlsx (none found: no file)",
                     BatchExportFormat.Text => "A .txt beside each result",
+                    BatchExportFormat.PowerPoint => "A .pptx beside each result, one slide per page",
+                    BatchExportFormat.Html => "One .html beside each result, pictures inside it",
                     BatchExportFormat.CommentsXfdf => "An .xfdf beside each result (none without comments)",
                     BatchExportFormat.CommentsFdf => "An .fdf beside each result (none without comments)",
                     BatchExportFormat.CommentsCsv => "A comments .csv beside each result (none without comments)",
@@ -1070,6 +1074,8 @@ internal sealed class BatchWindow : Window
             {
                 "word" => BatchExportFormat.Word,
                 "excel" => BatchExportFormat.Excel,
+                "powerpoint" or "pptx" => BatchExportFormat.PowerPoint,
+                "html" => BatchExportFormat.Html,
                 "png" => BatchExportFormat.Png,
                 "jpeg" or "jpg" => BatchExportFormat.Jpeg,
                 "xfdf" => BatchExportFormat.CommentsXfdf,

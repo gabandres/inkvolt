@@ -73,6 +73,8 @@ public sealed class BatchAutomationTests : IDisposable
             new UnprotectStep(),
             new ExportStep(BatchExportFormat.Jpeg, 300),
             new ExportStep(BatchExportFormat.Word),
+            new ExportStep(BatchExportFormat.PowerPoint),
+            new ExportStep(BatchExportFormat.Html),
             new SaveAsPdfAStep(),
             new ProtectStep("open-secret", "owner-secret", new PdfPermissions(PrintPermission.LowResolution, Copy: false), EncryptionMethod.Aes128),
         ],

@@ -146,7 +146,7 @@ public static partial class AutoTag
                 {
                     var b = blocks[i];
                     if (b.Kind != TagBlockKind.Figure) continue;
-                    var match = alts.Where(a => a.Page == b.Page && Area(a.Box.Intersect(b.Box)) > 0.5 * Math.Min(Area(a.Box), Area(b.Box)))
+                    var match = alts.Where(a => a.Page == b.Page && a.Box is { } box && Area(box.Intersect(b.Box)) > 0.5 * Math.Min(Area(box), Area(b.Box)))
                         .Select(a => a.Alt).FirstOrDefault();
                     if (match is not null) blocks[i] = b with { Alt = match };
                 }
@@ -182,35 +182,61 @@ public static partial class AutoTag
         };
     }
 
-    /// <summary>The Figure tags with alternate text and a bounding box: page, box (page space as shown) and text.</summary>
-    private static List<(int Page, RectD Box, string Alt)> FigureAlts(PdfDocument doc)
+    /// <summary>
+    /// The Figure tags with alternate text: page, box (page space as shown; null when the tag gives none) and text. A
+    /// page given on a tag holds for what's inside it, a role map's own names for figures count, and the attributes may be
+    /// one dictionary or a list.
+    /// </summary>
+    internal static List<(int Page, RectD? Box, string Alt)> FigureAlts(PdfDocument doc)
     {
-        var found = new List<(int, RectD, string)>();
+        var found = new List<(int, RectD?, string)>();
         var pages = doc.Pages.Cast<PdfPage>().ToList();
         var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
-        void Visit(PdfItem? item, int depth)
+        var root = PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"]);
+        var roles = PdfObj.Dict(root?.Elements["/RoleMap"]);
+        bool IsFigure(string? name)
+        {
+            for (var i = 0; i < 8 && name is not null; i++)
+            {
+                if (name == "Figure") return true;
+                name = PdfObj.Name(roles?.Elements["/" + name]);
+            }
+            return false;
+        }
+        PdfArray? BoxOf(PdfDictionary d)
+        {
+            var attributes = PdfObj.Resolve(d.Elements["/A"]);
+            IEnumerable<PdfItem> list = attributes is PdfArray many ? many.Elements : attributes is null ? [] : [attributes];
+            return list.Select(a => PdfObj.Array(PdfObj.Dict(a)?.Elements["/BBox"])).FirstOrDefault(b => b is { Elements.Count: 4 });
+        }
+        void Visit(PdfItem? item, int depth, int inherited)
         {
             if (depth > 64 || found.Count > 10_000) return;
             switch (PdfObj.Resolve(item))
             {
                 case PdfArray a:
-                    foreach (var x in a.Elements) Visit(x, depth + 1);
+                    foreach (var x in a.Elements) Visit(x, depth + 1, inherited);
                     break;
                 case PdfDictionary d when seen.Add(d):
-                    if (PdfObj.Name(d.Elements["/S"]) == "Figure" && PdfObj.Text(d.Elements["/Alt"]) is { Length: > 0 } alt &&
-                        PdfObj.PageIndexOf(doc, d.Elements["/Pg"]) is var p and >= 0 &&
-                        PdfObj.Array(PdfObj.Dict(d.Elements["/A"])?.Elements["/BBox"]) is { Elements.Count: 4 } bb)
+                    var own = d.Elements.ContainsKey("/Pg") ? PdfObj.PageIndexOf(doc, d.Elements["/Pg"]) : -1;
+                    var p = own >= 0 ? own : inherited;
+                    if (IsFigure(PdfObj.Name(d.Elements["/S"])) && PdfObj.Text(d.Elements["/Alt"]) is { Length: > 0 } alt && p >= 0)
                     {
-                        var page = pages[p];
-                        var (x1, y1) = PdfObj.ToPage(page, PdfObj.Num(bb, 0), PdfObj.Num(bb, 1));
-                        var (x2, y2) = PdfObj.ToPage(page, PdfObj.Num(bb, 2), PdfObj.Num(bb, 3));
-                        found.Add((p, RectD.FromEdges(Math.Min(x1, x2), Math.Min(y1, y2), Math.Max(x1, x2), Math.Max(y1, y2)), alt));
+                        RectD? box = null;
+                        if (BoxOf(d) is { } bb)
+                        {
+                            var page = pages[p];
+                            var (x1, y1) = PdfObj.ToPage(page, PdfObj.Num(bb, 0), PdfObj.Num(bb, 1));
+                            var (x2, y2) = PdfObj.ToPage(page, PdfObj.Num(bb, 2), PdfObj.Num(bb, 3));
+                            box = RectD.FromEdges(Math.Min(x1, x2), Math.Min(y1, y2), Math.Max(x1, x2), Math.Max(y1, y2));
+                        }
+                        found.Add((p, box, alt));
                     }
-                    Visit(d.Elements["/K"], depth + 1);
+                    Visit(d.Elements["/K"], depth + 1, p);
                     break;
             }
         }
-        Visit(PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"])?.Elements["/K"], 0);
+        Visit(root?.Elements["/K"], 0, -1);
         return found;
     }
 

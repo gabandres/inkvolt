@@ -105,6 +105,12 @@ public sealed record ExportImage(byte[] Data, string Extension, int PixelWidth, 
 {
     /// <summary>Where it is on the page as shown, when something needs that after a page was turned (<see cref="DocLayout.AnalyzeForTags"/>).</summary>
     public RectD? PageBox { get; init; }
+
+    /// <summary>What it shows, from the PDF's tags (<see cref="ExportTags"/>); null when they don't say.</summary>
+    public string? Alt { get; init; }
+
+    /// <summary>The quarter turns its page was turned by for layout (<see cref="ExportPage.Turned"/>): its pixels weren't.</summary>
+    public int Turn { get; init; }
 }
 
 /// <summary>
@@ -114,6 +120,9 @@ public sealed record ExportImage(byte[] Data, string Extension, int PixelWidth, 
 public sealed record ExportPage(double Width, double Height, IReadOnlyList<ExportLine> Lines, IReadOnlyList<ExportImage> Images,
     IReadOnlyList<RectD> Rules, bool FromOcr = false)
 {
+    /// <summary>The simple shapes the page draws, in order (only read for PowerPoint; see <see cref="ExportShapes"/>).</summary>
+    public IReadOnlyList<ExportShape> Shapes { get; init; } = [];
+
     public bool HasText => Lines.Any(l => l.Spans.Any(s => s.Text.Any(c => !char.IsWhiteSpace(c))));
 
     /// <summary>
@@ -147,8 +156,9 @@ public sealed record ExportPage(double Width, double Height, IReadOnlyList<Expor
         return this with
         {
             Width = nw, Height = nh, Lines = lines,
-            Images = [.. Images.Select(i => i with { Box = Map(i.Box) })],
+            Images = [.. Images.Select(i => i with { Box = Map(i.Box), Turn = (i.Turn + turn) % 4 })],
             Rules = [.. Rules.Select(Map)],
+            Shapes = [.. Shapes.Select(s => s with { Box = Map(s.Box) })],
         };
     }
 
