@@ -144,10 +144,10 @@ final class ProWindowController: NSWindowController {
 
         if Pro.enforced {
             add(heading("Free"))
-            add(caption("Inkvolt Pro unlocks batch presets, watched folders and the command line: a one-time \(Pro.priceText), no account. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."))
+            add(caption("Inkvolt Pro unlocks batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a: a one-time \(Pro.priceText), no account. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."))
         } else {
             add(heading("Everything is free while Inkvolt PDF launches"))
-            add(caption("That includes the Pro features: batch presets, watched folders and the command line. Inkvolt Pro (\(Pro.priceText), one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."))
+            add(caption("That includes the Pro features: batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a. Inkvolt Pro (\(Pro.priceText), one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."))
         }
         if let problem = Pro.problem {
             let text = RedactPatternSheet.wrapped(problem)

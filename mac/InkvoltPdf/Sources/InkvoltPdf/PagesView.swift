@@ -44,6 +44,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     weak var content: ContentEditing?
     /// Prepare Form's fields (the window controller owns it).
     weak var design: PrepareForm?
+    /// The Reading Order pane's numbered boxes (empty: none).
+    var readingBoxes: [ReadingOrderBox] = [] { didSet { if readingBoxes != oldValue { needsDisplay = true } } }
     /// The signature or initials the Signature tool puts down at the next click.
     var pendingSignature: (image: StampImage, initials: Bool)?
 
@@ -284,8 +286,37 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             if tool == .prepareForm { design?.draw(i, r) } else { form?.draw(i, r) }
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
+            drawReadingBoxes(i, r)
         }
         requestVisible()
+    }
+
+    /// The reading order's boxes on a page (the Windows viewer's `PaintReadingOrder`): each piece outlined with its number in
+    /// its page's order, the selected one stronger, a picture still without alternate text dashed in red.
+    private func drawReadingBoxes(_ page: Int, _ r: NSRect) {
+        guard !readingBoxes.isEmpty else { return }
+        let px = onePixel
+        let font = NSFont.systemFont(ofSize: 11 * px, weight: .semibold)
+        for b in readingBoxes where b.page == page {
+            let color: NSColor = b.selected ? .systemOrange : b.needsAlt ? .systemRed : .systemBlue
+            let box = viewRect(b.box.inflate(2), r)
+            if b.selected {
+                NSColor.systemOrange.withAlphaComponent(0.1).setFill()
+                box.fill(using: .sourceOver)
+            }
+            let path = NSBezierPath(rect: box)
+            path.lineWidth = (b.selected ? 2.5 : b.needsAlt ? 1.5 : 1.2) * px
+            if b.needsAlt && !b.selected { path.setLineDash([4 * px, 3 * px], count: 2, phase: 0) }
+            color.setStroke()
+            path.stroke()
+            let label = NSAttributedString(string: String(b.number), attributes: [.font: font, .foregroundColor: NSColor.white])
+            let size = label.size()
+            let width = max(16 * px, size.width + 8 * px), height = 16 * px
+            let badge = NSRect(x: box.minX - px, y: max(r.minY, box.minY - height), width: width, height: height)
+            color.setFill()
+            NSBezierPath(roundedRect: badge, xRadius: 3 * px, yRadius: 3 * px).fill()
+            label.draw(at: NSPoint(x: badge.minX + (width - size.width) / 2, y: badge.minY + (height - size.height) / 2))
+        }
     }
 
     private func drawMarks(_ page: Int, _ r: NSRect) {
