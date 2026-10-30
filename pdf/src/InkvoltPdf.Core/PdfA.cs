@@ -30,7 +30,8 @@ public sealed record PdfAResult(byte[] Data, IReadOnlyList<string> Changes);
 /// functions dropped, optional-content configurations named, names over 127 bytes shortened; with XMP only in the catalog
 /// (other packets, a picture's from Photoshop, hold properties outside PDF/A's schemas); and whose fonts are all embedded: the standard Helvetica,
 /// Times and Courier faces (also named Arial, Times New Roman, Courier New) are embedded from Windows' metric-compatible
-/// fonts (a subset, WinAnsi with differences), CIDSet and CharSet removed. What can't be fixed without changing the
+/// fonts (a subset, WinAnsi with differences), ZapfDingbats from Windows' Segoe UI Symbol (a symbolic subset, as its
+/// symbols have no names a validator accepts), CIDSet and CharSet removed. What can't be fixed without changing the
 /// look refuses the conversion (<see cref="PdfAException"/>): other fonts that aren't embedded, CMYK color without a
 /// profile (the output intent is RGB), PostScript or external content, digital signatures (a rewrite would break them),
 /// widgets without appearances. <see cref="Validate"/> checks the rules handled here; it is not a full validator.
@@ -185,7 +186,7 @@ public static class PdfA
     private sealed class Pass(PdfDocument doc, List<string> changes)
     {
         public readonly List<string> Blockers = [];
-        private int _removedAnnots, _hiddenAnnots, _actions, _aa, _images, _lzw, _tr, _embedded, _ocNames, _ownMetadata;
+        private int _removedAnnots, _hiddenAnnots, _actions, _aa, _images, _lzw, _tr, _embedded, _dingbats, _ocNames, _ownMetadata;
         private readonly Dictionary<PdfDictionary, PdfDictionary?> _substitutes = new(ReferenceEqualityComparer.Instance);
 
         public void Run()
@@ -222,6 +223,7 @@ public static class PdfA
             if (_lzw > 0) changes.Add($"{Count(_lzw, "LZW stream", "LZW streams")} re-compressed");
             if (_tr > 0) changes.Add("transfer and halftone functions removed");
             if (_embedded > 0) changes.Add($"{Count(_embedded, "standard font", "standard fonts")} embedded");
+            if (_dingbats > 0) changes.Add("check marks and other ZapfDingbats symbols embedded from Segoe UI Symbol, whose shapes differ a little");
             if (_ocNames > 0) changes.Add("layer configurations named");
             if (_ownMetadata > 0) changes.Add($"{Count(_ownMetadata, "picture's or page's own metadata packet", "pictures' and pages' own metadata packets")} removed");
             if (longNames > 0) changes.Add($"{Count(longNames, "name", "names")} longer than PDF/A allows shortened");
@@ -493,7 +495,7 @@ public static class PdfA
 
         // ───────────── fonts ─────────────
 
-        public int Embedded => _embedded;
+        public int Embedded => _embedded + _dingbats;
 
         public void Fonts()
         {
@@ -509,7 +511,7 @@ public static class PdfA
                     if (sub == "Type3" || IsEmbedded(PdfObj.Dict(f.Elements["/FontDescriptor"])) ||
                         sub == "Type0" && IsEmbedded(PdfObj.Dict(PdfObj.Dict(PdfObj.Array(f.Elements["/DescendantFonts"])?.Elements.FirstOrDefault())?.Elements["/FontDescriptor"])))
                         continue;
-                    if (Substitute(f) is not null) dr.Elements.Remove(key);
+                    if (IsDingbats(FontName(f)) || Substitute(f) is not null) dr.Elements.Remove(key);
                 }
             foreach (var font in used)
             {
@@ -528,6 +530,8 @@ public static class PdfA
         }
 
         private static string FontName(PdfDictionary font) => PdfObj.Name(font.Elements["/BaseFont"]) ?? "(unnamed)";
+
+        private static bool IsDingbats(string baseFont) => baseFont.Length > 7 && baseFont[6] == '+' ? baseFont[7..] == "ZapfDingbats" : baseFont == "ZapfDingbats";
 
         private static bool IsEmbedded(PdfDictionary? descriptor) =>
             descriptor is not null && (descriptor.Elements.ContainsKey("/FontFile") || descriptor.Elements.ContainsKey("/FontFile2") || descriptor.Elements.ContainsKey("/FontFile3"));
@@ -556,7 +560,8 @@ public static class PdfA
         {
             var subtype = PdfObj.Name(font.Elements["/Subtype"]);
             var name = PdfObj.Name(font.Elements["/BaseFont"]) ?? "";
-            var notEmbedded = $"The font {FontName(font)} isn't embedded, and only the standard Helvetica, Times and Courier faces can be embedded here.";
+            if (IsDingbats(name)) return EmbedDingbats(font);
+            var notEmbedded = $"The font {FontName(font)} isn't embedded, and only the standard Helvetica, Times, Courier and ZapfDingbats faces can be embedded here.";
             if (subtype is not ("Type1" or "TrueType" or "MMType1") || PdfA.StandardFace(name) is not { } std) return notEmbedded;
             if (std.Metrics is not { } ttf) return $"The font {FontName(font)} isn't embedded, and Windows' matching font isn't installed.";
 
@@ -659,6 +664,151 @@ public static class PdfA
             }
             _embedded++;
             return null;
+        }
+
+        /// <summary>The Unicode value of a code in ZapfDingbats' built-in encoding (Adobe's zdingbat.txt), else 0.</summary>
+        private static int DingbatUnicode(int code) => code switch
+        {
+            0x25 => 0x260E,
+            0x2A => 0x261B,
+            0x2B => 0x261E,
+            0x48 => 0x2605,
+            0x6C => 0x25CF,
+            0x6E => 0x25A0,
+            0x73 => 0x25B2,
+            0x74 => 0x25BC,
+            0x75 => 0x25C6,
+            0x77 => 0x25D7,
+            0xA8 => 0x2663,
+            0xA9 => 0x2666,
+            0xAA => 0x2665,
+            0xAB => 0x2660,
+            0xD5 => 0x2192,
+            0xD6 => 0x2194,
+            0xD7 => 0x2195,
+            >= 0xAC and <= 0xB5 => 0x2460 + code - 0xAC,
+            >= 0x21 and <= 0x7E => 0x2700 + code - 0x20,
+            >= 0xA1 and <= 0xFE and not 0xF0 => 0x26C0 + code,
+            _ => 0,
+        };
+
+        /// <summary>
+        /// Embeds ZapfDingbats (a Fill &amp; Sign mark, an Acrobat form's check box) from Windows' Segoe UI Symbol, which the app
+        /// already embeds for symbols in text and which has every symbol of the built-in encoding. PDF/A accepts only the
+        /// Adobe Glyph List's names in a TrueType font's differences and these symbols aren't there, so the font is symbolic:
+        /// no encoding, its codes in a (3,0) cmap, its text in a ToUnicode. Null when done, else why it can't be.
+        /// </summary>
+        private string? EmbedDingbats(PdfDictionary font)
+        {
+            var name = FontName(font);
+            if (PdfObj.Name(font.Elements["/Subtype"]) is not ("Type1" or "TrueType" or "MMType1") || font.Elements.ContainsKey("/Encoding"))
+                return $"The font {name} isn't embedded, and it has an encoding of its own, so its symbols can't be matched.";
+            if (SystemFonts.Get("seguisym.ttf") is not { } ttf) return $"The font {name} isn't embedded, and Windows' Segoe UI Symbol, which has its symbols, isn't installed.";
+            var unicodes = Enumerable.Range(0, 256).Select(c => DingbatUnicode(c) is var u && ttf.Has(u) ? u : 0).ToArray();
+            unicodes[0x20] = 0x20;
+            if (PdfObj.Array(font.Elements["/Widths"]) is { } own)
+            {
+                var firstOwn = PdfObj.Int(font.Elements["/FirstChar"]) ?? 0;
+                for (var i = 0; i < own.Elements.Count; i++)
+                    if (firstOwn + i is >= 0 and <= 255 && unicodes[firstOwn + i] > 0 && PdfObj.Num(own, i) is var w and > 0 && Math.Abs(w - ttf.Advance(unicodes[firstOwn + i]) * 1000) > 20)
+                        return $"The font {name} isn't embedded, and its symbols' widths differ from Windows' Segoe UI Symbol, so they would move.";
+            }
+            var used = unicodes.Where(u => u > 0).Distinct().ToList();
+            if (HbSubset.SubsetUnicodes(ttf, used) is not { } subset || TrueTypeFont.Load("", subset) is not { } cut)
+                return $"The font {name} isn't embedded, and Windows' Segoe UI Symbol couldn't be cut down to its symbols.";
+            var program = WithSymbolCmap(subset, [.. Enumerable.Range(0, 256).Where(c => unicodes[c] > 0).Select(c => (c, cut.GlyphOf(unicodes[c])))]);
+
+            var file = PdfObj.AddStream(doc, program);
+            file.Elements["/Length1"] = new PdfInteger(program.Length);
+            var baseFont = $"/{Tag(name + string.Join(",", used))}+SegoeUISymbol";
+            double Em(double units) => Math.Round(units * 1000 / ttf.UnitsPerEm);
+            var descriptor = new PdfDictionary(doc);
+            descriptor.Elements["/Type"] = new PdfName("/FontDescriptor");
+            descriptor.Elements["/FontName"] = new PdfName(baseFont);
+            descriptor.Elements["/Flags"] = new PdfInteger(4);
+            descriptor.Elements["/FontBBox"] = PdfObj.Reals(doc, Em(ttf.BBox[0]), Em(ttf.BBox[1]), Em(ttf.BBox[2]), Em(ttf.BBox[3]));
+            descriptor.Elements["/ItalicAngle"] = new PdfInteger(0);
+            descriptor.Elements["/Ascent"] = new PdfInteger((int)Math.Round(ttf.Ascent * 1000));
+            descriptor.Elements["/Descent"] = new PdfInteger((int)Math.Round(ttf.Descent * 1000));
+            descriptor.Elements["/CapHeight"] = new PdfInteger((int)Math.Round(ttf.Ascent * 1000 * 0.9));
+            descriptor.Elements["/StemV"] = new PdfInteger(80);
+            descriptor.Elements["/FontFile2"] = file.Reference!;
+            doc.Internals.AddObject(descriptor);
+
+            var first = Array.FindIndex(unicodes, u => u > 0);
+            var last = Array.FindLastIndex(unicodes, u => u > 0);
+            var widths = new PdfArray(doc);
+            for (var c = first; c <= last; c++) widths.Elements.Add(new PdfInteger(unicodes[c] > 0 ? (int)Math.Round(ttf.Advance(unicodes[c]) * 1000) : 0));
+            var text = new SortedDictionary<int, string>();
+            for (var c = first; c <= last; c++)
+                if (unicodes[c] > 0) text[c] = char.ConvertFromUtf32(unicodes[c]);
+            font.Elements["/Subtype"] = new PdfName("/TrueType");
+            font.Elements["/BaseFont"] = new PdfName(baseFont);
+            font.Elements["/FirstChar"] = new PdfInteger(first);
+            font.Elements["/LastChar"] = new PdfInteger(last);
+            font.Elements["/Widths"] = widths;
+            font.Elements["/FontDescriptor"] = descriptor.Reference!;
+            font.Elements["/ToUnicode"] = PdfObj.AddStream(doc, FontUnicode.CMap(text, 1)).Reference!;
+            _dingbats++;
+            return null;
+        }
+
+        /// <summary>
+        /// <paramref name="program"/> with its cmap replaced by one (3,0) table (format 4, a segment per code at 0xF000 +
+        /// code, where a symbolic font's codes are looked up: ISO 32000-1, 9.6.6.4). The new table goes at the end.
+        /// </summary>
+        private static byte[] WithSymbolCmap(byte[] program, IReadOnlyList<(int Code, int Glyph)> map)
+        {
+            var segments = map.Count + 1;
+            var cmap = new byte[12 + 16 + 8 * segments];
+            void Put(byte[] b, int at, int v) => BinaryPrimitives.WriteUInt16BigEndian(b.AsSpan(at), (ushort)v);
+            Put(cmap, 2, 1); // one table
+            Put(cmap, 4, 3); // platform 3, encoding 0
+            BinaryPrimitives.WriteInt32BigEndian(cmap.AsSpan(8), 12);
+            const int t = 12;
+            Put(cmap, t, 4);
+            Put(cmap, t + 2, cmap.Length - t);
+            Put(cmap, t + 6, 2 * segments);
+            var selector = (int)Math.Floor(Math.Log2(segments));
+            Put(cmap, t + 8, 2 << selector);
+            Put(cmap, t + 10, selector);
+            Put(cmap, t + 12, 2 * segments - (2 << selector));
+            for (var i = 0; i < segments; i++)
+            {
+                var code = i < map.Count ? 0xF000 + map[i].Code : 0xFFFF;
+                var delta = i < map.Count ? map[i].Glyph - code : 1;
+                Put(cmap, t + 14 + 2 * i, code); // end
+                Put(cmap, t + 16 + 2 * segments + 2 * i, code); // start
+                Put(cmap, t + 16 + 4 * segments + 2 * i, delta & 0xFFFF);
+            }
+
+            static uint Sum(ReadOnlySpan<byte> b)
+            {
+                uint sum = 0;
+                for (var i = 0; i + 4 <= b.Length; i += 4) sum += BinaryPrimitives.ReadUInt32BigEndian(b[i..]);
+                return sum;
+            }
+            var at = (program.Length + 3) & ~3;
+            var font = new byte[at + cmap.Length];
+            program.CopyTo(font, 0);
+            cmap.CopyTo(font, at);
+            int head = -1;
+            for (var i = 0; i < BinaryPrimitives.ReadUInt16BigEndian(font.AsSpan(4)); i++)
+            {
+                var record = 12 + 16 * i;
+                var tag = Encoding.ASCII.GetString(font, record, 4);
+                if (tag == "head") head = BinaryPrimitives.ReadInt32BigEndian(font.AsSpan(record + 8));
+                if (tag != "cmap") continue;
+                BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(record + 4), Sum(cmap));
+                BinaryPrimitives.WriteInt32BigEndian(font.AsSpan(record + 8), at);
+                BinaryPrimitives.WriteInt32BigEndian(font.AsSpan(record + 12), cmap.Length);
+            }
+            if (head >= 0)
+            {
+                BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(head + 8), 0);
+                BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(head + 8), 0xB1B0AFBA - Sum(font));
+            }
+            return font;
         }
 
         private static string Tag(string seed)

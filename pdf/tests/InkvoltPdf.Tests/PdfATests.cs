@@ -347,6 +347,62 @@ public class PdfATests
         Assert.Contains(blockers, b => b.Contains("certified"));
     }
 
+    private static byte[] MarksPdf() =>
+        TextStamps.Put(TextStamps.Put(TestPdf.Make(1), null, 0, new RectD(300, 400, 14, 14), StampKind.Check, "", 12), null, 0, new RectD(330, 400, 14, 14), StampKind.Cross, "", 12);
+
+    [Fact]
+    public void FillAndSignMarksConvertWithTheirSymbolsEmbedded()
+    {
+        var pdf = MarksPdf();
+        Assert.Empty(PdfA.Check(pdf, null));
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        Assert.Contains(result.Changes, c => c.Contains("Segoe UI Symbol"));
+        Assert.DoesNotContain(result.Changes, c => c.Contains("standard font"));
+        using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        // Drawn where the stamps are: dark pixels inside both boxes, none just beside them.
+        var image = engine.Render(0, 1);
+        int Dark(int x1, int y1, int x2, int y2)
+        {
+            var bpp = image.Pixels.Length / (image.Width * image.Height);
+            var n = 0;
+            for (var y = y1; y < y2; y++)
+                for (var x = x1; x < x2; x++)
+                    if (image.Pixels[(y * image.Width + x) * bpp + 1] < 128) n++;
+            return n;
+        }
+        Assert.True(Dark(300, 400, 314, 414) > 10);
+        Assert.True(Dark(330, 400, 344, 414) > 10);
+        Assert.Equal(0, Dark(316, 400, 328, 414));
+    }
+
+    [Fact]
+    public void EveryZapfDingbatsCodeIsCovered()
+    {
+        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
+        var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 2000 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            Core2Pdf.Stream($"BT /F1 9 Tf 5 40 Td ({all}) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
+        ]);
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        var text = engine.GetText(0).Text;
+        foreach (var symbol in new[] { "\u2714", "\u2718", "\u2605", "\u25CF", "\u25A0", "\u25C6", "\u2460", "\u2192", "\u27BE" }) Assert.Contains(symbol, text);
+    }
+
+    [Fact]
+    public void ZapfDingbatsWithItsOwnEncodingOrWidthsRefusesSayingWhy()
+    {
+        Assert.Contains(PdfA.Check(OneFont("<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats /Encoding << /Differences [114 /a20] >> >>"), null), b => b.Contains("encoding of its own"));
+        Assert.Contains(PdfA.Check(OneFont("<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats /FirstChar 114 /LastChar 114 /Widths [5] >>"), null), b => b.Contains("widths"));
+    }
+
     /// <summary>
     /// Checked with veraPDF when INKVOLTPDF_VERAPDF names its launcher (verapdf.bat): every converted sample must pass
     /// PDF/A-2b. Without it this test only converts (veraPDF needs Java; it isn't part of the build).
@@ -368,6 +424,7 @@ public class PdfATests
             ("own-metadata", OwnMetadataPdf()),
             ("long-role", LongRolePdf()),
             ("usage-rights", UsageRightsPdf()),
+            ("marks", MarksPdf()),
             ("export", ExportTestPdf.Make(logo: true)),
             ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
                 new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),
