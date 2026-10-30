@@ -4,6 +4,7 @@
     <Project Path="pdf/src/InkvoltPdf.Core/InkvoltPdf.Core.csproj" />
     <Project Path="pdf/tests/InkvoltPdf.Tests/InkvoltPdf.Tests.csproj" />
     <Project Path="pdf/tools/a11y-corpus/A11yCorpus.csproj" />
+    <Project Path="pdf/tools/bench/Bench.csproj" />
     <Project Path="pdf/tools/export-corpus/ExportCorpus.csproj" />
     <Project Path="pdf/tools/pro-key/ProKey.csproj" />
   </Folder>

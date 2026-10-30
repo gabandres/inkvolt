@@ -13,3 +13,5 @@ push: `dotnet test Inkvolt.slnx`.
 - **macOS apps** (native Swift, in planning): `mac/CLAUDE.md`.
 - **Export fidelity** (Word, Excel and the other exports): `pdf/tools/export-corpus` (see its README) after any change to
   `DocLayout`, `DocxWriter` or the glyph reading in `PdfEngine`.
+- **Speed on huge files** (roadmap 3.6): `pdf/tools/bench` (`make`, `run`; see its README) before each Inkvolt PDF release;
+  commit its `RESULTS.md`.
