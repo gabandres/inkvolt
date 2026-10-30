@@ -1,0 +1,33 @@
+# Windows Text size at 150 %, and the toast after its document closes (second pass)
+wait 1200
+textscale 1.5
+wait 400
+shot C:\ux\r2\pdf-start-150.png
+open C:\ux\samples\features.pdf
+wait 1500
+pane comments
+wait 400
+shot C:\ux\r2\pdf-reading-150.png
+find fox
+wait 600
+shot C:\ux\r2\pdf-find-150.png
+later 900 dialogshot C:\ux\r2\pdf-settings-150.png
+later 1500 closedialog
+cmd Settings
+later 900 dialogshot C:\ux\r2\pdf-crop-150.png
+later 1500 closedialog
+cmd CropPages
+textscale system
+wait 400
+open C:\ux\samples\export-scan.pdf
+wait 1500
+select 1
+delete
+wait 600
+shot C:\ux\r2\pdf-toast.png
+later 900 dialogshot C:\ux\r2\pdf-savechanges.png
+later 1600 dialogbutton Don't{sp}save
+cmd CloseDoc
+wait 2000
+shot C:\ux\r2\pdf-after-close.png
+exit
