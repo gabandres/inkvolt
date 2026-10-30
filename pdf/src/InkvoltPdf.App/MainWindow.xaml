@@ -24,9 +24,10 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="CaptionColumn" Width="140" />
             </Grid.ColumnDefinitions>
-            <Image app:IconImage.Source="InkvoltPdf.ico" Width="16" Height="16" Margin="14,0,10,0" VerticalAlignment="Center" />
-            <!-- Tabs get at most the width left after the + button and a drag strip (set in code); they shrink, then scroll. -->
-            <DockPanel x:Name="TabArea" Grid.Column="1" LastChildFill="False">
+            <Image app:IconImage.Source="InkvoltPdf.ico" Width="16" Height="16" Margin="14,0,10,0" VerticalAlignment="Center" app:TextScale.Scales="True" />
+            <!-- Tabs get at most the width left after the + button and a drag strip (set in code); they shrink, then scroll.
+                 Scaled with Windows' Text size, and the title bar grows to fit (ScaleTitleBar); the caption buttons are Windows'. -->
+            <DockPanel x:Name="TabArea" Grid.Column="1" LastChildFill="False" app:TextScale.Scales="True">
                 <ListBox x:Name="TabStrip" DockPanel.Dock="Left" Background="Transparent" BorderThickness="0" Padding="0"
                          WindowChrome.IsHitTestVisibleInChrome="True"
                          ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled"

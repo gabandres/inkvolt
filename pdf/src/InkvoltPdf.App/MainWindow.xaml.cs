@@ -128,6 +128,8 @@ public partial class MainWindow : Window
         _ = ShowConvertMenuAsync();
 
         TabArea.SizeChanged += (_, _) => LayoutTabs();
+        ScaleTitleBar();
+        TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
         _tabs.CollectionChanged += (_, _) => LayoutTabs();
         Activated += (_, _) => ActiveTab?.ScheduleDiskCheck();
@@ -345,6 +347,17 @@ public partial class MainWindow : Window
     }
 
     private void OnWatchButton(object sender, RoutedEventArgs e) => WatchWindow.Open(this);
+
+    /// <summary>
+    /// The title bar's height: 40 DIPs, times Windows' Text size, as its tabs are scaled (TextScale on TabArea); none in
+    /// full screen, where there is no title-bar drag strip over the page either.
+    /// </summary>
+    private void ScaleTitleBar()
+    {
+        var height = _fullScreen ? 0 : Math.Round(40 * TextScale.Factor);
+        Root.RowDefinitions[0].Height = new GridLength(height);
+        if (System.Windows.Shell.WindowChrome.GetWindowChrome(this) is { } chrome) chrome.CaptionHeight = height;
+    }
 
     /// <summary>Keeps the + button and a strip to drag the window visible: tabs shrink to share the rest, then scroll.</summary>
     private void LayoutTabs()
@@ -1883,9 +1896,7 @@ public partial class MainWindow : Window
     {
         _fullScreen = !_fullScreen;
         TitleBar.Visibility = CommandBar.Visibility = _fullScreen ? Visibility.Collapsed : Visibility.Visible;
-        Root.RowDefinitions[0].Height = new GridLength(_fullScreen ? 0 : 40);
-        // No title-bar drag strip over the page in full screen.
-        if (System.Windows.Shell.WindowChrome.GetWindowChrome(this) is { } chrome) chrome.CaptionHeight = _fullScreen ? 0 : 40;
+        ScaleTitleBar();
         if (_fullScreen)
         {
             _preFullScreenState = WindowState;
