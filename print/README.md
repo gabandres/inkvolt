@@ -342,8 +342,12 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   lists go on, and its thread stays parked). A scanner on its own has no status over WIA beyond whether it connects. Inkvolt
   PDF's Scan dialog still uses eSCL only.
 - Backlog (WIA): WIA 2.0's own interface (`IWiaItem2`, `IWiaTransfer` with a callback) for cancelling a page in progress,
-  progress per page and the feeder and glass items as the driver defines them; WIA in Inkvolt PDF's Scan dialog; TWAIN for
-  scanners with no WIA driver.
+  progress per page and the feeder and glass items as the driver defines them; TWAIN for scanners with no WIA driver:
+  the shared code has it (`Windows/Scanning/WindowsTwain` behind the same `IWiaSystem`, `Core/Twain`; Inkvolt PDF's Scan
+  dialog lists TWAIN sources), but Inkvolt Print's printer list doesn't take TWAIN sources yet (matching them to printers,
+  a scanner of its own); a later item. Black and white: the shared code now offers it (WIA's threshold type, eSCL's
+  `BlackAndWhite1`), and Inkvolt Print's Scan tab still asks for color or grey only. WIA error words no longer name the
+  app (Inkvolt PDF's Scan dialog shows them too).
 - Printers set up in Windows (queue printers): built test-first on the spooler's documented bits and on queues written by hand
   (the level-4 list and per-queue reads were run read-only on this PC; a print server that's off, a stopped spooler, access
   denied and a renamed queue were not tried: their handling is tested in Core only);

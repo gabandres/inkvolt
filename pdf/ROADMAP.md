@@ -327,7 +327,22 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
 - **Leader.** Acrobat: scans through TWAIN or WIA (Windows) and Image Capture (Mac), presets, deskew, background removal,
   descreen ([Adobe](https://helpx.adobe.com/acrobat/using/scan-documents-pdf.html)). PDF-XChange keeps knowledge-base
   articles on scanners its 64-bit build can't find ([PDF-XChange](https://www.pdf-xchange.com/knowledgebase/all/search?q=tag:WIA)).
-- **Now.** eSCL network scanners only.
+- **Now.** Windows (2026-10-30, branch `pdf-usb-scanners`). File › Scan and Insert from Scanner list scanners with a
+  Windows (WIA) driver beside the eSCL network ones, labelled "(USB · Windows driver)", through the WIA layer Inkvolt Print
+  already scans with (`shared/…/Wia`: `WiaScanner` over `WindowsWia`, `wiaaut.dll` late bound, no package): glass, feeder,
+  both sides where the driver offers duplex, color, grey or black and white (the driver's threshold type), the offered
+  resolutions, Letter, A4, Legal or the whole area; a feeder stack scans until the driver says the feeder is empty, into
+  one PDF with the OCR text layer as eSCL scans get. Windows' own eSCL driver for a network scanner already listed is left
+  out. 64-bit TWAIN sources are listed too when the TWAIN 2 manager (TWAINDSM.dll) is installed, through the same device
+  interface (`WindowsTwain`: native transfer, the source's own window never shown); without it, a line under the list says
+  so. Leave out blank pages (on by default; Inkvolt Print's `BlankPage`), and presets: Save as preset… keeps source,
+  color, resolution, page size, OCR and blank choices, matched to whichever scanner is chosen (`PresetPlan`). Tests with a
+  fake WIA device (`UsbScannerTests`: a feeder of 10, duplex with blank backs, a flatbed; the plan, the PDF, blank pages,
+  presets, error words, the TWAIN model). **Hardware:** this PC's one WIA scanner is Windows' eSCL driver for an HP Color
+  LaserJet MFP M277 that is no longer on the network: listed, and connecting said "The scanner isn't answering…"; no page
+  has been scanned through a real WIA or TWAIN driver (no USB scanner, no TWAIN manager here), so the acceptance test (a WIA
+  flatbed and a WIA feeder scanner, 10 pages each) is still to run. 2.2's cleanup (deskew, despeckle) isn't built, so
+  scans get OCR only. Mac (ImageCaptureCore) pending.
 - **Beat it when:** WIA 2 scanners (and 64-bit TWAIN sources) are listed beside eSCL ones in the same dialog with feeder,
   duplex, color and dpi; blank pages are dropped on request; every scan goes through 2.2's cleanup and OCR; scan presets
   are saved. Test: a WIA flatbed and a WIA feeder scanner each scan a 10-page stack into one PDF, OCR included.

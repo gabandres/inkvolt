@@ -398,6 +398,7 @@ internal sealed class ScanDialog : Window
         var oldHttp = _http;
         _http = null;
         oldHttp?.Dispose();
+        if (_pages.Count == 0 && !_busy) _message.Text = ""; // the last scanner's hint; the new one's comes once it's connected
         FillOptions();
         _scannerState.Text = $"Connecting to {item.Name}…";
         UpdateState();
