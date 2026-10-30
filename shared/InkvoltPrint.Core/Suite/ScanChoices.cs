@@ -31,15 +31,27 @@ public static class ScanChoices
 
     public static IReadOnlyList<ScanSource> Sources(ScannerCapabilities caps) => caps.Sources.ToList();
 
-    /// <summary>Color, then grayscale, as far as the source lists them (a source listing neither gets both: eSCL falls back).</summary>
+    /// <summary>
+    /// Color, then grayscale, as far as the source lists them (a source listing neither gets both: eSCL falls back), then black
+    /// and white when the source lists it.
+    /// </summary>
     public static IReadOnlyList<ScanColor> Colors(ScannerCapabilities caps, ScanSource source)
     {
         var modes = caps.For(source)?.ColorModes ?? [];
         var list = new List<ScanColor>();
         if (modes.Count == 0 || modes.Contains("RGB24")) list.Add(ScanColor.Color);
         if (modes.Count == 0 || modes.Contains("Grayscale8")) list.Add(ScanColor.Grayscale);
-        return list.Count > 0 ? list : [ScanColor.Color];
+        if (list.Count == 0) list.Add(ScanColor.Color);
+        if (modes.Contains("BlackAndWhite1")) list.Add(ScanColor.BlackAndWhite);
+        return list;
     }
+
+    public static string ColorLabel(ScanColor c) => c switch
+    {
+        ScanColor.Color => "Color",
+        ScanColor.Grayscale => "Grayscale",
+        _ => "Black and white",
+    };
 
     /// <summary>
     /// The <paramref name="wanted"/> resolutions the source supports; when it lists resolutions but none of these, its closest

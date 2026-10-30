@@ -503,12 +503,21 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   **Poster** (each page enlarged 25-1000% across several sheets, overlap none to 1 in, optional cut marks at the middle
   of each overlap; sheets turned when that takes fewer). Export pages as PNG/JPEG, document
   properties (title/author/subject/keywords editable), password-protected PDFs. Also views XPS, EPUB, CBZ, FB2, images.
-- **Scan** (File › Scan…, Organize › Insert from Scanner…): network scanners over eSCL (AirScan), using Inkvolt Print's
-  code: the scanners Inkvolt Print remembers plus any found on the network; glass, feeder or both sides; color/grayscale;
-  150/200/300 dpi; Letter/A4/Legal/whole area. Scan another page from the glass, or a whole stack from the feeder;
-  Stop cancels the job on the scanner. The result opens as a new unsaved tab ("Scan yyyy-MM-dd HHmm.pdf") or goes into
-  the current document at the chosen position as one undo step. Pages are the scanner's JPEGs as they are (no
-  re-compression), with an invisible OCR text layer (on by default, as in Recognize Text).
+- **Scan** (File › Scan…, Organize › Insert from Scanner…), using Inkvolt Print's code: network scanners over eSCL
+  (AirScan; the scanners Inkvolt Print remembers plus any found on the network), and in the same list the scanners this PC
+  has a Windows (WIA) driver for, USB ones included ("(USB · Windows driver)"), and 64-bit TWAIN sources when the TWAIN
+  manager (TWAINDSM.dll, installed by makers' TWAIN drivers) is there ("(TWAIN driver)"; when it isn't, a line under the
+  list says so). Windows' own driver for a network scanner already listed is left out. Glass, feeder or both sides;
+  color, grayscale, or black and white where the scanner offers it; 150/200/300 dpi (the nearest the scanner has);
+  Letter/A4/Legal/whole area. Scan another page from the glass, or a whole stack from the feeder; Stop cancels the job
+  (an eSCL job on the scanner; a driver scan before its next page). **Leave out blank pages** (on by default) drops pages
+  with almost no ink, such as the empty backs of one-sided sheets scanned on both sides (a page with a short word is
+  kept) and says how many. **Presets**: Save as preset… keeps the source, color, resolution, page size, OCR and blank
+  page choices under a name; choosing one from Preset sets them for the scanner chosen, as close as it allows, and says
+  what had to give (no feeder, no black and white…); Delete preset forgets one. The result opens as a new unsaved tab
+  ("Scan yyyy-MM-dd HHmm.pdf") or goes into the current document at the chosen position as one undo step. Pages are the
+  scanner's JPEGs as they are (no re-compression; driver pages that come as BMP are made JPEG once), with an invisible OCR
+  text layer (on by default, as in Recognize Text).
 - **Printer status when printing**: for a queue whose printer Inkvolt Print knows (matched by its queue association, the
   queue's device container, the address in its port, or its name), Inkvolt PDF shows the printer's state and toner after
   the Print dialog (ready, sleeping, …) and asks before printing to a printer that is offline or has an error (paper
@@ -590,13 +599,14 @@ and written to `<form> merge report.csv`. A form with an open password takes it 
 Make Accessible (the plan, the title and language window, writing it) + `DocumentTab.ReadingOrder.cs` (the Reading order
 pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
 the plan from `DocLayout`; `AutoTag.Write.cs`: marked content, the structure tree; `AutoTag.Language.cs`); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
-| `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
+| `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner: eSCL, WIA and TWAIN scanners, blank pages, presets; shared logic in `InkvoltPrint.Core/Suite/ScanRun`, `ScannerList`, `Wia`, `Twain`), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
 | AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
 `InkvoltPdf.App` references the libraries it shares with Inkvolt Print, in `../shared` (MIT): `InkvoltPrint.Core` (eSCL,
-status, PDF writer, `Suite`: remembered printers, queue matching, scan options) and `InkvoltPrint.Windows` (discovery, queue
-list, `InkvoltApps`). They build with the repository's `Directory.Build.props`, without this folder's Inkvolt PDF settings,
+status, PDF writer, `Suite`: remembered printers, queue matching, scan options, the scan run and scanner list; `Wia`,
+`Twain`: driver scanning logic) and `InkvoltPrint.Windows` (discovery, queue list, `InkvoltApps`, `Scanning`: WIA over
+COM and TWAIN through TWAINDSM.dll). They build with the repository's `Directory.Build.props`, without this folder's Inkvolt PDF settings,
 and add no packages. Their tests are Inkvolt Print's (`../print/tests/InkvoltPrint.Tests`).
 
 Dev check without touching the screen: `InkvoltPdf.exe file.pdf --script steps.txt` runs UI steps off-screen and
@@ -606,7 +616,8 @@ leaving your own settings untouched and unsaved. `textscale 1.5|system` runs as 
 name or under 24 × 24 (`UiInspection`, rules in `InkvoltPrint.Core/Suite/UiAudit`); the UX review that uses it is
 `docs/UX-REVIEW.md` at the repository root. Sample files for the review features: run the tests with
 `INKVOLTPDF_SAMPLES` set to a temp folder (`ReviewSampleTests`). Inkvolt suite steps: `scandialog` (the open Scan dialog's
-scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
+scanners and choices, with `later`), `scanselect text` and `scanchoose glass|feeder|duplex Color|Grayscale|BlackAndWhite dpi`
+(choose its scanner and settings; `-` keeps one), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
 `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
@@ -800,8 +811,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   visibility expression (its content goes). An XFA-only form is kept (removing it would leave a placeholder page). Page
   labels, the structure tree (tags, alternate text) and the document's language stay. The result's XMP packet only
   names the program that wrote it.
-- Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
-  listed. Printer status needs the printer to be one Inkvolt Print remembers.
+- Scanning: network scanners that speak eSCL (AirScan/Mopria), scanners with a Windows (WIA) driver, and TWAIN sources
+  when a TWAIN manager of the app's own architecture is installed (the x64 build needs an x64 TWAINDSM.dll, the ARM64
+  build an ARM64 one; makers mostly ship x64, so on an ARM64 PC a TWAIN-only scanner usually isn't listed); 32-bit-only
+  TWAIN drivers aren't used. WIA and TWAIN scanning has been tested with made-up devices only: no page has gone through
+  a real WIA or TWAIN driver yet (on the one PC tried, the only WIA scanner was a printer no longer on the network).
+  WIA 2.0 drivers are used through Windows' WIA 1.0 view (as Inkvolt Print does): a page in progress finishes before Stop
+  takes effect, and a driver's own extras (its blank page skipping, color dropout) aren't offered. Black-and-white pages
+  are stored as JPEG (larger than CCITT/JBIG2 would be). Pages aren't deskewed or cleaned before OCR (roadmap 2.2).
+  Printer status needs the printer to be one Inkvolt Print remembers.
 - Speed on huge files: the targets are the first page in under 1 s, scrolling at 60 fps without blank pages after a
   200 ms pause, Find across 5,000 pages in under 5 s, the comment list in under 2 s and memory under 1.5 GB, measured
   before each release with `tools/bench` on its generated corpus (a 5,000-page text, a 500-page scan, a 1 GB drawing

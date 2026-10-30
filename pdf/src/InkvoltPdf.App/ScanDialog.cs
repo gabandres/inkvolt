@@ -6,11 +6,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using InkvoltPdf.Core;
+using System.Windows.Media;
 using InkvoltPrint.Core.Escl;
+using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Net;
+using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Suite;
+using InkvoltPrint.Core.Wia;
 using InkvoltPrint.Windows.Discovery;
-using ScanPage = InkvoltPrint.Core.Pdf.PdfPage;
+using InkvoltPrint.Windows.Scanning;
 using ScanPdfWriter = InkvoltPrint.Core.Pdf.PdfWriter;
 
 namespace InkvoltPdf.App;
@@ -42,16 +46,21 @@ internal static class Scanning
 }
 
 /// <summary>
-/// Scans over eSCL with Inkvolt Print's client: the scanners Inkvolt Print remembers plus any found on the network, source (glass,
-/// feeder, both sides), color, resolution and page size. Pages arrive as JPEGs, become PDF pages as they are (Inkvolt Print's
-/// writer embeds them without re-encoding), and optionally get Inkvolt PDF's invisible OCR text layer. All device and file
-/// work runs off the UI thread; Cancel stops a scan (the job is deleted on the device).
+/// Scans with Inkvolt Print's shared scanning code, every kind in one list: network scanners over eSCL (those Inkvolt Print
+/// remembers plus any found on the network), scanners with a Windows (WIA) driver, and 64-bit TWAIN sources when the TWAIN
+/// manager is installed (both through <see cref="WiaScanner"/>); source (glass, feeder, both sides), color, grey or black and
+/// white, resolution and page size, blank pages left out on request, and presets of these choices. Pages arrive as JPEGs,
+/// become PDF pages as they are (Inkvolt Print's writer embeds them without re-encoding), and optionally get Inkvolt PDF's
+/// invisible OCR text layer. All device and file work runs off the UI thread; Cancel stops a scan (an eSCL job is deleted on
+/// the device; a driver scan stops before its next page).
 /// </summary>
 internal sealed class ScanDialog : Window
 {
-    private sealed record ScannerItem(string Uuid, string Name, string Host, Uri? EsclRoot, bool Remembered)
+    /// <param name="Key">The UUID of a network scanner, "wia:…" or "twain:…" for a driver one (<see cref="ScannerList.Key"/>).</param>
+    /// <param name="Driver">A WIA or TWAIN scanner as its driver lists it.</param>
+    private sealed record ScannerItem(string Key, string Name, ScannerKind Kind, string Host, Uri? EsclRoot, bool Remembered, WiaDeviceInfo? Driver = null)
     {
-        public override string ToString() => $"{Name}  ({Host}){(Remembered ? "" : " · found on the network")}";
+        public override string ToString() => ScannerList.Label(Kind, Name, Host, Remembered, Driver?.ConnectionText);
     }
 
     private sealed record Choice<T>(T Value, string Label)
@@ -72,7 +81,12 @@ internal sealed class ScanDialog : Window
     private readonly ComboBox _color = new();
     private readonly ComboBox _resolution = new();
     private readonly ComboBox _size = new();
+    private readonly TextBlock _twainNote = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0), FontSize = 12, Visibility = Visibility.Collapsed };
+    private readonly ComboBox _preset = new() { MinWidth = 220 };
+    private readonly Button _savePreset = new() { Content = "Save as preset…", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
+    private readonly Button _deletePreset = new() { Content = "Delete preset", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
     private readonly CheckBox _ocr = new() { Content = "Make the text searchable (OCR)", Margin = new Thickness(0, 14, 0, 0) };
+    private readonly CheckBox _skipBlank = new() { Content = "Leave out blank pages", Margin = new Thickness(0, 8, 0, 0) };
     private readonly PositionPicker? _position;
     private readonly WrapPanel _thumbs = new();
     private readonly TextBlock _pageCount = new() { FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
@@ -86,8 +100,10 @@ internal sealed class ScanDialog : Window
 
     private PrinterDiscovery? _discovery;
     private DeviceHttp? _http;
-    private EsclClient? _client;
+    private IScanner? _device;
     private ScannerCapabilities? _caps;
+    private ScanPreset? _pendingPreset;
+    private bool _driversDone, _driversRead = true;
     private CancellationTokenSource? _connectCts;
     private CancellationTokenSource? _scanCts;
     private bool _busy;
@@ -120,7 +136,10 @@ internal sealed class ScanDialog : Window
         System.Windows.Automation.AutomationProperties.SetName(_color, "Color");
         System.Windows.Automation.AutomationProperties.SetName(_resolution, "Resolution");
         System.Windows.Automation.AutomationProperties.SetName(_size, "Page size");
+        System.Windows.Automation.AutomationProperties.SetName(_preset, "Preset");
         _scannerState.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _twainNote.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _savePreset.ToolTip = "Saves the source, color, resolution, page size, OCR and blank page choices under a name, for any scanner.";
         _finish.Content = insert is null ? "Open as new document" : "Insert pages";
         _finish.SetResourceReference(StyleProperty, "AccentButtonStyle");
         _scan.SetResourceReference(StyleProperty, "AccentButtonStyle");
@@ -131,6 +150,15 @@ internal sealed class ScanDialog : Window
         body.Children.Add(Heading("Scanner", 0));
         body.Children.Add(_scanner);
         body.Children.Add(_scannerState);
+        body.Children.Add(_twainNote);
+        body.Children.Add(Heading("Preset", 12));
+        var presetRow = new DockPanel();
+        DockPanel.SetDock(_deletePreset, Dock.Right);
+        DockPanel.SetDock(_savePreset, Dock.Right);
+        presetRow.Children.Add(_deletePreset);
+        presetRow.Children.Add(_savePreset);
+        presetRow.Children.Add(_preset);
+        body.Children.Add(presetRow);
 
         var grid = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -159,6 +187,9 @@ internal sealed class ScanDialog : Window
             ? "Adds an invisible text layer with Windows' text recognition, so the scan can be searched, selected and copied."
             : PageOcr.Unavailable;
         body.Children.Add(_ocr);
+        _skipBlank.IsChecked = AppSettings.Current.ScanSkipBlank;
+        _skipBlank.ToolTip = "Pages with almost no ink (the empty back of a one-sided sheet) aren't added. A page with as little as a short word is kept.";
+        body.Children.Add(_skipBlank);
 
         if (insert is { } ins)
         {
@@ -204,6 +235,13 @@ internal sealed class ScanDialog : Window
 
         _scanner.SelectionChanged += (_, _) => { if (!_filling) _ = ConnectAsync(); };
         _source.SelectionChanged += (_, _) => { if (!_filling) FillOptions(); };
+        _preset.SelectionChanged += (_, _) =>
+        {
+            if (!_filling && _preset.SelectedItem is Choice<ScanPreset?> { Value: { } p }) ApplyPreset(p);
+            UpdateState();
+        };
+        _savePreset.Click += (_, _) => SavePreset();
+        _deletePreset.Click += (_, _) => DeletePreset();
         _scan.Click += (_, _) => _ = ScanAsync();
         _stop.Click += (_, _) => _scanCts?.Cancel();
         _finish.Click += (_, _) => _ = FinishAsync();
@@ -223,6 +261,7 @@ internal sealed class ScanDialog : Window
             UpdateState();
         };
         Loaded += (_, _) => _ = LoadScannersAsync();
+        FillPresets(null);
         Closing += OnClosing;
         Closed += (_, _) => Cleanup();
         UpdateState();
@@ -231,45 +270,94 @@ internal sealed class ScanDialog : Window
     private static TextBlock Heading(string text, double top) =>
         new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, top, 0, 4) };
 
-    /// <summary>Remembered printers with a scanner first (instant), then whatever discovery finds on the network.</summary>
+    /// <summary>
+    /// Remembered printers with a scanner first (instant), then this PC's driver scanners (WIA, TWAIN) and whatever discovery
+    /// finds on the network.
+    /// </summary>
     private async Task LoadScannersAsync()
     {
         _scannerState.Text = "Looking for scanners…";
         var known = await Task.Run(() => InkvoltPrinters.Load());
         foreach (var p in known.Printers.Where(p => p.EsclRoot is not null))
-            AddOrUpdate(new ScannerItem(Key(p.Uuid), p.Name, p.Host, p.EsclRoot, Remembered: true));
+            AddOrUpdate(new ScannerItem(Key(p.Uuid), p.Name, ScannerKind.Network, p.Host, p.EsclRoot, Remembered: true));
+        var networkDone = false;
         try
         {
             _discovery = new PrinterDiscovery();
             _discovery.Changed += list => Dispatcher.InvokeAsync(() => OnDiscovered(list));
             _discovery.InitialSweepCompleted += () => Dispatcher.InvokeAsync(() =>
             {
-                if (_scanners.Count == 0)
-                    _scannerState.Text = "No scanner found. Turn the scanner on and connect it to this network; Inkvolt Print can add one by its address.";
+                networkDone = true;
+                if (_scanners.Count == 0 && _driversDone) _scannerState.Text = ScannerList.NoneFound(_driversRead);
             });
             _discovery.Start();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             Log.Write($"Scanner discovery unavailable: {ex.Message}");
-            if (_scanners.Count == 0) _scannerState.Text = "No scanner found (network discovery isn't available).";
+            networkDone = true;
         }
+        await LoadDriverScannersAsync();
         if (_scanner.SelectedItem is null && _scanners.Count > 0) SelectPreferred();
+        else if (_scanners.Count == 0 && networkDone) _scannerState.Text = ScannerList.NoneFound(_driversRead);
     }
+
+    /// <summary>
+    /// Scanners with a Windows (WIA) driver, less Windows' own eSCL driver for a network scanner already listed; then the 64-bit
+    /// TWAIN sources when the TWAIN manager is installed (a line under the list says so when it isn't). Reads no device.
+    /// </summary>
+    private async Task LoadDriverScannersAsync()
+    {
+        try
+        {
+            foreach (var d in await WindowsWia.Instance.ListScannersAsync(CancellationToken.None))
+                if (!ScannerList.IsListedOnTheNetwork(d, NetworkTargets()))
+                    AddOrUpdate(new ScannerItem(ScannerList.Key(ScannerKind.Wia, d.Id), d.Name, ScannerKind.Wia, "", null, true, d));
+        }
+        catch (WiaException ex)
+        {
+            Log.Write($"WIA scanners unavailable: {ex.Message}");
+            _driversRead = false;
+        }
+        string? twainError = null;
+        if (WindowsTwain.ManagerInstalled)
+        {
+            try
+            {
+                foreach (var d in await WindowsTwain.Instance.ListScannersAsync(CancellationToken.None))
+                    AddOrUpdate(new ScannerItem(ScannerList.Key(ScannerKind.Twain, d.Id), d.Name, ScannerKind.Twain, "", null, true, d));
+            }
+            catch (Exception ex) when (ex is WiaException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+            {
+                Log.Write($"TWAIN sources unavailable: {ex.Message}");
+                twainError = ex is WiaException w ? WiaErrors.Message(w.Code, false) : "the TWAIN manager on this PC couldn't be loaded.";
+            }
+        }
+        _twainNote.Text = ScannerList.TwainNote(WindowsTwain.ManagerInstalled, twainError) ?? "";
+        _twainNote.Visibility = _twainNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _driversDone = true;
+    }
+
+    private List<ScanTarget> NetworkTargets() =>
+        [.. _scanners.Where(s => s.Kind == ScannerKind.Network).Select(s => new ScanTarget(s.Key, [s.Name], [s.Host]))];
 
     private void OnDiscovered(IReadOnlyList<DiscoveredPrinter> found)
     {
         if (!IsLoaded) return;
         var hadNone = _scanners.Count == 0;
         foreach (var d in found.Where(d => d.HasScanner && d.Host is not null && d.EsclRoot is not null))
-            AddOrUpdate(new ScannerItem(Key(d.Uuid), d.Name, d.Host!, d.EsclRoot, Remembered: false));
+            AddOrUpdate(new ScannerItem(Key(d.Uuid), d.Name, ScannerKind.Network, d.Host!, d.EsclRoot, Remembered: false));
+        // Windows' eSCL driver for a scanner now found on the network: scanned over eSCL instead (unless it's the one in use).
+        var targets = NetworkTargets();
+        foreach (var dup in _scanners.Where(s => s.Kind == ScannerKind.Wia && s.Driver is { } w && ScannerList.IsListedOnTheNetwork(w, targets)).ToList())
+            if (!ReferenceEquals(_scanner.SelectedItem, dup)) _scanners.Remove(dup);
         if (hadNone && _scanners.Count > 0) SelectPreferred();
     }
 
     /// <summary>Adds a scanner, or refreshes a known one's address from discovery (DHCP may have moved it).</summary>
     private void AddOrUpdate(ScannerItem item)
     {
-        var i = _scanners.ToList().FindIndex(s => s.Uuid == item.Uuid);
+        var i = _scanners.ToList().FindIndex(s => s.Key == item.Key);
         if (i < 0)
         {
             _scanners.Add(item);
@@ -292,24 +380,33 @@ internal sealed class ScanDialog : Window
     }
 
     private void SelectPreferred() =>
-        _scanner.SelectedItem = _scanners.FirstOrDefault(s => s.Uuid == AppSettings.Current.ScanDevice) ?? _scanners[0];
+        _scanner.SelectedItem = _scanners.FirstOrDefault(s => s.Key == AppSettings.Current.ScanDevice) ?? _scanners[0];
 
     private static string Key(string uuid) => Guid.TryParse(uuid.Trim('{', '}'), out var g) ? g.ToString("D") : uuid.ToLowerInvariant();
 
-    /// <summary>Reads the chosen scanner's capabilities (its stored eSCL address, then the standard one).</summary>
+    /// <summary>
+    /// Reads the chosen scanner's capabilities: a network one's over eSCL (its stored address, then the standard one), a driver
+    /// one's by connecting through its driver (60 s at most).
+    /// </summary>
     private async Task ConnectAsync()
     {
         _connectCts?.Cancel();
         if (_scanner.SelectedItem is not ScannerItem item) return;
         var cts = _connectCts = new CancellationTokenSource();
         _caps = null;
-        _client = null;
+        _device = null;
         var oldHttp = _http;
         _http = null;
         oldHttp?.Dispose();
+        if (_pages.Count == 0 && !_busy) _message.Text = ""; // the last scanner's hint; the new one's comes once it's connected
         FillOptions();
         _scannerState.Text = $"Connecting to {item.Name}…";
         UpdateState();
+        if (item.Driver is { } driver)
+        {
+            await ConnectDriverAsync(item, driver, cts);
+            return;
+        }
 
         var host = item.EsclRoot?.Host ?? item.Host;
         var http = new DeviceHttp(host);
@@ -339,16 +436,54 @@ internal sealed class ScanDialog : Window
                 return;
             }
             _http = http;
-            _client = client;
-            _caps = caps;
-            _scannerState.Text = $"Ready: {caps.MakeAndModel ?? item.Name}";
-            FillOptions();
-            UpdateState();
+            Connected(client, caps, item);
         }
         catch (OperationCanceledException)
         {
             http.Dispose();
         }
+    }
+
+    private async Task ConnectDriverAsync(ScannerItem item, WiaDeviceInfo driver, CancellationTokenSource cts)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+        limit.CancelAfter(TimeSpan.FromSeconds(60));
+        try
+        {
+            IWiaSystem system = item.Kind == ScannerKind.Twain ? WindowsTwain.Instance : WindowsWia.Instance;
+            var scanner = await WiaScanner.OpenAsync(system, driver, limit.Token);
+            if (cts.IsCancellationRequested) return;
+            Connected(scanner, scanner.Capabilities, item);
+        }
+        catch (OperationCanceledException) when (!cts.IsCancellationRequested)
+        {
+            _scannerState.Text = WiaErrors.Message(WiaErrors.NotAnswering, false);
+            UpdateState();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (WiaException ex)
+        {
+            if (cts.IsCancellationRequested) return;
+            Log.Write($"Scanner driver: 0x{ex.Code:X8}");
+            _scannerState.Text = WiaErrors.Message(ex.Code, false);
+            UpdateState();
+        }
+    }
+
+    private void Connected(IScanner device, ScannerCapabilities caps, ScannerItem item)
+    {
+        _device = device;
+        _caps = caps;
+        _scannerState.Text = $"Ready: {caps.MakeAndModel ?? item.Name}";
+        FillOptions();
+        if (_pendingPreset is { } preset)
+        {
+            _pendingPreset = null;
+            ApplyPreset(preset);
+        }
+        UpdateState();
     }
 
     /// <summary>Fills source/color/resolution/size from the capabilities, keeping current (or remembered) choices.</summary>
@@ -372,8 +507,9 @@ internal sealed class ScanDialog : Window
             }
             if (_source.SelectedItem is not Choice<ScanSource> source) return;
 
-            var colorWanted = (_color.SelectedItem as Choice<ScanColor>)?.Value ?? (s.ScanColor ? ScanColor.Color : ScanColor.Grayscale);
-            var colors = ScanChoices.Colors(caps, source.Value).Select(c => new Choice<ScanColor>(c, c == ScanColor.Color ? "Color" : "Grayscale")).ToList();
+            var colorWanted = (_color.SelectedItem as Choice<ScanColor>)?.Value
+                              ?? (s.ScanBlackAndWhite ? ScanColor.BlackAndWhite : s.ScanColor ? ScanColor.Color : ScanColor.Grayscale);
+            var colors = ScanChoices.Colors(caps, source.Value).Select(c => new Choice<ScanColor>(c, ScanChoices.ColorLabel(c))).ToList();
             _color.ItemsSource = colors;
             _color.SelectedItem = colors.FirstOrDefault(c => c.Value == colorWanted) ?? colors[0];
 
@@ -405,52 +541,52 @@ internal sealed class ScanDialog : Window
 
     private async Task ScanAsync()
     {
-        if (_busy || _client is not { } client || _scanner.SelectedItem is not ScannerItem item
+        if (_busy || _device is not { } device || _scanner.SelectedItem is not ScannerItem item
             || _source.SelectedItem is not Choice<ScanSource> source || _resolution.SelectedItem is not Choice<int> dpi) return;
         var color = (_color.SelectedItem as Choice<ScanColor>)?.Value ?? ScanColor.Color;
         var size = (_size.SelectedItem as Choice<ScanPageSize>)?.Value;
+        var skipBlank = _skipBlank.IsChecked == true;
         var s = AppSettings.Current;
-        (s.ScanDevice, s.ScanSource, s.ScanColor, s.ScanResolution, s.ScanPageSize, s.ScanOcr) =
-            (item.Uuid, source.Value.ToString(), color == ScanColor.Color, dpi.Value, size?.Key ?? "", _ocr.IsChecked == true);
+        (s.ScanDevice, s.ScanSource, s.ScanColor, s.ScanBlackAndWhite, s.ScanResolution, s.ScanPageSize, s.ScanOcr, s.ScanSkipBlank) =
+            (item.Key, source.Value.ToString(), color == ScanColor.Color, color == ScanColor.BlackAndWhite, dpi.Value, size?.Key ?? "",
+             _ocr.IsChecked == true, skipBlank);
         s.Save();
 
         var request = ScanChoices.ToRequest(source.Value, color, dpi.Value, size);
         using var cts = _scanCts = new CancellationTokenSource();
-        var added = 0;
+        int added = 0, blank = 0, unreadable = 0;
         SetBusy(true, scanning: true);
         _message.Text = "Scanning… (the first page takes longer if the scanner was asleep)";
         try
         {
-            await foreach (var jpeg in client.ScanAsync(request, cts.Token))
+            await foreach (var page in ScanRun.PagesAsync(device, request, skipBlank ? Analysis : null, cts.Token))
             {
-                try
+                if (page.Fate != ScanPageFate.Kept)
                 {
-                    ScanPdfWriter.JpegInfo(jpeg); // a page the PDF can't hold (no size) is reported, not kept
-                }
-                catch (FormatException)
-                {
-                    _message.Text = "The scanner sent a page that can't be read; it was left out.";
+                    if (page.Fate == ScanPageFate.Blank) blank++;
+                    else unreadable++;
                     continue;
                 }
-                _pages.Add(new Scanned(jpeg, dpi.Value));
-                _thumbs.Children.Add(await ThumbnailAsync(jpeg, _pages.Count));
+                _pages.Add(new Scanned(page.Jpeg, dpi.Value));
+                _thumbs.Children.Add(await ThumbnailAsync(page.Jpeg, _pages.Count));
                 added++;
                 UpdateState();
-                _message.Text = $"Scanned page {_pages.Count}. Scanning…";
+                _message.Text = $"Scanned page {_pages.Count}{(blank > 0 ? $" ({blank} blank left out)" : "")}. Scanning…";
             }
-            _message.Text = added == 0
-                ? "The scanner returned no pages."
-                : IsGlass
-                    ? $"Done. For another page, put it on the glass and press Scan another page; or press {_finish.Content}."
-                    : $"Done: {added} page{(added == 1 ? "" : "s")} from the feeder.";
+            _message.Text = ScanRun.DoneText(added, blank, unreadable, IsGlass, (string)_finish.Content);
         }
         catch (OperationCanceledException)
         {
-            _message.Text = added == 0 ? "Scan stopped." : $"Scan stopped. The {added} page{(added == 1 ? "" : "s")} scanned so far are kept.";
+            _message.Text = added == 0 ? "Scan stopped." : $"Scan stopped. The {ScanRun.Pages(added)} scanned so far are kept.";
         }
         catch (ScanException ex)
         {
-            _message.Text = ex.Message;
+            _message.Text = added == 0 ? ex.Message : $"{ex.Message} The {ScanRun.Pages(added)} scanned before it are kept.";
+        }
+        catch (WiaException ex)
+        {
+            Log.Write($"Scan failed: 0x{ex.Code:X8}");
+            _message.Text = WiaErrors.Message(ex.Code, !IsGlass);
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or InvalidOperationException
                                        or System.Xml.XmlException or IOException)
@@ -499,7 +635,7 @@ internal sealed class ScanDialog : Window
             _message.Text = error;
             return;
         }
-        var pages = _pages.Select(p => new ScanPage(p.Jpeg, p.Dpi)).ToList();
+        var pages = _pages.Select(p => (p.Jpeg, p.Dpi)).ToList();
         var ocr = _ocr.IsChecked == true ? PageOcr.Engine : null;
         AppSettings.Current.ScanOcr = _ocr.IsChecked == true;
         SetBusy(true);
@@ -507,12 +643,7 @@ internal sealed class ScanDialog : Window
         try
         {
             var title = _title;
-            var pdf = await Task.Run(() =>
-            {
-                using var ms = new MemoryStream();
-                ScanPdfWriter.Write(ms, pages, title);
-                return ms.ToArray();
-            });
+            var pdf = await Task.Run(() => ScanRun.ToPdf(pages, title));
             if (ocr is not null)
             {
                 using var progress = new ProgressPrompt(this, "Recognizing text", "Starting…");
@@ -559,7 +690,9 @@ internal sealed class ScanDialog : Window
     private void UpdateState()
     {
         var ready = _caps is not null && !_busy;
-        _scanner.IsEnabled = _source.IsEnabled = _color.IsEnabled = _resolution.IsEnabled = _size.IsEnabled = !_busy;
+        _scanner.IsEnabled = _source.IsEnabled = _color.IsEnabled = _resolution.IsEnabled = _size.IsEnabled = _preset.IsEnabled = !_busy;
+        _savePreset.IsEnabled = ready;
+        _deletePreset.IsEnabled = !_busy && _preset.SelectedItem is Choice<ScanPreset?> { Value: not null };
         _scan.IsEnabled = ready;
         _scan.Content = _pages.Count == 0 ? "Scan" : IsGlass ? "Scan another page" : "Scan more pages";
         _finish.IsEnabled = _pages.Count > 0 && !_busy;
@@ -570,6 +703,120 @@ internal sealed class ScanDialog : Window
         _pageCount.Text = _pages.Count switch { 0 => "No pages yet", 1 => "1 page", var n => $"{n} pages" };
         if (_pages.Count == 0 && _thumbs.Children.Count == 0 && !_busy && _message.Text.Length == 0 && _caps is not null)
             _message.Text = IsGlass ? "Put a page face down on the scanner glass, then press Scan." : "Put the pages face up in the document feeder, then press Scan.";
+    }
+
+    /// <summary>The preset list: "No preset" first, then the saved presets; <paramref name="select"/> chosen (without applying it).</summary>
+    private void FillPresets(string? select)
+    {
+        var items = new List<Choice<ScanPreset?>> { new(null, "No preset") };
+        items.AddRange(Presets().Select(p => new Choice<ScanPreset?>(p, p.Name)));
+        _filling = true;
+        try
+        {
+            _preset.ItemsSource = items;
+            _preset.SelectedItem = items.FirstOrDefault(i => i.Value?.Id == select) ?? items[0];
+        }
+        finally
+        {
+            _filling = false;
+        }
+    }
+
+    private static List<ScanPreset> Presets() =>
+        ScanPresets.Normalize(new ScanPresetSettings { Items = AppSettings.Current.ScanPresets });
+
+    /// <summary>
+    /// Sets the choices from a preset, matched to this scanner (<see cref="PresetPlan"/>: closest resolution, a size that fits, a
+    /// fallback source), saying what had to give; waits for the scanner when it isn't connected yet.
+    /// </summary>
+    private void ApplyPreset(ScanPreset preset)
+    {
+        if (_caps is not { } caps)
+        {
+            _pendingPreset = preset;
+            return;
+        }
+        var plan = PresetPlan.For(preset, caps, null, PageOcr.Engine is not null, RegionInfo.CurrentRegion.IsMetric);
+        var r = plan.Request;
+        _filling = true;
+        try
+        {
+            if (_source.ItemsSource is IEnumerable<Choice<ScanSource>> sources)
+                _source.SelectedItem = sources.FirstOrDefault(x => x.Value == r.Source) ?? _source.SelectedItem;
+            // The preset's color, resolution and size become the "current" choices FillOptions keeps.
+            _color.ItemsSource = new[] { new Choice<ScanColor>(r.Color, ScanChoices.ColorLabel(r.Color)) };
+            _color.SelectedIndex = 0;
+            _resolution.ItemsSource = new[] { new Choice<int>(r.Resolution, "") };
+            _resolution.SelectedIndex = 0;
+            if (ScanChoices.PageSizes.FirstOrDefault(p => p.Width == r.Width && p.Height == r.Height) is { } size)
+            {
+                _size.ItemsSource = new[] { new Choice<ScanPageSize>(size, size.Label) };
+                _size.SelectedIndex = 0;
+            }
+        }
+        finally
+        {
+            _filling = false;
+        }
+        FillOptions();
+        _ocr.IsChecked = plan.Ocr;
+        _skipBlank.IsChecked = preset.SkipBlank;
+        _message.Text = plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : $"Preset \"{preset.Name}\" chosen.";
+        UpdateState();
+    }
+
+    /// <summary>Saves the current choices as a named preset (any scanner can use it).</summary>
+    private void SavePreset()
+    {
+        if (_busy || _source.SelectedItem is not Choice<ScanSource> source || _resolution.SelectedItem is not Choice<int> dpi) return;
+        var list = Presets();
+        var dlg = new FormDialog(this, "Save as preset", "Save");
+        dlg.AddNote("Saves the source, color, resolution, page size, text recognition and blank page choices. A preset works with any " +
+                    "scanner: what one can't do is matched as closely as it allows.");
+        var name = dlg.AddText("Name", ScanPresets.UniqueName(list.Select(p => p.Name), "My scan"));
+        dlg.Validate(() => ScanPresets.NameProblem(list, "", name.Text));
+        dlg.Loaded += (_, _) =>
+        {
+            name.Focus();
+            name.SelectAll();
+        };
+        if (!dlg.ShowModal()) return;
+        var preset = ScanPresets.FromChoices(list, name.Text, source.Value, (_color.SelectedItem as Choice<ScanColor>)?.Value ?? ScanColor.Color,
+            dpi.Value, (_size.SelectedItem as Choice<ScanPageSize>)?.Value.Key, _ocr.IsChecked == true, _skipBlank.IsChecked == true);
+        list.Add(preset);
+        AppSettings.Current.ScanPresets = list;
+        AppSettings.Current.Save();
+        FillPresets(preset.Id);
+        _message.Text = $"Saved the preset \"{preset.Name}\".";
+        UpdateState();
+    }
+
+    private void DeletePreset()
+    {
+        if (_busy || _preset.SelectedItem is not Choice<ScanPreset?> { Value: { } preset }
+            || !Prompt.Confirm(this, $"Delete the preset \"{preset.Name}\"?", "Its choices are forgotten; pages already scanned stay.", "Delete")) return;
+        AppSettings.Current.ScanPresets = [.. Presets().Where(p => p.Id != preset.Id)];
+        AppSettings.Current.Save();
+        FillPresets(null);
+        _message.Text = $"Deleted the preset \"{preset.Name}\".";
+        UpdateState();
+    }
+
+    /// <summary>The small greyscale copy (about 100 dpi) the blank page check reads, as Inkvolt Print's scan review makes it.</summary>
+    private static GrayImage Analysis(byte[] jpeg)
+    {
+        var (w, h, _) = ScanPdfWriter.JpegInfo(jpeg);
+        var img = new BitmapImage();
+        img.BeginInit();
+        img.CacheOption = BitmapCacheOption.OnLoad;
+        img.StreamSource = new MemoryStream(jpeg);
+        img.DecodePixelWidth = Math.Max(1, (int)Math.Round(w * Math.Min(1, 1100.0 / Math.Max(w, h))));
+        img.EndInit();
+        img.Freeze();
+        var gray = new FormatConvertedBitmap(img, PixelFormats.Gray8, null, 0);
+        var pixels = new byte[gray.PixelWidth * gray.PixelHeight];
+        gray.CopyPixels(pixels, gray.PixelWidth, 0);
+        return new GrayImage(gray.PixelWidth, gray.PixelHeight, pixels);
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -612,7 +859,26 @@ internal sealed class ScanDialog : Window
 
     /// <summary>Dev check: the scanners listed and the dialog's state.</summary>
     internal string DevDescribe() =>
-        $"scanners=[{string.Join(" | ", _scanners)}] selected={_scanner.SelectedItem} state='{_scannerState.Text}' " +
-        $"source={_source.SelectedItem} color={_color.SelectedItem} dpi={_resolution.SelectedItem} size={_size.SelectedItem} " +
-        $"ocr={_ocr.IsChecked} pages={_pages.Count} scan={_scan.IsEnabled} message='{_message.Text}'";
+        $"scanners=[{string.Join(" | ", _scanners)}] selected={_scanner.SelectedItem} state='{_scannerState.Text}' twain='{_twainNote.Text}' " +
+        $"preset={_preset.SelectedItem} source={_source.SelectedItem} color={_color.SelectedItem} dpi={_resolution.SelectedItem} size={_size.SelectedItem} " +
+        $"ocr={_ocr.IsChecked} skipblank={_skipBlank.IsChecked} pages={_pages.Count} scan={_scan.IsEnabled} message='{_message.Text}'";
+
+    /// <summary>Dev check: chooses the first scanner whose label contains <paramref name="text"/>.</summary>
+    internal string DevSelect(string text)
+    {
+        var item = _scanners.FirstOrDefault(s => s.ToString().Contains(text, StringComparison.OrdinalIgnoreCase));
+        if (item is not null) _scanner.SelectedItem = item;
+        return item?.ToString() ?? "none";
+    }
+
+    /// <summary>Dev check: chooses the source (glass, feeder, duplex), color (Color, Grayscale, BlackAndWhite) and dpi; "-" leaves one as it is.</summary>
+    internal void DevChoose(string source, string color, string dpi)
+    {
+        if (source != "-" && _source.ItemsSource is IEnumerable<Choice<ScanSource>> sources)
+            _source.SelectedItem = sources.FirstOrDefault(x => x.Value == source switch { "feeder" => ScanSource.Adf, "duplex" => ScanSource.AdfDuplex, _ => ScanSource.Platen });
+        if (color != "-" && _color.ItemsSource is IEnumerable<Choice<ScanColor>> colors)
+            _color.SelectedItem = colors.FirstOrDefault(c => c.Value.ToString().Equals(color, StringComparison.OrdinalIgnoreCase));
+        if (dpi != "-" && _resolution.ItemsSource is IEnumerable<Choice<int>> dpis)
+            _resolution.SelectedItem = dpis.MinBy(d => Math.Abs(d.Value - int.Parse(dpi, CultureInfo.InvariantCulture)));
+    }
 }

@@ -173,7 +173,8 @@ public sealed record EsclQuirks(bool PortInHost, bool NextLoadDelay)
         TimeSpan.FromMilliseconds(Math.Clamp(lastLoad.TotalMilliseconds / 2, 0, 1000));
 }
 
-public enum ScanColor { Color, Grayscale }
+/// <summary>Color mode of a scan. <see cref="BlackAndWhite"/> (1 bit, eSCL <c>BlackAndWhite1</c>, WIA threshold) only where the source lists it.</summary>
+public enum ScanColor { Color, Grayscale, BlackAndWhite }
 
 public sealed record ScanRequest(
     ScanSource Source = ScanSource.Platen,
@@ -197,8 +198,10 @@ public static class EsclXml
         var height = Math.Clamp(req.Height ?? input.MaxHeight, input.MinHeight, input.MaxHeight);
         var res = input.Resolutions.Count == 0 ? req.Resolution
             : input.Resolutions.MinBy(r => Math.Abs(r - req.Resolution));
-        var color = req.Color == ScanColor.Color ? "RGB24" : "Grayscale8";
-        // A missing mode falls back to the other of color/grey before black-and-white (which loses too much for OCR).
+        var color = req.Color switch { ScanColor.Color => "RGB24", ScanColor.BlackAndWhite => "BlackAndWhite1", _ => "Grayscale8" };
+        // Black and white not offered: grey. A missing mode falls back to the other of color/grey before black-and-white
+        // (which loses too much for OCR).
+        if (color == "BlackAndWhite1" && input.ColorModes.Count > 0 && !input.ColorModes.Contains(color)) color = "Grayscale8";
         if (input.ColorModes.Count > 0 && !input.ColorModes.Contains(color))
             color = input.ColorModes.FirstOrDefault(m => m is "RGB24" or "Grayscale8") ?? input.ColorModes[0];
         // "Document" isn't offered by every source (some feeders list only TextAndGraphic and Photo).

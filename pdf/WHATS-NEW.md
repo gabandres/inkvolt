@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Scan now finds USB scanners and others that have a Windows driver, listed beside your network scanners, and TWAIN scanners when their TWAIN driver is installed. Scan from the glass or a stack in the feeder, both sides where the scanner can, in color, grayscale or black and white.
+- Scanning can leave out blank pages, such as the empty backs when you scan one-sided sheets on both sides. It's on by default and says how many it left out.
+- Save your scan settings as a preset (source, color, resolution, page size, text recognition, blank pages) and pick it next time; it works with any scanner, as closely as that scanner allows.
 - Inkvolt PDF follows Windows' Text size (Settings › Accessibility): dialogs, the tabs at the top, the command bar, the panes, the start page and Organize Pages get larger with it. The pages keep their own zoom.
 - A toast with Undo goes away when you close the document it was about, so it can't undo something in a file that's gone.
 - Toasts and the command palette slide in briefly instead of popping up; they don't move at all when Windows' animation effects are off.
