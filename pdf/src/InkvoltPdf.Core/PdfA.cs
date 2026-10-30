@@ -97,6 +97,8 @@ public static class PdfA
                 blockers.Add("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).");
             if (blockers.Count > 0) throw new PdfAException(blockers);
             pdfUa = Xmp.SaysPdfUa(Xmp.Read(doc));
+            // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.
+            if (FontUnicode.Complete(doc) is var fonts and > 0) changes.Add($"{Count(fonts, "font", "fonts")} given the Unicode values of their characters");
         }
         var pass = new Pass(doc, changes);
         pass.Run();

@@ -135,6 +135,8 @@ public static partial class AutoTag
             doc.Info.ModificationDate = DateTime.Now;
             // PDF/UA wants every font embedded: the standard faces can be, from Windows' metric twins.
             PdfA.EmbedStandardFonts(doc);
+            // Characters with no Unicode value (TeX's math glyphs) get one, so they are read aloud.
+            FontUnicode.Complete(doc);
             Xmp.MarkPdfUa(doc);
         }
 

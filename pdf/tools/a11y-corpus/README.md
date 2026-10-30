@@ -69,4 +69,5 @@ and fields; XFA's `dynamicRender` with whitespace in its closing tag; a media cl
 
 `dotnet pdf/tools/a11y-corpus/bin/Release/net10.0/win-arm64/A11yCorpus.dll` with `check <pdf>…` (pass or fail and the
 conditions), `show <pdf>` (every finding), `html <pdf> <out.html>` (the report), `compare <verapdf.xml> <folder> [out.csv]`,
-and for looking inside a file: `tags <pdf> [type]` (the structure tree with attributes), `obj <pdf> <n|root>`, `find <pdf> <text>`.
+and for looking inside a file: `tags <pdf> [type]` (the structure tree with attributes), `obj <pdf> <n|root>`, `find <pdf> <text>`,
+`glyphs <pdf>` (each simple font's codes without Unicode and their glyph names).

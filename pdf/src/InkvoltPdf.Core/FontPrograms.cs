@@ -241,6 +241,15 @@ internal sealed class CffProgram : FontProgram
     /// <summary>The CIDs of a CID-keyed program, 0 (.notdef) left out.</summary>
     internal IReadOnlyCollection<int> Cids => _cids;
 
+    private readonly HashSet<int> _blank = [];
+    private string?[] _glyphNames = [];
+
+    /// <summary>The glyph draws nothing (a space): by CID in a CID-keyed program, by glyph index in a name-keyed one.</summary>
+    internal bool IsBlank(int glyph) => _blank.Contains(glyph);
+
+    /// <summary>A name-keyed program's glyph name at a glyph index (null for CID-keyed programs and unknown names).</summary>
+    internal string? NameOfGlyph(int gid) => gid >= 0 && gid < _glyphNames.Length ? _glyphNames[gid] : null;
+
     public static CffProgram? Read(byte[] b)
     {
         if (b.Length < 4 || b[0] != 1) return null;
@@ -285,12 +294,35 @@ internal sealed class CffProgram : FontProgram
             for (var gid = 1; gid < n; gid++) sids[gid] = gid; // ISOAdobe: SID = glyph index
         }
         else return font.IsCid ? null : font; // Expert charsets: names unknown here
+        if (!cid) font._glyphNames = new string?[n];
         for (var gid = 1; gid < n; gid++)
         {
             if (cid) font._cids.Add(sids[gid]);
-            else if (Sid(sids[gid], b, strings) is { } name) font._names.Add(name);
+            else if (Sid(sids[gid], b, strings) is { } name)
+            {
+                font._names.Add(name);
+                font._glyphNames[gid] = name;
+            }
+            if (Blank(b, charStrings[gid].Offset, charStrings[gid].Length)) font._blank.Add(cid ? sids[gid] : gid);
         }
         return font;
+    }
+
+    /// <summary>A Type 2 charstring that ends before drawing: at most a width, then endchar (with four more operands it is an accented seac).</summary>
+    private static bool Blank(byte[] b, int start, int length)
+    {
+        var operands = 0;
+        for (var p = start; p < start + length && p < b.Length;)
+        {
+            var v = b[p];
+            if (v == 28) p += 3;
+            else if (v is >= 32 and <= 246) p++;
+            else if (v is >= 247 and <= 254) p += 2;
+            else if (v == 255) p += 5;
+            else return v == 14 && operands <= 1;
+            operands++;
+        }
+        return false;
     }
 
     private static string? Sid(int sid, byte[] b, List<(int Offset, int Length)> strings)

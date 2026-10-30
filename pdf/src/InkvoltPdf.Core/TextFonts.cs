@@ -354,6 +354,9 @@ internal sealed class TextFont
     /// <summary>The ToUnicode CMap's own value for a code, or null when it has none.</summary>
     internal string? ToUnicodeOf(int code) => _toUnicode.GetValueOrDefault(code);
 
+    /// <summary>Every code the ToUnicode CMap maps, with its text.</summary>
+    internal IReadOnlyDictionary<int, string> ToUnicodeMap => _toUnicode;
+
     /// <summary>The width the PDF itself gives a code (/Widths or /W), or null.</summary>
     internal double? DictionaryWidth(int code) =>
         TwoByte ? (_cidWidths.TryGetValue(code, out var w) ? w : _cidFont is not null ? _dw : null)

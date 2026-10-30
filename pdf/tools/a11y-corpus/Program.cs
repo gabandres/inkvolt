@@ -6,6 +6,8 @@ using InkvoltPdf.Core;
 // html <file.pdf> <out.html>                The report as the app saves it.
 // obj <file.pdf> <number|root>             One object as PDFsharp reads it (a stream's first 1,500 bytes decoded).
 // find <file.pdf> <text>                   The objects whose dictionary holds the text ("/ZapfDingbats").
+// glyphs <file.pdf>                       Each simple font's codes without Unicode (no ToUnicode entry, glyph name unknown), with
+//                                           the glyph name its encoding gives them.
 // tags <file.pdf> [type]                   The structure tree as PDFsharp reads it (each tag, its attributes), or only the
 //                                           subtrees of one type ("Table").
 // tag [--all] <out-folder> <file.pdf>...  Make Accessible on each untagged file (tagged ones are skipped, or with --all their
@@ -107,6 +109,19 @@ switch (args)
         foreach (var o in doc.Internals.GetAllObjects())
             if (o is PdfSharp.Pdf.PdfDictionary d && d.ToString() is var t && t.Contains(text, StringComparison.Ordinal))
                 Console.WriteLine($"{o.Reference?.ObjectNumber}: {(t.Length > 400 ? t[..400] : t)}");
+        return 0;
+    }
+    case ["glyphs", var file]:
+    {
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(HybridXref.Normalize(File.ReadAllBytes(file))), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        foreach (var o in doc.Internals.GetAllObjects())
+        {
+            if (o is not PdfSharp.Pdf.PdfDictionary d || d.Elements.GetName("/Type") != "/Font" || d.Elements.GetName("/Subtype") is "/Type0" or "") continue;
+            var tf = TextFont.For(d);
+            var missing = Enumerable.Range(0, 256).Where(c => tf.UnicodeOf(c) is null && tf.GlyphNameOf(c) is { } g && g != ".notdef")
+                .Select(c => $"{c}={tf.GlyphNameOf(c)}").ToList();
+            if (missing.Count > 0) Console.WriteLine($"{d.Elements.GetName("/BaseFont")}: {string.Join(' ', missing)}");
+        }
         return 0;
     }
     case ["tags", var file, .. var only]:
