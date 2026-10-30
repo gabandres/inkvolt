@@ -294,12 +294,13 @@ struct FormDesignTests {
     }
 
     @Test func signedFilesGetFieldsAppended() throws {
-        let signed = SignedEditTests.signed()
+        let signed = try Core2SignatureTests.signed()
         let field = new(.text, RectD(72, 300, 200, 20), "Notes")
         let (added, report) = try SignedEdits.run { try FormDesign.add(signed, nil, [field]) }
         #expect(report.appended)
         #expect(Array(added.prefix(signed.count)) == signed)
-        #expect(Signatures.verify(added).first { $0.fieldName == "Approval" }?.status == .modifiedAfterSigning)
+        let status = Signatures.verify(added).first { $0.fieldName == "Approval" }?.status
+        #expect(status == .modifiedAfterSigning, "\(String(describing: status))")
         #expect(try FormEditor.read(added, nil).map(\.fieldName).contains("Notes"))
 
         // The signed signature field itself can't be changed or removed.

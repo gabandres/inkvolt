@@ -277,47 +277,72 @@ public enum FormDesign {
 
     /// `baseName` if no field has it yet, else "baseName_2", "baseName_3", …
     public static func uniqueName(_ existing: [String], _ baseName: String) -> String {
-        let free = nameCheck(existing)
-        if free(baseName) { return baseName }
-        var i = 2
-        while !free("\(baseName)_\(i)") { i += 1 }
-        return "\(baseName)_\(i)"
+        var names = NameBook(existing)
+        return names.unique(baseName)
     }
 
     /// The next numbered name for a new field of `kind`: "Text1", "Check Box2", "Group1" …
     public static func nextName(_ existing: [String], _ kind: DesignFieldKind) -> String {
-        let prefix: String
-        switch kind {
-        case .text: prefix = "Text"
-        case .checkBox: prefix = "Check Box"
-        case .radio: prefix = "Group"
-        case .comboBox: prefix = "Dropdown"
-        case .listBox: prefix = "List Box"
-        case .signature: prefix = "Signature"
-        case .button: prefix = "Button"
+        var names = NameBook(existing)
+        return names.next(kind)
+    }
+
+    /// The names in use, for picking several in a row (`uniqueName` and `nextName` start over each time): a name is free
+    /// when it isn't taken, isn't a group of taken names ("a" when "a.b" is), and isn't under a taken field ("a.b" when "a"
+    /// is). Each check costs the name's length, not the field count.
+    struct NameBook {
+        private var taken = Set<String>()
+        private var groups = Set<String>()
+        /// Where the numbering of a base name goes on: lower numbers were taken when it last looked.
+        private var numbered: [String: Int] = [:]
+
+        init(_ names: [String] = []) {
+            for n in names { add(n) }
         }
-        let free = nameCheck(existing)
-        var i = 1
-        while !free("\(prefix)\(i)") { i += 1 }
-        return "\(prefix)\(i)"
+
+        mutating func add(_ name: String) {
+            if taken.insert(name).inserted { groups.formUnion(FormDesign.groupsOf(name)) }
+        }
+
+        func isFree(_ name: String) -> Bool {
+            if taken.contains(name) || groups.contains(name) { return false }
+            return !FormDesign.groupsOf(name).contains { taken.contains($0) }
+        }
+
+        /// `baseName`, or its next free numbered form ("baseName_2" …).
+        mutating func unique(_ baseName: String) -> String {
+            if isFree(baseName) { return baseName }
+            var i = numbered[baseName] ?? 2
+            while !isFree("\(baseName)_\(i)") { i += 1 }
+            numbered[baseName] = i
+            return "\(baseName)_\(i)"
+        }
+
+        mutating func next(_ kind: DesignFieldKind) -> String {
+            let prefix = FormDesign.namePrefix(kind)
+            var i = numbered[prefix] ?? 1
+            while !isFree("\(prefix)\(i)") { i += 1 }
+            numbered[prefix] = i
+            return "\(prefix)\(i)"
+        }
+    }
+
+    private static func namePrefix(_ kind: DesignFieldKind) -> String {
+        switch kind {
+        case .text: "Text"
+        case .checkBox: "Check Box"
+        case .radio: "Group"
+        case .comboBox: "Dropdown"
+        case .listBox: "List Box"
+        case .signature: "Signature"
+        case .button: "Button"
+        }
     }
 
     /// The parts of a name before each of its dots ("a.b.c": "a", "a.b"); none when it starts with a dot.
     private static func groupsOf(_ name: String) -> [String] {
-        if name.first == "." { return [] }
+        guard name.utf8.contains(46), name.first != "." else { return [] }
         return name.indices.filter { name[$0] == "." }.map { String(name[..<$0]) }
-    }
-
-    /// Whether a name is free among `existing`: not taken, not a group of taken names ("a" when "a.b" is), and not under a
-    /// taken field ("a.b" when "a" is). Each check costs the name's length, not the field count.
-    private static func nameCheck(_ existing: [String]) -> (String) -> Bool {
-        let taken = Set(existing)
-        var groups = Set<String>()
-        for t in taken { groups.formUnion(groupsOf(t)) }
-        return { n in
-            if taken.contains(n) || groups.contains(n) { return false }
-            return !groupsOf(n).contains { taken.contains($0) }
-        }
     }
 
     /// A new field of `kind` over `rect` with the designer's defaults (thin gray border, automatic text size; check boxes

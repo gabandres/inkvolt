@@ -162,12 +162,12 @@ public enum FieldDetection {
             let ka = order(a.element), kb = order(b.element)
             return ka != kb ? ka < kb : a.offset < b.offset
         }.map(\.element)
-        var names = existingNames
+        var names = FormDesign.NameBook(existingNames)
         var result: [FieldSuggestion] = []
         for s in reading {
             let clean = cleanLabel(s.label, leading: captions.contains(s.label))
-            let name = clean.isEmpty ? FormDesign.nextName(names, s.kind) : FormDesign.uniqueName(names, clean)
-            names.append(name)
+            let name = clean.isEmpty ? names.next(s.kind) : names.unique(clean)
+            names.add(name)
             result.append(FieldSuggestion(pageIndex: pageIndex, rect: s.rect, kind: s.kind, name: name, multiline: s.multiline, source: s.source))
         }
         return result
