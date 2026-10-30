@@ -369,7 +369,7 @@ public enum AutoTag {
             let words = text.lowercased().split { separators.contains($0) }.prefix(5000).map(String.init)
             if words.count < (strict ? 25 : 8) { return nil }
             let scores = lists.enumerated()
-                .map { (order: $0.offset, code: $0.element.code, hits: words.reduce(0) { n, w in n + ($0.element.words.contains(w) ? 1 : 0) }) }
+                .map { i, list in (order: i, code: list.code, hits: words.count(where: list.words.contains)) }
                 .sorted { $0.hits != $1.hits ? $0.hits > $1.hits : $0.order < $1.order }
             let best = scores[0], second = scores[1]
             if Double(best.hits) < Double(words.count) * (strict ? 0.2 : 0.1) { return nil }
