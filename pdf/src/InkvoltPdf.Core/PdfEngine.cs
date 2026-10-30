@@ -825,14 +825,16 @@ public sealed class PdfEngine : IDisposable
     /// become one picture each, rendered as shown, and their labels and lines are left out of the text. Not cached.
     /// </summary>
     /// <param name="boxesOnly">Pictures and figures say where they are, without their pixels (tagging needs no more).</param>
+    /// <param name="shapes">Read the page's simple shapes too (<see cref="ExportShapes"/>); what is neither one nor text is added as a picture.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
-    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false)
+    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false, bool shapes = false)
     {
         cancel.ThrowIfCancellationRequested();
         var lines = new List<ExportLine>();
         var raw = new List<(List<ExportGlyph> Glyphs, int Turn, bool Sideways)>();
         var pictures = new List<ExportImage>();
         var paths = new List<(RectD Box, bool Stroked)>();
+        var colors = new List<uint>();
         var tooManyPaths = false;
         PageGeometry g;
         EnterText(cancel);
@@ -876,7 +878,11 @@ public sealed class PdfEngine : IDisposable
                         break;
                     }
                     case MuPDFVectorStructuredTextBlock vb:
-                        if (paths.Count < MaxRulePaths) paths.Add((Box(vb.BoundingBox), vb.Stroked));
+                        if (paths.Count < MaxRulePaths)
+                        {
+                            paths.Add((Box(vb.BoundingBox), vb.Stroked));
+                            colors.Add(vb.Color is { Length: >= 3 } c ? (uint)c[0] << 16 | (uint)c[1] << 8 | c[2] : 0);
+                        }
                         else tooManyPaths = true;
                         break;
                 }
@@ -951,7 +957,21 @@ public sealed class PdfEngine : IDisposable
                 if (RenderRegionRgba(page, f, 2, cancel) is { } r)
                     pictures.Add(new ExportImage(PngEncoder.Encode(r.Width, r.Height, r.Rgba, alpha: HasTransparency(r.Rgba)), "png", r.Width, r.Height, f));
         }
-        return new ExportPage(g.Width, g.Height, lines, pictures, rules);
+        IReadOnlyList<ExportShape> found = [];
+        if (shapes && images && !boxesOnly && !tooManyPaths)
+        {
+            var drawn = paths.Select((p, i) => new ExportPath(p.Box, p.Stroked, colors[i]))
+                .Where(p => !figures.Any(f => f.Inflate(1).Contains(p.Box.CenterX, p.Box.CenterY))).ToList();
+            ExportShapes.Raster? raster = null;
+            if (ExportShapes.NeedsRaster(drawn) && RenderRegionRgba(page, new RectD(0, 0, g.Width, g.Height), 2, cancel) is { } whole)
+                raster = new ExportShapes.Raster(whole.Rgba, whole.Width, whole.Height, whole.Width / Math.Max(1, g.Width));
+            var (simple, keep) = ExportShapes.Read(drawn, raster, lines, [.. pictures.Select(p => p.Box)], g.Width, g.Height);
+            found = simple;
+            foreach (var area in keep)
+                if (RenderRegionRgba(page, area, 2, cancel) is { } r)
+                    pictures.Add(new ExportImage(PngEncoder.Encode(r.Width, r.Height, r.Rgba, alpha: true), "png", r.Width, r.Height, area));
+        }
+        return new ExportPage(g.Width, g.Height, lines, pictures, rules) { Shapes = found };
 
         static double Overlap(RectD a, RectD b) =>
             Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X)) * Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y));

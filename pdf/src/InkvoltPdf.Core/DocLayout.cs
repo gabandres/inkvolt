@@ -74,6 +74,12 @@ public sealed record DocRunningRow(IReadOnlyList<(TextAlign Zone, ExportSpan Spa
 
 public sealed record DocLayoutResult(IReadOnlyList<DocPage> Pages, DocRunning? Header, DocRunning? Footer);
 
+/// <summary>
+/// A page laid out for a slide. Source: the page as laid out (turned upright, if it was), for what a flow leaves out: lines
+/// reading sideways and shapes. Running: where lines that repeat on most pages are.
+/// </summary>
+public sealed record SlidePage(DocPage Layout, ExportPage Source, IReadOnlyList<RectD> Running);
+
 /// <summary>A page laid out for export. Content: the area its text and pictures cover.</summary>
 public sealed record DocPage(double Width, double Height, RectD Content, IReadOnlyList<DocBlock> Blocks, bool FromOcr = false);
 
@@ -101,6 +107,21 @@ internal static partial class DocLayout
         var laid = upright.Select(p => LayOut(p, body)).ToList();
         laid = AssignHeadings(laid, body);
         return new DocLayoutResult(Dehyphenate(laid, upright), header, footer);
+    }
+
+    /// <summary>
+    /// The pages laid out one by one for slides: every line stays on its page (a slide shows its running head as the page
+    /// does, so <see cref="SlidePage.Running"/> only says where those are, and no word is carried over from the page
+    /// before).
+    /// </summary>
+    public static IReadOnlyList<SlidePage> AnalyzeSlides(IReadOnlyList<ExportPage> pages)
+    {
+        var upright = pages.Select(Upright).ToList();
+        var (stripped, _, _) = Running(upright);
+        var body = BodySize(upright);
+        var laid = AssignHeadings([.. upright.Select(p => LayOut(p, body))], body);
+        return [.. laid.Select((page, i) => new SlidePage(page, upright[i],
+            [.. upright[i].Lines.Except(stripped[i].Lines, ReferenceEqualityComparer.Instance).OfType<ExportLine>().Select(l => l.Box)]))];
     }
 
     /// <summary>
