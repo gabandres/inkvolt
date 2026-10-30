@@ -1193,16 +1193,77 @@ internal static class Xmp
 
     private static readonly XNamespace PdfAId = "http://www.aiim.org/pdfa/ns/id/";
 
+    private static readonly XNamespace PdfUaId = "http://www.aiim.org/pdfua/ns/id/";
+    private static readonly XNamespace PdfAExtension = "http://www.aiim.org/pdfa/ns/extension/";
+    private static readonly XNamespace PdfASchema = "http://www.aiim.org/pdfa/ns/schema#";
+    private static readonly XNamespace PdfAProperty = "http://www.aiim.org/pdfa/ns/property#";
+
     /// <summary>
-    /// A new packet for a PDF/A-2b file: the Info-backed properties, dates and IDs (as <see cref="Build"/> writes them),
-    /// plus pdfaid:part 2 and pdfaid:conformance B. Only schemas PDF/A predefines, so no extension schema is needed.
+    /// A new packet for a PDF/A-2b (or, with <paramref name="conformance"/> "A", PDF/A-2a) file: the Info-backed properties,
+    /// dates and IDs (as <see cref="Build"/> writes them), plus pdfaid:part 2 and the conformance. Only schemas PDF/A
+    /// predefines, except with <paramref name="pdfUa"/>: pdfuaid:part 1, described by the extension schema PDF/A asks for.
     /// </summary>
-    internal static byte[] BuildPdfA(PdfDocumentInformation info)
+    internal static byte[] BuildPdfA(PdfDocumentInformation info, string conformance = "B", bool pdfUa = false)
     {
         var xmp = XDocument.Parse(Encoding.UTF8.GetString(Build(info, null)).Split('\n')[1]);
-        xmp.Descendants(Rdf + "RDF").First().Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
-            new XAttribute(XNamespace.Xmlns + "pdfaid", PdfAId), new XElement(PdfAId + "part", "2"), new XElement(PdfAId + "conformance", "B")));
+        var rdf = xmp.Descendants(Rdf + "RDF").First();
+        rdf.Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
+            new XAttribute(XNamespace.Xmlns + "pdfaid", PdfAId), new XElement(PdfAId + "part", "2"), new XElement(PdfAId + "conformance", conformance)));
+        if (pdfUa)
+        {
+            rdf.Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
+                new XAttribute(XNamespace.Xmlns + "pdfuaid", PdfUaId), new XElement(PdfUaId + "part", "1")));
+            rdf.Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
+                new XAttribute(XNamespace.Xmlns + "pdfaExtension", PdfAExtension), new XAttribute(XNamespace.Xmlns + "pdfaSchema", PdfASchema),
+                new XAttribute(XNamespace.Xmlns + "pdfaProperty", PdfAProperty),
+                new XElement(PdfAExtension + "schemas", new XElement(Rdf + "Bag", new XElement(Rdf + "li", new XAttribute(Rdf + "parseType", "Resource"),
+                    new XElement(PdfASchema + "schema", "PDF/UA Universal Accessibility Schema"),
+                    new XElement(PdfASchema + "namespaceURI", PdfUaId.NamespaceName),
+                    new XElement(PdfASchema + "prefix", "pdfuaid"),
+                    new XElement(PdfASchema + "property", new XElement(Rdf + "Seq", new XElement(Rdf + "li", new XAttribute(Rdf + "parseType", "Resource"),
+                        new XElement(PdfAProperty + "name", "part"),
+                        new XElement(PdfAProperty + "valueType", "Integer"),
+                        new XElement(PdfAProperty + "category", "internal"),
+                        new XElement(PdfAProperty + "description", "Indicates, which part of ISO 14289 standard is followed")))))))));
+        }
         return Packet(xmp);
+    }
+
+    /// <summary>The packet says the file is PDF/UA (pdfuaid:part).</summary>
+    internal static bool SaysPdfUa(XDocument? xmp) =>
+        xmp?.Descendants(Rdf + "Description").Any(d => d.Element(PdfUaId + "part") is not null || d.Attribute(PdfUaId + "part") is not null) == true;
+
+    /// <summary>
+    /// Writes the document's XMP packet (a new one when it has none) with pdfuaid:part 1 into its /Metadata stream, so the
+    /// save that follows (<see cref="Patch"/>) keeps it.
+    /// </summary>
+    internal static void MarkPdfUa(PdfDocument doc)
+    {
+        var xmp = Read(doc) ?? new XDocument(new XElement(Meta + "xmpmeta", new XAttribute(XNamespace.Xmlns + "x", Meta),
+            new XElement(Rdf + "RDF", new XAttribute(XNamespace.Xmlns + "rdf", Rdf))));
+        var rdf = xmp.Descendants(Rdf + "RDF").First();
+        foreach (var d in rdf.Elements(Rdf + "Description"))
+        {
+            d.Elements(PdfUaId + "part").Remove();
+            d.Attribute(PdfUaId + "part")?.Remove();
+        }
+        rdf.Add(new XElement(Rdf + "Description", new XAttribute(Rdf + "about", ""),
+            new XAttribute(XNamespace.Xmlns + "pdfuaid", PdfUaId), new XElement(PdfUaId + "part", "1")));
+        var bytes = Packet(xmp);
+        var catalog = doc.Internals.Catalog;
+        if (PdfObj.Dict(catalog.Elements["/Metadata"]) is { Stream: not null } meta)
+        {
+            meta.Elements.Remove("/Filter");
+            meta.Elements.Remove("/DecodeParms");
+            meta.Stream.Value = bytes;
+            return;
+        }
+        var fresh = new PdfDictionary(doc);
+        fresh.Elements["/Type"] = new PdfName("/Metadata");
+        fresh.Elements["/Subtype"] = new PdfName("/XML");
+        fresh.CreateStream(bytes);
+        doc.Internals.AddObject(fresh);
+        catalog.Elements["/Metadata"] = fresh.Reference!;
     }
 
     /// <summary>The file PDFsharp just saved, with <paramref name="packet"/> as its XMP packet; null if it can't be swapped.</summary>

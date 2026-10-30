@@ -6,9 +6,12 @@ using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
 
-/// <summary>A document can't be made PDF/A-2b; <see cref="Blockers"/> says why (nothing was changed).</summary>
+/// <summary>PDF/A-2 levels: B keeps the look; A also keeps the structure (tags, language, Unicode text) for accessibility.</summary>
+public enum PdfAConformance { B, A }
+
+/// <summary>A document can't be made PDF/A-2b (or 2a); <see cref="Blockers"/> says why (nothing was changed).</summary>
 public sealed class PdfAException(IReadOnlyList<string> blockers)
-    : InvalidOperationException("This PDF can't be saved as PDF/A-2b: " + string.Join(" ", blockers))
+    : InvalidOperationException("This PDF can't be saved as PDF/A: " + string.Join(" ", blockers))
 {
     public IReadOnlyList<string> Blockers { get; } = blockers;
 }
@@ -57,10 +60,14 @@ public static class PdfA
         }
     }
 
-    /// <summary>Makes a PDF/A-2b copy of the document (see the class remarks).</summary>
-    /// <exception cref="PdfAException">Something can't be made conforming without changing the look.</exception>
+    /// <summary>
+    /// Makes a PDF/A-2b copy of the document (see the class remarks). <see cref="PdfAConformance.A"/> (PDF/A-2a) needs a
+    /// tagged document with a language (Make Accessible makes one); its tags are kept, and a document that says it is
+    /// PDF/UA keeps saying so (with the extension schema PDF/A requires for that).
+    /// </summary>
+    /// <exception cref="PdfAException">Something can't be made conforming without changing the look, or (2a) it isn't tagged.</exception>
     /// <exception cref="OwnerPasswordRequiredException">An encrypted document opened without its permissions password.</exception>
-    public static PdfAResult Convert(byte[] data, string? password, DateTime? now = null)
+    public static PdfAResult Convert(byte[] data, string? password, DateTime? now = null, PdfAConformance conformance = PdfAConformance.B)
     {
         var changes = new List<string>();
         if (Incremental.LooksSigned(data) && Signatures.Verify(data, password).Any(s => s.Status != SignatureStatus.Unsigned))
@@ -79,6 +86,18 @@ public static class PdfA
         data = sanitized.Data;
 
         using var doc = PdfObj.Open(data, null, PdfDocumentOpenMode.Modify, "This PDF can't be converted");
+        var pdfUa = false;
+        if (conformance == PdfAConformance.A)
+        {
+            var catalog = doc.Internals.Catalog;
+            var blockers = new List<string>();
+            if (!catalog.Elements.ContainsKey("/StructTreeRoot") || PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is not PdfBoolean { Value: true })
+                blockers.Add("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Review › Make Accessible).");
+            if (!AccessibilityCheck.IsLanguage(PdfObj.Text(catalog.Elements["/Lang"])))
+                blockers.Add("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).");
+            if (blockers.Count > 0) throw new PdfAException(blockers);
+            pdfUa = Xmp.SaysPdfUa(Xmp.Read(doc));
+        }
         var pass = new Pass(doc, changes);
         pass.Run();
         if (pass.Blockers.Count > 0) throw new PdfAException([.. pass.Blockers.Distinct()]);
@@ -89,11 +108,22 @@ public static class PdfA
         doc.Info.Elements.Remove("/Trapped"); // optional, and a wrong value would break conformance
         using var ms = new MemoryStream();
         doc.Save(ms, false);
-        var packet = Xmp.BuildPdfA(doc.Info);
+        var packet = Xmp.BuildPdfA(doc.Info, conformance.ToString(), pdfUa);
         var result = Xmp.ReplacePacket(ms.GetBuffer().AsSpan(0, (int)ms.Length), packet)
                      ?? throw new InvalidOperationException("The PDF/A metadata couldn't be written.");
-        if (Validate(result) is { Count: > 0 } left) throw new PdfAException(left);
+        if (Validate(result, conformance) is { Count: > 0 } left) throw new PdfAException(left);
         return new PdfAResult(result, changes);
+    }
+
+    /// <summary>
+    /// Embeds the standard Helvetica, Times and Courier faces the document draws with but doesn't embed, as the PDF/A copy
+    /// does (Windows' metric-compatible fonts); other fonts are left as they are. How many were embedded.
+    /// </summary>
+    internal static int EmbedStandardFonts(PdfDocument doc)
+    {
+        var pass = new Pass(doc, []);
+        pass.Fonts();
+        return pass.Embedded;
     }
 
     private static string Count(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
@@ -438,7 +468,9 @@ public static class PdfA
 
         // ───────────── fonts ─────────────
 
-        private void Fonts()
+        public int Embedded => _embedded;
+
+        public void Fonts()
         {
             // The form's default resources only serve to draw fields anew: a font there that can't be embedded is dropped
             // (the fields keep their appearances), not a reason to refuse.
@@ -662,8 +694,9 @@ public static class PdfA
     /// The PDF/A-2b rules this class handles, checked on a finished file (empty: none broken). Not a full validator:
     /// font program internals, color in shadings and inline images, and many other rules are not looked at.
     /// </summary>
-    public static IReadOnlyList<string> Validate(byte[] pdf)
+    public static IReadOnlyList<string> Validate(byte[] pdf, PdfAConformance conformance = PdfAConformance.B)
     {
+        var level = conformance.ToString();
         var problems = new List<string>();
         var head = Encoding.Latin1.GetString(pdf.AsSpan(0, Math.Min(pdf.Length, 64)));
         if (!System.Text.RegularExpressions.Regex.IsMatch(head, @"^%PDF-1\.[0-7]\r?\n%[\x80-\xFF]{4}"))
@@ -682,6 +715,12 @@ public static class PdfA
             if (doc.SecurityHandler.Elements.ContainsKey("/Filter")) problems.Add("It is encrypted.");
             if (doc.Internals.FirstDocumentID.Length == 0) problems.Add("The trailer has no file identifier (/ID).");
             var catalog = doc.Internals.Catalog;
+            if (conformance == PdfAConformance.A)
+            {
+                if (!catalog.Elements.ContainsKey("/StructTreeRoot")) problems.Add("It isn't tagged (no structure tree).");
+                if (PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is not PdfBoolean { Value: true }) problems.Add("It doesn't say it is tagged (MarkInfo).");
+                if (!AccessibilityCheck.IsLanguage(PdfObj.Text(catalog.Elements["/Lang"]))) problems.Add("It doesn't say its language.");
+            }
             var intents = PdfObj.Array(catalog.Elements["/OutputIntents"]);
             var pdfa = intents?.Elements.Select(PdfObj.Dict).FirstOrDefault(i => PdfObj.Name(i?.Elements["/S"]) == "GTS_PDFA1");
             if (PdfObj.Dict(pdfa?.Elements["/DestOutputProfile"]) is not { Stream: { } icc } profile || PdfObj.Int(profile.Elements["/N"]) != 3 ||
@@ -695,8 +734,10 @@ public static class PdfA
                 var xmp = Encoding.UTF8.GetString(meta.Value);
                 if (!xmp.Contains("pdfaid:part=\"2\"", StringComparison.Ordinal) && !xmp.Contains("<pdfaid:part>2</pdfaid:part>", StringComparison.Ordinal))
                     problems.Add("The XMP metadata doesn't say PDF/A-2.");
-                if (!xmp.Contains("pdfaid:conformance=\"B\"", StringComparison.Ordinal) && !xmp.Contains("<pdfaid:conformance>B</pdfaid:conformance>", StringComparison.Ordinal))
-                    problems.Add("The XMP metadata doesn't say conformance B.");
+                if (!xmp.Contains($"pdfaid:conformance=\"{level}\"", StringComparison.Ordinal) && !xmp.Contains($"<pdfaid:conformance>{level}</pdfaid:conformance>", StringComparison.Ordinal))
+                    problems.Add($"The XMP metadata doesn't say conformance {level}.");
+                if (conformance == PdfAConformance.A && xmp.Contains("pdfuaid", StringComparison.Ordinal) && !xmp.Contains("pdfaSchema:prefix>pdfuaid<", StringComparison.Ordinal))
+                    problems.Add("The XMP metadata says PDF/UA without the extension schema PDF/A requires.");
             }
             if (catalog.Elements.ContainsKey("/AA")) problems.Add("The document has additional actions.");
             if (PdfObj.Dict(catalog.Elements["/Names"]) is { } names && (names.Elements.ContainsKey("/JavaScript") || names.Elements.ContainsKey("/EmbeddedFiles")))

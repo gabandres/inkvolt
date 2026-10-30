@@ -464,8 +464,9 @@ public sealed class PdfEngine : IDisposable
     /// lines and box outlines the page draws. Charts and diagrams drawn with vectors (<see cref="DocLayout.FigureRegions"/>)
     /// become one picture each, rendered as shown, and their labels and lines are left out of the text. Not cached.
     /// </summary>
+    /// <param name="boxesOnly">Pictures and figures say where they are, without their pixels (tagging needs no more).</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
-    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default)
+    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false)
     {
         cancel.ThrowIfCancellationRequested();
         var lines = new List<ExportLine>();
@@ -495,6 +496,11 @@ public sealed class PdfEngine : IDisposable
                     {
                         var box = Box(ib.BoundingBox).Intersect(new RectD(0, 0, g.Width, g.Height));
                         if (box.Width < 2 || box.Height < 2) break; // clipped away or a hairline
+                        if (boxesOnly)
+                        {
+                            pictures.Add(new ExportImage([], "png", img.Width, img.Height, box));
+                            break;
+                        }
                         using var ms = new MemoryStream();
                         var jpeg = (long)img.Width * img.Height > JpegAbovePixels;
                         try
@@ -556,7 +562,8 @@ public sealed class PdfEngine : IDisposable
             rules = [.. rules.Where(r => !InFigure(r))];
             pictures.RemoveAll(p => InFigure(p.Box));
         }
-        if (images)
+        if (images && boxesOnly) pictures.AddRange(figures.Select(f => new ExportImage([], "png", 0, 0, f)));
+        else if (images)
         {
             // Rendered again where the picture stands: what MuPDF draws applies its soft mask, so a transparent logo keeps
             // its transparency (the picture's own pixels have none). Not where text lies over it (it would be doubled).
