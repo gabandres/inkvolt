@@ -53,9 +53,10 @@ public static partial class ContentEditor
 
     /// <summary>
     /// A look resolved for writing: its size against the paragraph's (<see cref="Scale"/>), its color (null: the
-    /// paragraph's), the installed font it is drawn in (null: the paragraph's own), and the look as asked (for the tag).
+    /// paragraph's), the installed font it is drawn in (null: a page font), the look as asked (for the tag), and the
+    /// page's own font it is drawn in when the paragraph has that face (a bold word's font; null: the paragraph's own).
     /// </summary>
-    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked);
+    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null);
 
     /// <summary>The look of each UTF-16 unit of <paramref name="text"/> (null: the paragraph's own), later spans over earlier ones.</summary>
     private static TextLook?[] LooksOf(string text, IReadOnlyList<TextSpan>? spans)
@@ -71,16 +72,21 @@ public static partial class ContentEditor
     /// <summary>
     /// The looks of a paragraph read back: each run an edit gave a look of its own, as a span over its text in
     /// <paramref name="text"/> (where <paramref name="at"/> says each run starts), its size and color as drawn, its font,
-    /// bold and italic as its tag says; spans of one look next to each other merged.
+    /// bold and italic as its tag says; a run in another face of the paragraph's family (a bold word as the page's
+    /// generator drew it) as bold or italic; spans of one look next to each other merged.
     /// </summary>
     private static List<TextSpan> SpansOf(TextRun lead, IEnumerable<(TextRun Run, int Start, int Length)> at)
     {
         var spans = new List<TextSpan>();
         foreach (var (r, start, length) in at)
         {
-            if (r.Tag is not { } tag || length <= 0) continue;
+            if (length <= 0) continue;
             var size = Math.Abs(r.FontSize - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(r.FontSize, 1) : (double?)null;
-            var look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic);
+            TextLook look;
+            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic);
+            else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
+                look = new TextLook(null, size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+            else continue;
             if (look.IsPlain) continue;
             if (spans.Count > 0 && spans[^1].Look == look && spans[^1].End >= start - 1)
                 spans[^1] = spans[^1] with { Length = start + length - spans[^1].Start };

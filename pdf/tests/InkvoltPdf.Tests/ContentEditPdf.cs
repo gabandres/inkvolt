@@ -18,8 +18,9 @@ internal static class ContentEditPdf
     /// <param name="formInherits">/Fm1 has no /Resources of its own (it borrows the page's).</param>
     /// <param name="damagedPart">A last content stream that claims Flate but holds bytes that don't inflate.</param>
     /// <param name="fontText">The characters the fonts hold (default <see cref="FontText"/>).</param>
+    /// <param name="faces">Also /FB (Arial Bold, WinAnsi) and /FT (Times New Roman, WinAnsi), holding <paramref name="fontText"/> too.</param>
     public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null, bool formInherits = false, bool damagedPart = false,
-        string fontText = FontText)
+        string fontText = FontText, bool faces = false)
     {
         TestPdf.UseFonts();
         byte[] seed;
@@ -32,6 +33,11 @@ internal static class ContentEditPdf
             {
                 gfx.DrawString(fontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.WinAnsi)), XBrushes.Black, new XPoint(72, 72));
                 gfx.DrawString(fontText, new XFont("Arial", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode)), XBrushes.Black, new XPoint(72, 96));
+                if (faces)
+                {
+                    gfx.DrawString(fontText, new XFont("Arial", 12, XFontStyleEx.Bold, new XPdfFontOptions(PdfFontEncoding.WinAnsi)), XBrushes.Black, new XPoint(72, 120));
+                    gfx.DrawString(fontText, new XFont("Times New Roman", 12, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.WinAnsi)), XBrushes.Black, new XPoint(72, 144));
+                }
             }
             using var ms = new MemoryStream();
             doc.Save(ms, false);
@@ -41,17 +47,22 @@ internal static class ContentEditPdf
         using var d = PdfReader.Open(new MemoryStream(seed), PdfDocumentOpenMode.Modify);
         var p = d.Pages[0];
         var fonts = PdfObj.Dict(PdfObj.Dict(p.Elements["/Resources"])!.Elements["/Font"])!;
-        PdfItem? winAnsi = null, unicode = null;
+        PdfItem? winAnsi = null, unicode = null, bold = null, times = null;
         foreach (var key in fonts.Elements.Keys)
         {
             var f = PdfObj.Dict(fonts.Elements[key])!;
+            var baseFont = PdfObj.NameOf(f, "/BaseFont") ?? "";
             if (PdfObj.NameOf(f, "/Subtype") == "/Type0") unicode = fonts.Elements[key];
+            else if (baseFont.Contains("Times", StringComparison.OrdinalIgnoreCase)) times = fonts.Elements[key];
+            else if (baseFont.Contains("Bold", StringComparison.OrdinalIgnoreCase)) bold = fonts.Elements[key];
             else winAnsi = fonts.Elements[key];
         }
         var res = new PdfDictionary(d);
         var fd = new PdfDictionary(d);
         fd.Elements["/FA"] = winAnsi!;
         fd.Elements["/FU"] = unicode!;
+        if (bold is not null) fd.Elements["/FB"] = bold;
+        if (times is not null) fd.Elements["/FT"] = times;
         res.Elements["/Font"] = fd;
         var xo = new PdfDictionary(d);
         var image = ImageImport.ImageStream(d, 4, 2, [.. Enumerable.Repeat(new byte[] { 255, 0, 0 }, 8).SelectMany(x => x)], "/DeviceRGB");

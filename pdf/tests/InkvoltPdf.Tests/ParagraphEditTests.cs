@@ -151,8 +151,8 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     public void TextOfOtherSizesOrFontsIsNotJoined()
     {
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 72 700 Td (One line of body text here) Tj ET\nBT /FA 9 Tf 72 686 Td (smaller text under it) Tj ET\n" +
-            $"BT /FU 11 Tf 72 672 Td {ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), "other font text")} Tj ET", fontText: Chars);
+            "BT /FA 11 Tf 72 700 Td (One line of body text here) Tj ET\nBT /FA 9 Tf 72 686 Td (smaller text under it) Tj ET\n" +
+            "BT /FT 11 Tf 72 672 Td (other font text) Tj ET", fontText: Chars, faces: true);
         Assert.Equal(3, ContentEditor.Read(pdf, null, 0).Paragraphs.Count);
     }
 
@@ -414,12 +414,11 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AParagraphMixingFontsIsBlocked()
+    public void AParagraphMixingFontFamiliesIsBlocked()
     {
-        var fu = ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), " bold words");
         var lines = Wrap(Body, Width);
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FU 11 Tf {fu} Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars);
+            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single(q => q.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
@@ -533,10 +532,9 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     [Fact]
     public void ClickingBetweenTheLinesOfABlockedParagraphFindsNothing()
     {
-        var fu = ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), " bold words");
         var lines = Wrap(Body, Width);
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FU 11 Tf {fu} Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars);
+            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
         var content = ContentEditor.Read(pdf, null, 0);
         var p = content.Paragraphs.Single(q => q.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
@@ -706,10 +704,10 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
                     if (!got.Contains(Words(added), StringComparison.Ordinal)) failures.Add($"{line}: the added words don't re-extract in order");
                 }
                 var after = ContentEditor.Read(edited, null, page);
-                var others = after.Runs.Where(r => r.Text.Trim().Length > 0 && !r.Box.IsEmpty).Select(r => r.Box).ToList();
-                // The new lines: runs inside the new box that weren't on the page before.
+                // The new lines: the paragraph read back with the new text (else runs inside the new box that weren't on the page before).
+                var mine = after.Paragraphs.FirstOrDefault(q => q.Text == text)?.Runs.ToList();
                 var before = content.Runs.Select(r => (r.Text, Math.Round(r.Box.X), Math.Round(r.Box.Y))).ToHashSet();
-                var fresh = after.Runs.Where(r => !before.Contains((r.Text, Math.Round(r.Box.X), Math.Round(r.Box.Y))) && check.Box.Inflate(1).Contains(r.Box.X, r.Box.Y)).ToList();
+                var fresh = mine ?? after.Runs.Where(r => !before.Contains((r.Text, Math.Round(r.Box.X), Math.Round(r.Box.Y))) && check.Box.Inflate(1).Contains(r.Box.X, r.Box.Y)).ToList();
                 var hits = fresh.Count(f => after.Runs.Any(o => !fresh.Contains(o) && o.Text.Trim().Length > 0 && o.Box.Intersect(f.Box) is { IsEmpty: false } x && x.Width * x.Height > 4));
                 output.WriteLine($"{line}; overlap {(check.Overlaps is null ? "none reported" : "reported")}, {hits} new line(s) touching other text");
                 if (check.Overlaps is null && hits > 0) failures.Add($"{line}: new lines overlap other text, unreported");

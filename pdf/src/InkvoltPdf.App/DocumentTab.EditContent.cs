@@ -137,7 +137,7 @@ public partial class DocumentTab
         {
             // Said live under the editor too; nothing is changed.
             var list = string.Join(", ", check.Missing.Take(8).Select(c => c == " " ? "space" : $"“{c}”"));
-            Notify($"Not changed: the font “{e.Run.FontName}” has no {list} in this PDF.", error: true);
+            Notify($"Not changed: neither the font “{e.Run.FontName}” nor any font on this PC has {list}.", error: true);
             return;
         }
         var outcome = await TryEdit("Edit text", (d, pw) => ContentEditor.ReplaceText(d, pw, e.Run, e.Text), veil: false);

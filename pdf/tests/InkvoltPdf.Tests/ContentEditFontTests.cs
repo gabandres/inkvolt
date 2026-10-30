@@ -53,8 +53,8 @@ public class ContentEditFontTests
         var run = ContentEditor.Read(pdf, null, 0).Runs.Single();
         Assert.Equal("ab", run.Text);
         Assert.Null(run.Blocked);
-        Assert.Empty(run.Check("ba").Missing);
-        Assert.Equal(["c"], run.Check("abc").Missing); // a width, but no glyph in the subset
+        Assert.Empty(run.Check("ba").Borrowed);
+        Assert.Equal(["c"], run.Check("abc").Borrowed); // a width, but no glyph in the subset: a stand-in font draws it
         var edited = ContentEditor.ReplaceText(pdf, null, run, "bab");
         Assert.Contains("(bab) Tj", ContentEditPdf.Content(edited));
     }
@@ -118,8 +118,8 @@ public class ContentEditFontTests
         var pdf = WithFont("<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Test /FirstChar 97 /LastChar 99 /Widths [500 600 700] " +
             "/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>", "/FontFile3 7 0 R|" + Core2Pdf.Stream(body, "/Subtype /Type1C"));
         var run = ContentEditor.Read(pdf, null, 0).Runs.Single();
-        Assert.Empty(run.Check("bba").Missing);
-        Assert.Equal(["c"], run.Check("cab").Missing);
+        Assert.Empty(run.Check("bba").Borrowed);
+        Assert.Equal(["c"], run.Check("cab").Borrowed);
     }
 
     [Fact]
@@ -133,7 +133,9 @@ public class ContentEditFontTests
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         ]);
         var run = ContentEditor.Read(pdf, null, 0).Runs.Single();
-        Assert.Equal(["中"], run.Check("Zoë – €5 中").Missing);
+        var check = run.Check("Zoë – €5 中");
+        Assert.Empty(check.Missing);
+        Assert.Equal(["中"], check.Borrowed); // not in WinAnsi: a CJK font on this PC stands in
         var edited = ContentEditor.ReplaceText(pdf, null, run, "Zoë – €5");
         Assert.Contains("Zoë – €5", ContentEditPdf.Text(edited));
     }

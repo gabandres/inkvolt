@@ -130,16 +130,20 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Edit Text & Images** (Edit menu or the command palette): change the page's own text and pictures. Text under the
   pointer shows a frame; a click opens an editor right over it, in its size, style and color, that says live how much
   wider or narrower the new text is (it doesn't reflow: wider text may run into what follows) and which characters the
-  font can't draw. Enter (or clicking elsewhere) writes it in the text's own embedded font, Esc cancels. Only characters
-  the font really holds can be typed (embedded fonts are usually subsets with just the characters the document used):
-  any other is refused by name, never drawn in another font. Kerning outside the change is kept; a word space the font
+  font can't draw. Enter (or clicking elsewhere) writes it in the text's own embedded font, Esc cancels. Characters
+  the font doesn't hold (embedded fonts are usually subsets with just the characters the document used) are drawn in
+  the installed font closest to it, named under the editor, never silently; characters no font on the PC has are
+  refused by name. Kerning outside the change is kept; a word space the font
   has no glyph for becomes a gap; new characters the font has but the PDF didn't use yet get their widths and their
   text (so copying and search still work). Text in a paragraph (lines of one font, size and color at a steady line
   step, their left edges, centers or right edges lined up, as Export to Word reads them) frames the whole paragraph,
   and a click opens it in a multi-line editor: the text rewraps in the paragraph's box with its alignment (left, right,
   centered or justified) and line spacing, Shift+Enter starts a new line, and the note says how many lines it takes
   and, live, when it would run into the text or picture below; then Enter asks before writing it there. A single
-  piece of text on one line is edited as above, without wrapping. Pictures show a frame: click one to select it, drag to move it, drag a
+  piece of text on one line is edited as above, without wrapping. Text inside a form XObject (a drawing the page
+  reuses: stamped or flattened pages, some generators' every block) edits the same way, in the drawing itself; a
+  drawing the page shows more than once, or that other pages share, is copied for the place you clicked first, so the
+  other places stay as they were. Pictures show a frame: click one to select it, drag to move it, drag a
   handle to resize it (Shift keeps its proportions), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
   Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
   places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
@@ -590,6 +594,9 @@ to it), `a11ytick question` (tick a person's check), `a11yreport out.html`, `cmd
 `tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`. Speed: `scrollbench [ms] [px/s]` scrolls the view for a while and logs the frame rate and
 blank pages (`tools/bench` runs it on its corpus; see its README).
+`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `tools/pdfjs-check` reads edited pages with pdf.js so
+`ParagraphEditTests` (with `INKVOLTPDF_PDFJS`) can check they read the same there (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+scanned copy, `export-scan.pdf`.
 Comments and form data: `savepath file` answers the next export, import or summary picker, then `cmd ExportComments`,
 `ImportComments`, `SummarizeComments`, `ExportFormData`, `ImportFormData` or `FillFormsFromCsv` (its dialog: `dialogshot`,
 `dialogok FillFormsFromCsv`, the report with `later … dialogshot` / `closedialog`); `CommentFilesTests.Commented()` is a
@@ -646,11 +653,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   stamps and fields.
 - Edit Text & Images: paragraphs rewrap in their box in their own embedded font only, with no other font when the
   embedded one lacks a character (most embedded fonts are subsets), and no font, size or color changes. A paragraph
-  that mixes fonts, sizes or colors, text on a turned page or turned text, and a single piece of text on one line are
+  that mixes font families, sizes or colors (a bold or italic word in another face of the same family is fine: it is
+  a stretch with that look, written back in the PDF's own face), text on a turned page or turned text, and a single piece of text on one line are
   edited one text operator at a time (often a line, sometimes a word or a letter), without reflow. A rewritten
-  paragraph loses its kerning; a line break typed into it starts a new paragraph for the next edit; a word hyphenated
-  at a line end keeps its hyphen in the editor. Text and pictures inside form XObjects (reused
-  drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can Type 3
+  paragraph keeps the kerning its text carried for each pair of letters that is still there (new pairs get none,
+  and a font's own kerning table isn't read); a line break typed into it starts a new paragraph for the next edit; a word hyphenated
+  at a line end keeps its hyphen as typed ("respon-sible" stays one word; a soft hyphen the line break added is
+  dropped). Pictures inside form XObjects (reused
+  drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text
+  in a drawing drawn through another drawing that the page or other pages use more than once, Type 3
   fonts, vertical text, CJK fonts with predefined CMaps, invisible OCR text, or text carrying ActualText. Simple CFF
   (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
   replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
@@ -761,7 +772,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 - Edit Text & Images: fall back to a matching installed font when the embedded one lacks a character, reflow
-  paragraphs that mix fonts or sit on turned pages, keep kerning in rewritten lines, edit inside form XObjects, change font, size and color, add pictures inline (today: Add Image
+  paragraphs that mix fonts or sit on turned pages, kern new letter pairs from the font's own table, change font, size and color, add pictures inline (today: Add Image
   places a stamp), crop pictures.
 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement

@@ -15,3 +15,5 @@ push: `dotnet test Inkvolt.slnx`.
   `DocLayout`, `DocxWriter` or the glyph reading in `PdfEngine`.
 - **Speed on huge files** (roadmap 3.6): `pdf/tools/bench` (`make`, `run`; see its README) before each Inkvolt PDF release;
   commit its `RESULTS.md`.
+- **Edited text in pdf.js**: `pdf/tools/pdfjs-check` (see its README; opt-in test `INKVOLTPDF_PDFJS`) after any change to
+  `ContentEditor`.

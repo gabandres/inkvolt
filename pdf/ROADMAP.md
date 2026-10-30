@@ -256,14 +256,48 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   as one with its looks (`TextParagraph.Spans`); a line with bigger text moves down (step = 0.25 of the line above's
   scale + 0.75 of its own), read back as the paragraph's own step. Text typed without looks keeps the looks of what
   didn't change (a character diff; typed letters inside a word take the look before them). Adjacent stretches in one
-  font are one operator. Decisions: a look's family must be one of the 14 (others fall back to the closest);
-  a styled space at a line's end isn't drawn, so its look goes. Tests: `ParagraphEditTests` (41, with
+  font are one operator. Decisions: a styled space at a line's end isn't drawn, so its look goes. The look bar first
+  listed the 14 common families only; since 2026-10-30 it lists every TrueType family Windows lists for the machine
+  and the user (`StandInFonts.Installed`, from the font registry: "Arial Narrow Bold" is Arial Narrow's bold face,
+  weights by name such as "Segoe UI Light" are families of their own, a collection entry gives the font its file
+  loads as), and a look in one of them is drawn in it; a family that isn't installed, or whose file isn't TrueType
+  (CFF OpenType), falls back to the closest ranked font as before. Stand-ins for characters the font lacks still come
+  from the ranked 14. Tests: `ParagraphEditTests` (41, with
   `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
   files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
-  still uses the one-run editor (no stand-ins there yet). Still to do: text inside form XObjects; paragraphs in turned
-  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
-  line ends kept as typed ("respon-sible"); kerning of rewritten lines; stand-in fonts for the one-run editor; fonts
-  beyond the 14 families in the look bar; the Acrobat and pdf.js check.
+  still uses the one-run editor; since 2026-10-30 it draws characters the font lacks from the same stand-in fonts
+  (`ContentEditor.Plan` returns a `RunPlan`: the changed middle split into stretches in the run's font and stretches
+  shaped in a stand-in, written by `WriteLine`; `TextCheck.Borrowed` and `StandIns` name them under the editor;
+  characters no font has are still refused by name). Part d (2026-10-30): text inside form XObjects edits as
+  paragraphs and as single runs (`ContentEditor.Forms.cs`: each run inside a form knows its form, its operator in it
+  and the Do that draws it; the edit rewrites the form's own stream, stand-in fonts go to the form's resources or the
+  page's when it borrows them; a form the page draws more than once or that other pages share is copied for the Do
+  clicked, under `/InkFmN`; a form drawn through another form edits only when nothing in its chain is shared;
+  pictures inside forms stay as they were; a paragraph half in a form is edited line by line).
+  `ParagraphEditTests.Forms` (9). Hyphenated line ends (2026-10-30): a hyphen typed into a word stays as typed
+  ("respon-sible" is one word, joined without a space and never split at the hyphen); a soft hyphen (U+00AD) ending a
+  line was added by the line break and is dropped (`ParagraphEditTests.Lines`). Kerning (2026-10-30): the TJ
+  adjustments the paragraph's own text carried between two glyphs of a word (not word gaps, at most 0.25 em) make a
+  table by pair of codes (`ContentEditor.Kerning`, `TextParagraph.Kerning`), and rewritten lines get the adjustment
+  back wherever the pair occurs, so edited lines are set as tightly as untouched ones; the one-run editor does the
+  same for its changed middle from the run's own pairs. Pairs the original never had get no kerning (the font's own
+  kern table isn't read). The pdf.js half of the test below (2026-10-30): `pdf/tools/pdfjs-check` (Node, `pdfjs-dist`
+  from npm, Apache-2.0; its README) prints what pdf.js reads from a page, and `ParagraphEditTests.PdfJs` (opt-in,
+  `INKVOLTPDF_PDFJS`, skipped without Node) edits the test's own pages (each alignment, a form XObject, stand-in
+  characters, a one-run edit) and, with `INKVOLTPDF_CORPUS`, the corpus's first three pages, adding as many of 20
+  words as fit without running into the next block, and checks pdf.js reads the whole paragraph's words in order and
+  the added ones together: all 6 sample pages and 15 corpus pages read in order (6 pages had no room under their
+  longest paragraph). Acrobat isn't on this PC, so its half isn't run. The corpus check itself now finds the
+  rewritten paragraph by its text (with kerning kept, the first rewritten lines land exactly where the old ones were,
+  which it used to mistake for other text). Mixed-face paragraphs from other software (2026-10-30): lines join when
+  their fonts are faces of one family (`FontNames.Family`: Word draws a bold word in "Calibri,Bold" beside
+  "Calibri"), the paragraph's own font is the face most of its text is in (`PlainRun`), and a run in another face of
+  the family reads back as a bold or italic span; typed again, such a stretch, or new text given bold or italic, is
+  written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
+  its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
+  set back after the lines. A word in another family still blocks the paragraph (edited line by line), and a line
+  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Still to do: paragraphs in
+  turned text (they edit line by line); paragraphs mixing font families (a symbol font, a word in another family).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
