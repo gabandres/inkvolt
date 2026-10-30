@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace InkvoltPdf.Core;
@@ -84,6 +85,47 @@ public sealed class PageText
         var vx = line[^1].Box.CenterX - line[0].Box.CenterX;
         var vy = line[^1].Box.CenterY - line[0].Box.CenterY;
         return Math.Abs(vy) > Math.Abs(vx) ? (0, 1) : (1, 0);
+    }
+
+    /// <summary>Most characters a page's text may have coming from a find worker.</summary>
+    internal const int MaxWireChars = 1 << 28;
+
+    private PageText(string text, RectD[] boxes, int[] lineOf, Line[] lines)
+    {
+        Text = text;
+        _boxes = boxes;
+        _lineOf = lineOf;
+        _lines = lines;
+    }
+
+    /// <summary>Writes the text as it is in memory, for a find worker's answer: <see cref="ReadFrom"/> makes the same object without working anything out again.</summary>
+    internal void WriteTo(Stream stream)
+    {
+        FindWorkers.WriteString(stream, Text);
+        stream.Write(MemoryMarshal.AsBytes(_boxes.AsSpan()));
+        stream.Write(MemoryMarshal.AsBytes(_lineOf.AsSpan()));
+        FindWorkers.WriteInt(stream, _lines.Length);
+        stream.Write(MemoryMarshal.AsBytes(_lines.AsSpan()));
+    }
+
+    /// <exception cref="InvalidDataException">The numbers don't add up (a worker reads untrusted files, so its answers are checked).</exception>
+    /// <exception cref="EndOfStreamException">The stream ended first.</exception>
+    internal static PageText ReadFrom(Stream stream)
+    {
+        var text = FindWorkers.ReadString(stream, MaxWireChars);
+        var boxes = new RectD[text.Length];
+        stream.ReadExactly(MemoryMarshal.AsBytes(boxes.AsSpan()));
+        var lineOf = new int[text.Length];
+        stream.ReadExactly(MemoryMarshal.AsBytes(lineOf.AsSpan()));
+        var count = FindWorkers.ReadInt(stream);
+        if (count < 0 || count > text.Length + 1) throw new InvalidDataException($"A page of {text.Length} characters with {count} lines.");
+        var lines = new Line[count];
+        stream.ReadExactly(MemoryMarshal.AsBytes(lines.AsSpan()));
+        foreach (var line in lineOf)
+            if (line < 0 || line >= count) throw new InvalidDataException("A character of no line.");
+        foreach (var line in lines)
+            if (line.Start < 0 || line.End < line.Start || line.End > text.Length) throw new InvalidDataException("A line outside the page.");
+        return new PageText(text, boxes, lineOf, lines);
     }
 
     /// <summary>

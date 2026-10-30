@@ -190,6 +190,9 @@ public enum BatchStep: Equatable, Sendable {
     case flatten(FlattenOptions)
     /// Text recognition of pages without text, added as an invisible text layer (the recognizer comes from `BatchHost.recognize`).
     case ocr
+    /// An archival PDF/A-2b copy (`PdfA.convert`); a file that can't be made one fails, saying why. (Windows' PDF/A-2a
+    /// level needs Make Accessible, which the Mac doesn't have yet.)
+    case saveAsPdfA
     /// `dpi`: resolution of page images (PNG, JPEG).
     case export(BatchExportFormat, dpi: Int)
 
@@ -217,6 +220,7 @@ public enum BatchStep: Equatable, Sendable {
         case .rotate: "Rotate pages"
         case .flatten: "Flatten"
         case .ocr: "Recognize text (OCR)"
+        case .saveAsPdfA: "Save as PDF/A"
         case .export(let format, _):
             switch format {
             case .word: "Export to Word"
@@ -319,6 +323,12 @@ public struct BatchPlan: Sendable {
         for case .protect(let p) in steps {
             if p.needsPasswords { return "Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them." }
             if (p.userPassword ?? "").isEmpty && (p.ownerPassword ?? "").isEmpty { return "Protect with a password needs an open password, a permissions password, or both." }
+        }
+        if let pdfa = steps.firstIndex(of: .saveAsPdfA) {
+            if steps.contains(where: \.isProtect) {
+                return "A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\"."
+            }
+            if steps[(pdfa + 1)...].contains(where: \.changesPdf) { return "Put \"Save as PDF/A\" after the other changes, so the result stays PDF/A." }
         }
         var formats = Set<BatchExportFormat>()
         for s in steps {
@@ -712,6 +722,10 @@ public enum BatchRunner {
                 return try PageEditor.rotate(d, pw, all, degrees)
             case .flatten(let f):
                 return try Flattener.flatten(d, pw, f)
+            case .saveAsPdfA:
+                let r = try PdfA.convert(d, pw)
+                notes.append(r.changes.isEmpty ? "PDF/A-2b: nothing needed changing" : "PDF/A-2b: \(r.changes.joined(separator: "; "))")
+                return r.data
             default:
                 throw PdfEditError("\(step.title) isn't an action that changes the file.")
             }
@@ -723,7 +737,7 @@ public enum BatchRunner {
             case .protect(let p):
                 password = (p.ownerPassword ?? "").isEmpty ? p.userPassword : p.ownerPassword
                 openPassword = (p.userPassword ?? "").isEmpty ? nil : p.userPassword
-            case .unprotect:
+            case .unprotect, .saveAsPdfA: // PDF/A files aren't encrypted
                 password = nil
                 openPassword = nil
             default:
@@ -854,6 +868,7 @@ public enum BatchRunner {
         switch error {
         case is PasswordRequired: return "Needs a password to open"
         case let e as PdfEditError: return e.message
+        case let e as PdfAError: return e.description
         case let e as PdfEngineError: return "This PDF is damaged and can't be read (\(e.message))"
         case let e as SignaturesWouldBreak: return e.description
         case let e as OwnerPasswordRequired: return e.description

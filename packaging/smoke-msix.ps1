@@ -2,8 +2,9 @@
 # (Developer Mode), drives the installed app through its execution alias, then removes the package. 1.0.0.0 of Inkvolt PDF
 # failed certification on a package that had only ever been tested from bin\; this is the test that would have run it.
 #
-#   pwsh -File packaging/smoke-msix.ps1 -App Pdf     opens a PDF, Batch-exports it to Word, converts that .docx back
-#                                                    (when Word is installed), and makes a PDF from a local web page
+#   pwsh -File packaging/smoke-msix.ps1 -App Pdf     opens a PDF, searches it in find workers (the installed app starting
+#                                                    itself), Batch-exports it to Word, converts that .docx back (when
+#                                                    Word is installed), and makes a PDF from a local web page
 #   pwsh -File packaging/smoke-msix.ps1 -App Print   renders the demo printers' Overview to a PNG
 #   pwsh -File packaging/smoke-msix.ps1 -App Pdf -SmokeSideBySide
 #                                                    runs a renamed copy of the layout (identity <name>.Smoke, alias
@@ -118,6 +119,7 @@ try {
             'wait 2500'
             'converters'
             "shot $work\open.png"
+            'findworkers smoke'
             'batch'
             "batchadd $pdf"
             'batchstep export word'
@@ -147,6 +149,7 @@ try {
         if (-not ($lines -match '^ok: exit')) { $failures.Add("the dev script did not finish within $TimeoutSeconds s") }
         if ($lines -match '^FAILED') { $failures.Add('a dev-script step failed (log above)') }
         if (-not (Test-Path "$work\open.png")) { $failures.Add('no window snapshot (open.png)') }
+        if (-not ($lines -match '^findworkers: started=2 failed=0 pages=[1-9].* left running=0$')) { $failures.Add('the package could not search in find workers (log above)') }
         if (-not (Test-Path $docx) -or (Get-Item $docx).Length -lt 1000) { $failures.Add('Batch export to Word wrote no sample.docx') }
         if (-not ($lines -match '^webpage: [1-9]\d* bytes')) { $failures.Add('Create PDF from Web Page made no PDF') }
 

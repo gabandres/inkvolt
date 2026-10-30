@@ -126,7 +126,7 @@ internal static class FontUnicode
     }
 
     /// <summary>A ToUnicode CMap of one- or two-byte codes.</summary>
-    private static byte[] CMap(SortedDictionary<int, string> map, int bytes)
+    internal static byte[] CMap(SortedDictionary<int, string> map, int bytes)
     {
         var hex = bytes == 1 ? "X2" : "X4";
         var sb = new StringBuilder();

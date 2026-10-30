@@ -132,6 +132,12 @@ enum Xmp {
     }
 
     static func build(_ info: Values, original: XMLDocument?, bare: Bool = false) -> [UInt8] {
+        packet(document(info, original: original, bare: bare))
+    }
+
+    /// The packet's XML: a copy of `original`, else a new one, with the Info-backed properties set (and, unless `bare`,
+    /// the dates and document IDs).
+    static func document(_ info: Values, original: XMLDocument?, bare: Bool = false) -> XMLDocument {
         let xml: XMLDocument
         if let original, !bare, let copy = original.copy() as? XMLDocument, rdfElement(copy) != nil {
             xml = copy
@@ -159,6 +165,11 @@ enum Xmp {
             if !has(r, xmpMM, "DocumentID") { set(r, xmpMM, "DocumentID", "uuid:\(UUID().uuidString.lowercased())") }
             set(r, xmpMM, "InstanceID", "uuid:\(UUID().uuidString.lowercased())")
         }
+        return xml
+    }
+
+    /// The XML wrapped in an XMP packet, as UTF-8.
+    static func packet(_ xml: XMLDocument) -> [UInt8] {
         let text = "<?xpacket begin=\"\u{FEFF}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" + xml.rootElement()!.xmlString + "\n<?xpacket end=\"w\"?>"
         return Array(text.utf8)
     }

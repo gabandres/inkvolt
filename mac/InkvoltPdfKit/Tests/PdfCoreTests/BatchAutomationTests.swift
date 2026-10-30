@@ -3,8 +3,8 @@ import Testing
 @testable import PdfCore
 
 /// Ported from BatchAutomationTests.cs (same names): batch presets (JSON in and out), the watched folder and the command
-/// line (roadmap 1.2). Adapted: the Everything preset leaves out the action the Mac doesn't have (Save as
-/// PDF/A; a preset naming it is refused saying so) and SaveAsPdfAIsABatchAction isn't ported;
+/// line (roadmap 1.2). Adapted: the Everything preset leaves out the action the Mac doesn't have (Make Accessible; a
+/// preset naming it is refused saying so, as is Save as PDF/A's PDF/A-2a level);
 /// the JSON refusals are the Mac's words for the same mistakes; ALockedFileWaitsUntilItIsLetGo holds an flock on the
 /// file (what "held open" means on a Mac); the command line's `/?` isn't a Mac spelling. Serialized with ProTests
 /// (`ProGated`): the command line asks the Pro check that those tests flip.
@@ -70,6 +70,7 @@ extension ProGated {
             .unprotect,
             .export(.jpeg, dpi: 300),
             .export(.word, dpi: 150),
+            .saveAsPdfA,
             .protect(ProtectStep("open-secret", "owner-secret", PdfPermissions(print: .lowResolution, copy: false), .aes128)),
         ], outputFolder: "/Users/me/Results/Scans")
         preset.nameTemplate = "<<name>> <<n:3>> <<date:yyyy-MM>>"
@@ -141,13 +142,13 @@ extension ProGated {
     @Test func aHandWrittenPresetTakesDefaultsForWhatItLeavesOut() throws {
         let preset = try BatchPresets.read("""
             // comments and trailing commas are fine
-            { "version": 1, "actions": [ { "action": "watermark", "text": "COPY" }, { "action": "rotate" }, ], }
+            { "version": 1, "actions": [ { "action": "watermark", "text": "COPY" }, { "action": "saveAsPdfA" }, ], }
             """, fallbackName: "From file")
         #expect(preset.name == "From file")
         #expect(preset.outputFolder == nil)
         #expect(preset.nameTemplate == BatchNames.defaultTemplate)
         #expect(preset.steps[0] == .watermark(WatermarkOptions(text: "COPY")))
-        #expect(preset.steps[1] == .rotate(90))
+        #expect(preset.steps[1] == .saveAsPdfA)
     }
 
     static let malformed: [(json: String, expected: String)] = [
@@ -160,7 +161,8 @@ extension ProGated {
         ("{ \"version\": 1 }", "has no \"actions\""),
         ("{ \"version\": 1, \"actions\": [] }", "list is empty"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"stamp\" } ] }", "Action 1: \"stamp\" isn't an action"),
-        ("{ \"version\": 1, \"actions\": [ { \"action\": \"saveAsPdfA\" } ] }", "Inkvolt PDF for Windows"),
+        ("{ \"version\": 1, \"actions\": [ { \"action\": \"makeAccessible\" } ] }", "Inkvolt PDF for Windows"),
+        ("{ \"version\": 1, \"actions\": [ { \"action\": \"saveAsPdfA\", \"conformance\": \"a\" } ] }", "Inkvolt PDF for Windows"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"ocr\" }, { \"action\": \"rotate\", \"degres\": 90 } ] }", "Action 2 (rotate): \"degres\" isn't a setting"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"rotate\", \"degrees\": 45 } ] }", "should be 90, -90 or 180"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"watermark\", \"text\": \"X\", \"opacity\": \"half\" } ] }", "\"opacity\" should be a number"),
@@ -211,6 +213,28 @@ extension ProGated {
         plan.steps = given
         #expect(plan.validate(ocrAvailable: true) == nil)
         #expect(given[0].title == "Protect with a password") // never the password
+    }
+
+    // ───────────── Save as PDF/A in a batch ─────────────
+
+    @Test func saveAsPdfAIsABatchAction() async throws {
+        let a = try put("in/a.pdf", TestPdf.make(2, marker: "archive"))
+        var plan = BatchPlan(steps: [.rotate(90), .saveAsPdfA], outputFolder: p("out"))
+        let summary = try await BatchRunner.run([BatchFile(a)], plan, BatchHost())
+        #expect(summary.items.count == 1)
+        let item = summary.items[0]
+        #expect(item.state == .done, "\(item.message)")
+        let result = try Self.read(try #require(item.outputs.first))
+        #expect(PdfA.validate(result) == [])
+        #expect(try Self.text(result).contains("archive"))
+        #expect(item.notes.contains { $0.hasPrefix("PDF/A-2b") })
+
+        plan.steps = [.saveAsPdfA, .protect(ProtectStep("a", nil, .all))]
+        #expect(plan.validate(ocrAvailable: true)?.contains("can't be password protected") == true)
+        plan.steps = [.saveAsPdfA, .rotate(90)]
+        #expect(plan.validate(ocrAvailable: true)?.contains("after the other changes") == true)
+        plan.steps = [.saveAsPdfA, .export(.text, dpi: 150)]
+        #expect(plan.validate(ocrAvailable: true) == nil) // exports may follow
     }
 
     // ───────────── watched folder ─────────────
@@ -489,10 +513,10 @@ extension ProGated {
 
     @Test func theBatchCommandTakesProtectPasswordsFromTheEnvironment() async throws {
         try put("in/a.pdf", TestPdf.make(1))
-        let turned = try preset("{ \"version\": 1, \"output\": { \"folder\": null }, \"actions\": [ { \"action\": \"rotate\" }, { \"action\": \"export\", \"format\": \"text\" } ] }")
-        let plain = await cli(nil, "--batch", turned, p("in", "a.pdf"), "--out", results)
-        #expect(plain.code == BatchCommandLine.done)
-        #expect(Self.exists((results as NSString).appendingPathComponent("a.pdf")))
+        let archive = try preset("{ \"version\": 1, \"output\": { \"folder\": null }, \"actions\": [ { \"action\": \"saveAsPdfA\" }, { \"action\": \"export\", \"format\": \"text\" } ] }")
+        let archived = await cli(nil, "--batch", archive, p("in", "a.pdf"), "--out", results)
+        #expect(archived.code == BatchCommandLine.done)
+        #expect(PdfA.validate(try Self.read((results as NSString).appendingPathComponent("a.pdf"))) == [])
         #expect(Self.exists((results as NSString).appendingPathComponent("a.txt")))
 
         let protect = try preset("{ \"version\": 1, \"actions\": [ { \"action\": \"protect\", \"openPassword\": true } ] }")
