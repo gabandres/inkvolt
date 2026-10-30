@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.3.0
 - Compare Files… (File menu): pick the original and the changed version (an open document or any PDF) and see them side by side, page by page, with every inserted, removed and changed word marked on both sides and listed to step through. Text that only moved to the next page isn't a change; a removed or added page is one change. Visual overlays the pages (only in the original: red, only in the changed file: blue) for drawings and scans. Annotated Copy makes a copy of the changed file with every change as a comment, to save and share.
 - Digital signatures: the Signatures pane in the sidebar (View › Show Signatures) checks every signature when you open a PDF and after each change: valid, changed after signing, changed in ways the signature doesn't allow, or invalid, with the signer, the time, the certificate and whether your Mac trusts it. Inkvolt PDF warns before an edit would invalidate a signature.
 - Sign Digitally… (Tools menu, the Signature tool, or a click on an empty signature field): sign with a digital ID from your keychain (smart cards too), a .p12 file, or a personal ID made for you; drag where the signature goes, choose what it shows (your handwritten signature beside it, if you like), add a trusted timestamp or certify the document, then save the signed copy.
