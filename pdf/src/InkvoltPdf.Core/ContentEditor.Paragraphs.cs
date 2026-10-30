@@ -318,14 +318,19 @@ public static partial class ContentEditor
 
         var text = new StringBuilder();
         var at = new List<(TextRun Run, int Start, int Length)>(); // where each run's text is in the paragraph's
+        var soft = false; // the line before ended with a soft hyphen
         foreach (var l in lines)
         {
             var t = l.Text.Trim();
-            if (text.Length > 0)
+            if (text.Length > 0 && !soft)
             {
+                // A hyphen typed into the word ("respon-sible") stays as typed; the lines join without a space.
                 var hyphen = text.Length >= 2 && text[^1] == '-' && char.IsLetter(text[^2]) && t.Length > 0 && char.IsLower(t[0]);
                 if (!hyphen) text.Append(' ');
             }
+            // A soft hyphen (U+00AD) ending a line was added by the line break: it goes, and the word joins the next line's.
+            soft = l != lines[^1] && t.EndsWith('­');
+            if (soft) t = t[..^1];
             var lead = l.Text.Length - l.Text.TrimStart().Length;
             for (var i = 0; i < l.Runs.Count; i++)
             {

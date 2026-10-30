@@ -257,10 +257,11 @@ the checkout.
   page's when it borrows them; a form the page draws more than once or that other pages share is copied for the Do
   clicked, under `/InkFmN`; a form drawn through another form edits only when nothing in its chain is shared;
   pictures inside forms stay as they were; a paragraph half in a form is edited line by line).
-  `ParagraphEditTests.Forms` (9). Still to do: paragraphs in turned
-  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
-  line ends kept as typed ("respon-sible"); kerning of rewritten lines; fonts
-  beyond the 14 families in the look bar; the Acrobat and pdf.js check.
+  `ParagraphEditTests.Forms` (9). Hyphenated line ends (2026-10-30): a hyphen typed into a word stays as typed
+  ("respon-sible" is one word, joined without a space and never split at the hyphen); a soft hyphen (U+00AD) ending a
+  line was added by the line break and is dropped (`ParagraphEditTests.Lines`). Still to do: paragraphs in turned
+  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); kerning of
+  rewritten lines; fonts beyond the 14 families in the look bar; the Acrobat and pdf.js check.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

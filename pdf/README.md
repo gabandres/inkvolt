@@ -636,7 +636,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   that mixes fonts, sizes or colors, text on a turned page or turned text, and a single piece of text on one line are
   edited one text operator at a time (often a line, sometimes a word or a letter), without reflow. A rewritten
   paragraph loses its kerning; a line break typed into it starts a new paragraph for the next edit; a word hyphenated
-  at a line end keeps its hyphen in the editor. Pictures inside form XObjects (reused
+  at a line end keeps its hyphen as typed ("respon-sible" stays one word; a soft hyphen the line break added is
+  dropped). Pictures inside form XObjects (reused
   drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text
   in a drawing drawn through another drawing that the page or other pages use more than once, Type 3
   fonts, vertical text, CJK fonts with predefined CMaps, invisible OCR text, or text carrying ActualText. Simple CFF
