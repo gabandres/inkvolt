@@ -1,13 +1,17 @@
 using System.Windows;
 using System.Windows.Controls;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
 /// <summary>
 /// A command bar that always stays one row: children are laid out left to right, and those that don't fit are hidden
 /// and listed in <see cref="OverflowItems"/> for the overflow ("More") button, the child marked
-/// <see cref="IsOverflowButtonProperty"/>, which shows only when something overflowed. Separators (any non-button child)
-/// never end the visible part.
+/// <see cref="IsOverflowButtonProperty"/>, which shows when something overflowed (or always, with
+/// <see cref="MoreAlways"/>). Which children go is <see cref="CommandBarLayout.Layout"/>'s: the lowest
+/// <see cref="PriorityProperty"/> first (on a tie, the later one); labels go only when keeping them would push out a
+/// child of priority <see cref="KeepsLabels"/> or more. Separators (any non-button child) show only between two shown
+/// commands.
 /// </summary>
 public sealed class ToolbarPanel : Panel
 {
@@ -17,21 +21,37 @@ public sealed class ToolbarPanel : Panel
     public static bool GetIsOverflowButton(DependencyObject d) => (bool)d.GetValue(IsOverflowButtonProperty);
     public static void SetIsOverflowButton(DependencyObject d, bool value) => d.SetValue(IsOverflowButtonProperty, value);
 
-    /// <summary>A button's text label (next to its icon): dropped first when room runs short, before anything overflows.</summary>
+    /// <summary>A button's text label (next to its icon): dropped, on every button at once, when the bar goes icons-only.</summary>
     public static readonly DependencyProperty IsLabelProperty = DependencyProperty.RegisterAttached(
         "IsLabel", typeof(bool), typeof(ToolbarPanel), new PropertyMetadata(false));
 
     public static bool GetIsLabel(DependencyObject d) => (bool)d.GetValue(IsLabelProperty);
     public static void SetIsLabel(DependencyObject d, bool value) => d.SetValue(IsLabelProperty, value);
 
+    /// <summary>How long a child stays on the bar as room runs short (higher stays longer).</summary>
+    public static readonly DependencyProperty PriorityProperty = DependencyProperty.RegisterAttached(
+        "Priority", typeof(int), typeof(ToolbarPanel), new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsParentMeasure));
+
+    public static int GetPriority(DependencyObject d) => (int)d.GetValue(PriorityProperty);
+    public static void SetPriority(DependencyObject d, int value) => d.SetValue(PriorityProperty, value);
+
+    /// <summary>The overflow button shows even when everything fits (its menu has commands of its own).</summary>
+    public bool MoreAlways { get; set; }
+
+    /// <summary>The priority from which a child keeps the labels: the bar goes icons-only before such a child overflows.</summary>
+    public int KeepsLabels { get; set; } = int.MinValue;
+
     private readonly HashSet<UIElement> _shown = [];
     private readonly List<UIElement> _overflow = [];
-    // Each item's width with its label, remembered while labels show, so the compact decision is stable.
-    private readonly Dictionary<UIElement, double> _fullWidth = [];
+    // Each item's width with and without its labels, remembered from when it was last measured that way.
+    private readonly Dictionary<UIElement, (double Full, double Compact)> _widths = [];
     private bool _compact;
 
     /// <summary>The children hidden for lack of room, in bar order.</summary>
     public IReadOnlyList<UIElement> OverflowItems => _overflow;
+
+    /// <summary>True while the bar shows icons only.</summary>
+    public bool IsCompact => _compact;
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -46,46 +66,45 @@ public sealed class ToolbarPanel : Panel
             else if (child.Visibility != Visibility.Collapsed) items.Add(child);
         }
 
-        // Labels name the main tools (Add text, Sign, Stamp, Draw, Organize), so they outrank the icon-only commands after
-        // them, which the menus and the palette also offer: when the bar is too narrow, those overflow into "More" first,
-        // and only when the labeled tools themselves don't fit does the bar go icons-only (the tooltips keep the names).
-        if (!_compact)
-            foreach (var item in items) _fullWidth[item] = item.DesiredSize.Width;
-        double Full(UIElement c) => _fullWidth.GetValueOrDefault(c, c.DesiredSize.Width);
-        var lastLabeled = items.FindLastIndex(HasLabel);
-        var mustFit = lastLabeled < 0
-            ? items.Sum(Full)
-            : items.Take(lastLabeled + 1).Sum(Full) + (lastLabeled < items.Count - 1 ? more?.DesiredSize.Width ?? 0 : 0);
-        var compact = mustFit > availableSize.Width;
-        if (compact != _compact)
+        foreach (var item in items)
         {
-            _compact = compact;
-            foreach (var item in items) SetLabelsVisible(item, !compact);
+            var w = item.DesiredSize.Width;
+            _widths[item] = _compact
+                ? (_widths.TryGetValue(item, out var known) ? Math.Max(known.Full, w) : w, w)
+                : (w, w - LabelWidth(item));
+        }
+        var fit = CommandBarLayout.Layout(
+            [.. items.Select(c => new CommandBarLayout.Item(_widths[c].Full, _widths[c].Compact, GetPriority(c), c is not System.Windows.Controls.Primitives.ButtonBase))],
+            availableSize.Width, more?.DesiredSize.Width ?? 0, MoreAlways, KeepsLabels);
+        if (fit.Compact != _compact)
+        {
+            _compact = fit.Compact;
+            foreach (var item in items) SetLabelsVisible(item, !_compact);
             foreach (var item in items) item.Measure(new Size(double.PositiveInfinity, availableSize.Height));
         }
 
         _shown.Clear();
         _overflow.Clear();
-        var total = items.Sum(c => c.DesiredSize.Width);
-        var fit = items.Count;
-        if (total > availableSize.Width)
-        {
-            var room = availableSize.Width - (more?.DesiredSize.Width ?? 0);
-            var used = 0.0;
-            fit = 0;
-            while (fit < items.Count && used + items[fit].DesiredSize.Width <= room) used += items[fit++].DesiredSize.Width;
-            while (fit > 0 && items[fit - 1] is not System.Windows.Controls.Primitives.ButtonBase) fit--;
-        }
         for (var i = 0; i < items.Count; i++)
-            if (i < fit) _shown.Add(items[i]);
-            else _overflow.Add(items[i]);
+            if (fit.Shown[i]) _shown.Add(items[i]);
+            else if (items[i] is System.Windows.Controls.Primitives.ButtonBase) _overflow.Add(items[i]);
+            else if (_overflow.Count > 0 && _overflow[^1] is System.Windows.Controls.Primitives.ButtonBase) _overflow.Add(items[i]); // a group break in the menu
+        _moreShown = fit.MoreShown;
 
-        var width = _shown.Sum(c => c.DesiredSize.Width) + (_overflow.Count > 0 ? more?.DesiredSize.Width ?? 0 : 0);
+        var width = _shown.Sum(c => c.DesiredSize.Width) + (_moreShown ? more?.DesiredSize.Width ?? 0 : 0);
         return new Size(double.IsInfinity(availableSize.Width) ? width : Math.Min(width, availableSize.Width), height);
     }
 
-    private static bool HasLabel(DependencyObject root) =>
-        LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>().Any(c => c is UIElement u && GetIsLabel(u) || HasLabel(c));
+    private bool _moreShown;
+
+    /// <summary>The width the item's labels take (with their margins); 0 when it has none or they are hidden.</summary>
+    private static double LabelWidth(DependencyObject root)
+    {
+        var sum = 0.0;
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+            sum += child is UIElement label && GetIsLabel(label) ? label.DesiredSize.Width : LabelWidth(child);
+        return sum;
+    }
 
     private static void SetLabelsVisible(DependencyObject root, bool visible)
     {
@@ -102,7 +121,7 @@ public sealed class ToolbarPanel : Panel
         foreach (UIElement child in InternalChildren)
         {
             if (child.Visibility == Visibility.Collapsed) continue;
-            var show = GetIsOverflowButton(child) ? _overflow.Count > 0 : _shown.Contains(child);
+            var show = GetIsOverflowButton(child) ? _moreShown : _shown.Contains(child);
             // Hidden, not just squeezed: out of Tab order, hit testing and screen readers' view (the More menu has them).
             var visibility = show ? Visibility.Visible : Visibility.Hidden;
             if (child.Visibility != visibility) child.Visibility = visibility;

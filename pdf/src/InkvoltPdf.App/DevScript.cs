@@ -46,7 +46,7 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow) <c>· barclick Id|More</c> (press a bar button: a group drops its menu) <c>· menushot out.png</c> (a shot with the open menus) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -769,6 +769,29 @@ internal static class DevScript
                 break;
             }
             case "darkpages": Cmd.DarkPages.Execute(null, window); break;
+            case "barclick":
+            {
+                // barclick Id|More: press a command bar button by its CommandBarLayout id (a group drops its menu).
+                var bar = (ToolbarPanel)window.FindName("DocCommands");
+                var button = bar.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>()
+                    .First(b => arg == "More" ? ToolbarPanel.GetIsOverflowButton(b) : b.Tag as string == arg);
+                button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, button));
+                break;
+            }
+            case "menushot": Shot(window, arg, withMenus: true); break;
+            case "barstate":
+            {
+                // barstate: the command bar as shown (labels or icons only), and what is in its "…" overflow.
+                if (window.FindName("DocCommands") is ToolbarPanel bar)
+                {
+                    static string Name(UIElement e) => e is FrameworkElement { Tag: string id } ? id : System.Windows.Automation.AutomationProperties.GetName(e);
+                    var shown = bar.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>()
+                        .Where(b => b.IsVisible && !ToolbarPanel.GetIsOverflowButton(b)).Select(Name);
+                    var over = bar.OverflowItems.OfType<System.Windows.Controls.Primitives.ButtonBase>().Select(Name);
+                    log.Add($"bar {window.ActualWidth:0}: {(bar.IsCompact ? "icons only" : "labels")}; shown {string.Join(" ", shown)}; overflow {string.Join(" ", over)}");
+                }
+                break;
+            }
             case "bounds":
             {
                 // bounds Name: where a named element of the window is, and whether it shows.
@@ -1525,7 +1548,7 @@ internal static class DevScript
         for (var i = 0; i < 100 && !cw.DevIdle; i++) await Task.Delay(100);
     }
 
-    private static void Shot(Window window, string path)
+    private static void Shot(Window window, string path, bool withMenus = false)
     {
         // The window's visual root, not its Content: the adorner layer (placeholders, focus rings) sits above the content.
         var content = VisualTreeHelper.GetChildrenCount(window) > 0 ? (FrameworkElement)VisualTreeHelper.GetChild(window, 0) : (FrameworkElement)window.Content;
@@ -1538,6 +1561,28 @@ internal static class DevScript
             var bg = window.TryFindResource("SolidBackgroundFillColorBaseBrush") as Brush ?? Brushes.White;
             dc.DrawRectangle(bg, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
             dc.DrawRectangle(new VisualBrush(content) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top, ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, content.ActualWidth, content.ActualHeight), ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, content.ActualWidth, content.ActualHeight) }, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
+            // menushot: the open menus and submenus (popups, windows of their own) drawn where they are over the window.
+            // An off-screen window's menus open on the screen, so each is placed by its target: a menu under its button, a
+            // submenu beside its item.
+            if (withMenus)
+            {
+                var origins = new Dictionary<Visual, Point>();
+                var popups = PresentationSource.CurrentSources.OfType<PresentationSource>()
+                    .Select(src => src.RootVisual).OfType<FrameworkElement>()
+                    .Where(r => r.IsVisible && r.GetType().Name == "PopupRoot").ToList();
+                for (var pass = 0; pass < 3; pass++)
+                    foreach (var root in popups)
+                    {
+                        if (origins.ContainsKey(root) || root.Parent is not System.Windows.Controls.Primitives.Popup { PlacementTarget: FrameworkElement target } popup) continue;
+                        Point at;
+                        if (content.IsAncestorOf(target)) at = target.TranslatePoint(new Point(0, target.ActualHeight), content);
+                        else if (popups.FirstOrDefault(r => r.IsAncestorOf(target)) is { } host && origins.TryGetValue(host, out var o))
+                            at = target.TranslatePoint(new Point(target.ActualWidth, 0), host) + (Vector)o;
+                        else continue;
+                        origins[root] = at;
+                        dc.DrawRectangle(new VisualBrush(root) { Stretch = Stretch.None }, null, new Rect(at, new Size(root.ActualWidth, root.ActualHeight)));
+                    }
+            }
         }
         bmp.Render(visual);
         var enc = new PngBitmapEncoder();

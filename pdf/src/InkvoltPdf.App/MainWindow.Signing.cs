@@ -144,11 +144,11 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         menu.Items.Add(new MenuItem { Command = Cmd.Sign, CommandTarget = this });
 
-        menu.PlacementTarget = AddSignatureButton.IsVisible ? AddSignatureButton : this;
-        menu.Placement = AddSignatureButton.IsVisible ? PlacementMode.Bottom : PlacementMode.Center;
+        menu.PlacementTarget = FillSignButton.IsVisible ? FillSignButton : this;
+        menu.Placement = FillSignButton.IsVisible ? PlacementMode.Bottom : PlacementMode.Center;
         menu.Closed += (_, _) => UpdateUi();
         menu.IsOpen = true;
-        AddSignatureButton.IsChecked = true;
+        FillSignButton.IsChecked = true;
     }
 
     private void CaptureSignature(DocumentTab t, bool initials)

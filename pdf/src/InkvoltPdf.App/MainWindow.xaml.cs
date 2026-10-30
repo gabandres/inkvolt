@@ -128,6 +128,10 @@ public partial class MainWindow : Window
         _ = ShowConvertMenuAsync();
 
         TabArea.SizeChanged += (_, _) => LayoutTabs();
+        // How long each command stays on the bar comes from the bar's table (CommandBarLayout), by the button's Tag.
+        DocCommands.KeepsLabels = CommandBarLayout.KeepsLabels;
+        foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>())
+            if (b.Tag is string id) ToolbarPanel.SetPriority(b, CommandBarLayout.Group(id).Priority);
         ScaleTitleBar();
         TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
@@ -803,7 +807,10 @@ public partial class MainWindow : Window
         FontSize = FontSize,
     };
 
-    /// <summary>The "More" (…) button at the end of the command bar: the commands that didn't fit, as a menu.</summary>
+    /// <summary>
+    /// The "More" (…) button at the end of the command bar: the commands that didn't fit, a group as a submenu of its
+    /// commands, then the page commands and the rest that live only here (CommandBarLayout.Secondary), all with labels.
+    /// </summary>
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
         var menu = IconButtonMenu(MoreButton);
@@ -811,7 +818,7 @@ public partial class MainWindow : Window
         {
             if (item == DrawButton)
             {
-                var draw = new MenuItem { Header = "_Draw", Icon = new TextBlock { Text = DrawButtonIcon.Text, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 } };
+                var draw = new MenuItem { Header = "_Draw", Icon = MenuIcon(DrawButtonIcon.Text) };
                 FillDrawMenu(draw);
                 menu.Items.Add(draw);
                 continue;
@@ -821,16 +828,92 @@ public partial class MainWindow : Window
                 if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator()); // a bar separator
                 continue;
             }
+            if (b.Tag is string id && CommandBarLayout.Group(id) is { IsGroup: true } group)
+            {
+                var sub = new MenuItem { Header = group.Label, Icon = GlyphOf(b) is { } g ? MenuIcon(g) : null };
+                FillGroupMenu(sub, group);
+                menu.Items.Add(sub);
+                continue;
+            }
             // A command shows its own name and shortcut; the icon is the button's.
             var mi = new MenuItem { Command = b.Command, CommandTarget = b.CommandTarget };
             if (b.Command is not RoutedUICommand) mi.Header = b.ToolTip as string ?? AutomationProperties.GetName(b);
-            if (GlyphOf(b) is { } glyph) mi.Icon = new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 };
+            if (GlyphOf(b) is { } glyph) mi.Icon = MenuIcon(glyph);
             if (b is System.Windows.Controls.Primitives.ToggleButton { IsChecked: true }) mi.IsChecked = true;
             if (b.Command is null) mi.Click += (_, _) => b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             menu.Items.Add(mi);
         }
-        if (menu.Items.Count > 0 && menu.Items[^1] is Separator s) menu.Items.Remove(s);
+        if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator());
+        foreach (var c in CommandBarLayout.Secondary) menu.Items.Add(CommandMenuItem(c));
         menu.IsOpen = true;
+    }
+
+    private TextBlock MenuIcon(string glyph) => new() { Text = glyph, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 };
+
+    private static RoutedUICommand CommandNamed(string name) => (RoutedUICommand)typeof(Cmd).GetField(name)!.GetValue(null)!;
+
+    /// <summary>A menu item for one of the bar's commands: its name and shortcut (or page-view letter), icon, and whether its tool is on.</summary>
+    private MenuItem CommandMenuItem(CommandBarLayout.Command c)
+    {
+        var mi = new MenuItem { Command = CommandNamed(c.Name), Icon = MenuIcon(c.Glyph), IsChecked = IsToolOn(c.Name) };
+        if (c.Key is { } key && Cmd.GestureText(mi.Command) is null) mi.InputGestureText = key;
+        if (c.Name == "RotateRight" && mi.Icon is TextBlock mirrored)
+        {
+            mirrored.RenderTransformOrigin = new Point(0.5, 0.5);
+            mirrored.RenderTransform = new ScaleTransform(-1, 1);
+        }
+        return mi;
+    }
+
+    private void FillGroupMenu(ItemsControl menu, CommandBarLayout.Entry group)
+    {
+        foreach (var c in group.Commands)
+        {
+            // Sign (its own menu: signatures, initials, a certificate) and the pictures and links set apart from the marks.
+            if (c.Name is "AddSignature" or "AddImage") menu.Items.Add(new Separator());
+            menu.Items.Add(CommandMenuItem(c));
+        }
+    }
+
+    /// <summary>A labeled group of the command bar (Pointer, Fill &amp; Sign, Comment): its tools drop down under it.</summary>
+    private void OnBarGroupClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string id } button) return;
+        var menu = IconButtonMenu(button);
+        FillGroupMenu(menu, CommandBarLayout.Group(id));
+        menu.Closed += (_, _) => UpdateUi();
+        menu.IsOpen = true;
+        UpdateUi(); // the button shows whether one of its tools is on, not the click
+    }
+
+    /// <summary>Whether the tool a bar command turns on is the one in use (false for commands that act at once).</summary>
+    private bool IsToolOn(string command)
+    {
+        var v = ActiveTab?.PageView;
+        var reading = ActiveTab?.ActiveView; // split: the reading tools show the active pane's
+        return command switch
+        {
+            "ToolHand" => reading?.Tool == ViewerTool.Hand,
+            "ToolSelect" => reading?.Tool == ViewerTool.SelectText,
+            "ToolSnapshot" => reading?.Tool == ViewerTool.Snapshot,
+            "ToolAddText" => v?.Tool == ViewerTool.AddText,
+            "ToolCheck" => v?.Tool == ViewerTool.AddCheck,
+            "ToolCross" => v?.Tool == ViewerTool.AddCross,
+            "AddSignature" => v?.Tool is ViewerTool.AddSignature or ViewerTool.PlaceSignature,
+            "AddNote" => v?.Tool == ViewerTool.AddNote,
+            "AddImage" => v?.Tool == ViewerTool.AddImage,
+            "ToolLink" => v?.Tool == ViewerTool.AddLink,
+            "AddStamp" => v?.Tool == ViewerTool.AddStamp,
+            _ => false,
+        };
+    }
+
+    /// <summary>A group button shows the tool of its group in use (its icon, and checked), else its own icon.</summary>
+    private void ShowGroupState(System.Windows.Controls.Primitives.ToggleButton button, TextBlock icon, string id, string glyph)
+    {
+        var on = CommandBarLayout.Group(id).Commands.FirstOrDefault(c => IsToolOn(c.Name));
+        button.IsChecked = on is not null;
+        icon.Text = on?.Glyph ?? glyph;
     }
 
     /// <summary>The icon a button shows (a Segoe Fluent Icons character), alone or before its label; null if it has none.</summary>
@@ -858,6 +941,8 @@ public partial class MainWindow : Window
         }
         Walk(CommandBar);
         Walk(StartPage);
+        foreach (var c in CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().SelectMany(e => e.Commands).Concat(CommandBarLayout.Secondary))
+            glyphs.TryAdd(CommandNamed(c.Name), c.Glyph);
         foreach (var tool in DrawTools.All) glyphs.TryAdd(Cmd.DrawTool(tool), DrawTools.Glyph(tool));
         return glyphs;
     }
@@ -2247,27 +2332,32 @@ public partial class MainWindow : Window
         DocsHost.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
         StartPage.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
         AppTitle.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
-        DocCommands.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        DocCommands.Visibility = DocCommandsSeparator.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
         NoDocCombineButton.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
         Title = t is null ? "Inkvolt PDF" : $"{(t.Session.IsDirty ? "● " : "")}{t.DisplayTitle} – Inkvolt PDF";
 
         var v = t?.PageView;
         var reading = t?.ActiveView; // split: the reading tools show the active pane's
-        HandButton.IsChecked = HandMenu.IsChecked = reading?.Tool == ViewerTool.Hand;
-        SelectButton.IsChecked = SelectMenu.IsChecked = reading?.Tool == ViewerTool.SelectText;
-        SnapshotButton.IsChecked = SnapshotMenu.IsChecked = reading?.Tool == ViewerTool.Snapshot;
+        HandMenu.IsChecked = reading?.Tool == ViewerTool.Hand;
+        SelectMenu.IsChecked = reading?.Tool == ViewerTool.SelectText;
+        SnapshotMenu.IsChecked = reading?.Tool == ViewerTool.Snapshot;
+        // The pointer group is named after the tool in use; checked, like the other tools, when it isn't the hand.
+        var pointer = CommandBarLayout.Group(CommandBarLayout.Pointer).Commands.FirstOrDefault(c => IsToolOn(c.Name))
+                      ?? CommandBarLayout.Group(CommandBarLayout.Pointer).Commands[0];
+        PointerIcon.Text = pointer.Glyph;
+        PointerLabel.Text = pointer.Name switch { "ToolSelect" => "Select", "ToolSnapshot" => "Snapshot", _ => "Hand" };
+        PointerButton.IsChecked = pointer.Name != "ToolHand";
+        ShowGroupState(FillSignButton, FillSignIcon, "FillSign", "\uE8D2");
+        ShowGroupState(CommentButton, CommentIcon, "Comment", "\uE90A");
         SplitHorizontalMenu.IsChecked = t?.Split == SplitMode.TopAndBottom;
         SplitVerticalMenu.IsChecked = t?.Split == SplitMode.SideBySide;
-        AddTextButton.IsChecked = AddTextMenu.IsChecked = v?.Tool == ViewerTool.AddText;
-        CheckButton.IsChecked = CheckMenu.IsChecked = v?.Tool == ViewerTool.AddCheck;
-        CrossButton.IsChecked = CrossMenu.IsChecked = v?.Tool == ViewerTool.AddCross;
-        AddSignatureButton.IsChecked = v?.Tool is ViewerTool.AddSignature or ViewerTool.PlaceSignature;
-        NoteButton.IsChecked = NoteMenu.IsChecked = v?.Tool == ViewerTool.AddNote;
-        ImageButton.IsChecked = v?.Tool == ViewerTool.AddImage;
-        LinkButton.IsChecked = LinkMenu.IsChecked = v?.Tool == ViewerTool.AddLink;
+        AddTextMenu.IsChecked = v?.Tool == ViewerTool.AddText;
+        CheckMenu.IsChecked = v?.Tool == ViewerTool.AddCheck;
+        CrossMenu.IsChecked = v?.Tool == ViewerTool.AddCross;
+        NoteMenu.IsChecked = v?.Tool == ViewerTool.AddNote;
+        LinkMenu.IsChecked = v?.Tool == ViewerTool.AddLink;
         PrepareFormMenu.IsChecked = v?.Tool == ViewerTool.PrepareForm;
         EditContentMenu.IsChecked = v?.Tool == ViewerTool.EditContent;
-        StampButton.IsChecked = v?.Tool == ViewerTool.AddStamp;
         RedactButton.IsChecked = RedactMenu.IsChecked = v?.Tool == ViewerTool.Redact;
         var drawTool = v is not null && DrawTools.IsDrawTool(v.Tool) ? v.Tool : (ViewerTool?)null;
         DrawButton.IsChecked = drawTool is not null;
