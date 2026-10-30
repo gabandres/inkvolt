@@ -100,7 +100,7 @@ public partial class DocumentTab
         {
             if (e.Data.GetData(typeof(ReadingOrderItem)) is not ReadingOrderItem dragged || _tagPlan is null) return;
             var target = (e.OriginalSource as DependencyObject) is { } d ? ItemsControl.ContainerFromElement(RoList, d) as ListBoxItem : null;
-            if (target?.DataContext is not ReadingOrderItem over || over.Index == dragged.Index) return;
+            if (target?.DataContext is not ReadingOrderItem over || over.Index == dragged.Index || !MayFixOrder()) return;
             SetPlan(AutoTag.Move(_tagPlan, dragged.Index, over.Index - dragged.Index), select: over.Index);
             e.Handled = true;
         };
@@ -236,9 +236,12 @@ public partial class DocumentTab
     /// <summary>Dev script: Alt+Up (-1) or Alt+Down (1) on the selected piece.</summary>
     internal void RoMove(int by) => MoveSelected(by);
 
+    /// <summary>Fixing the reading order is Pro (<see cref="ProFeature.ReadingOrder"/>); looking at it and its alternate text stays free.</summary>
+    private bool MayFixOrder() => Window.GetWindow(this) is { } owner && ProGate.Check(owner, ProFeature.ReadingOrder);
+
     private void MoveSelected(int by)
     {
-        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item) return;
+        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item || !MayFixOrder()) return;
         var moved = AutoTag.Move(_tagPlan, item.Index, by);
         if (ReferenceEquals(moved, _tagPlan)) return;
         SetPlan(moved, select: item.Index + Math.Sign(by));
@@ -249,7 +252,7 @@ public partial class DocumentTab
     /// <summary>Writes the tags from the plan as it is now (title and language asked first when they never were).</summary>
     private async Task ApplyReadingOrderAsync()
     {
-        if (_tagPlan is not { } plan || !PlanCurrent || Window.GetWindow(this) is not MainWindow host) return;
+        if (_tagPlan is not { } plan || !PlanCurrent || Window.GetWindow(this) is not MainWindow host || !ProGate.Check(host, ProFeature.ReadingOrder)) return;
         await AccessibleActions.WriteAsync(host, this, plan, ask: !_tagPlanConfirmed);
     }
 

@@ -14,7 +14,7 @@ internal static class PdfAActions
 {
     public static async Task SaveAs(MainWindow host, DocumentTab tab, PdfAConformance conformance = PdfAConformance.B)
     {
-        if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
+        if (!tab.Session.IsPdf || conformance == PdfAConformance.A && !ProGate.Check(host, ProFeature.AccessibleOutput) || !await tab.SettleAsync()) return;
         var level = conformance == PdfAConformance.A ? "PDF/A-2a" : "PDF/A-2b";
         if (conformance == PdfAConformance.A && !await Task.Run(() => AutoTag.IsTagged(tab.Session.Data, tab.Session.Password)))
         {

@@ -292,6 +292,7 @@ public class AutoTagTests
 }
 
 /// <summary>Make Accessible in Batch and presets, and alternate text from the user's own vision model (the request).</summary>
+[Collection("Pro")] // Batch asks the Pro check for Make Accessible and PDF/A-2a, which ProTests switches on and off
 public sealed class AutoTagBatchTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("inkvolt-autotag-").FullName;

@@ -19,7 +19,7 @@ internal static class AccessibleActions
     /// <summary>True when the tags were written.</summary>
     public static async Task<bool> MakeAccessible(MainWindow host, DocumentTab tab)
     {
-        if (!tab.Session.IsPdf || !await tab.SettleAsync()) return false;
+        if (!tab.Session.IsPdf || !ProGate.Check(host, ProFeature.AutoTagging) || !await tab.SettleAsync()) return false;
         if (await PlanAsync(host, tab) is not { } plan) return false;
         return await WriteAsync(host, tab, plan, ask: true);
     }

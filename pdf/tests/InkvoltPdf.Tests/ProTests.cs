@@ -257,4 +257,36 @@ public sealed class ProTests : IDisposable
         }
         Assert.Contains("$19", Pro.HowToGet);
     }
+
+    [Fact]
+    public void Accessibility_remediation_is_pro_and_checking_stays_free()
+    {
+        Assert.Equal("Make Accessible is part of Inkvolt Pro.", Pro.Locked(ProFeature.AutoTagging));
+        Assert.Equal("Fixing the reading order is part of Inkvolt Pro.", Pro.Locked(ProFeature.ReadingOrder));
+        Assert.Equal("Saving accessible PDF/A-2a files is part of Inkvolt Pro.", Pro.Locked(ProFeature.AccessibleOutput));
+        Assert.Equal("Make Accessible", Pro.Title(ProFeature.AutoTagging));
+        Assert.Contains("on this PC", Pro.Describe(ProFeature.AutoTagging));
+
+        Assert.Equal(ProFeature.AutoTagging, new MakeAccessibleStep().Feature);
+        Assert.Equal(ProFeature.AccessibleOutput, new SaveAsPdfAStep { Conformance = PdfAConformance.A }.Feature);
+        Assert.Null(new SaveAsPdfAStep().Feature); // PDF/A-2b stays free
+        Assert.Null(new CheckAccessibilityStep().Feature); // the checker and its report stay free
+    }
+
+    [Fact]
+    public void Batch_with_make_accessible_or_pdfa_2a_needs_pro_only_when_enforced()
+    {
+        var folder = Path.GetTempPath();
+        BatchPlan Plan(params BatchStep[] steps) => new() { Steps = steps, OutputFolder = folder };
+
+        Pro.Enforced = false;
+        Assert.Null(Plan(new MakeAccessibleStep(), new SaveAsPdfAStep { Conformance = PdfAConformance.A }).Validate(false));
+
+        Pro.Enforced = true;
+        Assert.Equal(Pro.Locked(ProFeature.AutoTagging), Plan(new MakeAccessibleStep()).Validate(false));
+        Assert.Equal(Pro.Locked(ProFeature.AccessibleOutput), Plan(new SaveAsPdfAStep { Conformance = PdfAConformance.A }).Validate(false));
+        Assert.Null(Plan(new CheckAccessibilityStep(), new SaveAsPdfAStep()).Validate(false));
+        Pro.Install(VectorKey("valid"));
+        Assert.Null(Plan(new MakeAccessibleStep(), new SaveAsPdfAStep { Conformance = PdfAConformance.A }).Validate(false));
+    }
 }
