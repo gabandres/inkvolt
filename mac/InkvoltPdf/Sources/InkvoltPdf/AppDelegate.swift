@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newFromImages(_ sender: Any?) { NewDocuments.chooseImages() }
     @objc func newFromClipboard(_ sender: Any?) { NewDocuments.fromClipboard() }
     @objc func combineFiles(_ sender: Any?) { _ = CombineWindowController.show() }
+    @objc func compareFiles(_ sender: Any?) { CompareWindowController.pick() }
     @objc func scan(_ sender: Any?) { ScanWindowController.show() }
     @objc func showSettings(_ sender: Any?) { SettingsWindowController.show(updates: updates) }
     @objc func showAbout(_ sender: Any?) { AboutWindowController.show() }
@@ -143,6 +144,7 @@ enum MainMenu {
         menu.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
         menu.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
         menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
+        menu.addItem(item("Compare Files…", #selector(AppDelegate.compareFiles(_:))))
         menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Batch…", #selector(AppDelegate.showBatch(_:)), "b", [.command, .shift]))

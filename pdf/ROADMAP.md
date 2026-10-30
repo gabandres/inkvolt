@@ -366,7 +366,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   first); font, size, color and style changes are listed apart from wording; moved paragraphs show as moves; shifted
   or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
   contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
-- **Effort** M. Windows; Mac with Compare.
+- **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
+  formatting are still to do on both).
 
 ### 3.4 Long-term validation for signatures
 - **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped
