@@ -22,7 +22,8 @@ namespace InkvoltPdf.App;
 /// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
 /// a11yreport path (save the report) · tag title|language (Make Accessible without its window) · ro (the reading order
-/// pane: opens it, logs this page's pieces) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · roapply · pdfa2a (with
+/// pane: opens it, logs this page's pieces) · suspects (the Suspect words pane: opens it, logs its words) · suspectsel i ·
+/// suspectfix text|keep · findcount word (how often search finds it) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · roapply · pdfa2a (with
 /// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
@@ -338,6 +339,21 @@ internal static class DevScript
                 log.Add($"ro: {tab!.RoSummary.Text}");
                 foreach (var item in tab.RoList.Items.OfType<ReadingOrderItem>()) log.Add($"  {item.Number} {item.Kind}: {Trunc(item.Preview)}");
                 break;
+            case "suspects": // the Suspect words pane: opens it, logs its words
+                if (window.ActiveTab is { } st && st.SuspectPanel.Visibility != Visibility.Visible) await st.ShowSuspectWordsAsync();
+                else await tab!.FillSuspectWordsAsync();
+                log.Add($"suspects: {tab!.SuspectSummary.Text}");
+                foreach (var w in tab.DevSuspectWords()) log.Add($"  {w}");
+                break;
+            case "suspectsel": tab!.DevSelectSuspect(int.Parse(arg)); break;
+            case "suspectfix": await tab!.DevCorrectSuspect(arg == "keep" ? null : arg); break;
+            case "findcount": // how many times the document's text has a word (what search finds)
+            {
+                var hits = 0;
+                for (var p = 0; p < tab!.Session.Engine.PageCount; p++) hits += tab.Session.Engine.GetText(p).Find(arg, true, false).Count();
+                log.Add($"findcount {arg}: {hits}");
+                break;
+            }
             case "rosel": // an index, or "pic": the page's first picture still without alternate text
                 tab!.RoList.SelectedIndex = arg == "pic"
                     ? tab.RoList.Items.OfType<ReadingOrderItem>().ToList().FindIndex(i => i.NeedsAlt)

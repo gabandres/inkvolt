@@ -41,7 +41,7 @@ internal static class ExportActions
             dlg.AddNote(PageOcr.Unavailable);
         }
         var open = dlg.AddCheck("Open the file when done", AppSettings.Current.ExportOpen);
-        dlg.AddNote(kind.Note + (ocr is null ? "" : $" Text recognition uses Windows' {ocr.RecognizerLanguage.DisplayName} OCR; check important text."));
+        dlg.AddNote(kind.Note + (ocr is null ? "" : $" Text recognition uses Windows' {ocr.LanguageName} OCR; check important text."));
         int[] pages = [];
         dlg.Validate(() => range.TryGet(out pages, out var err) ? null : err);
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;

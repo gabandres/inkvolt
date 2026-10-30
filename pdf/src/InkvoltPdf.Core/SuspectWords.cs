@@ -46,28 +46,51 @@ public static class SuspectWords
 
     /// <summary>
     /// For each word of <paramref name="cleaned"/>, whether the page as scanned (<paramref name="original"/>, in the same
-    /// page space) gave a different word at its centre that is itself a real word (in <paramref name="spelling"/>'s
-    /// dictionary, when there is one): then either reading may be the right one. A place where the scan gave no word, or
-    /// only a garbled one, doesn't count: the cleaning did better there.
+    /// page space) read the same word differently: its word nearest the same place (centres within half a line) is
+    /// spelled a little differently (at most a third of its letters) and is itself a real word (in
+    /// <paramref name="spelling"/>'s dictionary, when there is one). Then either reading may be the right one. A place
+    /// where the scan gave no word, a garbled one or another word altogether doesn't count.
     /// </summary>
     public static bool[] ReadDifferently(IReadOnlyList<OcrWord> cleaned, IReadOnlyList<OcrWord> original, ISpelling? spelling = null)
     {
         var result = new bool[cleaned.Count];
         for (var i = 0; i < cleaned.Count; i++)
-        {
-            var (cx, cy) = (cleaned[i].Rect.CenterX, cleaned[i].Rect.CenterY);
-            var here = original.Where(o => o.Rect.Contains(cx, cy)).Select(o => Core(o.Text)).ToList();
-            var mine = Core(cleaned[i].Text);
-            result[i] = here.Count > 0 && !here.Contains(mine)
-                && here.Any(o => o.Length > 0 && (spelling is null || !NeedsDictionary(o) || spelling.IsKnown(o)));
-        }
+            result[i] = Alternative(cleaned[i], original) is { } other
+                && (spelling is null || !NeedsDictionary(other) || spelling.IsKnown(other));
         return result;
     }
 
-    /// <summary>What the page as scanned read at a word's place, when it differs (an alternative to offer).</summary>
-    public static string? Alternative(OcrWord cleaned, IReadOnlyList<OcrWord> original) =>
-        original.Where(o => o.Rect.Contains(cleaned.Rect.CenterX, cleaned.Rect.CenterY)).Select(o => o.Text)
-            .FirstOrDefault(t => Core(t) != Core(cleaned.Text));
+    /// <summary>
+    /// The page as scanned's reading of a word, when it is the same word read a little differently (see
+    /// <see cref="ReadDifferently"/>), without the punctuation around it; else null.
+    /// </summary>
+    public static string? Alternative(OcrWord cleaned, IReadOnlyList<OcrWord> original)
+    {
+        var (cx, cy) = (cleaned.Rect.CenterX, cleaned.Rect.CenterY);
+        var reach = cleaned.Rect.Height / 2;
+        var nearest = original.Where(o => Math.Abs(o.Rect.CenterY - cy) < reach && o.Rect.Contains(cx, cy))
+            .MinBy(o => Math.Abs(o.Rect.CenterX - cx) + Math.Abs(o.Rect.CenterY - cy));
+        if (nearest is null) return null;
+        var (mine, theirs) = (Core(cleaned.Text), Core(nearest.Text));
+        if (theirs.Length == 0 || mine == theirs) return null;
+        return Distance(mine, theirs) <= Math.Max(1, Math.Max(mine.Length, theirs.Length) / 3) ? theirs : null;
+    }
+
+    /// <summary>Letters to change, add or remove to turn one word into the other (Levenshtein).</summary>
+    private static int Distance(string a, string b)
+    {
+        var previous = new int[b.Length + 1];
+        var current = new int[b.Length + 1];
+        for (var j = 0; j <= b.Length; j++) previous[j] = j;
+        for (var i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+            for (var j = 1; j <= b.Length; j++)
+                current[j] = Math.Min(previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1), Math.Min(previous[j] + 1, current[j - 1] + 1));
+            (previous, current) = (current, previous);
+        }
+        return previous[b.Length];
+    }
 
     /// <summary>A word to look up: two letters or more, all letters (apostrophes and hyphens inside), not an acronym.</summary>
     private static bool NeedsDictionary(string core) =>

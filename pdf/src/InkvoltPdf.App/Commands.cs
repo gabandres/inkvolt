@@ -212,6 +212,7 @@ public static class Cmd
         _ => throw new ArgumentOutOfRangeException(nameof(tool)),
     };
     public static readonly RoutedUICommand RecognizeText = Make("Recognize Te_xt (OCR)…", nameof(RecognizeText));
+    public static readonly RoutedUICommand ReviewSuspectWords = Make("Review Suspect _Words", nameof(ReviewSuspectWords));
     public static readonly RoutedUICommand ReloadFromDisk = Make("Re_load from Disk", nameof(ReloadFromDisk), K(Key.F5));
 
     // File: create, protect, reduce (see FileTools, SecurityActions)

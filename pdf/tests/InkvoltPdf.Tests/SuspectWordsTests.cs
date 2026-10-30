@@ -67,6 +67,8 @@ public class SuspectWordsTests
             new("the", new RectD(150, 100, 20, 12)),
             new("invoice", new RectD(180, 100, 50, 12)),
             new("found", new RectD(240, 100, 40, 12)),
+            new("harbor", new RectD(290, 100, 45, 12)),
+            new("meadow", new RectD(100, 114, 50, 12)),
         ];
         OcrWord[] original =
         [
@@ -74,9 +76,13 @@ public class SuspectWordsTests
             new("the", new RectD(149, 99, 22, 14)), // the same
             new("lnvoice", new RectD(179, 99, 52, 14)), // garbled on the scan: the cleaned reading is better
             // nothing at "found": the cleaning found it
+            new("window", new RectD(289, 99, 47, 14)), // another word altogether: lines matched wrongly, not a misreading
+            new("meadows", new RectD(99, 106, 55, 22)), // a tall box reaching up from the line below...
         ];
-        Assert.Equal([true, false, false, false], SuspectWords.ReadDifferently(cleaned, original, Words));
+        Assert.Equal([true, false, false, false, false, false], SuspectWords.ReadDifferently(cleaned, original, Words));
         Assert.Equal("river", SuspectWords.Alternative(cleaned[0], original));
         Assert.Null(SuspectWords.Alternative(cleaned[1], original));
+        // ...counts only for the word on its own line.
+        Assert.Equal("meadows", SuspectWords.Alternative(cleaned[5], original));
     }
 }
