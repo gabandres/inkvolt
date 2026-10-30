@@ -1443,13 +1443,18 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="Root">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="272" />
+            <ColumnDefinition x:Name="SidebarColumn" Width="272" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!-- Over the page while the folded sidebar is open: a click outside closes it -->
+        <Border x:Name="Scrim" Grid.ColumnSpan="2" Panel.ZIndex="1" Background="#33000000" Visibility="Collapsed" MouseDown="Scrim_MouseDown" />
+
         <!-- ===================== Sidebar ===================== -->
+        <!-- Folds into the Printers button when the window has no room for it (NavPane: a narrow window, a large Text size) -->
+        <Border x:Name="Sidebar" Panel.ZIndex="2">
         <DockPanel Margin="12,12,12,12">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,0,20">
                 <Image local:AppIcon.Size="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -1497,7 +1502,7 @@
                             ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />
                 </StackPanel>
 
-                <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
+                <ListBox x:Name="PrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
                          AutomationProperties.Name="Printers" ContextMenuOpening="Printers_ContextMenuOpening">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
@@ -1528,11 +1533,20 @@
                 </ListBox>
             </Grid>
         </DockPanel>
+        </Border>
 
         <!-- ===================== Main pane ===================== -->
         <Border Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}" CornerRadius="8,0,0,0"
                 BorderThickness="1,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <DockPanel>
+            <!-- The folded sidebar's button: the printer list, Add a printer, Settings and Help open over the page -->
+            <Button x:Name="NavButton" DockPanel.Dock="Top" HorizontalAlignment="Left" Margin="20,12,0,0" Padding="10,6" Visibility="Collapsed"
+                    Click="NavButton_Click" AutomationProperties.Name="Printers" ToolTip="Printers, Add a printer, Settings and Help">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE700;" Margin="0,0,10,0" />
+                    <TextBlock Text="Printers" />
+                </StackPanel>
+            </Button>
             <!-- HP software still installed: HP Smart, and HP's print app that handles every print job -->
             <Border DockPanel.Dock="Top" CornerRadius="8" Padding="16,12" Margin="32,20,32,0" BorderThickness="1"
                     Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"

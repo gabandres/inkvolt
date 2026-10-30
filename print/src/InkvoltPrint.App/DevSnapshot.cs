@@ -30,7 +30,8 @@ namespace InkvoltPrint.App;
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
-/// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot.
+/// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
+/// <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it).
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -181,6 +182,12 @@ internal static class DevSnapshot
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
             shot = editor;
+        }
+        // --nav open: the folded sidebar opened over the page (a narrow window or a large Text size folds it).
+        if (Value(args, "--nav") == "open")
+        {
+            window.ShowSidebar(open: true);
+            await Task.Delay(TimeSpan.FromMilliseconds(600));
         }
         // --dialog settings|help|whatsnew|report|addprinter|confirm|pro: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)

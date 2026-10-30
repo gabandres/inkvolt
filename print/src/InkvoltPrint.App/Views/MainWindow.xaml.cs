@@ -1,7 +1,11 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using InkvoltPrint.App.ViewModels;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App.Views;
 
@@ -10,6 +14,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Root.SizeChanged += (_, _) => FoldSidebar();
+        // Choosing a printer in the folded sidebar closes it, as Windows Settings' pane does.
+        PrinterList.SelectionChanged += (_, _) => { if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false)); };
+        PreviewKeyDown += OnPreviewKey;
         DataContextChanged += (_, e) =>
         {
             if (e.OldValue is MainViewModel old) old.PropertyChanged -= OnVmChanged;
@@ -21,6 +29,58 @@ public partial class MainWindow : Window
     private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.Selected) && IsLoaded) Motion.Enter(PrinterPane);
+    }
+
+    // ───────────── The sidebar, folded on a narrow window or at a large Text size ─────────────
+
+    private bool _folded, _sidebarOpen;
+
+    /// <summary>Folds the sidebar into the Printers button when the window has no room for it (<see cref="NavPane"/>), and back.</summary>
+    private void FoldSidebar()
+    {
+        var fold = NavPane.Folds(Root.ActualWidth);
+        if (fold == _folded) return;
+        _folded = fold;
+        SidebarColumn.Width = new GridLength(fold ? 0 : NavPane.Width);
+        Grid.SetColumnSpan(Sidebar, fold ? 2 : 1);
+        Sidebar.Width = fold ? NavPane.Width : double.NaN;
+        Sidebar.HorizontalAlignment = fold ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        if (fold) Sidebar.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        else Sidebar.ClearValue(Border.BackgroundProperty);
+        Sidebar.Effect = fold ? new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 28, ShadowDepth = 4, Opacity = 0.28 } : null;
+        NavButton.Visibility = fold ? Visibility.Visible : Visibility.Collapsed;
+        ShowSidebar(open: false, focus: false);
+    }
+
+    /// <summary>Opens the folded sidebar over the page (sliding in), or closes it; unfolded, it always shows.</summary>
+    public void ShowSidebar(bool open, bool focus = true)
+    {
+        var was = _sidebarOpen;
+        _sidebarOpen = open && _folded;
+        Sidebar.Visibility = !_folded || _sidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        Scrim.Visibility = _sidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (_sidebarOpen && !was)
+        {
+            Motion.Enter(Sidebar, rise: 0, slide: -16);
+            if (focus) Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                if ((PrinterList.ItemContainerGenerator.ContainerFromItem(PrinterList.SelectedItem) as ListBoxItem ?? PrinterList.ItemContainerGenerator.ContainerFromIndex(0) as ListBoxItem) is { } item) item.Focus();
+                else PrinterList.Focus();
+            });
+        }
+        else if (was && !_sidebarOpen && focus) NavButton.Focus();
+    }
+
+    private void NavButton_Click(object sender, RoutedEventArgs e) => ShowSidebar(open: !_sidebarOpen);
+
+    private void Scrim_MouseDown(object sender, MouseButtonEventArgs e) => ShowSidebar(open: false);
+
+    private void OnPreviewKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        if (_sidebarOpen) ShowSidebar(open: false);
+        else return;
+        e.Handled = true;
     }
 
     private MainViewModel? Vm => DataContext as MainViewModel;
