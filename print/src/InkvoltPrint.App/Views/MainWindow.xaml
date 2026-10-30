@@ -23,6 +23,8 @@
         <KeyBinding Modifiers="Control" Key="D7" Command="{Binding RunPresetAtCommand}" CommandParameter="7" />
         <KeyBinding Modifiers="Control" Key="D8" Command="{Binding RunPresetAtCommand}" CommandParameter="8" />
         <KeyBinding Modifiers="Control" Key="D9" Command="{Binding RunPresetAtCommand}" CommandParameter="9" />
+        <!-- Ctrl+K: the command palette (as in Inkvolt PDF) -->
+        <KeyBinding Modifiers="Control" Key="K" Command="{x:Static views:MainWindow.PaletteCommand}" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <!-- F1 (the command's own gesture) -->
@@ -139,10 +141,10 @@
                                             <DockPanel Margin="0,8,0,0" Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}">
                                                 <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCommand}" Padding="16,5" Margin="16,0,0,0"
                                                         VerticalAlignment="Top" AutomationProperties.Name="{Binding Title, StringFormat=Stop waiting: {0}}" />
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" VerticalAlignment="Center" />
                                             </DockPanel>
                                             <Grid Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,8,0,0"
                                                            Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -207,7 +209,7 @@
                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,8,0"
                                                            Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -413,7 +415,7 @@
                                        Visibility="{Binding NoQueue, Converter={StaticResource VisibleWhen}}" />
                             <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding LoadError, Converter={StaticResource VisibleWhen}}" />
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
                             <WrapPanel Margin="0,12,0,0">
                                 <Button Content="Fix printing problems…" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
@@ -458,7 +460,7 @@
                             </ItemsControl>
                             <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
                                        Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,8,0,0"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -726,7 +728,7 @@
                                 Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <!-- The links go under a message too long to sit beside them -->
                             <views:HeaderPanel Gap="12">
-                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center"
                                            Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
                                     <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
@@ -829,7 +831,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -991,7 +993,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1151,7 +1153,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1333,7 +1335,7 @@
                             <Button Content="Save changes" Command="{Binding ApplyCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,6" />
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap">
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
@@ -1484,13 +1486,18 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="Root">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="272" />
+            <ColumnDefinition x:Name="SidebarColumn" Width="272" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!-- Over the page while the folded sidebar is open: a click outside closes it -->
+        <Border x:Name="Scrim" Grid.ColumnSpan="2" Panel.ZIndex="1" Background="#33000000" Visibility="Collapsed" MouseDown="Scrim_MouseDown" />
+
         <!-- ===================== Sidebar ===================== -->
+        <!-- Folds into the Printers button when the window has no room for it (NavPane: a narrow window, a large Text size) -->
+        <Border x:Name="Sidebar" Panel.ZIndex="2">
         <DockPanel Margin="12,12,12,12">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,0,20">
                 <Image local:AppIcon.Size="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -1538,7 +1545,7 @@
                             ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />
                 </StackPanel>
 
-                <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
+                <ListBox x:Name="PrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
                          AutomationProperties.Name="Printers" ContextMenuOpening="Printers_ContextMenuOpening">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
@@ -1569,11 +1576,20 @@
                 </ListBox>
             </Grid>
         </DockPanel>
+        </Border>
 
         <!-- ===================== Main pane ===================== -->
         <Border Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}" CornerRadius="8,0,0,0"
                 BorderThickness="1,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <DockPanel>
+            <!-- The folded sidebar's button: the printer list, Add a printer, Settings and Help open over the page -->
+            <Button x:Name="NavButton" DockPanel.Dock="Top" HorizontalAlignment="Left" Margin="20,12,0,0" Padding="10,6" Visibility="Collapsed"
+                    Click="NavButton_Click" AutomationProperties.Name="Printers" ToolTip="Printers, Add a printer, Settings and Help">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE700;" Margin="0,0,10,0" />
+                    <TextBlock Text="Printers" />
+                </StackPanel>
+            </Button>
             <!-- HP software still installed: HP Smart, and HP's print app that handles every print job -->
             <Border DockPanel.Dock="Top" CornerRadius="8" Padding="16,12" Margin="32,20,32,0" BorderThickness="1"
                     Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
@@ -1606,7 +1622,7 @@
                 </StackPanel>
 
                 <!-- Hidden without a printer: a template applied to no printer would show its buttons, tabs and setup banner -->
-                <ContentControl Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
+                <ContentControl x:Name="PrinterPane" Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
                                 Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
@@ -1675,7 +1691,7 @@
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding SetupResult}" Margin="0,0,16,16"
                                            Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
 
-                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}">
+                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}" local:Motion.OnTabChange="True">
                                     <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
                                     <TabItem Header="Print" Content="{Binding Print}"
                                              Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
@@ -1695,5 +1711,44 @@
             </Grid>
             </DockPanel>
         </Border>
+
+        <!-- ===================== Command palette (Ctrl+K), as Inkvolt PDF's ===================== -->
+        <Grid x:Name="Palette" Grid.ColumnSpan="2" Panel.ZIndex="3" Visibility="Collapsed" Background="Transparent" MouseDown="Palette_MouseDown">
+            <Border x:Name="PaletteCard" Width="600" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" Padding="8"
+                    CornerRadius="10" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="4" Opacity="0.28" />
+                </Border.Effect>
+                <DockPanel>
+                    <TextBox x:Name="PaletteBox" DockPanel.Dock="Top" FontSize="15" Padding="10,8" local:Placeholder.Text="Type a command, a printer or a scan preset"
+                             AutomationProperties.Name="Type a command, a printer or a scan preset" />
+                    <TextBlock DockPanel.Dock="Bottom" Margin="6,8,6,2" FontSize="11" Style="{StaticResource Caption}"
+                               Text="↑↓ to choose · Enter to run · Esc to close" />
+                    <!-- Nothing matches: say so, and what to try -->
+                    <TextBlock x:Name="PaletteEmpty" DockPanel.Dock="Top" Margin="12,14,12,6" TextWrapping="Wrap" Visibility="Collapsed"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <ListBox x:Name="PaletteList" MaxHeight="420" Margin="0,8,0,0" BorderThickness="0" Background="Transparent" 
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Commands">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,3">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Gesture}" Style="{StaticResource Caption}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontFamily="{StaticResource Icons}" Width="22" FontSize="13"
+                                               VerticalAlignment="Center" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{Binding Category}" DockPanel.Dock="Left" Style="{StaticResource Caption}" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SubtleListItem}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

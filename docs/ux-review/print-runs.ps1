@@ -36,3 +36,15 @@ foreach ($name in 'overview', 'scan-review', 'dlg-confirm') {
     & $Exe --demo --snapshot (Join-Path $Out "print-$name-textsize150.png") @($runs[$name]) | Out-Null
 }
 Remove-Item Env:INKVOLT_TEXTSCALE
+# Round 2: the command palette (Ctrl+K), and the sidebar folded at 150 % and 200 %, closed and opened
+& $Exe --demo --palette --snapshot (Join-Path $Out 'print-palette.png') --a11y-audit (Join-Path $Out 'print-palette.txt') | Out-Null
+& $Exe --demo --theme Dark --palette scan --snapshot (Join-Path $Out 'print-palette-scan-dark.png') | Out-Null
+& $Exe --demo --palette zzz --snapshot (Join-Path $Out 'print-palette-nomatch.png') | Out-Null
+& $Exe --demo --palette 'go to scan' --run-palette --snapshot (Join-Path $Out 'print-palette-ran.png') | Out-Null
+foreach ($scale in '1.5', '2') {
+    $env:INKVOLT_TEXTSCALE = $scale
+    $pct = [int]([double]$scale * 100)
+    & $Exe --demo --size 1180 800 --snapshot (Join-Path $Out "print-overview-textsize$pct.png") --a11y-audit (Join-Path $Out "print-overview-textsize$pct.txt") | Out-Null
+    & $Exe --demo --size 1180 800 --nav open --snapshot (Join-Path $Out "print-nav-open-textsize$pct.png") | Out-Null
+}
+Remove-Item Env:INKVOLT_TEXTSCALE

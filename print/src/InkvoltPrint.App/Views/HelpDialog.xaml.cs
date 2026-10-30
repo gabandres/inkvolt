@@ -13,6 +13,7 @@ public partial class HelpDialog : Window
     public static readonly (string Keys, string Action)[] ShortcutList =
     [
         ("F1", "This help"),
+        ("Ctrl+K", "Commands: run any command, show a printer or scan with a preset by typing its name"),
         ("Ctrl+1 … Ctrl+9", "Scan with the first nine scan presets"),
         ("Shift+F10", "The menu of the printer or page in focus"),
         ("Alt+Shift+arrows", "Scan review: move the page earlier or later"),

@@ -1,13 +1,213 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using InkvoltPrint.App.ViewModels;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App.Views;
 
 public partial class MainWindow : Window
 {
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        Root.SizeChanged += (_, _) => FoldSidebar();
+        // Choosing a printer in the folded sidebar closes it, as Windows Settings' pane does.
+        PrinterList.SelectionChanged += (_, _) => { if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false)); };
+        PreviewKeyDown += OnPreviewKey;
+        CommandBindings.Add(new CommandBinding(PaletteCommand, (_, _) => OpenPalette()));
+        PaletteBox.TextChanged += (_, _) => FilterPalette();
+        PaletteBox.PreviewKeyDown += OnPaletteKey;
+        PaletteList.MouseUp += (_, e) =>
+        {
+            for (var d = e.OriginalSource as DependencyObject; d is not null && d != PaletteList; d = System.Windows.Media.VisualTreeHelper.GetParent(d))
+                if (d is ListBoxItem) { RunPaletteSelection(); return; }
+        };
+        PaletteBox.LostKeyboardFocus += (_, e) =>
+        {
+            if (Palette.Visibility == Visibility.Visible && e.NewFocus is DependencyObject d && !Palette.IsAncestorOf(d)) ClosePalette(focus: false);
+        };
+        DataContextChanged += (_, e) =>
+        {
+            if (e.OldValue is MainViewModel old) old.PropertyChanged -= OnVmChanged;
+            if (e.NewValue is MainViewModel vm) vm.PropertyChanged += OnVmChanged;
+        };
+    }
+
+    /// <summary>Another printer's page arrives (Motion), rather than replacing the last one at once.</summary>
+    private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.Selected) && IsLoaded) Motion.Enter(PrinterPane);
+    }
+
+    // ───────────── The sidebar, folded on a narrow window or at a large Text size ─────────────
+
+    private bool _folded, _sidebarOpen;
+
+    /// <summary>Folds the sidebar into the Printers button when the window has no room for it (<see cref="NavPane"/>), and back.</summary>
+    private void FoldSidebar()
+    {
+        var fold = NavPane.Folds(Root.ActualWidth);
+        if (fold == _folded) return;
+        _folded = fold;
+        SidebarColumn.Width = new GridLength(fold ? 0 : NavPane.Width);
+        Grid.SetColumnSpan(Sidebar, fold ? 2 : 1);
+        Sidebar.Width = fold ? NavPane.Width : double.NaN;
+        Sidebar.HorizontalAlignment = fold ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        if (fold) Sidebar.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        else Sidebar.ClearValue(Border.BackgroundProperty);
+        Sidebar.Effect = fold ? new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 28, ShadowDepth = 4, Opacity = 0.28 } : null;
+        NavButton.Visibility = fold ? Visibility.Visible : Visibility.Collapsed;
+        ShowSidebar(open: false, focus: false);
+    }
+
+    /// <summary>Opens the folded sidebar over the page (sliding in), or closes it; unfolded, it always shows.</summary>
+    public void ShowSidebar(bool open, bool focus = true)
+    {
+        var was = _sidebarOpen;
+        _sidebarOpen = open && _folded;
+        Sidebar.Visibility = !_folded || _sidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        Scrim.Visibility = _sidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (_sidebarOpen && !was)
+        {
+            Motion.Enter(Sidebar, rise: 0, slide: -16);
+            if (focus) Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                if ((PrinterList.ItemContainerGenerator.ContainerFromItem(PrinterList.SelectedItem) as ListBoxItem ?? PrinterList.ItemContainerGenerator.ContainerFromIndex(0) as ListBoxItem) is { } item) item.Focus();
+                else PrinterList.Focus();
+            });
+        }
+        else if (was && !_sidebarOpen && focus) NavButton.Focus();
+    }
+
+    private void NavButton_Click(object sender, RoutedEventArgs e) => ShowSidebar(open: !_sidebarOpen);
+
+    private void Scrim_MouseDown(object sender, MouseButtonEventArgs e) => ShowSidebar(open: false);
+
+    private void OnPreviewKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        if (Palette.Visibility == Visibility.Visible) ClosePalette();
+        else if (_sidebarOpen) ShowSidebar(open: false);
+        else return;
+        e.Handled = true;
+    }
+
+    // ───────────── Command palette (Ctrl+K), as Inkvolt PDF's ─────────────
+
+    /// <summary>Ctrl+K: the command palette.</summary>
+    public static readonly RoutedCommand PaletteCommand = new(nameof(PaletteCommand), typeof(MainWindow));
+
+    private List<PrintPalette.Entry> _paletteAll = [];
+
+    public void OpenPalette()
+    {
+        if (Vm is not { } vm) return;
+        ShowSidebar(open: false, focus: false);
+        var p = vm.Selected;
+        _paletteAll = PrintPalette.Build(
+            p is null ? null : new PrintPalette.Printer(p.Name, p.CanPrint, p.Scan is not null, p.ShowCopy, p.Settings is not null, p.NeedsSetup, p.CanFix, p.IsNetworkPrinter),
+            p is null ? -1 : vm.Printers.IndexOf(p), [.. vm.Printers.Select(x => x.Name)], [.. vm.Presets.Items.Select(x => x.Name)]);
+        Palette.Visibility = Visibility.Visible;
+        Motion.Enter(PaletteCard, rise: -8); // drops in from the top
+        PaletteBox.Text = "";
+        FilterPalette();
+        PaletteBox.Focus();
+    }
+
+    private void ClosePalette(bool focus = true)
+    {
+        Palette.Visibility = Visibility.Collapsed;
+        if (focus) (PrinterPane as UIElement).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+    }
+
+    private void Palette_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == Palette) ClosePalette();
+    }
+
+    private void FilterPalette()
+    {
+        var result = PaletteSearch.Filter(_paletteAll, PaletteBox.Text, i => i.Name, i => i.Category);
+        PaletteList.ItemsSource = result;
+        PaletteList.SelectedIndex = result.Count > 0 ? 0 : -1;
+        var q = PaletteBox.Text.Trim();
+        PaletteEmpty.Visibility = result.Count == 0 && q.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (result.Count == 0 && q.Length > 0) PaletteEmpty.Text = PrintPalette.NoMatch(q);
+    }
+
+    private void OnPaletteKey(object sender, KeyEventArgs e)
+    {
+        var count = PaletteList.Items.Count;
+        switch (e.Key)
+        {
+            case Key.Down when count > 0:
+                PaletteList.SelectedIndex = (PaletteList.SelectedIndex + 1) % count;
+                PaletteList.ScrollIntoView(PaletteList.SelectedItem);
+                break;
+            case Key.Up when count > 0:
+                PaletteList.SelectedIndex = (PaletteList.SelectedIndex - 1 + count) % count;
+                PaletteList.ScrollIntoView(PaletteList.SelectedItem);
+                break;
+            case Key.Enter:
+                RunPaletteSelection();
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
+    }
+
+    public void RunPaletteSelection()
+    {
+        if (PaletteList.SelectedItem is not PrintPalette.Entry entry) return;
+        ClosePalette();
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () => RunPaletteEntry(entry.Id));
+    }
+
+    /// <summary>Runs a palette entry by its id (<see cref="PrintPalette.Entry.Id"/>): what its button or menu item does.</summary>
+    public void RunPaletteEntry(string id)
+    {
+        if (Vm is not { } vm) return;
+        var p = vm.Selected;
+        var (kind, arg) = id.IndexOf(':') is var colon and > 0 ? (id[..colon], id[(colon + 1)..]) : (id, "");
+        static void Run(ICommand? command, object? parameter = null)
+        {
+            if (command?.CanExecute(parameter) == true) command.Execute(parameter);
+        }
+        switch (kind, arg)
+        {
+            case ("section", _) when p is not null && int.TryParse(arg, out var section): p.SelectedSection = section; break;
+            case ("show", _) when int.TryParse(arg, out var n) && n < vm.Printers.Count: vm.Selected = vm.Printers[n]; break;
+            case ("preset", _) when int.TryParse(arg, out var preset) && p?.Scan is not null && preset < vm.Presets.Items.Count:
+                _ = p.RunPresetCommand.ExecuteAsync(vm.Presets.Items[preset]);
+                break;
+            case ("printer", "print"): Run(p?.GoToPrintCommand); break;
+            case ("printer", "scan"): Run(p?.GoToScanCommand); break;
+            case ("printer", "setup"): Run(p?.SetUpCommand); break;
+            case ("printer", "reconnect"): Run(p?.ReconnectCommand); break;
+            case ("printer", "photos"): Run(p?.GoToPhotosCommand); break;
+            case ("printer", "fix"): Run(p?.OpenFixerCommand); break;
+            case ("printer", "maintenance"): Run(p?.ShowMaintenanceCommand); break;
+            case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
+            case ("app", "add"): AddPrinterWindow.Open(this, vm); break;
+            case ("app", "search"): Run(vm.SearchAgainCommand); break;
+            case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;
+            case ("app", "help"): ShowHelp(); break;
+            case ("app", "whatsnew"): WhatsNewDialog.Open(this, AppHelp.Notes()); break;
+            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm)); break;
+            case ("app", "about"): AboutDialog.Open(this); break;
+        }
+    }
+
+    /// <summary>The palette's entries as listed now (dev snapshots: <c>--palette</c>).</summary>
+    public IReadOnlyList<PrintPalette.Entry> PaletteShown => PaletteList.ItemsSource as IReadOnlyList<PrintPalette.Entry> ?? [];
+
+    /// <summary>Types into the palette (dev snapshots: <c>--palette words</c>).</summary>
+    public void TypeInPalette(string text) => PaletteBox.Text = text;
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 

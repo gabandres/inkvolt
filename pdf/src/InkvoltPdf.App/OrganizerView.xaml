@@ -6,7 +6,7 @@
              AutomationProperties.Name="Organize pages">
     <DockPanel>
         <!-- Header: what is selected, thumbnail size, done -->
-        <Border DockPanel.Dock="Top" Padding="16,10" BorderThickness="0,0,0,1"
+        <Border DockPanel.Dock="Top" Padding="16,10" BorderThickness="0,0,0,1" app:TextScale.Scales="True"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
@@ -28,7 +28,7 @@
         </Border>
 
         <!-- Page actions on the selected pages (also on the right-click menu and the Organize menu) -->
-        <Border DockPanel.Dock="Top" Padding="12,4" BorderThickness="0,0,0,1"
+        <Border DockPanel.Dock="Top" Padding="12,4" BorderThickness="0,0,0,1" app:TextScale.Scales="True"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <app:ToolbarPanel x:Name="ActionBar" AutomationProperties.Name="Page actions">
                 <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateLeft" ToolTip="Rotate the selected pages counterclockwise" AutomationProperties.Name="Rotate left">
@@ -133,7 +133,7 @@
                                                     <Image Source="{Binding Image}" Stretch="Fill" />
                                                 </Border>
                                                 <!-- Hover actions -->
-                                                <StackPanel x:Name="Actions" Orientation="Horizontal" HorizontalAlignment="Center"
+                                                <StackPanel x:Name="Actions" Orientation="Horizontal" HorizontalAlignment="Center" app:TextScale.Scales="True"
                                                             VerticalAlignment="Bottom" Margin="0,0,0,6" Visibility="Hidden">
                                                     <Button Style="{StaticResource HoverAction}" Content="&#xE7AD;" ToolTip="Rotate counterclockwise"
                                                             Tag="left" Click="OnItemAction" AutomationProperties.Name="Rotate counterclockwise" />
@@ -147,7 +147,7 @@
                                                             Tag="delete" Click="OnItemAction" AutomationProperties.Name="Delete page" />
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" />
+                                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" app:TextScale.Scales="True" />
                                         </StackPanel>
                                     </Border>
                                     <DataTemplate.Triggers>
