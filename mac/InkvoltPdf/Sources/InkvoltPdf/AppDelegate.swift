@@ -293,6 +293,19 @@ enum MainMenu {
         menu.addItem(item("Sanitize Document…", #selector(DocumentWindowController.sanitizeDocument(_:))))
         menu.addItem(item("What's in This PDF…", #selector(DocumentWindowController.whatsInThisPdf(_:))))
         menu.addItem(.separator())
+        // Measure (Windows: Review › Measure): the measuring tools, then the scale.
+        let measure = NSMenu(title: "Measure")
+        for tool in Tool.measuring {
+            let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)))
+            entry.tag = tool.rawValue
+            measure.addItem(entry)
+        }
+        measure.addItem(.separator())
+        measure.addItem(item("Set Measuring Scale…", #selector(DocumentWindowController.setMeasuringScale(_:))))
+        let measureItem = NSMenuItem(title: "Measure", action: nil, keyEquivalent: "")
+        measureItem.submenu = measure
+        menu.addItem(measureItem)
+        menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
         menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
         menu.addItem(.separator())

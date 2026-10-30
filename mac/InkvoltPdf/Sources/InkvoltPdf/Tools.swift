@@ -8,6 +8,7 @@ enum Tool: Int, CaseIterable {
     case fillText, fillCheck, fillCross, fillDate, signature, editContent
     case callout, polygon, polyline
     case redact
+    case measureDistance, measurePerimeter, measureArea, measureCalibrate
 
     var title: String {
         switch self {
@@ -37,6 +38,10 @@ enum Tool: Int, CaseIterable {
         case .polygon: "Polygon"
         case .polyline: "Polyline"
         case .redact: "Redact"
+        case .measureDistance: "Measure Distance"
+        case .measurePerimeter: "Measure Perimeter"
+        case .measureArea: "Measure Area"
+        case .measureCalibrate: "Calibrate Scale from a Known Length"
         }
     }
 
@@ -69,6 +74,7 @@ enum Tool: Int, CaseIterable {
         case .polygon: "v"
         case .polyline: "z"
         case .redact: "f"
+        case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate: "" // none, as on Windows
         }
     }
 
@@ -100,6 +106,9 @@ enum Tool: Int, CaseIterable {
         case .polygon: "pentagon"
         case .polyline: "point.topleft.down.to.point.bottomright.curvepath"
         case .redact: "rectangle.fill"
+        case .measureDistance, .measureCalibrate: "ruler"
+        case .measurePerimeter: "point.topleft.down.to.point.bottomright.curvepath"
+        case .measureArea: "square.dashed"
         }
     }
 
@@ -127,6 +136,22 @@ enum Tool: Int, CaseIterable {
         case .polygon: "Polygon: click each corner; double-click, Return or a click on the first corner closes it"
         case .polyline: "Polyline: click each point; double-click or Return ends it"
         case .redact: "Redact: drag over the areas to black out, click a mark to unmark it; nothing is removed until you apply the redactions"
+        case .measureDistance: "Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Tools › Measure › Set Measuring Scale)"
+        case .measurePerimeter, .measureArea: "Click each corner; double-click or Return finishes, Delete takes a corner back, Esc cancels"
+        case .measureCalibrate: "Click both ends of something whose real length you know (a dimension, a scale bar)"
+        }
+    }
+
+    /// The measuring tools (Tools › Measure), which aren't in the tool strip, as on Windows they are in Review › Measure.
+    static let measuring: [Tool] = [.measureDistance, .measurePerimeter, .measureArea, .measureCalibrate]
+
+    var measureTool: MeasureTool? {
+        switch self {
+        case .measureDistance: .distance
+        case .measurePerimeter: .perimeter
+        case .measureArea: .area
+        case .measureCalibrate: .calibrate
+        default: nil
         }
     }
 
@@ -334,7 +359,8 @@ final class ToolStrip: NSView {
         for (g, group) in Tool.groups.enumerated() {
             controls[g].selectedSegment = group.firstIndex(of: tool) ?? -1
         }
-        let plain: Set<Tool> = [.hand, .text, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature, .editContent]
+        // Measurements are drawn in their own look (Measurements.defaultStyle), as on Windows.
+        let plain = Set<Tool>([.hand, .text, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature, .editContent] + Tool.measuring)
         showStyle(style, usesWidth: !plain.contains(tool) && ![.highlight, .underline, .strikeOut, .note].contains(tool),
                   usesColor: !plain.contains(tool))
         stampLabel.stringValue = tool == .stamp ? (stamp ?? "") : ""

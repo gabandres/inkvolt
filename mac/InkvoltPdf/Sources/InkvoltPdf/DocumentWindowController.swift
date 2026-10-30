@@ -19,6 +19,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// The redaction marks' bar, and what the redaction commands keep (Redaction.swift).
     let redactBar = RedactBar()
     let redaction = RedactionState()
+    let measure = MeasureState()
     /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
     let signing = SigningState()
     /// The form's fields on the pages, and Edit Text & Images.
@@ -226,6 +227,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         toolStrip.onStampMenu = { [weak self] view, rect in self?.popUp(self?.stampMenu(), view, rect) }
         toolStrip.onImageMenu = { [weak self] view, rect in self?.popUp(self?.imageMenu(), view, rect) }
         toolStrip.onSignatureMenu = { [weak self] view, rect in self?.popUp(self?.signatureMenu(), view, rect) }
+        wireMeasuring()
     }
 
     /// Says what just happened in the bar over the pages.
@@ -397,6 +399,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
         if tool == .signature && pages.pendingSignature == nil { askSignature() }
         if tool == .editContent { notify("Click text to change it, or a picture to move, replace or delete it.") }
+        if tool.measureTool != nil { notify("\(tool.help).") }
     }
 
     func stampMenu() -> NSMenu {
@@ -531,6 +534,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
             return true
+        case #selector(setMeasuringScale(_:)):
+            return pdf.session != nil && engine.pageCount > 0
         case #selector(openInspector(_:)), #selector(replyToSelected(_:)):
             return pages.selectedId != nil
         case #selector(linkSelectedText(_:)):
