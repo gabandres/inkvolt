@@ -404,8 +404,7 @@ public sealed partial class PageViewer
         if (check.Missing.Count > 0)
         {
             problem = true;
-            var list = string.Join(", ", check.Missing.Take(10).Select(c => c == " " ? "space" : $"“{c}”")) + (check.Missing.Count > 10 ? " …" : "");
-            note = $"The font “{run.FontName}” has no {list} in this PDF, so those can't be typed here.";
+            note = $"Neither the font “{run.FontName}” nor any font on this PC has {CharList(check.Missing)}, so those can't be typed here.";
         }
         else
         {
@@ -416,6 +415,10 @@ public sealed partial class PageViewer
                     ? $"{diff.ToString("0", CultureInfo.CurrentCulture)} pt wider than before: it may run into what follows (text doesn't reflow)."
                     : $"{(-diff).ToString("0", CultureInfo.CurrentCulture)} pt narrower than before.";
             problem = diff > 0.5;
+            // Characters the font lacks: never drawn from another font silently.
+            if (check.Borrowed.Count > 0)
+                note += $"\n{CharList(check.Borrowed)} {(check.Borrowed.Count == 1 ? "isn't" : "aren't")} in this PDF's copy of “{run.FontName}”: drawn in " +
+                        $"{string.Join(" and ", check.StandIns)}, the closest font on this PC.";
         }
         _runInfoText.Text = note;
         if (problem) _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, check.Missing.Count > 0 ? "SystemFillColorCriticalBrush" : "SystemFillColorCautionBrush");

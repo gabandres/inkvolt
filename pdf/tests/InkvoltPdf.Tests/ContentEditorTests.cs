@@ -152,16 +152,57 @@ public class ContentEditorTests
     }
 
     [Fact]
-    public void MissingGlyphsAreRefusedByName()
+    public void CharactersTheFontLacksComeFromAStandInFont()
     {
+        // The subset has no "Z" or "b": they are drawn in the installed font closest to it (Arial itself), named in the check.
         var pdf = ContentEditPdf.Make(Simple);
         var run = Run(pdf, "Hello World");
         var check = run.Check("Hello Zebra");
-        Assert.Equal(["Z", "b"], check.Missing);
-        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, run, "Hello Zebra"));
-        Assert.Equal(["Z", "b"], ex.Missing);
-        Assert.Contains("“Z”", ex.Message);
+        Assert.Empty(check.Missing);
+        Assert.Equal(["Z", "b"], check.Borrowed);
+        Assert.Equal(["Arial"], check.StandIns);
+        Assert.True(check.Width > 0);
+        var edited = ContentEditor.ReplaceText(pdf, null, run, "Hello Zebra");
+        var text = ContentEditPdf.Text(edited);
+        Assert.Contains("Hello Zebra", text);
+        Assert.Contains("draft", text);
+        var after = ContentEditor.Read(edited, null, 0);
+        Assert.Equal("Hello Zebra", after.Paragraphs.Single(p => p.Text.StartsWith("Hello", StringComparison.Ordinal)).Text);
+        Assert.Contains(after.Runs, r => r.Text == "Z" && r.FontName.Contains("arial", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(run.Box.X, after.Runs.First(r => r.Text.StartsWith("Hello", StringComparison.Ordinal)).Box.X, 2);
+        Assert.Contains("/InkFb1_", ContentEditPdf.Content(edited));
+        // A second edit of the run keeps the stand-in: the words after it stay where they were.
+        var draft = after.Runs.Single(r => r.Text == "draft");
+        var again = ContentEditor.ReplaceText(edited, null, after.Runs.First(r => r.Text.StartsWith("Hello", StringComparison.Ordinal)), "Hell ");
+        Assert.Equal(draft.Box, ContentEditor.Read(again, null, 0).Runs.Single(r => r.Text == "draft").Box);
+    }
+
+    [Fact]
+    public void CharactersNoFontHereHasAreRefusedByName()
+    {
+        var pdf = ContentEditPdf.Make(Simple);
+        var run = Run(pdf, "Hello World");
+        var check = run.Check("Hello ͸orld");
+        Assert.Equal(["͸"], check.Missing);
+        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, run, "Hello ͸orld"));
+        Assert.Equal(["͸"], ex.Missing);
         Assert.Contains("Arial", ex.Message);
+        Assert.Contains("this PC", ex.Message);
+    }
+
+    [Fact]
+    public void AQuoteOperatorWithStandInsStillMovesToItsLine()
+    {
+        var pdf = ContentEditPdf.Make("BT /FA 12 Tf 14 TL 72 700 Td (draft) Tj (Hello) ' 2 1 (World) \" ET");
+        var hello = Run(pdf, "Hello");
+        var world = Run(pdf, "World");
+        var edited = ContentEditor.ReplaceText(pdf, null, hello, "Zebra");
+        var after = ContentEditor.Read(edited, null, 0);
+        Assert.Contains("draft Zebra World", ContentEditPdf.Text(edited).Replace("\n", " "));
+        Assert.Equal(hello.Box.Y, after.Runs.First(r => r.Text == "Z").Box.Y, 1);
+        Assert.Equal(hello.Box.X, after.Runs.First(r => r.Text == "Z").Box.X, 1);
+        Assert.Equal(world.Box.Y, after.Runs.Single(r => r.Text == "World").Box.Y, 1);
+        Assert.Equal(world.Box.X, after.Runs.Single(r => r.Text == "World").Box.X, 1);
     }
 
     [Fact]
@@ -175,8 +216,11 @@ public class ContentEditorTests
         Assert.Contains("Hold Wer, 2024!", ContentEditPdf.Text(edited));
         Assert.Contains("<", ContentEditPdf.Content(edited)); // still a hex string
 
-        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, run, "Hello Kim"));
-        Assert.Equal(["K", "i", "m"], ex.Missing);
+        // "K", "i" and "m" aren't in the subset: a stand-in draws them, the rest stays in the font's own glyph ids.
+        var check = run.Check("Hello Kim");
+        Assert.Equal(["K", "i", "m"], check.Borrowed);
+        var mixed = ContentEditor.ReplaceText(pdf, null, run, "Hello Kim");
+        Assert.Contains("Hello Kim", ContentEditPdf.Text(mixed));
     }
 
     [Fact]

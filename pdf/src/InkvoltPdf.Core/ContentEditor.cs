@@ -44,12 +44,15 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
     /// <summary>The run's width as drawn (points along the baseline, to the end of its last glyph).</summary>
     public double OldWidth { get; init; }
 
-    /// <summary>The width <paramref name="text"/> would take written into this run (points), and the characters the font can't draw.</summary>
+    /// <summary>
+    /// The width <paramref name="text"/> would take written into this run (points), the characters the font lacks that
+    /// a stand-in font draws, and the characters no font here can draw.
+    /// </summary>
     public TextCheck Check(string text)
     {
         if (Font is null || Info is null) return new TextCheck(OldWidth, OldWidth, []);
-        var (parts, enc, _) = ContentEditor.Plan(Info, this, ContentEditor.OneLine(text));
-        return new TextCheck(Width(parts) * Scale, OldWidth, enc.Missing);
+        var plan = ContentEditor.Plan(Info, this, ContentEditor.OneLine(text));
+        return new TextCheck(Width(plan.Parts) * Scale, OldWidth, plan.Missing) { Borrowed = plan.Borrowed, StandIns = plan.StandIns };
     }
 
     /// <summary>To the end of the last glyph's ink, in text space (as <see cref="OldWidth"/> measures the run).</summary>
@@ -79,8 +82,15 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
     }
 }
 
-/// <summary>What new text would look like: its width and the run's (points), and characters the font has no glyph for.</summary>
-public readonly record struct TextCheck(double Width, double OldWidth, IReadOnlyList<string> Missing);
+/// <summary>What new text would look like: its width and the run's (points), and characters no font here has a glyph for.</summary>
+public readonly record struct TextCheck(double Width, double OldWidth, IReadOnlyList<string> Missing)
+{
+    /// <summary>Characters the run's own font lacks, drawn from installed fonts (<see cref="StandIns"/>).</summary>
+    public IReadOnlyList<string> Borrowed { get; init; } = [];
+
+    /// <summary>The installed fonts they come from ("Arial Bold"), closest first.</summary>
+    public IReadOnlyList<string> StandIns { get; init; } = [];
+}
 
 /// <summary>A picture the page draws: an image XObject (Do) or an inline image (BI … EI). Page space.</summary>
 /// <param name="Id">The operator's place in the page's content.</param>
@@ -195,23 +205,43 @@ public static partial class ContentEditor
             throw new ContentEditException("The page changed since this text was picked. Pick it again.");
         var font = now.Font!;
 
-        var (parts, enc, middle) = Plan(info, now, text);
-        if (enc.Missing.Count > 0) throw MissingGlyphs(font, enc.Missing);
+        var plan = Plan(info, now, text);
+        if (plan.Missing.Count > 0) throw MissingGlyphs(font, plan.Missing);
         var target = TargetOf(doc, page, streams, ops, walk, now);
-        font.Prepare(doc, enc.Codes, middle);
+        font.Prepare(doc, plan.Codes, plan.OwnText);
         var op = target.OpOf(now);
-        var replacement = WriteShow(op, info, font, parts);
+        string replacement;
+        if (plan.StandIns.Count == 0) replacement = WriteShow(op, info, font, plan.Parts);
+        else
+        {
+            // Characters the font lacks: drawn in stand-in fonts, embedded as subsets (as a paragraph edit does).
+            var writer = new CidFontWriter(StandInPrefix(target));
+            var sb = new StringBuilder();
+            if (op.Name == "'") sb.Append("T* ");
+            else if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc T* ");
+            WriteLine(sb, info.Hex, font, plan.Parts, now, writer);
+            replacement = sb.ToString();
+            AddFonts(doc, target.ResourceOwner, writer.BuildFonts(doc));
+        }
         WriteTarget(doc, page, target, [(op.Start, op.End, replacement)]);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
     }
 
     /// <summary>
-    /// How a run's new text is written: what didn't change is kept (with its kerning), the changed middle is encoded
-    /// plainly. Adjustments touching the change go with it, except the one before the first glyph (where the run
-    /// starts) and any after the last.
+    /// A run's new text as it will be written: its parts; the codes of its own font and the text they stand for (for
+    /// <see cref="TextFont.Prepare"/>); characters no font here has; characters the run's font lacks that stand-in
+    /// fonts draw, and those fonts' names.
     /// </summary>
-    internal static (List<Part> Parts, EncodedText Middle, string MiddleText) Plan(RunInfo info, TextRun run, string text)
+    internal sealed record RunPlan(List<Part> Parts, IReadOnlyList<int> Codes, string OwnText, IReadOnlyList<string> Missing,
+        IReadOnlyList<string> Borrowed, IReadOnlyList<string> StandIns);
+
+    /// <summary>
+    /// How a run's new text is written: what didn't change is kept (with its kerning), the changed middle is encoded
+    /// plainly, characters the font lacks drawn in stand-in fonts (<see cref="StandInFonts"/>). Adjustments touching
+    /// the change go with it, except the one before the first glyph (where the run starts) and any after the last.
+    /// </summary>
+    internal static RunPlan Plan(RunInfo info, TextRun run, string text)
     {
         var items = info.Items;
         int pre = 0, preLen = 0;
@@ -233,12 +263,71 @@ public static partial class ContentEditor
         sufLen = items.Skip(items.Count - suf).Sum(i => i.Text.Length);
         var middle = text[preLen..(text.Length - sufLen)];
 
-        var enc = run.Font!.Encode(middle);
+        var font = run.Font!;
         var parts = new List<Part>();
         foreach (var it in items.Take(pre)) parts.Add(new Part(it.IsNumber ? null : it.Code, it.Number));
-        foreach (var c in enc.Codes) parts.Add(c == TextFont.Gap ? new Part(null, -run.GapEms * 1000) : new Part(c, 0));
+        var enc = font.Encode(middle);
+        IReadOnlyList<int> codes = enc.Codes;
+        var ownText = middle;
+        IReadOnlyList<string> missing = enc.Missing;
+        List<string> borrowed = [], names = [];
+        if (enc.Missing.Count == 0) parts.AddRange(Parts(run, enc.Codes));
+        else
+        {
+            // Characters the font lacks: each stretch of them drawn in the closest installed font that has them.
+            var lacking = new List<string>();
+            foreach (var el in TextElements(middle))
+                if (!el.All(char.IsWhiteSpace) && font.Encode(el).Missing.Count > 0 && !lacking.Contains(el)) lacking.Add(el);
+            var standIns = StandInFonts.For(font, [.. lacking.SelectMany(TrueTypeFont.CodePoints).Distinct()]);
+            var left = new List<string>();
+            foreach (var el in lacking)
+            {
+                if (TrueTypeFont.CodePoints(el).All(standIns.ContainsKey))
+                {
+                    borrowed.Add(el);
+                    foreach (var cp in TrueTypeFont.CodePoints(el))
+                        if (!names.Contains(standIns[cp].Name)) names.Add(standIns[cp].Name);
+                }
+                else left.Add(el);
+            }
+            missing = left;
+            var own = new List<int>();
+            var ownSb = new StringBuilder();
+            var chunk = new StringBuilder();
+            StandInFont? cur = null;
+            void Flush()
+            {
+                if (chunk.Length == 0) return;
+                if (cur is null)
+                {
+                    var e = font.Encode(chunk.ToString());
+                    own.AddRange(e.Codes);
+                    ownSb.Append(chunk);
+                    parts.AddRange(Parts(run, e.Codes));
+                }
+                else parts.Add(new Part(null, 0, TextShaper.Shape(chunk.ToString(), cur.Font)));
+                chunk.Clear();
+            }
+            foreach (var el in TextElements(middle))
+            {
+                var face = borrowed.Contains(el) ? standIns[TrueTypeFont.CodePoints(el).First()] : null;
+                if (face != cur) Flush();
+                cur = face;
+                chunk.Append(el);
+            }
+            Flush();
+            codes = own;
+            ownText = ownSb.ToString();
+        }
         foreach (var it in items.Skip(items.Count - suf)) parts.Add(new Part(it.IsNumber ? null : it.Code, it.Number));
-        return (parts, enc, middle);
+        return new RunPlan(parts, codes, ownText, missing, borrowed, names);
+    }
+
+    /// <summary>The text elements (a character with its marks, a surrogate pair) of <paramref name="text"/>.</summary>
+    private static IEnumerable<string> TextElements(string text)
+    {
+        var e = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+        while (e.MoveNext()) yield return e.GetTextElement();
     }
 
     /// <summary>A glyph code, or (with no code) a TJ adjustment, of rewritten text; or characters drawn in stand-in fonts (<see cref="StandIn"/>).</summary>
@@ -248,11 +337,12 @@ public static partial class ContentEditor
 
     private static ContentEditException MissingGlyphs(TextFont font, IReadOnlyList<string> missing)
     {
-        static string Show(string c) => c == " " ? "space" : char.IsControl(c[0]) ? $"U+{(int)c[0]:X4}" : $"“{c}”";
+        static string Show(string c) => c == " " ? "space" : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) is System.Globalization.UnicodeCategory.PrivateUse or System.Globalization.UnicodeCategory.Surrogate or System.Globalization.UnicodeCategory.OtherNotAssigned
+            ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”";
         var list = string.Join(", ", missing.Take(12).Select(Show)) + (missing.Count > 12 ? $" and {missing.Count - 12} more" : "");
-        var name = font.Name.Length > 0 ? $"The font “{font.Name}”" : "This text's font";
+        var name = font.Name.Length > 0 ? $"the font “{font.Name}”" : "this text's font";
         return new ContentEditException(
-            $"{name} has no {(missing.Count == 1 ? "glyph" : "glyphs")} for {list} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.",
+            $"Neither {name} nor any font on this PC has {list}, so it can't be written. Leave {(missing.Count == 1 ? "it" : "them")} out, or add a text box instead.",
             missing);
     }
 

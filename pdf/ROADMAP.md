@@ -248,7 +248,10 @@ the checkout.
   a styled space at a line's end isn't drawn, so its look goes. Tests: `ParagraphEditTests` (41, with
   `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
   files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
-  still uses the one-run editor (no stand-ins there yet). Part d (2026-10-30): text inside form XObjects edits as
+  still uses the one-run editor; since 2026-10-30 it draws characters the font lacks from the same stand-in fonts
+  (`ContentEditor.Plan` returns a `RunPlan`: the changed middle split into stretches in the run's font and stretches
+  shaped in a stand-in, written by `WriteLine`; `TextCheck.Borrowed` and `StandIns` name them under the editor;
+  characters no font has are still refused by name). Part d (2026-10-30): text inside form XObjects edits as
   paragraphs and as single runs (`ContentEditor.Forms.cs`: each run inside a form knows its form, its operator in it
   and the Do that draws it; the edit rewrites the form's own stream, stand-in fonts go to the form's resources or the
   page's when it borrows them; a form the page draws more than once or that other pages share is copied for the Do
@@ -256,7 +259,7 @@ the checkout.
   pictures inside forms stay as they were; a paragraph half in a form is edited line by line).
   `ParagraphEditTests.Forms` (9). Still to do: paragraphs in turned
   text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); hyphenated
-  line ends kept as typed ("respon-sible"); kerning of rewritten lines; stand-in fonts for the one-run editor; fonts
+  line ends kept as typed ("respon-sible"); kerning of rewritten lines; fonts
   beyond the 14 families in the look bar; the Acrobat and pdf.js check.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it

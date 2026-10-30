@@ -130,9 +130,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Edit Text & Images** (Edit menu or the command palette): change the page's own text and pictures. Text under the
   pointer shows a frame; a click opens an editor right over it, in its size, style and color, that says live how much
   wider or narrower the new text is (it doesn't reflow: wider text may run into what follows) and which characters the
-  font can't draw. Enter (or clicking elsewhere) writes it in the text's own embedded font, Esc cancels. Only characters
-  the font really holds can be typed (embedded fonts are usually subsets with just the characters the document used):
-  any other is refused by name, never drawn in another font. Kerning outside the change is kept; a word space the font
+  font can't draw. Enter (or clicking elsewhere) writes it in the text's own embedded font, Esc cancels. Characters
+  the font doesn't hold (embedded fonts are usually subsets with just the characters the document used) are drawn in
+  the installed font closest to it, named under the editor, never silently; characters no font on the PC has are
+  refused by name. Kerning outside the change is kept; a word space the font
   has no glyph for becomes a gap; new characters the font has but the PDF didn't use yet get their widths and their
   text (so copying and search still work). Text in a paragraph (lines of one font, size and color at a steady line
   step, their left edges, centers or right edges lined up, as Export to Word reads them) frames the whole paragraph,

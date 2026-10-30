@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Editing a single line of text now draws characters its font doesn't have from the closest font on your PC, as paragraph editing does, and says so under the editor.
 - Edit Text & Images now edits text inside reused drawings (form XObjects: stamped or flattened pages, and the blocks some programs make), as paragraphs or line by line. A drawing shown more than once, or on several pages, is copied for the place you clicked, so the others don't change.
 
 ## 1.2.1
