@@ -585,6 +585,10 @@ E14, Better OCR stage A (Windows 2026-10-30; after E13, as the roadmap queues ne
 - **The app**: Recognize Text's sheet gets the language, the two checks and "Replace the scans with the cleaned pages";
   a Suspect words list in the sidebar (each word beside its picture, Correct to with `NSSpellChecker`'s guesses, Keep as
   read), as on Windows.
+- **Review fixes** (2026-10-30), each with a test in ScanTextTests to port: the layer's second line `%f rotate x1 y1 x2 y2`
+  (the page's /Rotate and visible box when written) lets `Words`, `Correct` and `Keep` move each word's centre and turn it
+  with the page after a rotate or crop (no `%f`: today's frame); words with a box out of range or not a number are left out;
+  `CleanedPageImage` holds `Deflated` (zlib RGB or grey, the image stream as written), not raw pixels.
 E15, Export to PowerPoint and HTML (Windows 2026-10-30; after E14, on the Word export of D5c). The .NET code is the spec. What to port:
 - **Writers**, `pdf/src/InkvoltPdf.Core/PptxWriter.cs` and `HtmlWriter.cs`: strings, XML and zip, with no Windows types. The
   master, layouts and theme in `PptxWriter` are fixed text: keep them byte for byte. `OpenXmlParts.Relationships` moved out of
@@ -609,6 +613,10 @@ E15, Export to PowerPoint and HTML (Windows 2026-10-30; after E14, on the Word e
 - **Corpus**: `pdf/tools/export-corpus/corpus.json`, the same 7 documents, SHA-256s in `baseline.json`. `ExportCorpus html` and the
   Nu validator (`vnu.jar`, Java, local) work the same on the Mac; compare each document's slide and shape counts and lines in order
   with a Windows run.
+- **Review fixes** (2026-10-30), each with a test to port: an HTML list number is ASCII digits only (`[0-9]`, not `\d`);
+  strong, em and code always nest (what stays open is the start both runs share); `FigureAlts` walks an array once, like a
+  dictionary; `ExportShapes.Read` takes the cancel token, cuts a rule more than a page's size off the page at its edges, reads
+  such a fill on its part on the page and keeps such an outline as a picture.
 
 Decided 2026-10-30 for E2: PdfCore imports Security.framework (with CryptoKit and Vision, already there) rather than
 taking the CMS through a protocol from the app: the tests need the real verification, and Security is the Mac's
