@@ -37,10 +37,13 @@ untagged export of theirs would be tagged; each figure gets a stand-in alternate
 veraPDF validates both folders and the comparison runs as above. `tag [--all] <out> <pdf>…` and `pdfa <out> <pdf>…`
 (Save as PDF/A-2a, for `verapdf -f 2a`) do the steps one at a time.
 
-**Result (2026-10-30, veraPDF 1.30.3):** the 2 untagged files (pdfTeX papers) pass every condition but 31-027, glyphs
-of the TeX math fonts without Unicode (veraPDF: 7.21.7-1 only). Of the 12 re-tagged files, 5 pass veraPDF PDF/UA-1;
-the other 7 fail only on form-field tooltips (28-005) or fonts (31-009, 31-014, 31-030), which tagging doesn't change.
-Same pass/fail and conditions as the checker for 14 of 14. Saved as PDF/A-2a, the Word files pass veraPDF 2a and ua1.
+**Result (2026-10-30, veraPDF 1.30.3, branch `pdf-accessible-2`):** the 2 untagged files (pdfTeX papers) pass PDF/UA-1
+in the checker and in veraPDF: Make Accessible now gives the TeX math fonts' glyphs their Unicode (`FontUnicode`; they
+failed 31-027 / 7.21.7-1 before). Of the 12 re-tagged files, 5 pass veraPDF PDF/UA-1; the other 7 fail only on
+form-field tooltips (28-005) or fonts (31-009, 31-014, 31-030), which tagging doesn't change. Same pass/fail and
+conditions as the checker for 14 of 14. Saved as PDF/A-2a (`pdfa`), 10 of the 14 are made and all 10 pass veraPDF 2a
+and ua1 (both papers, the NIST standard, the Word files); 4 are refused (a signature, CMYK without a profile twice, a
+Times that would move).
 
 ## Known differences
 

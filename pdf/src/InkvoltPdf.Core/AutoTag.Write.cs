@@ -393,7 +393,7 @@ public static partial class AutoTag
                             // Not where the layout found text (a stray mark, text it dropped): the nearest text block.
                             var (cx, cy) = (it.Box.CenterX, it.Box.CenterY);
                             var near = leaves.Where(l => !l.Figure && l.Sources.Count > 0)
-                                .Select(l => (l, d: l.Sources.Min(s => Distance(s, cx, cy)))).Where(x => x.d < 24).MinBy(x => x.d).l;
+                                .Select(l => (l, d: l.Sources.Min(s => Distance(s, cx, cy)))).Where(x => x.d < 24).OrderBy(x => x.d).Select(x => x.l).FirstOrDefault();
                             best = near ?? leaves.FirstOrDefault(l => l.Figure && l.Sources.Any(s => s.Inflate(2).Contains(cx, cy)));
                             if (best is null) return Target.Decor;
                         }

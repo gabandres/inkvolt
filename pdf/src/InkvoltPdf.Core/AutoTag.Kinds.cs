@@ -269,13 +269,23 @@ public static partial class AutoTag
         }
     }
 
-    /// <summary>Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too) is part of the figure: its content goes in the Figure.</summary>
+    /// <summary>
+    /// Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too, never a
+    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it.
+    /// </summary>
     private static void FigureLabels(List<TagBlock> blocks)
     {
-        var figures = blocks.Where(b => b.Kind == TagBlockKind.Figure).ToList();
-        if (figures.Count == 0) return;
-        blocks.RemoveAll(b => b.Kind == TagBlockKind.Paragraph && b.Text.Length <= 200 && !CaptionStart().IsMatch(b.Text) &&
-                              figures.Any(f => f.Page == b.Page && Area(f.Box.Inflate(b.Text.Length <= 20 ? 24 : b.Text.Length <= 40 ? 12 : 2).Intersect(b.Box)) >= 0.75 * Area(b.Box)));
+        for (var i = blocks.Count - 1; i >= 0; i--)
+        {
+            var b = blocks[i];
+            if (b.Kind != TagBlockKind.Paragraph || b.Text.Length > 200 || CaptionStart().IsMatch(b.Text)) continue;
+            var margin = b.Text.Length <= 20 ? 24 : b.Text.Length <= 40 ? 12 : 2;
+            var f = blocks.FindIndex(x => x.Kind == TagBlockKind.Figure && x.Page == b.Page && Area(x.Box.Inflate(margin).Intersect(b.Box)) >= 0.75 * Area(b.Box));
+            if (f < 0) continue;
+            var union = blocks[f].Box.Union(b.Box);
+            blocks[f] = blocks[f] with { Box = union, Sources = [union] };
+            blocks.RemoveAt(i);
+        }
     }
 
     /// <summary>"Figure 2:", "Table 1." and the like right before or after a figure or table (near it, overlapping it across): its caption.</summary>

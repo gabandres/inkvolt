@@ -61,7 +61,9 @@ switch (args)
             }
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or ArgumentException or NotSupportedException)
             {
-                Console.WriteLine($"{name} ERROR {ex.Message}");
+                // Where it went wrong, for a bug (the first frame of our own code).
+                var at = ex.StackTrace?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Contains("InkvoltPdf.Core", StringComparison.Ordinal));
+                Console.WriteLine($"{name} ERROR {ex.Message}{(at is null ? "" : $" ({at})")}");
             }
         }
         return 0;

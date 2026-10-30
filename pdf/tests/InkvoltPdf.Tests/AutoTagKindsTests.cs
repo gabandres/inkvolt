@@ -89,6 +89,7 @@ public class AutoTagKindsTests
             using var img = XImage.FromStream(new MemoryStream(png));
             gfx.DrawImage(img, 72, y, 160, 100);
             gfx.DrawString("North orchard", small, XBrushes.White, new XPoint(80, y + 20)); // a label on the picture
+            gfx.DrawString("Hill", small, XBrushes.Black, new XPoint(240, y + 50)); // and one just beside it
             gfx.DrawString("Figure 1: The orchard in spring.", body, XBrushes.Black, new XPoint(72, y + 116));
 
             gfx.DrawString("1 Weights are in crates of twelve kilos.", small, XBrushes.Black, new XPoint(72, 740));
@@ -134,7 +135,7 @@ public class AutoTagKindsTests
         var note = Assert.Single(plan.Blocks, b => b.Kind == TagBlockKind.Note);
         Assert.StartsWith("1 Weights", note.Text);
         // The label on the picture is the picture's; body text stays paragraphs.
-        Assert.DoesNotContain(plan.Blocks, b => b.Text.Contains("North orchard", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Blocks, b => b.Text.Contains("North orchard", StringComparison.Ordinal) || b.Text == "Hill");
         Assert.Contains(plan.Blocks, b => b.Kind == TagBlockKind.Paragraph && b.Text.StartsWith("The orchard grows", StringComparison.Ordinal));
     }
 
