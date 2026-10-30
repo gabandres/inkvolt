@@ -246,6 +246,77 @@ public class PdfATests
         Assert.Contains(result.Changes, c => c.Contains("password"));
     }
 
+    private const string PhotoshopXmp = "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\" xmlns:made=\"http://example.com/made/\"><made:Tool>Not in any schema</made:Tool></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>";
+
+    /// <summary>A picture and a page with XMP packets of their own, in properties PDF/A's schemas don't have.</summary>
+    private static byte[] OwnMetadataPdf() => Core2Pdf.Build(
+    [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Metadata 7 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>",
+        Core2Pdf.Stream("q 100 0 0 100 50 50 cm /Im0 Do Q"),
+        Core2Pdf.Stream("FF0000>", "/Type /XObject /Subtype /Image /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Metadata 6 0 R /Filter /ASCIIHexDecode"),
+        Core2Pdf.Stream(PhotoshopXmp, "/Type /Metadata /Subtype /XML"),
+        Core2Pdf.Stream(PhotoshopXmp, "/Type /Metadata /Subtype /XML"),
+    ]);
+
+    [Fact]
+    public void PicturesAndPagesLoseTheirOwnMetadata()
+    {
+        var pdf = OwnMetadataPdf();
+        Assert.Contains(PdfA.Validate(pdf), p => p.Contains("metadata of its own"));
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using (var doc = Core2Pdf.Open(result.Data))
+        {
+            Assert.NotNull(PdfObj.Dict(doc.Internals.Catalog.Elements["/Metadata"]));
+            Assert.False(doc.Pages[0].Elements.ContainsKey("/Metadata"));
+            var image = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/Im0"])!;
+            Assert.False(image.Elements.ContainsKey("/Metadata"));
+        }
+        Assert.DoesNotContain("made:Tool", Encoding.Latin1.GetString(result.Data));
+        Assert.Contains(result.Changes, c => c.Contains("2 pictures' and pages' own metadata"));
+        using var before = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        using var after = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        Assert.Equal(before.Render(0, 1).Pixels, after.Render(0, 1).Pixels);
+    }
+
+    private static readonly string LongRole = "Caption,Figure" + string.Concat(Enumerable.Repeat("#20Caption#20Char", 12));
+
+    /// <summary>A role name over PDF/A's 127 bytes, as Word's styles make one (nist-sp800-63-3.pdf), in the role map and on the element.</summary>
+    private static byte[] LongRolePdf(string content = "BT ET") => Core2Pdf.Build(
+    [
+        $"<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot << /Type /StructTreeRoot /RoleMap << /{LongRole} /P >> /K 5 0 R >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>",
+        Core2Pdf.Stream(content),
+        $"<< /Type /StructElem /S /{LongRole} /P null >>",
+    ]);
+
+    [Fact]
+    public void NamesOverPdfALimitAreShortenedTogether()
+    {
+        var pdf = LongRolePdf();
+        Assert.Contains(PdfA.Validate(pdf), p => p.Contains("127"));
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        Assert.Contains(result.Changes, c => c.Contains("1 name"));
+        using var doc = Core2Pdf.Open(result.Data);
+        var root = PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"])!;
+        var key = Assert.Single(PdfObj.Dict(root.Elements["/RoleMap"])!.Elements.Keys);
+        Assert.InRange(Encoding.UTF8.GetByteCount(key) - 1, 1, 127);
+        Assert.Equal(key, "/" + PdfObj.Name(PdfObj.Dict(root.Elements["/K"])!.Elements["/S"]));
+        Assert.Equal("P", PdfObj.Name(PdfObj.Dict(root.Elements["/RoleMap"])!.Elements[key]));
+    }
+
+    [Fact]
+    public void ALongNameInPageContentRefuses()
+    {
+        // The page's content refers to it by name; a rewrite of the content is more than a copy should do.
+        var blockers = PdfA.Check(LongRolePdf($"/{LongRole} BMC EMC"), null);
+        Assert.Contains(blockers, b => b.Contains("127"));
+    }
+
     /// <summary>
     /// Checked with veraPDF when INKVOLTPDF_VERAPDF names its launcher (verapdf.bat): every converted sample must pass
     /// PDF/A-2b. Without it this test only converts (veraPDF needs Java; it isn't part of the build).
@@ -264,6 +335,8 @@ public class PdfATests
                 AnnotColor.Yellow, "check", "Ada"), null, 0, 300, 300, "A note", "Ada")),
             ("form", FormEditor.SetValues(Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]),
                 null, new Dictionary<string, string> { ["name"] = "Ada Lovelace" })),
+            ("own-metadata", OwnMetadataPdf()),
+            ("long-role", LongRolePdf()),
             ("export", ExportTestPdf.Make(logo: true)),
             ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
                 new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),

@@ -27,7 +27,8 @@ public sealed record PdfAResult(byte[] Data, IReadOnlyList<string> Changes);
 /// than page navigation), additional actions, XFA, multimedia or embedded files; whose annotations print and have a normal
 /// appearance only (hidden ones and ones without an appearance are removed; form fields get appearances first); whose
 /// images don't interpolate or carry alternates or OPI; with LZW streams re-encoded with Flate, transfer and halftone
-/// functions dropped, optional-content configurations named; and whose fonts are all embedded: the standard Helvetica,
+/// functions dropped, optional-content configurations named, names over 127 bytes shortened; with XMP only in the catalog
+/// (other packets, a picture's from Photoshop, hold properties outside PDF/A's schemas); and whose fonts are all embedded: the standard Helvetica,
 /// Times and Courier faces (also named Arial, Times New Roman, Courier New) are embedded from Windows' metric-compatible
 /// fonts (a subset, WinAnsi with differences), CIDSet and CharSet removed. What can't be fixed without changing the
 /// look refuses the conversion (<see cref="PdfAException"/>): other fonts that aren't embedded, CMYK color without a
@@ -171,7 +172,7 @@ public static class PdfA
     private sealed class Pass(PdfDocument doc, List<string> changes)
     {
         public readonly List<string> Blockers = [];
-        private int _removedAnnots, _hiddenAnnots, _actions, _aa, _images, _lzw, _tr, _embedded, _ocNames;
+        private int _removedAnnots, _hiddenAnnots, _actions, _aa, _images, _lzw, _tr, _embedded, _ocNames, _ownMetadata;
         private readonly Dictionary<PdfDictionary, PdfDictionary?> _substitutes = new(ReferenceEqualityComparer.Instance);
 
         public void Run()
@@ -199,6 +200,7 @@ public static class PdfA
             Fonts();
             OptionalContent(catalog);
             OutputIntent(catalog);
+            var longNames = ShortenLongNames(catalog);
 
             if (_removedAnnots > 0) changes.Add($"{Count(_removedAnnots, "comment or field", "comments and fields")} that PDF/A doesn't allow, or without an appearance, removed");
             if (_hiddenAnnots > 0) changes.Add($"{Count(_hiddenAnnots, "hidden comment", "hidden comments")} removed");
@@ -208,6 +210,8 @@ public static class PdfA
             if (_tr > 0) changes.Add("transfer and halftone functions removed");
             if (_embedded > 0) changes.Add($"{Count(_embedded, "standard font", "standard fonts")} embedded");
             if (_ocNames > 0) changes.Add("layer configurations named");
+            if (_ownMetadata > 0) changes.Add($"{Count(_ownMetadata, "picture's or page's own metadata packet", "pictures' and pages' own metadata packets")} removed");
+            if (longNames > 0) changes.Add($"{Count(longNames, "name", "names")} longer than PDF/A allows shortened");
             changes.Add("sRGB output intent and PDF/A metadata added");
         }
 
@@ -266,6 +270,7 @@ public static class PdfA
         private void Visit(PdfDictionary d)
         {
             if (d.Elements.Remove("/AA")) _aa++;
+            if (!ReferenceEquals(d, doc.Internals.Catalog) && d.Elements.Remove("/Metadata")) _ownMetadata++;
             foreach (var key in new[] { "/A", "/OpenAction", "/PA" })
                 if (PdfObj.Dict(d.Elements[key]) is { } action && IsForbidden(action))
                 {
@@ -397,6 +402,11 @@ public static class PdfA
             }
             foreach (var op in ContentLexer.Parse(bytes))
             {
+                if (op.Operands.Any(o => o.Kind == CKind.Name && NameTooLong(o.Name)))
+                {
+                    Blockers.Add("Its page content uses a name longer than the 127 bytes PDF/A allows.");
+                    return;
+                }
                 switch (op.Name)
                 {
                     case "k" or "K":
@@ -674,6 +684,59 @@ public static class PdfA
             }
         }
 
+        /// <summary>
+        /// Names over PDF/A's limit (a structure role from Word's styles): each is replaced everywhere by the same shorter,
+        /// unique one, so role maps keep matching their elements (<see cref="ScanContent"/> refuses one in page content,
+        /// which refers to its resources by name). How many different names.
+        /// </summary>
+        private static int ShortenLongNames(PdfDictionary catalog)
+        {
+            var renamed = new Dictionary<string, string>(StringComparer.Ordinal);
+            string Shorter(string name)
+            {
+                if (renamed.TryGetValue(name, out var known)) return known;
+                var sb = new StringBuilder("/");
+                var bytes = 0;
+                foreach (var rune in name.TrimStart('/').EnumerateRunes())
+                {
+                    if ((bytes += rune.Utf8SequenceLength) > 118) break;
+                    sb.Append(rune.ToString());
+                }
+                sb.Append('~').Append(System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(name))), 0, 8);
+                return renamed[name] = sb.ToString();
+            }
+            var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
+            var stack = new Stack<PdfItem>([catalog]);
+            while (stack.Count > 0)
+            {
+                switch (PdfObj.Resolve(stack.Pop()))
+                {
+                    case PdfArray a when seen.Add(a):
+                        for (var i = 0; i < a.Elements.Count; i++)
+                        {
+                            if (a.Elements[i] is PdfName n && NameTooLong(n.Value)) a.Elements[i] = new PdfName(Shorter(n.Value));
+                            else stack.Push(a.Elements[i]);
+                        }
+                        break;
+                    case PdfDictionary d when seen.Add(d):
+                        foreach (var key in d.Elements.Keys.ToList())
+                        {
+                            if (d.Elements[key] is not { } value) continue;
+                            var at = key;
+                            if (NameTooLong(key))
+                            {
+                                d.Elements.Remove(key);
+                                d.Elements[at = Shorter(key)] = value;
+                            }
+                            if (value is PdfName n && NameTooLong(n.Value)) d.Elements[at] = new PdfName(Shorter(n.Value));
+                            else stack.Push(value);
+                        }
+                        break;
+                }
+            }
+            return renamed.Count;
+        }
+
         private void OutputIntent(PdfDictionary catalog)
         {
             var profile = PdfObj.AddStream(doc, IccProfiles.Srgb());
@@ -691,6 +754,9 @@ public static class PdfA
     }
 
     // ───────────────────────────── validation ─────────────────────────────
+
+    /// <summary>A name over ISO 19005-2's limit (6.1.13): 127 bytes without the slash.</summary>
+    private static bool NameTooLong(string? name) => name is not null && Encoding.UTF8.GetByteCount(name.TrimStart('/')) > 127;
 
     /// <summary>
     /// The PDF/A-2b rules this class handles, checked on a finished file (empty: none broken). Not a full validator:
@@ -751,7 +817,9 @@ public static class PdfA
             var stack = new Stack<PdfItem>([catalog]);
             while (stack.Count > 0)
             {
-                if (PdfObj.Resolve(stack.Pop()) is not PdfObject o || !seen.Add(o)) continue;
+                var item = PdfObj.Resolve(stack.Pop());
+                if (item is PdfName longName && NameTooLong(longName.Value)) problems.Add("A name is longer than the 127 bytes PDF/A allows.");
+                if (item is not PdfObject o || !seen.Add(o)) continue;
                 if (o is PdfArray arr)
                 {
                     foreach (var e in arr.Elements) stack.Push(e);
@@ -759,8 +827,12 @@ public static class PdfA
                 }
                 if (o is not PdfDictionary d) continue;
                 foreach (var key in d.Elements.Keys.ToList())
+                {
+                    if (NameTooLong(key)) problems.Add("A name is longer than the 127 bytes PDF/A allows.");
                     if (key != "/Parent" && key != "/P" && d.Elements[key] is { } value) stack.Push(value);
+                }
                 if (d.Elements.ContainsKey("/AA")) problems.Add("Something has additional actions.");
+                if (!ReferenceEquals(d, catalog) && d.Elements.ContainsKey("/Metadata")) problems.Add("Something other than the document has metadata of its own.");
                 var type = PdfObj.Name(d.Elements["/Type"]);
                 var subtype = PdfObj.Name(d.Elements["/Subtype"]);
                 var s = PdfObj.Name(d.Elements["/S"]);
