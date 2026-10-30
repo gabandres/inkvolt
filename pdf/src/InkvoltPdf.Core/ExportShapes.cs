@@ -22,6 +22,7 @@ internal static class ExportShapes
 {
     private const double Thin = 3;   // as DocLayout: a path this thin (pt) is a rule
     private const double MinLine = 4; // shorter rules are specks
+    private const int LineAlpha = 64;  // a thin outline's pixels at the rendering's scale
 
     /// <summary>A page rendered on a transparent background: straight RGBA, <paramref name="Scale"/> pixels per point.</summary>
     public readonly record struct Raster(byte[] Rgba, int Width, int Height, double Scale)
@@ -34,11 +35,21 @@ internal static class ExportShapes
             return (Rgba[i], Rgba[i + 1], Rgba[i + 2], Rgba[i + 3]);
         }
 
-        /// <summary>The point shows this color, opaque (or nearly: an edge's pixels blend).</summary>
-        public bool Is(double x, double y, uint color)
+        /// <summary>The point shows this color, opaque (or, by <paramref name="minAlpha"/>, partly: a thin line covers only part of its pixels).</summary>
+        public bool Is(double x, double y, uint color, int minAlpha = 240)
         {
             var (r, g, b, a) = At(x, y);
-            return a >= 240 && Math.Abs(r - (int)((color >> 16) & 255)) <= 16 && Math.Abs(g - (int)((color >> 8) & 255)) <= 16 && Math.Abs(b - (int)(color & 255)) <= 16;
+            return a >= minAlpha && Math.Abs(r - (int)((color >> 16) & 255)) <= 16 && Math.Abs(g - (int)((color >> 8) & 255)) <= 16 && Math.Abs(b - (int)(color & 255)) <= 16;
+        }
+
+        /// <summary><see cref="Is"/> at the point or a pixel beside it: the outline found is only as exact as the pixels.</summary>
+        public bool Near(double x, double y, uint color, int minAlpha)
+        {
+            var step = 1 / Scale;
+            for (var dy = -1; dy <= 1; dy++)
+            for (var dx = -1; dx <= 1; dx++)
+                if (Is(x + dx * step, y + dy * step, color, minAlpha)) return true;
+            return false;
         }
 
         /// <summary>The point's opaque color, or null where it is see-through.</summary>
@@ -88,24 +99,26 @@ internal static class ExportShapes
     private static ExportShape? Filled(Raster r, ExportPath path)
     {
         var b = path.Box;
-        var inset = Math.Min(1.5, Math.Min(b.Width, b.Height) / 4);
+        // Close enough to a corner that a small circle's corners lie outside it.
+        var inset = Math.Min(1.5, 0.12 * Math.Min(b.Width, b.Height));
         // The path's own color, unless the rendering shows it differently (a blend, a pattern): that is what shows.
-        if (r.Opaque(b.X + inset, b.CenterY) is not { } shown) return null;
-        var color = r.Is(b.X + inset, b.CenterY, path.Color) ? path.Color : shown;
+        var edge = 0.2 * Math.Min(b.Width, b.Height);
+        if (r.Opaque(b.X + edge, b.CenterY) is not { } shown) return null;
+        var color = r.Is(b.X + edge, b.CenterY, path.Color) ? path.Color : shown;
         double l = b.X + inset, t = b.Y + inset, right = b.Right - inset, bottom = b.Bottom - inset;
-        if (!(r.Is(b.CenterX, t, color) && r.Is(right, b.CenterY, color) && r.Is(b.CenterX, bottom, color))) return null;
+        if (!(r.Is(b.CenterX, b.Y + edge, color) && r.Is(b.Right - edge, b.CenterY, color) && r.Is(b.CenterX, b.Bottom - edge, color))) return null;
         if (r.Is(l, t, color) && r.Is(right, t, color) && r.Is(right, bottom, color) && r.Is(l, bottom, color))
             return new ExportShape(ExportShapeKind.Rectangle, b, color, null, 0);
-        return OnEllipse(r, b, 0.9, color) && !OnEllipse(r, b, 1.08, color) && !r.Is(l, t, color)
+        return OnEllipse(r, b, 0.8, color) && !OnEllipse(r, b, 1.08, color) && !r.Is(l, t, color)
             ? new ExportShape(ExportShapeKind.Ellipse, b, color, null, 0) : null;
     }
 
     /// <summary>All four diagonal points at <paramref name="at"/> times the ellipse's radius show the color.</summary>
-    private static bool OnEllipse(Raster r, RectD b, double at, uint color)
+    private static bool OnEllipse(Raster r, RectD b, double at, uint color, bool outline = false)
     {
         var (dx, dy) = (b.Width / 2 * at * Math.Sqrt(0.5), b.Height / 2 * at * Math.Sqrt(0.5));
-        return r.Is(b.CenterX - dx, b.CenterY - dy, color) && r.Is(b.CenterX + dx, b.CenterY - dy, color)
-            && r.Is(b.CenterX - dx, b.CenterY + dy, color) && r.Is(b.CenterX + dx, b.CenterY + dy, color);
+        bool On(double x, double y) => outline ? r.Near(x, y, color, LineAlpha) : r.Is(x, y, color);
+        return On(b.CenterX - dx, b.CenterY - dy) && On(b.CenterX + dx, b.CenterY - dy) && On(b.CenterX - dx, b.CenterY + dy) && On(b.CenterX + dx, b.CenterY + dy);
     }
 
     /// <summary>
@@ -119,26 +132,26 @@ internal static class ExportShapes
         double? Walk(double x, double y, double dx, double dy, double max)
         {
             for (double d = 0; d <= max; d += step)
-                if (r.Is(x + dx * d, y + dy * d, color)) return d;
+                if (r.Is(x + dx * d, y + dy * d, color, LineAlpha)) return d;
             return null;
         }
         if (Walk(b.X, b.CenterY, 1, 0, b.Width / 2) is not { } l || Walk(b.Right, b.CenterY, -1, 0, b.Width / 2) is not { } right
             || Walk(b.CenterX, b.Y, 0, 1, b.Height / 2) is not { } t || Walk(b.CenterX, b.Bottom, 0, -1, b.Height / 2) is not { } bottom) return null;
         // How thick: from the outer edge to where the color stops.
         var thick = 0.0;
-        while (thick < b.Width / 2 && r.Is(b.X + l + thick, b.CenterY, color)) thick += step;
+        while (thick < b.Width / 2 && r.Is(b.X + l + thick, b.CenterY, color, LineAlpha)) thick += step;
         thick = Math.Max(0.25, thick);
         var mid = RectD.FromEdges(b.X + l + thick / 2, b.Y + t + thick / 2, b.Right - right - thick / 2, b.Bottom - bottom - thick / 2);
         if (mid.Width <= 0 || mid.Height <= 0) return null;
-        bool Corner(double x, double y) => r.Is(x, y, color);
+        bool Corner(double x, double y) => r.Is(x, y, color, LineAlpha);
         if (Corner(mid.X, mid.Y) && Corner(mid.Right, mid.Y) && Corner(mid.Right, mid.Bottom) && Corner(mid.X, mid.Bottom))
         {
             // Outlines only: a dashed line passes through the corners and the walks too, so the sides must be whole.
             for (var k = 0.125; k < 1; k += 0.125)
-                if (!r.Is(mid.X + mid.Width * k, mid.Y, color) || !r.Is(mid.X, mid.Y + mid.Height * k, color)) return null;
+                if (!r.Is(mid.X + mid.Width * k, mid.Y, color, LineAlpha) || !r.Is(mid.X, mid.Y + mid.Height * k, color, LineAlpha)) return null;
             return new ExportShape(ExportShapeKind.Rectangle, mid, null, color, thick);
         }
-        return OnEllipse(r, mid, 1, color) && !Corner(mid.X, mid.Y)
+        return OnEllipse(r, mid, 1, color, outline: true) && !Corner(mid.X, mid.Y)
             ? new ExportShape(ExportShapeKind.Ellipse, mid, null, color, thick) : null;
     }
 

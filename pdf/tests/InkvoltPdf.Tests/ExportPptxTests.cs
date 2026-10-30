@@ -198,6 +198,42 @@ public class ExportPptxTests
     }
 
     [Fact]
+    public void A_thin_frame_is_a_rectangle_and_a_small_dot_an_ellipse()
+    {
+        TestPdf.UseFonts();
+        using var pdf = new PdfDocument();
+        var page = pdf.AddPage();
+        page.Width = XUnit.FromPoint(612);
+        page.Height = XUnit.FromPoint(792);
+        using (var gfx = XGraphics.FromPdfPage(page))
+        {
+            gfx.DrawRectangle(new XPen(XColors.Black, 0.5), 50, 50, 400, 300);
+            gfx.DrawEllipse(new XSolidBrush(XColor.FromArgb(10, 150, 170)), 200, 500, 5, 5);
+            gfx.DrawEllipse(new XPen(XColor.FromArgb(150, 0, 0), 1), 300, 500, 80, 40);
+            gfx.DrawString("Words inside the frame", new XFont("Arial", 11), XBrushes.Black, new XPoint(100, 200));
+        }
+        using var ms = new MemoryStream();
+        pdf.Save(ms, false);
+        using var doc = PresentationDocument.Open(new MemoryStream(Pptx(ms.ToArray())), false);
+        var shapes = Slides(doc)[0].Descendants<P.Shape>().Where(s => s.TextBody is null).Select(s => s.ShapeProperties!).ToList();
+        var frame = shapes.Single(s => s.GetFirstChild<A.PresetGeometry>()!.Preset!.Value == A.ShapeTypeValues.Rectangle);
+        Assert.Equal(400, frame.Transform2D!.Extents!.Cx!.Value / (double)Emu, 0);
+        Assert.Equal(2, shapes.Count(s => s.GetFirstChild<A.PresetGeometry>()!.Preset!.Value == A.ShapeTypeValues.Ellipse));
+        Assert.Empty(Slides(doc)[0].Descendants<P.Picture>());
+    }
+
+    [Fact]
+    public void A_missing_font_is_replaced_by_one_of_its_kind()
+    {
+        using var ms = new MemoryStream();
+        var serif = new ExportSpan("Serif words on the page", "Missing Serif", 12, false, false, 0, new RectD(72, 72, 200, 14)) { Serif = true };
+        DocumentExport.WritePptx(ms, [new ExportPage(612, 792, [new ExportLine([serif], serif.Box)], [], [])], null, null);
+        ms.Position = 0;
+        using var doc = PresentationDocument.Open(ms, false);
+        Assert.Equal(18, TextBoxes(Slides(doc)[0]).Single().Descendants<A.LatinFont>().First().PitchFamily!.Value);
+    }
+
+    [Fact]
     public void A_pages_table_rules_are_the_tables_not_loose_lines()
     {
         using var doc = PresentationDocument.Open(new MemoryStream(Pptx(ExportTestPdf.Make())), false);

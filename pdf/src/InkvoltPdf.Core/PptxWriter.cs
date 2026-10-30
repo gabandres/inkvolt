@@ -557,6 +557,8 @@ internal sealed class PptxWriter : IDisposable
                 {
                     w.WriteStartElement(kind, A);
                     w.WriteAttributeString("typeface", font);
+                    // What kind of font it is: PowerPoint picks a like one when this one is missing.
+                    w.WriteAttributeString("pitchFamily", s.Mono ? "49" : s.Serif ? "18" : "34");
                     w.WriteEndElement();
                 }
             }
