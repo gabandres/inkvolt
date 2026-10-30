@@ -208,8 +208,13 @@ License terms: Inkvolt PDF es software libre bajo la Licencia Pública General A
 
 ### Listing proposals 2026-10-30
 
-Not submitted: to go in with the 1.3.0.0 submission, through the Partner Center pages (the API refuses a draft edited
-there). Reasoning: the Store searches the title, the short description and the seven keywords, and the title already
+Submitted 2026-10-30 (Submission 13, a listing-only update of the published 1.3.0.0), in en-us and es with the 1.3.0
+Spanish release notes, through Partner Center's Export listings and Import listings on the draft: export the .csv, change
+its text and SearchTerm rows, import it. That takes all seven keywords at once, without the keyword box's limits. The
+import reshuffles the screenshots whatever the file's order (the draft's tiles and the next export show the new order),
+so drag the tiles back on each language's listing page (a drop swaps two tiles), save, and check by exporting again. Edit a draft
+this way only when it is going to be submitted from Partner Center: the API refuses it afterwards. Reasoning: the Store
+searches the title, the short description and the seven keywords, and the title already
 holds "PDF", so a keyword of just "PDF" is wasted; the apps on the comparison page (Acrobat Reader, Foxit, PDF-XChange,
 PDFgear) lead their listings with "PDF editor", "PDF reader", "edit", "convert to Word", "merge", "sign" and "OCR", which
 is what people type; the differentiators (redaction, no account, no telemetry, open source) go in the first lines of the
@@ -271,9 +276,10 @@ Short description (es):
 > Editor y lector de PDF gratis: edita texto, llena y firma formularios, une y organiza páginas, convierte PDF a Word y
 > Excel, OCR, y elimina información confidencial de verdad. Sin cuenta, sin anuncios, sin telemetría, código abierto.
 
-Description (es): the en-us text above in the Spanish of the live listing (its vocabulary: "llenar y firmar", "eliminar
+Description (es): the en-us text above in the Spanish of the listing (its vocabulary: "llenar y firmar", "eliminar
 información confidencial", "reconocimiento de texto"), with the same bullets in the same order and the line "La
-aplicación está en inglés." before the license line. Write it when the en-us text is final, so the two never drift.
+aplicación está en inglés." before the license line. As submitted: `msstore submission get`, which also replaces the
+older text under "Spanish listing (es)" above.
 
 What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type (Store search vs. links), 30
 days after the change, against the baseline in `docs/VISIBILITY.md`.

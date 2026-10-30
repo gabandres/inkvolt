@@ -258,7 +258,10 @@ License terms: Inkvolt Print es de código abierto bajo la licencia MIT. Código
 
 ### Listing proposals 2026-10-30
 
-Not submitted: to go in with the next submission, through the Partner Center pages. Reasoning: people looking for this
+Submitted 2026-10-30 (Submission 13, a listing-only update of the published 1.1.0.0), in en-us and es with the 1.1.0
+Spanish release notes, through Export listings and Import listings on the draft (how, and the screenshots the import
+reshuffles: "Listing proposals 2026-10-30" in `pdf/packaging/README.md`). As submitted: `msstore submission get`, which
+also replaces the older text under "Spanish listing (es)" above. Reasoning: people looking for this
 app search for their problem ("printer offline", "ink level", "scan to pdf") or for the maker's app they want to
 replace; the maker's names stay out of the keywords (trademarks, and "HP Smart" is ruled out above), so the keywords
 are the tasks, and "for HP, Canon, Epson and Brother printers" stays in the short description, where the Store
