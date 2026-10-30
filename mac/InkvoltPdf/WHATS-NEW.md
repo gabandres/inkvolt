@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Prepare Form (Tools menu, ⌥⌘F): make a PDF fillable. Drag text fields, check boxes, radio buttons, dropdowns, list boxes, signature fields and buttons onto the page, then set their names, defaults, formats and order in the panel on the right. Detect Form Fields finds the lines, boxes and underscores to fill in for you. The form fills in Acrobat, browsers and phones too.
 - Measure (Tools menu): click to measure a distance, a perimeter or an area on drawings and plans, with the value shown by the pointer as you go. Set Measuring Scale… ("1 in = 10 ft", this page or all) or Calibrate from a length you know saves the scale in the PDF, and the scales a drawing already has are used where they apply. Each measurement is a comment labeled with its value, written the way Acrobat and Inkvolt PDF for Windows write them, so it reads the same there.
 
 ## 1.3.0

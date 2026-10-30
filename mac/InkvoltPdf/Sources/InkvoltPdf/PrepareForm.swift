@@ -140,6 +140,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
                 controller?.form.clearFocus()
                 reload()
             } else {
+                pages.window?.makeFirstResponder(pages) // what's being typed in the panel applies first
                 flushNudge()
                 model.reset()
                 suggestionPages = -1
@@ -357,6 +358,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         let pageList = Array(0..<engine.pageCount)
         let sheet = ProgressSheet(title: "Detect Fields", text: "Looking for fields…")
         sheet.begin(on: controller.window)
+        controller.progressSheet = sheet
         let token = sheet.token
         let result = await Task.detached { () -> Result<[FieldSuggestion], Error> in
             Result {
@@ -366,6 +368,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             }
         }.value
         sheet.end()
+        controller.progressSheet = nil
         guard isDesigning, controller.pdf.session?.engine === engine else { return }
         let found: [FieldSuggestion]
         switch result {
