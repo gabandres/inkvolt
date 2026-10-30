@@ -14,5 +14,7 @@
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+    <!-- The speed benchmark's generator and harness (BenchTests, opt-in with INKVOLTPDF_BENCH) -->
+    <ProjectReference Include="..\..\tools\bench\Bench.csproj" />
   </ItemGroup>
 </Project>

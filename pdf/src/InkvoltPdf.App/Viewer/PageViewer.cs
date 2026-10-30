@@ -227,6 +227,10 @@ public sealed partial class PageViewer : ScrollViewer
 
     internal string Diagnostics => $"vp={ViewportWidth:0}x{ViewportHeight:0} actual={ActualWidth:0}x{ActualHeight:0} extent={ExtentWidth:0}x{ExtentHeight:0} " +
         $"off={HorizontalOffset:0},{VerticalOffset:0} rect={(_currentPage < _rects.Length ? $"{_rects[_currentPage].X:0},{_rects[_currentPage].Y:0} {_rects[_currentPage].Width:0}x{_rects[_currentPage].Height:0}" : "-")}";
+
+    /// <summary>Dev scripts (<c>scrollbench</c>): visible pages showing no picture yet (no render has landed, and not failed).</summary>
+    internal int DevBlankVisiblePages() =>
+        _engine is null ? 0 : VisiblePages(Viewport).Count(p => !_failed.Contains(p) && !_full.ContainsKey(p) && !_stale.ContainsKey(p));
     public bool CanGoForward => _forward.Count > 0;
 
     public ViewerTool Tool

@@ -13,7 +13,7 @@ namespace InkvoltPdf.App;
 /// <c>wait ms · shot out.png · page N · zoom 150|fitwidth|fitpage · layout Continuous|Facing|… · find text ·
 /// findnext · tool hand|select|snapshot|addtext|check|note|redact|pen|marker|rect|ellipse|line|arrow|textbox|callout · selectall · rotateview cw|ccw|0|90|180|270 · keys text (real key messages, Shift
 /// for capitals and symbols; {tab} {enter} {sp}; sent to the open dialog if there is one) · editor · nav pages|bookmarks|search · select 1,3 · rotate 90 ·
-/// delete · undo · redo · scroll dy · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
+/// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
 /// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
@@ -76,6 +76,59 @@ internal static class DevScript
         Application.Current.Shutdown();
     }
 
+    /// <summary>
+    /// <c>scrollbench [ms] [px/s]</c>: waits for the document (up to 10 minutes: a huge file), then scrolls the active view
+    /// down for <c>ms</c> (3,000) at <c>px/s</c> (1,500), one step per rendered frame, and logs the frame rate, the longest
+    /// gap between frames, how many frames showed a visible page with no picture yet, and how many pages were still blank
+    /// 200 ms after the scroll stopped (roadmap 3.6: 60 fps, no blank pages after a 200 ms pause).
+    /// </summary>
+    private static async Task<string> ScrollBench(MainWindow window, string arg)
+    {
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var ms = parts.Length > 0 ? int.Parse(parts[0]) : 3000;
+        var speed = parts.Length > 1 ? double.Parse(parts[1]) : 1500;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while ((window.ActiveTab?.ActiveView.PageCount ?? 0) == 0 && waited.ElapsedMilliseconds < 600_000) await Task.Delay(100);
+        var v = window.ActiveTab?.ActiveView;
+        if (v is null || v.PageCount == 0) return "scrollbench: no document";
+        var opened = waited.ElapsedMilliseconds;
+        await Task.Delay(500);
+
+        int frames = 0, blankFrames = 0;
+        double last = 0, maxGap = 0;
+        var lastTime = TimeSpan.MinValue;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var done = new TaskCompletionSource();
+        EventHandler? onFrame = null;
+        onFrame = (_, e) =>
+        {
+            var t = ((RenderingEventArgs)e).RenderingTime;
+            if (t == lastTime) return; // the same frame reported twice
+            lastTime = t;
+            var now = sw.Elapsed.TotalMilliseconds;
+            if (frames > 0) maxGap = Math.Max(maxGap, now - last);
+            v.ScrollToVerticalOffset(v.VerticalOffset + speed * (now - last) / 1000);
+            last = now;
+            frames++;
+            if (v.DevBlankVisiblePages() > 0) blankFrames++;
+            if (now >= ms)
+            {
+                CompositionTarget.Rendering -= onFrame;
+                done.TrySetResult();
+            }
+        };
+        CompositionTarget.Rendering += onFrame;
+        if (await Task.WhenAny(done.Task, Task.Delay(ms + 5000)) != done.Task)
+        {
+            CompositionTarget.Rendering -= onFrame;
+            return $"scrollbench: no frames in {ms + 5000} ms (the window isn't being rendered)";
+        }
+        await Task.Delay(200);
+        var blankAfter = v.DevBlankVisiblePages();
+        return $"scrollbench: {frames} frames in {last:0} ms = {frames * 1000 / Math.Max(1, last):0.0} fps; longest gap {maxGap:0} ms; " +
+               $"frames with a blank page {blankFrames} of {frames}; blank pages 200 ms after the stop: {blankAfter}; page {v.CurrentPage + 1} of {v.PageCount}; document ready after {opened} ms";
+    }
+
     private static Core.DesignFieldKind? DesignKindOf(string name) => name.ToLowerInvariant() switch
     {
         "text" => Core.DesignFieldKind.Text,
@@ -135,6 +188,7 @@ internal static class DevScript
             case "undo": tab!.Undo(); break;
             case "redo": tab!.Redo(); break;
             case "scroll": tab!.ActiveView.ScrollToVerticalOffset(tab.ActiveView.VerticalOffset + double.Parse(arg)); break;
+            case "scrollbench": log.Add(await ScrollBench(window, arg)); break;
             case "copytext": log.Add($"selected text: {v!.GetSelectedText().Length} chars: {Trunc(v.GetSelectedText())}"); break;
             case "state": log.Add($"page={v!.CurrentPage + 1}/{v.PageCount} zoom={v.Zoom:P0} mode={v.ZoomMode} layout={v.Layout} rotation={v.ViewRotation} dirty={tab!.Session.IsDirty} undo={tab.Session.UndoLabel ?? "-"} redo={tab.Session.RedoLabel ?? "-"} selected={string.Join(',', tab.SelectedPages.Select(p => p + 1))} {v.Diagnostics}"); break;
             case "log": log.Add(arg); break;

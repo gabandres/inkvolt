@@ -572,7 +572,8 @@ place the check looks, and `redaction-check-box.pdf`, a box over text, from `Red
 Accessibility check: `a11y` (the check; the pane opens, the failures logged), `a11yselect i` (choose a failure: the page scrolls
 to it), `a11ytick question` (tick a person's check), `a11yreport out.html`, `cmd CheckAccessibility`, `batchstep checkaccessibility`;
 `tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
-scanned copy, `export-scan.pdf`.
+scanned copy, `export-scan.pdf`. Speed: `scrollbench [ms] [px/s]` scrolls the view for a while and logs the frame rate and
+blank pages (`tools/bench` runs it on its corpus; see its README).
 Comments and form data: `savepath file` answers the next export, import or summary picker, then `cmd ExportComments`,
 `ImportComments`, `SummarizeComments`, `ExportFormData`, `ImportFormData` or `FillFormsFromCsv` (its dialog: `dialogshot`,
 `dialogok FillFormsFromCsv`, the report with `later … dialogshot` / `closedialog`); `CommentFilesTests.Commented()` is a
@@ -720,6 +721,12 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   names the program that wrote it.
 - Scanning works with network scanners that speak eSCL (AirScan/Mopria); USB-only, WIA and TWAIN scanners aren't
   listed. Printer status needs the printer to be one Inkvolt Print remembers.
+- Speed on huge files: the targets are the first page in under 1 s, scrolling at 60 fps without blank pages after a
+  200 ms pause, Find across 5,000 pages in under 5 s, the comment list in under 2 s and memory under 1.5 GB, measured
+  before each release with `tools/bench` on its generated corpus (a 5,000-page text, a 500-page scan, a 1 GB drawing
+  set, 10,000 comments); what the last run met and missed is in [tools/bench/RESULTS.md](tools/bench/RESULTS.md). A
+  file is read whole into memory, so a gigabyte file needs that much and more, and its comments are read through
+  PDFsharp, which parses the whole file.
 - AI assistant: answers are only as good as the model; small local models miss things and may invent them, so check
   the cited pages. Sizes are estimated cautiously (about 3 letters per token, a token for every digit, mark and CJK
   character; tables of figures cost far more than prose), with a 10% margin. Ollama's OpenAI-compatible endpoint takes no

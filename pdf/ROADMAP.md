@@ -377,11 +377,25 @@ the checkout.
 - **The gap.** Acrobat users report freezes on 200-500 page files and on large drawings, and Adobe staff suggest
   leaving continuous scrolling ([Adobe Community](https://community.adobe.com/t5/acrobat-discussions/acrobat-becomes-very-slow-when-i-open-large-pdf-files-200-pages/td-p/15579541)).
   No vendor publishes numbers.
+- **Now.** Windows: the benchmark is in (`tools/bench`, see its README): a deterministic corpus made on the PC (a
+  5,000-page text in four standard fonts, a 500-page 300 dpi JPEG scan, a 1 GB drawing set of 400 sheets with 72,000
+  paths each, 250 pages with 10,000 comments and replies), measured at Core level three times in fresh processes, the
+  medians against the targets in [tools/bench/RESULTS.md](tools/bench/RESULTS.md); `scrollbench` in the dev script
+  times the on-screen scroll; `BenchTests` keeps the generator and harness working. First run (2026-10-30, Surface
+  Laptop 7 with a Snapdragon X, a busy PC): first page 0.06 s (text), 0.27 s (scan), 0.35 s (comments); 10,000 comments
+  listed in 0.79 s; 4, 37 and 12 ms per page scrolling those three, 73–75 fps in the app with no blank page. Missed:
+  Find across 5,000 pages takes 12.8 s (2.6 ms a page of text extraction, one page at a time on the text instance; a
+  parallel pass or a per-document text index would do it), and the drawing set misses everything: first page 1.5 s
+  (0.5 s reading 1 GB into memory, 1.0 s rendering 72,000 paths), 1.6 s a sheet when scrolling (each sheet rasterized
+  whole at every scale; a low-resolution first pass or tiles would show something at once), Find 194 s (0.5 s a sheet
+  to run the content stream for a text pass that ignores the paths), 2.1 GB peak working set (the file's bytes plus
+  MuPDF's own copy; opening a huge file in place, as `OpenPreview` does, halves that), 2 sheets still blank 200 ms
+  after the scroll stops. Mac: still to do.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
-- **Effort** M. Windows and Mac.
+- **Effort** M. Windows: the benchmark is done (2026-10-30), the fixes above remain; Mac: both.
 
 ## Where we already win
 
