@@ -70,8 +70,8 @@ public static class BlankPage
 /// <summary>
 /// Skew detection for scanned documents (a page fed or laid a little crooked), by projection profile: the ink is projected
 /// onto lines at each candidate angle, and text lines line up into sharp peaks only at the page's true angle. Small angles
-/// only (±<see cref="MaxAngle"/>°); pages with no clear answer (photos, a few words, already straight) get 0, so they keep
-/// their original JPEG.
+/// only (±<see cref="MaxAngle"/>° by default; Inkvolt PDF's text recognition looks up to ±15°); pages with no clear
+/// answer (photos, a few words, already straight) get 0, so they keep their original JPEG.
 /// </summary>
 public static class Deskew
 {
@@ -86,15 +86,23 @@ public static class Deskew
 
     /// <summary>
     /// How far the page's content is turned, in degrees, clockwise positive as seen on screen; rotating it by the negative
-    /// straightens it. 0 when the page is straight enough or the answer isn't clear.
+    /// straightens it. 0 when the page is straight enough or the answer isn't clear. <paramref name="maxAngle"/> is the
+    /// largest skew looked for (default <see cref="MaxAngle"/>).
     /// </summary>
-    public static double Angle(GrayImage img)
+    public static double Angle(GrayImage img, double maxAngle = MaxAngle) => Measure(img, maxAngle).Angle;
+
+    /// <summary>
+    /// <see cref="Angle"/>, and how sharply the ink lines up into lines at it: the best angle's profile score over the
+    /// average angle's (1 for no lines at all; 1.25 or more is a page of lines). Comparing it with the same page turned a
+    /// quarter tells whether its lines run across or down.
+    /// </summary>
+    public static (double Angle, double Strength) Measure(GrayImage img, double maxAngle = MaxAngle)
     {
         var (x0, y0) = ((int)(img.Width * 0.03), (int)(img.Height * 0.03));
         var (x1, y1) = (img.Width - x0, img.Height - y0);
-        if (x1 - x0 < 16 || y1 - y0 < 16) return 0;
+        if (x1 - x0 < 16 || y1 - y0 < 16) return (0, 1);
         var paper = GrayImage.Median(img, x0, y0, x1, y1);
-        if (paper < 128) return 0;
+        if (paper < 128) return (0, 1);
         var ink = paper - InkContrast;
 
         // Ink pixels, relative to the centre; evenly thinned out on busy pages.
@@ -102,7 +110,7 @@ public static class Deskew
         for (var y = y0; y < y1; y++)
             for (var x = x0; x < x1; x++)
                 if (img[x, y] < ink) total++;
-        if (total < MinInkPixels) return 0;
+        if (total < MinInkPixels) return (0, 1);
         var step = Math.Max(1, total / MaxInkPixels);
         var (cx, cy) = (img.Width / 2.0, img.Height / 2.0);
         var xs = new List<float>(total / step + 1);
@@ -133,7 +141,7 @@ public static class Deskew
 
         // Coarse, then fine around the best.
         const double coarse = 0.5, fine = 0.05;
-        var steps = (int)(MaxAngle / coarse);
+        var steps = (int)(maxAngle / coarse);
         var scores = new double[2 * steps + 1];
         var best = 0;
         for (var i = 0; i < scores.Length; i++)
@@ -141,9 +149,10 @@ public static class Deskew
             scores[i] = Score((i - steps) * coarse);
             if (scores[i] > scores[best]) best = i;
         }
-        if (best == 0 || best == scores.Length - 1) return 0; // at the edge of the range: not a small skew
         var mean = scores.Average();
-        if (scores[best] < 1.25 * mean) return 0; // a flat profile: no lines to go by
+        var strength = mean > 0 ? scores[best] / mean : 1;
+        if (best == 0 || best == scores.Length - 1) return (0, strength); // at the edge of the range: not a small skew
+        if (strength < 1.25) return (0, strength); // a flat profile: no lines to go by
 
         var angle = (best - steps) * coarse;
         var bestScore = scores[best];
@@ -153,7 +162,7 @@ public static class Deskew
             if (s > bestScore) (bestScore, angle) = (s, a);
         }
         angle = Math.Round(angle / fine) * fine;
-        return Math.Abs(angle) < MinAngle ? 0 : angle;
+        return (Math.Abs(angle) < MinAngle ? 0 : angle, mean > 0 ? bestScore / mean : strength);
     }
 }
 
