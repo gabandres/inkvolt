@@ -397,6 +397,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | PDF from Office files and web pages | E12 (web pages through WebKit; Office files through Word for Mac or LibreOffice when installed) |
 | Split view | E13 |
 | Better OCR, stage A (roadmap 2.2: cleaning before recognition, suspect words, writing the cleaned page back) | E14 (below) |
+| Export to PowerPoint and HTML (roadmap 3.2) | E15 (below) |
 
 Mac differences for the PDF app (so far):
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
@@ -569,6 +570,30 @@ E14, Better OCR stage A (Windows 2026-10-30; after E13, as the roadmap queues ne
 - **The app**: Recognize Text's sheet gets the language, the two checks and "Replace the scans with the cleaned pages";
   a Suspect words list in the sidebar (each word beside its picture, Correct to with `NSSpellChecker`'s guesses, Keep as
   read), as on Windows.
+E15, Export to PowerPoint and HTML (Windows 2026-10-30; after E14, on the Word export of D5c). The .NET code is the spec. What to port:
+- **Writers**, `pdf/src/InkvoltPdf.Core/PptxWriter.cs` and `HtmlWriter.cs`: strings, XML and zip, with no Windows types. The
+  master, layouts and theme in `PptxWriter` are fixed text: keep them byte for byte. `OpenXmlParts.Relationships` moved out of
+  `DocxWriter` so both writers share it.
+- **Layout**, `DocLayout.AnalyzeSlides` and `SlidePage` in `DocLayout.cs`: every line stays on its page, and running lines are
+  only marked.
+- **Shapes**, `ExportShapes.cs` (`ExportShape`, `ExportPath`, `ExportShapes.Read`, `Raster`): pure logic over a path's bounds,
+  stroked flag and color, plus an RGBA rendering of the page at 2 pixels per point. `PdfEngine.GetExportPage(shapes:)` is the
+  part to mirror on the Mac's MuPDF: collect the vector blocks' color with their bounds, leave out paths in a figure, render
+  the page once if `NeedsRaster`, and add `Pictures` as rendered pictures.
+- **Tags**, `ExportTags.cs` and `AutoTag.FigureAlts` (role map, inherited page, attribute lists, tags without a box).
+- **Seam**, `DocumentExport.cs`: `ExportFormat.PowerPoint` and `.Html`, `ExportOptions.Source` and `.SourcePassword`, `WritePptx`,
+  `WriteHtml`, and the additions `ExportPage.Shapes`, `ExportImage.Alt`, `ExportImage.Turn` (set by `Turned`).
+- **Batch**, `BatchExportFormat.PowerPoint` and `.Html`: they come after `CommentSummary`, so `IsReview` is a range.
+- **Platform-specific**: the menu items and save panel; opening the PDF for its tags (`ExportTags.Read` uses PDFsharp here; the
+  Mac returns the same page, box and text from what it reads structure with); `run.ps1`'s PowerPoint check (COM). On the Mac open
+  the corpus's .pptx in PowerPoint for Mac by hand, or use `soffice --headless --convert-to pdf`.
+- **Tests to port**: ExportPptxTests, ExportHtmlTests, `BatchTests.ExportsToPowerPointAndHtml`, and the PowerPoint and HTML cases
+  in ExportPipelineTests and BatchAutomationTests. Their expectations are platform-neutral: counts, text, order, positions in
+  EMU to the point, colors. They read a .pptx with the Open XML SDK, which has no Swift version: read the zip and XML directly,
+  and run the SDK's validator on Windows over files the Mac wrote (`ExportCorpus pptx file.pptx`).
+- **Corpus**: `pdf/tools/export-corpus/corpus.json`, the same 7 documents, SHA-256s in `baseline.json`. `ExportCorpus html` and the
+  Nu validator (`vnu.jar`, Java, local) work the same on the Mac; compare each document's slide and shape counts and lines in order
+  with a Windows run.
 
 Decided 2026-10-30 for E2: PdfCore imports Security.framework (with CryptoKit and Vision, already there) rather than
 taking the CMS through a protocol from the app: the tests need the real verification, and Security is the Mac's

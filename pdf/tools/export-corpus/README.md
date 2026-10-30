@@ -11,7 +11,23 @@ pwsh -File pdf/tools/export-corpus/run.ps1 -Files C:\x\form.pdf # also a user's 
 pwsh -File pdf/tools/export-corpus/run.ps1 -UpdateBaseline      # accept the new counts once the exports look right
 ```
 
-Run it after changing `DocLayout`, `DocxWriter`, `DocumentExport`, or the glyph reading in `PdfEngine`. Fewer pages is
+It also checks the same documents' **PowerPoint and HTML** exports, written beside the Word ones in `.cache\out`:
+
+| Export | Check | Runs |
+|---|---|---|
+| .pptx | Open XML SDK validator; as many slides as pages | Always |
+| .pptx | PowerPoint opens it without a window, with every slide and shape that was written (a repair fails to open or loses shapes) | When PowerPoint is installed |
+| .pptx | LibreOffice converts it to PDF | When LibreOffice is installed |
+| .html | No active content (script, link, event attribute, a `src` that isn't an embedded picture) | Always |
+| .html | The text reads in the plain-text export's order | Always |
+| .html | The W3C's Nu validator, errors only | When Java and `.cache\vnu` are there: `npm install --prefix pdf\tools\export-corpus\.cache\vnu vnu-jar --ignore-scripts` |
+
+A check that can't run says so and doesn't count. Everything runs on this PC; no document goes to an online service.
+`-SkipWord` leaves out Word's page count. **Last run, 2026-10-30, 7 documents, 174 pages:** the validator, PowerPoint
+(16.0) and the Nu validator pass on all, and 3,617 of 3,641 lines read in order (the rest are repeated lines and rows the two exports
+break differently). **LibreOffice wasn't installed, so it hasn't been run.** No screen reader has been run either.
+
+Run it after changing `DocLayout`, `DocxWriter`, `PptxWriter`, `HtmlWriter`, `DocumentExport`, or the glyph reading in `PdfEngine`. Fewer pages is
 not automatically better: open the changed exports in `.cache\out` beside their PDFs before you update the baseline.
 Needs Word. The PDFs are downloaded to `.cache\` (ignored) and pinned by SHA-256. If a publisher replaces a file, it is
 reported as "source changed" and isn't compared until the baseline is updated.
