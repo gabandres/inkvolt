@@ -159,25 +159,25 @@ public enum BatchCommandLine {
 
     /// Runs the command line; returns the exit code. `host`: the recognizer (OCR) when there is one; its password prompt
     /// is never used. `environment`: reads an environment variable (tests give their own).
-    public static func run(_ args: [String], output: LineWriter, error: LineWriter, host: BatchHost, cancel: CancelToken? = nil,
+    public static func run(_ args: [String], output stdout: LineWriter, error stderr: LineWriter, host: BatchHost, cancel: CancelToken? = nil,
                            environment: (@Sendable (String) -> String?)? = nil) async -> Int {
         let environment = environment ?? { ProcessInfo.processInfo.environment[$0] }
         let request: CommandLineRequest
         do {
             request = try parse(args)
         } catch let e as CommandLineError {
-            error.writeLine(e.message)
-            error.writeLine("inkvoltpdf --help shows how to use it.")
+            stderr.writeLine(e.message)
+            stderr.writeLine("inkvoltpdf --help shows how to use it.")
             return wrong
         } catch {
             return wrong
         }
         if request.kind == .help {
-            output.writeLine(usage)
+            stdout.writeLine(usage)
             return done
         }
         if !Pro.allows(.commandLine) {
-            error.writeLine(Pro.locked(.commandLine) + " " + Pro.howToGet)
+            stderr.writeLine(Pro.locked(.commandLine) + " " + Pro.howToGet)
             return wrong
         }
 
@@ -185,22 +185,22 @@ public enum BatchCommandLine {
         do {
             preset = try BatchPresets.load((request.preset! as NSString).standardizingPath.hasPrefix("/") ? (request.preset! as NSString).standardizingPath : full(request.preset!))
         } catch let e as BatchPresetError {
-            error.writeLine(e.message)
+            stderr.writeLine(e.message)
             return wrong
         } catch {
-            error.writeLine("\(error)")
+            stderr.writeLine("\(error)")
             return wrong
         }
         let steps = BatchPresets.withPasswords(preset.steps, open: environment(openPasswordVariable), permissions: environment(permissionsPasswordVariable))
         for case .protect(let p) in steps where p.needsPasswords {
-            error.writeLine("The preset protects files with a password: set \(openPasswordVariable) and/or \(permissionsPasswordVariable) (presets never keep passwords).")
+            stderr.writeLine("The preset protects files with a password: set \(openPasswordVariable) and/or \(permissionsPasswordVariable) (presets never keep passwords).")
             return wrong
         }
         preset.steps = steps
         let quiet = BatchHost(recognize: host.recognize)
         return request.kind == .batch
-            ? await batch(request, preset, quiet, output, error, cancel)
-            : await watch(request, preset, quiet, output, error, cancel)
+            ? await batch(request, preset, quiet, stdout, stderr, cancel)
+            : await watch(request, preset, quiet, stdout, stderr, cancel)
     }
 
     /// A path as given on the command line, made absolute from the current directory.
@@ -209,38 +209,38 @@ public enum BatchCommandLine {
         return (p.hasPrefix("/") ? p : (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(p) as String) as NSString as String
     }
 
-    private static func batch(_ request: CommandLineRequest, _ preset: BatchPreset, _ host: BatchHost, _ output: LineWriter, _ error: LineWriter,
+    private static func batch(_ request: CommandLineRequest, _ preset: BatchPreset, _ host: BatchHost, _ stdout: LineWriter, _ stderr: LineWriter,
                               _ cancel: CancelToken?) async -> Int {
         guard let outFolderGiven = request.output ?? preset.outputFolder, !outFolderGiven.trimmingCharacters(in: .whitespaces).isEmpty else {
-            error.writeLine("Say where the results go: --out <folder> (the preset has no folder of its own).")
+            stderr.writeLine("Say where the results go: --out <folder> (the preset has no folder of its own).")
             return wrong
         }
         let outFolder = (full(outFolderGiven) as NSString).standardizingPath
         var plan = preset.toPlan(outFolder)
         plan.passwords = .skip
         if let planError = plan.validate(ocrAvailable: host.recognize != nil) {
-            error.writeLine("The preset can't run: \(planError)")
+            stderr.writeLine("The preset can't run: \(planError)")
             return wrong
         }
         let inputs = (request.inputs ?? []).map { (full($0) as NSString).standardizingPath }
         if let missing = inputs.first(where: { !FileManager.default.fileExists(atPath: $0) }) {
-            error.writeLine("There is no file or folder \(missing).")
+            stderr.writeLine("There is no file or folder \(missing).")
             return wrong
         }
         let files = BatchFiles.expand(inputs, recursive: request.recursive, excludeFolder: outFolder)
         if files.isEmpty {
-            error.writeLine("No PDFs or images to work on there.")
+            stderr.writeLine("No PDFs or images to work on there.")
             return wrong
         }
         do {
             try FileManager.default.createDirectory(atPath: outFolder, withIntermediateDirectories: true)
         } catch {
-            error.writeLine("The results can't be saved in \(outFolder): \(error.localizedDescription)")
+            stderr.writeLine("The results can't be saved in \(outFolder): \(error.localizedDescription)")
             return wrong
         }
 
         if !request.quiet {
-            output.writeLine("\"\(preset.name)\" (\(plan.steps.map(\.title).joined(separator: ", "))) on \(count(files.count, "file")), results in \(outFolder)")
+            stdout.writeLine("\"\(preset.name)\" (\(plan.steps.map(\.title).joined(separator: ", "))) on \(count(files.count, "file")), results in \(outFolder)")
         }
         let finished = Counter()
         let total = files.count
@@ -258,35 +258,35 @@ public enum BatchCommandLine {
             default: text = "stopped  \(name)"
             }
             if r.state == .done && quiet { return }
-            (r.state == .failed || r.state == .skipped ? error : output).writeLine("[\(n)/\(total)] \(text)")
+            (r.state == .failed || r.state == .skipped ? stderr : stdout).writeLine("[\(n)/\(total)] \(text)")
         }
 
         let summary: BatchSummary
         do {
             summary = try await BatchRunner.run(files, plan, host, progress: progress, cancel: cancel)
         } catch {
-            error.writeLine("The preset can't run: \(error)")
+            stderr.writeLine("The preset can't run: \(error)")
             return wrong
         }
-        output.writeLine(summary.text)
+        stdout.writeLine(summary.text)
         if summary.cancelled > 0 || cancel?.isCancelled == true { return stopped }
         return summary.failed + summary.skipped > 0 ? someFailed : done
     }
 
-    private static func watch(_ request: CommandLineRequest, _ preset: BatchPreset, _ host: BatchHost, _ output: LineWriter, _ error: LineWriter,
+    private static func watch(_ request: CommandLineRequest, _ preset: BatchPreset, _ host: BatchHost, _ stdout: LineWriter, _ stderr: LineWriter,
                               _ cancel: CancelToken?) async -> Int {
         let folder = (full(request.folder!) as NSString).standardizingPath
         let outFolder = (full(request.output ?? preset.outputFolder ?? WatchedFolder.defaultOutput(folder)) as NSString).standardizingPath
         if !Pro.allows(.watchedFolders) {
-            error.writeLine(Pro.locked(.watchedFolders) + " " + Pro.howToGet)
+            stderr.writeLine(Pro.locked(.watchedFolders) + " " + Pro.howToGet)
             return wrong
         }
         if let folderError = WatchedFolder.validate(folder, outFolder) {
-            error.writeLine(folderError)
+            stderr.writeLine(folderError)
             return wrong
         }
         if !request.quiet {
-            output.writeLine("Watching \(folder) with \"\(preset.name)\", results in \(outFolder). \(request.once ? "Handling the files there now." : "Ctrl+C stops.")")
+            stdout.writeLine("Watching \(folder) with \"\(preset.name)\", results in \(outFolder). \(request.once ? "Handling the files there now." : "Ctrl+C stops.")")
         }
         let quiet = request.quiet
         let progress: @Sendable (WatchProgress) -> Void = { p in
@@ -297,15 +297,15 @@ public enum BatchCommandLine {
             f.dateFormat = "HH:mm:ss"
             let state = e.state.rawValue.padding(toLength: 8, withPad: " ", startingAt: 0)
             let text = "\(f.string(from: e.time)) \(state) \(e.fileName): \(e.message)\(e.outputs.isEmpty ? "" : " -> " + e.outputs.joined(separator: ", "))"
-            (e.state == .failed || e.state == .skipped ? error : output).writeLine(text)
+            (e.state == .failed || e.state == .skipped ? stderr : stdout).writeLine(text)
         }
         do {
             let plan = preset.toPlan(outFolder)
             let summary = try await WatchedFolder.run(folder, plan, host, WatchOptions(once: request.once), progress: progress, cancel: cancel)
-            output.writeLine("\(count(summary.done, "file")) done, \(summary.failed) failed.")
+            stdout.writeLine("\(count(summary.done, "file")) done, \(summary.failed) failed.")
             return summary.failed > 0 ? someFailed : done
         } catch {
-            error.writeLine("\(error)")
+            stderr.writeLine("\(error)")
             return wrong
         }
     }
