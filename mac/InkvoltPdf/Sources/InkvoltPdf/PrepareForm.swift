@@ -36,6 +36,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     // The panel.
     let panelController = NSViewController()
     private(set) var panelItem: NSSplitViewItem!
+    private var panelStack: NSStackView?
+    private var widthPins: [NSLayoutConstraint] = []
     let titleLabel = NSTextField(labelWithString: "Prepare Form")
     let hintLabel = NSTextField(wrappingLabelWithString: "Pick a field kind above, then drag on the page or click for the usual size. Click a field to select it: drag to move it, drag a handle to resize it, arrow keys nudge it (Shift: 10 pt), Tab goes from field to field, Delete removes it, ⌘D duplicates it, Return opens its properties, Esc lets go.")
     let errorLabel = NSTextField(wrappingLabelWithString: "")
@@ -699,7 +701,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     private func column(_ views: [NSView], spacing: CGFloat = 8, in stack: NSStackView = NSStackView()) -> NSStackView {
         stack.orientation = .vertical
-        stack.alignment = .width // every row as wide as the panel
+        stack.alignment = .leading
         stack.spacing = spacing
         for v in views { stack.addArrangedSubview(v) }
         return stack
@@ -810,8 +812,10 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         _ = column([suggestionCount, allRow], in: allGroup)
 
         let stack = column([titleLabel, errorLabel, hintLabel, fieldGroup, suggestionGroup, allGroup], spacing: 12)
+        panelStack = stack
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         for text in [hintLabel, errorLabel, suggestionSource, suggestionCount] { text.preferredMaxLayoutWidth = 236 }
+        pinRowWidths()
 
         let document = FlippedView()
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -830,6 +834,23 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         panelController.view = scroll
         scroll.setAccessibilityLabel("Field properties")
         for group in [fieldGroup, suggestionGroup, allGroup] { group.isHidden = true }
+    }
+
+    /// Every row shown as wide as the panel. Done again each time rows show or hide: a stack view detaches its hidden
+    /// rows, and their constraints go with them.
+    private func pinRowWidths() {
+        NSLayoutConstraint.deactivate(widthPins)
+        widthPins = []
+        func pin(_ stack: NSStackView) {
+            guard stack.orientation == .vertical else { return }
+            let inset = stack.edgeInsets.left + stack.edgeInsets.right
+            for row in stack.arrangedSubviews where !row.isHidden {
+                widthPins.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -inset))
+                if let inner = row as? NSStackView { pin(inner) }
+            }
+        }
+        if let panelStack { pin(panelStack) }
+        NSLayoutConstraint.activate(widthPins)
     }
 
     /// Buttons side by side, sharing the panel's width.
@@ -1063,6 +1084,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             announce(f.map { "\($0.describe()) selected, page \($0.pageIndex + 1)" }
                 ?? s.map { "Suggested \(DesignField.kindName($0.kind).lowercased()) \($0.name), page \($0.pageIndex + 1)" } ?? title)
         }
+        pinRowWidths()
     }
 
     private func showField(_ f: DesignField) {
