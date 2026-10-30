@@ -193,6 +193,22 @@ public static partial class AutoTag
         return found;
     }
 
+    /// <summary>The document has a structure tree (tags) and says it is tagged.</summary>
+    public static bool IsTagged(byte[] data, string? password)
+    {
+        try
+        {
+            using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
+            var catalog = doc.Internals.Catalog;
+            return catalog.Elements.ContainsKey("/StructTreeRoot") &&
+                   PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is PdfBoolean { Value: true };
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     private static string Primary(string lang) => lang.Split('-')[0];
 
     /// <summary>"Microsoft Word - report.docx", "untitled.pdf": a producer's placeholder, not a title.</summary>
@@ -213,6 +229,15 @@ public static partial class AutoTag
                 (list ??= []).Add(item);
                 continue;
             }
+            // A numbered section title ("3.1 Encoder Stacks") in bold reads as a list item of one: it is a heading.
+            if (list is [var only] && only.AllBold && only.Text.Trim().Length <= 120 && SectionDepth(only.Text) is { } depth)
+            {
+                yield return new TagBlock(page, TagBlockKind.Heading, Bounds(only.Sources.Count > 0 ? only.Sources : [only.Box]))
+                {
+                    Level = Math.Min(depth, 6), Sources = only.Sources, Text = only.Text.Trim(),
+                };
+                list = null;
+            }
             if (list is not null)
             {
                 yield return new TagBlock(page, TagBlockKind.List, list.Select(i => i.Box).Aggregate((x, y) => x.Union(y)))
@@ -225,11 +250,16 @@ public static partial class AutoTag
             switch (b)
             {
                 case DocParagraph p when p.Sources.Count > 0:
-                    yield return new TagBlock(page, p.HeadingLevel > 0 ? TagBlockKind.Heading : TagBlockKind.Paragraph, Bounds(p.Sources))
+                {
+                    // Text set sideways in a margin (an arXiv stamp, a running title) isn't a heading, however large.
+                    var area = Bounds(p.Sources);
+                    var heading = p.HeadingLevel > 0 && !(area.Height > 3 * area.Width && p.Text.Trim().Length > 3);
+                    yield return new TagBlock(page, heading ? TagBlockKind.Heading : TagBlockKind.Paragraph, area)
                     {
-                        Level = p.HeadingLevel, Sources = p.Sources, Text = p.Text.Trim(),
+                        Level = heading ? p.HeadingLevel : 0, Sources = p.Sources, Text = p.Text.Trim(),
                     };
                     break;
+                }
                 case DocTable t:
                     var rows = t.Rows.Select(r => (IReadOnlyList<TagCell>)[.. r.Select(c => new TagCell(
                         [.. c.Paragraphs.SelectMany(x => x.Sources)], c.Text.Trim(), c.ColSpan)
@@ -256,6 +286,13 @@ public static partial class AutoTag
         }
     }
 
+    /// <summary>How deep a section number at the start goes ("3" 1, "3.1" 2, "A.2.1" 3), or null when the text doesn't start with one.</summary>
+    internal static int? SectionDepth(string text)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(text.TrimStart(), @"^(\d{1,3}|[A-Z])((\.\d{1,3})*)\.?\s+\p{L}");
+        return m.Success ? 1 + m.Groups[2].Value.Count(c => c == '.') : null;
+    }
+
     private static RectD Bounds(IEnumerable<RectD> boxes) => boxes.Aggregate((a, b) => a.Union(b));
 
     /// <summary>Heading levels as written: the first is H1 and none skips a level (H1 then H3 becomes H1 then H2).</summary>
@@ -269,6 +306,38 @@ public static partial class AutoTag
             current = level;
             return level == b.Level ? b : b with { Level = level };
         })];
+    }
+
+    /// <summary>A figure as a PNG, at most <paramref name="maxSide"/> pixels on its longer side (for a vision model).</summary>
+    public static byte[] FigurePng(PdfEngine engine, int page, RectD box, int maxSide = 768)
+    {
+        var scale = Math.Clamp(maxSide / Math.Max(1, Math.Max(box.Width, box.Height)), 0.25, 4);
+        var img = engine.Render(page, scale, box);
+        var rgb = new byte[img.Width * img.Height * 3];
+        for (var i = 0; i < rgb.Length; i += 3)
+        {
+            rgb[i] = img.Pixels[i + 2];
+            rgb[i + 1] = img.Pixels[i + 1];
+            rgb[i + 2] = img.Pixels[i];
+        }
+        return PngEncoder.Encode(img.Width, img.Height, rgb, alpha: false);
+    }
+
+    /// <summary>The text of the blocks on a figure's page nearest it (a caption, the paragraph that mentions it), up to <paramref name="max"/> characters.</summary>
+    public static string NearbyText(TagPlan plan, int index, int max = 1500)
+    {
+        if (index < 0 || index >= plan.Blocks.Count) return "";
+        var fig = plan.Blocks[index];
+        var near = plan.Blocks.Where(b => b.Page == fig.Page && !ReferenceEquals(b, fig) && b.Text.Length > 0)
+            .OrderBy(b => Math.Max(0, Math.Max(b.Box.Y - fig.Box.Bottom, fig.Box.Y - b.Box.Bottom)))
+            .Select(b => b.Text);
+        var sb = new System.Text.StringBuilder();
+        foreach (var t in near)
+        {
+            if (sb.Length + t.Length > max) break;
+            sb.AppendLine(t);
+        }
+        return sb.ToString().Trim();
     }
 
     /// <summary>The plan's blocks with one moved: within its page, <paramref name="by"/> places up (negative) or down.</summary>

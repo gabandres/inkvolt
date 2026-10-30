@@ -120,6 +120,7 @@
                                     <MenuItem Command="app:Cmd.Save" />
                                     <MenuItem Command="app:Cmd.SaveAs" />
                                     <MenuItem Command="app:Cmd.SaveAsPdfA" />
+                                    <MenuItem Command="app:Cmd.SaveAsPdfA2a" />
                                     <MenuItem Command="app:Cmd.ShowInFolder" />
                                     <MenuItem Command="app:Cmd.ReloadFromDisk" />
                                     <Separator />
@@ -297,6 +298,8 @@
                                     <MenuItem Command="app:Cmd.WhatsInThisPdf" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CheckAccessibility" />
+                                    <MenuItem Command="app:Cmd.MakeAccessible" />
+                                    <MenuItem Command="app:Cmd.ReadingOrder" />
                                     <Separator />
                                     <!-- Bring your own AI: off by default (AiActions, DocumentTab.Ai) -->
                                     <MenuItem Header="A_I Assistant">

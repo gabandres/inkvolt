@@ -178,6 +178,15 @@ public class AutoTagTests
         Assert.Equal([1, 2, 0, 3, 1, 2], even.Select(b => b.Level));
     }
 
+    [Theory]
+    [InlineData("3 Model Architecture", 1)]
+    [InlineData("3.1 Encoder and Decoder Stacks", 2)]
+    [InlineData("3.2.1. Scaled Dot-Product Attention", 3)]
+    [InlineData("A.1 Proofs", 2)]
+    [InlineData("2023 was a good year", null)]
+    [InlineData("Introduction", null)]
+    public void Section_numbers_give_heading_depth(string text, int? depth) => Assert.Equal(depth, AutoTag.SectionDepth(text));
+
     [Fact]
     public void Reading_order_edit_moves_a_block_within_its_page_and_the_tree_follows()
     {
@@ -279,5 +288,77 @@ public class AutoTagTests
         Assert.Contains("pdfaSchema:prefix>pdfuaid<", xmp); // the extension schema PDF/A asks for
         Assert.True(doc.Internals.Catalog.Elements.ContainsKey("/StructTreeRoot"));
         Assert.True(AccessibilityCheck.Run(result.Data, null).Passed);
+    }
+}
+
+/// <summary>Make Accessible in Batch and presets, and alternate text from the user's own vision model (the request).</summary>
+public sealed class AutoTagBatchTests : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("inkvolt-autotag-").FullName;
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_root, true); } catch (IOException) { }
+    }
+
+    [Fact]
+    public async Task Batch_tags_each_file_saves_pdfa_2a_and_says_what_needs_alt_text()
+    {
+        var input = Path.Combine(_root, "report.pdf");
+        File.WriteAllBytes(input, ExportTestPdf.Make());
+        var outFolder = Path.Combine(_root, "out");
+        var plan = new BatchPlan { Steps = [new MakeAccessibleStep(), new SaveAsPdfAStep { Conformance = PdfAConformance.A }], OutputFolder = outFolder };
+        Assert.Null(plan.Validate(ocrAvailable: false));
+
+        var summary = await BatchRunner.RunAsync([new BatchFile(input)], plan, new BatchHost(), null, CancellationToken.None);
+
+        var item = Assert.Single(summary.Items);
+        Assert.Equal(BatchItemState.Done, item.State);
+        Assert.Contains(item.Notes, n => n.StartsWith("Tagged:", StringComparison.Ordinal) && n.Contains("title \"Quarterly Report\"") && n.Contains("language en"));
+        Assert.Contains(item.Notes, n => n.StartsWith("1 picture needs alternate text", StringComparison.Ordinal));
+        Assert.Contains(item.Notes, n => n.StartsWith("PDF/A-2a", StringComparison.Ordinal));
+        var result = File.ReadAllBytes(Path.Combine(outFolder, "report.pdf"));
+        Assert.Empty(PdfA.Validate(result, PdfAConformance.A));
+        Assert.Equal(["13-004"], AccessibilityCheck.Run(result, null).FailedConditions); // only the alternate text is left
+    }
+
+    [Fact]
+    public void Presets_keep_make_accessible_and_the_pdfa_level()
+    {
+        var json = BatchPresets.Write(new BatchPreset
+        {
+            Name = "Accessible archive",
+            Steps = [new MakeAccessibleStep { Language = "es-PR" }, new SaveAsPdfAStep { Conformance = PdfAConformance.A }],
+        });
+        Assert.Contains("\"makeAccessible\"", json);
+        var steps = BatchPresets.Read(json).Steps;
+        Assert.Equal("es-PR", Assert.IsType<MakeAccessibleStep>(steps[0]).Language);
+        Assert.Equal(PdfAConformance.A, Assert.IsType<SaveAsPdfAStep>(steps[1]).Conformance);
+        Assert.Equal(PdfAConformance.B, Assert.IsType<SaveAsPdfAStep>(BatchPresets.Read(BatchPresets.Write(new BatchPreset { Name = "B", Steps = [new SaveAsPdfAStep()] })).Steps[0]).Conformance);
+    }
+
+    [Fact]
+    public void Alt_text_request_carries_the_picture_and_the_answer_is_cleaned()
+    {
+        var pdf = ExportTestPdf.Make();
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        var plan = AutoTag.Plan(engine, pdf, null);
+        var fig = plan.Blocks.ToList().FindIndex(b => b.Kind == TagBlockKind.Figure);
+        var png = AutoTag.FigurePng(engine, 0, plan.Blocks[fig].Box);
+        Assert.Equal(0x89, png[0]); // a PNG
+        Assert.Contains("Figure 1. A picture.", AutoTag.NearbyText(plan, fig));
+
+        var messages = AiPrompts.AltText(png, AutoTag.NearbyText(plan, fig), "en", 0);
+        var json = AiProtocol.ChatRequestJson("llava", messages);
+        Assert.Contains("\"type\":\"image_url\"", json);
+        Assert.Contains("data:image/png;base64,", json);
+        Assert.Contains("Figure 1. A picture.", json);
+        Assert.Contains("[a picture: PNG,", AiPrompts.Preview([messages]));
+        // A request without pictures is written as before.
+        Assert.Contains("\"content\":\"hi\"", AiProtocol.ChatRequestJson("m", [AiMessage.User("hi")]));
+
+        Assert.Equal("A bar chart of sales by quarter", AiPrompts.CleanAltText("Alt text: \"A bar chart of sales by quarter\"\n"));
+        var longer = AiPrompts.CleanAltText(string.Join(' ', Enumerable.Repeat("word", 100)));
+        Assert.True(longer.Length <= 251 && longer.EndsWith('…'));
     }
 }

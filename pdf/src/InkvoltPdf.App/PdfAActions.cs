@@ -5,15 +5,26 @@ using InkvoltPdf.Core;
 namespace InkvoltPdf.App;
 
 /// <summary>
-/// File › Save as PDF/A-2b: an archival copy of the document as it is now (edits included), made by <see cref="PdfA"/>;
-/// the open document isn't changed. When something can't be made conforming without changing the look, nothing is saved
-/// and the reasons are listed.
+/// File › Save as PDF/A-2b, and Save as PDF/A-2a (the accessible archive: the tags kept, Make Accessible first when there
+/// are none): an archival copy of the document as it is now (edits included), made by <see cref="PdfA"/>; the open
+/// document isn't changed. When something can't be made conforming without changing the look, nothing is saved and the
+/// reasons are listed.
 /// </summary>
 internal static class PdfAActions
 {
-    public static async Task SaveAs(MainWindow host, DocumentTab tab)
+    public static async Task SaveAs(MainWindow host, DocumentTab tab, PdfAConformance conformance = PdfAConformance.B)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
+        var level = conformance == PdfAConformance.A ? "PDF/A-2a" : "PDF/A-2b";
+        if (conformance == PdfAConformance.A && !await Task.Run(() => AutoTag.IsTagged(tab.Session.Data, tab.Session.Password)))
+        {
+            if (!Prompt.Confirm(host, "Tag the document first?",
+                    "PDF/A-2a keeps a document's structure (its tags), and this one has none. Make Accessible tags it from its layout " +
+                    "(headings, paragraphs, lists, tables, pictures); you can check the reading order and add alternate text, then save " +
+                    "the PDF/A-2a copy again.", "Make Accessible")) return;
+            if (!await AccessibleActions.MakeAccessible(host, tab)) return;
+            if (!await tab.SettleAsync()) return;
+        }
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
@@ -27,7 +38,7 @@ internal static class PdfAActions
                 try
                 {
                     var pw = password;
-                    result = await Task.Run(() => PdfA.Convert(data, pw));
+                    result = await Task.Run(() => PdfA.Convert(data, pw, conformance: conformance));
                 }
                 catch (OwnerPasswordRequiredException ex)
                 {
@@ -39,22 +50,22 @@ internal static class PdfAActions
                 catch (PdfAException ex)
                 {
                     Log.Write($"PDF/A: {Log.Name(tab.Session.FilePath)} refused: {string.Join(" ", ex.Blockers)}");
-                    Prompt.Info(host, "Can't save as PDF/A-2b",
-                        "Nothing was saved. This document has what PDF/A-2b doesn't allow, and changing it would change how the document looks:\n\n" +
+                    Prompt.Info(host, $"Can't save as {level}",
+                        $"Nothing was saved. This document has what {level} doesn't allow, and changing it would change how the document looks:\n\n" +
                         string.Join("\n", ex.Blockers.Select(b => "• " + b)));
                     return;
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or PdfSharp.PdfSharpException or MuPDFCore.MuPDFException)
                 {
                     Log.Write($"PDF/A failed: {ex}");
-                    Prompt.Error(host, "Can't save as PDF/A-2b", ex.Message);
+                    Prompt.Error(host, $"Can't save as {level}", ex.Message);
                     return;
                 }
             }
         }
 
         var folder = Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder;
-        if (PdfFiles.PickSavePath(host, $"{name} (PDF-A).pdf", folder) is not { } path) return;
+        if (PdfFiles.PickSavePath(host, conformance == PdfAConformance.A ? $"{name} (PDF-A-2a).pdf" : $"{name} (PDF-A).pdf", folder) is not { } path) return;
         if (string.Equals(Path.GetFullPath(path), tab.Session.FilePath, StringComparison.OrdinalIgnoreCase))
         {
             Prompt.Info(host, "Choose another name", "The PDF/A copy can't replace the open document. Choose another name or folder.");
@@ -70,8 +81,8 @@ internal static class PdfAActions
             return;
         }
         Log.Write($"PDF/A: saved {Log.Name(path)}; {string.Join("; ", result.Changes)}");
-        var open = Prompt.Confirm(host, "Saved as PDF/A-2b",
-            $"{Path.GetFileName(path)} is an archival copy (PDF/A-2b). To get there:\n\n{string.Join("\n", result.Changes.Select(c => "• " + char.ToUpperInvariant(c[0]) + c[1..]))}\n\n" +
+        var open = Prompt.Confirm(host, $"Saved as {level}",
+            $"{Path.GetFileName(path)} is an archival copy ({level}{(conformance == PdfAConformance.A ? ", tagged for accessibility" : "")}). To get there:\n\n{string.Join("\n", result.Changes.Select(c => "• " + char.ToUpperInvariant(c[0]) + c[1..]))}\n\n" +
             "Inkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF.", "Open the Copy");
         if (open) await host.OpenFileAsync(path);
     }

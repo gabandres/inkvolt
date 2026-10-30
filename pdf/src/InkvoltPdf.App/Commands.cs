@@ -175,6 +175,8 @@ public static class Cmd
     public static readonly RoutedUICommand RedactPatterns = Make("Redact by _Pattern…", nameof(RedactPatterns));
     public static readonly RoutedUICommand CheckRedaction = Make("Chec_k Redaction…", nameof(CheckRedaction));
     public static readonly RoutedUICommand CheckAccessibility = Make("Accessibilit_y Check…", nameof(CheckAccessibility));
+    public static readonly RoutedUICommand MakeAccessible = Make("Make A_ccessible (Tag)…", nameof(MakeAccessible));
+    public static readonly RoutedUICommand ReadingOrder = Make("Reading _Order and Alt Text", nameof(ReadingOrder));
     public static readonly RoutedUICommand Sanitize = Make("Sa_nitize Document…", nameof(Sanitize));
     public static readonly RoutedUICommand WhatsInThisPdf = Make("_What's in This PDF…", nameof(WhatsInThisPdf));
 
@@ -219,6 +221,7 @@ public static class Cmd
     public static readonly RoutedUICommand MeasureScale = Make("Set Measuring _Scale…", nameof(MeasureScale));
     public static readonly RoutedUICommand MeasureCalibrate = Make("_Calibrate Scale from a Known Length", nameof(MeasureCalibrate));
     public static readonly RoutedUICommand SaveAsPdfA = Make("Save as PDF/_A-2b (Archive)…", nameof(SaveAsPdfA));
+    public static readonly RoutedUICommand SaveAsPdfA2a = Make("Save as PDF/A-2a (Accessible Arc_hive)…", nameof(SaveAsPdfA2a));
     public static readonly RoutedUICommand CreateFromOffice = Make("PDF from _Office File (Word, Excel, PowerPoint)…", nameof(CreateFromOffice));
     public static readonly RoutedUICommand CreateFromWeb = Make("PDF from _Web Page…", nameof(CreateFromWeb));
     public static readonly RoutedUICommand NewFromImages = Make("New from _Images…", nameof(NewFromImages));

@@ -250,6 +250,12 @@ public static class BatchPresets
             case RotateStep r:
                 w.WriteNumber("degrees", r.Degrees);
                 break;
+            case SaveAsPdfAStep { Conformance: PdfAConformance.A }:
+                w.WriteString("conformance", Word(PdfAConformance.A));
+                break;
+            case MakeAccessibleStep { Language: { } language }:
+                w.WriteString("language", language);
+                break;
             case FlattenStep { Options: var f }:
                 w.WriteBoolean("annotations", f.Annotations);
                 w.WriteBoolean("formFields", f.FormFields);
@@ -266,7 +272,7 @@ public static class BatchPresets
 
     /// <summary>Each action's name in a preset, in the order the Batch window offers them.</summary>
     public static IReadOnlyList<string> ActionNames { get; } =
-        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "flatten", "ocr", "saveAsPdfA", "export"];
+        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "export"];
 
     private static string ActionName(BatchStep step) => step switch
     {
@@ -284,6 +290,7 @@ public static class BatchPresets
         FlattenStep => "flatten",
         OcrStep => "ocr",
         SaveAsPdfAStep => "saveAsPdfA",
+        MakeAccessibleStep => "makeAccessible",
         ExportStep => "export",
         _ => throw new NotSupportedException(step.Title),
     };
@@ -433,7 +440,8 @@ public static class BatchPresets
                 PrintableOnly = f.Bool("printableOnly", false),
             }),
             "ocr" => new OcrStep(),
-            "saveAsPdfA" => new SaveAsPdfAStep(),
+            "saveAsPdfA" => new SaveAsPdfAStep { Conformance = f.Choice("conformance", PdfAConformance.B) },
+            "makeAccessible" => new MakeAccessibleStep { Language = f.Text("language", null) is { Length: > 0 } l ? l : null },
             _ => new ExportStep(f.Choice("format", BatchExportFormat.Text), f.Int("dpi", 150, 36, 1200)),
         };
         f.Done();

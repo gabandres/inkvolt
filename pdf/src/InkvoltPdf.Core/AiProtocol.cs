@@ -6,6 +6,9 @@ namespace InkvoltPdf.Core;
 /// <summary>One chat message: role "system", "user" or "assistant".</summary>
 public sealed record AiMessage(string Role, string Content)
 {
+    /// <summary>Pictures sent with the text (PNG), for a vision model: alternate text for a figure.</summary>
+    public IReadOnlyList<byte[]> Images { get; init; } = [];
+
     public static AiMessage System(string content) => new("system", content);
     public static AiMessage User(string content) => new("user", content);
     public static AiMessage Assistant(string content) => new("assistant", content);
@@ -37,7 +40,26 @@ public static class AiProtocol
             {
                 w.WriteStartObject();
                 w.WriteString("role", m.Role);
-                w.WriteString("content", m.Content);
+                if (m.Images.Count == 0) w.WriteString("content", m.Content);
+                else
+                {
+                    // Text and pictures as content parts (the OpenAI vision format Ollama and LM Studio accept too).
+                    w.WriteStartArray("content");
+                    w.WriteStartObject();
+                    w.WriteString("type", "text");
+                    w.WriteString("text", m.Content);
+                    w.WriteEndObject();
+                    foreach (var png in m.Images)
+                    {
+                        w.WriteStartObject();
+                        w.WriteString("type", "image_url");
+                        w.WriteStartObject("image_url");
+                        w.WriteString("url", "data:image/png;base64," + Convert.ToBase64String(png));
+                        w.WriteEndObject();
+                        w.WriteEndObject();
+                    }
+                    w.WriteEndArray();
+                }
                 w.WriteEndObject();
             }
             w.WriteEndArray();
