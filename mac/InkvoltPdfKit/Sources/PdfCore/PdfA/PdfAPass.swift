@@ -208,22 +208,18 @@ extension PdfA {
 
         private func scanContent(_ d: PObj) {
             guard let bytes = d.streamData, let ops = try? ContentLexer.parse(bytes, cancel: nil) else { return }
+            func names(_ op: COp, _ wanted: Set<String>) -> Bool { op.operands.contains { $0.kind == .name && wanted.contains($0.name) } }
             for op in ops {
-                switch op.name {
-                case "k", "K":
+                let setsCmyk = op.name == "k" || op.name == "K"
+                let last = op.operands.last
+                let cmykSpace = (op.name == "cs" || op.name == "CS") && last?.kind == .name && last?.name == "DeviceCMYK"
+                if setsCmyk || cmykSpace || op.name == "BI" && names(op, ["CMYK", "DeviceCMYK"]) {
                     cmykBlocker()
                     return
-                case "cs", "CS" where op.operands.last.map { $0.kind == .name && $0.name == "DeviceCMYK" } == true:
-                    cmykBlocker()
-                    return
-                case "BI" where op.operands.contains { $0.kind == .name && ($0.name == "CMYK" || $0.name == "DeviceCMYK") }:
-                    cmykBlocker()
-                    return
-                case "BI" where op.operands.contains { $0.kind == .name && ($0.name == "LZW" || $0.name == "LZWDecode") }:
+                }
+                if op.name == "BI" && names(op, ["LZW", "LZWDecode"]) {
                     blockers.append("An inline picture is LZW-compressed, which PDF/A doesn't allow.")
                     return
-                default:
-                    break
                 }
             }
         }
