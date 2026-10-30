@@ -74,14 +74,27 @@ public static class PdfA
         if (Incremental.LooksSigned(data) && Signatures.Verify(data, password).Any(s => s.Status != SignatureStatus.Unsigned))
             throw new PdfAException(["It is digitally signed: a PDF/A copy is a rewrite, which would break the signatures. (Sanitize can remove them first.)"]);
 
+        // No field is signed, yet a /ByteRange can still make the file look so: usage rights, whose signature no person
+        // made, or what an earlier revision left behind. A rewrite breaks nothing of anybody's, so it is allowed below.
         if (PdfSecurity.ReadSecurity(data, password).IsEncrypted)
         {
-            data = PdfSecurity.Unprotect(data, password);
+            data = SignedEdits.Run(() => PdfSecurity.Unprotect(data, password), allowRewrite: true).Data;
             changes.Add("password protection removed (PDF/A files can't be encrypted)");
         }
 
+        if (Incremental.LooksSigned(data))
+        {
+            using var read = PdfObj.Open(data, null, PdfDocumentOpenMode.Import, "This PDF can't be converted");
+            var perms = PdfObj.Dict(read.Internals.Catalog.Elements["/Perms"]);
+            if (perms?.Elements.ContainsKey("/DocMDP") == true)
+                throw new PdfAException(["It is certified: a PDF/A copy is a rewrite, which would break the certification. (Sanitize can remove it first.)"]);
+            if (perms?.Elements.ContainsKey("/UR3") == true || perms?.Elements.ContainsKey("/UR") == true)
+                changes.Add("Reader usage rights removed (the form maker's seal, not a person's signature; a rewritten copy would void it)");
+        }
+
         // Scripts, actions that run things, multimedia, XFA and attached files: what Sanitize removes.
-        var sanitized = Sanitizer.Sanitize(data, null, new HashSet<SanitizeItem> { SanitizeItem.ActiveContent, SanitizeItem.EmbeddedFiles });
+        SanitizeResult sanitized = null!;
+        SignedEdits.Run(() => (sanitized = Sanitizer.Sanitize(data, null, new HashSet<SanitizeItem> { SanitizeItem.ActiveContent, SanitizeItem.EmbeddedFiles })).Data, allowRewrite: true);
         if (sanitized.Removed[SanitizeItem.ActiveContent] > 0) changes.Add($"{Count(sanitized.Removed[SanitizeItem.ActiveContent], "script or active item", "scripts and active items")} removed");
         if (sanitized.Removed[SanitizeItem.EmbeddedFiles] > 0) changes.Add($"{Count(sanitized.Removed[SanitizeItem.EmbeddedFiles], "attached file", "attached files")} removed");
         data = sanitized.Data;

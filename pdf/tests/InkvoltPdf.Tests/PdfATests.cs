@@ -317,6 +317,36 @@ public class PdfATests
         Assert.Contains(blockers, b => b.Contains("127"));
     }
 
+    /// <summary>A form as the IRS sends it: Reader usage rights in the catalog's /Perms (a /ByteRange, so it looks signed), no signed field.</summary>
+    private static byte[] UsageRightsPdf(string perm = "/UR3") => Core2Pdf.Form(
+        ["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /V (Ada) /P 3 0 R >>"],
+        catalogExtra: $"/Perms << {perm} << /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 10 20 30] /Contents <00> /Reference [<< /TransformMethod /UR3 >>] >> >>");
+
+    [Fact]
+    public void UsageRightsAreNoSignatureAndTheCopySaysTheyWent()
+    {
+        var pdf = UsageRightsPdf();
+        Assert.True(Incremental.LooksSigned(pdf));
+        Assert.Empty(PdfA.Check(pdf, null));
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        Assert.Contains(result.Changes, c => c.Contains("usage rights"));
+        Assert.Contains("name", FormEditor.Read(result.Data, null).Select(f => f.FieldName));
+        using var doc = Core2Pdf.Open(result.Data);
+        Assert.False(doc.Internals.Catalog.Elements.ContainsKey("/Perms"));
+
+        // A plain form says nothing about them.
+        Assert.DoesNotContain(PdfA.Convert(Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]), null).Changes, c => c.Contains("usage rights"));
+    }
+
+    [Fact]
+    public void ACertificationWithoutASignedFieldStillRefuses()
+    {
+        // Somebody certified it, even if no field shows it: a rewrite must not drop that quietly.
+        var blockers = PdfA.Check(UsageRightsPdf("/DocMDP"), null);
+        Assert.Contains(blockers, b => b.Contains("certified"));
+    }
+
     /// <summary>
     /// Checked with veraPDF when INKVOLTPDF_VERAPDF names its launcher (verapdf.bat): every converted sample must pass
     /// PDF/A-2b. Without it this test only converts (veraPDF needs Java; it isn't part of the build).
@@ -337,6 +367,7 @@ public class PdfATests
                 null, new Dictionary<string, string> { ["name"] = "Ada Lovelace" })),
             ("own-metadata", OwnMetadataPdf()),
             ("long-role", LongRolePdf()),
+            ("usage-rights", UsageRightsPdf()),
             ("export", ExportTestPdf.Make(logo: true)),
             ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
                 new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),
