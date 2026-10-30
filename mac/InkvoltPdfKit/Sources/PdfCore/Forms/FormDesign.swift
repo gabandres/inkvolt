@@ -547,7 +547,8 @@ public enum FormDesign {
     /// Checks what a new field sets, or what an edit changes (`old`: the field as it is): a field the form came with may
     /// keep a name, value or size Inkvolt PDF wouldn't make, and still be moved.
     private static func validate(_ doc: MuDoc, _ spec: DesignField, old: DesignField? = nil) throws {
-        if spec.pageIndex < 0 || spec.pageIndex >= (try doc.pageCount()) { throw PdfEditError("That page isn't in the document.") }
+        let pageCount = try doc.pageCount()
+        if spec.pageIndex < 0 || spec.pageIndex >= pageCount { throw PdfEditError("That page isn't in the document.") }
         let resized = old.map { abs($0.rect.width - spec.rect.width) > 0.01 || abs($0.rect.height - spec.rect.height) > 0.01 } ?? true
         if resized && (spec.rect.width < 4 || spec.rect.height < 4) { throw PdfEditError("A field needs to be at least 4 points wide and high.") }
         if old == nil, let problem = nameProblem(spec.name) { throw PdfEditError(problem) }
