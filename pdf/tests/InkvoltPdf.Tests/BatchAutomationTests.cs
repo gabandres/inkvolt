@@ -4,6 +4,7 @@ using InkvoltPdf.Core;
 namespace InkvoltPdf.Tests;
 
 /// <summary>Batch presets (JSON in and out), the watched folder, the command line and the Save as PDF/A action (roadmap 1.2).</summary>
+[Collection("Pro")] // the command line asks the Pro check, which ProTests switches on and off
 public sealed class BatchAutomationTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("inkvolt-auto-").FullName;

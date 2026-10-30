@@ -1561,6 +1561,7 @@ public partial class MainWindow : Window
         BindAlways(Cmd.WhatsNew, () => AppHelp.ShowWhatsNew(this, AppHelp.Notes()));
         BindAlways(Cmd.ReportProblem, () => AppHelp.ShowReport(this, _tabs.Count));
         BindAlways(Cmd.CheckForUpdates, () => _ = CheckForUpdatesAsync(UpdateCheckTrigger.User));
+        BindAlways(Cmd.InkvoltPro, () => ProWindow.Open(this, null));
         BindAlways(Cmd.Shortcuts, () => ShortcutsWindow.Show(this, MainMenu));
         BindAlways(Cmd.FullScreen, ToggleFullScreen);
         BindAlways(Cmd.ToggleDarkMode, () => SetTheme(App.IsDark ? "Light" : "Dark"));

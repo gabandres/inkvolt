@@ -1,0 +1,24 @@
+{
+  "format": "inkvolt-pro-key-test-vector",
+  "version": 1,
+  "publicKey": "BEWmCvAPieAfsK5Me8N4rjUripueixRJ6g4R3qyY4O7IUNTUc5IUGpOFWUyZ7tTaveT94uIkXQV98EUl/vPXL0Y=",
+  "valid": {
+    "key": "INKVOLT-PRO-AFAWI-YJAJR-XXMZL-MMFRW-KCTBM-RQUAZ-LYMFW-XA3DF-FZRW6-3IKGI-YDENR-NGEYC-2MZQB-JYGIZ-RMOBZ-GS3TU-3E7UM-UBW4M-I32PY-QAWIU-PEI7W-3A3DN-OZIJX-VYADK-TA2DW-QDCI7-L5ZPF-GR5UA-J5BOA-EAQLE-XCQO4-OEPBQ-Z2PDH-HFNOD-77S6L-JPII3-GYQ",
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "issued": "2026-10-30",
+    "products": ["pdf", "print"]
+  },
+  "tampered": {
+    "key": "INKVOLT-PRO-AFAWI-YJAJR-XXMZM-MMFRW-KCTBM-RQUAZ-LYMFW-XA3DF-FZRW6-3IKGI-YDENR-NGEYC-2MZQB-JYGIZ-RMOBZ-GS3TU-3E7UM-UBW4M-I32PY-QAWIU-PEI7W-3A3DN-OZIJX-VYADK-TA2DW-QDCI7-L5ZPF-GR5UA-J5BOA-EAQLE-XCQO4-OEPBQ-Z2PDH-HFNOD-77S6L-JPII3-GYQ",
+    "why": "one character of the name changed (group 3, XXMZL became XXMZM): the signature no longer matches"
+  },
+  "printOnly": {
+    "key": "INKVOLT-PRO-AFIGC-5BAKB-ZGS3T-UMVZA-U4DBO-RAGK6-DBNVY-GYZJO-MNXW2-CRSGA-ZDMLJ-RGAWT-GMAKO-BZGS3-TUPDC-AKUHJ-27OYE-S5OFO-ZOZ6K-3B32Y-USXHM-FTQBN-UI2LL-FJOYN-6PNDT-FUG7K-5DTPP-BDQJY-ZN6GI-GWXL7-WYO76-XXJDX-I6MCD-PQEEG-WPTTQ",
+    "name": "Pat Printer",
+    "email": "pat@example.com",
+    "issued": "2026-10-30",
+    "products": ["print"],
+    "why": "a valid key that doesn't list pdf: Inkvolt PDF refuses to install it"
+  }
+}

@@ -353,6 +353,8 @@ public sealed class AppSettings
     public bool CheckForUpdates { get; set; } = true;
     /// <summary>Packaged installs: saved documents counted toward the one Store rating request (MainWindow.Rating.cs).</summary>
     public InkvoltPrint.Core.Suite.RatingProgress? Rating { get; set; }
+    /// <summary>The Inkvolt Pro licence key as pasted in Help › Inkvolt Pro ("" = none); checked by Core's <c>Pro</c> through <c>SettingsProStore</c>.</summary>
+    public string ProKey { get; set; } = "";
     public List<string> OpenTabs { get; set; } = [];
     /// <summary>Show pages with inverted colors (night reading).</summary>
     public bool DarkPages { get; set; }

@@ -313,6 +313,7 @@
                                     <MenuItem Command="app:Cmd.WhatsNew" />
                                     <MenuItem Command="app:Cmd.ReportProblem" />
                                     <MenuItem Command="app:Cmd.CheckForUpdates" />
+                                    <MenuItem Command="app:Cmd.InkvoltPro" />
                                     <MenuItem Header="Open _Log Folder" Click="OnOpenLog" />
                                     <Separator />
                                     <MenuItem Header="_About Inkvolt PDF" Click="OnAbout" />
