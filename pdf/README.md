@@ -575,7 +575,8 @@ Redaction check: `apply-redactions` (the check follows: `dialogshot`, then `prom
 place the check looks, and `redaction-check-box.pdf`, a box over text, from `RedactionCheckTests`);
 Accessibility check: `a11y` (the check; the pane opens, the failures logged), `a11yselect i` (choose a failure: the page scrolls
 to it), `a11ytick question` (tick a person's check), `a11yreport out.html`, `cmd CheckAccessibility`, `batchstep checkaccessibility`;
-`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `tools/pdfjs-check` reads edited pages with pdf.js so
+`ParagraphEditTests` (with `INKVOLTPDF_PDFJS`) can check they read the same there (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`.
 Comments and form data: `savepath file` answers the next export, import or summary picker, then `cmd ExportComments`,
 `ImportComments`, `SummarizeComments`, `ExportFormData`, `ImportFormData` or `FillFormsFromCsv` (its dialog: `dialogshot`,

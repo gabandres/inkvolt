@@ -269,9 +269,16 @@ the checkout.
   table by pair of codes (`ContentEditor.Kerning`, `TextParagraph.Kerning`), and rewritten lines get the adjustment
   back wherever the pair occurs, so edited lines are set as tightly as untouched ones; the one-run editor does the
   same for its changed middle from the run's own pairs. Pairs the original never had get no kerning (the font's own
-  kern table isn't read). Still to do: paragraphs in turned
-  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); the
-  Acrobat and pdf.js check.
+  kern table isn't read). The pdf.js half of the test below (2026-10-30): `pdf/tools/pdfjs-check` (Node, `pdfjs-dist`
+  from npm, Apache-2.0; its README) prints what pdf.js reads from a page, and `ParagraphEditTests.PdfJs` (opt-in,
+  `INKVOLTPDF_PDFJS`, skipped without Node) edits the test's own pages (each alignment, a form XObject, stand-in
+  characters, a one-run edit) and, with `INKVOLTPDF_CORPUS`, the corpus's first three pages, adding as many of 20
+  words as fit without running into the next block, and checks pdf.js reads the whole paragraph's words in order and
+  the added ones together: all 6 sample pages and 15 corpus pages read in order (6 pages had no room under their
+  longest paragraph). Acrobat isn't on this PC, so its half isn't run. The corpus check itself now finds the
+  rewritten paragraph by its text (with kerning kept, the first rewritten lines land exactly where the old ones were,
+  which it used to mistake for other text). Still to do: paragraphs in turned
+  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

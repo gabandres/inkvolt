@@ -1,0 +1,17 @@
+{
+  "name": "pdfjs-check",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Extracts a PDF's text with pdf.js, page by page in reading order, so tests can check an edited PDF reads the same in another viewer.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "pdfjs-check": "index.mjs"
+  },
+  "scripts": {
+    "check": "node index.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.4.299"
+  }
+}

@@ -13,3 +13,5 @@ push: `dotnet test Inkvolt.slnx`.
 - **macOS apps** (native Swift, in planning): `mac/CLAUDE.md`.
 - **Export fidelity** (Word, Excel and the other exports): `pdf/tools/export-corpus` (see its README) after any change to
   `DocLayout`, `DocxWriter` or the glyph reading in `PdfEngine`.
+- **Edited text in pdf.js**: `pdf/tools/pdfjs-check` (see its README; opt-in test `INKVOLTPDF_PDFJS`) after any change to
+  `ContentEditor`.
