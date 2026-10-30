@@ -121,10 +121,11 @@ public enum Optimizer {
         return String(h, radix: 16) + ":" + String(bytes.count) + ":"
     }
 
-    /// A dictionary's entries (not /Length) as text, references by object number.
+    /// A dictionary's entries (not /Length) as text, references by object number (the stream's own reference, at depth
+    /// 0, is read through).
     private static func canonical(_ item: PObj?, _ depth: Int) -> String {
         guard let item, depth <= 16 else { return depth > 16 ? "?" : "null" }
-        if item.isRef { return "R\(item.num)" }
+        if item.isRef && depth > 0 { return "R\(item.num)" }
         switch item.kind {
         case .dict:
             return "<<" + item.keys.filter { $0 != "Length" }.sorted().map { k in "/\(k) " + canonical(item[k], depth + 1) + " " }.joined() + ">>"
