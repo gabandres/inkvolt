@@ -12,6 +12,7 @@ var host = args.ElementAtOrDefault(1);
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 var ct = cts.Token;
+InkvoltPrint.Core.Escl.ScannerPdf.Renderer = new InkvoltPrint.Windows.Printing.ScannedPdfPages(); // PDF-only scanners, as the app
 
 switch (cmd)
 {
@@ -26,6 +27,9 @@ switch (cmd)
         break;
     case "snmp" when host is not null:
         await Snmp(host, Opt("--community") ?? InkvoltPrint.Core.Snmp.SnmpClient.DefaultCommunity, args.Contains("--walk"));
+        break;
+    case "record" when host is not null && args.Length >= 3:
+        await Record(host, args[2]);
         break;
     case "watch" when host is not null:
         await Watch(host);
@@ -59,6 +63,21 @@ switch (cmd)
             Console.WriteLine($"thumb bytes={thumb.Image.Length}");
             var full = await pdf.RenderAsync(2, dpi: 300);
             Console.WriteLine($"page2 300dpi bytes={full.Image.Length} {full.WidthInches}x{full.HeightInches}");
+        }
+        break;
+    case "scanpdf" when host is not null:
+        {
+            // Offline: a scanner's PDF as the Scan tab gets it (pictures taken out as they are, else drawn by Windows' PDF engine).
+            var bytes = await File.ReadAllBytesAsync(host, ct);
+            var dpiArg = int.TryParse(Opt("--dpi"), out var sd) ? sd : 300;
+            var sw = Stopwatch.StartNew();
+            var pages = await InkvoltPrint.Core.Escl.ScannerPdf.PagesAsync(bytes, dpiArg, ct);
+            foreach (var (page, n) in pages.Select((p, i) => (p, i + 1)))
+            {
+                var (w, h, comps) = PdfWriter.JpegInfo(page);
+                Console.WriteLine($"page {n}: {w}x{h}, {comps} channel(s), {page.Length} bytes, {(InkvoltPrint.Core.Escl.ScannerPdf.OriginOf(page)!.Rendered ? $"drawn at {dpiArg} dpi" : "taken out as it is")}");
+            }
+            Console.WriteLine($"{pages.Count} pages in {sw.ElapsedMilliseconds} ms");
         }
         break;
     case "pdfbench" when host is not null:
@@ -138,8 +157,11 @@ switch (cmd)
             inkvoltprint queues                            (read-only: installed queues as the sidebar sees them)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners; --caps connects and reads what each offers)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
+            inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]
+                                                           (read-only: every reply the app reads, scrubbed, as test fixtures)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
+            inkvoltprint scanpdf <in.pdf> [--dpi 300]      (offline: a scanner's PDF as the Scan tab takes its pages)
             inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)
             """);
         break;
@@ -222,6 +244,41 @@ async Task Snmp(string h, string community, bool walk)
     var client = new InkvoltPrint.Core.Snmp.SnmpClient(transport, h, id.Version, community);
     foreach (var column in await client.WalkAsync([InkvoltPrint.Core.Snmp.Oid.Parse("1.3.6.1.2.1.43.11"), InkvoltPrint.Core.Snmp.Oid.Parse("1.3.6.1.2.1.43.18")], ct))
         foreach (var (index, value) in column) Console.WriteLine($"  .{string.Join('.', index)} = {value}");
+}
+
+async Task Record(string h, string folder)
+{
+    if (Directory.Exists(folder) && Directory.EnumerateFileSystemEntries(folder).Any() && !args.Contains("--force"))
+    {
+        Console.WriteLine($"{folder} isn't empty: choose a new folder, or add --force to write into it.");
+        return;
+    }
+    var sw = Stopwatch.StartNew();
+    InkvoltPrint.Core.Recording.RecordResult result;
+    try
+    {
+        result = await InkvoltPrint.Core.Recording.PrinterRecorder.RecordAsync(h, folder, Options(), ct);
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine($"Nothing recorded: {ex.Message}");
+        return;
+    }
+    Console.WriteLine($"Recorded {result.Model ?? "the printer"} ({string.Join(", ", result.Interfaces)}) in {sw.ElapsedMilliseconds} ms: {result.Files.Count} files in {folder}");
+    foreach (var f in result.Files) Console.WriteLine($"  {f}");
+    Console.WriteLine($"Scrubbed: {(result.Scrubbed.Count == 0 ? "nothing found" : string.Join(", ", result.Scrubbed.Select(kv => $"{kv.Key} {kv.Value}")))}");
+    foreach (var n in result.NotKept) Console.WriteLine($"  {n}");
+    Console.WriteLine($"Served as the printer at {InkvoltPrint.Core.Recording.FixtureScrubber.DefaultPlaceholderHost}. Read the files before sharing them" +
+                      (args.Contains("--scan") ? "; the scanned pages are kept as they are." : "."));
+
+    InkvoltPrint.Core.Recording.RecordOptions Options() => new()
+    {
+        Snmp = InkvoltPrint.Core.Snmp.UdpSnmpTransport.Instance,
+        Community = Opt("--community") ?? InkvoltPrint.Core.Snmp.SnmpClient.DefaultCommunity,
+        EsclHint = Opt("--escl") is { } e ? new Uri(e) : null,
+        IppHint = Opt("--ipp") is { } i ? new Uri(i) : null,
+        Scan = args.Contains("--scan"),
+    };
 }
 
 async Task Watch(string h)

@@ -37,6 +37,12 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   scanners, the offline fixer's checks and repairs, saved passwords, the browser. Chosen once at start-up: the real PC or
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).
 - **Made-up PC**: demo mode's environment. Nothing it does reaches the network or this PC; nothing prints for real.
+- **PDF-only source** (of a scanner): a glass or feeder whose eSCL capabilities offer PDF and no JPEG. Scanned as PDF, its pages
+  handed over as JPEG like any other scanner's (`ScannerPdf`); a file saved from them untouched is **as sent**: the scanner's own PDF.
+- **Recording** (of a printer): every reply the app reads from one printer, scrubbed, in the fixtures' layout, so the test
+  transports (`FixtureHandler`, `SnmpAgent`) serve it as that printer (`Core/Recording/PrinterRecorder`). **Scrubbing** gives
+  each identifier a stand-in of the same shape, the same one everywhere (`FixtureScrubber`); Report a problem's masks
+  (`Diagnostics.Scrub`) only blank them out.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
 - **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer
   (`Core/History/SupplyHistoryStore`); what it says (cartridges, days left, the chart) is worked out from it, never stored.

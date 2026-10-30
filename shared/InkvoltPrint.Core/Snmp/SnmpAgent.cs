@@ -59,6 +59,44 @@ public sealed partial class SnmpAgent : ISnmpTransport
         return list;
     }
 
+    /// <summary>
+    /// The other way: objects written as <see cref="ParseWalk"/> reads them, in OID order, one per line, so a recording
+    /// (<see cref="Recording.PrinterRecorder"/>) is served again as it was read. An OCTET STRING is a STRING when it is
+    /// printable text (no control characters, no edge spaces, no NULs), else Hex-STRING. Types <see cref="ParseWalk"/> doesn't
+    /// read (Counter64, Opaque, NULL, the v2c exceptions) are left out as a comment line.
+    /// </summary>
+    public static string FormatWalk(IEnumerable<SnmpVarBind> objects)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var o in objects.DistinctBy(o => o.Name).OrderBy(o => o.Name))
+        {
+            var v = o.Value;
+            var value = v.Tag switch
+            {
+                Ber.Integer => $"INTEGER: {v.Number.ToString(CultureInfo.InvariantCulture)}",
+                Ber.Gauge32 => $"Gauge32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
+                Ber.Counter32 => $"Counter32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
+                Ber.TimeTicks => $"Timeticks: ({v.Number.ToString(CultureInfo.InvariantCulture)})",
+                Ber.ObjectIdentifier => $"OID: .{v.ObjectId}",
+                Ber.IpAddress when v.Bytes is { Length: 4 } ip => $"IpAddress: {string.Join('.', ip)}",
+                Ber.OctetString => PlainText(v.Bytes ?? []) is { } text ? $"STRING: \"{text.Replace("\"", "\\\"")}\""
+                    : $"Hex-STRING: {Convert.ToHexString(v.Bytes ?? [])}",
+                _ => null,
+            };
+            sb.Append(value is null ? $"# .{o.Name} = {v} (not kept)" : $".{o.Name} = {value}").Append('\n');
+        }
+        return sb.ToString();
+
+        // Text that reads back byte for byte: valid UTF-8, printable, nothing ParseWalk's trimming or quoting would change.
+        static string? PlainText(byte[] bytes)
+        {
+            string s;
+            try { s = new System.Text.UTF8Encoding(false, true).GetString(bytes); }
+            catch (System.Text.DecoderFallbackException) { return null; }
+            return s.Length > 0 && s.All(c => !char.IsControl(c)) && s.Trim().Length == s.Length && !s.EndsWith('\\') ? s : null;
+        }
+    }
+
     public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

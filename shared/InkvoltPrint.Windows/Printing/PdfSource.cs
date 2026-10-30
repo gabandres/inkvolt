@@ -45,6 +45,23 @@ public sealed class PdfSource
         }
     }
 
+    /// <summary>A PDF held in memory (a scanner's, <see cref="ScannedPdfPages"/>).</summary>
+    /// <exception cref="PdfOpenException">Not a PDF, damaged, or password protected.</exception>
+    public static async Task<PdfSource> OpenAsync(byte[] pdf)
+    {
+        try
+        {
+            using var stream = new InMemoryRandomAccessStream();
+            await stream.WriteAsync(pdf.AsBuffer());
+            stream.Seek(0);
+            return new PdfSource(await PdfDocument.LoadFromStreamAsync(stream), "");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new PdfOpenException($"Could not open the PDF: {ex.Message}", isPasswordProtected: ex.HResult == unchecked((int)0x8007052B));
+        }
+    }
+
     /// <summary>Page size in inches (PDF pages report size in 1/96 in).</summary>
     public (double Width, double Height) PageSizeInches(int pageNumber)
     {
@@ -84,4 +101,19 @@ public sealed class PdfSource
 public sealed class PdfOpenException(string message, bool isPasswordProtected) : Exception(message)
 {
     public bool IsPasswordProtected { get; } = isPasswordProtected;
+}
+
+/// <summary>
+/// The pages of a scanner's PDF that aren't one JPEG picture, rendered with Windows' own PDF engine (the one Print a PDF uses)
+/// at the scan's resolution (<see cref="Core.Escl.ScannerPdf"/>). Set as <see cref="Core.Escl.ScannerPdf.Renderer"/> at start-up.
+/// </summary>
+public sealed class ScannedPdfPages : Core.Escl.IPdfPageRenderer
+{
+    public async Task<IReadOnlyList<byte[]>> RenderAsync(byte[] pdf, int dpi, CancellationToken ct)
+    {
+        var source = await PdfSource.OpenAsync(pdf);
+        var pages = new List<byte[]>(source.PageCount);
+        for (var n = 1; n <= source.PageCount; n++) pages.Add((await source.RenderAsync(n, dpi, ct: ct)).Image);
+        return pages;
+    }
 }
