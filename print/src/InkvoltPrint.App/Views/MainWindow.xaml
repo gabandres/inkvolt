@@ -139,10 +139,10 @@
                                             <DockPanel Margin="0,8,0,0" Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}">
                                                 <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCommand}" Padding="16,5" Margin="16,0,0,0"
                                                         VerticalAlignment="Top" AutomationProperties.Name="{Binding Title, StringFormat=Stop waiting: {0}}" />
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" VerticalAlignment="Center" />
                                             </DockPanel>
                                             <Grid Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,8,0,0"
                                                            Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -207,7 +207,7 @@
                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,8,0"
                                                            Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -380,7 +380,7 @@
                                        Visibility="{Binding NoQueue, Converter={StaticResource VisibleWhen}}" />
                             <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding LoadError, Converter={StaticResource VisibleWhen}}" />
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}" />
                             <WrapPanel Margin="0,12,0,0">
                                 <Button Content="Fix printing problems…" Style="{StaticResource LinkButton}" Margin="0,0,20,0"
@@ -425,7 +425,7 @@
                             </ItemsControl>
                             <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
                                        Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,8,0,0"
                                        Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -693,7 +693,7 @@
                                 Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <!-- The links go under a message too long to sit beside them -->
                             <views:HeaderPanel Gap="12">
-                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center"
                                            Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
                                     <Button Content="Open" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
@@ -796,7 +796,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -958,7 +958,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1118,7 +1118,7 @@
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -1300,7 +1300,7 @@
                             <Button Content="Save changes" Command="{Binding ApplyCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,6" />
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap">
+                            <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
@@ -1565,7 +1565,7 @@
                 </StackPanel>
 
                 <!-- Hidden without a printer: a template applied to no printer would show its buttons, tabs and setup banner -->
-                <ContentControl Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
+                <ContentControl x:Name="PrinterPane" Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
                                 Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
@@ -1634,7 +1634,7 @@
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding SetupResult}" Margin="0,0,16,16"
                                            Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
 
-                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}">
+                                <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}" local:Motion.OnTabChange="True">
                                     <TabItem Header="Overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
                                     <TabItem Header="Print" Content="{Binding Print}"
                                              Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />

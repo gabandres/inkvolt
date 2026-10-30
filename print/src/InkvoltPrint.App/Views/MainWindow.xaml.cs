@@ -7,7 +7,21 @@ namespace InkvoltPrint.App.Views;
 
 public partial class MainWindow : Window
 {
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        DataContextChanged += (_, e) =>
+        {
+            if (e.OldValue is MainViewModel old) old.PropertyChanged -= OnVmChanged;
+            if (e.NewValue is MainViewModel vm) vm.PropertyChanged += OnVmChanged;
+        };
+    }
+
+    /// <summary>Another printer's page arrives (Motion), rather than replacing the last one at once.</summary>
+    private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.Selected) && IsLoaded) Motion.Enter(PrinterPane);
+    }
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
