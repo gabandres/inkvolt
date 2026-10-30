@@ -27,8 +27,9 @@ Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason
 
 Same model as Inkvolt PDF's (pdf/ROADMAP.md, "Free and Pro"): everything Inkvolt Print does today stays free, and so
 does whatever a home or a small office needs to see its printers, scan, copy and print. **Inkvolt Pro** is one
-one-time purchase, **$19**, one key for both apps (Ed25519-signed, checked on the PC against the public key in the
-app: no server, works offline, survives reinstalling). It unlocks the office features below, the ones the fleet and
+one-time purchase, **$19**, one key for both apps (ECDSA P-256-signed, checked on the PC against the public key in the
+app: no server, works offline, survives reinstalling; built in Inkvolt PDF on 2026-10-30, `pdf/tools/pro-key`, with the
+gate switched off during launch). It unlocks the office features below, the ones the fleet and
 batch tools sell per seat (Print Conductor at [$149 a user](https://www.g2.com/compare/equitrac-vs-print-conductor-vs-vasion-print-formerly-printerlogic),
 VueScan Professional at [$199.95](https://www.hamrick.com/reg.html)). A feature without the licence shows what it
 would do and where to get Pro, and never takes away a result already made.
@@ -134,10 +135,11 @@ and nowhere else.
 - **Effort** S. Windows and Mac.
 
 ### 1.6 The Pro key
-- **Why.** Every Pro item below needs it, and Inkvolt PDF's wave-2 Pro items too (pdf/ROADMAP.md: "Not built yet: the
-  key format, its check behind that seam and the checkout").
+- **Why.** Every Pro item below needs it. Inkvolt PDF has the key format, the check and the window since 2026-10-30
+  (`pdf/src/InkvoltPdf.Core/Pro.cs`, `pdf/tools/pro-key`; `products` in the key already names `print`); what's left is
+  moving the check where both apps read it.
 - **Beat it when:** `Pro` lives in `InkvoltPrint.Core/Suite` (both apps reference it); a key is a short text (name,
-  issue date, Ed25519 signature) pasted or opened from a file, checked against the public key in the app, stored per
+  issue date, ECDSA P-256 signature; Inkvolt PDF's format) pasted or opened from a file, checked against the public key in the app, stored per
   user and found by both apps; a wrong or altered key says which; no network call exists in the code path. Test: keys
   signed by a test key pair pass, every bit-flip fails, a key from the other app's install is found. Mac: the same
   check in PrintCore (CryptoKit in PrintMac), the key in the app group container.
