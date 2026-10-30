@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Dev tool, not shipped: makes the OCR corpus (roadmap 2.2) and measures the word error rate of Recognize Text on it
+       with Windows' recognizer, before and after the scan cleanup. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(WinTfm)</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>InkvoltPdf.OcrCorpus</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+    <!-- Rng, PdfFileWriter and JpegEncoder -->
+    <ProjectReference Include="..\bench\Bench.csproj" />
+  </ItemGroup>
+</Project>

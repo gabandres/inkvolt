@@ -386,6 +386,10 @@ public sealed class AppSettings
     public bool ScanSkipBlank { get; set; } = true;
     /// <summary>Scan presets saved in the Scan dialog (Inkvolt Print's preset shape; matched to each scanner when chosen).</summary>
     public List<InkvoltPrint.Core.Presets.ScanPreset> ScanPresets { get; set; } = [];
+    /// <summary>Recognize Text: the OCR language last chosen (empty: Windows' default), clean pages first, mark suspect words.</summary>
+    public string OcrLanguage { get; set; } = "";
+    public bool OcrClean { get; set; } = true;
+    public bool OcrSuspects { get; set; } = true;
     /// <summary>Export to Word / Excel / text: recognize scanned pages, open the file when done.</summary>
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;

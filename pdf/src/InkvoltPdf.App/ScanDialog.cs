@@ -651,8 +651,8 @@ internal sealed class ScanDialog : Window
                 {
                     pdf = await Task.Run(() =>
                     {
-                        var (words, _) = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, "Recognizing text");
-                        return words.Count == 0 ? pdf : TextLayer.AddInvisibleText(pdf, null, words);
+                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, "Recognizing text").Words;
+                        return words.Count == 0 ? pdf : TextLayer.AddInvisibleText(pdf, null, words, ocr.Language);
                     }, progress.Token);
                 }
                 catch (OperationCanceledException)

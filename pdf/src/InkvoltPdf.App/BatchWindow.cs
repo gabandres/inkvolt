@@ -674,7 +674,7 @@ internal sealed class BatchWindow : Window
             case MakeAccessibleStep:
                 return "Tags each file from its layout (headings, paragraphs, lists, tables, pictures; running headers and page numbers as decoration), with its title and language; the notes say how many pictures need alternate text";
             case OcrStep:
-                return PageOcr.Engine is { } e ? $"Pages without text, with Windows' {e.RecognizerLanguage.DisplayName} recognizer" : PageOcr.Unavailable;
+                return PageOcr.Engine is { } e ? $"Pages without text, with Windows' {e.LanguageName} recognizer" : PageOcr.Unavailable;
             case ExportStep x:
                 return x.Format switch
                 {

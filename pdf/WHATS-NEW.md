@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Recognize Text straightens and cleans each page before reading it: skewed pages up to 15°, sideways and upside-down pages, specks and grey paper. Fewer words come out wrong, and you can choose any text recognition language installed in Windows.
+- Words that may have come out wrong are listed as suspect words, each beside how it looks on the page. Correct one or keep it as read; search finds the corrected word (Review › Review Suspect Words).
+- Recognize Text can also replace the scanned pages with the cleaned ones, straight, upright and on white paper. It's off unless you tick it.
 
 ## 1.3.0
 - Scan now finds USB scanners and others that have a Windows driver, listed beside your network scanners, and TWAIN scanners when their TWAIN driver is installed. Scan from the glass or a stack in the feeder, both sides where the scanner can, in color, grayscale or black and white.

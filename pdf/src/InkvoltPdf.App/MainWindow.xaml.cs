@@ -1804,6 +1804,7 @@ public partial class MainWindow : Window
         foreach (var tool in DrawTools.All)
             Bind(Cmd.DrawTool(tool), t => ToggleTool(t, tool), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.RecognizeText, t => _ = t.RecognizeText(), t => t.Session.IsPdf);
+        Bind(Cmd.ReviewSuspectWords, t => _ = t.ShowSuspectWordsAsync(), t => t.Session.IsPdf);
     }
 
     /// <summary>File › Printer Settings (Inkvolt Print): shown only when Inkvolt Print is installed (checked off the UI thread).</summary>

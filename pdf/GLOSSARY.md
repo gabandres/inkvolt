@@ -22,8 +22,23 @@ locality) are used in their usual sense: the interface is everything a caller mu
   reads each page (a damaged page exports empty, a page without text goes to the recognizer when one is given), lays the
   document out (`DocLayout`) and writes the format, or reports that nothing was extracted and saves nothing. Used by
   File › Export, Batch and `tools/export-corpus`.
-- **Recognizer**: text recognition (OCR) of a page without text; Windows' OCR in the app (`App/PageOcr.cs`), passed to
-  Core as a function.
+- **Recognizer** (`ITextRecognizer`, `shared/InkvoltPrint.Core/Imaging/TextRecognizer.cs`): text recognition (OCR) of
+  a page image, on the device, returning words with boxes in reading order and no confidence. Windows' is
+  `WindowsRecognizer` (`shared/InkvoltPrint.Windows/Ocr`, one per installed OCR language); the Mac's is Vision; a second
+  engine would be another. `App/PageOcr.cs` picks it; Core gets it as an interface or a function.
+- **Scan cleanup** (`shared/InkvoltPrint.Core/Imaging/ScanCleanup.cs`): what a page image goes through before the
+  recognizer reads it: straightened (skew up to ±15°), turned upright (sideways, upside down), smoothed, the paper evened
+  out to white, lone specks removed. The **cleaned page** is its result; it replaces the scan only when the user asks
+  (Replace the scans with the cleaned pages, `Core/ScanPage.cs`).
+- **Recognized page** (`Core/ScanText.cs`): one page through render, cleanup and recognizer, its words mapped back to the
+  page (`ScanFrame`: through the quarter turns and the straightening, each word turned with the text), with its skew and
+  turns.
+- **Text layer** (`Core/TextLayer.cs`): the invisible OCR text over a scanned page; it keeps its words, boxes, suspect
+  marks and language in comment lines at its start, so it can be read back, reviewed and corrected in place.
+- **Suspect word** (`Core/SuspectWords.cs`): a recognized word worth a second look, found by a heuristic, never a
+  confidence (Windows' recognizer has none): not in the spell checker's dictionary for the language, letters and digits
+  mixed inside, odd characters, or read as a different real word before cleaning. Listed in the Suspect words pane
+  (`App/DocumentTab.SuspectWords.cs`), corrected or kept as read.
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
   with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.

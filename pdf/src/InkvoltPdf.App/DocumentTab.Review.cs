@@ -1296,7 +1296,7 @@ public partial class DocumentTab
             var progress = Dispatcher.Invoke(() => new ProgressPrompt(Window.GetWindow(this), "Applying redactions", "Recognizing text…"));
             try
             {
-                var (words, _) = RecognizePages(ocr, redacted, pw, pages, progress, "Recognizing the text left on redacted pages", areas);
+                var words = RecognizePages(ocr, redacted, pw, pages, progress, "Recognizing the text left on redacted pages", areas).Words;
                 recognized = words.Values.Sum(w => w.Count);
                 return recognized == 0 ? redacted : TextLayer.AddInvisibleText(redacted, pw, words);
             }
@@ -1372,23 +1372,46 @@ public partial class DocumentTab
 
     /// <summary>
     /// Recognize Text (OCR): for scanned pages (no text), recognizes the words and adds them as an invisible text layer,
-    /// so the pages become searchable and selectable while looking the same. One undo step; Cancel changes nothing.
+    /// so the pages become searchable and selectable while looking the same. Each page is straightened, turned upright,
+    /// despeckled and whitened first (unless the user turns that off); the cleaned page can replace the scan (off by
+    /// default). Suspect words are marked for review in the Suspect words pane. One undo step; Cancel changes nothing.
     /// </summary>
     public async Task<bool> RecognizeText()
     {
         if (!Session.IsPdf || IsBusy || Window.GetWindow(this) is not { } owner) return false;
-        if (PageOcr.Engine is not { } ocr)
+        if (PageOcr.Engine is not { } fallback)
         {
             Prompt.Info(owner, "Text recognition isn't available", PageOcr.Unavailable);
             return false;
         }
         var count = Viewer.PageCount;
         var current = Viewer.CurrentPage;
-        var dlg = new FormDialog(owner, "Recognize Text (OCR)", "Recognize", 460);
+        var settings = AppSettings.Current;
+        var dlg = new FormDialog(owner, "Recognize Text (OCR)", "Recognize", 480);
         var which = dlg.AddChoice("Pages", ["All pages without text", $"Current page ({PageLabel(current)})", "Page range"]);
         var range = dlg.Add("Page range", new TextBox { Text = Core.PageRange.Format(SelectedPages.Length > 1 ? SelectedPages : [current]) });
         range.GotKeyboardFocus += (_, _) => which.SelectedIndex = 2;
-        dlg.AddNote($"Pages that already have text are skipped. The pages look the same afterwards; their words can be searched, selected and copied. Recognition runs on this PC with Windows' {ocr.RecognizerLanguage.DisplayName} text recognition, so check important text.");
+        var languages = PageOcr.Languages;
+        var chosen = PageOcr.For(settings.OcrLanguage) ?? fallback;
+        var language = dlg.AddChoice("Language", languages.Select(l => l.Name),
+            Math.Max(0, languages.ToList().FindIndex(l => string.Equals(l.Tag, chosen.Language, StringComparison.OrdinalIgnoreCase))));
+        System.Windows.Automation.AutomationProperties.SetHelpText(language,
+            "The language of the text. More languages: Windows Settings > Time & language > Language & region, a language's options, Optical character recognition.");
+        var clean = dlg.AddCheck("Straighten and clean the pages first", settings.OcrClean);
+        System.Windows.Automation.AutomationProperties.SetHelpText(clean,
+            "Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.");
+        var suspects = dlg.AddCheck("Mark suspect words to check", settings.OcrSuspects);
+        System.Windows.Automation.AutomationProperties.SetHelpText(suspects,
+            "Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. Review > Review Suspect Words lists them.");
+        var writeBack = dlg.AddCheck("Replace the scans with the cleaned pages", false);
+        System.Windows.Automation.AutomationProperties.SetHelpText(writeBack,
+            "The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save.");
+        writeBack.IsEnabled = clean.IsChecked == true;
+        clean.Checked += (_, _) => writeBack.IsEnabled = true;
+        clean.Unchecked += (_, _) => { writeBack.IsEnabled = false; writeBack.IsChecked = false; };
+        dlg.AddNote("Cleaning straightens pages (up to 15°), turns sideways and upside-down pages upright, and removes specks and grey paper; " +
+            "the pages look the same unless you replace the scans. Suspect words are listed to check and correct. Pages that already have text are skipped. " +
+            "Recognition runs on this PC with Windows' text recognition, so check important text.");
         int[] pages = [];
         dlg.Validate(() =>
         {
@@ -1406,20 +1429,33 @@ public partial class DocumentTab
         });
         if (!dlg.ShowModal()) return false;
 
+        if (language.SelectedIndex >= 0 && language.SelectedIndex < languages.Count) settings.OcrLanguage = languages[language.SelectedIndex].Tag;
+        settings.OcrClean = clean.IsChecked == true;
+        settings.OcrSuspects = suspects.IsChecked == true;
+        settings.Save();
+        var ocr = PageOcr.For(settings.OcrLanguage) ?? fallback;
+        var options = new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: writeBack.IsChecked == true);
+        var spelling = options.CheckWords ? PageOcr.Spelling(ocr.Language) : null;
+
         var found = 0;
+        var suspect = 0;
         var pagesWithWords = 0;
         var hadText = 0;
-        var chosen = pages;
+        var replaced = 0;
+        var chosenPages = pages;
         var outcome = await TryEdit("Recognize text", (d, pw) =>
         {
             var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, "Recognizing text", "Starting…"));
             try
             {
-                var (words, skipped) = RecognizePages(ocr, d, pw, chosen, progress, "Recognizing text");
-                hadText = skipped;
-                pagesWithWords = words.Count;
-                found = words.Values.Sum(w => w.Count);
-                return found == 0 ? d : TextLayer.AddInvisibleText(d, pw, words);
+                var result = RecognizePages(ocr, d, pw, chosenPages, progress, "Recognizing text", options: options, spelling: spelling);
+                hadText = result.HadText;
+                pagesWithWords = result.Words.Count;
+                found = result.Words.Values.Sum(w => w.Count);
+                suspect = result.Words.Values.Sum(w => w.Count(x => x.Suspect != SuspectReasons.None));
+                replaced = result.Cleaned.Count;
+                if (replaced > 0) d = ScanPage.WriteBack(d, pw, result.Cleaned);
+                return found == 0 ? d : TextLayer.AddInvisibleText(d, pw, result.Words, ocr.Language);
             }
             finally
             {
@@ -1428,13 +1464,24 @@ public partial class DocumentTab
         }, quiet: true);
         switch (outcome)
         {
+            case EditOutcome.Done when found > 0:
+                var cleaned = replaced > 0 ? $" {replaced} page{(replaced == 1 ? " was" : "s were")} replaced with the cleaned image{(replaced == 1 ? "" : "s")}." : "";
+                if (suspect > 0)
+                {
+                    SuspectRail.Visibility = Visibility.Visible;
+                    Notify($"Recognized {found} word{(found == 1 ? "" : "s")} on {pagesWithWords} page{(pagesWithWords == 1 ? "" : "s")}; {suspect} suspect word{(suspect == 1 ? "" : "s")} to check.{cleaned}",
+                        "Review", () => _ = ShowSuspectWordsAsync());
+                }
+                else
+                    Notify($"Recognized {found} word{(found == 1 ? "" : "s")} on {pagesWithWords} page{(pagesWithWords == 1 ? "" : "s")}{(hadText > 0 ? $" ({hadText} already had text)" : "")}. They can be searched and selected now.{cleaned}",
+                        "Undo", () => { if (!IsBusy && Session.UndoLabel == "Recognize text") Undo(); });
+                return true;
             case EditOutcome.Done:
-                Notify($"Recognized {found} word{(found == 1 ? "" : "s")} on {pagesWithWords} page{(pagesWithWords == 1 ? "" : "s")}{(hadText > 0 ? $" ({hadText} already had text)" : "")}. They can be searched and selected now.",
-                    "Undo", () => { if (!IsBusy && Session.UndoLabel == "Recognize text") Undo(); });
+                Notify($"No text was recognized on these pages.{(replaced > 0 ? $" {replaced} page{(replaced == 1 ? " was" : "s were")} replaced with the cleaned image{(replaced == 1 ? "" : "s")}." : "")}");
                 return true;
             case EditOutcome.NoChange:
-                Notify(hadText == chosen.Length
-                    ? (chosen.Length == 1 ? "This page already has text: nothing to recognize." : "These pages already have text: nothing to recognize.")
+                Notify(hadText == chosenPages.Length
+                    ? (chosenPages.Length == 1 ? "This page already has text: nothing to recognize." : "These pages already have text: nothing to recognize.")
                     : "No text was recognized on these pages.");
                 return false;
             case EditOutcome.Declined:
@@ -1445,15 +1492,22 @@ public partial class DocumentTab
         }
     }
 
+    /// <summary>What <see cref="RecognizePages"/> found: words per page, how many pages already had text, cleaned pages to write back.</summary>
+    internal sealed record RecognizedPages(Dictionary<int, IReadOnlyList<OcrWord>> Words, int HadText, Dictionary<int, CleanedPageImage> Cleaned);
+
     /// <summary>
     /// OCR of <paramref name="pages"/> in <paramref name="data"/> (runs on a worker thread). Pages that already have text are
-    /// skipped; words mostly inside a <paramref name="exclude"/> area (blacked-out redactions) are dropped.
+    /// skipped; words mostly inside a <paramref name="exclude"/> area (blacked-out redactions) are dropped. Without
+    /// <paramref name="options"/>: cleaned pages, no suspect words, nothing to write back.
     /// </summary>
     /// <exception cref="OperationCanceledException">The user pressed Cancel in <paramref name="progress"/>.</exception>
-    internal static (Dictionary<int, IReadOnlyList<OcrWord>> Words, int HadText) RecognizePages(Windows.Media.Ocr.OcrEngine ocr, byte[] data, string? pw, IReadOnlyList<int> pages,
-        ProgressPrompt progress, string title, IReadOnlyDictionary<int, IReadOnlyList<RectD>>? exclude = null)
+    internal static RecognizedPages RecognizePages(InkvoltPrint.Core.Imaging.ITextRecognizer ocr, byte[] data, string? pw, IReadOnlyList<int> pages,
+        ProgressPrompt progress, string title, IReadOnlyDictionary<int, IReadOnlyList<RectD>>? exclude = null, RecognizeOptions? options = null,
+        InkvoltPrint.Core.Imaging.ISpelling? spelling = null)
     {
+        options ??= new RecognizeOptions(CheckWords: false);
         var result = new Dictionary<int, IReadOnlyList<OcrWord>>();
+        var cleaned = new Dictionary<int, CleanedPageImage>();
         var hadText = 0;
         using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, pw);
         for (var i = 0; i < pages.Count; i++)
@@ -1467,12 +1521,14 @@ public partial class DocumentTab
                 hadText++;
                 continue;
             }
-            var words = PageOcr.Recognize(ocr, engine, page, progress.Token);
+            var read = ScanText.Recognize(engine, page, ocr, options, spelling, progress.Token);
+            var words = read.Words.ToList();
             if (exclude is not null && exclude.TryGetValue(page, out var blacked))
                 words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > 0.3 * w.Rect.Width * w.Rect.Height));
             if (words.Count > 0) result[page] = words;
+            if (read.Cleaned is { } image) cleaned[page] = image;
         }
-        return (result, hadText);
+        return new RecognizedPages(result, hadText, cleaned);
 
         static double Overlap(RectD a, RectD b) =>
             Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X)) * Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y));

@@ -72,7 +72,7 @@ public sealed record PageDragData(DocumentTab Source, int[] Pages);
 /// <summary>A transient message for the toast area, optionally with an action such as Undo.</summary>
 public sealed record Toast(string Message, string? ActionLabel = null, Action? Action = null, bool IsError = false);
 
-public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures, Accessibility, ReadingOrder }
+public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures, Accessibility, ReadingOrder, SuspectWords }
 
 /// <summary>How <see cref="DocumentTab.TryEdit"/> ended.</summary>
 public partial class DocumentTab : UserControl, IDisposable
@@ -312,6 +312,7 @@ public partial class DocumentTab : UserControl, IDisposable
         InitReview();
         InitAccessibility();
         InitReadingOrder();
+        InitSuspectWords();
         InitFormDesign(); // Prepare Form (DocumentTab.FormDesign.cs)
         InitEditContent(); // Edit Text & Images (DocumentTab.EditContent.cs)
         UpdatePill();
@@ -364,6 +365,7 @@ public partial class DocumentTab : UserControl, IDisposable
         SignaturesPanel.Visibility = kind == NavPaneKind.Signatures ? Visibility.Visible : Visibility.Collapsed;
         AccessibilityPanel.Visibility = kind == NavPaneKind.Accessibility ? Visibility.Visible : Visibility.Collapsed;
         ReadingOrderPanel.Visibility = kind == NavPaneKind.ReadingOrder ? Visibility.Visible : Visibility.Collapsed;
+        SuspectPanel.Visibility = kind == NavPaneKind.SuspectWords ? Visibility.Visible : Visibility.Collapsed;
         PagesRail.IsChecked = kind == NavPaneKind.Pages;
         BookmarksRail.IsChecked = kind == NavPaneKind.Bookmarks;
         SearchRail.IsChecked = kind == NavPaneKind.Search;
@@ -373,7 +375,14 @@ public partial class DocumentTab : UserControl, IDisposable
         SignaturesRail.IsChecked = kind == NavPaneKind.Signatures;
         AccessibilityRail.IsChecked = kind == NavPaneKind.Accessibility;
         ReadingOrderRail.IsChecked = kind == NavPaneKind.ReadingOrder;
-        PaneTitle.Text = kind switch { NavPaneKind.None => "", NavPaneKind.ReadingOrder => "Reading order", _ => kind.ToString() };
+        SuspectRail.IsChecked = kind == NavPaneKind.SuspectWords;
+        PaneTitle.Text = kind switch
+        {
+            NavPaneKind.None => "",
+            NavPaneKind.ReadingOrder => "Reading order",
+            NavPaneKind.SuspectWords => "Suspect words",
+            _ => kind.ToString(),
+        };
         ReadingOrderShown(kind == NavPaneKind.ReadingOrder);
         UpdatePaneDetail();
         if (kind == NavPaneKind.Pages) SyncThumbSelection();
@@ -397,6 +406,7 @@ public partial class DocumentTab : UserControl, IDisposable
             NavPaneKind.Signatures => $"{_signatures.Count(s => s.Status != SignatureStatus.Unsigned)} signed",
             NavPaneKind.Accessibility => "PDF/UA",
             NavPaneKind.ReadingOrder => $"Page {Viewer.CurrentPage + 1}",
+            NavPaneKind.SuspectWords => SuspectList.Items.Count > 0 ? $"{SuspectList.Items.Count}" : "",
             _ => "",
         };
     }
