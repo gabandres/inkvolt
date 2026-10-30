@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         Report.startIfAsked()
+        // The Inkvolt Pro licence key lives in the settings (the self-test's suite, when it runs).
+        Pro.store = SettingsProStore(defaults: AppSettings.defaults)
         AppSettings.applyTheme()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
@@ -47,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showSettings(_ sender: Any?) { SettingsWindowController.show(updates: updates) }
     @objc func showAbout(_ sender: Any?) { AboutWindowController.show() }
     @objc func showWhatsNew(_ sender: Any?) { WhatsNew.show(WhatsNew.notes()) }
+    @objc func showPro(_ sender: Any?) { ProWindowController.show() }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
 
@@ -289,6 +292,7 @@ enum MainMenu {
     private static func helpMenu() -> NSMenu {
         let menu = NSMenu(title: "Help")
         menu.addItem(item("What's New in Inkvolt PDF", #selector(AppDelegate.showWhatsNew(_:))))
+        menu.addItem(item("Inkvolt Pro…", #selector(AppDelegate.showPro(_:))))
         menu.addItem(item("Inkvolt PDF on GitHub", #selector(AppDelegate.openSourcePage(_:))))
         return menu
     }
