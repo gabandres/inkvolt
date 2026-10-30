@@ -13,6 +13,8 @@ public struct ExportSpan: Equatable, Sendable {
     public var serif = false
     /// The font is monospaced.
     public var mono = false
+    /// Where the run is on the page as shown, when something needs that after a page was turned (`DocLayout.analyzeForTags`).
+    public var pageBox: RectD?
 
     public init(_ text: String, _ font: String, _ size: Double, _ bold: Bool, _ italic: Bool, _ color: UInt32, _ box: RectD) {
         self.text = text
@@ -132,6 +134,8 @@ public struct ExportImage: Equatable, Sendable {
     public var pixelHeight: Int
     public var box: RectD
     public var ref: String?
+    /// Where it is on the page as shown, when something needs that after a page was turned (`DocLayout.analyzeForTags`).
+    public var pageBox: RectD?
 
     public init(_ data: [UInt8], _ ext: String, _ pixelWidth: Int, _ pixelHeight: Int, _ box: RectD, ref: String? = nil) {
         self.data = data

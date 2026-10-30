@@ -132,6 +132,15 @@ public enum PdfA {
             + "\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF."
     }
 
+    /// Embeds the standard Helvetica, Times and Courier faces the document draws with but doesn't embed, as the PDF/A copy
+    /// does (the Mac's metric-compatible fonts); other fonts are left as they are. How many were embedded.
+    @discardableResult
+    static func embedStandardFonts(_ doc: MuDoc) throws -> Int {
+        let pass = try Pass(doc, [])
+        pass.fonts()
+        return pass.embedded
+    }
+
     /// The first letter capitalized, unless the word is one like "sRGB" (Windows writes "SRGB").
     static func capitalized(_ s: String) -> String {
         let c = Array(s)

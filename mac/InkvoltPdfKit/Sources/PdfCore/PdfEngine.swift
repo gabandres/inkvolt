@@ -518,7 +518,7 @@ public final class PdfEngine: @unchecked Sendable {
     /// The structured text of a page with its annotations, its pictures (when `images`) and vector paths (the Windows
     /// engine's `GetStructuredTextPage(page, true, CollectVectors | PreserveImages)` and `ReadGlyphs`). Not cached.
     /// - Throws: `CancellationError` when `cancel` fired before the page was read; `PdfEngineError` when MuPDF can't.
-    func exportRead(_ page: Int, images: Bool, jpegAbovePixels: Int, cancel: CancelToken?) throws -> ExportRead {
+    func exportRead(_ page: Int, images: Bool, boxesOnly: Bool = false, jpegAbovePixels: Int, cancel: CancelToken?) throws -> ExportRead {
         try cancel.check()
         try enterText(cancel)
         defer { textGate.unlock() }
@@ -526,7 +526,7 @@ public final class PdfEngine: @unchecked Sendable {
         let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var raw = inkv_export()
-        guard inkv_export_page(instance.ctx, instance.doc, Int32(page), images ? 1 : 0, Int64(jpegAbovePixels), &raw, &err) != 0 else {
+        guard inkv_export_page(instance.ctx, instance.doc, Int32(page), images ? (boxesOnly ? 2 : 1) : 0, Int64(jpegAbovePixels), &raw, &err) != 0 else {
             throw PdfEngineError(message: Self.message(err))
         }
         defer { inkv_free_export(&raw) }

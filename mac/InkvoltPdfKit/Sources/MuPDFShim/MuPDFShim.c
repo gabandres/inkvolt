@@ -1397,7 +1397,7 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
                 e->width = img ? img->w : 0;
                 e->height = img ? img->h : 0;
                 e->jpeg = (long long)e->width * e->height > jpeg_above;
-                if (img && e->width > 0 && e->height > 0) inkv_encode_image(ctx, img, e->jpeg, e);
+                if (images == 1 && img && e->width > 0 && e->height > 0) inkv_encode_image(ctx, img, e->jpeg, e); /* 2: where it is, without its pixels */
             } else if (b->type == FZ_STEXT_BLOCK_VECTOR) {
                 inkv_evector *e = &out->vectors[out->vector_count++];
                 e->x0 = b->bbox.x0;

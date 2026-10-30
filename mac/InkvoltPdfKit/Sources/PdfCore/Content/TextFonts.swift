@@ -36,7 +36,8 @@ final class TextFont: @unchecked Sendable {
     static let gap = -1
 
     private let lock = NSRecursiveLock()
-    private let program: FontProgram?
+    /// The embedded font program, when there is a readable one.
+    let program: FontProgram?
     private var toUnicode: [Int: String] = [:]
     private var hasToUnicode = false
     private var names = [String?](repeating: nil, count: 256)
@@ -281,6 +282,18 @@ final class TextFont: @unchecked Sendable {
     private func textOf(_ code: Int) -> String? {
         twoByte ? toUnicode[code] : (0..<256).contains(code) ? simpleText[code] : nil
     }
+
+    /// A simple font's glyph name for a code (nil for composite fonts and codes without one).
+    func glyphNameOf(_ code: Int) -> String? { !twoByte && (0..<256).contains(code) ? names[code] : nil }
+
+    /// The text a code stands for, from any source (ToUnicode, encoding, glyph names).
+    func unicodeOf(_ code: Int) -> String? { textOf(code) }
+
+    /// The ToUnicode CMap's own value for a code, or nil when it has none.
+    func toUnicodeOf(_ code: Int) -> String? { toUnicode[code] }
+
+    /// Every code the ToUnicode CMap maps, with its text.
+    var toUnicodeMap: [Int: String] { toUnicode }
 
     /// A code's width in thousandths of an em (as the PDF says, else the program's, else a fallback).
     func widthOf(_ code: Int) -> Double {
