@@ -6,8 +6,12 @@ using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
 
-/// <summary>A recognized word and its box in page space (points, top-left origin of the displayed, rotated and cropped page).</summary>
-public sealed record OcrWord(string Text, RectD Rect);
+/// <summary>
+/// A recognized word and its box in page space (points, top-left origin of the displayed, rotated and cropped page). The
+/// box is the word's own, level box, turned <paramref name="Angle"/> degrees clockwise about its centre (a word on a
+/// skewed scan runs at the scan's skew). <paramref name="Suspect"/>: why it is a suspect word, if it is one.
+/// </summary>
+public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectReasons Suspect = SuspectReasons.None);
 
 /// <summary>
 /// Invisible text over scanned pages (an OCR text layer): the page looks the same, but its words can be selected,

@@ -6,6 +6,7 @@
     <Project Path="pdf/tools/a11y-corpus/A11yCorpus.csproj" />
     <Project Path="pdf/tools/bench/Bench.csproj" />
     <Project Path="pdf/tools/export-corpus/ExportCorpus.csproj" />
+    <Project Path="pdf/tools/ocr-corpus/OcrCorpus.csproj" />
     <Project Path="pdf/tools/pro-key/ProKey.csproj" />
   </Folder>
   <Folder Name="/print/">

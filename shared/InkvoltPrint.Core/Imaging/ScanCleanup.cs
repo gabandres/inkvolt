@@ -180,7 +180,7 @@ public static class Smooth
 public static class PaperLevel
 {
     /// <summary>After evening out, levels at or above this share of white become white.</summary>
-    public const double White = 0.86;
+    public const double White = 0.92;
 
     public sealed record Map(int Width, int Height, int Block, int Columns, int Rows, float[] Levels)
     {
@@ -247,7 +247,7 @@ public static class PaperLevel
     }
 
     /// <summary>Divides each pixel by the paper behind it and turns the nearly white to white (in place).</summary>
-    public static void Whiten(byte[] gray, Map paper)
+    public static void Whiten(byte[] gray, Map paper, double white = White)
     {
         var (width, height) = (paper.Width, paper.Height);
         Parallel.For(0, height, y =>
@@ -256,7 +256,7 @@ public static class PaperLevel
             {
                 var i = y * width + x;
                 var even = gray[i] * 255f / paper.At(x, y);
-                gray[i] = even >= 255 * White ? (byte)255 : (byte)Math.Clamp(even / White, 0, 255);
+                gray[i] = even >= 255 * white ? (byte)255 : (byte)Math.Clamp(even / white, 0, 255);
             }
         });
     }

@@ -220,7 +220,8 @@ public sealed class PdfEngine : IDisposable
     /// <summary>Renders a page (or a region of it, in page points) at <paramref name="scale"/> pixels per point.</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired (MuPDF stops mid-render).</exception>
     /// <exception cref="InvalidOperationException">The image would exceed <see cref="MaxPixels"/>.</exception>
-    public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default)
+    /// <param name="annotations">Whether comments, stamps and form fields are drawn (false: the page's own content only).</param>
+    public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default, bool annotations = true)
     {
         cancel.ThrowIfCancellationRequested();
         lock (_gate)
@@ -242,7 +243,8 @@ public sealed class PdfEngine : IDisposable
                 fixed (byte* p = pixels)
                 {
                     _clones ??= AbortableRender.Clone(_ctx, StripThreads);
-                    if (!AbortableRender.TryRender(_ctx, _doc, page, area, scale, (IntPtr)p, cancel, _clones))
+                    if (!annotations) _doc.Render(page, area, scale, PixelFormats.BGR, (IntPtr)p, includeAnnotations: false);
+                    else if (!AbortableRender.TryRender(_ctx, _doc, page, area, scale, (IntPtr)p, cancel, _clones))
                         _doc.Render(page, area, scale, PixelFormats.BGR, (IntPtr)p, includeAnnotations: true);
                     cancel.ThrowIfCancellationRequested();
                 }
