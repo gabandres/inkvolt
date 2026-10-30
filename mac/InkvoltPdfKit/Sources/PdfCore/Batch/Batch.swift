@@ -914,17 +914,21 @@ final class AsyncSemaphore: @unchecked Sendable {
 
     init(_ count: Int) { self.count = count }
 
-    func wait(_ cancel: CancelToken?) async throws {
-        try cancel.check()
+    /// Takes a count when one is free (nil), else the id to wait under.
+    private func take() -> Int? {
         lock.lock()
+        defer { lock.unlock() }
         if count > 0 {
             count -= 1
-            lock.unlock()
-            return
+            return nil
         }
         nextId += 1
-        let id = nextId
-        lock.unlock()
+        return nextId
+    }
+
+    func wait(_ cancel: CancelToken?) async throws {
+        try cancel.check()
+        guard let id = take() else { return }
         var registration: Int?
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             lock.lock()
@@ -977,18 +981,22 @@ final class WeightedGate: @unchecked Sendable {
         return true
     }
 
-    func enter(_ weight: Int, _ cancel: CancelToken?) async throws {
-        try cancel.check()
+    /// Enters when the weight fits now (nil), else the id to wait under.
+    private func enterNow(_ weight: Int) -> Int? {
         lock.lock()
+        defer { lock.unlock() }
         if waiting.isEmpty && fits(weight) {
             used += weight
             inside += 1
-            lock.unlock()
-            return
+            return nil
         }
         nextId += 1
-        let id = nextId
-        lock.unlock()
+        return nextId
+    }
+
+    func enter(_ weight: Int, _ cancel: CancelToken?) async throws {
+        try cancel.check()
+        guard let id = enterNow(weight) else { return }
         var registration: Int?
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             lock.lock()
