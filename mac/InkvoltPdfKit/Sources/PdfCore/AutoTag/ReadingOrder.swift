@@ -60,6 +60,8 @@ public struct ReadingOrderState: Equatable, Sendable {
     public var canMoveToPageBefore = false
     public var canMoveToPageAfter = false
     public var canApply = false
+
+    public init() {}
 }
 
 /// The reading order pane's rules and words (the Windows app's `DocumentTab.ReadingOrder` and `AccessibleActions`), so the

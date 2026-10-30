@@ -85,8 +85,8 @@ struct AccessibleTest {
             return finish()
         }
         check(AutoTag.isTagged(tagged, session.password), "Make Accessible writes the tags")
-        let undoManager = controller.pdf.undoManager
-        check(undoManager?.undoActionName == "Make accessible", "as one undo step named Make accessible")
+        let undoManager = controller.window?.undoManager
+        check(undoManager?.undoMenuItemTitle.contains("Make accessible") == true, "as one undo step named Make accessible")
         check(pane.isShown && pane.written && pane.isCurrent, "the Reading Order pane opens on the plan written")
         check(pane.state.summary.contains("The document is tagged this way.") && !pane.applyButton.isEnabled, "the pane says the document is tagged this way, nothing to apply")
         let pieces = pane.state.items.count
@@ -218,8 +218,8 @@ struct AccessibleTest {
         }
     }
 
-    private func finish() {
-        Report.append(lines)
-        Report.progress("Accessibility: \(lines.count - 1 - failures) passed, \(failures) failed")
+    private mutating func finish() {
+        lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
+        Report.write(lines.joined(separator: "\n"))
     }
 }
