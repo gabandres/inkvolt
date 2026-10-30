@@ -15,6 +15,10 @@ winget install 9MXDTSFJ9W28   # Inkvolt PDF
 winget install 9PNR76HJ62SK   # Inkvolt Print
 ```
 
+```sh
+brew install --cask gabandres/inkvolt/inkvolt-pdf   # Inkvolt PDF for Mac (Apple silicon, macOS 15 or later)
+```
+
 ![Inkvolt PDF showing a two-page USGS fact sheet with page thumbnails](docs/screenshots/pdf-reading.jpg)
 
 ## Inkvolt PDF

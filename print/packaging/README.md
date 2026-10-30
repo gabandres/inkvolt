@@ -244,6 +244,45 @@ Keywords: impresora, escáner, escanear a PDF, tinta y tóner, imprimir PDF, cop
 
 License terms: Inkvolt Print es de código abierto bajo la licencia MIT. Código fuente y licencia: https://github.com/gabandres/inkvolt
 
+### Listing proposals 2026-10-30
+
+Not submitted: to go in with the next submission, through the Partner Center pages. Reasoning: people looking for this
+app search for their problem ("printer offline", "ink level", "scan to pdf") or for the maker's app they want to
+replace; the maker's names stay out of the keywords (trademarks, and "HP Smart" is ruled out above), so the keywords
+are the tasks, and "for HP, Canon, Epson and Brother printers" stays in the short description, where the Store
+searches it too. Each keyword is at most 30 characters.
+
+Keywords (en-us, 7): `printer`, `scanner`, `scan to pdf`, `ink level`, `toner level`, `print queue`, `printer offline`.
+Alternates: `network printer`, `printer status`, `copy`, `airprint`, `ipp everywhere`.
+
+Keywords (es, 7): `impresora`, `escáner`, `escanear a pdf`, `nivel de tinta`, `tóner`, `cola de impresión`,
+`impresora sin conexión`. Alternates: `impresora de red`, `estado de impresora`, `copiar`.
+
+Short description (en-us):
+
+> Printer status, ink and toner levels, scan to PDF, copy, print and fix an offline printer, for HP, Canon, Epson,
+> Brother and any AirPrint, Mopria or IPP Everywhere printer. No account, no cloud, no ads, no telemetry.
+
+Description (en-us): the live text, with two changes. The first paragraph opens with the search terms and the reason
+to switch:
+
+> Inkvolt Print is a free, lean app for your printer and scanner: live status, ink and toner levels, scan to a
+> searchable PDF, copy, print and fix a paused or offline printer, with no printer-maker account, no cloud service, no
+> ads and no telemetry. Made for HP printers, it also works with Canon, Epson, Brother and other AirPrint, Mopria or
+> IPP Everywhere printers. It finds your printer on the network and shows what matters: ready or sleeping, ink or toner
+> levels, paper problems, and usage counts, updated live.
+
+And a bullet after the print queue one:
+
+> - Works with Inkvolt PDF: scan straight into it, and check the printer before printing from it.
+
+The trademark disclaimer stays as it is. Spanish: the same two changes in the live Spanish text ("sin cuenta del
+fabricante", "escanear a PDF con texto buscable"). Keep semicolons away from drop, delete, select and insert (the
+firewall note above).
+
+What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type, 30 days after the change,
+against the baseline in `docs/VISIBILITY.md`.
+
 ### Privacy policy
 
 Partner Center asks for a privacy policy URL; publish a short page saying:

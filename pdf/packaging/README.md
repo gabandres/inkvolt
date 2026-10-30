@@ -194,6 +194,78 @@ Keywords: PDF, editor de PDF, llenar y firmar, firma digital, anotar PDF, unir P
 
 License terms: Inkvolt PDF es software libre bajo la Licencia Pública General Affero de GNU v3.0. Código fuente y licencia: https://github.com/gabandres/inkvolt
 
+### Listing proposals 2026-10-30
+
+Not submitted: to go in with the 1.3.0.0 submission, through the Partner Center pages (the API refuses a draft edited
+there). Reasoning: the Store searches the title, the short description and the seven keywords, and the title already
+holds "PDF", so a keyword of just "PDF" is wasted; the apps on the comparison page (Acrobat Reader, Foxit, PDF-XChange,
+PDFgear) lead their listings with "PDF editor", "PDF reader", "edit", "convert to Word", "merge", "sign" and "OCR", which
+is what people type; the differentiators (redaction, no account, no telemetry, open source) go in the first lines of the
+descriptions, where a person reads them, not in the keyword slots. The Store's own keyword suggestions appear only in a
+draft's keyword box; open one only with the 1.3.0.0 draft and swap a proposal for a suggestion that is close to it.
+Each keyword is at most 30 characters.
+
+Keywords (en-us, 7): `pdf editor`, `pdf reader`, `edit pdf`, `pdf to word`, `merge pdf`, `fill and sign`, `ocr`.
+Alternates if the box drops one: `sign pdf`, `redact pdf`, `scan to pdf`, `compress pdf`, `pdf converter`.
+
+Keywords (es, 7): `editor de pdf`, `lector de pdf`, `editar pdf`, `pdf a word`, `unir pdf`, `llenar y firmar`, `ocr`.
+Alternates: `firmar pdf` (the box drops it for its own "firmar PDF digitalmente"; try last), `comprimir pdf`,
+`convertir pdf`, `escanear a pdf`.
+
+Short description (en-us):
+
+> Free PDF editor and reader: edit text, fill and sign forms, merge and organize pages, PDF to Word and Excel, OCR,
+> redaction that removes the content. No account, no ads, no telemetry, open source.
+
+Description (en-us):
+
+> Inkvolt PDF is a free PDF editor and reader for Windows 10 and 11 (x64 and ARM64). Open big documents instantly,
+> in tabs, in light or dark; edit, fill, sign, convert, organize and redact without a subscription, a watermark, an
+> account or any usage data sent anywhere. Open source (AGPL-3.0).
+>
+> - Edit PDF: click text to rewrite it in its own font; move, resize or replace pictures; add links, headers and
+>   footers, page numbers, watermarks.
+> - Fill and sign: fill any form, type or tick anywhere on a page, add a handwritten signature or initials. Create
+>   forms with text fields, check boxes, lists and signature fields, or detect them on the page.
+> - Digital signatures: sign with a certificate, smart card or Windows Hello, add a trusted timestamp, verify every
+>   signature.
+> - Comment and draw: highlight, underline, sticky notes, stamps, pen, shapes, arrows, text boxes, callouts,
+>   measurements.
+> - Merge and organize: combine files, reorder, rotate, insert, extract, split and crop pages. Make PDFs from images,
+>   the clipboard, Office files (with your installed Microsoft Office) and web pages.
+> - PDF to Word, Excel or text, rebuilt as editable paragraphs, headings, lists and tables, on your PC.
+> - OCR: make scans searchable with Windows' own text recognition, on your PC.
+> - Redact for real: the text and pictures underneath are removed, not covered, then the whole file is checked for
+>   anything left. Redact by pattern (Social Security, phone and card numbers, emails, dates). Check a PDF redacted
+>   elsewhere.
+> - What's in This PDF: every script, link, attachment, earlier version and hidden element a file carries, before you
+>   share it. Sanitize removes them.
+> - Protect with a password, reduce file size, save as PDF/A, compare two versions, check accessibility (PDF/UA), and
+>   run batches over many files.
+> - Scan straight into a PDF with Inkvolt Print.
+>
+> Optional AI assistant (off by default): connect an AI you choose, such as Ollama or LM Studio on your PC or a service
+> with your own API key, to summarize, ask questions about a document or explain a passage. Answers are generated live
+> by that AI model and may be wrong. Inkvolt PDF includes no AI of its own and shows exactly what text will be sent, and
+> where, before anything goes.
+>
+> No account, no ads, no telemetry. Your documents stay on your PC unless you send text to an AI service you set up.
+>
+> Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt. Also for Mac:
+> https://bermudezsystems.com/products/inkvolt/
+
+Short description (es):
+
+> Editor y lector de PDF gratis: edita texto, llena y firma formularios, une y organiza páginas, convierte PDF a Word y
+> Excel, OCR, y elimina información confidencial de verdad. Sin cuenta, sin anuncios, sin telemetría, código abierto.
+
+Description (es): the en-us text above in the Spanish of the live listing (its vocabulary: "llenar y firmar", "eliminar
+información confidencial", "reconocimiento de texto"), with the same bullets in the same order and the line "La
+aplicación está en inglés." before the license line. Write it when the en-us text is final, so the two never drift.
+
+What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type (Store search vs. links), 30
+days after the change, against the baseline in `docs/VISIBILITY.md`.
+
 ### Privacy policy
 
 Partner Center asks for a privacy policy URL; publish a short page (e.g. on the product site or a public gist) saying:
