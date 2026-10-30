@@ -4,8 +4,11 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// An open document: its bytes, the MuPDF view of them, and undo/redo snapshots of page edits. The file on disk is
-/// read once and never locked; it changes only on Save. Edits go through <see cref="EditAsync"/> (the edit transaction,
-/// in DocumentSession.Edit.cs).
+/// read once and never locked; it changes only on Save. A PDF of <see cref="InPlaceBytes"/> or more is the exception: it
+/// opens in place (MuPDF reads the file as pages need it, other programs can't replace it meanwhile) and its bytes are
+/// read only when something asks for <see cref="Data"/> (an edit's undo step, a reader of the file's structure); the first
+/// edit, undo or reload lets the file go. Edits go through <see cref="EditAsync"/> (the edit transaction, in
+/// DocumentSession.Edit.cs).
 /// </summary>
 public sealed partial class DocumentSession : IDisposable
 {
@@ -26,9 +29,94 @@ public sealed partial class DocumentSession : IDisposable
     private (long Length, DateTime WriteTimeUtc)? _onDisk;
     private string? _diskPassword; // what opens the file on disk: the session's own may differ after a protection change
 
+    /// <summary>PDFs this big or bigger open in place (see the class summary).</summary>
+    public const long InPlaceBytes = 256L * 1024 * 1024;
+
+    private long _inPlaceBytes = InPlaceBytes; // tests open small files in place
+
+    /// <summary>
+    /// The file a session opened in place reads, while the content is still that file's: the names its bytes mention
+    /// (<see cref="MayContain"/>) are scanned on a worker as it opens.
+    /// </summary>
+    private sealed class InPlaceFile(string path, (long Length, DateTime WriteTimeUtc) stamp)
+    {
+        public string Path { get; } = path;
+        public (long Length, DateTime WriteTimeUtc) Stamp { get; } = stamp;
+        public Task<HashSet<string>> Names { get; } = Task.Run(() => PdfNames.Scan(path, ScannedNames));
+
+        /// <summary>
+        /// The file's bytes, if it is still as it was opened.
+        /// </summary>
+        /// <exception cref="IOException">It changed on disk (or can't be read).</exception>
+        public byte[] Read()
+        {
+            var data = File.ReadAllBytes(Path);
+            if (data.LongLength != Stamp.Length || DiskStamp(Path) != Stamp) throw ChangedOnDisk();
+            return data;
+        }
+
+        /// <summary>Copies the file as it was opened to <paramref name="to"/>.</summary>
+        /// <exception cref="IOException">It changed on disk (or can't be read).</exception>
+        public void CopyTo(Stream to)
+        {
+            using (var from = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20))
+                from.CopyTo(to, 1 << 20);
+            if (to.Length != Stamp.Length || DiskStamp(Path) != Stamp) throw ChangedOnDisk();
+        }
+
+        private IOException ChangedOnDisk() =>
+            new($"\"{System.IO.Path.GetFileName(Path)}\" changed on disk after it was opened. Reload it to go on.");
+    }
+
+    /// <summary>The names <see cref="MayContain"/> can answer for, plus "/ObjStm" (compressed objects hide every name).</summary>
+    internal static readonly string[] ScannedNames =
+    [
+        "/Annots", "/AcroForm", "/EmbeddedFiles", "/OCProperties", "/PageLabels", "/ByteRange", "/XFA", "/PageMode", "/PageLayout",
+        "/ViewerPreferences", "/OpenAction", "/Title", "/Encrypt", "/ObjStm",
+    ];
+
+    private readonly Lock _dataGate = new();
+    private byte[]? _data;          // null while a file opened in place hasn't been read
+    private InPlaceFile? _inPlace;  // under _dataGate
+
     public string? FilePath { get; private set; }
     public string DisplayName { get; private set; }
-    public byte[] Data { get; private set; }
+
+    /// <summary>The document's bytes. For a file opened in place, read on first use (on any thread).</summary>
+    /// <exception cref="IOException">A file opened in place changed on disk before it was read.</exception>
+    public byte[] Data
+    {
+        get
+        {
+            if (Volatile.Read(ref _data) is { } data) return data;
+            lock (_dataGate) return _data ??= _inPlace!.Read();
+        }
+    }
+
+    /// <summary>True while the engine reads the file in place and its bytes haven't been read (see the class summary).</summary>
+    public bool IsInPlace => _inPlace is not null && Volatile.Read(ref _data) is null;
+
+    /// <summary>
+    /// False only when the content is a file opened in place whose bytes never mention <paramref name="name"/> (one of
+    /// <see cref="ScannedNames"/>, e.g. "/Annots") and keep no compressed objects: a reader of that structure would find
+    /// nothing, so it needn't load and parse the file. True in every other case. Waits for the scan (a second or so on a
+    /// gigabyte) if it hasn't finished.
+    /// </summary>
+    public bool MayContain(string name)
+    {
+        InPlaceFile? f;
+        lock (_dataGate) f = _inPlace;
+        if (f is null) return true;
+        try
+        {
+            var names = f.Names.GetAwaiter().GetResult();
+            return names.Contains(name) || (name != "/Encrypt" && names.Contains("/ObjStm"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
     /// <summary>The password the document was opened with; replaced by the permissions password once the user gives it for an edit.</summary>
     public string? Password { get; private set; }
     /// <summary>
@@ -42,7 +130,7 @@ public sealed partial class DocumentSession : IDisposable
     public bool IsDirty => _version != _savedVersion;
     public bool IsPdf => FileType == InputFileTypes.PDF;
 
-    private sealed record EncryptionScan(byte[] Data, bool Found);
+    private sealed record EncryptionScan(object Data, bool Found);
     private EncryptionScan? _encryptionScan;
 
     /// <summary>
@@ -54,10 +142,13 @@ public sealed partial class DocumentSession : IDisposable
     {
         get
         {
-            var data = Data;
-            if (_encryptionScan is { } scan && ReferenceEquals(scan.Data, data)) return scan.Found;
-            var found = IsPdf && data.AsSpan().IndexOf("/Encrypt"u8) >= 0;
-            _encryptionScan = new EncryptionScan(data, found);
+            InPlaceFile? f;
+            lock (_dataGate) f = _inPlace;
+            object key = f ?? (object)Data;
+            if (_encryptionScan is { } scan && ReferenceEquals(scan.Data, key)) return scan.Found;
+            // In place: the trailer's /Encrypt is never inside a compressed object, so the file's name scan answers.
+            var found = IsPdf && (f is not null ? MayContain("/Encrypt") : Data.AsSpan().IndexOf("/Encrypt"u8) >= 0);
+            _encryptionScan = new EncryptionScan(key, found);
             return found;
         }
     }
@@ -81,26 +172,25 @@ public sealed partial class DocumentSession : IDisposable
     /// <summary>Raised when the name, path or dirty state changed.</summary>
     public event EventHandler? StateChanged;
 
-    private DocumentSession(string? path, string displayName, byte[] data, string? password, InputFileTypes type, PdfEngine engine)
+    private DocumentSession(string? path, string displayName, byte[]? data, string? password, InputFileTypes type, PdfEngine engine)
     {
         FilePath = path;
         DisplayName = displayName;
-        Data = data;
+        _data = data;
         Password = password;
         FileType = type;
         Engine = engine;
     }
 
     /// <exception cref="PasswordRequiredException"/>
-    public static DocumentSession Open(string path, string? password = null)
+    public static DocumentSession Open(string path, string? password = null) => Open(path, password, InPlaceBytes);
+
+    /// <param name="inPlaceBytes">PDFs this big or bigger open in place (<see cref="InPlaceBytes"/>; tests use less).</param>
+    internal static DocumentSession Open(string path, string? password, long inPlaceBytes)
     {
-        // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
-        var stamp = DiskStamp(path);
-        var data = File.ReadAllBytes(path);
-        var type = PdfEngine.TypeFromPath(path);
-        var engine = PdfEngine.Open(data, type, password);
-        var openPassword = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), data, password, type, engine) { _onDisk = stamp, OpenPassword = openPassword, _diskPassword = password };
+        var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes);
+        return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), copy.Data, password, copy.Type, copy.Engine)
+            { _onDisk = copy.Stamp, OpenPassword = copy.OpenPassword, _diskPassword = password, _inPlace = copy.InPlace, _inPlaceBytes = inPlaceBytes };
     }
 
     /// <summary>A new, unsaved PDF (e.g. the result of Combine or Extract).</summary>
@@ -194,8 +284,41 @@ public sealed partial class DocumentSession : IDisposable
     public void SaveAs(string path)
     {
         path = Path.GetFullPath(path);
-        WriteFile(path, Data);
+        Write(path, ContentKey);
         MarkSaved(path, _version, Password);
+    }
+
+    /// <summary>
+    /// Stands for the current content: the same object until an edit, undo, redo or reload replaces it. Unlike
+    /// <see cref="Data"/>, it doesn't read a file opened in place (it is that file while the content is still its own).
+    /// </summary>
+    public object ContentKey
+    {
+        get
+        {
+            lock (_dataGate) return _inPlace ?? (object)_data!;
+        }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="content"/> (bytes, or a file opened in place) to <paramref name="path"/>. A file opened in
+    /// place saved over itself unchanged isn't written: MuPDF holds it, and it already says what the content says.
+    /// </summary>
+    private static void Write(string path, object content)
+    {
+        switch (content)
+        {
+            case InPlaceFile f when string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase):
+                if (DiskStamp(path) != f.Stamp) f.Read(); // throws: it changed on disk
+                break;
+            case InPlaceFile f:
+                WriteFile(path, f.CopyTo);
+                break;
+            default:
+                var data = (byte[])content;
+                WriteFile(path, stream => stream.Write(data));
+                break;
+        }
     }
 
     /// <summary>
@@ -205,8 +328,8 @@ public sealed partial class DocumentSession : IDisposable
     public async Task SaveAsAsync(string path)
     {
         path = Path.GetFullPath(path);
-        var (data, version, password) = (Data, _version, Password);
-        await Task.Run(() => WriteFile(path, data));
+        var (content, version, password) = (ContentKey, _version, Password);
+        await Task.Run(() => Write(path, content));
         MarkSaved(path, version, password);
     }
 
@@ -220,7 +343,7 @@ public sealed partial class DocumentSession : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static void WriteFile(string path, byte[] data)
+    private static void WriteFile(string path, Action<FileStream> write)
     {
         var target = new FileInfo(path);
         if (target.Exists && target.IsReadOnly)
@@ -231,7 +354,7 @@ public sealed partial class DocumentSession : IDisposable
         {
             using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16))
             {
-                stream.Write(data);
+                write(stream);
                 stream.Flush(flushToDisk: true);
             }
 
@@ -282,7 +405,8 @@ public sealed partial class DocumentSession : IDisposable
     /// (I/O, password, corrupt file) nothing changes.
     /// </summary>
     /// <exception cref="PasswordRequiredException">The file needs another password (another program protected it).</exception>
-    public void ReloadFromDisk() => ApplyReload(ReadDiskCopy(FilePath, FileType, _diskPassword));
+    public void ReloadFromDisk() =>
+        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException("This document has not been saved to a file."), FileType, _diskPassword, _inPlaceBytes));
 
     /// <summary>
     /// <see cref="ReloadFromDisk"/> with the reading and parsing on a worker thread; the content is swapped on the calling
@@ -291,9 +415,9 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     public async Task<bool> ReloadFromDiskAsync(Func<bool>? stillWanted = null, string? password = null)
     {
-        var (path, type) = (FilePath, FileType);
+        var (path, type, inPlaceBytes) = (FilePath, FileType, _inPlaceBytes);
         password ??= _diskPassword;
-        var copy = await Task.Run(() => ReadDiskCopy(path, type, password));
+        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException("This document has not been saved to a file."), type, password, inPlaceBytes));
         if (stillWanted?.Invoke() == false || path != FilePath)
         {
             copy.Engine.Dispose();
@@ -303,16 +427,33 @@ public sealed partial class DocumentSession : IDisposable
         return true;
     }
 
-    private sealed record DiskCopy(byte[] Data, PdfEngine Engine, (long, DateTime)? Stamp, string? Password, string? OpenPassword);
+    /// <summary>A file as read from disk: its bytes, or (a big PDF) the file opened in place and not read yet.</summary>
+    private sealed record DiskCopy(byte[]? Data, InPlaceFile? InPlace, InputFileTypes Type, PdfEngine Engine, (long, DateTime)? Stamp, string? Password,
+        string? OpenPassword);
 
-    private static DiskCopy ReadDiskCopy(string? path, InputFileTypes type, string? password)
+    private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes)
     {
-        if (path is null) throw new InvalidOperationException("This document has not been saved to a file.");
+        // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
         var stamp = DiskStamp(path);
+        if (type == InputFileTypes.PDF && stamp is { } s && s.Item1 >= inPlaceBytes)
+        {
+            var engine = PdfEngine.OpenFile(path, type, password);
+            try
+            {
+                var file = new InPlaceFile(path, s);
+                var openPassword = !string.IsNullOrEmpty(password) && PdfSecurity.IsOpenPassword(file.Read(), password) ? password : null;
+                return new DiskCopy(null, file, type, engine, stamp, password, openPassword);
+            }
+            catch
+            {
+                engine.Dispose();
+                throw;
+            }
+        }
         var data = File.ReadAllBytes(path);
-        var engine = PdfEngine.Open(data, type, password);
-        var openPassword = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        return new DiskCopy(data, engine, stamp, password, openPassword);
+        var bytesEngine = PdfEngine.Open(data, type, password);
+        var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
+        return new DiskCopy(data, null, type, bytesEngine, stamp, password, open);
     }
 
     private void ApplyReload(DiskCopy copy)
@@ -325,7 +466,7 @@ public sealed partial class DocumentSession : IDisposable
         _onDisk = copy.Stamp;
         var version = _nextVersion++;
         _savedVersion = version;
-        Swap(copy.Data, copy.Engine, version, ContentChange.Reload);
+        Swap(copy.Data, copy.Engine, version, ContentChange.Reload, copy.InPlace);
     }
 
     private static (long, DateTime)? DiskStamp(string path)
@@ -334,10 +475,10 @@ public sealed partial class DocumentSession : IDisposable
         return info.Exists ? (info.Length, info.LastWriteTimeUtc) : null;
     }
 
-    private void Swap(byte[] data, PdfEngine engine, int version, ContentChange change)
+    private void Swap(byte[]? data, PdfEngine engine, int version, ContentChange change, InPlaceFile? inPlace = null)
     {
         var old = Engine;
-        Data = data;
+        lock (_dataGate) (_data, _inPlace) = (data, inPlace);
         Engine = engine;
         _version = version;
         ContentChanged?.Invoke(this, new ContentChangedEventArgs(change));

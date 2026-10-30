@@ -205,7 +205,7 @@ public partial class DocumentTab
     private bool _reviewLoadedOnce;
     private bool _hadViewState;
     private string[]? _labels;
-    private byte[]? _reviewData;
+    private object? _reviewData; // the content (DocumentSession.ContentKey) the review was read from
     private IReadOnlyList<AnnotationInfo> _annotations = [];
     private List<CommentItem> _commentItems = [];
     private IReadOnlyList<AttachmentInfo> _attachments = [];
@@ -401,14 +401,15 @@ public partial class DocumentTab
     {
         if (!Session.IsPdf || _disposed) return;
         var ticket = ++_reviewLoad;
-        var data = Session.Data;
+        var session = Session;
+        var content = Session.ContentKey;
         var pw = Session.Password;
         var first = !_reviewLoadedOnce;
         var wantTitle = first || _displayDocTitle;
         ReviewInfo info;
         try
         {
-            info = await Task.Run(() => ReadReview(data, pw, first, wantTitle));
+            info = await Task.Run(() => ReadReview(session, pw, first, wantTitle));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -417,7 +418,7 @@ public partial class DocumentTab
         }
         if (ticket != _reviewLoad || _disposed) return;
         _reviewLoadedOnce = true;
-        _reviewData = data;
+        _reviewData = content;
 
         _labels = info.Labels is { } l && l.Length == Viewer.PageCount ? l : null;
         foreach (var t in _thumbs) t.SetLabel(PageLabel(t.Index), Viewer.PageCount);
@@ -455,13 +456,18 @@ public partial class DocumentTab
         RaiseState();
     }
 
-    private static ReviewInfo ReadReview(byte[] data, string? pw, bool first, bool wantTitle)
+    /// <summary>
+    /// What the review panes show, read from the session's bytes. A huge file opened in place is read (and parsed) only
+    /// for what its bytes mention: a reader none of whose names it mentions gets what it returns for a file without them.
+    /// </summary>
+    private static ReviewInfo ReadReview(DocumentSession session, string? pw, bool first, bool wantTitle)
     {
-        T Try<T>(string what, Func<T> read, T fallback)
+        T Try<T>(string what, string[] names, Func<byte[], T> read, T fallback, T absent)
         {
+            if (!names.Any(session.MayContain)) return absent;
             try
             {
-                return read();
+                return read(session.Data);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -469,18 +475,22 @@ public partial class DocumentTab
                 return fallback;
             }
         }
-        var labels = Try("page labels", () => DocumentFeatures.PageLabels(data, pw), null);
-        var annots = Try<IReadOnlyList<AnnotationInfo>>("comments", () => Annotations.Read(data, pw), []);
-        var files = Try<IReadOnlyList<AttachmentInfo>>("attachments", () => Attachments.List(data, pw), []);
-        var layers = Try<IReadOnlyList<LayerInfo>>("layers", () => Layers.List(data, pw), []);
-        var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", () => Layers.ReadOrder(data, pw), []) : [];
-        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", () => Signatures.Verify(data, pw, checkRevocationOnline: true), null);
-        var xfa = first ? Try<(bool, bool)?>("XFA", () => FormEditor.HasXfa(data, pw), null) : null;
-        var prefs = first ? Try<ViewerPrefs?>("opening settings", () => DocumentFeatures.ReadViewerPrefs(data, pw), null) : null;
-        var title = wantTitle ? Try<string?>("title", () => PageEditor.ReadMetadata(data, pw).Title, null) : null;
-        var sigStamps = Try<IReadOnlyList<TextStamp>>("signature stamps", () => SignatureStamps.Read(data, pw), []);
-        var links = Try<IReadOnlyList<LinkInfo>>("links", () => Links.Read(data, pw), []);
-        return new ReviewInfo(labels, annots, files, layers, order, sigs, xfa, prefs, title, sigStamps, links);
+        string[] annots = ["/Annots"];
+        var labels = Try("page labels", ["/PageLabels"], d => DocumentFeatures.PageLabels(d, pw), null, null);
+        var comments = Try<IReadOnlyList<AnnotationInfo>>("comments", annots, d => Annotations.Read(d, pw), [], []);
+        var files = Try<IReadOnlyList<AttachmentInfo>>("attachments", ["/EmbeddedFiles", "/Annots"], d => Attachments.List(d, pw), [], []);
+        var layers = Try<IReadOnlyList<LayerInfo>>("layers", ["/OCProperties"], d => Layers.List(d, pw), [], []);
+        var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", ["/OCProperties"], d => Layers.ReadOrder(d, pw), [], []) : [];
+        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.Verify(d, pw, checkRevocationOnline: true), null, []);
+        var xfa = first ? Try<(bool, bool)?>("XFA", ["/XFA"], d => FormEditor.HasXfa(d, pw), null, (false, false)) : null;
+        var prefs = first
+            ? Try<ViewerPrefs?>("opening settings", ["/PageMode", "/PageLayout", "/ViewerPreferences", "/OpenAction"], d => DocumentFeatures.ReadViewerPrefs(d, pw), null,
+                new ViewerPrefs(null, null, null, false))
+            : null;
+        var title = wantTitle ? Try<string?>("title", ["/Title"], d => PageEditor.ReadMetadata(d, pw).Title, null, "") : null;
+        var sigStamps = Try<IReadOnlyList<TextStamp>>("signature stamps", annots, d => SignatureStamps.Read(d, pw), [], []);
+        var links = Try<IReadOnlyList<LinkInfo>>("links", annots, d => Links.Read(d, pw), [], []);
+        return new ReviewInfo(labels, comments, files, layers, order, sigs, xfa, prefs, title, sigStamps, links);
     }
 
     /// <summary>Honors the document's opening settings (only for files without a remembered position).</summary>
@@ -571,7 +581,7 @@ public partial class DocumentTab
     /// <summary>True when the comments shown were read from the current bytes (their ids are valid for edits).</summary>
     private bool ReviewIsCurrent()
     {
-        if (ReferenceEquals(_reviewData, Session.Data)) return true;
+        if (ReferenceEquals(_reviewData, Session.ContentKey)) return true;
         Notify("Comments are still being refreshed after the last change. Try again in a moment.");
         return false;
     }

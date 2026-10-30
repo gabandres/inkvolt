@@ -214,7 +214,7 @@ public sealed partial class PageViewer : ScrollViewer
         _full.Clear();
         _detail.Clear();
         _stale.Clear();
-        _scheduler?.Clear(k => k[0] is 'p' or 'd');
+        _scheduler?.Clear(k => k[0] is 'p' or 'q' or 'd');
         _surface.InvalidateVisual();
         QueueUpdate();
     }
@@ -847,6 +847,8 @@ public sealed partial class PageViewer : ScrollViewer
             }
             else if (!_full.TryGetValue(page, out var have) || Math.Abs(have.Scale - fullScale) > 1e-6 || have.Rotation != rotation)
             {
+                // Previews of the visible pages, then of their neighbours, come before every full render.
+                if (have is null && !_stale.ContainsKey(page)) QueuePreview(page, (isVisible ? -2 : -1) + Math.Min(dist, 0.9), fullScale);
                 var p = page;
                 var s = fullScale;
                 var whole = new RectD(0, 0, g.Width, g.Height);
@@ -929,11 +931,35 @@ public sealed partial class PageViewer : ScrollViewer
         // Cancel (even mid-render) pages that scrolled out of reach and tiles of pages no longer in view.
         _scheduler.Clear(key => int.TryParse(key.AsSpan(1), out var p) && key[0] switch
         {
-            'p' => !wanted.Contains(p),
+            'p' or 'q' => !wanted.Contains(p),
             'd' => !visible.Contains(p),
             'x' or 'l' => p < keepFrom - 8 || p > keepTo + 8,
             _ => false,
         });
+    }
+
+    /// <summary>Pixels of the quick picture a page with nothing to show gets before its full render.</summary>
+    private const double PreviewPixels = 250_000;
+
+    /// <summary>
+    /// A small picture of a page that has none yet, ahead of the full renders (a drawing sheet with tens of thousands
+    /// of paths takes most of a second at full size; this shows it in about half that, and its display list, kept by the
+    /// engine, serves the full render). Shown as the page's stale picture until the full one lands.
+    /// </summary>
+    private void QueuePreview(int page, double priority, double fullScale)
+    {
+        var engine = _engine!;
+        var g = engine.GetPage(page);
+        var s = Math.Sqrt(PreviewPixels / (g.Width * g.Height));
+        if (s > 0.7 * fullScale) return; // hardly smaller: the full render is as quick
+        var (gen, invert, rotation, whole) = (_generation, EffectiveInvert, _viewRotation, new RectD(0, 0, g.Width, g.Height));
+        var (ox, oy) = PixelOrigin(g, whole, s);
+        _scheduler!.Enqueue($"q{page}", priority, ct => ToBitmap(engine.Render(page, s, null, ct).Rotated(rotation, ct), invert, ct), result =>
+        {
+            if (gen != _generation || result is not BitmapSource bmp || _full.ContainsKey(page)) return;
+            _stale[page] = new PageBitmap(bmp, s, whole, ox, oy, rotation);
+            _surface.InvalidateVisual();
+        }, tag: (s, gen));
     }
 
     /// <summary>

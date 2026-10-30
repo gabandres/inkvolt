@@ -805,9 +805,13 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Speed on huge files: the targets are the first page in under 1 s, scrolling at 60 fps without blank pages after a
   200 ms pause, Find across 5,000 pages in under 5 s, the comment list in under 2 s and memory under 1.5 GB, measured
   before each release with `tools/bench` on its generated corpus (a 5,000-page text, a 500-page scan, a 1 GB drawing
-  set, 10,000 comments); what the last run met and missed is in [tools/bench/RESULTS.md](tools/bench/RESULTS.md). A
-  file is read whole into memory, so a gigabyte file needs that much and more, and its comments are read through
-  PDFsharp, which parses the whole file.
+  set, 10,000 comments); what the last run met and missed is in [tools/bench/RESULTS.md](tools/bench/RESULTS.md):
+  Find across 5,000 pages takes about 10 s, and a sheet with 72,000 paths about 0.8 s to draw (a preview shows first).
+  A PDF of 256 MB or more opens in place: Inkvolt PDF reads the file as pages need it, and other programs can't replace
+  it (save over it) until you edit, undo or reload it; overwritten in place by another program, it shows as changed on
+  disk. Its bytes are read whole only when something needs them (an edit, or a pane reading comments, attachments,
+  layers or signatures the file has; the panes skip what its bytes never mention, unless it keeps compressed objects).
+  Smaller files are read whole into memory, and their panes read them through PDFsharp, which parses the whole file.
 - AI assistant: answers are only as good as the model; small local models miss things and may invent them, so check
   the cited pages. Sizes are estimated cautiously (about 3 letters per token, a token for every digit, mark and CJK
   character; tables of figures cost far more than prose), with a 10% margin. Ollama's OpenAI-compatible endpoint takes no
