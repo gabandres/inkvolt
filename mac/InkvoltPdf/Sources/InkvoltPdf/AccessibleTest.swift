@@ -56,6 +56,7 @@ struct AccessibleTest {
 
     mutating func run() async {
         lines.append("== \(name): Make Accessible, Reading Order, PDF/A-2a")
+        if ProcessInfo.processInfo.environment["E24_TRY"] != nil { ProWindowController.show(feature: .autoTagging); try? await Task.sleep(for: .seconds(2)); ProWindowController.shared?.close(); Report.progress("E24 pro window survived"); try? await Task.sleep(for: .seconds(1)) }
         for (action, title, menu) in [(#selector(DocumentWindowController.makeAccessible(_:)), "Make Accessible (Tag)…", "Tools"),
                                       (#selector(DocumentWindowController.toggleReadingOrder(_:)), "Reading Order and Alt Text", "Tools"),
                                       (#selector(DocumentWindowController.saveAsPdfA2a(_:)), "Save as PDF/A-2a (Accessible Archive)…", "File")] {
