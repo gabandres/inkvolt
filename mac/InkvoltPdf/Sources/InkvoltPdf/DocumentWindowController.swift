@@ -547,7 +547,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
              #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
              #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),
-             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)):
+             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)), #selector(saveAsPdfA(_:)):
             return longTask == nil && progressSheet == nil && redaction.task == nil
         case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
             return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil

@@ -112,6 +112,33 @@ public enum PdfA {
         return PdfAResult(data: result, changes: changes)
     }
 
+    // ───────────── what the app says (the Windows app's PdfAActions) ─────────────
+
+    /// The copy's suggested file name: "Report (PDF-A).pdf" for "Report.pdf".
+    public static func copyName(_ displayName: String) -> String {
+        ((displayName as NSString).deletingPathExtension) + " (PDF-A).pdf"
+    }
+
+    /// Why nothing was saved: each blocker on a line of its own.
+    public static func refusalMessage(_ blockers: [String]) -> String {
+        "Nothing was saved. This document has what PDF/A-2b doesn't allow, and changing it would change how the document looks:\n\n"
+            + blockers.map { "• " + $0 }.joined(separator: "\n")
+    }
+
+    /// What the saved copy is and what was changed to get there.
+    public static func savedMessage(_ fileName: String, _ changes: [String]) -> String {
+        "\(fileName) is an archival copy (PDF/A-2b). To get there:\n\n"
+            + changes.map { "• " + capitalized($0) }.joined(separator: "\n")
+            + "\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF."
+    }
+
+    /// The first letter capitalized, unless the word is one like "sRGB" (Windows writes "SRGB").
+    static func capitalized(_ s: String) -> String {
+        let c = Array(s)
+        if c.count > 1 && c[1].isUppercase { return s }
+        return s.prefix(1).uppercased() + s.dropFirst()
+    }
+
     static func count(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
 
     static func unique(_ items: [String]) -> [String] {

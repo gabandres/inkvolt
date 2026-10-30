@@ -289,6 +289,19 @@ struct PdfATests {
         #expect(!CTFontGetGlyphsForCharacters(font, z, &other, 1) || CTFontCreatePathForGlyph(font, other, nil) == nil) // not asked for
     }
 
+    @Test func theAppSaysWhatWasChangedAndWhatStopsIt() throws {
+        #expect(PdfA.copyName("Annual report.pdf") == "Annual report (PDF-A).pdf")
+        let result = try PdfA.convert(Self.scriptsPdf(), nil)
+        let saved = PdfA.savedMessage("Annual report (PDF-A).pdf", result.changes)
+        #expect(saved.hasPrefix("Annual report (PDF-A).pdf is an archival copy (PDF/A-2b)."))
+        #expect(saved.contains("• sRGB output intent and PDF/A metadata added")) // not "SRGB", as Windows writes it
+        #expect(saved.contains("• 1 hidden comment removed"))
+        #expect(saved.hasSuffix("such as veraPDF."))
+        let refused = PdfA.refusalMessage(["One.", "Two."])
+        #expect(refused.hasPrefix("Nothing was saved."))
+        #expect(refused.hasSuffix("\n\n• One.\n• Two."))
+    }
+
     @Test func aPdf20FileComesOutAs17() throws {
         var pdf = TestPdf.make(1)
         pdf.replaceSubrange(0..<8, with: Array("%PDF-2.0".utf8))
