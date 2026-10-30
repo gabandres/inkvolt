@@ -3,6 +3,17 @@ using InkvoltPdf.Core;
 
 // The app's own switch, so a search here reads in worker processes as it does in the app.
 if (FindWorkers.IsCommand(args)) return FindWorkers.Run(args);
+// A test's worker with a page it can't read (FindWorkerTests): "throw" fails that page, "die" ends the process on it.
+if (args is ["find-worker-fault", var how, var badPage, .. var workerArgs] && FindWorkers.IsCommand(workerArgs))
+{
+    FindWorkers.TestPageFault = page =>
+    {
+        if (page != int.Parse(badPage)) return;
+        if (how == "die") System.Diagnostics.Process.GetCurrentProcess().Kill();
+        throw new InvalidDataException("This worker can't read this page.");
+    };
+    return FindWorkers.Run(workerArgs);
+}
 
 // The report reads the same on any PC.
 System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;

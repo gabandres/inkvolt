@@ -27,6 +27,9 @@ public sealed partial class PdfEngine
     /// <summary>Test hook: this engine's own plan for workers instead of the app's.</summary>
     internal FindWorkerPlan? WorkerPlan { get; set; }
 
+    /// <summary>Test hook: called with each page about to be read for Find; what it throws is that page's failure.</summary>
+    internal Action<int>? PageFault { get; set; }
+
     /// <summary>Test hook: every worker process this engine started so far.</summary>
     internal IReadOnlyList<int> FindWorkerPids
     {
@@ -96,6 +99,7 @@ public sealed partial class PdfEngine
 
     private PageText ReadPage(ref TextReader? reader, int page)
     {
+        PageFault?.Invoke(page);
         reader ??= RentReader();
         lock (reader.Gate)
         {
