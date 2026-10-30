@@ -35,7 +35,8 @@ struct FieldDetectionTests {
         #expect(s.allSatisfy { $0.kind == .text })
         let name = s[0]
         #expect(name.rect.x > 100 && name.rect.right > 200, "over the underscores: \(name.rect)")
-        #expect((98...106).contains(name.rect.bottom), "stands on the baseline area: \(name.rect)")
+        // Windows' range is 98...106 with embedded Arial; MuPDF's boxes for the built-in Helvetica are taller.
+        #expect((98...109).contains(name.rect.bottom), "stands on the baseline area: \(name.rect)")
         #expect(name.rect.height >= 12)
     }
 
