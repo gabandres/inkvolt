@@ -23,14 +23,18 @@ public sealed class ReadingOrderItem(int index, int number, TagBlock block)
     public string Kind => Block.Kind switch
     {
         TagBlockKind.Heading => $"Heading {Block.Level}",
-        TagBlockKind.List => $"List ({Block.Items.Count} {(Block.Items.Count == 1 ? "item" : "items")})",
-        TagBlockKind.Table => $"Table ({Block.Rows.Count} {(Block.Rows.Count == 1 ? "row" : "rows")}{(Block.HeaderRow ? ", headers" : "")})",
+        TagBlockKind.List => $"List ({Block.Items.Count} {(Block.Items.Count == 1 ? "item" : "items")}{(Block.Items.Any(i => i.Level > 0) ? ", nested" : "")})",
+        TagBlockKind.Table => $"Table ({Block.Rows.Count} {(Block.Rows.Count == 1 ? "row" : "rows")}{(Block.HeaderRow ? ", column headers" : "")}{(Block.HeaderColumn ? ", row headers" : "")})",
+        TagBlockKind.Caption => "Caption",
+        TagBlockKind.Note => "Footnote",
+        TagBlockKind.Contents => $"Table of contents ({Block.Items.Count} {(Block.Items.Count == 1 ? "entry" : "entries")})",
+        TagBlockKind.Formula => "Formula",
         TagBlockKind.Figure when Block.Decorative => "Picture (decorative)",
         TagBlockKind.Figure => NeedsAlt ? "Picture: needs alternate text" : "Picture",
         _ => Block.Lang is { } lang ? $"Paragraph ({lang})" : "Paragraph",
     };
 
-    public string Preview => Block.Kind == TagBlockKind.Figure ? Block.Alt ?? "" : Block.Text.Replace('\n', ' ');
+    public string Preview => Block.Kind is TagBlockKind.Figure or TagBlockKind.Formula ? Block.Alt ?? Block.Text :Block.Text.Replace('\n', ' ');
 
     public Brush Badge => NeedsAlt ? Warn : Normal;
 
@@ -106,7 +110,7 @@ public partial class DocumentTab
         };
         RoAlt.TextChanged += (_, _) =>
         {
-            if (_roUpdating || RoList.SelectedItem is not ReadingOrderItem { Block.Kind: TagBlockKind.Figure } item || _tagPlan is null) return;
+            if (_roUpdating || RoList.SelectedItem is not ReadingOrderItem { Block.Kind: TagBlockKind.Figure or TagBlockKind.Formula } item || _tagPlan is null) return;
             var text = RoAlt.Text;
             SetPlan(AutoTag.With(_tagPlan, item.Index, b => b with { Alt = text }), select: item.Index, keepFigureEditor: true);
         };
@@ -221,15 +225,18 @@ public partial class DocumentTab
 
     private void ShowSelectedPiece()
     {
-        var figure = RoList.SelectedItem is ReadingOrderItem { Block.Kind: TagBlockKind.Figure } item ? item : null;
+        // A picture's alternate text (or decorative), a formula's (what a screen reader says for it: its text to begin with).
+        var figure = RoList.SelectedItem is ReadingOrderItem { Block.Kind: TagBlockKind.Figure or TagBlockKind.Formula } item ? item : null;
         RoFigure.Visibility = figure is null ? Visibility.Collapsed : Visibility.Visible;
         if (figure is null) return;
+        var formula = figure.Block.Kind == TagBlockKind.Formula;
         var was = _roUpdating;
         _roUpdating = true;
-        RoAlt.Text = figure.Block.Alt ?? "";
+        RoAlt.Text = figure.Block.Alt ?? (formula ? figure.Block.Text : "");
         RoAlt.IsEnabled = !figure.Block.Decorative;
         RoDecorative.IsChecked = figure.Block.Decorative;
-        RoAltLabel.Text = $"Alternate text for picture {figure.Number}";
+        RoDecorative.Visibility = RoSuggest.Visibility = formula ? Visibility.Collapsed : Visibility.Visible;
+        RoAltLabel.Text = formula ? $"How formula {figure.Number} is read" : $"Alternate text for picture {figure.Number}";
         _roUpdating = was;
     }
 

@@ -14,6 +14,7 @@ using InkvoltPdf.Core;
 //                                           tags replaced) into the folder,
 //                                           each figure given a stand-in alternate text (as a person would type one), then
 //                                           checked: PASS/FAIL and the conditions that fail.
+// plan <file.pdf>                         What Make Accessible would tag, block by block (page, kind, the start of its text).
 // pdfa <out-folder> <file.pdf>...          Save as PDF/A-2a (the files must be tagged: run tag first), for veraPDF -f 2a.
 // compare <verapdf.xml> <folder> [out.csv]  Our result against veraPDF's PDF/UA-1 report (verapdf --format xml), file by file
 //                                           and by condition (veraPDF's rules mapped to Matterhorn numbers, Map below).
@@ -62,6 +63,17 @@ switch (args)
             {
                 Console.WriteLine($"{name} ERROR {ex.Message}");
             }
+        }
+        return 0;
+    }
+    case ["plan", var file]:
+    {
+        var data = File.ReadAllBytes(file);
+        using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, null);
+        foreach (var b in AutoTag.Plan(engine, data, null).Blocks)
+        {
+            var text = string.Join(" / ", b.Kind is TagBlockKind.List or TagBlockKind.Contents ? b.Items.Select(i => new string('>', i.Level) + i.Text) : [b.Text]).ReplaceLineEndings(" ");
+            Console.WriteLine($"p{b.Page + 1} {b.Kind}{(b.Kind == TagBlockKind.Table ? $" h{b.HeaderRows}{(b.HeaderColumn ? "+rows" : "")}" : "")} {(text.Length > 100 ? text[..100] : text)}");
         }
         return 0;
     }

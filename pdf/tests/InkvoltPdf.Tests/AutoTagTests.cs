@@ -96,10 +96,11 @@ public class AutoTagTests
         Assert.Equal(3, tree.Count(t => t.Type == "LBody"));
         Assert.Equal(1, tree.Count(t => t.Type == "Table"));
         Assert.Equal(4, tree.Count(t => t.Type == "TR"));
-        var th = tree.Where(t => t.Type == "TH").ToList();
-        Assert.Equal(3, th.Count);
-        Assert.All(th, t => Assert.Equal("/Column", ((PdfDictionary)t.Elem.Elements["/A"]!).Elements.GetName("/Scope")));
-        Assert.Equal(9, tree.Count(t => t.Type == "TD"));
+        // Column headers across the top, and the fruit in front of its numbers as row headers.
+        var th = tree.Where(t => t.Type == "TH").Select(t => ((PdfDictionary)t.Elem.Elements["/A"]!).Elements.GetName("/Scope")).ToList();
+        Assert.Equal(3, th.Count(s => s == "/Column"));
+        Assert.Equal(3, th.Count(s => s == "/Row"));
+        Assert.Equal(6, tree.Count(t => t.Type == "TD"));
         var figure = Assert.Single(tree, t => t.Type == "Figure").Elem;
         Assert.Equal("A colored gradient", figure.Elements.GetString("/Alt"));
         var bbox = (PdfArray)((PdfDictionary)figure.Elements["/A"]!).Elements["/BBox"]!;

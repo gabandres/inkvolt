@@ -3,14 +3,22 @@ using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
 
-/// <summary>What a tag block becomes: a paragraph (P), a heading (H1-H6), a list (L › LI › LBody), a table or a figure.</summary>
-public enum TagBlockKind { Paragraph, Heading, List, Table, Figure }
+/// <summary>
+/// What a tag block becomes: a paragraph (P), a heading (H1-H6), a list (L › LI › LBody, nested lists inside an item's
+/// LBody), a table, a figure, a figure's or table's caption (Caption: inside the table it belongs to), a footnote (Note,
+/// with an ID), a table of contents (TOC › TOCI) or display math (Formula, with alternate text).
+/// </summary>
+public enum TagBlockKind { Paragraph, Heading, List, Table, Figure, Caption, Note, Contents, Formula }
 
 /// <summary>Where the title Make Accessible proposes came from.</summary>
 public enum TitleSource { Metadata, Heading, None }
 
-/// <summary>A list item: where its text is on the page (as shown) and the text, for the reading order panel.</summary>
-public sealed record TagListItem(IReadOnlyList<RectD> Sources, string Text);
+/// <summary>A list item (or contents entry): where its text is on the page (as shown) and the text, for the reading order panel.</summary>
+public sealed record TagListItem(IReadOnlyList<RectD> Sources, string Text)
+{
+    /// <summary>How deep it is nested: 0 for the list's own items, 1 for a list inside one of them, and so on.</summary>
+    public int Level { get; init; }
+}
 
 /// <summary>A table cell: where its text and any pictures in it are on the page, its text, and how many columns it spans.</summary>
 public sealed record TagCell(IReadOnlyList<RectD> Sources, string Text, int ColSpan = 1)
@@ -36,13 +44,19 @@ public sealed record TagBlock(int Page, TagBlockKind Kind, RectD Box)
     public IReadOnlyList<TagListItem> Items { get; init; } = [];
     public IReadOnlyList<IReadOnlyList<TagCell>> Rows { get; init; } = [];
 
-    /// <summary>The table's first row holds its column headers (TH with Scope Column).</summary>
-    public bool HeaderRow { get; init; }
+    /// <summary>How many rows at the top hold column headers (TH with Scope Column): two when a header spans columns over the headers under it.</summary>
+    public int HeaderRows { get; init; }
+
+    /// <summary>The table has column headers (<see cref="HeaderRows"/> above 0).</summary>
+    public bool HeaderRow => HeaderRows > 0;
+
+    /// <summary>Each row's first cell is its row header (TH with Scope Row).</summary>
+    public bool HeaderColumn { get; init; }
 
     /// <summary>The language of this passage when it isn't the document's (a code such as "es"); null: the document's.</summary>
     public string? Lang { get; init; }
 
-    /// <summary>A figure's alternate text.</summary>
+    /// <summary>A figure's or formula's alternate text (a formula's is its text until someone writes another).</summary>
     public string? Alt { get; init; }
 
     /// <summary>A figure that only decorates: marked as an artifact, no alternate text needed.</summary>
@@ -106,8 +120,9 @@ public static partial class AutoTag
             }
         }
         var (layout, running) = DocLayout.AnalyzeForTags(pages);
+        var body = DocLayout.BodySize(pages);
         var blocks = new List<TagBlock>();
-        for (var p = 0; p < layout.Pages.Count; p++) blocks.AddRange(Blocks(p, layout.Pages[p]));
+        for (var p = 0; p < layout.Pages.Count; p++) blocks.AddRange(Blocks(p, layout.Pages[p], body, pages[p].Height));
 
         string? title = null, lang = null;
         var tagged = false;
@@ -217,74 +232,6 @@ public static partial class AutoTag
         title.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || title.EndsWith(".tex", StringComparison.OrdinalIgnoreCase) ||
         title.EndsWith(".dvi", StringComparison.OrdinalIgnoreCase) || title.StartsWith("Microsoft Word - ", StringComparison.OrdinalIgnoreCase) ||
         title.Equals("untitled", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>A laid-out page's blocks as tag blocks; consecutive list paragraphs make one list.</summary>
-    private static IEnumerable<TagBlock> Blocks(int page, DocPage laid)
-    {
-        List<DocParagraph>? list = null;
-        foreach (var b in laid.Blocks.Append(null))
-        {
-            if (b is DocParagraph { List: not ListKind.None } item && item.HeadingLevel == 0)
-            {
-                (list ??= []).Add(item);
-                continue;
-            }
-            // A numbered section title ("3.1 Encoder Stacks") in bold reads as a list item of one: it is a heading.
-            if (list is [var only] && only.AllBold && only.Text.Trim().Length <= 120 && SectionDepth(only.Text) is { } depth)
-            {
-                yield return new TagBlock(page, TagBlockKind.Heading, Bounds(only.Sources.Count > 0 ? only.Sources : [only.Box]))
-                {
-                    Level = Math.Min(depth, 6), Sources = only.Sources, Text = only.Text.Trim(),
-                };
-                list = null;
-            }
-            if (list is not null)
-            {
-                yield return new TagBlock(page, TagBlockKind.List, list.Select(i => i.Box).Aggregate((x, y) => x.Union(y)))
-                {
-                    Items = [.. list.Select(i => new TagListItem(i.Sources, i.Text.Trim()))],
-                    Text = string.Join("\n", list.Select(i => i.Text.Trim())),
-                };
-                list = null;
-            }
-            switch (b)
-            {
-                case DocParagraph p when p.Sources.Count > 0:
-                {
-                    // Text set sideways in a margin (an arXiv stamp, a running title) isn't a heading, however large.
-                    var area = Bounds(p.Sources);
-                    var heading = p.HeadingLevel > 0 && !(area.Height > 3 * area.Width && p.Text.Trim().Length > 3);
-                    yield return new TagBlock(page, heading ? TagBlockKind.Heading : TagBlockKind.Paragraph, area)
-                    {
-                        Level = heading ? p.HeadingLevel : 0, Sources = p.Sources, Text = p.Text.Trim(),
-                    };
-                    break;
-                }
-                case DocTable t:
-                    var rows = t.Rows.Select(r => (IReadOnlyList<TagCell>)[.. r.Select(c => new TagCell(
-                        [.. c.Paragraphs.SelectMany(x => x.Sources)], c.Text.Trim(), c.ColSpan)
-                    {
-                        Pictures = [.. c.Pictures.Select(x => x.Image.PageBox ?? x.Box)],
-                    })]).ToList();
-                    var all = rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures)).ToList();
-                    if (all.Count == 0) break;
-                    yield return new TagBlock(page, TagBlockKind.Table, Bounds(all))
-                    {
-                        Rows = rows,
-                        // Column headers: a first row in bold over rows that aren't.
-                        HeaderRow = t.Rows.Count > 1 && t.Rows[0].All(c => c.Paragraphs.Count == 0 || c.Paragraphs.All(x => x.AllBold)) &&
-                                    t.Rows[0].Any(c => c.Paragraphs.Count > 0) &&
-                                    !t.Rows.Skip(1).All(r => r.All(c => c.Paragraphs.Count == 0 || c.Paragraphs.All(x => x.AllBold))),
-                        Text = string.Join(" | ", rows.Take(1).SelectMany(r => r).Select(c => c.Text)),
-                    };
-                    break;
-                case DocPicture pic:
-                    var box = pic.Image.PageBox ?? pic.Box;
-                    yield return new TagBlock(page, TagBlockKind.Figure, box) { Sources = [box] };
-                    break;
-            }
-        }
-    }
 
     /// <summary>How deep a section number at the start goes ("3" 1, "3.1" 2, "A.2.1" 3), or null when the text doesn't start with one.</summary>
     internal static int? SectionDepth(string text)
