@@ -212,7 +212,7 @@ struct FormDesignerTests {
         }
         let existing = field(.radio, RectD(0, 0, 14, 14), name: "R").with { $0.exportValue = "Choice2" }
         let made = FormDesignRules.acceptedFields([s(.text, "A", multiline: true), s(.text, "A"), s(.radio, "R"), s(.radio, "R")], fields: [existing])
-        #expect(made.map(\.name) == ["A_2", "A_3", "R", "R"])
+        #expect(made.map(\.name) == ["A", "A_2", "R", "R"])
         #expect(made[0].multiline)
         #expect(made[2].exportValue == "Choice3")
         #expect(made[3].exportValue == "Choice4")

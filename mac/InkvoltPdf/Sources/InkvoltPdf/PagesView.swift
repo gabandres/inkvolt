@@ -825,7 +825,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .ink(page: hit.page, points: [p])
         case .note, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature:
             drag = .box(page: hit.page, start: p, now: p)
-        case .editContent:
+        case .editContent, .prepareForm:
             return
         case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate:
             measureDown(hit.page, p, clicks: event.clickCount, shift: shiftDown)
