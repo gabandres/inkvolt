@@ -313,8 +313,22 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   preprocessing (deskew, noise, straightened lines, trapezoid correction)
   ([ABBYY](https://help.abbyy.com/en-us/finereader/12/adjustimage)). Acrobat: suspect words shown beside the image and
   corrected in place ([Section 508](https://www.section508.gov/training/pdfs/aed-cop-pdf04/)).
-- **Now.** Windows' recognizer only: installed OCR languages, printed text, no straightening (Known limits). The Mac 1.0
-  uses Apple's Vision.
+- **Now.** Stage A on Windows (2026-10-30, branch `t3/pdf-ocr-deskew-suspect-words`). Recognize Text cleans each page before Windows'
+  recognizer reads it (shared `Imaging/ScanCleanup`, beside Inkvolt Print's `Deskew` and `PageRotate`): straightened up to
+  ±15°, sideways and upside-down pages turned upright, a 3 × 3 median, the paper evened out to white, lone specks
+  removed; the cleaned page can replace the scan (off by default; one undo step with the text). The language is chosen
+  among the installed OCR languages. **Suspect words** are listed beside their picture in a pane and corrected in place
+  (or kept as read); the text layer is written again, so search finds the correction. Windows' `OcrWord` has only its
+  text and box, no confidence, so suspect words are a documented heuristic, never a score: not in Windows' spell checker
+  for the language, letters and digits mixed inside, odd characters, or read as a different real word on the scan as it
+  was (`SuspectWords`). The engine is behind `ITextRecognizer` (Windows' today), so a second one is another
+  implementation. Measured on a generated corpus (`pdf/tools/ocr-corpus`, six files, English and Spanish, skewed 3-10°,
+  noisy, shaded, two pages turned): the word error rate is lower than today's on every file, 1.8% → 1.3%, 16.9% → 12.9%,
+  5.4% → 3.8%, Spanish 44.9% (12.8% with Spanish chosen) → 8.0% and 41.3% (5.1%) → 4.3%, turned pages 99.9% → 3.7%
+  (its RESULTS.md). Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
+  "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
+  Batch, Scan or export (they get the cleaning, not the review), and the Mac (`mac/docs/PLAN.md`, E14). The Mac 1.0 uses
+  Apple's Vision.
 - **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,
   optionally written back as the cleaned image; a second, local engine (Tesseract, Apache-2.0, 100+ languages;
   [tessdata](https://github.com/tesseract-ocr/tessdata)) is an optional download for languages Windows lacks, with

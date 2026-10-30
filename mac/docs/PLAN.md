@@ -396,6 +396,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | AI assistant (bring your own, off by default) | E11 |
 | PDF from Office files and web pages | E12 (web pages through WebKit; Office files through Word for Mac or LibreOffice when installed) |
 | Split view | E13 |
+| Better OCR, stage A (roadmap 2.2: cleaning before recognition, suspect words, writing the cleaned page back) | E14 (below) |
 
 Mac differences for the PDF app (so far):
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
@@ -538,6 +539,36 @@ Mac differences for the PDF app (so far):
   keychain). MuPDF writes "/Contents<…>" without a space; the tests find the gap after "/Contents". A signature
   dictionary MuPDF can't read (something slipped into it) is reported as invalid, where PDFsharp's failure made Windows
   scan the raw bytes. The timestamp is off by default, as on Windows (the server gets a hash of the signature only).
+
+E14, Better OCR stage A (Windows 2026-10-30; after E13, as the roadmap queues new items behind the E-steps). What to port:
+- **Image cleanup**, `shared/InkvoltPrint.Core/Imaging/ScanCleanup.cs` (`ScanCleanup.Clean`, `SkewOf`, `Turn`, `Smooth`,
+  `PaperLevel`, `Despeckle`, `Upright`) and `Deskew.Measure` in `Imaging/PageImage.cs` (the angle and the line strength;
+  Print's `Deskew.Angle` is it with 10°). Plain loops over grey bytes with no Windows types, so it ports to Swift as is
+  into PrintCore (the module map's `Imaging/PageImage` row) and PdfCore uses it from there. Core Image may replace
+  `PageRotate` (`CIAffineTransform`, white behind) and the median (`CIMedianFilter`), never the decisions (skew, sideways,
+  upside down, specks), which must stay ours so the tests mean the same. Vision's `VNDetectTextRectanglesRequest` can't
+  replace `Upright` (it finds boxes, not which way up); `VNRecognizeTextRequest` reads upright text only, so the turn is
+  needed on the Mac too.
+- **Pipeline**, `pdf/src/InkvoltPdf.Core/ScanText.cs` (`RecognizeOptions`, `RecognizedPage`, `CleanedPageImage`,
+  `ScanText.Recognize`, `ScanFrame`), `SuspectWords.cs`, `ScanPage.cs` (write-back) and the text layer's additions in
+  `TextLayer.cs` (turned words, the `%InkvoltOCR 1 <lang>` comment lines and `Words`, `Correct`, `Keep`; keep the format
+  byte for byte so a file corrected on one platform is reviewed on the other). The recognizer seam is
+  `shared/InkvoltPrint.Core/Imaging/TextRecognizer.cs` (`ITextRecognizer`, `ISpelling`): the Mac's are Vision
+  (`VNRecognizeTextRequest`, `.accurate`, `recognitionLanguages` from the language chosen) and `NSSpellChecker`
+  (`checkSpelling(of:startingAt:language:wrap:inSpellDocumentWithTag:wordCount:)`, `guesses(forWordRange:…)`). Vision
+  returns lines; split them into words with `VNRecognizedText.boundingBox(for:)` per word range (Windows gets words).
+- **Confidence**: Vision gives a `confidence` per recognized string (a line's candidate, coarse values), not per word,
+  and `topCandidates(_:)` alternatives per line. So the Mac keeps the same suspect-word heuristic and names (never a
+  score); a line's alternatives that differ at a word may be added as one more reason, like ReadDifferently.
+- **Tests to port**: ScanCleanupTests, ScanTextTests, SuspectWordsTests, OcrCorpusTests (pdf/tests/InkvoltPdf.Tests),
+  with the same expectations: the corpus pages straightened within 0.3°, upright, the stand-in recognizer's heading placed
+  at the same place and angle (−176.9°).
+- **Corpus**: `pdf/tools/ocr-corpus` (ScanCorpus.cs, WordErrorRate.cs) ports as is; MuPDF's built-in fonts make the same
+  pixels on the Mac, so the SHA-256s in its RESULTS.md must match the Mac's corpus. The roadmap's test (word error rate
+  lower than with no cleaning, on every file) is run with Vision and written beside Windows' numbers.
+- **The app**: Recognize Text's sheet gets the language, the two checks and "Replace the scans with the cleaned pages";
+  a Suspect words list in the sidebar (each word beside its picture, Correct to with `NSSpellChecker`'s guesses, Keep as
+  read), as on Windows.
 
 Decided 2026-10-30 for E2: PdfCore imports Security.framework (with CryptoKit and Vision, already there) rather than
 taking the CMS through a protocol from the app: the tests need the real verification, and Security is the Mac's
