@@ -46,10 +46,17 @@ public sealed class ToolbarPanel : Panel
             else if (child.Visibility != Visibility.Collapsed) items.Add(child);
         }
 
-        // Too narrow for the labels: icons only (the tooltips keep the names), then overflow if still too narrow.
+        // Labels name the main tools (Add text, Sign, Stamp, Draw, Organize), so they outrank the icon-only commands after
+        // them, which the menus and the palette also offer: when the bar is too narrow, those overflow into "More" first,
+        // and only when the labeled tools themselves don't fit does the bar go icons-only (the tooltips keep the names).
         if (!_compact)
             foreach (var item in items) _fullWidth[item] = item.DesiredSize.Width;
-        var compact = items.Sum(c => _fullWidth.GetValueOrDefault(c, c.DesiredSize.Width)) > availableSize.Width;
+        double Full(UIElement c) => _fullWidth.GetValueOrDefault(c, c.DesiredSize.Width);
+        var lastLabeled = items.FindLastIndex(HasLabel);
+        var mustFit = lastLabeled < 0
+            ? items.Sum(Full)
+            : items.Take(lastLabeled + 1).Sum(Full) + (lastLabeled < items.Count - 1 ? more?.DesiredSize.Width ?? 0 : 0);
+        var compact = mustFit > availableSize.Width;
         if (compact != _compact)
         {
             _compact = compact;
@@ -76,6 +83,9 @@ public sealed class ToolbarPanel : Panel
         var width = _shown.Sum(c => c.DesiredSize.Width) + (_overflow.Count > 0 ? more?.DesiredSize.Width ?? 0 : 0);
         return new Size(double.IsInfinity(availableSize.Width) ? width : Math.Min(width, availableSize.Width), height);
     }
+
+    private static bool HasLabel(DependencyObject root) =>
+        LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>().Any(c => c is UIElement u && GetIsLabel(u) || HasLabel(c));
 
     private static void SetLabelsVisible(DependencyObject root, bool visible)
     {

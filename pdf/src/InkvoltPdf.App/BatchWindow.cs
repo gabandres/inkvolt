@@ -167,6 +167,7 @@ internal sealed class BatchWindow : Window
 
         // ── Actions ──
         AutomationProperties.SetName(_stepList, "Actions, in order");
+        ScrollViewer.SetHorizontalScrollBarVisibility(_stepList, ScrollBarVisibility.Disabled); // so the empty list's hint wraps
         _stepList.MouseDoubleClick += (_, _) => ChangeSelectedStep();
         _stepList.KeyDown += (_, e) =>
         {
@@ -526,7 +527,7 @@ internal sealed class BatchWindow : Window
         var thumbs = dlg.AddCheck("Remove embedded page thumbnails", o.RemoveThumbnails);
         var pieces = dlg.AddCheck("Remove other apps' private editing data", o.RemovePieceInfo);
         var dedupe = dlg.AddCheck("Store identical images and fonts once", o.DeduplicateStreams);
-        var metadata = dlg.AddCheck("Remove XMP metadata (title, author and subject stay)", o.RemoveMetadata);
+        var metadata = dlg.AddCheck("Remove the extra descriptive data (title, author and subject stay)", o.RemoveMetadata);
         if (!dlg.ShowModal()) return null;
         var q = qualities[Math.Max(0, quality.SelectedIndex)];
         return new OptimizeStep(o with
@@ -550,7 +551,7 @@ internal sealed class BatchWindow : Window
     private SanitizeStep? AskSanitize(SanitizeStep? current)
     {
         var dlg = new FormDialog(this, "Sanitize", "OK", 540);
-        dlg.AddNote("Removes what each file carries besides its pages, and rewrites it as a single version (earlier versions and unused objects go too).");
+        dlg.AddNote("Removes what each file carries besides its pages, and saves it afresh, so nothing of its earlier versions stays in it.");
         var checks = new List<(SanitizeItem Item, CheckBox Box)>();
         foreach (var (item, label, group) in SanitizeActions.Kinds)
         {
@@ -625,7 +626,7 @@ internal sealed class BatchWindow : Window
         {
             case OptimizeStep o:
                 var q = FileTools.Qualities.FirstOrDefault(x => x.Dpi == o.Options.MaxImageDpi).Name ?? "";
-                return q + (o.Options.RemoveMetadata ? "; XMP metadata removed" : "");
+                return q + (o.Options.RemoveMetadata ? "; extra descriptive data removed" : "");
             case ProtectStep { NeedsPasswords: true }:
                 return "Its passwords aren't in the preset: Change… to type them";
             case ProtectStep p:

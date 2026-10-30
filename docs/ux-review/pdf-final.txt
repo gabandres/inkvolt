@@ -1,0 +1,62 @@
+# Final Inkvolt PDF screenshots after the UX fixes
+wait 1200
+shot C:\ux\after\pdf\start.png
+open C:\ux\samples\features.pdf
+wait 1500
+shot C:\ux\after\pdf\reading.png
+size 1180 800
+wait 500
+shot C:\ux\after\pdf\reading-1180.png
+size 900 620
+wait 500
+shot C:\ux\after\pdf\reading-narrow.png
+size 1400 900
+wait 500
+theme dark
+wait 400
+shot C:\ux\after\pdf\reading-dark.png
+theme light
+pane comments
+wait 300
+shot C:\ux\after\pdf\pane-comments.png
+nav pages
+later 900 a11yaudit
+later 1500 closedialog
+cmd CropPages
+later 900 dialogshot C:\ux\after\pdf\dlg-settings.png
+later 1500 closedialog
+cmd Settings
+later 900 a11yaudit
+later 1500 closedialog
+cmd Properties
+later 900 a11yaudit
+later 1500 closedialog
+cmd InsertBlank
+later 900 a11yaudit
+later 1500 closedialog
+cmd MovePages
+later 900 a11yaudit
+later 1500 closedialog
+cmd ExtractPages
+later 900 a11yaudit
+later 1500 closedialog
+cmd SplitDocument
+later 900 a11yaudit
+later 1500 closedialog
+cmd MeasureScale
+later 900 a11yaudit
+later 1500 closedialog
+cmd Flatten
+open C:\ux\samples\export-scan.pdf
+wait 1500
+select 1
+delete
+wait 600
+later 900 dialogshot C:\ux\after\pdf\dlg-savechanges.png
+later 1600 dialogbutton Don't{sp}save
+cmd CloseDoc
+wait 1500
+cmd CloseAll
+wait 1000
+shot C:\ux\after\pdf\start-recent.png
+exit

@@ -1,0 +1,120 @@
+# UI audit of Inkvolt PDF (names and target sizes) over the main states, plus shots of what changed
+wait 1200
+a11yaudit
+palette sgin
+wait 300
+shot C:\ux\after\pdf\palette-nomatch.png
+a11yaudit
+key Escape
+open C:\ux\samples\features.pdf
+wait 1500
+nav pages
+a11yaudit
+nav search
+shot C:\ux\after\pdf\pane-search.png
+a11yaudit
+pane comments
+shot C:\ux\after\pdf\pane-comments.png
+a11yaudit
+pane attachments
+a11yaudit
+nav bookmarks
+a11yaudit
+nav pages
+find
+wait 300
+shot C:\ux\after\pdf\find-empty.png
+a11yaudit
+key Escape
+tool pen
+wait 300
+a11yaudit
+tool hand
+tool redact
+wait 300
+a11yaudit
+tool hand
+organize on
+wait 600
+a11yaudit
+organize off
+prepareform on
+wait 600
+a11yaudit
+prepareform off
+editcontent on
+wait 600
+a11yaudit
+editcontent off
+split v
+a11yaudit
+split off
+a11y
+wait 800
+shot C:\ux\after\pdf\a11y.png
+a11yaudit
+nav pages
+palette zzz
+wait 300
+shot C:\ux\after\pdf\palette-nomatch-doc.png
+key Escape
+batch
+a11yaudit
+batchshot C:\ux\after\pdf\batch.png
+batchclose
+later 900 a11yaudit
+later 1500 closedialog
+cmd Settings
+later 900 a11yaudit
+later 1500 closedialog
+cmd Shortcuts
+later 900 dialogshot C:\ux\after\pdf\dlg-shortcuts.png
+later 1200 a11yaudit
+later 1800 closedialog
+cmd Shortcuts
+later 900 a11yaudit
+later 1500 closedialog
+cmd Properties
+later 900 a11yaudit
+later 1500 closedialog
+cmd AddHeaderFooter
+later 900 a11yaudit
+later 1500 closedialog
+cmd AddWatermark
+later 900 a11yaudit
+later 1500 closedialog
+cmd Sanitize
+later 900 a11yaudit
+later 1500 closedialog
+cmd RedactPatterns
+later 900 a11yaudit
+later 1500 closedialog
+cmd ExportWord
+later 900 a11yaudit
+later 1500 closedialog
+cmd Scan
+later 900 a11yaudit
+later 1500 closedialog
+cmd WhatsNew
+later 900 dialogshot C:\ux\after\pdf\dlg-whatsnew.png
+later 1500 closedialog
+cmd WhatsNew
+later 900 a11yaudit
+later 1500 closedialog
+cmd AiSettings
+later 900 a11yaudit
+later 1500 closedialog
+cmd CropPages
+later 900 a11yaudit
+later 1500 closedialog
+cmd ProtectPassword
+later 900 a11yaudit
+later 1500 closedialog
+cmd ReduceSize
+later 900 a11yaudit
+later 1500 closedialog
+cmd CheckForUpdates
+later 900 dialogshot C:\ux\after\pdf\dlg-updates.png
+later 1500 closedialog
+cmd CheckForUpdates
+exit

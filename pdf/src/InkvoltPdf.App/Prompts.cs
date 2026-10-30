@@ -15,10 +15,10 @@ public enum SaveChoice { Save, DontSave, Cancel }
 public static class Prompt
 {
     public static void Error(Window? owner, string title, string body) =>
-        Show(owner, title, body, "", "SystemFillColorCriticalBrush", [("OK", true)]);
+        Show(owner, title, body, "", "SystemFillColorCriticalBrush", [("Close", true)]); // informs only: Close, not OK (Windows dialog guidance)
 
     public static void Info(Window? owner, string title, string body) =>
-        Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", [("OK", true)]);
+        Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", [("Close", true)]);
 
     /// <summary>True when the user chose <paramref name="confirm"/>.</summary>
     public static bool Confirm(Window? owner, string title, string body, string confirm, bool warning = false) =>
@@ -181,6 +181,7 @@ public static class ShortcutsWindow
         };
         var filter = new TextBox { Margin = new Thickness(20, 20, 20, 10) };
         System.Windows.Automation.AutomationProperties.SetName(filter, "Filter shortcuts");
+        Placeholder.SetText(filter, "Type to filter: zoom, rotate, Ctrl+Shift…");
         var list = new StackPanel { Margin = new Thickness(20, 0, 20, 20) };
         void Fill()
         {

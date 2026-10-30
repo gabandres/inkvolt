@@ -73,6 +73,7 @@ internal static class AppHelp
         {
             Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Focusable = false,
             MaxHeight = SystemParameters.WorkArea.Height * 0.6,
+            Padding = new Thickness(0, 0, 14, 0), // room for the scrollbar, so it never covers the words
         });
         dlg.ShowModal();
     }

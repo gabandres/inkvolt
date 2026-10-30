@@ -13,7 +13,7 @@ public static class SanitizeActions
 {
     internal static readonly (SanitizeItem Item, string Label, string? Group)[] Kinds =
     [
-        (SanitizeItem.Metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Metadata"),
+        (SanitizeItem.Metadata, "Document properties (title, author, keywords…), comment authors and dates, other apps' private data", "Metadata"),
         (SanitizeItem.HiddenLayers, "Hidden layers, with what they draw", "Hidden data"),
         (SanitizeItem.HiddenAnnotations, "Hidden comments and form fields", null),
         (SanitizeItem.Comments, "Comments, markup, stamps and drawings", null),
@@ -70,9 +70,9 @@ public static class SanitizeActions
         dlg.AddFooterButton("See What's in It…").Click += (_, _) => _ = InventoryActions.Show(dlg, tab, null);
         var rewrite = new List<string>();
         if (found.EarlierRevisions > 0) rewrite.Add(Count(found.EarlierRevisions, "earlier version", "earlier versions") + " kept by incremental saves");
-        if (found.UnusedObjects > 0) rewrite.Add(Count(found.UnusedObjects, "unused object", "unused objects"));
-        dlg.AddNote("Removes what the document carries besides its pages. The file is rewritten as a single version" +
-                    (rewrite.Count > 0 ? $", which also drops {string.Join(" and ", rewrite)}" : ", so nothing of earlier versions is left in it") +
+        if (found.UnusedObjects > 0) rewrite.Add(Count(found.UnusedObjects, "leftover piece", "leftover pieces") + " of earlier edits");
+        dlg.AddNote("Removes what the document carries besides its pages. The file is saved afresh, so nothing of its earlier versions stays in it" +
+                    (rewrite.Count > 0 ? $" ({string.Join(" and ", rewrite)})" : "") +
                     ". You can undo this until you save.");
         if (found[SanitizeItem.Signatures] > 0)
             dlg.AddNote("This document is digitally signed. Sanitizing rewrites it, so its signatures will no longer verify. Removing them takes " +
@@ -110,8 +110,8 @@ public static class SanitizeActions
         var sb = new StringBuilder();
         var lines = Kinds.Where(k => removed[k.Item] > 0).Select(k => $"• {Short(k.Item, removed[k.Item])}").ToList();
         if (removed.EarlierRevisions > 0) lines.Add($"• {Count(removed.EarlierRevisions, "earlier version", "earlier versions")} of the file");
-        if (removed.UnusedObjects > 0) lines.Add($"• {Count(removed.UnusedObjects, "unused object", "unused objects")}");
-        sb.Append(lines.Count > 0 ? "Removed:\n" + string.Join("\n", lines) : "The file was rewritten as a single version; there was nothing else to remove.");
+        if (removed.UnusedObjects > 0) lines.Add($"• {Count(removed.UnusedObjects, "leftover piece", "leftover pieces")} of earlier edits");
+        sb.Append(lines.Count > 0 ? "Removed:\n" + string.Join("\n", lines) : "The file was saved afresh, without its earlier versions; there was nothing else to remove.");
 
         var left = result.Remaining;
         var stillThere = left is null ? [] : Kinds.Where(k => removed[k.Item] > 0 && left[k.Item] > 0).Select(k => Short(k.Item, left[k.Item])).ToList();

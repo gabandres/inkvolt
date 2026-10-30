@@ -13,7 +13,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- Icon rail: one click opens a pane, clicking the open one closes it -->
-        <StackPanel x:Name="Rail" Grid.Column="0" Margin="4,6,4,0" Width="40">
+        <StackPanel x:Name="Rail" app:TextScale.Scales="True" Grid.Column="0" Margin="4,6,4,0" Width="40">
             <ToggleButton x:Name="PagesRail" Style="{StaticResource RailButton}" Content="&#xE8A9;" ToolTip="Pages (thumbnails)" />
             <ToggleButton x:Name="BookmarksRail" Style="{StaticResource RailButton}" Content="&#xE8A4;" ToolTip="Bookmarks" />
             <ToggleButton x:Name="SearchRail" Style="{StaticResource RailButton}" Content="&#xE721;" ToolTip="Search" />
@@ -37,7 +37,7 @@
         </StackPanel>
 
         <!-- Navigation pane -->
-        <Border x:Name="NavPane" Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}"
+        <Border x:Name="NavPane" app:TextScale.Scales="True" Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="14,10,6,6" LastChildFill="False">
@@ -129,7 +129,7 @@
                     </DockPanel>
 
                     <DockPanel x:Name="SearchPanel" Margin="10,0,10,8" Visibility="Collapsed">
-                        <TextBox x:Name="SearchBox" DockPanel.Dock="Top" AutomationProperties.Name="Search text" />
+                        <TextBox x:Name="SearchBox" DockPanel.Dock="Top" AutomationProperties.Name="Search text" app:Placeholder.Text="Search this document" />
                         <WrapPanel DockPanel.Dock="Top" Margin="0,8,0,0">
                             <CheckBox x:Name="SearchMatchCase" Content="Match case" Margin="0,0,12,0" />
                             <CheckBox x:Name="SearchWholeWords" Content="Whole words" Margin="0,0,12,0" />
@@ -171,6 +171,7 @@
                     <!-- Comments: grouped by page, filter, edit, delete -->
                     <DockPanel x:Name="CommentsPanel" Margin="10,0,10,8" Visibility="Collapsed">
                         <TextBox x:Name="CommentFilter" DockPanel.Dock="Top" AutomationProperties.Name="Filter comments"
+                                 app:Placeholder.Text="Filter by text, author or type"
                                  ToolTip="Show only comments containing this text, author or type" />
                         <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,6,0,2">
                             <Button Style="{StaticResource IconButton}" Command="app:Cmd.Highlight" Content="&#xE7E6;" FontSize="14"
@@ -347,10 +348,11 @@
                             <Button x:Name="A11ySave" Content="Save report&#x2026;" Margin="0,0,0,4" ToolTip="Save the report, with your checklist, as a web page" />
                         </WrapPanel>
                         <TabControl x:Name="A11yTabs" Background="Transparent" BorderThickness="0" Padding="0,6,0,0">
-                            <TabItem x:Name="A11yFailuresTab" Header="What fails">
+                            <!-- Short headers: the pane is 220 px wide, and WPF's tab strip wraps long ones into two rows -->
+                            <TabItem x:Name="A11yFailuresTab" Header="Fails">
                                 <DockPanel>
                                     <TextBlock x:Name="A11yNone" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="4,8,4,0" Style="{StaticResource Caption}" Visibility="Collapsed"
-                                               Text="Nothing fails the machine checks. A document is accessible once a person has also made the checks under For a person." />
+                                               Text="Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist." />
                                     <ListBox x:Name="A11yList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" HorizontalContentAlignment="Stretch"
                                              AutomationProperties.Name="What fails: choose one to see it on its page">
@@ -371,7 +373,7 @@
                                     </ListBox>
                                 </DockPanel>
                             </TabItem>
-                            <TabItem x:Name="A11yPersonTab" Header="For a person">
+                            <TabItem x:Name="A11yPersonTab" Header="Checklist">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel>
                                         <TextBlock TextWrapping="Wrap" Margin="4,8,4,8" Style="{StaticResource Caption}"
@@ -408,7 +410,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0">
+                <StackPanel Grid.Row="0" app:TextScale.Scales="True">
                 <!-- InfoBar: the file changed (or disappeared) on disk -->
                 <Border x:Name="DiskBar" Visibility="Collapsed" Padding="14,8" Margin="12,10,12,0" CornerRadius="6"
                         Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
@@ -549,7 +551,7 @@
                 </Grid>
 
                 <!-- Find widget (Ctrl+F), floating top-right -->
-                <Border x:Name="FindBar" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,28,0" Padding="6"
+                <Border x:Name="FindBar" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,28,0" Padding="6"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                     <Border.Effect>
@@ -557,7 +559,7 @@
                     </Border.Effect>
                     <StackPanel Orientation="Horizontal">
                         <TextBox x:Name="FindBox" Width="230" VerticalContentAlignment="Center" AutomationProperties.Name="Find in document"
-                                 ToolTip="Enter: next match · Shift+Enter: previous · Esc: close" />
+                                 app:Placeholder.Text="Find in document" ToolTip="Enter: next match · Shift+Enter: previous · Esc: close" />
                         <TextBlock x:Name="FindStatus" Margin="10,0,6,0" VerticalAlignment="Center" MinWidth="64" FontSize="12" Style="{StaticResource Caption}" />
                         <!-- Option toggles: the tooltip says what each short label means; screen readers get the name and on/off state -->
                         <ToggleButton x:Name="FindMatchCase" Style="{StaticResource CommandButton}" Content="Aa" FontWeight="SemiBold" Padding="8,4"
@@ -577,7 +579,7 @@
 
                 <!-- Drawing style bar, floating top-center: with a drawing tool, a selected drawing or an open text box
                      (DocumentTab.Drawing.cs fills the swatches and shows the groups that apply) -->
-                <Border x:Name="StyleBar" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
+                <Border x:Name="StyleBar" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         AutomationProperties.Name="Drawing style">
@@ -638,7 +640,7 @@
                 </Border>
 
                 <!-- Prepare Form: field tools, floating top-center (DocumentTab.FormDesign.cs) -->
-                <Border x:Name="FormDesignBar" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
+                <Border x:Name="FormDesignBar" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         AutomationProperties.Name="Prepare form tools">
@@ -676,7 +678,7 @@
                 </Border>
 
                 <!-- Edit Text & Images: the mode's bar (see DocumentTab.EditContent.cs) -->
-                <Border x:Name="EditContentBar" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
+                <Border x:Name="EditContentBar" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="4,2"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         AutomationProperties.Name="Edit text and images">
@@ -701,7 +703,7 @@
                 </Border>
 
                 <!-- Prepare Form: the selected field's or suggestion's properties, floating right -->
-                <Border x:Name="FieldPanel" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,60,12,12" Width="272"
+                <Border x:Name="FieldPanel" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,60,12,12" Width="272"
                         Visibility="Collapsed" CornerRadius="8" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         AutomationProperties.Name="Field properties">
@@ -823,7 +825,7 @@
                 </Border>
 
                 <!-- Page and zoom pill, floating bottom-center -->
-                <Border x:Name="Pill" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="6,4"
+                <Border x:Name="Pill" app:TextScale.Scales="True" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="6,4"
                         CornerRadius="20" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                     <Border.Effect>

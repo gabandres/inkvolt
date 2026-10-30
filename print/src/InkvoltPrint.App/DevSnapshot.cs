@@ -27,9 +27,10 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
-/// <c>--dialog settings|help|whatsnew|report|addprinter|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
-/// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory).
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
+/// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -73,6 +74,10 @@ internal static class DevSnapshot
             if (args.Contains("--find-photos")) scanner.FindPhotos = true;
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
+            // --delete n: delete page n, as the Delete key does (the review then offers Undo); --undo puts it back.
+            if (int.TryParse(Value(args, "--delete"), out var delete) && delete > 0 && delete <= scanner.Pages.Count)
+                scanner.RemovePageCommand.Execute(scanner.Pages[delete - 1]);
+            if (args.Contains("--undo")) scanner.UndoCommand.Execute(null);
             // --photo-box n: select the n-th photo in the photo view (opened by --crop on a scan of photos).
             if (int.TryParse(Value(args, "--photo-box"), out var photoBox) && scanner.IsEditingPhotos && photoBox <= scanner.EditedPhotos.Count)
                 scanner.SelectedPhoto = photoBox - 1;
@@ -177,7 +182,7 @@ internal static class DevSnapshot
             }
             shot = editor;
         }
-        // --dialog settings|help|whatsnew|report|addprinter|pro: that window instead of the main one.
+        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
         {
             if (name == "pro" && args.Contains("--pro-enforce")) Core.Pro.Enforced = true; // the locked wording (demo: memory only)
@@ -189,6 +194,7 @@ internal static class DevSnapshot
                 "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain)),
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
+                "confirm" => ConfirmDialog.Preview(window),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);
@@ -201,8 +207,21 @@ internal static class DevSnapshot
                 shot = dialog;
             }
         }
-        // A dialog's content has a margin, which a VisualBrush would shift by: take the window's own root instead.
-        var content = shot == window ? (FrameworkElement)shot.Content : (FrameworkElement)VisualTreeHelper.GetChild(shot, 0);
+        // --a11y-audit findings.txt: the shown window's controls without an accessible name or under 24 × 24 (UiAudit's rules).
+        if (Value(args, "--a11y-audit") is { } auditPath)
+        {
+            var lines = new List<string>();
+            foreach (var w in new[] { shot, window }.Distinct())
+            {
+                var findings = UiInspection.Audit(w);
+                lines.Add($"'{w.Title}': {findings.Count} findings");
+                lines.AddRange(findings.Select(f => "  " + f));
+            }
+            await File.WriteAllLinesAsync(auditPath, lines);
+        }
+        // The window's own root, not its Content: a dialog's content has a margin, which a VisualBrush would shift by,
+        // and the adorner layer (placeholders, focus rings) sits above the content.
+        var content = (FrameworkElement)VisualTreeHelper.GetChild(shot, 0);
         var dpi = VisualTreeHelper.GetDpi(shot);
         var bmp = new RenderTargetBitmap((int)(content.ActualWidth * dpi.DpiScaleX), (int)(content.ActualHeight * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);

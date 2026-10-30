@@ -10,6 +10,7 @@ using InkvoltPrint.App.Presets;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Imaging;
+using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Pdf;
 using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Printing;
@@ -91,6 +92,11 @@ public sealed partial class ScanViewModel : ObservableObject
             OnPropertyChanged(nameof(PhotoStatus));
             RemovePhotoCommand.NotifyCanExecuteChanged();
             TurnPhotoCommand.NotifyCanExecuteChanged();
+        };
+        History.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(UndoText));
+            UndoCommand.NotifyCanExecuteChanged();
         };
         Pages.CollectionChanged += (_, _) =>
         {
@@ -175,8 +181,52 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial bool Straighten { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand))]
     public partial bool IsBusy { get; set; }
+
+    /// <summary>The review's changes, newest first, so Undo (Ctrl+Z) puts each one back: a deleted page is a scan to redo otherwise.</summary>
+    public UndoHistory History { get; } = new();
+
+    /// <summary>The Undo button's tooltip: what it puts back.</summary>
+    public string UndoText => History.Next is { } next ? $"Undo {char.ToLowerInvariant(next[0])}{next[1..]} (Ctrl+Z)" : "Undo (Ctrl+Z)";
+
+    private bool CanUndo() => !IsBusy && History.CanUndo;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        if (!CanUndo()) return;
+        CancelCrop();
+        CancelPhotos();
+        if (History.Undo() is { } what)
+        {
+            Message = $"Undone: {what}.";
+            Prompt.Announce(Message);
+        }
+    }
+
+    /// <summary>Records how to put a page's look back (its turns, crop, photos), before the change.</summary>
+    private void RecordLook(string what, ScanPageViewModel page)
+    {
+        var (edits, photos) = (page.Edits, page.Photos);
+        History.Record(what, () =>
+        {
+            page.Edits = edits;
+            page.Photos = photos;
+        });
+    }
+
+    /// <summary>Records how to put a page's place in the files back (file start, separator, skipped), before the change.</summary>
+    private void RecordRole(string what, ScanPageViewModel page)
+    {
+        var (startsFile, separator, skipped) = (page.StartsFile, page.Separator, page.IsSkipped);
+        History.Record(what, () =>
+        {
+            page.Separator = separator;
+            page.StartsFile = startsFile;
+            page.IsSkipped = skipped;
+        });
+    }
 
     /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
     [ObservableProperty] public partial bool IsScanning { get; set; }
@@ -350,7 +400,11 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void ApplyPhotos()
     {
-        if (PhotoPage is { } page) page.Photos = [.. EditedPhotos];
+        if (PhotoPage is { } page)
+        {
+            RecordLook($"Change the photos on page {page.Number}", page);
+            page.Photos = [.. EditedPhotos];
+        }
         CancelPhotos();
     }
 
@@ -443,6 +497,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void ToggleFileStart(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || page.IsSeparator) return;
+        RecordRole(page.StartsFile ? $"Join page {page.Number} to the file before it" : $"Start a new file at page {page.Number}", page);
         page.StartsFile = !page.StartsFile;
         Prompt.Announce(page.FileStart > 0 ? $"Page {page.Number} starts file {page.FileStart}" : $"Page {page.Number} is in the same file as the page before it");
     }
@@ -452,6 +507,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void NotSeparator(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || !page.IsSeparator) return;
+        RecordRole($"Keep page {page.Number} as a page", page);
         page.Separator = SeparatorFound.None;
         _ = page.OcrAsync();
         Prompt.Announce($"Page {page.Number} is a page again, not a separator");
@@ -462,6 +518,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void MarkSeparator(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || page.IsSeparator) return;
+        RecordRole($"Use page {page.Number} as a separator", page);
         page.StartsFile = false;
         page.IsSkipped = false;
         page.Separator = new SeparatorFound(SeparatorKind.ByHand);
@@ -670,8 +727,16 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (page is null || IsBusy) return;
         if (CropPage == page) CancelCrop();
+        var index = Pages.IndexOf(page);
+        if (index < 0) return;
+        History.Record($"Delete page {page.Number}", () =>
+        {
+            page.PropertyChanged += PageChanged;
+            Pages.Insert(Math.Min(index, Pages.Count), page);
+        });
         page.PropertyChanged -= PageChanged;
         Pages.Remove(page);
+        Message = $"Deleted page {index + 1}. Undo (Ctrl+Z) puts it back.";
     }
 
     [RelayCommand]
@@ -685,6 +750,10 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         var from = page is null || IsBusy ? -1 : Pages.IndexOf(page);
         if (from < 0 || index < 0 || index >= Pages.Count || index == from) return null;
+        History.Record($"Move page {from + 1}", () =>
+        {
+            if (Pages.IndexOf(page!) is var at and >= 0 && from < Pages.Count) Pages.Move(at, from);
+        });
         Pages.Move(from, index);
         _dirty = true;
         _changes++;
@@ -697,6 +766,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void RotateLeft(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
+        RecordLook($"Turn page {page.Number} left", page);
         if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 3) % 4 })];
         else page.Edits = page.Edits.Turned(-1);
     }
@@ -705,6 +775,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void RotateRight(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
+        RecordLook($"Turn page {page.Number} right", page);
         if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 1) % 4 })];
         else page.Edits = page.Edits.Turned(1);
     }
@@ -714,6 +785,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void KeepPage(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
+        RecordRole($"Keep page {page.Number}", page);
         page.IsSkipped = false;
         _ = page.OcrAsync();
     }
@@ -764,7 +836,11 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void ApplyCrop()
     {
-        if (CropPage is { } page) page.Edits = page.Edits.WithShownCrop(CropBox);
+        if (CropPage is { } page && page.Edits.WithShownCrop(CropBox) is var cropped && cropped != page.Edits)
+        {
+            RecordLook($"Crop page {page.Number}", page);
+            page.Edits = cropped;
+        }
         CancelCrop();
     }
 
@@ -813,6 +889,7 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelPhotos();
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
+        History.Clear(); // the question before it was the safeguard
         Message = null;
         LastSavedPath = null;
         ActivePreset = null;

@@ -76,7 +76,12 @@ public sealed class FormDialog : Window
     public T Add<T>(string? label, T control, double top = 12) where T : UIElement
     {
         if (label is not null)
+        {
             _rows.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, _rows.Children.Count == 0 ? 0 : top, 0, 4), FontWeight = FontWeights.SemiBold });
+            // The label above a box is what a screen reader should say for it (UIA has no "label above" of its own).
+            if (control is Control && string.IsNullOrEmpty(System.Windows.Automation.AutomationProperties.GetName(control)))
+                System.Windows.Automation.AutomationProperties.SetName(control, label.TrimEnd(':'));
+        }
         else if (control is FrameworkElement fe && _rows.Children.Count > 0 && fe.Margin == default)
             fe.Margin = new Thickness(0, 6, 0, 0);
         _rows.Children.Add(control);
@@ -164,6 +169,8 @@ public sealed class PageRangePicker : StackPanel
         _selected = new RadioButton { Content = $"Selected pages ({PageRange.Format(_selection)})", GroupName = group };
         _rangeText.Text = PageRange.Format(_selection);
         _rangeText.GotFocus += (_, _) => _range.IsChecked = true;
+        System.Windows.Automation.AutomationProperties.SetName(_rangeText, "Pages, e.g. 1-3, 5, 8-");
+        System.Windows.Automation.AutomationProperties.SetName(_subset, "Which pages in the range");
 
         Children.Add(_all);
         Children.Add(_current);
@@ -212,6 +219,8 @@ public sealed class PositionPicker : StackPanel
         _pageCount = pageCount;
         Orientation = Orientation.Horizontal;
         _page.Text = (currentPage + 1).ToString();
+        System.Windows.Automation.AutomationProperties.SetName(_where, "Before or after the page");
+        System.Windows.Automation.AutomationProperties.SetName(_page, "Page number");
         Children.Add(_where);
         Children.Add(_page);
         Children.Add(new TextBlock { Text = $"of {pageCount}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
@@ -493,8 +502,21 @@ public sealed class CombineDialog : Window
         var hint = new TextBlock { Text = "Files are combined in this order. Drag PDFs here to add them.", Margin = new Thickness(0, 0, 0, 8), Style = (Style)Application.Current.FindResource("Caption") };
         Grid.SetColumnSpan(hint, 2);
         grid.Children.Add(hint);
-        Grid.SetRow(_list, 1);
-        grid.Children.Add(_list);
+        // Empty state inside the list: what to do, where it will happen
+        var empty = new TextBlock
+        {
+            Text = "No files yet. Press Add Files…, or drop PDFs here.", TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+            Style = (Style)Application.Current.FindResource("Caption"),
+        };
+        void ShowEmpty() => empty.Visibility = _files.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _files.CollectionChanged += (_, _) => ShowEmpty();
+        ShowEmpty();
+        var listHost = new Grid();
+        listHost.Children.Add(_list);
+        listHost.Children.Add(empty);
+        Grid.SetRow(listHost, 1);
+        grid.Children.Add(listHost);
         Grid.SetRow(side, 1);
         Grid.SetColumn(side, 1);
         grid.Children.Add(side);

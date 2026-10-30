@@ -46,7 +46,8 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
 internal static class DevScript
@@ -162,7 +163,13 @@ internal static class DevScript
             case "wait": await Task.Delay(int.Parse(arg)); break;
             case "shot": Shot(window, arg); break;
             // dialogshot out.png: the topmost open dialog (use with "later" while a modal is open)
-            case "dialogshot": Shot(Application.Current.Windows.OfType<Window>().Last(w => w != window && w.IsVisible), arg); break;
+            case "dialogshot":
+            {
+                var dialog = Application.Current.Windows.OfType<Window>().Last(w => w != window && w.IsVisible);
+                log.Add($"dialog '{dialog.Title}': {dialog.ActualWidth:0}×{dialog.ActualHeight:0} (Width {dialog.Width:0})");
+                Shot(dialog, arg);
+                break;
+            }
             // page / zoom / scroll act on the active pane of a split view (the only pane otherwise)
             case "page": tab!.ActiveView.GoToPage(int.Parse(arg) - 1); break;
             case "zoom" when arg == "fitwidth": tab!.ActiveView.SetZoomMode(ZoomMode.FitWidth); break;
@@ -1089,6 +1096,22 @@ internal static class DevScript
                 log.Add($"converters: office=[{string.Join(", ", OfficeConverter.InstalledApps)}] webview2={WebCapture.RuntimeVersion ?? "none"} menu={window.OfficeMenu.Visibility}");
                 break;
             case "dropimages": log.Add($"dropimages handled: {FileTools.HandleWindowDrop(window, arg.Split(';'))}"); break; // as if dropped on the window
+            case "textscale":
+                // textscale 1.5|150|system: as if Windows' Text size were set to that (TextScale); system follows the real setting again.
+                TextScale.Override(arg is "system" or "" ? null : InkvoltPrint.Core.Suite.TextSize.Parse(arg));
+                log.Add($"textscale: {TextScale.Factor}");
+                break;
+            case "a11yaudit":
+            {
+                // a11yaudit: every visible window's interactive controls without an accessible name or under 24 × 24 (UiAudit's rules).
+                foreach (var w in Application.Current.Windows.OfType<Window>().Where(w => w.IsVisible))
+                {
+                    var findings = UiInspection.Audit(w);
+                    log.Add($"a11yaudit '{w.Title}': {findings.Count} findings");
+                    foreach (var f in findings) log.Add("  " + f);
+                }
+                break;
+            }
             case "exit": break;
             default: log.Add($"unknown step: {line}"); break;
         }
@@ -1504,7 +1527,8 @@ internal static class DevScript
 
     private static void Shot(Window window, string path)
     {
-        var content = (FrameworkElement)window.Content;
+        // The window's visual root, not its Content: the adorner layer (placeholders, focus rings) sits above the content.
+        var content = VisualTreeHelper.GetChildrenCount(window) > 0 ? (FrameworkElement)VisualTreeHelper.GetChild(window, 0) : (FrameworkElement)window.Content;
         var dpi = VisualTreeHelper.GetDpi(window);
         var bmp = new RenderTargetBitmap((int)(content.ActualWidth * dpi.DpiScaleX), (int)(content.ActualHeight * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);

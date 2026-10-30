@@ -300,9 +300,13 @@ public partial class DocumentTab : UserControl, IDisposable
             if (SearchResults.SelectedIndex >= 0 && SearchResults.SelectedIndex != _activeHit) ShowHit(SearchResults.SelectedIndex);
         };
 
+        // Windows' Text size changed: the pane's width follows its scaled contents (ShowPane). Unhooked when the tab goes.
+        EventHandler rescale = (_, _) => { if (_pane != NavPaneKind.None) ShowPane(_pane); };
+        Loaded += (_, _) => { TextScale.Changed -= rescale; TextScale.Changed += rescale; };
+        Unloaded += (_, _) => TextScale.Changed -= rescale;
         NavSplitter.DragCompleted += (_, _) =>
         {
-            AppSettings.Current.NavPaneWidth = NavColumn.ActualWidth;
+            AppSettings.Current.NavPaneWidth = NavColumn.ActualWidth / TextScale.Factor; // as at 100 % text size
             AppSettings.Current.Save();
         };
         InitReview();
@@ -348,7 +352,8 @@ public partial class DocumentTab : UserControl, IDisposable
         _pane = kind;
         var open = kind != NavPaneKind.None;
         NavPane.Visibility = NavSplitter.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        NavColumn.Width = open ? new GridLength(Math.Clamp(AppSettings.Current.NavPaneWidth, 160, 600)) : new GridLength(0);
+        // Wider with Windows' Text size, as the pane's contents are scaled (TextScale): the same words fit on a line.
+        NavColumn.Width = open ? new GridLength(Math.Clamp(AppSettings.Current.NavPaneWidth, 160, 600) * TextScale.Factor) : new GridLength(0);
         Thumbs.Visibility = kind == NavPaneKind.Pages ? Visibility.Visible : Visibility.Collapsed;
         BookmarksPanel.Visibility = kind == NavPaneKind.Bookmarks ? Visibility.Visible : Visibility.Collapsed;
         SearchPanel.Visibility = kind == NavPaneKind.Search ? Visibility.Visible : Visibility.Collapsed;

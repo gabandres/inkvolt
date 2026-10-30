@@ -1,0 +1,140 @@
+# Before-fix screenshots of Inkvolt PDF (run with no file: the start page first)
+wait 1200
+shot C:\ux\before\pdf\start.png
+theme dark
+shot C:\ux\before\pdf\start-dark.png
+theme light
+size 820 600
+shot C:\ux\before\pdf\start-narrow.png
+size 1400 900
+palette sign
+shot C:\ux\before\pdf\palette.png
+key Escape
+later 900 dialogshot C:\ux\before\pdf\error-missing.png
+later 1600 closedialog
+open C:\ux\samples\missing.pdf
+wait 2000
+windows
+open C:\ux\samples\features.pdf
+wait 1500
+shot C:\ux\before\pdf\reading.png
+nav pages
+shot C:\ux\before\pdf\pane-pages.png
+nav bookmarks
+shot C:\ux\before\pdf\pane-bookmarks.png
+nav search
+shot C:\ux\before\pdf\pane-search.png
+pane comments
+shot C:\ux\before\pdf\pane-comments.png
+pane attachments
+shot C:\ux\before\pdf\pane-attachments.png
+nav pages
+find the
+shot C:\ux\before\pdf\find.png
+key Escape
+tool pen
+wait 400
+shot C:\ux\before\pdf\drawbar.png
+tool hand
+tool redact
+wait 400
+shot C:\ux\before\pdf\redactbar.png
+tool hand
+organize on
+wait 800
+shot C:\ux\before\pdf\organize.png
+organize off
+size 900 620
+wait 400
+shot C:\ux\before\pdf\reading-narrow.png
+size 1400 900
+theme dark
+wait 400
+shot C:\ux\before\pdf\reading-dark.png
+darkpages
+wait 800
+shot C:\ux\before\pdf\darkpages.png
+darkpages
+theme light
+highcontrast on
+wait 800
+shot C:\ux\before\pdf\highcontrast.png
+highcontrast off
+prepareform on
+wait 800
+shot C:\ux\before\pdf\prepareform.png
+prepareform off
+editcontent on
+wait 800
+shot C:\ux\before\pdf\editcontent.png
+editcontent off
+split v
+shot C:\ux\before\pdf\split.png
+split off
+toast Page deleted
+shot C:\ux\before\pdf\toast.png
+dialog Settings C:\ux\before\pdf\dlg-settings.png
+dialog Shortcuts C:\ux\before\pdf\dlg-shortcuts.png
+dialog Properties C:\ux\before\pdf\dlg-properties.png
+dialog ProtectPassword C:\ux\before\pdf\dlg-protect.png
+dialog ReduceSize C:\ux\before\pdf\dlg-reduce.png
+dialog AddHeaderFooter C:\ux\before\pdf\dlg-headerfooter.png
+dialog AddWatermark C:\ux\before\pdf\dlg-watermark.png
+dialog GoToPage C:\ux\before\pdf\dlg-gotopage.png
+dialog CropPages C:\ux\before\pdf\dlg-crop.png
+dialog Sanitize C:\ux\before\pdf\dlg-sanitize.png
+dialog RedactPatterns C:\ux\before\pdf\dlg-redactpatterns.png
+dialog ExportWord C:\ux\before\pdf\dlg-exportword.png
+dialog Combine C:\ux\before\pdf\dlg-combine.png
+dialog AddSignature C:\ux\before\pdf\dlg-sign.png
+dialog AddStamp C:\ux\before\pdf\dlg-stamp.png
+dialog WhatsNew C:\ux\before\pdf\dlg-whatsnew.png
+dialog ReportProblem C:\ux\before\pdf\dlg-report.png
+dialog AiSettings C:\ux\before\pdf\dlg-ai.png
+dialog SplitDocument C:\ux\before\pdf\dlg-splitdoc.png
+dialog ExtractPages C:\ux\before\pdf\dlg-extract.png
+dialog MovePages C:\ux\before\pdf\dlg-move.png
+dialog InsertBlank C:\ux\before\pdf\dlg-insertblank.png
+dialog MeasureScale C:\ux\before\pdf\dlg-scale.png
+dialog Scan C:\ux\before\pdf\dlg-scan.png
+dialog CheckForUpdates C:\ux\before\pdf\dlg-updates.png
+dialog NewFromImages C:\ux\before\pdf\dlg-newfromimages.png
+dialog CreateFromWeb C:\ux\before\pdf\dlg-web.png
+dialog RotatePages C:\ux\before\pdf\dlg-rotate.png
+dialog DeletePages C:\ux\before\pdf\dlg-deletepages.png
+dialog Flatten C:\ux\before\pdf\dlg-flatten.png
+dialog ExportImages C:\ux\before\pdf\dlg-exportimages.png
+dialog SummarizeComments C:\ux\before\pdf\dlg-summarize.png
+dialog InkvoltPro C:\ux\before\pdf\dlg-pro.png
+batch
+batchshot C:\ux\before\pdf\batch.png
+batchclose
+a11y
+wait 800
+shot C:\ux\before\pdf\a11y.png
+open C:\ux\samples\xfa.pdf
+wait 1200
+shot C:\ux\before\pdf\xfabar.png
+open C:\ux\samples\signed.pdf
+wait 1200
+shot C:\ux\before\pdf\sigbar.png
+open C:\ux\samples\export-scan.pdf
+wait 1500
+shot C:\ux\before\pdf\scan-doc.png
+select 1
+delete
+wait 600
+shot C:\ux\before\pdf\after-delete.png
+later 900 dialogshot C:\ux\before\pdf\dlg-savechanges.png
+later 1600 dialogbutton Cancel
+cmd CloseDoc
+wait 2000
+windows
+tabmenu
+wait 300
+shot C:\ux\before\pdf\tabmenu.png
+key Escape
+cmd CloseAll
+wait 1000
+shot C:\ux\before\pdf\start-recent.png
+exit
