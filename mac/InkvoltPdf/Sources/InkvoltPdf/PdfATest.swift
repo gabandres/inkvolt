@@ -54,6 +54,7 @@ struct PdfATest {
         check(saved && PdfAState.lastTitle == "Saved as PDF/A-2b" && PdfAState.lastMessage.hasPrefix(target.lastPathComponent)
               && PdfAState.lastMessage.contains("• sRGB output intent and PDF/A metadata added"),
               "the command saves the copy and says what changed (\(PdfAState.lastMessage.components(separatedBy: "\n• ").count - 1) changes)")
+        if !saved { lines.append("note: \(PdfAState.lastTitle): \(PdfAState.lastMessage.replacingOccurrences(of: "\n", with: " ").prefix(400))") }
         let copy = (try? Data(contentsOf: target)).map { [UInt8]($0) } ?? []
         let problems = PdfA.validate(copy)
         check(!copy.isEmpty && problems.isEmpty, "the copy passes PdfA.validate (\(problems.count) problems)")
