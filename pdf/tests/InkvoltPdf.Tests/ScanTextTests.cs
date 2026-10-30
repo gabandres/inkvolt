@@ -168,14 +168,16 @@ public class ScanTextTests
             new("rlver", new RectD(106, 101, 40, 14), 2.5, SuspectReasons.NotInDictionary | SuspectReasons.ReadDifferently),
             new("año", new RectD(150, 102, 30, 14), 2.5, SuspectReasons.LettersAndDigits),
         ];
-        var data = TextLayer.AddInvisibleText(scan, null, new Dictionary<int, IReadOnlyList<OcrWord>> { [0] = words });
+        var data = TextLayer.AddInvisibleText(scan, null, new Dictionary<int, IReadOnlyList<OcrWord>> { [0] = words }, "es-MX");
         var read = TextLayer.Words(data, null);
-        Assert.Equal(words, read[0]); // the words, boxes, angles and suspect reasons come back as written
+        Assert.Equal(words, read[0].Words); // the words, boxes, angles and suspect reasons come back as written
+        Assert.Equal("es-MX", read[0].Language);
 
         var corrected = TextLayer.Correct(data, null, 0, 1, "river");
         corrected = TextLayer.Keep(corrected, null, 0, 2);
-        Assert.Equal(["The", "river", "año"], TextLayer.Words(corrected, null)[0].Select(w => w.Text));
-        Assert.All(TextLayer.Words(corrected, null)[0], w => Assert.Equal(SuspectReasons.None, w.Suspect));
+        Assert.Equal(["The", "river", "año"], TextLayer.Words(corrected, null)[0].Words.Select(w => w.Text));
+        Assert.All(TextLayer.Words(corrected, null)[0].Words, w => Assert.Equal(SuspectReasons.None, w.Suspect));
+        Assert.Equal("es-MX", TextLayer.Words(corrected, null)[0].Language);
         using var engine = PdfEngine.Open(corrected, InputFileTypes.PDF, null);
         var text = engine.GetText(0);
         Assert.Single(text.Find("river", true, false));

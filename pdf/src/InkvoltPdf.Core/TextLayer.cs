@@ -13,12 +13,15 @@ namespace InkvoltPdf.Core;
 /// </summary>
 public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectReasons Suspect = SuspectReasons.None);
 
+/// <summary>A page's Inkvolt text layer as read back: its words, and the language they were recognized in (when known).</summary>
+public sealed record OcrLayer(List<OcrWord> Words, string? Language);
+
 /// <summary>
 /// Invisible text over scanned pages (an OCR text layer): the page looks the same, but its words can be selected,
 /// copied and searched. Each word is written with text render mode 3 (no paint), stretched along its box and turned
 /// with it, in a content stream of its own placed before the page's content (so the existing content's graphics state,
 /// balanced or not, can't leak into it), with an embedded subset Unicode font whose /ToUnicode returns the words as
-/// recognized. The layer starts with comment lines (<see cref="Marker"/>, then one per word: its suspect reasons, box,
+/// recognized. The layer starts with comment lines (<see cref="Marker"/> and the language, then one per word: its suspect reasons, box,
 /// angle and text as UTF-8 hex), so its words can be read back (<see cref="Words"/>), reviewed and corrected: a corrected
 /// layer replaces the old one in place.
 /// </summary>
@@ -29,7 +32,8 @@ public static class TextLayer
 
     /// <param name="wordsByPage">Words per page index, in reading order. A page that already has an Inkvolt text layer gets
     /// it replaced.</param>
-    public static byte[] AddInvisibleText(byte[] data, string? password, IReadOnlyDictionary<int, IReadOnlyList<OcrWord>> wordsByPage)
+    /// <param name="language">The language they were recognized in (a BCP-47 tag), kept with them for their review.</param>
+    public static byte[] AddInvisibleText(byte[] data, string? password, IReadOnlyDictionary<int, IReadOnlyList<OcrWord>> wordsByPage, string? language = null)
     {
         var pages = wordsByPage.Where(kv => kv.Value.Any(Usable)).OrderBy(kv => kv.Key).ToList();
         if (pages.Count == 0) return data;
@@ -37,18 +41,18 @@ public static class TextLayer
         foreach (var (index, words) in pages)
         {
             if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(wordsByPage), $"There is no page {index + 1}.");
-            SetLayer(doc, doc.Pages[index], words);
+            SetLayer(doc, doc.Pages[index], words, language);
         }
         return PdfObj.Save(doc);
     }
 
     /// <summary>The words of each page's Inkvolt text layer (pages without one, or with one made before 2.2, aren't listed).</summary>
-    public static Dictionary<int, List<OcrWord>> Words(byte[] data, string? password)
+    public static Dictionary<int, OcrLayer> Words(byte[] data, string? password)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
-        var result = new Dictionary<int, List<OcrWord>>();
+        var result = new Dictionary<int, OcrLayer>();
         for (var i = 0; i < doc.PageCount; i++)
-            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { Count: > 0 } words) result[i] = words;
+            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { Count: > 0 } words) result[i] = new OcrLayer(words, LanguageOf(layer.Text));
         return result;
     }
 
@@ -76,7 +80,7 @@ public static class TextLayer
             throw new InvalidOperationException("This page has no recognized text to correct.");
         if (index < 0 || index >= words.Count) throw new ArgumentOutOfRangeException(nameof(index));
         words[index] = change(words[index]);
-        SetLayer(doc, doc.Pages[page], words);
+        SetLayer(doc, doc.Pages[page], words, LanguageOf(layer.Text));
         return PdfObj.Save(doc);
     }
 
@@ -92,6 +96,13 @@ public static class TextLayer
             if (PdfObj.Dict(contents[i]) is { Stream: not null } d && PdfObj.StreamBytes(d) is var bytes && bytes.AsSpan().StartsWith(marker))
                 return (i, Encoding.ASCII.GetString(bytes));
         return null;
+    }
+
+    /// <summary>The language on the layer's first line, if it has one.</summary>
+    private static string? LanguageOf(string layer)
+    {
+        var first = layer.AsSpan(0, Math.Max(0, layer.IndexOf('\n') is var n and >= 0 ? n : layer.Length)).Trim();
+        return first.Length > Marker.Length ? first[Marker.Length..].Trim().ToString() : null;
     }
 
     /// <summary>The words kept in a layer's comment lines, in order; null when they can't be read.</summary>
@@ -118,7 +129,7 @@ public static class TextLayer
     }
 
     /// <summary>Writes the page's text layer: in place of its Inkvolt layer when it has one, else before its content.</summary>
-    private static void SetLayer(PdfDocument doc, PdfPage page, IReadOnlyList<OcrWord> all)
+    private static void SetLayer(PdfDocument doc, PdfPage page, IReadOnlyList<OcrWord> all, string? language)
     {
         var existing = FindLayer(page);
         var fonts = FontDictionary(doc, page);
@@ -132,7 +143,9 @@ public static class TextLayer
             ?? throw new InvalidOperationException("No font is available for the text layer.");
 
         var words = all.Where(Usable).ToList();
-        var ops = new StringBuilder(Marker).Append('\n');
+        var ops = new StringBuilder(Marker);
+        if (language is { Length: > 0 } && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')) ops.Append(' ').Append(language);
+        ops.Append('\n');
         foreach (var w in words)
             ops.Append(CultureInfo.InvariantCulture,
                 $"%w {(int)w.Suspect} {PdfObj.F(w.Rect.X)} {PdfObj.F(w.Rect.Y)} {PdfObj.F(w.Rect.Width)} {PdfObj.F(w.Rect.Height)} {PdfObj.F(w.Angle)} {Convert.ToHexString(Encoding.UTF8.GetBytes(w.Text.Trim()))}\n");
