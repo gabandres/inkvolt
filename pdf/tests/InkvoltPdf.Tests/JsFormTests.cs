@@ -186,7 +186,9 @@ public class JsFormTests
         var form = Form([new("a", Rect(0)), new("b", Rect(1), new() { ["C"] = script }, "/V (old)")]);
         var sw = Stopwatch.StartNew();
         var r = Fill(form, ("a", "1"));
-        Assert.True(sw.ElapsedMilliseconds < 3000, $"took {sw.ElapsedMilliseconds} ms");
+        // The limit counts the script thread's processor time (ThreadClock), so on a PC busy with other builds the wall
+        // clock stretches past it; what this checks is that the script is stopped at all, not the exact moment.
+        Assert.True(sw.ElapsedMilliseconds < 10000, $"took {sw.ElapsedMilliseconds} ms");
         Assert.Equal("old", ValueOf(r.Data, "b"));
         Assert.Equal("1", ValueOf(r.Data, "a"));
         Assert.Contains(r.Log, l => l.Contains("failed", StringComparison.Ordinal));
