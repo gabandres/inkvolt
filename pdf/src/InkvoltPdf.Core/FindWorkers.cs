@@ -173,6 +173,9 @@ public static class FindWorkers
         watch.Start();
     }
 
+    /// <summary>Test hook: <see cref="PdfEngine.PageFault"/> for this worker's engine (the bench tool sets it, FindWorkerTests).</summary>
+    internal static Action<int>? TestPageFault { get; set; }
+
     private static void Serve(Stream pipe)
     {
         using var output = new BufferedStream(pipe, 1 << 16);
@@ -180,6 +183,7 @@ public static class FindWorkers
         var engine = open.OpenEngine(out var view);
         try
         {
+            engine.PageFault = TestPageFault;
             if (engine.PageCount != open.Pages) return;
             WriteInt(output, ReadyWord);
             output.Flush();

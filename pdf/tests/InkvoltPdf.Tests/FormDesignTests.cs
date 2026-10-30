@@ -411,6 +411,80 @@ public class FormDesignTests
             Assert.False(Core2Pdf.Field(doc, "A")!.Elements.ContainsKey("/DV"));
     }
 
+    private static byte[] ListWith(string values) => Core2Pdf.Form(
+        [$"<< /Type /Annot /Subtype /Widget /FT /Ch /Ff 2097152 /T (Fruit) /Rect [72 600 222 680] /P 3 0 R /DA (/Helv 0 Tf 0 g) /Opt [(a) (b) [(c) (Cherry)]] {values} >>"]);
+
+    private static string[] Strings(PdfSharp.Pdf.PdfItem? item) => [.. PdfObj.Array(item)!.Elements.Select(PdfObj.Str).OfType<string>()];
+
+    [Fact]
+    public void ListBoxDefaultsInAnArraySurviveAnEdit()
+    {
+        var form = ListWith("/DV [(a) (c)] /V [(a) (c)] /I [0 2]");
+        var f = FormDesign.Read(form, null).Single();
+        Assert.Equal("a\nc", f.DefaultValue);
+        var edited = FormDesign.Update(form, null, [f with { Tooltip = "Pick some" }]);
+        using var doc = Core2Pdf.Open(edited);
+        var field = Core2Pdf.Field(doc, "Fruit")!;
+        Assert.Equal(["a", "c"], Strings(field.Elements["/DV"]));
+        Assert.Equal(["a", "c"], Strings(field.Elements["/V"]));
+        Assert.Equal(2, PdfObj.Int(PdfObj.Array(field.Elements["/I"])!.Elements[1]));
+        Assert.Equal("a\nc", FormDesign.Read(edited, null).Single().DefaultValue);
+    }
+
+    [Fact]
+    public void AListBoxEditKeepsWhatWasFilledInApartFromItsDefault()
+    {
+        // A one-entry array stays one, and a person's picks stay when the default didn't change.
+        var form = ListWith("/DV [(a)] /V [(b) (c)] /I [1 2]");
+        var f = FormDesign.Read(form, null).Single();
+        var edited = FormDesign.Update(form, null, [f with { Rect = f.Rect with { Width = f.Rect.Width + 20 } }]);
+        using var doc = Core2Pdf.Open(edited);
+        var field = Core2Pdf.Field(doc, "Fruit")!;
+        Assert.Equal(["a"], Strings(field.Elements["/DV"]));
+        Assert.Equal(["b", "c"], Strings(field.Elements["/V"]));
+        Assert.Equal(1, PdfObj.Int(PdfObj.Array(field.Elements["/I"])!.Elements[0]));
+    }
+
+    [Fact]
+    public void AListBoxDefaultFollowsItsOptionsAndAChosenDefault()
+    {
+        var form = ListWith("/DV [(a) (c)] /V [(a) (c)] /I [0 2]");
+        var f = FormDesign.Read(form, null).Single();
+
+        // The option a default named is gone: the other one stays.
+        var fewer = FormDesign.Update(form, null, [f with { Options = ["a", "b"], OptionLabels = [] }]);
+        using (var doc = Core2Pdf.Open(fewer))
+        {
+            var field = Core2Pdf.Field(doc, "Fruit")!;
+            Assert.Equal(["a"], Strings(field.Elements["/DV"]));
+            Assert.Equal(["a"], Strings(field.Elements["/V"]));
+            Assert.Equal(0, PdfObj.Int(PdfObj.Array(field.Elements["/I"])!.Elements[0]));
+        }
+
+        // A designer's own choice replaces them, and clearing it clears them.
+        var picked = FormDesign.Update(form, null, [f with { DefaultValue = "b" }]);
+        using (var doc = Core2Pdf.Open(picked))
+            Assert.Equal(["b"], Strings(Core2Pdf.Field(doc, "Fruit")!.Elements["/DV"]));
+        var cleared = FormDesign.Update(form, null, [f with { DefaultValue = "" }]);
+        using (var doc = Core2Pdf.Open(cleared))
+        {
+            Assert.False(Core2Pdf.Field(doc, "Fruit")!.Elements.ContainsKey("/DV"));
+            Assert.False(Core2Pdf.Field(doc, "Fruit")!.Elements.ContainsKey("/I"));
+        }
+    }
+
+    [Fact]
+    public void AComboBoxDefaultStaysAString()
+    {
+        var form = Core2Pdf.Form(["<< /Type /Annot /Subtype /Widget /FT /Ch /Ff 131072 /T (Metal) /Rect [72 600 222 620] /P 3 0 R /DA (/Helv 0 Tf 0 g) /Opt [(g) (s)] /DV (s) /V (g) >>"]);
+        var f = FormDesign.Read(form, null).Single();
+        var edited = FormDesign.Update(form, null, [f with { Tooltip = "Metal" }]);
+        using var doc = Core2Pdf.Open(edited);
+        var field = Core2Pdf.Field(doc, "Metal")!;
+        Assert.Equal("s", PdfObj.Str(field.Elements["/DV"]));
+        Assert.Equal("g", PdfObj.Str(field.Elements["/V"]));
+    }
+
     [Fact]
     public void ChoicesKeepTheirShownText()
     {

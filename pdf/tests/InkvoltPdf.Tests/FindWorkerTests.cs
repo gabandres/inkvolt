@@ -178,6 +178,85 @@ public class FindWorkerTests
         AssertAllGone(engine);
     }
 
+    private static FindWorkerPlan Faulty(string how, int page) => Forced() with { Args = ["find-worker-fault", how, page.ToString()] };
+
+    [Fact]
+    public void APageAWorkerCantReadIsReadHereAndTheWorkerGoesOn()
+    {
+        var data = MixedDocument();
+        using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        engine.WorkerPlan = Faulty("throw", 7);
+        AssertSameAsInProcess(engine, data, "cafe", false, false, true);
+        Assert.Equal(0, engine.LastFindWorkers!.Failed);
+        Assert.Equal(engine.PageCount - 1, engine.LastFindWorkers.PagesFromWorkers);
+        AssertAllGone(engine);
+    }
+
+    [Fact]
+    public void APageThatKillsTheWorkerReadingItLosesNoOtherPage()
+    {
+        var data = MixedDocument();
+        using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        engine.WorkerPlan = Faulty("die", 7);
+        AssertSameAsInProcess(engine, data, "cafe", false, false, true);
+        Assert.Equal(2, engine.LastFindWorkers!.Started);
+        Assert.Equal(1, engine.LastFindWorkers.Failed); // the page goes on to be read here, not by the other worker
+        AssertAllGone(engine);
+    }
+
+    [Fact]
+    public void APageNobodyCanReadComesBackWithItsErrorAlone()
+    {
+        var data = MixedDocument();
+        using var plain = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        var expected = plain.FindAll("cafe", false, false, true).ToList();
+        using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        engine.WorkerPlan = Faulty("throw", 7);
+        engine.PageFault = page =>
+        {
+            if (page == 7) throw new InvalidDataException("This page can't be read here either.");
+        };
+        var actual = engine.FindAll("cafe", false, false, true).ToList();
+        Assert.Equal(engine.PageCount, actual.Count);
+        Assert.Equal(expected.Select(m => m.Page), actual.Select(m => m.Page));
+        Assert.IsType<InvalidDataException>(actual[7].Error);
+        Assert.Empty(actual[7].Hits);
+        Assert.NotEmpty(expected[7].Hits); // it would have had hits: the other pages' are what must still arrive
+        for (var i = 0; i < actual.Count; i++)
+        {
+            if (i == 7) continue;
+            Assert.Null(actual[i].Error);
+            Assert.Equal(expected[i].Hits, actual[i].Hits);
+        }
+        Assert.Equal(0, engine.LastFindWorkers!.Failed);
+        AssertAllGone(engine);
+    }
+
+    [Fact]
+    public void ANonPageInThePageTreeDoesntStopTheWorkers()
+    {
+        // MuPDF counts it as a page and can't read it; for real, with no test hook.
+        const string font = "/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >>";
+        var data = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 42 5 0 R] /Count 3 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R {font} >>",
+            Core2Pdf.Stream("BT /F1 14 Tf 72 700 Td (cafe one) Tj ET"),
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R {font} >>",
+            Core2Pdf.Stream("BT /F1 14 Tf 72 700 Td (cafe three) Tj ET"),
+        ]);
+        using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        Assert.Equal(3, engine.PageCount);
+        engine.WorkerPlan = Forced();
+        var found = engine.FindAll("cafe", false, false).ToList();
+        Assert.Equal(3, engine.LastFindWorkers!.PagesFromWorkers);
+        Assert.Equal(0, engine.LastFindWorkers.Failed);
+        Assert.Equal([0, 2], found.Where(m => m.Hits.Count > 0).Select(m => m.Page));
+        Assert.All(found, m => Assert.Null(m.Error));
+        AssertAllGone(engine);
+    }
+
     [Fact]
     public void AWorkerThatCantStartLeavesTheSearchInProcess()
     {

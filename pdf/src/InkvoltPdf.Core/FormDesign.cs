@@ -853,11 +853,17 @@ public static class FormDesign
                     field.Elements["/Opt"] = new PdfArray(doc, [.. spec.Options.Select((o, i) => shown[i].Length == 0 || shown[i] == o
                         ? (PdfItem)PdfObj.MakeString(o)
                         : new PdfArray(doc, PdfObj.MakeString(o), PdfObj.MakeString(shown[i])))]);
-                var dv = spec.DefaultValue.Length > 0 && spec.Options.Contains(spec.DefaultValue) ? spec.DefaultValue : "";
-                var changed = SetDefault(field, dv.Length > 0 ? PdfObj.MakeString(dv) : null, isNew);
+                // A list's default can be several options (/DV an array, one per line here); what is an array stays one.
+                var dv = spec.DefaultValue.Split('\n').Where(spec.Options.Contains).ToList();
+                var changed = SetDefault(field, dv.Count switch
+                {
+                    0 => null,
+                    1 when PdfObj.Resolve(field.Elements["/DV"]) is not PdfArray => PdfObj.MakeString(dv[0]),
+                    _ => new PdfArray(doc, [.. dv.Select(o => (PdfItem)PdfObj.MakeString(o))]),
+                }, isNew);
                 if (changed || optionsChanged)
                 {
-                    if (dv.Length > 0) field.Elements["/I"] = new PdfArray(doc, new PdfInteger(spec.Options.ToList().IndexOf(dv)));
+                    if (dv.Count > 0) field.Elements["/I"] = new PdfArray(doc, [.. dv.Select(o => spec.Options.ToList().IndexOf(o)).Order().Select(i => (PdfItem)new PdfInteger(i))]);
                     else field.Elements.Remove("/I");
                 }
                 break;
@@ -916,6 +922,7 @@ public static class FormDesign
             (null, null) => true,
             (PdfString a, PdfString b) => a.Value == b.Value,
             (PdfName a, PdfName b) => a.Value == b.Value,
+            (PdfArray a, PdfArray b) => a.Elements.Select(PdfObj.Str).SequenceEqual(b.Elements.Select(PdfObj.Str)),
             _ => false,
         };
         if (same && !isNew) return false;
@@ -927,7 +934,12 @@ public static class FormDesign
         else
         {
             field.Elements["/DV"] = value;
-            field.Elements["/V"] = value is PdfString s ? PdfObj.MakeString(s.Value) : new PdfName(((PdfName)value).Value);
+            field.Elements["/V"] = value switch
+            {
+                PdfString s => PdfObj.MakeString(s.Value),
+                PdfArray a => a.Clone(),
+                _ => new PdfName(((PdfName)value).Value),
+            };
         }
         field.Elements.Remove("/RV");
         return true;
