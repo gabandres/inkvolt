@@ -40,15 +40,20 @@ public static class Measures
     public static Measured Run(string path, string findWord, int scrollPages = 20)
     {
         var optimized = !(typeof(Measures).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false).FirstOrDefault() is DebuggableAttribute d && d.IsJITOptimizerDisabled);
+        // As DocumentSession.Open does: a file of InPlaceBytes or more opens in place (nothing read up front), a smaller one
+        // is read whole first.
+        var bytes = new FileInfo(path).Length;
+        var inPlace = bytes >= DocumentSession.InPlaceBytes;
         var sw = Stopwatch.StartNew();
-        var data = File.ReadAllBytes(path);
+        var data = inPlace ? null : File.ReadAllBytes(path);
         var readMs = Ms(sw);
+        PdfEngine OpenEngine() => data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
 
         // First page: open (MuPDF parses the file and reads every page's size) and render page 1 as the viewer would.
         sw.Restart();
         double openMs, firstRenderMs, scale;
         int pages;
-        using (var engine = PdfEngine.Open(data, InputFileTypes.PDF, null))
+        using (var engine = OpenEngine())
         {
             openMs = Ms(sw);
             pages = engine.PageCount;
@@ -62,7 +67,7 @@ public static class Measures
         var pageMs = new List<double>();
         double findMs;
         int hits;
-        using (var engine = PdfEngine.Open(data, InputFileTypes.PDF, null))
+        using (var engine = OpenEngine())
         {
             for (var p = 0; p < Math.Min(scrollPages, pages); p++)
             {
@@ -79,13 +84,16 @@ public static class Measures
             findMs = Ms(sw);
         }
 
-        // The comment list: every annotation read through PDFsharp, as the Comments pane does when a file opens.
+        // The comment list: every annotation read through PDFsharp, as the Comments pane does when a file opens (a file
+        // opened in place whose bytes never mention /Annots isn't read for it).
         sw.Restart();
-        var comments = Annotations.Read(data, null).Count;
+        int comments;
+        using (var session = inPlace ? DocumentSession.Open(path) : null)
+            comments = session is null ? Annotations.Read(data!, null).Count : session.MayContain("/Annots") ? Annotations.Read(session.Data, null).Count : 0;
         var commentsMs = Ms(sw);
 
         var peak = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0;
-        return new Measured(Path.GetFileName(path), data.LongLength, pages, readMs, openMs, firstRenderMs, [.. pageMs], findWord, findMs, hits, commentsMs, comments, peak, optimized);
+        return new Measured(Path.GetFileName(path), bytes, pages, readMs, openMs, firstRenderMs, [.. pageMs], findWord, findMs, hits, commentsMs, comments, peak, optimized);
     }
 
     private static double Ms(Stopwatch sw) => sw.Elapsed.TotalMilliseconds;

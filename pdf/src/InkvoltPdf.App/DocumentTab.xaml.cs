@@ -460,7 +460,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         if (!Session.IsPdf) return;
         var ticket = ++_annotationLoad;
-        var data = Session.Data;
+        var session = Session;
         var pw = Session.Password;
         IReadOnlyList<FormWidget> widgets = [];
         IReadOnlyList<TextStamp> stamps = [];
@@ -469,6 +469,9 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             (widgets, stamps, rotations) = await Task.Run(() =>
             {
+                // A huge file opened in place without fields or annotations isn't read for them.
+                if (!session.MayContain("/AcroForm") && !session.MayContain("/Annots")) return ([], [], null);
+                var data = session.Data;
                 var w = FormEditor.Read(data, pw);
                 var s = TextStamps.Read(data, pw);
                 // Field editors on turned pages follow the page's /Rotate (only needed when there are fields).
