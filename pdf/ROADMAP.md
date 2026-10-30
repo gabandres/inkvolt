@@ -393,19 +393,26 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   medians against the targets in [tools/bench/RESULTS.md](tools/bench/RESULTS.md); `scrollbench` in the dev script
   times the on-screen scroll; `BenchTests` keeps the generator and harness working. First run (2026-10-30, Surface
   Laptop 7 with a Snapdragon X, a busy PC): first page 0.06 s (text), 0.27 s (scan), 0.35 s (comments); 10,000 comments
-  listed in 0.79 s; 4, 37 and 12 ms per page scrolling those three, 73–75 fps in the app with no blank page. Missed:
-  Find across 5,000 pages takes 12.8 s (2.6 ms a page of text extraction, one page at a time on the text instance; a
-  parallel pass or a per-document text index would do it), and the drawing set misses everything: first page 1.5 s
-  (0.5 s reading 1 GB into memory, 1.0 s rendering 72,000 paths), 1.6 s a sheet when scrolling (each sheet rasterized
-  whole at every scale; a low-resolution first pass or tiles would show something at once), Find 194 s (0.5 s a sheet
-  to run the content stream for a text pass that ignores the paths), 2.1 GB peak working set (the file's bytes plus
-  MuPDF's own copy; opening a huge file in place, as `OpenPreview` does, halves that), 2 sheets still blank 200 ms
-  after the scroll stops. Mac: still to do.
+  listed in 0.79 s; 4, 37 and 12 ms per page scrolling those three, 73–75 fps in the app with no blank page. The
+  speed work since (second run the same day, branch `speed`, same busy PC): Find runs as one search on two threads in
+  page order and remembers each page's text for the document's lifetime (whole for pages with little text); a file of
+  256 MB or more opens in place and its bytes are read only when needed, with a name scan so the panes skip PDFsharp
+  when the file has nothing for them; big renders run in four strips on cloned contexts; the viewer shows a small
+  preview of a page before its full render. Drawing set: first page 1.47 s to 0.47 s, peak 2.08 GB to 0.16 GB, no sheet
+  blank 200 ms after the scroll stops (was 2), a second search a millisecond. Still missed: Find across 5,000 pages
+  9.7 s (was 12.8 s), the drawing set's 20-page scroll proxy 848 ms a sheet (was 1,597; the 72,000 paths cost per path,
+  not per pixel, so a preview still takes a few hundred ms) and its first Find 164 s on that run (106 s in a quieter
+  moment; about 250 ms a sheet of MuPDF parsing the paths for a text pass that ignores them). Threads in one process
+  can't take these further: MuPDFCore's native wrapper guards MuPDF's allocations with process-wide mutexes (four
+  instances use four times the CPU of one for no gain), while four processes run four times as fast. Next: read text
+  for Find in worker processes (the app started again with a worker switch, the hits sent back), and a display list
+  kept per sheet across scrolls. Mac: still to do.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
-- **Effort** M. Windows: the benchmark is done (2026-10-30), the fixes above remain; Mac: both.
+- **Effort** M. Windows: the benchmark and the first round of fixes are done (2026-10-30), Find in worker processes
+  and the drawing set's scroll remain; Mac: both.
 
 ## Where we already win
 

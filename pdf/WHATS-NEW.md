@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Huge files: a PDF of 256 MB or more opens in place instead of being read into memory first, so a 1 GB drawing set shows its first page in about half a second and uses a fraction of the memory. While it's open, other programs can't save over it; once you edit it, Inkvolt PDF lets it go.
+- Big pages draw on several processor cores, and a page full of drawing shows a quick preview while you scroll, sharpened a moment later.
+- Search across a long document reads it faster and still shows the first matches at once. Searching the same document again skips the pages that can't match; on a drawing set a second search is instant.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. Everything in Inkvolt PDF stays free while it launches, Pro features included; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps those features for you when they start asking for a key.
 
 ## 1.2.1
