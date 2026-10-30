@@ -50,8 +50,7 @@ extension DocumentWindowController {
         pane.onCheckAgain = { [weak self] in self?.checkAccessibility(nil) }
         pane.onSave = { [weak self] in self?.saveAccessibilityReport() }
         pane.show(report, checkedAt: Date())
-        if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
-        sidebar.showAccessibility()
+        showAccessibilityPane()
         // Keyboard and VoiceOver users land on the result.
         window?.makeFirstResponder(pane.landingControl)
         NSAccessibility.post(element: window as Any, notification: .announcementRequested,
@@ -111,7 +110,7 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
     private let tabs = NSSegmentedControl(labels: ["Fails", "Checklist"], trackingMode: .selectOne, target: nil, action: nil)
     private let table = NSTableView()
     private let tableScroll = NSScrollView()
-    private let none = NSTextField(wrappingLabelWithString: "Nothing fails. The checklist is still to do.")
+    private let none = NSTextField(wrappingLabelWithString: "Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist.")
     private let checklistScroll = NSScrollView()
     private let checklist = NSStackView()
     private let againButton = NSButton(title: "Check Again", target: nil, action: nil)
@@ -183,13 +182,19 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         checklist.spacing = 10
         checklist.edgeInsets = NSEdgeInsets(top: 4, left: 2, bottom: 10, right: 2)
         checklist.translatesAutoresizingMaskIntoConstraints = false
-        let flipped = FlippedView()
+        let flipped = PaneFlippedView()
         flipped.translatesAutoresizingMaskIntoConstraints = false
         flipped.addSubview(checklist)
         checklistScroll.documentView = flipped
         checklistScroll.hasVerticalScroller = true
         checklistScroll.drawsBackground = false
         checklistScroll.isHidden = true
+        let intro = NSTextField(wrappingLabelWithString: "The machine can't judge these. Tick each once you've checked it; the saved report says which are done.")
+        intro.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        intro.textColor = .secondaryLabelColor
+        intro.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        checklist.addArrangedSubview(intro)
+        intro.widthAnchor.constraint(equalTo: checklist.widthAnchor, constant: -4).isActive = true
         for check in AccessibilityCheck.humanChecks { addCheck(check) }
 
         let stack = NSStackView(views: [summaryLabel, buttons, tabs, none, tableScroll, checklistScroll])
@@ -316,6 +321,11 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         guard !following, let failures = report?.failures, table.selectedRow >= 0, table.selectedRow < failures.count else { return }
         onGo?(failures[table.selectedRow])
     }
+}
+
+/// The checklist's document view: from the top down.
+private final class PaneFlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 /// One failure in the Accessibility pane: its condition, place and element; what is wrong; what fixes it.

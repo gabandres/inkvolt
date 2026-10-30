@@ -527,6 +527,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.show(3)
     }
 
+    /// The sidebar's Accessibility pane (its segment appears with the first check).
+    func showAccessibilityPane() {
+        if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
+        sidebar.showAccessibility()
+    }
+
     @objc func showBookmarks(_ sender: Any?) {
         if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
         sidebar.show(1)
