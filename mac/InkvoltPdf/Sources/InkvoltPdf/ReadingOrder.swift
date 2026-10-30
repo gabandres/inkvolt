@@ -427,7 +427,22 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
             v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
         }
         stack.setAccessibilityLabel("Reading order")
-        panelController.view = stack
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let solid = SolidPanelView()
+        solid.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: solid.leadingAnchor), stack.trailingAnchor.constraint(equalTo: solid.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: solid.topAnchor), stack.bottomAnchor.constraint(equalTo: solid.bottomAnchor),
+        ])
+        panelController.view = solid
+    }
+}
+
+/// The pane's background: solid, as Prepare Form's panel (the labels read on it whatever is behind).
+private final class SolidPanelView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        dirtyRect.fill()
     }
 }
 
