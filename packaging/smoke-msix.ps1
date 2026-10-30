@@ -5,9 +5,13 @@
 #   pwsh -File packaging/smoke-msix.ps1 -App Pdf     opens a PDF, Batch-exports it to Word, converts that .docx back
 #                                                    (when Word is installed), and makes a PDF from a local web page
 #   pwsh -File packaging/smoke-msix.ps1 -App Print   renders the demo printers' Overview to a PNG
+#   pwsh -File packaging/smoke-msix.ps1 -App Pdf -SmokeSideBySide
+#                                                    runs a renamed copy of the layout (identity <name>.Smoke, alias
+#                                                    inkvoltpdfsmoke.exe / inkvoltprintsmoke.exe) beside a Store install
 #
 # Needs Settings > System > For developers > Developer Mode, and no Store install of the same app (registering would
-# replace it). Work files: <app>\publish\smoke. pack-msix.ps1 runs this unless given -NoSmoke.
+# replace it) unless -SmokeSideBySide. Work files: <app>\publish\smoke (and smoke-side\<arch> for the renamed copy).
+# pack-msix.ps1 runs this unless given -NoSmoke.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
@@ -18,7 +22,10 @@ param(
     [string]$Architecture,
     # Default: <app>\publish\msix\layout\<arch>
     [string]$Layout,
-    [int]$TimeoutSeconds = 240
+    [int]$TimeoutSeconds = 240,
+    # Register a copy of the layout under another identity and alias, so a Store install of the app and its data stay
+    # untouched. The copy differs from the package only in the manifest's Identity Name and ExecutionAlias.
+    [switch]$SmokeSideBySide
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -38,18 +45,39 @@ $unlock = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppM
 if (-not $unlock -or $unlock.PSObject.Properties['AllowDevelopmentWithoutDevLicense']?.Value -ne 1) {
     throw 'Developer Mode is off (Settings > System > For developers): the layout cannot be registered.'
 }
+$aliasName = $cfg.Alias
+if ($SmokeSideBySide) {
+    $side = Join-Path $appRoot "publish\smoke-side\$Architecture"
+    Remove-Item $side -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $side | Out-Null
+    Copy-Item (Join-Path $Layout '*') $side -Recurse
+    $realName = ([xml](Get-Content $manifestPath -Raw)).Package.Identity.Name
+    $aliasName = $cfg.Alias.Replace('.exe', 'smoke.exe')
+    $xml = Get-Content $manifestPath -Raw
+    $renamed = $xml.Replace("Name=`"$realName`"", "Name=`"$realName.Smoke`"").Replace("Alias=`"$($cfg.Alias)`"", "Alias=`"$aliasName`"")
+    if ($renamed -notmatch [regex]::Escape("Name=`"$realName.Smoke`"") -or $renamed -notmatch [regex]::Escape("Alias=`"$aliasName`"")) {
+        throw "Could not rename the identity and alias in $manifestPath."
+    }
+    $Layout = $side
+    $manifestPath = Join-Path $side 'AppxManifest.xml'
+    Set-Content $manifestPath $renamed -Encoding utf8 -NoNewline
+}
+$Layout = (Resolve-Path $Layout).Path
 $identity = ([xml](Get-Content $manifestPath -Raw)).Package.Identity
 $installed = Get-AppxPackage -Name $identity.Name
 if ($installed -and -not $installed.IsDevelopmentMode) {
-    throw "$($identity.Name) $($installed.Version) is installed from the Store; registering the layout would replace it. Uninstall it first, or pack with -NoSmoke."
+    throw "$($identity.Name) $($installed.Version) is installed from the Store; registering the layout would replace it. Use -SmokeSideBySide, uninstall it first, or pack with -NoSmoke."
 }
 
 $work = Join-Path $appRoot 'publish\smoke'
 Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force (Join-Path $work 'out') | Out-Null
-$alias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$($cfg.Alias)"
-# The packaged process only (a copy installed by install-suite.ps1 may be running too).
-function Get-Packaged { Get-Process -Name $cfg.Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*\WindowsApps\*' } }
+$alias = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$aliasName"
+# The registered layout's process only: a registered layout runs in place, and a Store install or a copy installed by
+# install-suite.ps1 may be running too.
+function Get-Packaged {
+    Get-Process -Name $cfg.Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Layout\*" }
+}
 
 # A one-page PDF with a line of Helvetica text; offsets computed so the xref is exact.
 function New-SamplePdf([string]$path) {

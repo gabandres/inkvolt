@@ -12,6 +12,9 @@
 #                                                                   Store builds leave it out, see print/packaging/README.md)
 #   pwsh -File packaging/pack-msix.ps1 -App Pdf -NoSmoke            skips installing and running this PC's layout
 #                                                                   (packaging/smoke-msix.ps1; needs Developer Mode)
+#   pwsh -File packaging/pack-msix.ps1 -App Pdf -SmokeSideBySide    builds the real package, then smoke-tests a renamed copy
+#                                                                   of the layout (identity <name>.Smoke, its own alias), so
+#                                                                   a Store install of the app on this PC stays untouched
 #
 # Output (<app>\publish\msix): <Name>_<ver>_x64.msix, <Name>_<ver>_arm64.msix, <Name>_<ver>.msixbundle, <Name>_<ver>.msixupload,
 # <Name> being InkvoltPdf or InkvoltPrint. See pdf/packaging/README.md and print/packaging/README.md.
@@ -41,7 +44,10 @@ param(
     # leave it out.
     [switch]$IncludeHpCleanup,
     # Skip the smoke test (packaging/smoke-msix.ps1), which installs this PC's layout in Developer Mode and runs it
-    [switch]$NoSmoke
+    [switch]$NoSmoke,
+    # Smoke-test a renamed copy of the layout (smoke-msix.ps1 -SmokeSideBySide) instead of the layout itself: needed while
+    # the Store copy of the app is installed here. The packages are built with the real identity either way.
+    [switch]$SmokeSideBySide
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -86,6 +92,7 @@ if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesV
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }
+if ($SmokeSideBySide -and $NoSmoke) { throw '-SmokeSideBySide and -NoSmoke: pick one.' }
 
 # ───── Tools ─────
 $toolsProj = Join-Path $PSScriptRoot 'tools\BuildTools.csproj'
@@ -279,7 +286,10 @@ if ($SignWithTestCert) {
 $smokeArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 if ($NoSmoke) { Write-Warning 'Smoke test skipped (-NoSmoke): this package has not been run installed.' }
 elseif ($Architectures -notcontains $smokeArch) { Write-Warning "Smoke test skipped: no $smokeArch layout to run on this PC." }
-else { & (Join-Path $PSScriptRoot 'smoke-msix.ps1') -App $App -Architecture $smokeArch -Layout (Join-Path $OutDir "layout\$smokeArch") }
+else {
+    & (Join-Path $PSScriptRoot 'smoke-msix.ps1') -App $App -Architecture $smokeArch -Layout (Join-Path $OutDir "layout\$smokeArch") `
+        -SmokeSideBySide:$SmokeSideBySide
+}
 
 Write-Host ''
 Get-ChildItem $OutDir -File | Where-Object Extension -in '.msix', '.msixbundle', '.msixupload', '.pfx', '.cer' |

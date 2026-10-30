@@ -27,8 +27,20 @@ The defaults are the app's Partner Center identity (below); pass `-IdentityName`
 
 After packing, it installs this PC's layout as a Store install would (Developer Mode), runs it, and removes it
 (`packaging/smoke-msix.ps1 -App Print`). It also refuses a layout whose native libraries link the Visual C++ runtime
-without the VCLibs dependency. Upload only a package that passed both; `-NoSmoke` skips the run (e.g. while a Store
-copy is installed).
+without the VCLibs dependency. Upload only a package that passed both; `-NoSmoke` skips the run.
+
+While the Store copy of the app is installed on this PC, the smoke run refuses to register the layout (it would replace
+the Store install and its data). Pack with `-SmokeSideBySide` instead:
+
+```powershell
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0 -SmokeSideBySide
+```
+
+The packages are built with the real identity as usual; the smoke run then copies this PC's layout to
+`print/publish/smoke-side/<arch>`, renames its identity to `BermudezSystems.InkvoltPrint.Smoke` and its execution alias to
+`inkvoltprintsmoke.exe`, registers that copy beside the Store install, runs it, and removes it. Only those two manifest
+values differ from the package that is uploaded. For a layout that is already packed:
+`pwsh -NoProfile -File packaging/smoke-msix.ps1 -App Print -SmokeSideBySide`.
 
 Other parameters: `-DisplayName` (default `Inkvolt Print`), `-Architectures x64,arm64`, `-OutDir` (default `print/publish/msix`), `-NoBuild` (reuse the
 last publish), `-SignWithTestCert` (below), `-IncludeHpCleanup` (sideloading only, see "HP clean-up" below).

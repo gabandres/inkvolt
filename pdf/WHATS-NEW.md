@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.3.0
 - Scan now finds USB scanners and others that have a Windows driver, listed beside your network scanners, and TWAIN scanners when their TWAIN driver is installed. Scan from the glass or a stack in the feeder, both sides where the scanner can, in color, grayscale or black and white.
 - Scanning can leave out blank pages, such as the empty backs when you scan one-sided sheets on both sides. It's on by default and says how many it left out.
 - Save your scan settings as a preset (source, color, resolution, page size, text recognition, blank pages) and pick it next time; it works with any scanner, as closely as that scanner allows.
@@ -21,13 +23,13 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Every box in the dialogs has a name a screen reader reads (its label), including the Crop margins, page ranges and Document Properties.
 - Make Accessible (Review menu): tags a PDF for screen readers on your PC, nothing uploaded. Headings, paragraphs, lists, tables, pictures and links are found from the layout, in reading order, and page headers, footers and page numbers are skipped; you confirm the title and language. One step you can undo.
 - Reading Order and Alt Text (Review menu): see the order a screen reader follows as numbered boxes on the page, and drag or press Alt+Up / Alt+Down to fix it. Type a description for each picture, mark decorative ones, or have your own AI model suggest one (you see what is sent, and where, first).
+- Make Accessible also finds captions, footnotes, a table of contents, equations, lists inside lists, and the headers down the side of a table or spanning several columns. A chart's numbers stay part of the chart instead of turning into a table.
+- Papers written in LaTeX now read out their math after Make Accessible: big brackets, sums and integrals get the characters they show, so they pass the PDF/UA check.
+- In Reading Order and Alt Text, move a piece to the page before or after (Alt+Page Up / Alt+Page Down), for a sidebar that continues the page before. Everything works from the keyboard: Page Up / Page Down shows another page's pieces, Enter goes to a picture's description and Esc comes back. An equation's spoken text can be changed like a picture's.
 - Save as PDF/A-2a (File menu): an archival copy that keeps the document's tags, for archives that ask for accessible PDFs. Batch has Make Accessible and PDF/A-2a too.
 - Huge files: a PDF of 256 MB or more opens in place instead of being read into memory first, so a 1 GB drawing set shows its first page in about half a second and uses a fraction of the memory. While it's open, other programs can't save over it; once you edit it, Inkvolt PDF lets it go.
 - Big pages draw on several processor cores, and a page full of drawing shows a quick preview while you scroll, sharpened a moment later.
 - Search across a long document reads it faster and still shows the first matches at once. Searching the same document again skips the pages that can't match; on a drawing set a second search is instant.
-- Make Accessible also finds captions, footnotes, a table of contents, equations, lists inside lists, and the headers down the side of a table or spanning several columns. A chart's numbers stay part of the chart instead of turning into a table.
-- Papers written in LaTeX now read out their math after Make Accessible: big brackets, sums and integrals get the characters they show, so they pass the PDF/UA check.
-- In Reading Order and Alt Text, move a piece to the page before or after (Alt+Page Up / Alt+Page Down), for a sidebar that continues the page before. Everything works from the keyboard: Page Up / Page Down shows another page's pieces, Enter goes to a picture's description and Esc comes back. An equation's spoken text can be changed like a picture's.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. Everything in Inkvolt PDF stays free while it launches, Pro features included; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps those features for you when they start asking for a key.
 - A paragraph with a bold or italic word in it (as Word and most programs write them) now edits as one paragraph: the word keeps its look, and new bold or italic text uses the PDF's own bold or italic font when it has one.
 - The paragraph editor's font list now has every font installed on your PC, not just the common fourteen.
