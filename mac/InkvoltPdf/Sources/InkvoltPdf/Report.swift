@@ -15,8 +15,8 @@ import PdfCore
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `SignTest`, `CompareTest` and `MeasureTest` (`--only-measure` runs
-/// it alone); with
+/// runs it alone), and on the synthetic text document `MeasureTest` (`--only-measure` runs it alone), `SignTest` and
+/// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
 /// through AppKit's close-all with unsaved changes. `--synthetic` opens
@@ -120,12 +120,13 @@ enum Report {
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
                 if openedFrom != nil && openedFrom == syntheticPath {
+                    // Before signing: a signed document declines the scale's page edits.
+                    var measure = MeasureTest(controller: controller, name: name)
+                    await measure.run()
                     var sign = SignTest(controller: controller, name: name)
                     await sign.run()
                     var compare = CompareTest()
                     await compare.run()
-                    var measure = MeasureTest(controller: controller, name: name)
-                    await measure.run()
                 }
             }
             done()

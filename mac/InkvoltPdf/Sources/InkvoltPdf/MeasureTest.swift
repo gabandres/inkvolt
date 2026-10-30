@@ -1,7 +1,8 @@
 import AppKit
 import PdfCore
 
-/// The self-test's scenario for E6 (`--edit`, on the synthetic text document; `--only-measure` runs it alone): the
+/// The self-test's scenario for E6 (`--edit`, on the synthetic text document before `SignTest` signs it; `--only-measure`
+/// runs it alone): the
 /// measuring tools chosen from Tools › Measure and used through the page view's own mouse and key handling (clicks, the
 /// pointer's moves, a double-click, Return, Delete, Esc), Set Measuring Scale and Calibrate through their sheets, a
 /// measurement reshaped, undo, and the saved bytes read back by PdfCore and MuPDF. Only counts and values are written.
