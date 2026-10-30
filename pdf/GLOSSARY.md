@@ -37,6 +37,12 @@ locality) are used in their usual sense: the interface is everything a caller mu
   wrong and what fixes it; the **human checks** are the checklist of what only a person can judge. The **report** is the
   findings, the ticked checklist and every condition's result as one web page (`AccessibilityReportHtml`). Runs from
   Review › Accessibility Check… (the Accessibility pane) and in Batch.
+- **Make Accessible** (`Core/AutoTag*.cs`): tagging a document from its layout. The **tag plan** (`TagPlan`) is what
+  will be written: the **blocks** (`TagBlock`: paragraph, heading, list, table, figure) of each page in reading order,
+  the running headers and footers (artifacts), the title and language; the **reading order panel** edits it (order
+  within a page, alternate text, decorative pictures) and **writing** it puts each piece of page content in marked
+  content with an MCID and builds the structure tree, replacing tags the document had. In the app: `AccessibleActions`,
+  `DocumentTab.ReadingOrder.cs`; in Batch: Make Accessible.
 - **Batch preset** (`Core/BatchPresets.cs`): a saved batch (its actions in order with their settings, the output
   names and choices) as a plain JSON file with a version; never holds passwords. Run by the Batch window, a watched
   folder and the command line.

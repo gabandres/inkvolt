@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Make Accessible (Review menu): tags a PDF for screen readers on your PC, nothing uploaded. Headings, paragraphs, lists, tables, pictures and links are found from the layout, in reading order, and page headers, footers and page numbers are skipped; you confirm the title and language. One step you can undo.
+- Reading Order and Alt Text (Review menu): see the order a screen reader follows as numbered boxes on the page, and drag or press Alt+Up / Alt+Down to fix it. Type a description for each picture, mark decorative ones, or have your own AI model suggest one (you see what is sent, and where, first).
+- Save as PDF/A-2a (File menu): an archival copy that keeps the document's tags, for archives that ask for accessible PDFs. Batch has Make Accessible and PDF/A-2a too.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. Everything in Inkvolt PDF stays free while it launches, Pro features included; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps those features for you when they start asking for a key.
 
 ## 1.2.1

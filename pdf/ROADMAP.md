@@ -303,7 +303,36 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
 - **Leader.** Acrobat Pro: Autotag in Adobe's cloud (headings, borderless tables, nested lists, multi-column reading
   order), a reading order tool and tag editor ([Adobe](https://helpx.adobe.com/acrobat/using/cloud-auto-tagging-accessibility-pdfs.html));
   reviewers note that sending the file to a server is itself a risk ([Apryse](https://apryse.com/blog/auto-tagging-pdf-ua-compliance)).
-- **Now.** `DocLayout` already finds headings, lists, tables, columns, headers and footers for Export to Word.
+- **Now.** Windows (2026-10-30, branch `pdf-accessible`). **Make Accessible** (Review menu, command palette, Batch;
+  `AutoTag`): `DocLayout` reads the pages as for Export to Word into a tag plan (headings, paragraphs, lists, tables
+  with a bold first row as column headers, pictures and vector charts, running headers and footers; a sideways margin
+  stamp is never a heading, a bold numbered "3.1 …" line is a heading at its depth), then each piece of page content
+  goes in BDC/EMC with an MCID (never across BT/ET, q/Q or other marked content) or becomes an artifact (running
+  headers, footers and page numbers as Pagination artifacts, rules and backgrounds), and the structure tree follows
+  the plan: Document › H1-H6 (evened out: the first H1, none skipped), P, L › LI › LBody, Table › TR › TH (Scope
+  Column) / TD (ColSpan), Figure (Alt, Layout BBox), Link (text and OBJR, Contents from its text), Form and Annot for
+  fields and comments; ParentTree, MarkInfo, Lang (a passage clearly in another language gets its own), title (asked:
+  the metadata's, else the first heading), DisplayDocTitle, Tabs S on every page, pdfuaid in the XMP, PDF 1.7, the
+  standard Latin fonts embedded as PDF/A does, Symbol/Wingdings bullets with ActualText; existing tags are replaced
+  (alternate text kept by place); one undo step, a signed file's edit appended. **Reading order pane**: the page's
+  pieces numbered in the list and as boxes on the page, moved by drag or Alt+Up/Down, alternate text typed, Decorative,
+  or suggested by the user's own vision model through `AiClient` after the "what is sent, where" window (an OpenAI
+  vision request: the picture and the text near it), Apply changes re-tags. **Save as PDF/A-2a** (File menu, Batch):
+  `PdfA` at level A keeps the tags, needs a language, keeps pdfuaid with its extension schema. Tests: `AutoTagTests`
+  (20: each tag kind, MCIDs and the parent tree, title/language/tab order/identifier, heading levels, reading-order
+  moves, decorative pictures, alternate text round trip and re-tagging, links, PDF/A-2a, Batch and presets, the vision
+  request). **Corpus** (`tools/a11y-corpus`, `run.ps1 -Tag`, veraPDF 1.30.3; figures given a stand-in alternate text):
+  the corpus has 2 untagged files, both pdfTeX papers: after Make Accessible both pass every condition but 31-027
+  (glyphs of the TeX math fonts without Unicode), veraPDF agreeing (7.21.7-1 only). It has no untagged Word file, so
+  12 Word and office files were tagged with their own tags replaced: 5 pass veraPDF PDF/UA-1 outright (Word 2016, Word
+  365, a letter, a résumé, a PDFMaker test document), the other 7 fail only on what tagging doesn't touch (form-field
+  tooltips 28-005, fonts 31-009/014/030), same result as the checker for 12 of 12. PDF/A-2a: the Word files pass
+  veraPDF 2a and ua1; the pdfTeX paper (tagged in the app, 5 pictures given alternate text in the pane, one marked
+  decorative) fails both only on the same math-font glyphs. Still to do: glyphs without Unicode (a ToUnicode from TeX
+  glyph names would fix the pdfTeX papers), Caption/Note/TOC/Formula tags, nested lists, row headers, content inside
+  form XObjects tagged piece by piece, cross-page moves and changing a piece's kind in the pane, charts with many
+  labels read as tables (`DocLayout`), the Pro gate (`Pro.cs` has no Accessibility feature yet; enforcement is off),
+  Acrobat and PAC checks of the output, and the Mac.
 - **Beat it when:** Make Accessible tags an untagged PDF on the PC from `DocLayout` (H1-H6, P, L/LI, Table/TR/TH/TD with
   header scope, Figure, Artifact for running headers and page numbers), sets title, language and tab order; a reading
   order panel shows the order as numbered boxes, reordered by drag; alt text is typed per figure, or suggested by the
