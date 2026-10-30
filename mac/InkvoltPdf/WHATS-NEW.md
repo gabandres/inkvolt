@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Measure (Tools menu): click to measure a distance, a perimeter or an area on drawings and plans, with the value shown by the pointer as you go. Set Measuring Scale… ("1 in = 10 ft", this page or all) or Calibrate from a length you know saves the scale in the PDF, and the scales a drawing already has are used where they apply. Each measurement is a comment labeled with its value, written the way Acrobat and Inkvolt PDF for Windows write them, so it reads the same there.
 
 ## 1.3.0
 - Compare Files… (File menu): pick the original and the changed version (an open document or any PDF) and see them side by side, page by page, with every inserted, removed and changed word marked on both sides and listed to step through. Text that only moved to the next page isn't a change; a removed or added page is one change. Visual overlays the pages (only in the original: red, only in the changed file: blue) for drawings and scans. Annotated Copy makes a copy of the changed file with every change as a comment, to save and share.
