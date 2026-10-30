@@ -162,8 +162,9 @@ final class ProWindowController: NSWindowController {
         let have = RedactPatternSheet.heading("Have a key? Paste it here")
         add(have)
         body.setCustomSpacing(16, after: get)
-        keyScroll.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
         body.addArrangedSubview(keyScroll)
+        // Only once it is in the stack: AppKit throws for anchors without a common ancestor.
+        keyScroll.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
         body.addArrangedSubview(error)
         let enter = NSButton(title: "Enter Key", target: self, action: #selector(enterClicked))
         enter.keyEquivalent = "\r"

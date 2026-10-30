@@ -56,7 +56,6 @@ struct AccessibleTest {
 
     mutating func run() async {
         lines.append("== \(name): Make Accessible, Reading Order, PDF/A-2a")
-        if ProcessInfo.processInfo.environment["E24_TRY"] != nil { ProWindowController.show(feature: .autoTagging); try? await Task.sleep(for: .seconds(2)); ProWindowController.shared?.close(); Report.progress("E24 pro window survived"); try? await Task.sleep(for: .seconds(1)) }
         for (action, title, menu) in [(#selector(DocumentWindowController.makeAccessible(_:)), "Make Accessible (Tag)…", "Tools"),
                                       (#selector(DocumentWindowController.toggleReadingOrder(_:)), "Reading Order and Alt Text", "Tools"),
                                       (#selector(DocumentWindowController.saveAsPdfA2a(_:)), "Save as PDF/A-2a (Accessible Archive)…", "File")] {
@@ -119,7 +118,9 @@ struct AccessibleTest {
             lines.append("note: one page, the page keys aren't tried")
         }
 
-        // A picture's alternate text, typed and written.
+        // A picture's alternate text, typed and written (on the page that has one).
+        let picturePage = pane.plan?.blocks.first { $0.kind == .figure }.map { AutoTag.readingPage($0) } ?? 0
+        while pane.page != picturePage, pane.page < pageCount { press(picturePage > pane.page ? .pageDown : .pageUp) }
         if let row = pane.state.items.firstIndex(where: { $0.block.kind == .figure }) {
             pane.selectRow(row)
             check(!pane.figureGroup.isHidden && pane.altLabel.stringValue.hasPrefix("Alternate text for picture"), "a picture shows its alternate text")
@@ -143,12 +144,12 @@ struct AccessibleTest {
             } else {
                 check(false, "the file opens")
             }
-            pane.selectRow(row)
+            if let again = pane.state.items.firstIndex(where: { $0.block.kind == .figure }) { pane.selectRow(again) }
             pane.setDecorative(true)
             check(pane.plan?.figuresWithoutAlt == 0 && !pane.altField.isEnabled && pane.selectedItemKind == "Picture (decorative)", "Decorative: no text needed, the field greys")
             pane.setDecorative(false)
         } else {
-            lines.append("note: no picture on this page")
+            lines.append("note: this document has no picture")
         }
 
         // The Pro check on each feature.
