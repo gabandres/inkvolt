@@ -42,6 +42,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// The form's fields and Edit Text & Images (the window controller owns them).
     weak var form: FormFiller?
     weak var content: ContentEditing?
+    /// Prepare Form's fields (the window controller owns it).
+    weak var design: PrepareForm?
     /// The signature or initials the Signature tool puts down at the next click.
     var pendingSignature: (image: StampImage, initials: Bool)?
 
@@ -279,7 +281,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
             drawMarks(i, r)
             drawRedactions(i, r)
-            form?.draw(i, r)
+            if tool == .prepareForm { design?.draw(i, r) } else { form?.draw(i, r) }
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
         }
@@ -730,6 +732,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     // MARK: Cursor
 
     override func resetCursorRects() {
+        if tool == .prepareForm {
+            design?.addCursorRects(to: self)
+            return
+        }
         let cursor: NSCursor
         switch tool {
         case .text, .highlight, .underline, .strikeOut: cursor = .iBeam
@@ -755,6 +761,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         window?.makeFirstResponder(self)
         shiftDown = event.modifierFlags.contains(.shift)
         let point = convert(event.locationInWindow, from: nil)
+        if tool == .prepareForm {
+            designDown(event, point)
+            return
+        }
         if let h = handle(at: point), let id = selectedId {
             startHandleDrag(id, h.page, h.handle)
             return
@@ -815,7 +825,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .ink(page: hit.page, points: [p])
         case .note, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature:
             drag = .box(page: hit.page, start: p, now: p)
-        case .editContent:
+        case .editContent, .prepareForm:
             return
         case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate:
             measureDown(hit.page, p, clicks: event.clickCount, shift: shiftDown)
@@ -875,6 +885,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     override func mouseDragged(with event: NSEvent) {
         shiftDown = event.modifierFlags.contains(.shift)
         let point = convert(event.locationInWindow, from: nil)
+        if tool == .prepareForm && drag == nil {
+            design?.dragged(point, shift: shiftDown)
+            return
+        }
         guard let current = drag else { return }
         switch current {
         case .link(_, let page, let start):
@@ -941,6 +955,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     override func mouseUp(with event: NSEvent) {
         shiftDown = event.modifierFlags.contains(.shift)
+        if tool == .prepareForm && drag == nil {
+            design?.released()
+            return
+        }
         guard let finished = drag else { return }
         drag = nil
         if case .pan = finished { NSCursor.pop() }
@@ -953,6 +971,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             return
         }
         commit(finished, click: event.clickCount)
+    }
+
+    /// A press in Prepare Form: the designer selects, moves, resizes or starts a new field; an empty spot scrolls, as with
+    /// the hand tool.
+    private func designDown(_ event: NSEvent, _ point: NSPoint) {
+        guard let design, let hit = page(at: point) else { return }
+        if design.press(hit.page, pagePoint(point, on: hit.page), clicks: event.clickCount) == .pan, let clip = enclosingScrollView?.contentView {
+            drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
+            NSCursor.closedHand.push()
+        }
     }
 
     /// Turns a finished press into its edit.
@@ -1338,12 +1366,22 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     // MARK: Keys
 
+    /// ⌘D duplicates the selected field in Prepare Form (it adds a bookmark otherwise, as the menu says).
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if tool == .prepareForm, window?.firstResponder === self, event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command,
+           event.charactersIgnoringModifiers == "d", design?.duplicateSelected() == true {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         if let picker = boxPicker, event.keyCode == 53 { // Esc: no box
             boxPicker = nil
             picker(0, nil)
             return
         }
+        if tool == .prepareForm, design?.handleKey(event) == true { return }
         if form?.handleKey(event) == true || handleContentKey(event) || handleEditingKey(event) || handleToolKey(event) { return }
         guard let scroll = enclosingScrollView else { return super.keyDown(with: event) }
         let clip = scroll.contentView

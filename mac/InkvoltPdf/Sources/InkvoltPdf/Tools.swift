@@ -9,6 +9,7 @@ enum Tool: Int, CaseIterable {
     case callout, polygon, polyline
     case redact
     case measureDistance, measurePerimeter, measureArea, measureCalibrate
+    case prepareForm
 
     var title: String {
         switch self {
@@ -42,6 +43,7 @@ enum Tool: Int, CaseIterable {
         case .measurePerimeter: "Measure Perimeter"
         case .measureArea: "Measure Area"
         case .measureCalibrate: "Calibrate Scale from a Known Length"
+        case .prepareForm: "Prepare Form"
         }
     }
 
@@ -74,7 +76,7 @@ enum Tool: Int, CaseIterable {
         case .polygon: "v"
         case .polyline: "z"
         case .redact: "f"
-        case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate: "" // none, as on Windows
+        case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate, .prepareForm: "" // none, as on Windows
         }
     }
 
@@ -109,6 +111,7 @@ enum Tool: Int, CaseIterable {
         case .measureDistance, .measureCalibrate: "ruler"
         case .measurePerimeter: "point.topleft.down.to.point.bottomright.curvepath"
         case .measureArea: "square.dashed"
+        case .prepareForm: "rectangle.and.pencil.and.ellipsis"
         }
     }
 
@@ -139,6 +142,7 @@ enum Tool: Int, CaseIterable {
         case .measureDistance: "Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Tools › Measure › Set Measuring Scale)"
         case .measurePerimeter, .measureArea: "Click each corner; double-click or Return finishes, Delete takes a corner back, Esc cancels"
         case .measureCalibrate: "Click both ends of something whose real length you know (a dimension, a scale bar)"
+        case .prepareForm: "Add and edit form fields"
         }
     }
 

@@ -15,7 +15,7 @@ import PdfCore
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `MeasureTest` (`--only-measure` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -35,6 +35,8 @@ enum Report {
     private(set) static var onlyRedaction = false
     /// `--only-measure`: with `--edit`, only `MeasureTest` (quicker runs while working on Measure).
     private(set) static var onlyMeasure = false
+    /// `--only-prepare-form`: with `--edit`, only `PrepareFormTest` (quicker runs while working on Prepare Form).
+    private(set) static var onlyPrepareForm = false
     private(set) static var snapshots: String?
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
@@ -58,6 +60,7 @@ enum Report {
         edits = args.contains("--edit")
         onlyRedaction = args.contains("--only-redaction")
         onlyMeasure = args.contains("--only-measure")
+        onlyPrepareForm = args.contains("--only-prepare-form")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -97,6 +100,11 @@ enum Report {
             if restoresRecovery && controller.pdf.session?.isDirty == true {
                 var check = EditTest(controller: controller, name: name)
                 await check.checkRecovered()
+            } else if edits && onlyPrepareForm {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var form = PrepareFormTest(controller: controller, name: name)
+                    await form.run()
+                }
             } else if edits && onlyMeasure {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var measure = MeasureTest(controller: controller, name: name)
@@ -120,6 +128,8 @@ enum Report {
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
                 if openedFrom != nil && openedFrom == syntheticPath {
+                    var form = PrepareFormTest(controller: controller, name: name)
+                    await form.run()
                     // Before signing: a signed document declines the scale's page edits.
                     var measure = MeasureTest(controller: controller, name: name)
                     await measure.run()
@@ -148,7 +158,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

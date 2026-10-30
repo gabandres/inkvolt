@@ -56,6 +56,19 @@ struct HostileStructureTests {
         #expect(c.array("Opt")?.count == 2)
     }
 
+    /// From the Windows file's drawing tests (E5): a form of a 1 MB comment and one square, drawn 100,000 times.
+    @Test func shapeDetectionReadsAFormDrawnManyTimesOnce() throws {
+        let draws = String(repeating: "/F Do\n", count: 100_000)
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /F 5 0 R >> >> /Contents 4 0 R >>",
+            Core2Pdf.stream("0 0 0 RG 72 72 100 100 re S\n" + draws),
+            Core2Pdf.stream("% " + String(repeating: "x", count: 1 << 20) + "\n0 0 1 1 re n", "/Type /XObject /Subtype /Form /BBox [0 0 10 10]"),
+        ])
+        #expect(try within { try VectorShapes.read(pdf, nil, 0) }.count == 1)
+    }
+
     @Test func deletingAPageWalksSharedActionChainsOnce() throws {
         // 2^40 paths through the chain: each action is looked at once.
         let kept = try within { try PageEditor.delete(Self.actionChain(40, "<< /S /URI /URI (https://example.com/end) >>"), nil, [1]) }

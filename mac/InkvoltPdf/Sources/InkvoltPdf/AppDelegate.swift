@@ -306,6 +306,9 @@ enum MainMenu {
         measureItem.submenu = measure
         menu.addItem(measureItem)
         menu.addItem(.separator())
+        menu.addItem(item("Prepare Form", #selector(DocumentWindowController.togglePrepareForm(_:)), "f", [.command, .option]))
+        menu.addItem(item("Detect Form Fields", #selector(DocumentWindowController.detectFormFields(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
         menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
         menu.addItem(.separator())

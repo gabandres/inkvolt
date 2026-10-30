@@ -20,6 +20,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let redactBar = RedactBar()
     let redaction = RedactionState()
     let measure = MeasureState()
+    /// Prepare Form's bar, panel and fields.
+    private(set) lazy var design = PrepareForm(controller: self)
     /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
     let signing = SigningState()
     /// The form's fields on the pages, and Edit Text & Images.
@@ -99,11 +101,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, scrollView])
+        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, scrollView])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
         diskBar.isHidden = true
         noticeBar.isHidden = true
@@ -119,6 +121,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         side.maximumThickness = 360
         split.addSplitViewItem(side)
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
+        split.addSplitViewItem(design.panelItem)
         sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 820))
@@ -130,6 +133,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         self.content = ContentEditing(controller: self)
         pages.form = form
         pages.content = self.content
+        pages.design = design
         form.reload()
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
@@ -201,6 +205,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         pages.reload(engine: engine)
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
+        design.contentChanged()
         if !foundQuery.isEmpty { find(foundQuery) }
         if change == .reload { hideDiskBar() }
         verifySignatures(onOpen: change == .reload)
@@ -345,6 +350,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
         toolStrip.show(tool, style: style, stamp: pages.stamp.label)
+        design.toolChanged()
         updateRedactBar()
         if let id = pages.selectedId, let c = editor.comment(id), DocumentEditor.recolorable(c) {
             toolStrip.showStyle(AnnotStyle(color: c.color ?? .yellow, width: 1), usesWidth: false, usesColor: true)
@@ -536,6 +542,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return true
         case #selector(setMeasuringScale(_:)):
             return pdf.session != nil && engine.pageCount > 0
+        case #selector(togglePrepareForm(_:)):
+            item.state = design.isDesigning ? .on : .off
+            return pdf.session != nil
+        case #selector(detectFormFields(_:)):
+            return pdf.session != nil && longTask == nil && progressSheet == nil
         case #selector(openInspector(_:)), #selector(replyToSelected(_:)):
             return pages.selectedId != nil
         case #selector(linkSelectedText(_:)):
