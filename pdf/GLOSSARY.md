@@ -76,5 +76,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Pro check** (`Core/Pro.cs`, on the suite's `ProCheck` in `InkvoltPrint.Core/Suite`): `Pro.Allows(feature)`, the one
   place a Pro feature asks whether it may run: yes with a **licence** (a signed key, `ProKeys`, kept in the file both
   Inkvolt apps read and verified on the PC), and yes for everyone while `Pro.Enforced` is off (the launch period).
+- **Measuring scale** (`Core/Measurement.cs`, `MeasureScale`): what a length on the page stands for ("1 in = 10 ft"),
+  kept by a page in a viewport (/VP, the PDF's own way; several per page for details, the last listed wins where they
+  overlap) and by each **measurement** (a Line, PolyLine or Polygon comment with /Measure, labeled with its value).
+  Without one, values are real size. The Mac calls a measurement still being clicked a **measurement under way**
+  (`MeasureDraft`, in PdfCore; Windows keeps it in `PageViewer.Measure`).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

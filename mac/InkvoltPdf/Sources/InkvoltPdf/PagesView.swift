@@ -97,6 +97,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard tool != oldValue else { return }
             drag = nil
             vertices = nil
+            measuring = tool.measureTool.map { MeasureDraft($0) }
             if !tool.selects && tool != .link { select(nil) }
             if tool != .editContent { content?.select(nil) }
             window?.invalidateCursorRects(for: self)
@@ -147,6 +148,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     private(set) var drag: Drag? { didSet { needsDisplay = true } }
     /// The corners of the polygon (or points of the polyline) being drawn, on one page.
     private(set) var vertices: (page: Int, points: [PointD])? { didSet { needsDisplay = true } }
+    /// The measuring tool's measurement under way (nil with any other tool).
+    private(set) var measuring: MeasureDraft? { didSet { if measuring != oldValue { needsDisplay = true } } }
+    /// The scale at a point of a page (the page's viewport there, else real size), and where a finished measurement goes
+    /// (the window controller saves it, or asks the real length for a calibration).
+    var measureScaleAt: (@MainActor (Int, PointD) -> MeasureScale)?
+    var onMeasured: (@MainActor (MeasureTool, Int, [PointD]) async -> Bool)?
     /// The last drag's preview, kept until its page is drawn again with the edit in it.
     private var ghost: Drag?
     private var shiftDown = false
@@ -168,6 +175,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Pages")
+        // The pointer's moves, for the measuring tools' value so far (AppKit keeps the area on the visible part).
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable)
@@ -373,9 +382,59 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 NSBezierPath(ovalIn: NSRect(x: dot.x - size / 2, y: dot.y - size / 2, width: size, height: size)).fill()
             }
         }
+        if let m = measuring, m.isActive, m.page == page { drawMeasure(m, r) }
         if drag == nil, let id = selectedId, let frame = frame(of: id), frame.page == page {
             drawSelection(frame.rect, r, handles: handles(of: id), lineEnds: lineEnds(of: id))
         }
+    }
+
+    /// The measurement under way (the Windows viewer's look): its segments, a light fill and the closing edge dashed for
+    /// an area, a dot per point clicked, and the value so far in a dark box by the pointer, all the same size at any zoom.
+    private func drawMeasure(_ m: MeasureDraft, _ r: NSRect) {
+        guard !m.points.isEmpty else { return }
+        let px = onePixel
+        var pts = m.points
+        if let h = m.hover { pts.append(h) }
+        let screen = pts.map { viewPoint($0, r) }
+        let color = NSColor(srgbRed: 0.8, green: 0.1, blue: 0.1, alpha: 1)
+        if m.tool == .area && screen.count >= 3 {
+            let shape = NSBezierPath()
+            shape.move(to: screen[0])
+            for p in screen.dropFirst() { shape.line(to: p) }
+            shape.close()
+            color.withAlphaComponent(0.19).setFill()
+            shape.fill()
+            let closing = NSBezierPath()
+            closing.move(to: screen[screen.count - 1])
+            closing.line(to: screen[0])
+            closing.lineWidth = px
+            closing.setLineDash([4 * px, 3 * px], count: 2, phase: 0)
+            color.setStroke()
+            closing.stroke()
+        }
+        color.setStroke()
+        let path = NSBezierPath()
+        path.move(to: screen[0])
+        for p in screen.dropFirst() { path.line(to: p) }
+        path.lineWidth = 1.5 * px
+        path.stroke()
+        for p in screen.prefix(m.points.count) {
+            let dot = NSBezierPath(ovalIn: NSRect(x: p.x - 3 * px, y: p.y - 3 * px, width: 6 * px, height: 6 * px))
+            NSColor.white.setFill()
+            dot.fill()
+            dot.lineWidth = 1.5 * px
+            dot.stroke()
+        }
+        let scale = measureScaleAt?(m.page, m.points[0]) ?? .default
+        let text = m.value(scale) as NSString
+        guard text.length > 0, let last = screen.last else { return }
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12 * px), .foregroundColor: NSColor.white]
+        let size = text.size(withAttributes: attributes)
+        let at = NSPoint(x: last.x + 14 * px, y: last.y + 14 * px)
+        let box = NSRect(x: at.x - 6 * px, y: at.y - 3 * px, width: size.width + 12 * px, height: size.height + 6 * px)
+        NSColor(white: 0.125, alpha: 0.9).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 4 * px, yRadius: 4 * px).fill()
+        text.draw(at: at, withAttributes: attributes)
     }
 
     private func drawSelection(_ frame: RectD, _ r: NSRect, handles: [Int], lineEnds: [PointD]) {
@@ -758,6 +817,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .box(page: hit.page, start: p, now: p)
         case .editContent:
             return
+        case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate:
+            measureDown(hit.page, p, clicks: event.clickCount, shift: shiftDown)
         case .redact:
             // A click on a mark unmarks it; a drag marks an area.
             if let i = redactions.lastIndex(where: { $0.page == hit.page && $0.rect.contains(p.x, p.y) }) {
@@ -1008,6 +1069,35 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let thinned = DrawingGeometry.simplify(points, Double(0.6 * onePixel))
             startEdit { await editor.addInk(page: page, strokes: [thinned], style: style) }
         }
+    }
+
+    /// A measuring tool's click: a point (Shift: straight or at 45° from the last), and the measurement handed over once it
+    /// is finished.
+    private func measureDown(_ page: Int, _ p: PointD, clicks: Int, shift: Bool) {
+        guard var m = measuring else { return }
+        let done = m.click(page: page, p, clicks: clicks, shift: shift)
+        measuring = m
+        if let done { finishMeasure(m.tool, done) }
+    }
+
+    private func finishMeasure(_ tool: MeasureTool, _ done: (page: Int, points: [PointD])) {
+        guard let onMeasured else { return }
+        startEdit { await onMeasured(tool, done.page, done.points) }
+    }
+
+    /// The pointer over the pages: the measurement under way follows it.
+    override func mouseMoved(with event: NSEvent) {
+        guard var m = measuring, m.isActive, m.page < pageRects.count else { return super.mouseMoved(with: event) }
+        let point = convert(event.locationInWindow, from: nil)
+        m.move(page: m.page, pagePoint(point, on: m.page), shift: event.modifierFlags.contains(.shift))
+        measuring = m
+    }
+
+    /// For the self-test: the measuring tool's state, and the points of a measurement as if clicked (the Windows dev
+    /// script's `measure`).
+    var measureInProgress: String? {
+        guard let m = measuring else { return nil }
+        return m.described(measureScaleAt?(m.page, m.points.first ?? PointD(0, 0)) ?? .default)
     }
 
     /// The Polygon and Polyline tools: each click adds a corner; a double-click, a click on the first corner (polygon) or
@@ -1285,6 +1375,25 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard let editor, !editor.comments.isEmpty else { return false }
             selectNext(shift ? -1 : 1)
             return true
+        }
+        if var m = measuring, m.isActive {
+            // Return finishes (or goes on without enough points), Delete takes the last point back, Esc drops it.
+            switch event.specialKey {
+            case .carriageReturn, .enter:
+                if let done = m.finish() { finishMeasure(m.tool, done) }
+                measuring = m
+                return true
+            case .delete, .backspace:
+                m.removeLast()
+                measuring = m
+                return true
+            default:
+                if event.keyCode == 53 {
+                    m.cancel()
+                    measuring = m
+                    return true
+                }
+            }
         }
         if vertices != nil {
             switch event.specialKey {
