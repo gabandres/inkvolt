@@ -309,10 +309,24 @@
                                             </StackPanel>
                                             <TextBlock Text="{Binding Cartridge}" Style="{StaticResource Caption}"
                                                        Visibility="{Binding Cartridge, Converter={StaticResource VisibleWhen}}" />
+                                            <!-- From the supply history: days left, pages on this cartridge (or why not yet) -->
+                                            <TextBlock Text="{Binding HistoryLine}" Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                                       Visibility="{Binding HistoryLine, Converter={StaticResource VisibleWhen}}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- Supply history: the level over the last year, kept on this PC (roadmap 1.1) -->
+                            <StackPanel Visibility="{Binding SupplyChart, Converter={StaticResource VisibleWhen}}" Margin="0,4,0,0">
+                                <TextBlock Text="Levels over the last year" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                <views:SupplyChartView Data="{Binding SupplyChart}" Height="120" MinWidth="240" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SupplyChartNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding SupplyChartNote, Converter={StaticResource VisibleWhen}}" />
+                            <Button Content="Export history…" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                    Command="{Binding DataContext.ExportHistoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    AutomationProperties.HelpText="Save the supply history of all printers as one CSV file (Inkvolt Pro)"
+                                    Visibility="{Binding SupplyChart, Converter={StaticResource VisibleWhen}}" />
                         </StackPanel>
                     </Border>
 

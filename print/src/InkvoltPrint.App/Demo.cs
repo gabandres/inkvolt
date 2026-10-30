@@ -95,6 +95,7 @@ internal static class Demo
         public override string UserName => "demo";
         public override string? ImageCache => null;
         public override bool ChecksHpSoftware => false;
+        public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
 
         public override void PrepareScan(bool feederBatch, bool photosOnGlass)
         {

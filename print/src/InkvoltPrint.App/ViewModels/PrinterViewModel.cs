@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Alerts;
 using InkvoltPrint.Core.Escl;
+using InkvoltPrint.Core.History;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
@@ -698,8 +699,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             QueueMissing?.Invoke();
             return;
         }
-        Sync(Supplies, read.Supplies.Select(s => new SupplyViewModel(s)).ToList());
-        OnPropertyChanged(nameof(SuppliesTitle));
+        ShowSupplies(read.Supplies, null);
         OnPropertyChanged(nameof(StatusSourceNote)); // SNMP may have started or stopped answering
         if (read.Offline)
         {
@@ -715,7 +715,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ListStatus));
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies));
+        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies) { DaysLeft = _history?.DaysLeft });
     }
 
     /// <summary>
@@ -962,11 +962,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Maintenance.Update(true, status);
 
         // Supplies not read this time (null) stay as they were; they refresh on the next event.
-        if (reading.Supplies is { } supplies)
-        {
-            Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
-            OnPropertyChanged(nameof(SuppliesTitle));
-        }
+        if (reading.Supplies is { } supplies) ShowSupplies(supplies, reading.Usage?.TotalImpressions);
         if (reading.Usage is { } u)
             Sync(Stats, new InfoRow?[]
             {
@@ -977,8 +973,36 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }.OfType<InfoRow>().ToList());
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies));
+        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies) { DaysLeft = _history?.DaysLeft });
         return true;
+    }
+
+    private SupplyHistoryView? _history;
+    private DateOnly _historyDay;
+
+    /// <summary>The supply history's level chart on the supplies card (roadmap 1.1); nothing to draw until two days are kept.</summary>
+    [ObservableProperty] public partial SupplyChartData? SupplyChart { get; set; }
+
+    /// <summary>Why the chart isn't there yet ("fills in as days pass"); null when it draws or never will (no levels).</summary>
+    [ObservableProperty] public partial string? SupplyChartNote { get; set; }
+
+    /// <summary>
+    /// A reading's supplies on the card, kept in the supply history first (one row a day per supply, under the data folder) so each
+    /// supply's line and the chart include it. <paramref name="pages"/>: the printer's lifetime page count, when it gives one.
+    /// </summary>
+    private void ShowSupplies(IReadOnlyList<Consumable> supplies, int? pages)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var changed = _pc.History.Record(Uuid, supplies, pages, today);
+        if (changed || _history is null || _historyDay != today)
+        {
+            _history = SupplyHistoryView.Of(_pc.History.Rows(Uuid), today);
+            _historyDay = today;
+            SupplyChart = _history.Chart.HasEnoughToDraw ? _history.Chart : null;
+        }
+        SupplyChartNote = _history.ChartNote(supplies);
+        Sync(Supplies, supplies.Select(s => new SupplyViewModel(s) { HistoryLine = _history.LineFor(s) }).ToList());
+        OnPropertyChanged(nameof(SuppliesTitle));
     }
 
     private void SetOffline() => SetOffline("Can't reach the printer",
@@ -1233,6 +1257,9 @@ public sealed record SupplyViewModel(Consumable Supply)
         _ => "OK",
     };
 
+    /// <summary>From the supply history: days left and pages on this cartridge, or why there's no estimate yet; null: nothing to say.</summary>
+    public string? HistoryLine { get; init; }
+
     public string? Cartridge => string.Join("  ·  ", new[]
     {
         Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
@@ -1264,5 +1291,5 @@ public sealed record SupplyViewModel(Consumable Supply)
     public string? ColorCode => Supply.ColorCode;
 
     /// <summary>For screen readers: "Cyan ink, 55%, OK" or "Maintenance box, OK".</summary>
-    public string AccessibleText => string.Join(", ", new[] { Name, PercentText, Headline is { } h && h != PercentText ? h : null }.OfType<string>());
+    public string AccessibleText => string.Join(", ", new[] { Name, PercentText, Headline is { } h && h != PercentText ? h : null, HistoryLine }.OfType<string>());
 }

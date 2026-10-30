@@ -67,8 +67,20 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   them ("The SNMP can monitor Toner Levels, BUT it does not record them!"; the special values −1/−2/−3 break its
   graphs: [Paessler](https://helpdesk.paessler.com/en/support/solutions/articles/76000079692-monitoring-pages-printed-per-toner)).
   PaperCut keeps them on its server ([PaperCut](https://www.papercut.com/help/manuals/ng-mf/applicationserver/printer-toner-levels/)).
-- **Now.** Levels, states and page counts are read (LEDM, CDM, IPP `marker-*`, SNMP `prtMarkerSuppliesTable`),
-  shown and alerted on; nothing is kept.
+- **Now (built 2026-10-30, Windows).** Each reading's levels, states and the lifetime page count are kept on the PC
+  (`Core/History/SupplyHistoryStore`: one tab-separated file per printer under the data folder's `history\`, one row a day
+  per supply, about three years, 16 supplies and 64 printers at most, no identifiers, removed with the printer); the
+  supplies card shows "About N days left · N pages since this cartridge went in" per supply and the last year's level
+  chart (`Views/SupplyChartView`, the stored rows as they are), "not enough history" states with the days still needed,
+  and the low-supply notification names the days left. The method is documented on `SupplyAnalysis` and in the README
+  (a jump of 20 points is a change; least squares by calendar day over this cartridge's last 30 days; "more than two
+  years" past 730 days). Pro: Export history… writes one CSV across all printers through `Pro.Allows`
+  (`SupplyHistoryCsv`, formula-safe cells). Demo mode makes up a year per printer, so `--demo --snapshot` shows the
+  chart. Tests: `SupplyHistoryTests` and `SupplyHistoryCsvTests` (the year with two changes, the wobble, the week
+  offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
+  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
+  IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
+  (README, "Not done"). Mac: not started (PrintCore store, Swift Charts).
 - **Beat it when:** each reading's levels and page count are kept on the PC (one row a day per supply, beside
   `state.json`, never sent); the supplies card shows a level-over-time chart and, from the last 30 days' slope,
   "about N days left" and "N pages since this cartridge went in" (a level that jumps up is a change of cartridge;

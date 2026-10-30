@@ -131,6 +131,12 @@ public abstract class PcEnvironment
     public abstract bool ChecksHpSoftware { get; }
 
     /// <summary>
+    /// The supply history (roadmap 1.1): one small file per printer under the data folder; the demo's in memory, with a made-up
+    /// year behind each printer's first reading so its chart has something to show.
+    /// </summary>
+    public abstract Core.History.SupplyHistoryStore History { get; }
+
+    /// <summary>
     /// What the made-up scanners hold for the next scan: a batch with separator sheets in the feeder when the scan splits into
     /// files, a few photos on the glass when it looks for them. Nothing on a real PC.
     /// </summary>
@@ -179,6 +185,7 @@ public abstract class PcEnvironment
         public override string UserName => Environment.UserName;
         public override string? ImageCache => Path.Combine(AppState.DataDirectory, "images");
         public override bool ChecksHpSoftware => Features.HpCleanup;
+        public override Core.History.SupplyHistoryStore History { get; } = new(Path.Combine(AppState.DataDirectory, "history"), log: Log.Write);
     }
 
     /// <summary>Setting a discovered queue up again is pairing, which the printer does; everything else is the PC's.</summary>
