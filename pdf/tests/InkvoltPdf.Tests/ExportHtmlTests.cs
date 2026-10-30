@@ -237,6 +237,19 @@ public class ExportHtmlTests
     }
 
     [Fact]
+    public void Stress_tags_always_nest()
+    {
+        // Bold ends before italic does: "<strong><em>alpha </strong>beta</em>" isn't HTML.
+        ExportSpan Span(string s, double x, bool bold, bool italic) => new(s, "Arial", 11, bold, italic, 0, new RectD(x, 300, s.Length * 5.5, 13.2));
+        var spans = new[] { Span("Plain words then ", 72, false, false), Span("alpha ", 160, true, true), Span("beta", 193, false, true), Span(" and the end of it.", 215, false, false) };
+        List<ExportLine> lines = [.. Enumerable.Range(0, 6).Select(i => Line("Body text in the document fills this line.", 72, 100 + i * 14)), new ExportLine(spans, RectD.FromEdges(72, 300, 320, 313.2))];
+        var html = Html([new ExportPage(612, 792, lines, [], [])]);
+        var root = Dom(html);
+        Assert.Equal("alpha beta", string.Concat(All(root, "em").Select(TextOf)));
+        Assert.Equal("alpha ", TextOf(All(root, "strong").Single()));
+    }
+
+    [Fact]
     public void A_deeper_indent_nests_the_list()
     {
         var lines = new[]
