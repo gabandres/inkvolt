@@ -228,7 +228,7 @@ struct FormDesignerTests {
         #expect(!FormDesignRules.isPositionalId("InkvoltPdf-abc"))
     }
 
-    @Test func tabOrderMovesWithinThePageAndStopsAtItsEnds() {
+    @Test func tabOrderMovesWithinThePageAndStopsAtItsEnds() throws {
         let a = field(id: "a", tab: 0), b = field(id: "b", tab: 1), other = field(id: "o", page: 1)
         #expect(try FormDesignRules.tabOrder(moving: a, by: 1, in: [a, b, other]).get() == ["b", "a"])
         #expect(throws: DesignRefusal.self) { try FormDesignRules.tabOrder(moving: a, by: -1, in: [a, b]).get() }
