@@ -201,6 +201,7 @@ internal static class DevScript
             case "redo": tab!.Redo(); break;
             case "scroll": tab!.ActiveView.ScrollToVerticalOffset(tab.ActiveView.VerticalOffset + double.Parse(arg)); break;
             case "scrollbench": log.Add(await ScrollBench(window, arg)); break;
+            case "findworkers": log.Add(FindWorkersCheck(tab!)); break;
             case "copytext": log.Add($"selected text: {v!.GetSelectedText().Length} chars: {Trunc(v.GetSelectedText())}"); break;
             case "state": log.Add($"page={v!.CurrentPage + 1}/{v.PageCount} zoom={v.Zoom:P0} mode={v.ZoomMode} layout={v.Layout} rotation={v.ViewRotation} dirty={tab!.Session.IsDirty} undo={tab.Session.UndoLabel ?? "-"} redo={tab.Session.RedoLabel ?? "-"} selected={string.Join(',', tab.SelectedPages.Select(p => p + 1))} {v.Diagnostics}"); break;
             case "log": log.Add(arg); break;

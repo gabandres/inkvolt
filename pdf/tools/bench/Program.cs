@@ -1,4 +1,12 @@
 using InkvoltPdf.Bench;
+using InkvoltPdf.Core;
+
+// The app's own switch, so a search here reads in worker processes as it does in the app.
+if (FindWorkers.IsCommand(args)) return FindWorkers.Run(args);
+
+// The report reads the same on any PC.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 
 // make [--out dir] [--small] [--force]        Write the corpus (text.pdf, scan.pdf, drawings.pdf, comments.pdf) into dir
 //                                             (default %LOCALAPPDATA%\Inkvolt\bench). Files that exist are kept unless --force.
@@ -9,6 +17,7 @@ using InkvoltPdf.Bench;
 // report [--out dir] [--md path] [--note text]…
 //                                             Write RESULTS.md (default: this tool's folder) from dir\results.json.
 // one <file.pdf> <word>                       Measure one file in this process and print the JSON (what run spawns).
+// find-crash <file.pdf> <word>                A test: starts a search with workers, prints their ids, kills itself mid-search.
 // png <file.pdf> <page> <out.png>             Render a page at 72 dpi, to look at a corpus file.
 var dir = Harness.DefaultOut;
 var small = false;
@@ -59,7 +68,11 @@ switch (rest)
         return 0;
     }
     case ["one", var file, var word]:
+        Measures.UseWorkers();
         Console.WriteLine(Harness.ToJson(Measures.Run(file, word)));
+        return 0;
+    case ["find-crash", var file, var word]:
+        Measures.CrashDuringFind(file, word);
         return 0;
     case ["png", var file, var page, var png]:
     {

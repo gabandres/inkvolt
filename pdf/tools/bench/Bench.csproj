@@ -7,7 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <RootNamespace>InkvoltPdf.Bench</RootNamespace>
-    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
