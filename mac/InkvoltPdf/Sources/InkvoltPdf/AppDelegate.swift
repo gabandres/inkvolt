@@ -209,6 +209,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
         menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))
+        menu.addItem(item("Show Signatures", #selector(DocumentWindowController.showSignatures(_:)), "4", [.command, .option]))
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         return menu
     }
@@ -277,6 +278,7 @@ enum MainMenu {
         menu.addItem(item("Type Signature…", #selector(DocumentWindowController.typeSignature(_:))))
         menu.addItem(item("Draw Initials…", #selector(DocumentWindowController.drawInitials(_:))))
         menu.addItem(item("Type Initials…", #selector(DocumentWindowController.typeInitials(_:))))
+        menu.addItem(item("Sign Digitally…", #selector(DocumentWindowController.signDigitally(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Recognize Text (OCR)…", #selector(DocumentWindowController.recognizeText(_:))))
         menu.addItem(.separator())

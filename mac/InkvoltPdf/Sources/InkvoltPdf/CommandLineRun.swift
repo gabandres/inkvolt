@@ -9,7 +9,7 @@ final class StandardLines: LineWriter, @unchecked Sendable {
 }
 
 /// What stops the command line (Ctrl+C): the files being worked on finish their current action first.
-nonisolated(unsafe) let commandLineCancel = CancelToken()
+let commandLineCancel = CancelToken()
 
 /// The command line (`BatchCommandLine`) run to its end before the app would start: the recognizer is Apple's Vision,
 /// nothing is asked, and the exit code is the command's.

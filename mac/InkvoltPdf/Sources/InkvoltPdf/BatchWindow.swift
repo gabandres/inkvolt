@@ -862,6 +862,7 @@ final class FolderWatches {
     static let shared = FolderWatches()
     static let settingsKey = "WatchedFolders"
 
+    @MainActor
     final class Watch {
         let folder: String
         let preset: String

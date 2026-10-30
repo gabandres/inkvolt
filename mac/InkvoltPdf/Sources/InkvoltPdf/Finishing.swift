@@ -182,9 +182,10 @@ extension DocumentWindowController {
 
     @discardableResult
     func addHeaderFooter(_ options: HeaderFooterOptions, pages: [Int]) async -> Bool {
-        var o = options
-        o.fileName = pdf.session?.displayName ?? pdf.name
-        o.date = Date()
+        var made = options
+        made.fileName = pdf.session?.displayName ?? pdf.name
+        made.date = Date()
+        let o = made
         let ok = await editor.run(o.bates != nil ? "Add header, footer & Bates numbers" : "Add header & footer") { d, pw in try HeaderFooter.apply(d, pw, pages, o) }
         if ok { notify("Header and footer added. Save to keep them.", canUndo: true) }
         return ok
@@ -297,7 +298,7 @@ extension DocumentWindowController {
         panel.message = "Choose the watermark's picture."
         guard let url = StartWindowController.pick(panel)?.first else { return }
         guard let image = NSImage(contentsOf: url), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let stamp = Self.stampImage(cg) else {
+              let stamp = Pictures.stampImage(cg) else {
             return pdf.showError("That picture couldn't be read.", nil)
         }
         handler(stamp, url.lastPathComponent)

@@ -115,7 +115,7 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         case .pushButton:
             break
         case .signature:
-            controller?.notify("Signing a signature field digitally comes in a later version of Inkvolt PDF for Mac.")
+            controller?.signatureFieldClicked(w.fieldName)
             return
         }
         if !w.triggers.intersection([.down, .up]).isEmpty { runAction(w, .click) }

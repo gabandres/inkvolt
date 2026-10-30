@@ -110,6 +110,10 @@ enum Report {
                 }
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
+                if openedFrom != nil && openedFrom == syntheticPath {
+                    var sign = SignTest(controller: controller, name: name)
+                    await sign.run()
+                }
             }
             done()
         }

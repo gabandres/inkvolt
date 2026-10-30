@@ -170,6 +170,9 @@ public struct Certificate: Sendable, Hashable {
     }
 
     var isSelfIssued: Bool { subjectRaw == issuerRaw }
+
+    /// The SHA-1 fingerprint Keychain Access shows ("AB CD …").
+    public var fingerprint: String { DigestAlgorithm.sha1.hash(der).map { String(format: "%02X", $0) }.joined(separator: " ") }
     var isEc: Bool { keyAlgorithm == Oids.ecPublicKey }
 
     /// May sign (KeyUsage absent, or digitalSignature or nonRepudiation set).
