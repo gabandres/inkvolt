@@ -1,7 +1,7 @@
 import AppKit
 import PdfCore
 
-/// The self-test's scenario for E7 (`--edit`, on the synthetic text document before `MeasureTest`; `--only-pdfa` runs it
+/// The self-test's scenario for E7 (`--edit`, first on the synthetic text document, before `EditTest`; `--only-pdfa` runs it
 /// alone): File › Save as PDF/A-2b… found in the menu bar and enabled, then the command's own path (settling the edits,
 /// the conversion with its progress sheet, the save, the result sheet's text) with the copy written to a temporary
 /// folder instead of the save panel's choice; the copy checked by `PdfA.validate` and read back; the open document left
