@@ -11,6 +11,7 @@ extension AccessibilityCheck {
     public static func run(_ data: [UInt8], _ password: String?, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil) throws -> AccessibilityReport {
         let doc: MuDoc
         let pages: Int
+        let data = HybridXref.normalize(data) // Word's files keep their tags where MuPDF alone doesn't look
         do {
             doc = try PdfEdit.openToRead(data, password)
             pages = try doc.pageCount()

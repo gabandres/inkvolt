@@ -123,8 +123,7 @@ struct A11yDoc {
 private func doc(_ change: (inout A11yDoc) -> Void) -> A11yDoc { A11yDoc().with(change) }
 
 /// Ported from AccessibilityCheckTests.cs (same names). Adapted: the fonts are the system's whole Arial, written by hand
-/// (Windows: PDFsharp's subset of it), and ProtectionMustLetScreenReadersRead protects through MuPDF. The hybrid-file
-/// test has no `HybridXref` to check: MuPDF reads the /XRefStm itself, so the Mac's check finds the tags as they are.
+/// (Windows: PDFsharp's subset of it), and ProtectionMustLetScreenReadersRead protects through MuPDF.
 struct AccessibilityCheckTests {
     private func fails(_ doc: A11yDoc, _ condition: String, sourceLocation: SourceLocation = #_sourceLocation) throws {
         let report = try doc.check()
@@ -637,9 +636,16 @@ struct AccessibilityCheckTests {
     // MARK: Hybrid-reference files
 
     @Test func TagsKeptInAWordStyleHybridFileAreFound() throws {
-        let report = try AccessibilityCheck.run(Self.hybridFile(), nil)
+        let data = Self.hybridFile()
+        // MuPDF alone doesn't see the structure tree root (it is in an object stream only the /XRefStm lists).
+        #expect(try Core2Pdf.open(data).catalog.dict("StructTreeRoot") == nil)
+        #expect(try Core2Pdf.open(HybridXref.normalize(data)).catalog.dict("StructTreeRoot") != nil)
+        let report = try AccessibilityCheck.run(data, nil)
         #expect(report.tagged)
         #expect(!report.failedConditions.contains("01-005"))
+        // A file that isn't hybrid comes back as it was.
+        let plainFile = A11yDoc().build()
+        #expect(HybridXref.normalize(plainFile) == plainFile)
     }
 
     /// As Word writes them: objects 1-4 and 7-9 in a classic table; the structure tree root (5) and the Document tag (6) in
