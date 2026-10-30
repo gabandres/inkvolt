@@ -69,22 +69,41 @@ internal static class ExportShapes
     /// as text and pictures.
     /// </summary>
     public static (List<ExportShape> Shapes, List<RectD> Pictures) Read(IEnumerable<ExportPath> paths, Raster? raster,
-        IReadOnlyList<ExportLine> lines, IReadOnlyList<RectD> pictures, double width, double height)
+        IReadOnlyList<ExportLine> lines, IReadOnlyList<RectD> pictures, double width, double height, CancellationToken cancel = default)
     {
         var shapes = new List<ExportShape>();
         var others = new List<RectD>();
+        var sheet = new RectD(0, 0, width, height);
+        // Further off than this, a path is only what shows of it: the work stays a page's, and the slide's numbers in range.
+        var near = sheet.Inflate(Math.Max(width, height));
         foreach (var path in paths)
         {
+            cancel.ThrowIfCancellationRequested();
             var box = path.Box;
             if (!Usable(box)) continue;
+            var far = !(box.X >= near.X && box.Y >= near.Y && box.Right <= near.Right && box.Bottom <= near.Bottom);
             if (IsThin(box))
             {
+                if (far)
+                {
+                    // A rule is cut at the page's edges along its length.
+                    var (left, top, right, bottom) = (Math.Max(box.X, 0), Math.Max(box.Y, 0), Math.Min(box.Right, width), Math.Min(box.Bottom, height));
+                    if (left > right || top > bottom) continue;
+                    box = box.Width >= box.Height ? RectD.FromEdges(left, box.Y, right, box.Bottom) : RectD.FromEdges(box.X, top, box.Right, bottom);
+                }
                 if (Math.Max(box.Width, box.Height) >= MinLine)
                     shapes.Add(new ExportShape(ExportShapeKind.Line, box, null, path.Color, Math.Max(0.25, Math.Min(box.Width, box.Height))));
                 continue;
             }
-            var shape = raster is { } r ? (path.Stroked ? Outline(r, path) : Filled(r, path)) : null;
-            if (shape is null) others.Add(box.Intersect(new RectD(0, 0, width, height)));
+            // What shows of a fill far off the page is its part on the page; of an outline, no outline to read.
+            if (far && path.Stroked)
+            {
+                others.Add(box.Intersect(sheet));
+                continue;
+            }
+            if (far) box = box.Intersect(sheet);
+            var shape = raster is { } r ? (path.Stroked ? Outline(r, path) : Filled(r, path with { Box = box })) : null;
+            if (shape is null) others.Add(box.Intersect(sheet));
             // A white sheet under the whole page draws nothing a slide doesn't already show.
             else if (!(shape.Fill == 0xFFFFFF && box.Width * box.Height >= 0.85 * width * height)) shapes.Add(shape);
         }

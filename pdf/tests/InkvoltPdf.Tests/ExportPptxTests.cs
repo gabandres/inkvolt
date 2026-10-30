@@ -377,6 +377,56 @@ public class ExportPptxTests
         var pic = Slides(doc)[0].Descendants<P.Picture>().First();
         Assert.Equal("A chart of sales & <costs>", pic.NonVisualPictureProperties!.NonVisualDrawingProperties!.Description!.Value);
     }
+
+    /// <summary>A page with a label and <paramref name="draw"/>, each in its own graphics state.</summary>
+    internal static byte[] DrawnPdf(params string[] draw)
+    {
+        var content = "BT /F1 12 Tf 72 700 Td (A label on the page) Tj ET " + string.Concat(draw.Select(d => $"q {d} Q "));
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>",
+            Core2Pdf.Stream(content),
+        ]);
+    }
+
+    [Theory]
+    [InlineData(ExportFormat.PowerPoint)]
+    [InlineData(ExportFormat.Word)]
+    public async Task A_shape_far_bigger_than_the_page_takes_no_longer_than_the_page(ExportFormat format)
+    {
+        // About 1e10 pt wide: walking in from its sides, half a point at a time, never ended.
+        var pdf = DrawnPdf("1 0 0 RG 1000 0 0 1000 0 0 cm 0 0 10000000 10000000 re S", "0 0 1 rg 1000 0 0 1000 0 0 cm -5000000 -5000000 10000000 10000000 re f");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await Task.Run(() =>
+        {
+            using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+            using var ms = new MemoryStream();
+            Assert.True(DocumentExport.Export(engine, format, ms, new ExportOptions()).Saved);
+        }).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.InRange(watch.Elapsed.TotalSeconds, 0, 5);
+    }
+
+    [Fact]
+    public void Reading_shapes_stops_when_cancelled()
+    {
+        var paths = Enumerable.Range(0, 10).Select(i => new ExportPath(new RectD(10 + i, 10, 100, 100), true, 0xFF0000));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Throws<OperationCanceledException>(() => ExportShapes.Read(paths, null, [], [], 612, 792, cts.Token));
+    }
+
+    [Fact]
+    public void A_line_far_off_the_page_keeps_the_file_valid()
+    {
+        // 1e10 pt long, 1 pt thick: one across the page and one wholly off it.
+        var bytes = Pptx(DrawnPdf("0 0 1 RG 1000 0 0 1000 0 0 cm 0.001 w -5000000 0.4 m 5000000 0.4 l S", "0 1 0 RG 1000 0 0 1000 0 0 cm 0.001 w -5000000 -3 m 5000000 -3 l S"));
+        using var doc = PresentationDocument.Open(new MemoryStream(bytes), false);
+        AssertValid(doc);
+        var line = Assert.Single(Slides(doc)[0].Descendants<P.ConnectionShape>());
+        Assert.Equal(612 * Emu, line.ShapeProperties!.Transform2D!.Extents!.Cx!.Value);
+    }
 }
 
 /// <summary>Saves an export where <c>INKVOLTPDF_SAMPLES</c> says, to open by hand.</summary>
