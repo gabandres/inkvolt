@@ -378,11 +378,26 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   365, a letter, a résumé, a PDFMaker test document), the other 7 fail only on what tagging doesn't touch (form-field
   tooltips 28-005, fonts 31-009/014/030), same result as the checker for 12 of 12. PDF/A-2a: the Word files pass
   veraPDF 2a and ua1; the pdfTeX paper (tagged in the app, 5 pictures given alternate text in the pane, one marked
-  decorative) fails both only on the same math-font glyphs. Still to do: glyphs without Unicode (a ToUnicode from TeX
-  glyph names would fix the pdfTeX papers), Caption/Note/TOC/Formula tags, nested lists, row headers, content inside
-  form XObjects tagged piece by piece, cross-page moves and changing a piece's kind in the pane, charts with many
-  labels read as tables (`DocLayout`), the Pro gate (`Pro.cs` has no Accessibility feature yet; enforcement is off),
-  Acrobat and PAC checks of the output, and the Mac.
+  decorative) fails both only on the same math-font glyphs. **Part 3** (2026-10-30, branch `pdf-accessible-2`):
+  the **Pro gate** (`ProFeature.AutoTagging`, `ReadingOrder`, `AccessibleOutput`: Make Accessible, the pane's moves and
+  Apply, PDF/A-2a, in Batch through `BatchStep.Feature` and `BatchPlan.Validate`; viewing stays free; enforcement off);
+  **Unicode for glyphs without it** (`FontUnicode`, `TexGlyphs`: a ToUnicode from TeX's glyph names and the OML/OMS/OMX
+  math encodings, the Adobe Glyph List's Greek and math names, empty CFF glyphs as spaces; also at PDF/A-2a); **more
+  tag kinds** (`AutoTag.Kinds`): Caption (in its table, beside its figure), Note with an ID, TOC › TOCI nested by
+  indent, Formula with its text as alternate text, nested lists (L in the item's LBody), TH Scope Row, two header rows
+  under a spanning header, words-over-numbers headers, a table that doesn't look like one (`PlausibleTable`) read as the
+  chart's figure or as paragraphs, labels beside a figure part of it; **the pane**: pieces read with the page before or
+  after (`MoveToPage`, `TagBlock.ReadWith`, Alt+Page Up/Down), Page Up/Down for another page's pieces, Enter/F2 to the
+  alternate text and Esc back. Tests: `AutoTagKindsTests` (16), `FontUnicodeTests` (31), `ProTests` (+2), `AutoTagTests`
+  (+1). **Corpus** (veraPDF 1.30.3, `run.ps1 -Tag`): checker and veraPDF give the same pass/fail on 50 of 50 files (the
+  same conditions on 49; wcag-table-word's 15-003 as before); the 2 untagged pdfTeX papers now **pass PDF/UA-1** after
+  Make Accessible in both (11 and 30 formulas, 6 footnotes each, their figure and table captions); the 12 re-tagged
+  Word and office files: 5 pass, 7 fail only on form-field tooltips (28-005) and fonts (31-009, 31-014, 31-030), the
+  same as the checker on 12 of 12 (the NIST standard's contents as 17 TOC, 55 entries). Save as PDF/A-2a of those 14:
+  10 made, all 10 pass veraPDF 2a and ua1 (both papers, the NIST standard, the Word files); 4 refused as before (a
+  signature, CMYK without a profile twice, a Times that would move). Still to do: content inside form XObjects tagged
+  piece by piece, changing a piece's kind in the pane, row spans, Unicode for Type 3 bitmap fonts, Acrobat and PAC checks
+  of the output, and the Mac.
 - **Beat it when:** Make Accessible tags an untagged PDF on the PC from `DocLayout` (H1-H6, P, L/LI, Table/TR/TH/TD with
   header scope, Figure, Artifact for running headers and page numbers), sets title, language and tab order; a reading
   order panel shows the order as numbered boxes, reordered by drag; alt text is typed per figure, or suggested by the

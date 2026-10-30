@@ -152,6 +152,9 @@ public abstract record BatchStep
 
     /// <summary>What the action is called in the list.</summary>
     public abstract string Title { get; }
+
+    /// <summary>The Pro feature the action is part of (<see cref="Pro.Allows"/>), or null when it is free.</summary>
+    public virtual ProFeature? Feature => null;
 }
 
 public sealed record OptimizeStep(OptimizeOptions Options) : BatchStep
@@ -249,6 +252,8 @@ public sealed record SaveAsPdfAStep : BatchStep
 {
     public override string Title => Conformance == PdfAConformance.A ? "Save as PDF/A-2a" : "Save as PDF/A";
 
+    public override ProFeature? Feature => Conformance == PdfAConformance.A ? ProFeature.AccessibleOutput : null;
+
     /// <summary>A (PDF/A-2a) keeps the tags: the file must be tagged (Make Accessible before it in the list).</summary>
     public PdfAConformance Conformance { get; init; }
 }
@@ -261,6 +266,8 @@ public sealed record SaveAsPdfAStep : BatchStep
 public sealed record MakeAccessibleStep : BatchStep
 {
     public override string Title => "Make accessible";
+
+    public override ProFeature? Feature => ProFeature.AutoTagging;
 
     /// <summary>The language when a file doesn't say one and it can't be told from the text (null: left unset).</summary>
     public string? Language { get; init; }
@@ -368,6 +375,7 @@ public sealed record BatchPlan
     public string? Validate(bool ocrAvailable)
     {
         if (Steps.Count == 0) return "Add at least one action.";
+        if (Steps.Select(s => s.Feature).FirstOrDefault(f => f is { } x && !Pro.Allows(x)) is { } locked) return Pro.Locked(locked);
         if (string.IsNullOrWhiteSpace(OutputFolder) || !Path.IsPathFullyQualified(OutputFolder)) return "Choose a folder for the results.";
         if (BatchNames.Validate(NameTemplate) is { } nameError) return nameError;
         var protect = Steps.ToList().FindIndex(s => s is ProtectStep);

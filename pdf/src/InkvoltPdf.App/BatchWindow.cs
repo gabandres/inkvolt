@@ -420,7 +420,7 @@ internal sealed class BatchWindow : Window
             }
             item.Click += (_, _) =>
             {
-                if (make() is not { } step) return;
+                if (make() is not { } step || step.Feature is { } pro && !ProGate.Check(this, pro)) return;
                 _steps.Add(step);
                 RefreshSteps(_steps.Count - 1);
             };

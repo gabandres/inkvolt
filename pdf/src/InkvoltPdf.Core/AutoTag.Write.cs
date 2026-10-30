@@ -43,6 +43,8 @@ public static partial class AutoTag
         public PdfArray K { get; } = new();
         /// <summary>Link elements inside it, by the link's index on the page.</summary>
         public Dictionary<int, PdfDictionary> Links { get; } = [];
+        /// <summary>Elements after its content: a list nested in a list item's body, contents nested under an entry.</summary>
+        public List<PdfDictionary> Tail { get; } = [];
     }
 
     private sealed class Writer(PdfDocument doc, TagPlan plan, AccessibleOptions options, CancellationToken cancel)
@@ -69,8 +71,23 @@ public static partial class AutoTag
             // without text).
             var blocks = EvenHeadings(plan.Blocks);
             var top = new List<(int Page, PdfDictionary Elem)>();
-            foreach (var b in blocks)
-                if (Block(b) is { } e) top.Add((b.Page, e));
+            bool TableAt(int k, int page) => k >= 0 && k < blocks.Count && blocks[k].Kind == TagBlockKind.Table && blocks[k].Page == page;
+            for (var i = 0; i < blocks.Count; i++)
+            {
+                var b = blocks[i];
+                // A caption right before or after its table goes inside it (first or last part; one per table); a figure's
+                // stands beside the figure (the figure's alternate text replaces what is inside it).
+                if (b.Kind == TagBlockKind.Caption && TableAt(i + 1, b.Page)) continue;
+                TagBlock? above = null, below = null;
+                if (b.Kind == TagBlockKind.Table)
+                {
+                    if (i > 0 && blocks[i - 1] is { Kind: TagBlockKind.Caption } c1 && c1.Page == b.Page) above = c1;
+                    else if (i + 1 < blocks.Count && blocks[i + 1] is { Kind: TagBlockKind.Caption } c2 && c2.Page == b.Page && !TableAt(i + 2, b.Page)) below = c2;
+                }
+                // Its page for what each page adds after its blocks: the one it is read with.
+                if (Block(b, above, below) is { } e) top.Add((ReadingPage(b), e));
+                if (below is not null) i++;
+            }
             var extras = new Dictionary<int, List<PdfDictionary>>();
 
             var pages = doc.Pages.Cast<PdfPage>().ToList();
@@ -101,6 +118,8 @@ public static partial class AutoTag
             }
             Flush(pages.Count - 1);
 
+            foreach (var leaf in _leaves)
+                foreach (var t in leaf.Tail) leaf.K.Elements.Add(t.Reference!);
             Prune(_document);
             foreach (var (elem, kids) in _kids)
             {
@@ -135,6 +154,8 @@ public static partial class AutoTag
             doc.Info.ModificationDate = DateTime.Now;
             // PDF/UA wants every font embedded: the standard faces can be, from Windows' metric twins.
             PdfA.EmbedStandardFonts(doc);
+            // Characters with no Unicode value (TeX's math glyphs) get one, so they are read aloud.
+            FontUnicode.Complete(doc);
             Xmp.MarkPdfUa(doc);
         }
 
@@ -178,51 +199,71 @@ public static partial class AutoTag
             return leaf;
         }
 
-        /// <summary>A block's element (not yet in the Document's kids), or null when it adds none (a decorative figure).</summary>
-        private PdfDictionary? Block(TagBlock b)
+        private int _notes;
+
+        /// <summary>
+        /// A block's element (not yet in the Document's kids), or null when it adds none (a decorative figure). A table's
+        /// caption comes as <paramref name="above"/> or <paramref name="below"/> it.
+        /// </summary>
+        private PdfDictionary? Block(TagBlock b, TagBlock? above = null, TagBlock? below = null)
         {
             switch (b.Kind)
             {
-                case TagBlockKind.Paragraph or TagBlockKind.Heading:
+                case TagBlockKind.Paragraph or TagBlockKind.Heading or TagBlockKind.Caption or TagBlockKind.Note:
                 {
-                    var type = b.Kind == TagBlockKind.Heading ? $"H{Math.Clamp(b.Level, 1, 6)}" : "P";
+                    var type = b.Kind switch
+                    {
+                        TagBlockKind.Heading => $"H{Math.Clamp(b.Level, 1, 6)}",
+                        TagBlockKind.Caption => "Caption",
+                        TagBlockKind.Note => "Note",
+                        _ => "P",
+                    };
                     var e = Elem(type, _document);
                     if (b.Lang is { Length: > 0 } lang) e.Elements["/Lang"] = new PdfString(lang);
+                    // A note's ID is unique in the document (PDF/UA 7.9).
+                    if (b.Kind == TagBlockKind.Note) e.Elements["/ID"] = new PdfString($"note-{++_notes}");
                     NewLeaf(e, type, b.Page, b.Sources);
                     return e;
                 }
                 case TagBlockKind.List:
+                    return Nested(b, "L", "LI", "LBody");
+                case TagBlockKind.Contents:
+                    return Nested(b, "TOC", "TOCI", null);
+                case TagBlockKind.Formula:
                 {
-                    var l = Elem("L", _document);
-                    foreach (var item in b.Items)
-                    {
-                        var li = Child("LI", l);
-                        NewLeaf(Child("LBody", li), "LBody", b.Page, item.Sources);
-                    }
-                    return l;
+                    var e = Elem("Formula", _document);
+                    var alt = string.IsNullOrWhiteSpace(b.Alt) ? b.Text : b.Alt;
+                    if (!string.IsNullOrWhiteSpace(alt)) e.Elements["/Alt"] = PdfObj.MakeString(alt.Trim());
+                    e.Elements["/A"] = LayoutBox(b);
+                    NewLeaf(e, "Formula", b.Page, b.Sources);
+                    return e;
                 }
                 case TagBlockKind.Table:
                 {
                     var t = Elem("Table", _document);
+                    if (above is not null) NewLeaf(Child("Caption", t), "Caption", above.Page, above.Sources);
                     for (var r = 0; r < b.Rows.Count; r++)
                     {
                         var tr = Child("TR", t);
-                        foreach (var cell in b.Rows[r])
+                        for (var k = 0; k < b.Rows[r].Count; k++)
                         {
-                            var header = r == 0 && b.HeaderRow;
-                            var type = header ? "TH" : "TD";
+                            var cell = b.Rows[r][k];
+                            var column = r < b.HeaderRows;
+                            var row = !column && k == 0 && b.HeaderColumn;
+                            var type = column || row ? "TH" : "TD";
                             var c = Child(type, tr);
-                            if (header || cell.ColSpan > 1)
+                            if (column || row || cell.ColSpan > 1)
                             {
                                 var a = new PdfDictionary(doc);
                                 a.Elements["/O"] = new PdfName("/Table");
-                                if (header) a.Elements["/Scope"] = new PdfName("/Column");
+                                if (column || row) a.Elements["/Scope"] = new PdfName(column ? "/Column" : "/Row");
                                 if (cell.ColSpan > 1) a.Elements["/ColSpan"] = new PdfInteger(cell.ColSpan);
                                 c.Elements["/A"] = a;
                             }
                             NewLeaf(c, type, b.Page, cell.Sources, pictures: cell.Pictures);
                         }
                     }
+                    if (below is not null) NewLeaf(Child("Caption", t), "Caption", below.Page, below.Sources);
                     return t;
                 }
                 case TagBlockKind.Figure:
@@ -236,14 +277,7 @@ public static partial class AutoTag
                     }
                     var e = Elem("Figure", _document);
                     if (!string.IsNullOrWhiteSpace(b.Alt)) e.Elements["/Alt"] = PdfObj.MakeString(b.Alt.Trim());
-                    var page = doc.Pages[b.Page];
-                    var (x1, y1) = PdfObj.ToPdf(page, b.Box.X, b.Box.Bottom);
-                    var (x2, y2) = PdfObj.ToPdf(page, b.Box.Right, b.Box.Y);
-                    var a = new PdfDictionary(doc);
-                    a.Elements["/O"] = new PdfName("/Layout");
-                    a.Elements["/Placement"] = new PdfName("/Block");
-                    a.Elements["/BBox"] = PdfObj.Reals(doc, Math.Min(x1, x2), Math.Min(y1, y2), Math.Max(x1, x2), Math.Max(y1, y2));
-                    e.Elements["/A"] = a;
+                    e.Elements["/A"] = LayoutBox(b);
                     NewLeaf(e, "Figure", b.Page, b.Sources, figure: true);
                     return e;
                 }
@@ -252,13 +286,57 @@ public static partial class AutoTag
             }
         }
 
+        /// <summary>A Layout attribute with the block's bounding box in the page's PDF space (figures and formulas).</summary>
+        private PdfDictionary LayoutBox(TagBlock b)
+        {
+            var page = doc.Pages[b.Page];
+            var (x1, y1) = PdfObj.ToPdf(page, b.Box.X, b.Box.Bottom);
+            var (x2, y2) = PdfObj.ToPdf(page, b.Box.Right, b.Box.Y);
+            var a = new PdfDictionary(doc);
+            a.Elements["/O"] = new PdfName("/Layout");
+            a.Elements["/Placement"] = new PdfName("/Block");
+            a.Elements["/BBox"] = PdfObj.Reals(doc, Math.Min(x1, x2), Math.Min(y1, y2), Math.Max(x1, x2), Math.Max(y1, y2));
+            return a;
+        }
+
+        /// <summary>
+        /// A list (L › LI › LBody) or table of contents (TOC › TOCI) with its items nested by level: a deeper item starts a
+        /// list (or contents) of its own after the content of the item before it, inside that item's body (or entry).
+        /// </summary>
+        private PdfDictionary Nested(TagBlock b, string container, string item, string? body)
+        {
+            var root = Elem(container, _document);
+            var stack = new List<(int Level, PdfDictionary Container, Leaf? Last)> { (0, root, null) };
+            foreach (var it in b.Items)
+            {
+                while (stack.Count > 1 && stack[^1].Level > it.Level) stack.RemoveAt(stack.Count - 1);
+                if (it.Level > stack[^1].Level && stack[^1].Last is { } last)
+                {
+                    var inner = Elem(container, last.Elem);
+                    _kids[inner] = new PdfArray(doc);
+                    last.Tail.Add(inner);
+                    stack.Add((it.Level, inner, null));
+                }
+                var li = Child(item, stack[^1].Container);
+                var leaf = body is null ? NewLeaf(li, item, b.Page, it.Sources) : NewLeaf(Child(body, li), body, b.Page, it.Sources);
+                stack[^1] = stack[^1] with { Last = leaf };
+            }
+            return root;
+        }
+
         /// <summary>Removes elements left without content (a paragraph whose text wasn't found); true when <paramref name="e"/> is empty.</summary>
         private bool Prune(PdfDictionary e, int depth = 0)
         {
             if (!_kids.TryGetValue(e, out var kids)) return true;
             if (depth > 64) return false;
             var leaf = _leaves.FirstOrDefault(l => ReferenceEquals(l.Elem, e));
-            if (leaf is not null) return kids.Elements.Count == 0;
+            if (leaf is not null)
+            {
+                // Its nested list or contents goes when nothing in it was found.
+                for (var i = kids.Elements.Count - 1; i >= 0; i--)
+                    if (PdfObj.Dict(kids.Elements[i]) is { } kid && leaf.Tail.Contains(kid) && Prune(kid, depth + 1)) kids.Elements.RemoveAt(i);
+                return kids.Elements.Count == 0;
+            }
             var type = PdfObj.Name(e.Elements["/S"]);
             for (var i = kids.Elements.Count - 1; i >= 0; i--)
                 if (PdfObj.Dict(kids.Elements[i]) is { } kid && PdfObj.NameOf(kid, "/Type") == "/StructElem" && Prune(kid, depth + 1))
@@ -315,7 +393,7 @@ public static partial class AutoTag
                             // Not where the layout found text (a stray mark, text it dropped): the nearest text block.
                             var (cx, cy) = (it.Box.CenterX, it.Box.CenterY);
                             var near = leaves.Where(l => !l.Figure && l.Sources.Count > 0)
-                                .Select(l => (l, d: l.Sources.Min(s => Distance(s, cx, cy)))).Where(x => x.d < 24).MinBy(x => x.d).l;
+                                .Select(l => (l, d: l.Sources.Min(s => Distance(s, cx, cy)))).Where(x => x.d < 24).OrderBy(x => x.d).Select(x => x.l).FirstOrDefault();
                             best = near ?? leaves.FirstOrDefault(l => l.Figure && l.Sources.Any(s => s.Inflate(2).Contains(cx, cy)));
                             if (best is null) return Target.Decor;
                         }

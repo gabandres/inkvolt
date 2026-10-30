@@ -266,9 +266,15 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   veraPDF's PDF/UA-1 validation on a 50-file corpus (`tools/a11y-corpus`). Free, as the roadmap's "Free and Pro" says.
 - **Make Accessible (Tag)…** (Review menu, command palette): tags an untagged PDF on this PC, from the layout Export to
   Word reads: headings (H1-H6, the first an H1, none skipped; numbered section titles at their depth), paragraphs, lists
-  (L, LI, LBody), tables (TR, TH with a column scope for a bold first row, TD with column spans), pictures and charts
-  (Figure with its box), links (Link with the link annotation, described by its text), form fields and comments (Form,
-  Annot); running headers, footers and page numbers become artifacts, as do rules and backgrounds. Every piece of page
+  (L, LI, LBody; an indented item's list inside the item before's LBody), tables (TR; TH with a column scope for a bold
+  first row or words over numbers, two header rows when a header spans columns over others, TH with a row scope for a
+  bold first column or words in front of numbers; TD; column spans), captions (Caption: "Figure 2:", "Table 1." next to
+  its figure or table, inside the table), footnotes (Note with an ID), a table of contents (TOC, TOCI, nested by
+  indent; lines ending in page numbers after dot leaders), display math (Formula, read as its text until you write
+  otherwise), pictures and charts (Figure with its box; a diagram's labels and a chart's numbers are part of it, not a
+  table), links (Link with the link annotation, described by its text), form fields and comments (Form, Annot); running
+  headers, footers and page numbers become artifacts, as do rules and backgrounds. Characters without a Unicode value
+  (the TeX math fonts' big brackets, sums and integrals; an empty glyph used as a space) get one, so they are read. Every piece of page
   content goes in marked content with an MCID (or an artifact), in the reading order the layout found (columns too); a
   passage clearly in another language gets its own language. It asks for the title (the document's, else its first
   heading) and the language (the document's, else read from the text), and sets the tab order (Tabs S) on every page,
@@ -277,12 +283,15 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   replaced (pictures in the same place keep their alternate text). One undo step; a signed document's edit is appended.
 - **Reading Order and Alt Text** (Review menu, command palette; opens after Make Accessible): the Reading order pane
   lists the current page's pieces in the order a screen reader reads them, numbered, with the same numbers as boxes on
-  the page; drag a piece, or press Alt+Up / Alt+Down, to move it within its page; choose one to see it on the page. A
-  picture gets its alternate text typed, is marked Decorative (screen readers skip it), or **Suggest with AI…** asks your
-  own AI model (AI Assistant Settings; a vision model) to describe it: the picture and the text near it are sent only
-  after the window that shows what goes where, and the answer lands in the box for you to check. **Apply changes**
-  writes the tags again (one undo step). After Make Accessible and alternate text, the untagged LaTeX files of the
-  accessibility corpus pass every check but one about their math fonts (glyphs without Unicode), as veraPDF says too.
+  the page; drag a piece, or press Alt+Up / Alt+Down, to move it within its page; **Page before** / **Page after**
+  (Alt+Page Up / Alt+Page Down) read it with another page (a sidebar continuing the page before), its content staying
+  where it is; choose one to see it on the page. From the keyboard: Page Up / Page Down shows another page's pieces,
+  Enter goes to a picture's or formula's text and Esc back. A picture gets its alternate text typed, is marked
+  Decorative (screen readers skip it), or **Suggest with AI…** asks your own AI model (AI Assistant Settings; a vision
+  model) to describe it: the picture and the text near it are sent only after the window that shows what goes where, and
+  the answer lands in the box for you to check; a formula gets how it is read. **Apply changes** writes the tags again
+  (one undo step). After Make Accessible and alternate text, the untagged LaTeX files of the accessibility corpus pass
+  PDF/UA-1, in the checker and in veraPDF.
 - **Sanitize Document** (Review menu, command palette): removes what a document carries besides its pages. The dialog
   counts what it found, one check box per kind (all on): metadata (document properties, XMP of the document, pages,
   images and fonts, comment authors and dates, article properties, other apps' private data; the file identifier is
@@ -644,8 +653,10 @@ place the check looks, and `redaction-check-box.pdf`, a box over text, from `Red
 Accessibility check: `a11y` (the check; the pane opens, the failures logged), `a11yselect i` (choose a failure: the page scrolls
 to it), `a11ytick question` (tick a person's check), `a11yreport out.html`, `cmd CheckAccessibility`, `batchstep checkaccessibility`;
 Make Accessible: `tag title|language` (without its window), `ro` (the Reading order pane, this page's pieces logged), `rosel i|pic`,
-`romove i by`, `roalt text`, `rodecorative`, `roapply`, `pdfa2a` (with `savepath`), `batchstep makeaccessible [language]`, `batchstep pdfa2a`;
-`tools/a11y-corpus` `tag`, `pdfa` and `run.ps1 -Tag` run Make Accessible on the corpus and check the results with veraPDF;
+`romove i by`, `ropage i by` (to the page before or after), `roshow by` (another page's pieces), `roalt text`, `rodecorative`, `roapply`,
+`pdfa2a` (with `savepath`), `batchstep makeaccessible [language]`, `batchstep pdfa2a`, `prowindow tag|ro|pdfa2a`;
+`tools/a11y-corpus` `tag`, `pdfa` and `run.ps1 -Tag` run Make Accessible on the corpus and check the results with veraPDF
+(`plan` prints what it would tag, `glyphs` a font's characters without Unicode);
 `tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`. Speed: `scrollbench [ms] [px/s]` scrolls the view for a while and logs the frame rate and
 blank pages (`tools/bench` runs it on its corpus; see its README).
@@ -790,13 +801,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Split view: the second pane is for reading: comments, fields and drawings are edited, and search and find matches
   shown, in the main pane. One split per tab (two panes), not remembered when the tab is closed. Two different
   documents side by side: use Compare Files.
-- Make Accessible: tags from the layout as Export to Word reads it, so its mistakes carry over (a chart with many
-  labels can read as a table; a bold numbered line as a heading); check the order in the Reading order pane. Content
-  inside a form XObject goes with the tag of the place it is drawn (one tag for the whole form). Not written: Caption,
-  Note, TOC, Formula and nested lists (lists are flat); table header cells only for a bold first row. Fonts it can't
-  fix: glyphs with no Unicode value (TeX math fonts) and other fonts that aren't embedded. Scanned pages without text
-  get only their pictures tagged (run Recognize Text first). The Reading order pane reorders within a page, not across
-  pages, and doesn't change a piece's kind. The Inkvolt Pro check isn't wired for it yet (everything is free for now).
+- Make Accessible: tags from the layout as Export to Word reads it, so its mistakes carry over (a dense figure such as
+  a grid of words can still read as a table; a bold numbered line as a heading; inline math split over lines can come
+  out as small formulas); check the order in the Reading order pane. Content inside a form XObject goes with the tag of
+  the place it is drawn (one tag for the whole form). Captions, footnotes, contents and formulas are found by how they
+  look (see above), so others stay paragraphs; row spans aren't read (column spans are). Unicode is given only where
+  it can be told (TeX's math fonts, the Adobe glyph names, empty glyphs); fonts that aren't embedded stay so. Scanned
+  pages without text get only their pictures tagged (run Recognize Text first). The Reading order pane doesn't change a
+  piece's kind. Make Accessible, the pane's fixes and PDF/A-2a ask the Inkvolt Pro check; enforcement is off, so they
+  are free for now.
 - Accessibility Check: checks; Make Accessible fixes tagging, reading order and alternate text. Not
   checked: Ruby and Warichu tags (09-007, 09-008), printer's marks' appearances (28-018), a TrueType font's Differences
   without a Windows Unicode cmap (31-023); glyph widths only against

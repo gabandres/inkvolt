@@ -96,10 +96,11 @@ public class AutoTagTests
         Assert.Equal(3, tree.Count(t => t.Type == "LBody"));
         Assert.Equal(1, tree.Count(t => t.Type == "Table"));
         Assert.Equal(4, tree.Count(t => t.Type == "TR"));
-        var th = tree.Where(t => t.Type == "TH").ToList();
-        Assert.Equal(3, th.Count);
-        Assert.All(th, t => Assert.Equal("/Column", ((PdfDictionary)t.Elem.Elements["/A"]!).Elements.GetName("/Scope")));
-        Assert.Equal(9, tree.Count(t => t.Type == "TD"));
+        // Column headers across the top, and the fruit in front of its numbers as row headers.
+        var th = tree.Where(t => t.Type == "TH").Select(t => ((PdfDictionary)t.Elem.Elements["/A"]!).Elements.GetName("/Scope")).ToList();
+        Assert.Equal(3, th.Count(s => s == "/Column"));
+        Assert.Equal(3, th.Count(s => s == "/Row"));
+        Assert.Equal(6, tree.Count(t => t.Type == "TD"));
         var figure = Assert.Single(tree, t => t.Type == "Figure").Elem;
         Assert.Equal("A colored gradient", figure.Elements.GetString("/Alt"));
         var bbox = (PdfArray)((PdfDictionary)figure.Elements["/A"]!).Elements["/BBox"]!;
@@ -208,6 +209,43 @@ public class AutoTagTests
     }
 
     [Fact]
+    public void A_piece_moves_to_another_page_and_is_read_there_while_its_content_stays()
+    {
+        var pdf = ExportTestPdf.Make();
+        var plan = Plan(pdf);
+        var at = plan.Blocks.ToList().FindIndex(b => b.Page == 1); // page 2's heading
+        var heading = plan.Blocks[at];
+
+        // Read with page 1: after page 1's last piece.
+        var moved = AutoTag.MoveToPage(plan, at, -1);
+        var now = moved.Blocks.ToList().IndexOf(heading with { ReadWith = 0 });
+        Assert.Equal(moved.Blocks.ToList().FindLastIndex(b => AutoTag.ReadingPage(b) == 0), now);
+        Assert.Equal(1, moved.Blocks[now].Page); // its content is still on page 2
+        Assert.Equal(0, AutoTag.ReadingPage(moved.Blocks[now]));
+        Assert.Same(moved, AutoTag.MoveToPage(moved, now, -1)); // no page before the first
+        // Moving within its reading page now stays among page 1's pieces.
+        Assert.Equal(0, AutoTag.ReadingPage(AutoTag.Move(moved, now, -100).Blocks[0]));
+
+        // The tree reads it after page 1's last piece; the checker still passes.
+        var tagged = AutoTag.Write(pdf, null, WithAlt(moved));
+        using (var doc = PdfReader.Open(new MemoryStream(tagged), PdfDocumentOpenMode.Import))
+        {
+            var top = Tree(doc).Where(t => t.Depth == 1).ToList();
+            var h = top.FindIndex(t => t.Elem.Elements["/Pg"] is PdfReference r && r.ObjectNumber == doc.Pages[1].Reference!.ObjectNumber);
+            Assert.True(h > 0);
+            Assert.StartsWith("H", top[h].Type);
+            Assert.All(top.Take(h), t => Assert.True(t.Elem.Elements["/Pg"] is not PdfReference r || r.ObjectNumber == doc.Pages[0].Reference!.ObjectNumber, t.Type));
+        }
+        Assert.True(AccessibilityCheck.Run(tagged, null).Passed);
+
+        // Back with its own page: before page 2's first piece, read with its own page again.
+        var back = AutoTag.MoveToPage(moved, now, 1);
+        Assert.Null(back.Blocks[now].ReadWith);
+        Assert.Equal(heading, back.Blocks[now]);
+        Assert.Equal(plan.Blocks, back.Blocks);
+    }
+
+    [Fact]
     public void Decorative_figure_is_an_artifact_and_needs_no_alt_text()
     {
         var pdf = ExportTestPdf.Make();
@@ -292,6 +330,7 @@ public class AutoTagTests
 }
 
 /// <summary>Make Accessible in Batch and presets, and alternate text from the user's own vision model (the request).</summary>
+[Collection("Pro")] // Batch asks the Pro check for Make Accessible and PDF/A-2a, which ProTests switches on and off
 public sealed class AutoTagBatchTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("inkvolt-autotag-").FullName;

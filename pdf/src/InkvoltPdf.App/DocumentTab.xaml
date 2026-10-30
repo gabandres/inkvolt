@@ -406,6 +406,10 @@
                         <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                             <Button x:Name="RoUp" Content="Move up" Margin="0,0,8,4" ToolTip="Read the selected piece earlier (Alt+Up)" />
                             <Button x:Name="RoDown" Content="Move down" Margin="0,0,8,4" ToolTip="Read the selected piece later (Alt+Down)" />
+                            <Button x:Name="RoPageBefore" Content="Page before" Margin="0,0,8,4"
+                                    ToolTip="Read the selected piece after the page before's last piece; it stays where it is on the page (Alt+Page Up)" />
+                            <Button x:Name="RoPageAfter" Content="Page after" Margin="0,0,8,4"
+                                    ToolTip="Read the selected piece before the page after's first piece; it stays where it is on the page (Alt+Page Down)" />
                             <Button x:Name="RoApply" Content="Apply changes" Margin="0,0,0,4"
                                     ToolTip="Write the tags with this order and these alternate texts (one step you can undo)" />
                         </WrapPanel>
@@ -421,7 +425,7 @@
                             </DockPanel>
                         </StackPanel>
                         <TextBlock DockPanel.Dock="Bottom" TextWrapping="Wrap" Margin="4,6,4,0" Style="{StaticResource Caption}"
-                                   Text="Drag a piece, or select it and press Alt+Up or Alt+Down, to change the order. Choose one to see it on the page." />
+                                   Text="Drag a piece or press Alt+Up or Alt+Down to reorder; Alt+Page Up or Down reads it with another page. Page Up or Down: another page's pieces. Enter: a picture's text, Esc: back." />
                         <ListBox x:Name="RoList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  HorizontalContentAlignment="Stretch" AllowDrop="True"
                                  AutomationProperties.Name="Reading order of this page: choose a piece to see it on the page">
