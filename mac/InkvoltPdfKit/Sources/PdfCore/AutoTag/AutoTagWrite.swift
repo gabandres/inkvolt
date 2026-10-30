@@ -367,10 +367,29 @@ extension AutoTag {
             let items = try walk.items(ops, strip: strip)
             var linkText = [String](repeating: "", count: links.count)
 
+            func assignPicture(_ it: Item) -> Target {
+                let whole = max(1, AutoTag.area(it.box))
+                if running.reduce(0.0, { $0 + AutoTag.area(it.box.intersect($1)) }) > 0.5 * whole { return .page }
+                var best: Leaf?
+                var bestScore = 0.0
+                for l in leaves where overlaps(it.box, l.bounds) {
+                    let list = l.figure ? l.sources : l.pictures
+                    let s = list.reduce(0.0) { $0 + AutoTag.area(it.box.intersect($1)) }
+                    let total = list.reduce(0.0) { $0 + AutoTag.area($1) }
+                    if s >= 0.3 * min(whole, max(1, total)) && s > bestScore {
+                        bestScore = s
+                        best = l
+                    }
+                }
+                guard let best, !best.type.isEmpty else { return .decor }
+                return Target(leaf: best)
+            }
+
             func assign(_ it: Item) -> Target {
                 if it.inArtifact || it.artifactOnly { return .leave }
                 switch it.kind {
-                case .text, .form where it.hasText:
+                case .text, .form:
+                    if it.kind == .form && !it.hasText { return assignPicture(it) }
                     var best: Leaf?
                     var bestScore = 0.0
                     for l in leaves where overlaps(it.box, l.bounds) {
@@ -407,22 +426,8 @@ extension AutoTag {
                         }
                     }
                     return Target(leaf: found)
-                case .image, .form:
-                    let whole = max(1, AutoTag.area(it.box))
-                    if running.reduce(0.0, { $0 + AutoTag.area(it.box.intersect($1)) }) > 0.5 * whole { return .page }
-                    var best: Leaf?
-                    var bestScore = 0.0
-                    for l in leaves where overlaps(it.box, l.bounds) {
-                        let list = l.figure ? l.sources : l.pictures
-                        let s = list.reduce(0.0) { $0 + AutoTag.area(it.box.intersect($1)) }
-                        let total = list.reduce(0.0) { $0 + AutoTag.area($1) }
-                        if s >= 0.3 * min(whole, max(1, total)) && s > bestScore {
-                            bestScore = s
-                            best = l
-                        }
-                    }
-                    guard let best, !best.type.isEmpty else { return .decor }
-                    return Target(leaf: best)
+                case .image:
+                    return assignPicture(it)
                 case .path, .shading: // part of a chart or diagram, or decoration (rules, backgrounds, underlines)
                     let (cx, cy) = (it.box.centerX, it.box.centerY)
                     let fig = leaves.first { l in

@@ -285,10 +285,12 @@ public enum AutoTag {
     public static func nearbyText(_ plan: TagPlan, _ index: Int, max limit: Int = 1500) -> String {
         guard plan.blocks.indices.contains(index) else { return "" }
         let fig = plan.blocks[index]
-        let near = plan.blocks.indices
-            .filter { $0 != index && plan.blocks[$0].page == fig.page && !plan.blocks[$0].text.isEmpty }
-            .map { (i: $0, d: max(0, max(plan.blocks[$0].box.y - fig.box.bottom, fig.box.y - plan.blocks[$0].box.bottom))) }
-            .sorted { $0.d != $1.d ? $0.d < $1.d : $0.i < $1.i }
+        var near: [(i: Int, d: Double)] = []
+        for (i, b) in plan.blocks.enumerated() where i != index && b.page == fig.page && !b.text.isEmpty {
+            let above: Double = b.box.y - fig.box.bottom, below: Double = fig.box.y - b.box.bottom
+            near.append((i, max(0, max(above, below))))
+        }
+        near.sort { $0.d != $1.d ? $0.d < $1.d : $0.i < $1.i }
         var out = ""
         for n in near {
             let t = plan.blocks[n.i].text
@@ -351,14 +353,18 @@ public enum AutoTag {
     /// Tells a text's language from its most common short words (English, Spanish, French, German, Italian, Portuguese,
     /// Dutch). Only a proposal: the person confirms the document's language before it is written.
     enum Language {
-        private static let lists: [(code: String, words: Set<String>)] = [
-            ("en", ["the", "and", "of", "to", "in", "is", "that", "for", "it", "with", "as", "was", "on", "are", "be", "this", "by", "from", "or", "have", "which", "not", "at", "we", "an", "they", "you"]),
-            ("es", ["el", "la", "de", "que", "y", "en", "los", "las", "del", "se", "por", "con", "una", "para", "es", "su", "al", "lo", "como", "más", "pero", "sus", "le", "ha", "este", "esta", "son"]),
-            ("fr", ["le", "la", "les", "de", "des", "et", "est", "un", "une", "du", "en", "que", "qui", "dans", "pour", "pas", "sur", "au", "avec", "ce", "il", "sont", "par", "ne", "se", "nous", "vous"]),
-            ("de", ["der", "die", "und", "in", "den", "von", "zu", "das", "mit", "sich", "des", "auf", "für", "ist", "im", "dem", "nicht", "ein", "eine", "als", "auch", "es", "an", "werden", "aus", "er", "sie"]),
-            ("it", ["il", "di", "che", "e", "la", "per", "un", "in", "del", "della", "non", "una", "sono", "le", "si", "con", "dei", "gli", "da", "al", "è", "lo", "come", "anche", "nel", "alla", "ha"]),
-            ("pt", ["de", "a", "o", "que", "e", "do", "da", "em", "um", "para", "com", "não", "uma", "os", "no", "se", "na", "por", "mais", "as", "dos", "como", "mas", "ao", "das", "à", "seu"]),
-            ("nl", ["de", "het", "een", "en", "van", "in", "is", "dat", "op", "te", "zijn", "met", "voor", "niet", "aan", "er", "om", "ook", "als", "bij", "door", "naar", "worden", "wordt", "maar", "deze", "die"]),
+        private static func list(_ code: String, _ words: String) -> (code: String, words: Set<String>) {
+            (code, Set(words.split(separator: " ").map(String.init)))
+        }
+
+        private static let lists = [
+            list("en", "the and of to in is that for it with as was on are be this by from or have which not at we an they you"),
+            list("es", "el la de que y en los las del se por con una para es su al lo como más pero sus le ha este esta son"),
+            list("fr", "le la les de des et est un une du en que qui dans pour pas sur au avec ce il sont par ne se nous vous"),
+            list("de", "der die und in den von zu das mit sich des auf für ist im dem nicht ein eine als auch es an werden aus er sie"),
+            list("it", "il di che e la per un in del della non una sono le si con dei gli da al è lo come anche nel alla ha"),
+            list("pt", "de a o que e do da em um para com não uma os no se na por mais as dos como mas ao das à seu"),
+            list("nl", "de het een en van in is dat op te zijn met voor niet aan er om ook als bij door naar worden wordt maar deze die"),
         ]
 
         private static let separators: Set<Character> = [" ", "\n", "\r", "\t", ",", ".", ";", ":", "(", ")", "\"", "“", "”", "¿", "?", "¡", "!"]
