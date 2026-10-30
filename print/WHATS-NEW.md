@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Press Ctrl+K to find any command by typing: show another printer, go to Scan, run a scan preset, fix printing problems, open Settings… Up and down choose, Enter runs it.
+- With a large Text size or a small window, the printer list folds into a Printers button at the top, as Windows Settings does, so the printer's page keeps its room. Press it to open the list over the page.
+- Changing tabs or printers, and a new status line, now ease in briefly instead of switching at once. Nothing moves when Windows' animation effects are off.
 - Alerts are proper Windows notifications now: one per printer, with Open printer and Pause alerts buttons, kept in Notification Center. A newer alert for the same printer replaces the one still showing.
 - Microsoft Store version: Start with Windows is offered in Settings › Notification area and alerts, straight into the notification area; Task Manager's Startup apps lists it and can turn it off.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. One key covers Inkvolt Print and Inkvolt PDF on this PC: enter it in either app and the other finds it. Everything stays free while the apps launch; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps the Pro features for you when they start asking for a key.

@@ -1,0 +1,76 @@
+# Round 2 (docs/UX-REVIEW.md): the command bar at 1200 / 1400 / 1700 / 900 DIPs, its menus, Text size 150 % in the
+# title bar and Organize, Settings applying at once. Samples in C:\ux2\samples (from the tests, INKVOLTPDF_SAMPLES).
+wait 1200
+size 1200 820
+open C:\ux2\samples\features.pdf
+wait 1500
+barstate
+shot C:\ux2\after\pdf-bar-1200.png
+size 1400 900
+wait 400
+barstate
+shot C:\ux2\after\pdf-bar-1400.png
+size 1700 900
+wait 400
+barstate
+size 900 620
+wait 400
+barstate
+shot C:\ux2\after\pdf-bar-900.png
+size 1200 820
+theme dark
+wait 400
+tool select
+wait 200
+barstate
+shot C:\ux2\after\pdf-bar-1200-dark.png
+theme light
+textscale 1.5
+wait 400
+barstate
+shot C:\ux2\after\pdf-bar-1200-150.png
+textscale system
+a11yaudit
+size 1200 820
+barclick FillSign
+wait 400
+menushot C:\ux2\after\pdf-bar-fillsign.png
+menu Add Text (Fill and Sign)
+wait 300
+barstate
+shot C:\ux2\after\pdf-bar-addtext-on.png
+barclick More
+wait 400
+menushot C:\ux2\after\pdf-bar-more.png
+menu Organize Pages
+wait 800
+barstate
+barclick Comment
+wait 400
+menushot C:\ux2\after\pdf-bar-comment.png
+key Escape
+cmd Organize
+open C:\ux2\samples\plain.pdf
+wait 1500
+textscale 1.5
+wait 500
+shot C:\ux2\after\pdf-reading-150.png
+cmd Organize
+wait 1200
+shot C:\ux2\after\pdf-organize-150.png
+textscale system
+wait 400
+cmd Organize
+later 900 dialogfill check3=on
+later 1300 dialogshot C:\ux2\after\pdf-settings.png
+later 1500 dialogbutton Undo{sp}changes
+later 1800 dialogshot C:\ux2\after\pdf-settings-undone.png
+later 2100 closedialog
+cmd Settings
+theme dark
+wait 300
+later 900 dialogshot C:\ux2\after\pdf-settings-dark.png
+later 1300 closedialog
+cmd Settings
+theme light
+exit

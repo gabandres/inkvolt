@@ -38,8 +38,16 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 
 ## Using it
 
-- **Windows 11 look**: Mica, document tabs in the title bar (Snap Layouts kept), light/dark/system theme (Ctrl+,). The
-  command bar stays one row: on a narrow window labels give way to icons, then the rest goes into the "…" menu.
+- **Windows 11 look**: Mica, document tabs in the title bar (Snap Layouts kept), light/dark/system theme (Ctrl+,).
+- **Command bar** (Fluent 2's pattern, one row): save, print, undo and redo as icons, then labeled groups in the order of
+  the menus: **Hand / Select / Snapshot** (named after the tool in use), **Fill & Sign** (add text, check mark, cross,
+  sign), **Comment** (highlight, underline, strike out, note, image, link, stamp), **Draw**, **Redact** and **Organize**.
+  A group drops a menu of its tools with their icons and keys and shows the one in use. "…" holds what doesn't fit (a
+  group as a submenu), then rotate, delete selected pages, find and combine, all with labels. Labels show from about
+  1150 DIPs (Select, Fill & Sign, Comment at 1200; Draw and Organize from 1400; everything at 1700); the bar goes
+  icons-only only when Fill & Sign or Comment wouldn't fit with theirs. Every bar command is in the menus, so the command
+  palette (Ctrl+K) lists it. The table (order, groups, priorities, icons) and the fitting are `CommandBarLayout` (Core,
+  tested); `ToolbarPanel` lays it out; dev steps `barstate`, `barclick Id|More`, `menushot out.png`.
 - **Tabs**: next / previous with Ctrl+Tab / Ctrl+Shift+Tab or Ctrl+PgDn / Ctrl+PgUp, Ctrl+Alt+1…9 picks one,
   Ctrl+Shift+T reopens the last closed tab at its page (the last 10). A file opened from Explorer while Inkvolt PDF is
   asking about unsaved changes before closing waits, and keeps the window open for itself. Right-click a tab (or Shift+F10)
@@ -313,8 +321,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Reload** (F5) and an info bar when another program changes the open file; a reload that needs the file's password
   asks for it (after Remove Protection, the file on disk still has one). **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, side rail, pane and page (both panes of a split view); high-contrast aware;
-  Windows' Text size (Settings › Accessibility) enlarges the dialogs, command bar, panes and start page (the pages zoom on
-  their own); toasts and the command palette move only when Windows' Animation effects is on.
+  Windows' Text size (Settings › Accessibility) enlarges the dialogs, the title bar's tabs (the title bar grows to fit),
+  the command bar, panes, start page and the Organize view's bars, page numbers and buttons (the pages zoom on their own); toasts and the command palette move only when Windows' Animation effects is on.
 - **Recovery copies**: every PDF with unsaved changes (edits, a combined or scanned document never saved) gets a copy in
   `%LOCALAPPDATA%\InkvoltPdf\recovery` at most every 20 seconds after a change, written in the background as Save would
   write it (a password-protected document stays protected), and at once when Windows signs out. A copy goes when its
@@ -385,8 +393,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   says the copy isn't from the Store). Decisions: `UpdateCheck` (Core, tested with a fake Store); Store calls:
   `StoreUpdates`, `MainWindow.Updates.cs`; dev steps `updatefake none|ready|mandatory|error`, `updatecheck [startup]`,
   `updatestate`.
-- **Settings** (Ctrl+,): *Reset to defaults* puts the dialog's choices back as a new install has them (saved with Save; recent
-  files, signatures and the AI assistant's settings are kept).
+- **Settings** (Ctrl+,): each change takes effect and is saved as it is made, as in Windows 11's Settings; the window
+  closes with Close. *Reset to defaults* puts the choices back as a new install has them, at once (recent files,
+  signatures and the AI assistant's settings are kept); *Undo changes* puts back every setting changed since the window
+  opened, a reset included (`SettingsSession`, Core, tested).
 - **Password protection** (File › Protect with Password…): an open password (with a strength hint) and/or a
   permissions password restricting printing (high/low resolution/none), copying, editing, comments, form filling and
   page assembly; AES-256 (or AES-128 for old readers). An undoable edit; save to keep it. Remove Protection… takes it
