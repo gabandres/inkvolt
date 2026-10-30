@@ -100,7 +100,7 @@ public enum FormDesign {
 
     /// Every widget of every form field, page by page in each page's /Annots order.
     public static func read(_ data: [UInt8], _ password: String?) throws -> [DesignField] {
-        try readIn(PdfEdit.open(data, password, failure: "This PDF's form can't be read"))
+        try readIn(PdfEdit.openToRead(data, password))
     }
 
     private static func readIn(_ doc: MuDoc) throws -> [DesignField] {

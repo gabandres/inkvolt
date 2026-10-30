@@ -23,7 +23,7 @@ public enum VectorShapes {
     private static let maxDepth = 8
 
     public static func read(_ data: [UInt8], _ password: String?, _ pageIndex: Int, cancel: CancelToken? = nil) throws -> [PageShape] {
-        try read(PdfEdit.open(data, password, failure: "This PDF's pages can't be read"), pageIndex, cancel: cancel)
+        try read(PdfEdit.openToRead(data, password), pageIndex, cancel: cancel)
     }
 
     static func read(_ doc: MuDoc, _ pageIndex: Int, cancel: CancelToken? = nil) throws -> [PageShape] {

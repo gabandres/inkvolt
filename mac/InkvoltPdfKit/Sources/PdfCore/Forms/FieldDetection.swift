@@ -51,7 +51,7 @@ public enum FieldDetection {
                                cancel: CancelToken? = nil, progress: ((Int, Int) -> Void)? = nil) throws -> [FieldSuggestion] {
         var names = existing.map(\.name)
         var result: [FieldSuggestion] = []
-        let doc = try PdfEdit.open(data, password, failure: "This PDF's pages can't be read")
+        let doc = try PdfEdit.openToRead(data, password)
         for (done, p) in pages.enumerated() {
             try cancel?.check()
             progress?(done, pages.count)
