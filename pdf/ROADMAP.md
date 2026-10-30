@@ -277,8 +277,15 @@ the checkout.
   the added ones together: all 6 sample pages and 15 corpus pages read in order (6 pages had no room under their
   longest paragraph). Acrobat isn't on this PC, so its half isn't run. The corpus check itself now finds the
   rewritten paragraph by its text (with kerning kept, the first rewritten lines land exactly where the old ones were,
-  which it used to mistake for other text). Still to do: paragraphs in turned
-  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line).
+  which it used to mistake for other text). Mixed-face paragraphs from other software (2026-10-30): lines join when
+  their fonts are faces of one family (`FontNames.Family`: Word draws a bold word in "Calibri,Bold" beside
+  "Calibri"), the paragraph's own font is the face most of its text is in (`PlainRun`), and a run in another face of
+  the family reads back as a bold or italic span; typed again, such a stretch, or new text given bold or italic, is
+  written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
+  its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
+  set back after the lines. A word in another family still blocks the paragraph (edited line by line), and a line
+  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Still to do: paragraphs in
+  turned text (they edit line by line); paragraphs mixing font families (a symbol font, a word in another family).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

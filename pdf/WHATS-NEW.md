@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- A paragraph with a bold or italic word in it (as Word and most programs write them) now edits as one paragraph: the word keeps its look, and new bold or italic text uses the PDF's own bold or italic font when it has one.
 - The paragraph editor's font list now has every font installed on your PC, not just the common fourteen.
 - A rewritten paragraph keeps the kerning its letters had, so edited lines look as tight as the ones you didn't touch. A word hyphenated at a line end stays as typed ("respon-sible"); a soft hyphen the line break added goes away.
 - Editing a single line of text now draws characters its font doesn't have from the closest font on your PC, as paragraph editing does, and says so under the editor.

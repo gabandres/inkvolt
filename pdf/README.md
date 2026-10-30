@@ -634,7 +634,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   stamps and fields.
 - Edit Text & Images: paragraphs rewrap in their box in their own embedded font only, with no other font when the
   embedded one lacks a character (most embedded fonts are subsets), and no font, size or color changes. A paragraph
-  that mixes fonts, sizes or colors, text on a turned page or turned text, and a single piece of text on one line are
+  that mixes font families, sizes or colors (a bold or italic word in another face of the same family is fine: it is
+  a stretch with that look, written back in the PDF's own face), text on a turned page or turned text, and a single piece of text on one line are
   edited one text operator at a time (often a line, sometimes a word or a letter), without reflow. A rewritten
   paragraph keeps the kerning its text carried for each pair of letters that is still there (new pairs get none,
   and a font's own kerning table isn't read); a line break typed into it starts a new paragraph for the next edit; a word hyphenated

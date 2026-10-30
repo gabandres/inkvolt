@@ -151,8 +151,8 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     public void TextOfOtherSizesOrFontsIsNotJoined()
     {
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 72 700 Td (One line of body text here) Tj ET\nBT /FA 9 Tf 72 686 Td (smaller text under it) Tj ET\n" +
-            $"BT /FU 11 Tf 72 672 Td {ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), "other font text")} Tj ET", fontText: Chars);
+            "BT /FA 11 Tf 72 700 Td (One line of body text here) Tj ET\nBT /FA 9 Tf 72 686 Td (smaller text under it) Tj ET\n" +
+            "BT /FT 11 Tf 72 672 Td (other font text) Tj ET", fontText: Chars, faces: true);
         Assert.Equal(3, ContentEditor.Read(pdf, null, 0).Paragraphs.Count);
     }
 
@@ -414,12 +414,11 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AParagraphMixingFontsIsBlocked()
+    public void AParagraphMixingFontFamiliesIsBlocked()
     {
-        var fu = ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), " bold words");
         var lines = Wrap(Body, Width);
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FU 11 Tf {fu} Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars);
+            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single(q => q.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
@@ -533,10 +532,9 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     [Fact]
     public void ClickingBetweenTheLinesOfABlockedParagraphFindsNothing()
     {
-        var fu = ContentEditPdf.Cid(ContentEditPdf.Make("", fontText: Chars), " bold words");
         var lines = Wrap(Body, Width);
         var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FU 11 Tf {fu} Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars);
+            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
         var content = ContentEditor.Read(pdf, null, 0);
         var p = content.Paragraphs.Single(q => q.Lines.Count > 1);
         Assert.NotNull(p.Blocked);

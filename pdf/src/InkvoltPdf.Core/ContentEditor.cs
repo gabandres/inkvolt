@@ -74,9 +74,10 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
                 w -= p.Number / 1000 * size * HScale;
                 continue;
             }
-            var glyph = Font!.WidthOf(c) / 1000 * size * HScale;
+            var font = p.Look?.Page?.Font ?? Font!; // a stretch in another face of the page's family is measured in it
+            var glyph = font.WidthOf(c) / 1000 * size * HScale;
             end = w + glyph;
-            w += glyph + (CharSpacing + (!Font.TwoByte && c == 32 ? WordSpacing : 0)) * HScale;
+            w += glyph + (CharSpacing + (!font.TwoByte && c == 32 ? WordSpacing : 0)) * HScale;
         }
         return end;
     }
@@ -219,7 +220,7 @@ public static partial class ContentEditor
             var sb = new StringBuilder();
             if (op.Name == "'") sb.Append("T* ");
             else if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc T* ");
-            WriteLine(sb, info.Hex, font, plan.Parts, now, writer);
+            WriteLine(sb, info.Hex, now, plan.Parts, now, writer);
             replacement = sb.ToString();
             AddFonts(doc, target.ResourceOwner, writer.BuildFonts(doc));
         }

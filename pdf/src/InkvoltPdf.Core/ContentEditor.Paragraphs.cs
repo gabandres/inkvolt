@@ -32,8 +32,8 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// <summary>Its type size on the page (points).</summary>
     public double FontSize => Runs.Count > 0 ? Runs[0].FontSize : 0;
 
-    /// <summary>Its first run in its own font and look (not a stand-in or a look an earlier edit added): its font, style and color.</summary>
-    public TextRun Lead => Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs.FirstOrDefault(r => !r.StandIn) ?? Runs[0];
+    /// <summary>Its run in its own font and look (see <see cref="ContentEditor.PlainRun"/>): its font, style and color.</summary>
+    public TextRun Lead => ContentEditor.PlainRun(Runs);
 
     /// <summary>The stretches of <see cref="Text"/> an earlier edit gave a look of their own (font, size, color, bold, italic).</summary>
     public IReadOnlyList<TextSpan> Spans { get; init; } = [];
@@ -192,13 +192,32 @@ public static partial class ContentEditor
     }
 
     /// <summary>
-    /// Same font, size (within 5%) and color; a stand-in run (characters an edit drew from another font) only needs the
+    /// Same font family, size (within 5%) and color; a stand-in run (characters an edit drew from another font) only needs the
     /// size and color, and text an edit gave a look of its own goes with anything.
     /// </summary>
     private static bool SameLook(TextRun a, TextRun b) =>
         a.Styled || b.Styled
-        || (a.StandIn || b.StandIn || a.FontName == b.FontName && ReferenceEquals(a.Font, b.Font))
+        || (a.StandIn || b.StandIn || SameFamily(a, b))
         && Math.Abs(a.FontSize - b.FontSize) <= Math.Max(0.3, 0.05 * a.FontSize) && a.Color == b.Color;
+
+    /// <summary>The same font, or two faces of one family (regular and bold, as Word's PDFs draw a bold word).</summary>
+    private static bool SameFamily(TextRun a, TextRun b) =>
+        ReferenceEquals(a.Font, b.Font) || FontNames.Family(a.FontName).Equals(FontNames.Family(b.FontName), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A paragraph's own font among its runs: of those in a page font (not a stand-in, not a look an edit gave), the
+    /// font with the most text, a regular face before a bold or italic one on a tie, as its first run in content order;
+    /// else the first run that isn't a stand-in, else the first.
+    /// </summary>
+    internal static TextRun PlainRun(IReadOnlyList<TextRun> runs) =>
+        runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null)
+            .GroupBy(r => r.Font!)
+            .OrderByDescending(g => g.Sum(r => r.Text.Trim().Length))
+            .ThenBy(g => g.Key.Bold || g.Key.Italic ? 1 : 0)
+            .ThenBy(g => g.Min(r => r.Id))
+            .Select(g => g.MinBy(r => r.Id)!)
+            .FirstOrDefault()
+        ?? runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? runs.FirstOrDefault(r => !r.StandIn) ?? runs[0];
 
     /// <summary>The step from one baseline to the next as the paragraph's own (see <see cref="LayOut"/>: bigger text widens it).</summary>
     private static double PlainStep(PLine above, PLine below, double step) => step / (Rise * above.Scale + (1 - Rise) * below.Scale);
@@ -340,10 +359,11 @@ public static partial class ContentEditor
         var runs = lines.SelectMany(l => l.Runs).ToList();
         var mine = new HashSet<TextRun>(runs, ReferenceEqualityComparer.Instance);
         var blocked = runs.Select(r => r.Blocked).FirstOrDefault(b => b is not null);
-        // Its own look: a run in its own font as it was; else (an edit gave all of it another look) its first run's.
-        var own = runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? runs.FirstOrDefault(r => !r.StandIn) ?? runs[0];
-        if (blocked is null && runs.Any(r => !SameLook(own, r) || !r.StandIn && !r.Styled && (r.Bold != own.Bold || r.Italic != own.Italic)))
-            blocked = "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font only";
+        // Its own look: the font most of it is in (a bold or italic word in another face of the family is a stretch
+        // with a look of its own); else (an edit gave all of it another look) its first run's.
+        var own = PlainRun(runs);
+        if (blocked is null && runs.Any(r => !SameLook(own, r)))
+            blocked = "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only";
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = "part of it can't be read for editing";
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
@@ -407,7 +427,7 @@ public static partial class ContentEditor
             Below = below,
             Spaces = spaces,
             Spans = SpansOf(plain, at),
-            Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null).Select(r => r.Info!)) : null,
+            Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
             Center = center,
@@ -422,23 +442,26 @@ public static partial class ContentEditor
     internal static string ParagraphText(string text) =>
         text.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\t', ' ').TrimEnd();
 
-    internal sealed record ParagraphLayout(List<(PointD Origin, List<Part> Parts)> Lines, ParagraphCheck Check, IReadOnlyList<int> Codes, string Encoded);
+    /// <summary>The lines placed; the check; for each page font written, its codes and the text they stand for (for <see cref="TextFont.Prepare"/>).</summary>
+    internal sealed record ParagraphLayout(List<(PointD Origin, List<Part> Parts)> Lines, ParagraphCheck Check, IReadOnlyList<(TextFont Font, IReadOnlyList<int> Codes, string Text)> Fonts);
 
     /// <summary>
-    /// New text laid out in a paragraph's box, in the font, size and spacing of its first run in content order (where it
-    /// is written): words wrapped at the box's width (a single line doesn't wrap), a new line at each line break, the
-    /// paragraph's alignment (a justified paragraph's last line, and each line before a break, start left), its line
-    /// step. Stretches <paramref name="spans"/> give a look of their own are drawn in it: an installed font for another
-    /// family, bold or italic, another size (a line with bigger text moves down as far as it needs), another color.
+    /// New text laid out in a paragraph's box, in its own font (<see cref="PlainRun"/>), size and spacing: words wrapped
+    /// at the box's width (a single line doesn't wrap), a new line at each line break, the paragraph's alignment (a
+    /// justified paragraph's last line, and each line before a break, start left), its line step. Stretches
+    /// <paramref name="spans"/> give a look of their own are drawn in it: the page's own bold or italic face when the
+    /// paragraph has one, else an installed font for another family, bold or italic; another size (a line with bigger
+    /// text moves down as far as it needs); another color.
     /// </summary>
     internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null)
     {
         var anchor = Anchor(runs);
-        var font = anchor.Font!;
-        var m = anchor with { };
+        var plain = PlainRun(runs);
+        var font = plain.Font!;
+        var m = plain with { };
         m.WordSpacing = 0; // the lines are written with Tw 0 (justification goes into adjustments)
         var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)));
-        if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), [], "");
+        if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
         double W(List<Part> parts) => parts.Count == 0 ? 0 : m.Width(parts) * m.Scale;
         var wrap = p.Lines.Count > 1;
@@ -532,7 +555,7 @@ public static partial class ContentEditor
             ? "this paragraph's color is a special ink (a pattern or spot color), so part of it can't be given another color"
             : null;
         var check = new ParagraphCheck(box, placed.Count, [], overlaps) { Borrowed = enc.Borrowed, StandIns = enc.Names, Faces = enc.Faces, LookProblem = problem };
-        return new ParagraphLayout(placed, check, enc.Codes, enc.Text.ToString());
+        return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))]);
     }
 
     /// <summary>
@@ -582,10 +605,10 @@ public static partial class ContentEditor
         runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => r.Id) ?? runs.Where(r => !r.StandIn).MinBy(r => r.Id) ?? runs.MinBy(r => r.Id)!;
 
     /// <summary>
-    /// A paragraph's new text in its own font's codes; the characters that font lacks drawn from the closest installed
-    /// font (<see cref="StandInFonts"/>), each stretch shaped as one <see cref="Part.StandIn"/>; stretches with a look
-    /// of their own carry it (<see cref="Part.Look"/>), drawn in an installed font when the look asks for another
-    /// family, bold or italic.
+    /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
+    /// characters a font lacks drawn from the closest installed font (<see cref="StandInFonts"/>), each stretch shaped
+    /// as one <see cref="Part.StandIn"/>; stretches with a look of their own carry it (<see cref="Part.Look"/>), drawn
+    /// in an installed font when the look asks for another family, or for bold or italic the page has no face for.
     /// </summary>
     private sealed class MixedText
     {
@@ -594,13 +617,13 @@ public static partial class ContentEditor
         private readonly TextRun _run;
         private readonly string _text;
         private readonly TextLook?[] _looks;
-        private readonly HashSet<string> _lacking = [];
-        private readonly Dictionary<int, StandInFont> _standIns;
+        /// <summary>Per page font: the text elements it lacks that a stand-in draws, and which stand-in draws each code point.</summary>
+        private readonly HashSet<(TextFont, string)> _lacking = [];
+        private readonly Dictionary<TextFont, Dictionary<int, StandInFont>> _standIns = [];
         private readonly Dictionary<TextLook, PartLook?> _resolved = [];
 
-        /// <summary>The own font's codes written, and the text they stand for (for <see cref="TextFont.Prepare"/>).</summary>
-        public readonly List<int> Codes = [];
-        public readonly StringBuilder Text = new();
+        /// <summary>Per page font written: its codes and the text they stand for (for <see cref="TextFont.Prepare"/>).</summary>
+        public readonly Dictionary<TextFont, (List<int> Codes, StringBuilder Text)> Written = [];
         public readonly List<string> Missing = [];
         public readonly List<string> Borrowed = [];
         public readonly List<string> Names = [];
@@ -615,29 +638,37 @@ public static partial class ContentEditor
             _run = run;
             _text = text;
             _looks = looks;
-            var lacking = new List<string>();
+            var lacking = new Dictionary<TextFont, List<string>>();
             foreach (var (el, at) in Elements(0, text.Length))
             {
                 if (el.All(char.IsWhiteSpace)) continue;
-                if (Resolve(at) is { Face: { } face })
+                var look = Resolve(at);
+                if (look is { Face: { } face })
                 {
                     // In a font a look asked for: what it lacks comes from the script fallbacks, else nothing.
                     if (!TrueTypeFont.CodePoints(el).All(cp => face.Font.Has(cp) || SystemFonts.For(cp, face.Font) is { } f && f.Has(cp)) && !Missing.Contains(el))
                         Missing.Add(el);
+                    continue;
                 }
-                else if (font.Encode(el).Missing.Count > 0 && !lacking.Contains(el)) lacking.Add(el);
+                var pageFont = look?.Page?.Font ?? font;
+                if (pageFont.Encode(el).Missing.Count == 0) continue;
+                if (!lacking.TryGetValue(pageFont, out var list)) lacking[pageFont] = list = [];
+                if (!list.Contains(el)) list.Add(el);
             }
-            _standIns = StandInFonts.For(font, [.. lacking.SelectMany(TrueTypeFont.CodePoints).Distinct()]);
-            foreach (var el in lacking)
+            foreach (var (pageFont, els) in lacking)
             {
-                if (TrueTypeFont.CodePoints(el).All(_standIns.ContainsKey))
+                var standIns = _standIns[pageFont] = StandInFonts.For(pageFont, [.. els.SelectMany(TrueTypeFont.CodePoints).Distinct()]);
+                foreach (var el in els)
                 {
-                    _lacking.Add(el);
-                    Borrowed.Add(el);
-                    foreach (var cp in TrueTypeFont.CodePoints(el))
-                        if (!Names.Contains(_standIns[cp].Name)) Names.Add(_standIns[cp].Name);
+                    if (TrueTypeFont.CodePoints(el).All(standIns.ContainsKey))
+                    {
+                        _lacking.Add((pageFont, el));
+                        if (!Borrowed.Contains(el)) Borrowed.Add(el);
+                        foreach (var cp in TrueTypeFont.CodePoints(el))
+                            if (!Names.Contains(standIns[cp].Name)) Names.Add(standIns[cp].Name);
+                    }
+                    else if (!Missing.Contains(el)) Missing.Add(el);
                 }
-                else if (!Missing.Contains(el)) Missing.Add(el);
             }
         }
 
@@ -660,24 +691,33 @@ public static partial class ContentEditor
             var bold = look.Bold ?? lead.Bold;
             var italic = look.Italic ?? lead.Italic;
             StandInFont? face = null;
+            TextRun? page = null;
             var family = look.Font is { } f && !f.Equals(FontNames.Family(lead.FontName), StringComparison.OrdinalIgnoreCase) ? f : null;
-            if (family is not null || bold != lead.Bold || italic != lead.Italic)
+            if (family is null && (bold != lead.Bold || italic != lead.Italic))
+            {
+                // The page's own face for it, when the paragraph has one (a bold word as the generator drew it).
+                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && !ReferenceEquals(r.Font, lead.Font) && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
+            }
+            if (page is null && (family is not null || bold != lead.Bold || italic != lead.Italic))
             {
                 face = StandInFonts.Styled(_font, family, bold, italic);
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
-            var resolved = scale == 1 && color is null && face is null ? null : new PartLook(scale, color, face, look);
+            var resolved = scale == 1 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page);
             _resolved[look] = resolved;
             return resolved;
         }
 
+        /// <summary>A stretch in a page font: the paragraph's own, or the face its look resolved to.</summary>
         private List<Part> Own(string chunk, PartLook? look)
         {
-            var codes = _font.Encode(chunk).Codes;
-            Codes.AddRange(codes);
-            Text.Append(chunk);
-            return Parts(_run, codes, _p.Kerning, look);
+            var font = look?.Page?.Font ?? _font;
+            var codes = font.Encode(chunk).Codes;
+            if (!Written.TryGetValue(font, out var w)) Written[font] = w = ([], new StringBuilder());
+            w.Codes.AddRange(codes);
+            w.Text.Append(chunk);
+            return Parts(_run, codes, ReferenceEquals(font, _font) ? _p.Kerning : null, look);
         }
 
         /// <summary>The parts of [start, end): stretches in its own font, and stretches of each other font shaped, each with its look.</summary>
@@ -696,7 +736,8 @@ public static partial class ContentEditor
             foreach (var (el, at) in Elements(start, end))
             {
                 var look = Resolve(at);
-                var face = look?.Face ?? (_lacking.Contains(el) ? _standIns[TrueTypeFont.CodePoints(el).First()] : null);
+                var pageFont = look?.Page?.Font ?? _font;
+                var face = look?.Face ?? (_lacking.Contains((pageFont, el)) ? _standIns[pageFont][TrueTypeFont.CodePoints(el).First()] : null);
                 if ((look, face) != cur) Flush();
                 cur = (look, face);
                 chunk.Append(el);
@@ -739,7 +780,7 @@ public static partial class ContentEditor
             now.Add(found);
         }
         var anchor = Anchor(now);
-        var font = anchor.Font!;
+        var plain = PlainRun(now);
         if (now.Any(r => !ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)))
             throw new ContentEditException("The page changed since this paragraph was picked. Pick it again.");
         // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
@@ -759,7 +800,7 @@ public static partial class ContentEditor
             throw new ContentEditException(
                 $"The new text takes {layout.Check.LineCount} lines and would run into what follows below it. Shorten it, or confirm to write it anyway.")
             { Overlaps = o };
-        font.Prepare(doc, layout.Codes, layout.Encoded);
+        foreach (var (font, codes, written) in layout.Fonts) font.Prepare(doc, codes, written);
 
         // Characters the font lacks: drawn in stand-in fonts, embedded as subsets under names no font of the content has.
         var writer = new CidFontWriter(StandInPrefix(target));
@@ -768,7 +809,7 @@ public static partial class ContentEditor
         foreach (var run in now)
         {
             var op = target.OpOf(run);
-            edits.Add((op.Start, op.End, run == anchor ? WriteParagraph(page, op, run, font, layout, writer) : Removed(op, run)));
+            edits.Add((op.Start, op.End, run == anchor ? WriteParagraph(page, op, run, plain, layout, writer) : Removed(op, run)));
         }
         if (!writer.IsEmpty) AddFonts(doc, target.ResourceOwner, writer.BuildFonts(doc));
         foreach (var run in spaces)
@@ -821,11 +862,11 @@ public static partial class ContentEditor
     }
 
     /// <summary>
-    /// The paragraph's new lines in place of its first show operator: each line placed with Tm (word spacing 0 while
-    /// they are written), then the line matrix and text position the operator left, so the rest of the content draws
-    /// where it did.
+    /// The paragraph's new lines in place of its first show operator (<paramref name="run"/>), in the paragraph's own
+    /// font (<paramref name="plain"/>): each line placed with Tm (word spacing 0 while they are written), then the line
+    /// matrix and text position the operator left, so the rest of the content draws where it did.
     /// </summary>
-    private static string WriteParagraph(PdfPage page, COp op, TextRun run, TextFont font, ParagraphLayout layout, CidFontWriter writer)
+    private static string WriteParagraph(PdfPage page, COp op, TextRun run, TextRun plain, ParagraphLayout layout, CidFontWriter writer)
     {
         var info = run.Info!;
         var sb = new StringBuilder();
@@ -840,7 +881,7 @@ public static partial class ContentEditor
             var (tx, ty) = toText.Apply(user.X, user.Y);
             var lineTm = new Mat(1, 0, 0, 1, tx, ty - info.Rise).Times(info.Tm);
             sb.Append(lineTm.Write()).Append(" Tm ");
-            WriteLine(sb, info.Hex, font, parts, run, writer);
+            WriteLine(sb, info.Hex, plain, parts, run, writer);
         }
         if (Math.Abs(tw) > 1e-9) sb.Append(ContentLexer.Number(tw)).Append(" Tw ");
         // Back where the operator left things: the line matrix after it, the text position moved along its baseline.
@@ -853,24 +894,27 @@ public static partial class ContentEditor
     }
 
     /// <summary>
-    /// A line's parts as TJ arrays of codes and adjustments; stretches in other fonts in between, drawn by
+    /// A line's parts as TJ arrays of codes and adjustments in the paragraph's own font (<paramref name="plain"/>) or
+    /// another face of the page's the part's look names; stretches in installed fonts in between, drawn by
     /// <paramref name="writer"/> with no character spacing; a stretch with a look of its own inside a marked-content
-    /// tag (<see cref="LookTagName"/>), at its size and in its color. The run's font, size, spacing, rise and color are set back after.
+    /// tag (<see cref="LookTagName"/>), at its size and in its color. The font, size, spacing, rise and color the
+    /// operator (<paramref name="run"/>) had are set back after.
     /// </summary>
-    private static void WriteLine(StringBuilder sb, bool hex, TextFont font, List<Part> parts, TextRun run, CidFontWriter writer)
+    private static void WriteLine(StringBuilder sb, bool hex, TextRun plain, List<Part> parts, TextRun run, CidFontWriter writer)
     {
         var info = run.Info!;
         var tokens = new List<string>();
         var codes = new List<int>();
         PartLook? tag = null;
         int? color = null; // null: the run's own
-        var scale = 1.0;
+        // The page font and size in effect: the operator's own to begin with; false once a stand-in's Tf replaced it.
+        (TextFont Font, bool Hex, double Size) cur = (run.Font!, hex, run.Size);
         var ownFont = true;
         void Flush()
         {
             if (codes.Count == 0) return;
-            var bytes = font.ToBytes(codes);
-            tokens.Add(hex ? ContentLexer.HexString(bytes) : ContentLexer.Literal(bytes));
+            var bytes = cur.Font.ToBytes(codes);
+            tokens.Add(cur.Hex ? ContentLexer.HexString(bytes) : ContentLexer.Literal(bytes));
             codes.Clear();
         }
         void Close()
@@ -895,13 +939,13 @@ public static partial class ContentEditor
                 color = look?.Color;
             }
         }
-        void OwnFont(double s)
+        void Use(TextRun face, bool h, double size)
         {
-            if (ownFont && Math.Abs(s - scale) < 1e-9) return;
+            if (ownFont && ReferenceEquals(face.Font, cur.Font) && Math.Abs(size - cur.Size) < 1e-9) return;
             Close();
-            sb.Append('/').Append(EscapeName(run.FontKey)).Append(' ').Append(ContentLexer.Number(run.Size * s)).Append(" Tf ");
+            sb.Append('/').Append(EscapeName(face.FontKey)).Append(' ').Append(ContentLexer.Number(size)).Append(" Tf ");
             ownFont = true;
-            scale = s;
+            cur = (face.Font!, h, size);
         }
         foreach (var part in parts)
         {
@@ -912,13 +956,14 @@ public static partial class ContentEditor
                 Close();
                 var tc = Math.Abs(run.CharSpacing) > 1e-9;
                 if (tc) sb.Append("0 Tc ");
-                writer.Emit(sb, standIn, run.Size * s);
+                writer.Emit(sb, standIn, plain.Size * s);
                 ownFont = false;
                 if (tc) sb.Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc ");
                 if (Math.Abs(info.Rise) > 1e-9) sb.Append(ContentLexer.Number(info.Rise)).Append(" Ts ");
                 continue;
             }
-            OwnFont(s);
+            var face = part.Look?.Page ?? plain;
+            Use(face, ReferenceEquals(face.Font, run.Font) ? hex : true, plain.Size * s);
             if (part.Code is { } code) codes.Add(code);
             else if (Math.Abs(part.Number) > 1e-9)
             {
@@ -927,7 +972,7 @@ public static partial class ContentEditor
             }
         }
         Look(null);
-        OwnFont(1);
+        Use(run, hex, run.Size); // the font and size the operator had
         Close();
     }
 }
