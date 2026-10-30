@@ -875,7 +875,10 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   200 ms pause, Find across 5,000 pages in under 5 s, the comment list in under 2 s and memory under 1.5 GB, measured
   before each release with `tools/bench` on its generated corpus (a 5,000-page text, a 500-page scan, a 1 GB drawing
   set, 10,000 comments); what the last run met and missed is in [tools/bench/RESULTS.md](tools/bench/RESULTS.md):
-  Find across 5,000 pages takes about 10 s, and a sheet with 72,000 paths about 0.8 s to draw (a preview shows first).
+  Find across 5,000 pages takes about 3 s, a first Find across a 1 GB drawing set about 30 s, and a sheet with 72,000
+  paths about 0.8 s to draw (a preview shows first). A search that will take more than about 2 s starts up to eight helper
+  processes of the app (`InkvoltPdf.exe --find-worker`, gone when the search ends), each using up to about 100 MB and a
+  core; a file with a password, and any format other than PDF, is searched in the app itself, at the old speed.
   A PDF of 256 MB or more opens in place: Inkvolt PDF reads the file as pages need it, and other programs can't replace
   it (save over it) until you edit, undo or reload it; overwritten in place by another program, it shows as changed on
   disk. Its bytes are read whole only when something needs them (an edit, or a pane reading comments, attachments,
