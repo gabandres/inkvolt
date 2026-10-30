@@ -5,6 +5,13 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Undo in the scan review: a deleted page comes back, and so does a turn, a crop or a move (the Undo button, or Ctrl+Z). The status line says how after you delete a page.
+- In the scan review, Ctrl+R and Ctrl+L turn the selected page and Ctrl+S saves it as a PDF. Help lists them.
+- Inkvolt Print follows Windows' Text size (Settings › Accessibility): everything gets larger with it. At large sizes the tabs wrap in order and the Print a PDF and Scan buttons move under the printer's name.
+- Questions ("Remove this printer?", "Discard the pages?") show the question as the heading and in the title bar, with the explanation under it; a message that only informs closes with Close.
+- The Scan settings' captions stay clear of the scrollbar, as does What's New's text.
+- Links and the scan review's page buttons (turn, crop, delete) are easier to hit (at least 24 px) and show a focus ring when reached with Tab.
+- Add a printer's address box shows an example until you type.
 
 ## 1.0.8
 - Once Inkvolt Print has saved a few of your scans or sent a few prints over at least two days, it asks one time whether you'd like to rate it in the Microsoft Store, in the Store's own window. It never asks again, whatever you choose.

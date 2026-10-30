@@ -75,6 +75,7 @@ public partial class App : Application
             args.SetObserved();
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Write($"FATAL: {args.ExceptionObject}");
+        TextScale.Start(this); // Windows' Text size, for every window from here on
 
         base.OnStartup(e);
         Log.Write($"Inkvolt Print started ({Environment.ProcessPath})");

@@ -18,7 +18,9 @@ public partial class HelpDialog : Window
         ("Alt+Shift+arrows", "Scan review: move the page earlier or later"),
         ("S", "Scan review: start a new file at this page"),
         ("Delete", "Scan review, Photos: delete or remove the one in focus"),
-        ("Ctrl+R, Ctrl+L", "Photos: turn right or left"),
+        ("Ctrl+Z", "Scan review: undo the last change to the pages (a deleted page comes back)"),
+        ("Ctrl+R, Ctrl+L", "Scan review, Photos: turn right or left"),
+        ("Ctrl+S", "Scan review: save as PDF"),
         ("+ and −", "Photos: one more or one fewer copy"),
         ("Esc", "Close a dialog"),
     ];

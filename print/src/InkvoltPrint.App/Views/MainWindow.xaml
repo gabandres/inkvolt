@@ -39,7 +39,7 @@
                       Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}"
                       Visibility="{Binding IsNetworkPrinter, Converter={StaticResource VisibleWhen}}" />
-            <MenuItem Header="Remove from InkvoltPrint…"
+            <MenuItem Header="Remove from Inkvolt Print…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />
         </ContextMenu>
@@ -508,7 +508,7 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" />
                                             <TextBox AutomationProperties.Name="{Binding Label}" Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                                                     Background="Transparent" Padding="0" MinHeight="0" TextWrapping="Wrap" />
+                                                     Background="Transparent" Padding="0" MinHeight="24" VerticalContentAlignment="Center" TextWrapping="Wrap" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -591,7 +591,8 @@
                         <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
                                 Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <!-- Room on the right for the scrollbar, so it never covers the captions -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Padding="0,0,12,0">
                     <StackPanel>
                         <TextBlock Text="Scan settings" Style="{StaticResource CardTitle}" />
                         <!-- A scanner without eSCL, reached through its Windows driver (WIA): say so -->
@@ -662,6 +663,14 @@
                                            Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
                             <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- Puts back the last change to the pages (delete, turn, crop, move, file start): the tooltip says which -->
+                                <Button Command="{Binding UndoCommand}" Margin="0,0,8,0" ToolTip="{Binding UndoText}" AutomationProperties.Name="{Binding UndoText}"
+                                        Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7A7;" Margin="0,0,8,0" />
+                                        <TextBlock Text="Undo" />
+                                    </StackPanel>
+                                </Button>
                                 <Button Content="Clear" Command="{Binding ClearCommand}" Margin="0,0,8,0"
                                         Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
                                 <Button Content="Save as images" Command="{Binding SaveCommand}" CommandParameter="jpg" Margin="0,0,8,0" />
@@ -1392,7 +1401,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="Version" VerticalAlignment="Center" />
                                         <TextBox Grid.Column="1" Text="{Binding Version, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                                                 Background="Transparent" Padding="0" Margin="11,0,0,0" MinHeight="0" VerticalAlignment="Center"
+                                                 Background="Transparent" Padding="0" Margin="11,0,0,0" MinHeight="24" VerticalContentAlignment="Center" VerticalAlignment="Center"
                                                  AutomationProperties.Name="Firmware version" />
                                     </Grid>
                                     <Grid Margin="0,6" Visibility="{Binding CanChange, Converter={StaticResource VisibleWhen}}">
@@ -1457,13 +1466,14 @@
                         <TextBlock Text="Add a printer…" />
                     </StackPanel>
                 </Button>
+                <!-- Each link is a 24-px target (LinkButton's MinHeight), so the gaps between them are small -->
                 <Button Style="{StaticResource LinkButton}" Content="Settings" Click="Settings_Click" HorizontalAlignment="Left"
-                        Margin="10,12,0,0" FontSize="12"
+                        Margin="10,6,0,0" FontSize="12"
                         ToolTip="Light or dark, where scans are saved, the notification area and alerts" />
                 <Button Style="{StaticResource LinkButton}" Content="Help and shortcuts" Click="Help_Click" HorizontalAlignment="Left"
-                        Margin="10,8,0,0" FontSize="12" ToolTip="Keyboard shortcuts, what's new, report a problem (F1)" />
+                        Margin="10,0,0,0" FontSize="12" ToolTip="Keyboard shortcuts, what's new, report a problem (F1)" />
                 <Button Style="{StaticResource LinkButton}" Content="About Inkvolt Print" Click="About_Click" HorizontalAlignment="Left"
-                        Margin="10,8,0,0" FontSize="12" />
+                        Margin="10,0,0,0" FontSize="12" />
             </StackPanel>
 
             <Grid>
@@ -1568,31 +1578,34 @@
                                                    Visibility="{Binding Image, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                         <Image Source="{Binding Image}" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Grid>
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button AutomationProperties.Name="Print a PDF" Command="{Binding GoToPrintCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8" Margin="0,0,8,0"
-                                                Visibility="{Binding ShowPrintShortcut, Converter={StaticResource VisibleWhen}}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
-                                                <TextBlock Text="Print a PDF" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button AutomationProperties.Name="Scan" Command="{Binding GoToScanCommand}" Padding="16,8"
-                                                Visibility="{Binding ShowScanShortcut, Converter={StaticResource VisibleWhen}}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
-                                                <TextBlock Text="Scan" />
-                                            </StackPanel>
-                                        </Button>
-                                    </StackPanel>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                            <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
-                                                     Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
-                                            <TextBlock Text="{Binding StatusMessage}" />
-                                            <TextBlock Text="{Binding Where, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
+                                    <!-- The buttons go under the name when there's no room beside it (a narrow window, a large Text size) -->
+                                    <views:HeaderPanel VerticalAlignment="Center" Gap="16">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <WrapPanel Margin="0,6,0,0">
+                                                <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                         Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                                <TextBlock Text="{Binding StatusMessage}" />
+                                                <TextBlock Text="{Binding Where, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
+                                            </WrapPanel>
                                         </StackPanel>
-                                    </StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Button AutomationProperties.Name="Print a PDF" Command="{Binding GoToPrintCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="16,8" Margin="0,0,8,0"
+                                                    Visibility="{Binding ShowPrintShortcut, Converter={StaticResource VisibleWhen}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
+                                                    <TextBlock Text="Print a PDF" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button AutomationProperties.Name="Scan" Command="{Binding GoToScanCommand}" Padding="16,8"
+                                                    Visibility="{Binding ShowScanShortcut, Converter={StaticResource VisibleWhen}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
+                                                    <TextBlock Text="Scan" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </views:HeaderPanel>
                                 </DockPanel>
 
                                 <!-- One-click setup, only when Windows sees the printer but has no queue for it -->

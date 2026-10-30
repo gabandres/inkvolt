@@ -115,12 +115,18 @@ public partial class ScanPages : UserControl
             vm.ToggleFileStartCommand.Execute(page); // announces where the file now starts
             e.Handled = true;
         }
+        else if (key is Key.R or Key.L && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            (key == Key.R ? vm.RotateRightCommand : vm.RotateLeftCommand).Execute(page);
+            Announce(key == Key.R ? $"Page {page.Number} turned right" : $"Page {page.Number} turned left");
+            e.Handled = true;
+        }
         else if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
         {
             var index = vm.Pages.IndexOf(page);
             vm.RemovePageCommand.Execute(page);
             if (vm.Pages.Count > 0) Select(vm.Pages[Math.Min(index, vm.Pages.Count - 1)]);
-            Announce(vm.Pages.Count == 0 ? "Page deleted. No pages left" : "Page deleted");
+            Announce(vm.Pages.Count == 0 ? "Page deleted. No pages left. Ctrl+Z puts it back" : "Page deleted. Ctrl+Z puts it back");
             e.Handled = true;
         }
     }

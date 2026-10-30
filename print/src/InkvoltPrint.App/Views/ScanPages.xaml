@@ -10,8 +10,8 @@
     <UserControl.Resources>
         <!-- One menu per page (x:Shared=False); Tag carries the ScanViewModel, since a menu isn't in the page's visual tree. -->
         <ContextMenu x:Key="PageMenu" x:Shared="False">
-            <MenuItem Header="Turn left" Command="{Binding PlacementTarget.Tag.RotateLeftCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
-            <MenuItem Header="Turn right" Command="{Binding PlacementTarget.Tag.RotateRightCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Turn left" InputGestureText="Ctrl+L" Command="{Binding PlacementTarget.Tag.RotateLeftCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="Turn right" InputGestureText="Ctrl+R" Command="{Binding PlacementTarget.Tag.RotateRightCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <MenuItem Header="Crop…" Command="{Binding PlacementTarget.Tag.CropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
                       Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
             <MenuItem Header="Photos…" Command="{Binding PlacementTarget.Tag.EditPhotosCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
@@ -36,6 +36,11 @@
                       Command="{Binding PlacementTarget.Tag.RemovePageCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
         </ContextMenu>
     </UserControl.Resources>
+    <!-- Ctrl+Z puts back the last change to the pages (a text box's own Undo comes first when it has the focus) -->
+    <UserControl.InputBindings>
+        <KeyBinding Modifiers="Control" Key="Z" Command="{Binding UndoCommand}" />
+        <KeyBinding Modifiers="Control" Key="S" Command="{Binding SaveCommand}" CommandParameter="pdf" />
+    </UserControl.InputBindings>
 
     <Grid>
         <!-- Empty state -->
@@ -51,7 +56,7 @@
                  Background="Transparent" BorderThickness="0" Padding="12,0,12,12"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                  AutomationProperties.Name="Scanned pages"
-                 AutomationProperties.HelpText="Alt+Shift+arrow keys move the selected page. Delete removes it. S starts a new file at it. Shift+F10 for more."
+                 AutomationProperties.HelpText="Alt+Shift+arrow keys move the selected page. Ctrl+R and Ctrl+L turn it. Delete removes it; Ctrl+Z puts it back. S starts a new file at it. Shift+F10 for more."
                  Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}"
                  PreviewMouseLeftButtonDown="Pages_PreviewMouseLeftButtonDown" PreviewMouseMove="Pages_PreviewMouseMove"
                  DragOver="Pages_DragOver" Drop="Pages_Drop" PreviewKeyDown="Pages_PreviewKeyDown">
@@ -128,23 +133,23 @@
                         </Grid>
                         <DockPanel Margin="2,6,2,0">
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Delete page (Del)" AutomationProperties.Name="Delete page"
-                                    Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                                    Command="{Binding DataContext.RemovePageCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
                             </Button>
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding FileStartMenuText}" AutomationProperties.Name="{Binding FileStartMenuText}"
-                                    Command="{Binding DataContext.ToggleFileStartCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0"
+                                    Command="{Binding DataContext.ToggleFileStartCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0"
                                     Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" />
                             </Button>
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding CropText}" AutomationProperties.Name="{Binding CropText}"
-                                    Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                                    Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" />
                             </Button>
-                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn right" AutomationProperties.Name="Turn page right"
-                                    Command="{Binding DataContext.RotateRightCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="12,0,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn right (Ctrl+R)" AutomationProperties.Name="Turn page right"
+                                    Command="{Binding DataContext.RotateRightCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" />
                             </Button>
-                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn left" AutomationProperties.Name="Turn page left"
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Turn left (Ctrl+L)" AutomationProperties.Name="Turn page left"
                                     Command="{Binding DataContext.RotateLeftCommand, ElementName=PagesList}" CommandParameter="{Binding}">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" RenderTransformOrigin="0.5,0.5">
                                     <TextBlock.RenderTransform>

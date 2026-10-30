@@ -46,10 +46,16 @@
         <Style x:Key="LinkButton" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+            <!-- A target of at least 24 px high (WCAG 2.5.8) and the Fluent focus ring when reached with the keyboard -->
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Opacity" Value="0.8" />
@@ -71,7 +77,9 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="TabControl">
                         <DockPanel>
-                            <TabPanel DockPanel.Dock="Top" IsItemsHost="True" Margin="0,0,0,16" />
+                            <!-- A wrap panel, not TabPanel: when the tabs need two rows (narrow, large Text size) they keep their order;
+                                 TabPanel moves the selected tab's row to the bottom -->
+                            <WrapPanel DockPanel.Dock="Top" IsItemsHost="True" Margin="0,0,0,16" />
                             <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
                         </DockPanel>
                     </ControlTemplate>
