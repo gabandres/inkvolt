@@ -73,9 +73,9 @@ extension AutoTag {
         var artifact = false
         var running = false
 
-        static let leave = Target()
-        static let decor = Target(artifact: true)
-        static let page = Target(artifact: true, running: true)
+        static var leave: Target { Target() }
+        static var decor: Target { Target(artifact: true) }
+        static var page: Target { Target(artifact: true, running: true) }
         var none: Bool { leaf == nil && !artifact }
 
         static func == (a: Target, b: Target) -> Bool {
