@@ -177,7 +177,30 @@ public sealed class AppState
     /// <summary>Forgets the remembered printer with this id (not saved: the caller saves with the rest of the change).</summary>
     public void RemovePrinter(string id)
     {
-        lock (_gate) Printers.RemoveAll(k => string.Equals(k.Uuid, id, StringComparison.OrdinalIgnoreCase));
+        lock (_gate)
+        {
+            Printers.RemoveAll(k => string.Equals(k.Uuid, id, StringComparison.OrdinalIgnoreCase));
+            Firmware.Remove(id);
+        }
+    }
+
+    /// <summary>Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, Core.History.FirmwareWatch).</summary>
+    public Dictionary<string, Core.History.FirmwareRecord> Firmware { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Core.History.FirmwareRecord? GetFirmware(string printerId)
+    {
+        lock (_gate) return Firmware.GetValueOrDefault(printerId);
+    }
+
+    /// <summary>Keeps the record and saves, when it differs from the one kept.</summary>
+    public void SetFirmware(string printerId, Core.History.FirmwareRecord record)
+    {
+        lock (_gate)
+        {
+            if (Firmware.GetValueOrDefault(printerId) == record) return;
+            Firmware[printerId] = record;
+        }
+        Save();
     }
 
     /// <summary>Printer UUID → SHA-256 of its TLS certificate (trust on first use).</summary>
@@ -256,6 +279,7 @@ public sealed class AppState
             for (var i = 0; i < ForgottenUuids.Count; i++)
                 if (string.Equals(ForgottenUuids[i], oldId, StringComparison.OrdinalIgnoreCase)) ForgottenUuids[i] = newId;
             if (AcceptedUuids.Remove(oldId, out var accepted)) AcceptedUuids.TryAdd(newId, accepted);
+            if (Firmware.Remove(oldId, out var firmware)) Firmware.TryAdd(newId, firmware);
             for (var i = 0; i < NoFirmwareNotify.Count; i++)
                 if (string.Equals(NoFirmwareNotify[i], oldId, StringComparison.OrdinalIgnoreCase)) NoFirmwareNotify[i] = newId;
             if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
@@ -315,6 +339,7 @@ public sealed class AppState
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
+            state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
             state.Tray?.Repair();
             return state;
         }

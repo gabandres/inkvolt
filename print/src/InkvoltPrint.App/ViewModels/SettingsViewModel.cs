@@ -79,7 +79,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             Items.Clear();
             foreach (var i in items) Items.Add(i);
             Firmware = new FirmwareViewModel(OfferedFirmwareChoices(await TryGetFirmwareUpdateAsync(ledm)), _connection.Probe.Firmware?.Display,
-                OnItemChanged, openWebPage);
+                OnItemChanged, openWebPage, KeepCartridgesWorkingAsync);
             IsLoaded = true;
             OnItemChanged();
         }
@@ -140,6 +140,62 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         catch (Exception ex)
         {
             Log.Write($"Settings save failed: {ex}");
+            Fail($"The printer did not accept the change: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// The Firmware card's "Keep my cartridges working" (roadmap 1.5): automatic firmware updates off, confirmed first, written the
+    /// way the card saves (<see cref="CartridgeGuard"/>), read back, and what happened said in the card's message line.
+    /// </summary>
+    private async Task KeepCartridgesWorkingAsync()
+    {
+        var ledm = _connection.Ledm;
+        if (ledm is null || IsBusy) return;
+        var unsaved = HasChanges ? "\n\nChanges you haven't saved on this tab are undone." : "";
+        if (!Prompt.Ask($"Turn off automatic firmware updates on {printerName}?\n\nHP's updates have brought \"dynamic security\", which stops " +
+                        "cartridges with non-HP chips (many compatible and refilled ones) from working. With automatic updates off, an " +
+                        $"update installs only when you install it yourself.{unsaved}", "Turn off automatic updates"))
+            return;
+        IsBusy = true;
+        Message = "Turning off automatic updates…";
+        MessageIsError = false;
+        try
+        {
+            // Read now, not the card's copy: the setting may have changed on the printer since the tab was opened.
+            if (await ledm.GetFirmwareUpdateAsync() is not { } fw)
+            {
+                Fail("This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page.");
+                return;
+            }
+            var result = await CartridgeGuard.KeepCartridgesWorkingAsync(ledm, fw, PutWithAuthAsync);
+            Log.Write($"Keep my cartridges working: {result.Outcome}");
+            IsBusy = false;
+            await LoadAsync(); // the card shows what the printer stores now
+            Message = result.Text;
+            MessageIsError = result.Outcome is CartridgeGuardOutcome.NotKept or CartridgeGuardOutcome.CantChange;
+        }
+        catch (OperationCanceledException)
+        {
+            Message = "Not changed.";
+        }
+        catch (LedmAuthRequiredException ex)
+        {
+            Fail(ex.Message);
+        }
+        catch (HttpRequestException) when (_connection.Http.CertificateChanged)
+        {
+            CertificateChanged = true;
+            Fail("Not changed: the printer's security certificate changed since Inkvolt Print first connected. If you reset or " +
+                 "updated the printer, choose \"Trust the new certificate\". Otherwise another device may be impersonating it.");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Keep my cartridges working failed: {ex}");
             Fail($"The printer did not accept the change: {ex.Message}");
         }
         finally
@@ -349,8 +405,11 @@ public sealed partial class FirmwareViewModel : ObservableObject
     private readonly Action _changed;
     private readonly Action? _openWebPage;
 
-    public FirmwareViewModel(FirmwareUpdateSettings? settings, string? version, Action changed, Action? openWebPage)
+    private readonly Func<Task>? _keepCartridges;
+
+    public FirmwareViewModel(FirmwareUpdateSettings? settings, string? version, Action changed, Action? openWebPage, Func<Task>? keepCartridges = null)
     {
+        _keepCartridges = keepCartridges;
         Settings = settings;
         Version = version is { Length: > 0 } v ? v : "Not reported";
         _changed = changed;
@@ -391,6 +450,20 @@ public sealed partial class FirmwareViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenWebPage() => _openWebPage?.Invoke();
+
+    /// <summary>The one button (roadmap 1.5): for a printer that reports its update setting and lets apps write it.</summary>
+    public bool CanKeepCartridges => _keepCartridges is not null && CanChange && Settings!.Choices.Contains(FirmwareUpdateMode.Off);
+
+    /// <summary>Under the button: what it does, or that it's done already.</summary>
+    public string KeepCartridgesHint => Settings?.Mode == FirmwareUpdateMode.Off
+        ? "Automatic updates are off: no update installs by itself."
+        : "Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it.";
+
+    [RelayCommand]
+    private async Task KeepCartridgesWorkingAsync()
+    {
+        if (_keepCartridges is not null) await _keepCartridges();
+    }
 
     internal static string Label(FirmwareUpdateMode m) => m switch
     {

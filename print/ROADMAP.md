@@ -67,8 +67,20 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   them ("The SNMP can monitor Toner Levels, BUT it does not record them!"; the special values −1/−2/−3 break its
   graphs: [Paessler](https://helpdesk.paessler.com/en/support/solutions/articles/76000079692-monitoring-pages-printed-per-toner)).
   PaperCut keeps them on its server ([PaperCut](https://www.papercut.com/help/manuals/ng-mf/applicationserver/printer-toner-levels/)).
-- **Now.** Levels, states and page counts are read (LEDM, CDM, IPP `marker-*`, SNMP `prtMarkerSuppliesTable`),
-  shown and alerted on; nothing is kept.
+- **Now (built 2026-10-30, Windows).** Each reading's levels, states and the lifetime page count are kept on the PC
+  (`Core/History/SupplyHistoryStore`: one tab-separated file per printer under the data folder's `history\`, one row a day
+  per supply, about three years, 16 supplies and 64 printers at most, no identifiers, removed with the printer); the
+  supplies card shows "About N days left · N pages since this cartridge went in" per supply and the last year's level
+  chart (`Views/SupplyChartView`, the stored rows as they are), "not enough history" states with the days still needed,
+  and the low-supply notification names the days left. The method is documented on `SupplyAnalysis` and in the README
+  (a jump of 20 points is a change; least squares by calendar day over this cartridge's last 30 days; "more than two
+  years" past 730 days). Pro: Export history… writes one CSV across all printers through `Pro.Allows`
+  (`SupplyHistoryCsv`, formula-safe cells). Demo mode makes up a year per printer, so `--demo --snapshot` shows the
+  chart. Tests: `SupplyHistoryTests` and `SupplyHistoryCsvTests` (the year with two changes, the wobble, the week
+  offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
+  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
+  IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
+  (README, "Not done"). Mac: not started (PrintCore store, Swift Charts).
 - **Beat it when:** each reading's levels and page count are kept on the PC (one row a day per supply, beside
   `state.json`, never sent); the supplies card shows a level-over-time chart and, from the last 30 days' slope,
   "about N days left" and "N pages since this cartridge went in" (a level that jumps up is a change of cartridge;
@@ -137,8 +149,18 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   include Dynamic Security" ([The Register](https://www.theregister.com/2025/03/19/hp_printer_lawsuit_settled/));
   Australia's regulator made HP compensate buyers in 2018 ([ACCC](https://www.accc.gov.au/media-release/hp-to-compensate-printer-customers)).
   Epson pushes firmware through its updater app ([Epson](https://epson.com/support/updating-your-printers-firmware-using-epson-software-updater)).
-- **Now.** The version is shown; HP's automatic-update setting is read and written over LEDM, with the Dynamic
-  Security explanation (README, Firmware).
+- **Now (built 2026-10-30, Windows).** Every printer's firmware version is kept in `state.json` with the day first seen
+  (`Core/History/FirmwareWatch`); a new version shows "Firmware changed from X to Y on date" on the status card (Firmware
+  settings for an HP printer Inkvolt Print writes to, the printer's web page for CDM, IPP and SNMP printers, Dismiss; gone
+  after 30 days) and, with alerts on, one notification (`AlertKind.FirmwareChanged` through `AlertTracker`: never told
+  twice for one change, restarts included; it never colors the tray icon). The HP Firmware card has **Keep my cartridges
+  working**: confirmed, automatic updates written Off (`Core/Ledm/CartridgeGuard`, the card's own write), read back, and
+  what the printer kept said in plain words. Tests: `FirmwareWatchTests` (15: the record, the notice's life, the M234dw's
+  fixture readings with a version change giving one notice and one alert and none after a restart, the tray level; the
+  button's PUT equal byte for byte to the Firmware card's Off write, already off, read-only, a printer that keeps
+  installing, the password step; all against captured documents in memory, no printer written to). **Pending on
+  hardware:** a real update noticed, and the button on a printer set to install automatically (README, "Not done").
+  Mac: not started (the Settings tab has the LEDM firmware mode already).
 - **Beat it when:** every printer's firmware version is kept with the date first seen, and a change shows a notice
   ("Firmware changed from X to Y on date") on the status card and, with alerts on, as a notification; the HP card has
   one button, **Keep my cartridges working**, that sets automatic updates off, reads the setting back and says what it

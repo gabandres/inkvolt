@@ -38,6 +38,12 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).
 - **Made-up PC**: demo mode's environment. Nothing it does reaches the network or this PC; nothing prints for real.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
+- **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer
+  (`Core/History/SupplyHistoryStore`); what it says (cartridges, days left, the chart) is worked out from it, never stored.
+- **Cartridge** (in the history): the rows between two changes of cartridge, a change being a level that jumps up by 20
+  points or more (`SupplyAnalysis`). "Seen going in" when the change is in the history; the first one usually isn't.
+- **Firmware watch**: each printer's firmware version as last seen, with the day it was first seen and the change before
+  it (`Core/History/FirmwareWatch`, kept in `state.json`); a change is shown until dismissed or 30 days old and alerted once.
 - **Pro check** (`Pro.Allows(feature)` in `shared/InkvoltPrint.Core/Pro.cs`, on the suite's `ProCheck`): the one place a
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is

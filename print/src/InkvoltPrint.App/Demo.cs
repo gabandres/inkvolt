@@ -95,6 +95,7 @@ internal static class Demo
         public override string UserName => "demo";
         public override string? ImageCache => null;
         public override bool ChecksHpSoftware => false;
+        public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
 
         public override void PrepareScan(bool feederBatch, bool photosOnGlass)
         {
@@ -117,6 +118,8 @@ internal static class Demo
                 Snmp: new Core.Snmp.SnmpDevice("DEMO0005200", "Demo Laser 5200 Series", "demo-laser")), // as its made-up agent says
         ],
         SelectedUuid = Uuid,
+        // The firmware watch's notice (roadmap 1.5): the demo printer had an older version until today's connection.
+        Firmware = new(StringComparer.OrdinalIgnoreCase) { [Uuid] = new Core.History.FirmwareRecord("2023-11-02", new DateOnly(2025, 11, 20)) },
     };
 
     public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>

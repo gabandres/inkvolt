@@ -2,8 +2,9 @@ using InkvoltPrint.Core.Model;
 
 namespace InkvoltPrint.Core.Alerts;
 
-/// <summary>What an alert is about. Supplies and waste boxes come from the supplies; the rest from the printer's status.</summary>
-public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline }
+/// <summary>What an alert is about. Supplies and waste boxes come from the supplies; <see cref="FirmwareChanged"/> from the firmware
+/// watch (news, not a problem: it never colors the tray icon); the rest from the printer's status.</summary>
+public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged }
 
 /// <summary>The tray icon's state, in rank order: an error outranks a low supply, which outranks a printer that's off.</summary>
 public enum AlertLevel { Ok, Offline, Warning, Error }
@@ -12,7 +13,14 @@ public enum AlertLevel { Ok, Offline, Warning, Error }
 /// One printer as last read: reachable or not, its status (null when the reply was unusable, e.g. the printer was waking up)
 /// and its supplies (null when unknown). Unknown parts keep what was known before; they never count as "the problem is gone".
 /// </summary>
-public sealed record PrinterSnapshot(string Uuid, string Name, bool Reachable, PrinterStatus? Status, IReadOnlyList<Consumable>? Supplies);
+public sealed record PrinterSnapshot(string Uuid, string Name, bool Reachable, PrinterStatus? Status, IReadOnlyList<Consumable>? Supplies)
+{
+    /// <summary>Days left per supply (<see cref="History.SupplyRow.KeyOf(Consumable)"/>) where the history can tell: the low-supply alert names them.</summary>
+    public IReadOnlyDictionary<string, int>? DaysLeft { get; init; }
+
+    /// <summary>The printer's last firmware change while its notice shows (<see cref="History.FirmwareWatch.Notice"/>): alerted once.</summary>
+    public History.FirmwareChange? FirmwareChange { get; init; }
+}
 
 /// <summary>A problem seen on a printer. <see cref="Key"/> is stable while it lasts ("SupplyLow|Black toner|K").</summary>
 public sealed record AlertCondition(string Key, AlertKind Kind, string Title, string Body)
@@ -23,6 +31,7 @@ public sealed record AlertCondition(string Key, AlertKind Kind, string Title, st
     {
         AlertKind.SupplyLow or AlertKind.WasteAlmostFull => AlertLevel.Warning,
         AlertKind.Offline => AlertLevel.Offline,
+        AlertKind.FirmwareChanged => AlertLevel.Ok,
         _ => AlertLevel.Error,
     };
 
@@ -55,7 +64,10 @@ public static class AlertConditions
             return found;
         }
         if (snap.Status is { } status) AddStatus(found, snap.Name, status);
-        foreach (var s in snap.Supplies ?? []) AddSupply(found, snap.Name, s, rules, isActive);
+        foreach (var s in snap.Supplies ?? []) AddSupply(found, snap.Name, s, rules, isActive, snap.DaysLeft);
+        if (snap.FirmwareChange is { } fw)
+            found.Add(new($"{AlertKind.FirmwareChanged}|{fw.Key}", AlertKind.FirmwareChanged, $"{snap.Name}: firmware changed",
+                $"{fw.Text} If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."));
         return found;
     }
 
@@ -103,7 +115,8 @@ public static class AlertConditions
         return (AlertKind.Error, message, $"{printer}: check the printer.");
     }
 
-    private static void AddSupply(List<AlertCondition> found, string printer, Consumable s, AlertRules rules, Func<string, bool> isActive)
+    private static void AddSupply(List<AlertCondition> found, string printer, Consumable s, AlertRules rules, Func<string, bool> isActive,
+        IReadOnlyDictionary<string, int>? daysLeft)
     {
         var detail = $"{s.Name}|{s.ColorCode}";
         if (s.IsWaste)
@@ -122,6 +135,11 @@ public static class AlertConditions
         if (empty) found.Add(new($"{AlertKind.SupplyEmpty}|{detail}", AlertKind.SupplyEmpty, $"{s.Name} empty", $"{printer}: replace it to keep printing."));
         if (!low) return;
         var left = s.EstimatedPagesRemaining is { } pages and > 0 ? $"about {pages:N0} pages left" : null;
+        if (daysLeft is not null && daysLeft.TryGetValue(History.SupplyRow.KeyOf(s), out var days))
+        {
+            var word = days == 1 ? "day" : "days";
+            left = left is null ? $"about {days:N0} {word} left at this rate" : $"{left}, about {days:N0} {word} at this rate";
+        }
         var part = Part(s) is { } number ? $"Replacement: {number}." : null;
         var body = $"{printer}: {left ?? "running low"}." + (part is null ? "" : $" {part}");
         found.Add(new(lowKey, AlertKind.SupplyLow, s.PercentRemaining is { } pct ? $"{s.Name} low ({pct}%)" : $"{s.Name} low", body));

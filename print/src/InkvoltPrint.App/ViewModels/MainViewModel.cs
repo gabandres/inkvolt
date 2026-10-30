@@ -70,6 +70,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 state.RenamePrinterId(k.Uuid, id);
                 pc.Passwords.Rename(k.Uuid, id);
+                pc.History.Rename(k.Uuid, id);
             }
             catch (Exception ex)
             {
@@ -288,6 +289,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         HpLeftoversFound = null;
         HpMessage = null;
         OnPropertyChanged(nameof(ShowHpBanner));
+    }
+
+    // ---------------------------------------------------------------- supply history
+
+    /// <summary>
+    /// Export history…: one CSV of every printer's supply history (roadmap 1.1, Inkvolt Pro). Without the licence the Pro window
+    /// says what it does and where to get it; the chart and days left stay free.
+    /// </summary>
+    [RelayCommand]
+    private void ExportHistory()
+    {
+        var csv = Core.History.SupplyHistoryCsv.Export(_pc.History, Printers.Select(p => (p.Uuid, p.Name)).ToList());
+        if (csv is null)
+        {
+            Views.ProWindow.Open(Application.Current?.MainWindow, Core.ProFeature.SupplyHistoryExport);
+            return;
+        }
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export the supply history",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            FileName = $"Supply history {DateTime.Now:yyyy-MM-dd}",
+            Filter = "CSV file (*.csv)|*.csv",
+            AddExtension = true,
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            // With a byte order mark, so Excel reads the names as UTF-8.
+            System.IO.File.WriteAllText(dialog.FileName, csv, new System.Text.UTF8Encoding(true));
+            Prompt.Announce($"Saved {System.IO.Path.GetFileName(dialog.FileName)}");
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Supply history export failed: {ex.Message}");
+            Prompt.Tell($"Could not save the supply history: {ex.Message}");
+        }
     }
 
     // ---------------------------------------------------------------- printers
@@ -516,6 +554,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. {again}", "Remove"))
             return;
         _state.RemovePrinter(p.Uuid);
+        _pc.History.Forget(p.Uuid);
         // A network printer's own Windows queues and its Windows scanner go with it, so they don't show up again as entries of their own.
         _state.Forget(PrinterList.HiddenWith(Listed(p), Printers.Select(Listed).ToList(), _queues, _scanners));
         _state.Save();

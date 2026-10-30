@@ -2,7 +2,7 @@ using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.Core;
 
-/// <summary>The features Inkvolt Pro unlocks in Inkvolt Print (print/ROADMAP.md, "Free and Pro"); none is built yet.</summary>
+/// <summary>The features Inkvolt Pro unlocks in Inkvolt Print (print/ROADMAP.md, "Free and Pro"); the supply history export is the first built.</summary>
 public enum ProFeature
 {
     /// <summary>1.1: one CSV of the supply history across all printers (the chart and days left stay free).</summary>

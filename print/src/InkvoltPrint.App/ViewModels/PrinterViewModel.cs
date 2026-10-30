@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Alerts;
 using InkvoltPrint.Core.Escl;
+using InkvoltPrint.Core.History;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Offline;
@@ -698,8 +699,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             QueueMissing?.Invoke();
             return;
         }
-        Sync(Supplies, read.Supplies.Select(s => new SupplyViewModel(s)).ToList());
-        OnPropertyChanged(nameof(SuppliesTitle));
+        ShowSupplies(read.Supplies, null);
         OnPropertyChanged(nameof(StatusSourceNote)); // SNMP may have started or stopped answering
         if (read.Offline)
         {
@@ -715,7 +715,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ListStatus));
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies));
+        Observe(new PrinterSnapshot(Uuid, Name, true, read.Status, read.Supplies) { DaysLeft = _history?.DaysLeft, FirmwareChange = FirmwareNotice });
     }
 
     /// <summary>
@@ -820,6 +820,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
             new("Connected via", string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
+        WatchFirmware(p.Firmware?.Display);
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
@@ -962,11 +963,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Maintenance.Update(true, status);
 
         // Supplies not read this time (null) stay as they were; they refresh on the next event.
-        if (reading.Supplies is { } supplies)
-        {
-            Sync(Supplies, supplies.Select(s => new SupplyViewModel(s)).ToList());
-            OnPropertyChanged(nameof(SuppliesTitle));
-        }
+        if (reading.Supplies is { } supplies) ShowSupplies(supplies, reading.Usage?.TotalImpressions);
         if (reading.Usage is { } u)
             Sync(Stats, new InfoRow?[]
             {
@@ -977,8 +974,87 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }.OfType<InfoRow>().ToList());
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
-        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies));
+        Observe(new PrinterSnapshot(Uuid, Name, true, status.IsUnavailable ? null : status, reading.Supplies) { DaysLeft = _history?.DaysLeft, FirmwareChange = FirmwareNotice });
         return true;
+    }
+
+    /// <summary>The last firmware change while its notice shows on the status card (roadmap 1.5); the tray alerts it once.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FirmwareNoticeHint), nameof(FirmwareNoticeAction))]
+    public partial FirmwareChange? FirmwareNotice { get; set; }
+
+    /// <summary>Under the notice: why it matters, and where to act on it.</summary>
+    public string? FirmwareNoticeHint => FirmwareNotice is null ? null
+        : Settings is not null
+            ? "If it came from HP, cartridges with non-HP chips may stop working. Keep my cartridges working, on the Printer settings tab, turns automatic updates off."
+            : "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings.";
+
+    /// <summary>The notice's button: the Firmware card for an HP printer whose settings Inkvolt Print writes, else the web page.</summary>
+    public string? FirmwareNoticeAction => FirmwareNotice is null ? null
+        : Settings is not null ? "Firmware settings"
+        : _pc.Browser is not null && Host is not null ? "Printer web page"
+        : null;
+
+    partial void OnSettingsChanged(SettingsViewModel? oldValue, SettingsViewModel? newValue)
+    {
+        OnPropertyChanged(nameof(FirmwareNoticeHint));
+        OnPropertyChanged(nameof(FirmwareNoticeAction));
+    }
+
+    /// <summary>The connection's firmware version against the one remembered: a change is kept and shown until dismissed (30 days at most).</summary>
+    private void WatchFirmware(string? version)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var known = _state.GetFirmware(Uuid);
+        var record = FirmwareWatch.Observe(known, version, today);
+        if (record is not null && !ReferenceEquals(record, known))
+        {
+            _state.SetFirmware(Uuid, record);
+            if (known is not null) Log.Write($"[{Name}] firmware version changed"); // never the versions: they can identify a unit
+        }
+        FirmwareNotice = FirmwareWatch.Notice(record, today);
+    }
+
+    [RelayCommand]
+    private void DismissFirmwareNotice()
+    {
+        if (_state.GetFirmware(Uuid) is { } record) _state.SetFirmware(Uuid, record with { Dismissed = true });
+        FirmwareNotice = null;
+    }
+
+    [RelayCommand]
+    private void ActOnFirmwareNotice()
+    {
+        if (Settings is not null) SelectedSection = SettingsSection;
+        else OpenWebPage();
+    }
+
+    private SupplyHistoryView? _history;
+    private DateOnly _historyDay;
+
+    /// <summary>The supply history's level chart on the supplies card (roadmap 1.1); nothing to draw until two days are kept.</summary>
+    [ObservableProperty] public partial SupplyChartData? SupplyChart { get; set; }
+
+    /// <summary>Why the chart isn't there yet ("fills in as days pass"); null when it draws or never will (no levels).</summary>
+    [ObservableProperty] public partial string? SupplyChartNote { get; set; }
+
+    /// <summary>
+    /// A reading's supplies on the card, kept in the supply history first (one row a day per supply, under the data folder) so each
+    /// supply's line and the chart include it. <paramref name="pages"/>: the printer's lifetime page count, when it gives one.
+    /// </summary>
+    private void ShowSupplies(IReadOnlyList<Consumable> supplies, int? pages)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var changed = _pc.History.Record(Uuid, supplies, pages, today);
+        if (changed || _history is null || _historyDay != today)
+        {
+            _history = SupplyHistoryView.Of(_pc.History.Rows(Uuid), today);
+            _historyDay = today;
+            SupplyChart = _history.Chart.HasEnoughToDraw ? _history.Chart : null;
+        }
+        SupplyChartNote = _history.ChartNote(supplies);
+        Sync(Supplies, supplies.Select(s => new SupplyViewModel(s) { HistoryLine = _history.LineFor(s) }).ToList());
+        OnPropertyChanged(nameof(SuppliesTitle));
     }
 
     private void SetOffline() => SetOffline("Can't reach the printer",
@@ -1233,6 +1309,9 @@ public sealed record SupplyViewModel(Consumable Supply)
         _ => "OK",
     };
 
+    /// <summary>From the supply history: days left and pages on this cartridge, or why there's no estimate yet; null: nothing to say.</summary>
+    public string? HistoryLine { get; init; }
+
     public string? Cartridge => string.Join("  ·  ", new[]
     {
         Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
@@ -1264,5 +1343,5 @@ public sealed record SupplyViewModel(Consumable Supply)
     public string? ColorCode => Supply.ColorCode;
 
     /// <summary>For screen readers: "Cyan ink, 55%, OK" or "Maintenance box, OK".</summary>
-    public string AccessibleText => string.Join(", ", new[] { Name, PercentText, Headline is { } h && h != PercentText ? h : null }.OfType<string>());
+    public string AccessibleText => string.Join(", ", new[] { Name, PercentText, Headline is { } h && h != PercentText ? h : null, HistoryLine }.OfType<string>());
 }
