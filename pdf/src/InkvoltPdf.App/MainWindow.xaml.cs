@@ -2062,21 +2062,9 @@ public partial class MainWindow : Window
     private void FilterPalette()
     {
         var q = PaletteBox.Text.Trim();
-        List<PaletteItem> result;
-        if (q.Length == 0)
-        {
-            result = [.. _paletteAll.Where(i => i.Category != "Open recent").Take(60)];
-        }
-        else
-        {
-            var words = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            result = [.. _paletteAll
-                .Select(i => (Item: i, Score: Score(i, words)))
-                .Where(x => x.Score > 0)
-                .OrderByDescending(x => x.Score)
-                .Select(x => x.Item)
-                .Take(60)];
-        }
+        // The same matching as Inkvolt Print's palette (PaletteSearch); recent files only when something is typed.
+        var result = InkvoltPrint.Core.Suite.PaletteSearch.Filter(_paletteAll, q, i => i.Name, i => i.Category,
+            isCommand: i => i.Category != "Open recent", showWhenEmpty: i => i.Category != "Open recent");
         if (ActiveTab is { } t && q.Length > 0)
         {
             // A page label ("iv", "A-3") or a page number; both when they point at different pages.
@@ -2096,19 +2084,6 @@ public partial class MainWindow : Window
         // An empty list says nothing: tell what happened and what to try (no document open: most commands aren't offered).
         PaletteEmpty.Visibility = result.Count == 0 && q.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (result.Count == 0 && q.Length > 0) PaletteEmpty.Text = PaletteText.NoMatch(q, ActiveTab is not null);
-
-        static int Score(PaletteItem i, string[] words)
-        {
-            var hay = $"{i.Category} {i.Name}";
-            var score = 0;
-            foreach (var w in words)
-            {
-                var at = hay.IndexOf(w, StringComparison.CurrentCultureIgnoreCase);
-                if (at < 0) return 0;
-                score += i.Name.StartsWith(w, StringComparison.CurrentCultureIgnoreCase) ? 30 : at == 0 || hay[at - 1] == ' ' ? 20 : 10;
-            }
-            return score + (i.Category == "Open recent" ? 0 : 5);
-        }
     }
 
     private void OnPaletteKey(object sender, KeyEventArgs e)

@@ -31,7 +31,8 @@ namespace InkvoltPrint.App;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
-/// <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it).
+/// <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
+/// command palette with the words typed, and <c>--run-palette</c> then runs its first entry.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -188,6 +189,18 @@ internal static class DevSnapshot
         {
             window.ShowSidebar(open: true);
             await Task.Delay(TimeSpan.FromMilliseconds(600));
+        }
+        // --palette [words]: the command palette open, with the words typed; --run-palette then runs the first entry.
+        if (args.Contains("--palette"))
+        {
+            window.OpenPalette();
+            if (Value(args, "--palette") is { } words) window.TypeInPalette(words);
+            await Task.Delay(TimeSpan.FromMilliseconds(600));
+            if (args.Contains("--run-palette"))
+            {
+                window.RunPaletteSelection(); // the first entry, as Enter runs it
+                await Task.Delay(TimeSpan.FromSeconds(2));
+            }
         }
         // --dialog settings|help|whatsnew|report|addprinter|confirm|pro: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)

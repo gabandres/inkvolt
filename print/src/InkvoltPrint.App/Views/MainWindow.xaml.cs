@@ -18,6 +18,18 @@ public partial class MainWindow : Window
         // Choosing a printer in the folded sidebar closes it, as Windows Settings' pane does.
         PrinterList.SelectionChanged += (_, _) => { if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false)); };
         PreviewKeyDown += OnPreviewKey;
+        CommandBindings.Add(new CommandBinding(PaletteCommand, (_, _) => OpenPalette()));
+        PaletteBox.TextChanged += (_, _) => FilterPalette();
+        PaletteBox.PreviewKeyDown += OnPaletteKey;
+        PaletteList.MouseUp += (_, e) =>
+        {
+            for (var d = e.OriginalSource as DependencyObject; d is not null && d != PaletteList; d = System.Windows.Media.VisualTreeHelper.GetParent(d))
+                if (d is ListBoxItem) { RunPaletteSelection(); return; }
+        };
+        PaletteBox.LostKeyboardFocus += (_, e) =>
+        {
+            if (Palette.Visibility == Visibility.Visible && e.NewFocus is DependencyObject d && !Palette.IsAncestorOf(d)) ClosePalette(focus: false);
+        };
         DataContextChanged += (_, e) =>
         {
             if (e.OldValue is MainViewModel old) old.PropertyChanged -= OnVmChanged;
@@ -78,10 +90,124 @@ public partial class MainWindow : Window
     private void OnPreviewKey(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape) return;
-        if (_sidebarOpen) ShowSidebar(open: false);
+        if (Palette.Visibility == Visibility.Visible) ClosePalette();
+        else if (_sidebarOpen) ShowSidebar(open: false);
         else return;
         e.Handled = true;
     }
+
+    // ───────────── Command palette (Ctrl+K), as Inkvolt PDF's ─────────────
+
+    /// <summary>Ctrl+K: the command palette.</summary>
+    public static readonly RoutedCommand PaletteCommand = new(nameof(PaletteCommand), typeof(MainWindow));
+
+    private List<PrintPalette.Entry> _paletteAll = [];
+
+    public void OpenPalette()
+    {
+        if (Vm is not { } vm) return;
+        ShowSidebar(open: false, focus: false);
+        var p = vm.Selected;
+        _paletteAll = PrintPalette.Build(
+            p is null ? null : new PrintPalette.Printer(p.Name, p.CanPrint, p.Scan is not null, p.ShowCopy, p.Settings is not null, p.NeedsSetup, p.CanFix, p.IsNetworkPrinter),
+            p is null ? -1 : vm.Printers.IndexOf(p), [.. vm.Printers.Select(x => x.Name)], [.. vm.Presets.Items.Select(x => x.Name)]);
+        Palette.Visibility = Visibility.Visible;
+        Motion.Enter(PaletteCard, rise: -8); // drops in from the top
+        PaletteBox.Text = "";
+        FilterPalette();
+        PaletteBox.Focus();
+    }
+
+    private void ClosePalette(bool focus = true)
+    {
+        Palette.Visibility = Visibility.Collapsed;
+        if (focus) (PrinterPane as UIElement).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+    }
+
+    private void Palette_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == Palette) ClosePalette();
+    }
+
+    private void FilterPalette()
+    {
+        var result = PaletteSearch.Filter(_paletteAll, PaletteBox.Text, i => i.Name, i => i.Category);
+        PaletteList.ItemsSource = result;
+        PaletteList.SelectedIndex = result.Count > 0 ? 0 : -1;
+        var q = PaletteBox.Text.Trim();
+        PaletteEmpty.Visibility = result.Count == 0 && q.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (result.Count == 0 && q.Length > 0) PaletteEmpty.Text = PrintPalette.NoMatch(q);
+    }
+
+    private void OnPaletteKey(object sender, KeyEventArgs e)
+    {
+        var count = PaletteList.Items.Count;
+        switch (e.Key)
+        {
+            case Key.Down when count > 0:
+                PaletteList.SelectedIndex = (PaletteList.SelectedIndex + 1) % count;
+                PaletteList.ScrollIntoView(PaletteList.SelectedItem);
+                break;
+            case Key.Up when count > 0:
+                PaletteList.SelectedIndex = (PaletteList.SelectedIndex - 1 + count) % count;
+                PaletteList.ScrollIntoView(PaletteList.SelectedItem);
+                break;
+            case Key.Enter:
+                RunPaletteSelection();
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
+    }
+
+    public void RunPaletteSelection()
+    {
+        if (PaletteList.SelectedItem is not PrintPalette.Entry entry) return;
+        ClosePalette();
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () => RunPaletteEntry(entry.Id));
+    }
+
+    /// <summary>Runs a palette entry by its id (<see cref="PrintPalette.Entry.Id"/>): what its button or menu item does.</summary>
+    public void RunPaletteEntry(string id)
+    {
+        if (Vm is not { } vm) return;
+        var p = vm.Selected;
+        var (kind, arg) = id.IndexOf(':') is var colon and > 0 ? (id[..colon], id[(colon + 1)..]) : (id, "");
+        static void Run(ICommand? command, object? parameter = null)
+        {
+            if (command?.CanExecute(parameter) == true) command.Execute(parameter);
+        }
+        switch (kind, arg)
+        {
+            case ("section", _) when p is not null && int.TryParse(arg, out var section): p.SelectedSection = section; break;
+            case ("show", _) when int.TryParse(arg, out var n) && n < vm.Printers.Count: vm.Selected = vm.Printers[n]; break;
+            case ("preset", _) when int.TryParse(arg, out var preset) && p?.Scan is not null && preset < vm.Presets.Items.Count:
+                _ = p.RunPresetCommand.ExecuteAsync(vm.Presets.Items[preset]);
+                break;
+            case ("printer", "print"): Run(p?.GoToPrintCommand); break;
+            case ("printer", "scan"): Run(p?.GoToScanCommand); break;
+            case ("printer", "setup"): Run(p?.SetUpCommand); break;
+            case ("printer", "reconnect"): Run(p?.ReconnectCommand); break;
+            case ("printer", "photos"): Run(p?.GoToPhotosCommand); break;
+            case ("printer", "fix"): Run(p?.OpenFixerCommand); break;
+            case ("printer", "maintenance"): Run(p?.ShowMaintenanceCommand); break;
+            case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
+            case ("app", "add"): AddPrinterWindow.Open(this, vm); break;
+            case ("app", "search"): Run(vm.SearchAgainCommand); break;
+            case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;
+            case ("app", "help"): ShowHelp(); break;
+            case ("app", "whatsnew"): WhatsNewDialog.Open(this, AppHelp.Notes()); break;
+            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm)); break;
+            case ("app", "about"): AboutDialog.Open(this); break;
+        }
+    }
+
+    /// <summary>The palette's entries as listed now (dev snapshots: <c>--palette</c>).</summary>
+    public IReadOnlyList<PrintPalette.Entry> PaletteShown => PaletteList.ItemsSource as IReadOnlyList<PrintPalette.Entry> ?? [];
+
+    /// <summary>Types into the palette (dev snapshots: <c>--palette words</c>).</summary>
+    public void TypeInPalette(string text) => PaletteBox.Text = text;
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 

@@ -23,6 +23,8 @@
         <KeyBinding Modifiers="Control" Key="D7" Command="{Binding RunPresetAtCommand}" CommandParameter="7" />
         <KeyBinding Modifiers="Control" Key="D8" Command="{Binding RunPresetAtCommand}" CommandParameter="8" />
         <KeyBinding Modifiers="Control" Key="D9" Command="{Binding RunPresetAtCommand}" CommandParameter="9" />
+        <!-- Ctrl+K: the command palette (as in Inkvolt PDF) -->
+        <KeyBinding Modifiers="Control" Key="K" Command="{x:Static views:MainWindow.PaletteCommand}" />
     </Window.InputBindings>
     <Window.CommandBindings>
         <!-- F1 (the command's own gesture) -->
@@ -1668,5 +1670,44 @@
             </Grid>
             </DockPanel>
         </Border>
+
+        <!-- ===================== Command palette (Ctrl+K), as Inkvolt PDF's ===================== -->
+        <Grid x:Name="Palette" Grid.ColumnSpan="2" Panel.ZIndex="3" Visibility="Collapsed" Background="Transparent" MouseDown="Palette_MouseDown">
+            <Border x:Name="PaletteCard" Width="600" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" Padding="8"
+                    CornerRadius="10" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="4" Opacity="0.28" />
+                </Border.Effect>
+                <DockPanel>
+                    <TextBox x:Name="PaletteBox" DockPanel.Dock="Top" FontSize="15" Padding="10,8" local:Placeholder.Text="Type a command, a printer or a scan preset"
+                             AutomationProperties.Name="Type a command, a printer or a scan preset" />
+                    <TextBlock DockPanel.Dock="Bottom" Margin="6,8,6,2" FontSize="11" Style="{StaticResource Caption}"
+                               Text="↑↓ to choose · Enter to run · Esc to close" />
+                    <!-- Nothing matches: say so, and what to try -->
+                    <TextBlock x:Name="PaletteEmpty" DockPanel.Dock="Top" Margin="12,14,12,6" TextWrapping="Wrap" Visibility="Collapsed"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <ListBox x:Name="PaletteList" MaxHeight="420" Margin="0,8,0,0" BorderThickness="0" Background="Transparent" 
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Commands">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,3">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Gesture}" Style="{StaticResource Caption}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontFamily="{StaticResource Icons}" Width="22" FontSize="13"
+                                               VerticalAlignment="Center" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{Binding Category}" DockPanel.Dock="Left" Style="{StaticResource Caption}" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SubtleListItem}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
