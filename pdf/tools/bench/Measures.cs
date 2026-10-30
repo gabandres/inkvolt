@@ -71,11 +71,11 @@ public static class Measures
                 pageMs.Add(Ms(sw));
             }
 
-            // Find: every page's text read once (not cached, as the app's search does) and searched.
+            // Find: every page searched as the app's search does (FindAll: pages read on several threads, in order).
             sw.Restart();
             hits = 0;
-            for (var p = 0; p < pages; p++)
-                hits += engine.GetText(p, cache: false).Find(findWord, matchCase: false, wholeWord: false).Count;
+            foreach (var page in engine.FindAll(findWord, matchCase: false, wholeWord: false))
+                hits += page.Hits.Count;
             findMs = Ms(sw);
         }
 

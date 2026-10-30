@@ -38,7 +38,7 @@ wide sheets.
 |---|---|---|
 | First page | `File.ReadAllBytes` + `PdfEngine.Open` + `Render(0)` | under 1 s |
 | Scrolling proxy | a fresh engine renders pages 1–20 one after another; ms/page, the slowest, and how many took over 200 ms | no page over 200 ms |
-| Find | `GetText(p, cache: false).Find(word)` on every page, as the app's search does | under 5 s across 5,000 pages |
+| Find | `FindAll(word)`, as the app's search does (pages read on two threads, in order; text remembered for the next search) | under 5 s across 5,000 pages |
 | Comment list | `Annotations.Read` on the file's bytes, as the Comments pane does when a file opens | under 2 s |
 | Peak working set | the child process's `PeakWorkingSet64` after all of the above | under 1.5 GB |
 | On-screen scroll | the app's dev script `scrollbench 4000 1500` (`DevScript.cs`): 4 s at 1,500 px/s, one step per rendered frame; frames per second, the longest gap, frames that showed a page with no picture yet, pages still blank 200 ms after the stop | 60 fps, no blank page after a 200 ms pause |

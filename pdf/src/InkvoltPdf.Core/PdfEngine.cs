@@ -81,7 +81,8 @@ public sealed class PdfEngine : IDisposable
     /// <summary>Largest render or image export allowed, in pixels (200 MP is 600 MB of BGR).</summary>
     public const long MaxPixels = 200_000_000;
 
-    // Lock order: _gate before _textGate (only Dispose and the LoadedCounts test hook take both).
+    // Lock order: _gate, _textGate, _readerGate, a reader's Gate (only Dispose and the LoadedCounts test hook take more
+    // than one; FindAll's workers hold a reader's Gate alone).
     private readonly Lock _gate = new();
     private readonly Lock _textGate = new();
     private readonly MuPDFContext _ctx;
@@ -96,6 +97,15 @@ public sealed class PdfEngine : IDisposable
     private readonly Dictionary<int, PageText> _textCache = [];
     private readonly LinkedList<int> _textLru = [];
     private readonly Dictionary<int, PageLink[]> _links = [];
+    // What each page's text reads as, once read: kept for the engine's lifetime (an edit makes a new engine), so Find
+    // skips pages that can't match without reading them again. Written once per page (Interlocked).
+    private readonly string?[] _pageStrings;
+    private long _rememberedChars;
+    // Extra MuPDF instances for reading many pages' text at once (FindAll), each with its own lock (reader.Gate).
+    private readonly Lock _readerGate = new();
+    private readonly List<TextReader> _readers = [];       // every one opened, under _readerGate
+    private readonly Stack<TextReader> _idleReaders = [];  // under _readerGate
+    private int _extractions;
     // What a lone accent glyph actually draws ("=" under the name "dotaccent"), by font, text and size: rendered once.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Font, string Text, double Size), string?> _drawnAs = new();
     private IReadOnlyList<OutlineNode>? _outline;
@@ -114,6 +124,7 @@ public sealed class PdfEngine : IDisposable
         _password = password;
         _loaded = new LoadedPages(doc, LoadedPagesKept);
         _pages = new PageGeometry[doc.Pages.Count];
+        _pageStrings = new string?[_pages.Length];
         for (var i = 0; i < _pages.Length; i++)
         {
             _loaded.Touch(i); // reading every page's size loads it: keep only the last few
@@ -340,6 +351,15 @@ public sealed class PdfEngine : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_textDoc is not null) return _textDoc;
+        var (ctx, doc) = OpenAgain();
+        _textCtx = ctx;
+        _textLoaded = new LoadedPages(doc, LoadedPagesKept);
+        return _textDoc = doc;
+    }
+
+    /// <summary>Another MuPDF instance of the same document, unlocked, in a context of its own.</summary>
+    private (MuPDFContext, MuPDFDocument) OpenAgain()
+    {
         var ctx = new MuPDFContext(32 * 1024 * 1024);
         MuPDFDocument? doc = null;
         try
@@ -348,6 +368,7 @@ public sealed class PdfEngine : IDisposable
             if (doc.EncryptionState == EncryptionState.Encrypted && !Unlock(doc, _password ?? ""))
                 throw new PasswordRequiredException(true);
             if (doc.Pages.Count != _pages.Length) throw new InvalidOperationException("The document changed while open.");
+            return (ctx, doc);
         }
         catch
         {
@@ -355,9 +376,6 @@ public sealed class PdfEngine : IDisposable
             ctx.Dispose();
             throw;
         }
-        _textCtx = ctx;
-        _textLoaded = new LoadedPages(doc, LoadedPagesKept);
-        return _textDoc = doc;
     }
 
     /// <summary>The text instance with <paramref name="page"/> marked as just used. Call under _textGate.</summary>
@@ -402,7 +420,8 @@ public sealed class PdfEngine : IDisposable
                 return hit;
             }
 
-            var text = ExtractText(page);
+            var text = ExtractText(TextDoc(page), page);
+            Remember(page, text.Text);
             if (cache)
             {
                 _textCache[page] = text;
@@ -421,12 +440,14 @@ public sealed class PdfEngine : IDisposable
         }
     }
 
-    private PageText ExtractText(int page)
+    /// <summary>A page's text layer read from <paramref name="doc"/> (the text instance or a reader), under its lock.</summary>
+    private PageText ExtractText(MuPDFDocument doc, int page)
     {
+        Interlocked.Increment(ref _extractions);
         var g = _pages[page];
         var lines = new List<List<(string, RectD)>>();
         var directions = new List<(double, double)>();
-        using var st = TextDoc(page).GetStructuredTextPage(page, includeAnnotations: false);
+        using var st = doc.GetStructuredTextPage(page, includeAnnotations: false);
         foreach (var block in st)
         {
             if (block is not MuPDFTextStructuredTextBlock tb) continue;
@@ -447,6 +468,198 @@ public sealed class PdfEngine : IDisposable
             }
         }
         return new PageText(lines, directions);
+    }
+
+    /// <summary>Page text remembered as strings, in UTF-16 units across all pages (about 128 MB): beyond it, pages are read again.</summary>
+    private const long MaxRememberedChars = 64_000_000;
+
+    /// <summary>Pages <see cref="FindAll"/>'s workers may read ahead of the caller.</summary>
+    private const int FindReadAhead = 64;
+
+    /// <summary>
+    /// Threads (each with its own MuPDF instance) <see cref="FindAll"/> reads pages on. Two, not one per core: MuPDFCore's
+    /// native wrapper guards MuPDF's allocations with process-wide mutexes, so instances in one process wait on each other
+    /// (four threads take four times the CPU of one for no gain; four processes run four times as fast). The second
+    /// thread overlaps one page's MuPDF work with another's conversion (about 15% on a long text).
+    /// </summary>
+    internal static int FindThreads { get; set; } = Math.Min(2, Environment.ProcessorCount);
+
+    /// <summary>Test hook: pages whose text was read from MuPDF so far (any instance).</summary>
+    internal int Extractions => Volatile.Read(ref _extractions);
+
+    private void Remember(int page, string text)
+    {
+        if (Interlocked.Read(ref _rememberedChars) + text.Length > MaxRememberedChars) return;
+        if (Interlocked.CompareExchange(ref _pageStrings[page], text, null) is null) Interlocked.Add(ref _rememberedChars, text.Length);
+    }
+
+    /// <summary>One page's outcome in <see cref="FindAll"/>: its matches (and its text when there are any), or why it couldn't be read.</summary>
+    public sealed record PageMatches(int Page, PageText? Text, IReadOnlyList<(int Start, int End)> Hits, Exception? Error = null);
+
+    /// <summary>
+    /// <see cref="PageText.Find"/> on every page, as one search: pages are read on <see cref="FindThreads"/> threads (each
+    /// with its own MuPDF instance) and come back in page order as soon as each page and those
+    /// before it are done, so the first matches show before the end. A page whose text was read before (by any call) and
+    /// can't match is not read again. A page that can't be read comes back with its <see cref="PageMatches.Error"/>.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
+    /// <exception cref="ObjectDisposedException">The engine was disposed (the document changed) meanwhile.</exception>
+    public IEnumerable<PageMatches> FindAll(string query, bool matchCase, bool wholeWord, bool ignoreAccents = false, CancellationToken cancel = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var count = _pages.Length;
+        if (count == 0) yield break;
+        var results = new PageMatches?[count];
+        var sync = new object();
+        int next = -1, consumed = 0;
+        var stop = false;
+        var workers = new Thread[Math.Min(FindThreads, count)];
+        for (var t = 0; t < workers.Length; t++)
+        {
+            workers[t] = new Thread(Work) { IsBackground = true, Priority = ThreadPriority.Normal, Name = "Inkvolt PDF find" };
+            workers[t].Start();
+        }
+        try
+        {
+            for (var i = 0; i < count; i++)
+            {
+                PageMatches? r;
+                cancel.ThrowIfCancellationRequested();
+                lock (sync)
+                {
+                    while ((r = results[i]) is null)
+                    {
+                        cancel.ThrowIfCancellationRequested();
+                        Monitor.Wait(sync, 50);
+                    }
+                    results[i] = null;
+                    consumed = i + 1;
+                    Monitor.PulseAll(sync);
+                }
+                if (r.Error is ObjectDisposedException) throw new ObjectDisposedException(nameof(PdfEngine), r.Error);
+                yield return r;
+            }
+        }
+        finally
+        {
+            lock (sync)
+            {
+                stop = true;
+                Monitor.PulseAll(sync);
+            }
+            foreach (var w in workers) w.Join();
+        }
+
+        void Work()
+        {
+            TextReader? reader = null;
+            try
+            {
+                while (true)
+                {
+                    int i;
+                    lock (sync)
+                    {
+                        if (stop || next + 1 >= count) return;
+                        i = ++next;
+                        while (!stop && i >= consumed + FindReadAhead) Monitor.Wait(sync);
+                        if (stop) return;
+                    }
+                    if (cancel.IsCancellationRequested) return;
+                    PageMatches m;
+                    try
+                    {
+                        m = FindOn(ref reader, i, query, matchCase, wholeWord, ignoreAccents);
+                    }
+                    catch (Exception ex)
+                    {
+                        m = new PageMatches(i, null, [], ex);
+                    }
+                    lock (sync)
+                    {
+                        results[i] = m;
+                        Monitor.PulseAll(sync);
+                    }
+                    if (m.Error is ObjectDisposedException) return;
+                }
+            }
+            finally
+            {
+                if (reader is not null) ReturnReader(reader);
+            }
+        }
+    }
+
+    private PageMatches FindOn(ref TextReader? reader, int page, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
+    {
+        if (Volatile.Read(ref _pageStrings[page]) is { } known && !PageText.Matches(known, query, matchCase, wholeWord, ignoreAccents))
+            return new PageMatches(page, null, []);
+        PageText? text = null;
+        if (_textGate.TryEnter())
+        {
+            try
+            {
+                if (!_disposed && _textCache.TryGetValue(page, out var hit)) text = hit;
+            }
+            finally
+            {
+                _textGate.Exit();
+            }
+        }
+        if (text is null)
+        {
+            reader ??= RentReader();
+            lock (reader.Gate)
+            {
+                ObjectDisposedException.ThrowIf(reader.Disposed, this);
+                reader.Loaded.Touch(page);
+                text = ExtractText(reader.Doc, page);
+            }
+            Remember(page, text.Text);
+        }
+        var hits = text.Find(query, matchCase, wholeWord, ignoreAccents);
+        return new PageMatches(page, hits.Count > 0 ? text : null, hits);
+    }
+
+    /// <summary>
+    /// Another MuPDF instance of the file for reading pages' text in <see cref="FindAll"/>, used by one thread at a time
+    /// under its <see cref="Gate"/>. It keeps two pages loaded: a search reads each page once.
+    /// </summary>
+    private sealed class TextReader(MuPDFContext ctx, MuPDFDocument doc)
+    {
+        public Lock Gate { get; } = new();
+        public MuPDFContext Ctx { get; } = ctx;
+        public MuPDFDocument Doc { get; } = doc;
+        public LoadedPages Loaded { get; } = new(doc, 2);
+        public bool Disposed { get; set; }
+    }
+
+    private TextReader RentReader()
+    {
+        lock (_readerGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_idleReaders.TryPop(out var idle)) return idle;
+        }
+        var (ctx, doc) = OpenAgain();
+        var reader = new TextReader(ctx, doc);
+        lock (_readerGate)
+        {
+            if (!_disposed)
+            {
+                _readers.Add(reader);
+                return reader;
+            }
+        }
+        DisposeDocument(doc);
+        ctx.Dispose();
+        throw new ObjectDisposedException(nameof(PdfEngine));
+    }
+
+    private void ReturnReader(TextReader reader)
+    {
+        lock (_readerGate)
+            if (!reader.Disposed) _idleReaders.Push(reader);
     }
 
     /// <summary>Most vector paths a page may draw for its thin lines to be read as table rules (maps and charts draw thousands).</summary>
@@ -885,6 +1098,18 @@ public sealed class PdfEngine : IDisposable
                 _textCtx?.Dispose();
                 _textDoc = null;
                 _textCtx = null;
+                lock (_readerGate)
+                {
+                    foreach (var r in _readers)
+                        lock (r.Gate)
+                        {
+                            r.Disposed = true;
+                            DisposeDocument(r.Doc);
+                            r.Ctx.Dispose();
+                        }
+                    _readers.Clear();
+                    _idleReaders.Clear();
+                }
             }
             DisposeDocument(_doc);
             _ctx.Dispose();

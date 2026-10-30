@@ -305,13 +305,22 @@ public sealed class PageText
     /// Match lengths come from the comparer, so ligatures and ignorable characters highlight exactly.
     /// </summary>
     /// <param name="ignoreAccents">Treat "é" and "e" alike (diacritics are ignored).</param>
-    public List<(int Start, int End)> Find(string query, bool matchCase, bool wholeWord, bool ignoreAccents = false)
+    public List<(int Start, int End)> Find(string query, bool matchCase, bool wholeWord, bool ignoreAccents = false) =>
+        Text.Length == 0 ? [] : Find(_searchView ??= SearchView.For(Text), query, matchCase, wholeWord, ignoreAccents);
+
+    /// <summary>
+    /// <see cref="Find"/> on a page's <see cref="Text"/> alone (no boxes needed): whether a search would match the page,
+    /// for pages whose text is remembered as a string.
+    /// </summary>
+    public static bool Matches(string pageText, string query, bool matchCase, bool wholeWord, bool ignoreAccents = false) =>
+        pageText.Length > 0 && Find(SearchView.For(pageText), query, matchCase, wholeWord, ignoreAccents).Count > 0;
+
+    private static List<(int Start, int End)> Find(SearchView view, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
     {
         var hits = new List<(int, int)>();
         var terms = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (terms.Length == 0 || Text.Length == 0) return hits;
+        if (terms.Length == 0) return hits;
 
-        var view = _searchView ??= SearchView.For(Text);
         var text = view.Text;
         var cmp = (matchCase ? CompareOptions.None : CompareOptions.IgnoreCase) | (ignoreAccents ? CompareOptions.IgnoreNonSpace : CompareOptions.None);
         var ci = CultureInfo.InvariantCulture.CompareInfo;

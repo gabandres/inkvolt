@@ -1389,21 +1389,17 @@ public partial class DocumentTab : UserControl, IDisposable
                 var batch = new List<SearchHit>();
                 var last = Environment.TickCount64;
                 IProgress<(int, List<SearchHit>)> report = progress;
-                for (var p = 0; p < count; p++)
+                // Pages are read on several threads and come back in order.
+                foreach (var (p, text, hits, error) in engine.FindAll(query, matchCase, wholeWords, ignoreAccents, cts.Token))
                 {
-                    cts.Token.ThrowIfCancellationRequested();
-                    try
-                    {
-                        var text = engine.GetText(p, cache: false, cts.Token);
-                        foreach (var (s, e) in text.Find(query, matchCase, wholeWords, ignoreAccents))
-                            batch.Add(new SearchHit(p, s, e, text.GetRects(s, e), text.Excerpt(s, e)));
-                    }
-                    catch (Exception ex) when (ex is not (OperationCanceledException or ObjectDisposedException))
+                    if (error is not null)
                     {
                         // A damaged page: skip it and keep searching the rest.
-                        Log.Write($"Search on page {p + 1} failed: {ex.Message}");
+                        Log.Write($"Search on page {p + 1} failed: {error.Message}");
                         lock (failedPages) failedPages.Add(p + 1);
                     }
+                    foreach (var (s, e) in hits)
+                        batch.Add(new SearchHit(p, s, e, text!.GetRects(s, e), text.Excerpt(s, e)));
                     if (batch.Count > 0 || Environment.TickCount64 - last > 150 || p == count - 1)
                     {
                         report.Report((p, batch));
