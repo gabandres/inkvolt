@@ -200,4 +200,21 @@ public class HostileStructureTests
         using var doc = Core2Pdf.Open(result);
         Assert.DoesNotContain(doc.Internals.GetAllObjects().OfType<PdfDictionary>(), d => d.Elements.ContainsKey("/Alt"));
     }
+
+    [Fact]
+    public async Task ExportReadsASharedStructureTreeOnce()
+    {
+        // An array in itself (5: [5 0 R 6 0 R 6 0 R]), then arrays two of the next one each, 40 deep, down to a figure.
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+            "<< /Type /StructTreeRoot /K 5 0 R >>",
+            "[5 0 R 6 0 R 6 0 R]",
+        };
+        for (var i = 0; i < 40; i++) objects.Add(i == 39 ? "[<< /S /Figure /Pg 3 0 R /Alt (A cat) >>]" : $"[{7 + i} 0 R {7 + i} 0 R]");
+        var tags = await Within(() => ExportTags.Read(Core2Pdf.Build(objects), null));
+        Assert.Equal("A cat", Assert.Single(tags.Figures).Alt);
+    }
 }
