@@ -122,7 +122,9 @@
             <Setter Property="Width" Value="40" />
             <Setter Property="Height" Value="40" />
             <Setter Property="Margin" Value="0,2" />
-            <Setter Property="Focusable" Value="False" />
+            <!-- In the Tab order, with the Fluent focus ring (keyboard only: WPF shows FocusVisualStyle for keyboard focus, not clicks) -->
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="AutomationProperties.Name" Value="{Binding ToolTip, RelativeSource={RelativeSource Self}}" />
             <Setter Property="Template">

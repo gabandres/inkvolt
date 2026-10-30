@@ -447,6 +447,7 @@ public static class FileActions
             info.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var l = new TextBlock { Text = label, Margin = new Thickness(0, 2, 8, 2), Style = (Style)Application.Current.FindResource("Caption") };
             var v = new TextBox { Text = value, IsReadOnly = true, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0, 2, 0, 2), TextWrapping = TextWrapping.Wrap };
+            System.Windows.Automation.AutomationProperties.SetName(v, label); // read-only, but a screen reader still lands on it
             Grid.SetRow(l, r);
             Grid.SetRow(v, r);
             Grid.SetColumn(v, 1);

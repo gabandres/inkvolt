@@ -19,6 +19,7 @@ public partial class App : Application
             Log.Write($"Unobserved task exception: {args.Exception}");
             args.SetObserved();
         };
+        TextScale.Start(this); // Windows' Text size, for every window from here on
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
         Core.Pro.Store = new SettingsProStore(); // the Pro check reads the key from the settings, in the window and on the command line
 

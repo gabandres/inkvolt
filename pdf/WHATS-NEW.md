@@ -5,6 +5,16 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Inkvolt PDF follows Windows' Text size (Settings › Accessibility): dialogs, the command bar, the panes and the start page get larger with it. The pages keep their own zoom.
+- A toast with Undo goes away when you close the document it was about, so it can't undo something in a file that's gone.
+- Toasts and the command palette slide in briefly instead of popping up; they don't move at all when Windows' animation effects are off.
+- Sanitize and Reduce File Size say what they remove in plain words ("document properties", "leftover pieces of earlier edits") instead of "XMP metadata" and "unused objects".
+- Boxes say what goes in them: Search, Find, the comment filter and the shortcuts filter show a hint until you type.
+- The command palette (Ctrl+K) says when nothing matches and what to try; with no file open it says the document commands come once you open one.
+- The command bar keeps its labels (Add text, Sign, Stamp, Draw, Organize) on narrower windows: the icon-only commands after them go into the … menu first.
+- The icon rail (Pages, Bookmarks, Search, Comments…) is in the Tab order with a visible focus ring, and F6 reaches it.
+- Dialogs that only inform close with Close, not OK; Combine says "No files yet" with what to do; the Accessibility pane's tabs no longer wrap; What's New's text stays clear of its scrollbar.
+- Every box in the dialogs has a name a screen reader reads (its label), including the Crop margins, page ranges and Document Properties.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. Everything in Inkvolt PDF stays free while it launches, Pro features included; a licence ($19, one time, no account, checked on your PC and never sent anywhere) supports the project and keeps those features for you when they start asking for a key.
 
 ## 1.2.1

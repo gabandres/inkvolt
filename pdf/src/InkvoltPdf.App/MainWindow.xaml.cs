@@ -438,9 +438,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Shows a short message at the bottom; with an action (e.g. Undo) it stays a little longer, and an error stays until
-    /// dismissed.
+    /// dismissed. A toast from a document (<paramref name="from"/>) goes when that document closes: its Undo would act on nothing.
     /// </summary>
-    public void ShowToast(Toast toast)
+    public void ShowToast(Toast toast, DocumentTab? from = null)
     {
         var text = new TextBlock { Text = toast.Message, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };
         var icon = new TextBlock
@@ -460,6 +460,7 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 8, 0, 0),
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.22 },
+            Tag = from,
         };
         card.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorQuarternaryBrush");
         card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
@@ -499,6 +500,7 @@ public partial class MainWindow : Window
         row.Children.Add(text);
 
         Toasts.Children.Add(card);
+        Motion.Enter(card);
         while (Toasts.Children.Count > 3) Toasts.Children.RemoveAt(0);
         card.Loaded += (_, _) => System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(card)?
             .RaiseAutomationEvent(System.Windows.Automation.Peers.AutomationEvents.LiveRegionChanged);
@@ -684,7 +686,7 @@ public partial class MainWindow : Window
             RelabelTabs();
             if (ActiveTab == tab) UpdateUi();
         };
-        tab.Toast += (_, t) => ShowToast(t);
+        tab.Toast += (_, t) => ShowToast(t, tab);
         tab.SignRequested += (_, field) => { if (ActiveTab == tab && !tab.IsBusy) _ = SignDigitallyAsync(tab, field); };
         DocsHost.Children.Add(tab);
         _tabs.Add(model);
@@ -907,6 +909,8 @@ public partial class MainWindow : Window
             var index = _tabs.IndexOf(model);
             RememberClosed(tab);
             Discard(model);
+            // A toast about the closed document ("Delete 1 page · Undo") would offer an action on nothing.
+            foreach (var card in Toasts.Children.OfType<FrameworkElement>().Where(c => c.Tag == tab).ToList()) Toasts.Children.Remove(card);
             if (!wasActive && previous is not null && _tabs.Contains(previous)) TabStrip.SelectedItem = previous;
             else if (_tabs.Count > 0) TabStrip.SelectedItem = _tabs[Math.Clamp(index, 0, _tabs.Count - 1)];
             UpdateUi();
@@ -1904,6 +1908,7 @@ public partial class MainWindow : Window
     {
         _paletteAll = BuildPaletteItems();
         Palette.Visibility = Visibility.Visible;
+        Motion.Enter(Palette, rise: -8); // drops in from the command bar
         PaletteBox.Text = "";
         FilterPalette();
         PaletteBox.Focus();
@@ -1992,6 +1997,9 @@ public partial class MainWindow : Window
         }
         PaletteList.ItemsSource = result;
         PaletteList.SelectedIndex = result.Count > 0 ? 0 : -1;
+        // An empty list says nothing: tell what happened and what to try (no document open: most commands aren't offered).
+        PaletteEmpty.Visibility = result.Count == 0 && q.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (result.Count == 0 && q.Length > 0) PaletteEmpty.Text = PaletteText.NoMatch(q, ActiveTab is not null);
 
         static int Score(PaletteItem i, string[] words)
         {

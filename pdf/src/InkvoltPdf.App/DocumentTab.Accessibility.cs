@@ -103,7 +103,7 @@ public partial class DocumentTab
         A11yList.ItemsSource = report.Failures.Select(f => new A11yItem(f)).ToList();
         A11yNone.Visibility = report.Passed ? Visibility.Visible : Visibility.Collapsed;
         A11yList.Visibility = report.Passed ? Visibility.Collapsed : Visibility.Visible;
-        A11yFailuresTab.Header = report.Passed ? "What fails (none)" : $"What fails ({report.Failures.Count})";
+        A11yFailuresTab.Header = report.Passed ? "Fails (none)" : $"Fails ({report.Failures.Count})";
         A11yTabs.SelectedItem = report.Passed ? A11yPersonTab : A11yFailuresTab;
         ShowPane(NavPaneKind.Accessibility);
         // Keyboard and screen-reader users land on the result.

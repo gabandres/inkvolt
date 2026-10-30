@@ -308,7 +308,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   other formats Inkvolt PDF opens export too.
 - **Reload** (F5) and an info bar when another program changes the open file; a reload that needs the file's password
   asks for it (after Remove Protection, the file on disk still has one). **Accessibility**: screen-reader names
-  for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, pane and page (both panes of a split view); high-contrast aware.
+  for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, side rail, pane and page (both panes of a split view); high-contrast aware;
+  Windows' Text size (Settings › Accessibility) enlarges the dialogs, command bar, panes and start page (the pages zoom on
+  their own); toasts and the command palette move only when Windows' Animation effects is on.
 - **Recovery copies**: every PDF with unsaved changes (edits, a combined or scanned document never saved) gets a copy in
   `%LOCALAPPDATA%\InkvoltPdf\recovery` at most every 20 seconds after a change, written in the background as Save would
   write it (a password-protected document stays protected), and at once when Windows signs out. A copy goes when its
@@ -556,7 +558,10 @@ and add no packages. Their tests are Inkvolt Print's (`../print/tests/InkvoltPri
 
 Dev check without touching the screen: `InkvoltPdf.exe file.pdf --script steps.txt` runs UI steps off-screen and
 writes snapshots (see `DevScript.cs`). Set `INKVOLTPDF_DATA` to a temp folder so the run saves settings there instead of
-leaving your own settings untouched and unsaved. Sample files for the review features: run the tests with
+leaving your own settings untouched and unsaved. `textscale 1.5|system` runs as if Windows' Text size were set to that (`TextScale`;
+`INKVOLT_TEXTSCALE=1.5` does it from the start). `a11yaudit` logs every visible window's controls without an accessible
+name or under 24 × 24 (`UiInspection`, rules in `InkvoltPrint.Core/Suite/UiAudit`); the UX review that uses it is
+`docs/UX-REVIEW.md` at the repository root. Sample files for the review features: run the tests with
 `INKVOLTPDF_SAMPLES` set to a temp folder (`ReviewSampleTests`). Inkvolt suite steps: `scandialog` (the open Scan dialog's
 scanners and choices, with `later`), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,

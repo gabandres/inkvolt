@@ -392,6 +392,7 @@ public static class Organize
             while (grid.RowDefinitions.Count <= row) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var tb = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(col == 0 ? 0 : 16, 4, 8, 4) };
             var box = new TextBox { Text = "0", Margin = new Thickness(0, 4, 0, 4) };
+            System.Windows.Automation.AutomationProperties.SetName(box, $"{label} margin");
             Grid.SetRow(tb, row);
             Grid.SetColumn(tb, col);
             Grid.SetRow(box, row);

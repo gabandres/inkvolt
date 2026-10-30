@@ -182,7 +182,7 @@ public static class FileTools
         var thumbs = dlg.AddCheck("Remove embedded page thumbnails", true);
         var pieces = dlg.AddCheck("Remove other apps' private editing data", true);
         var dedupe = dlg.AddCheck("Store identical images and fonts once", true);
-        var metadata = dlg.AddCheck("Remove XMP metadata (title, author and subject stay)");
+        var metadata = dlg.AddCheck("Remove the extra descriptive data (title, author and subject stay)");
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
 
         var q = Qualities[quality.SelectedIndex];

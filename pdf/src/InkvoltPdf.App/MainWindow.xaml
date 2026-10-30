@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:app="clr-namespace:InkvoltPdf.App"
         Title="Inkvolt PDF" Icon="InkvoltPdf.ico" AllowDrop="True" Background="Transparent"
-        Width="1280" Height="860" MinWidth="720" MinHeight="460">
+        Width="1280" Height="860" MinWidth="720" MinHeight="460"
+        app:TextScale.WholeWindow="False">
     <!-- Content extends into the title bar; DWM still draws (and hit-tests) the real caption buttons, so Snap Layouts work. -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" UseAeroCaptionButtons="True"
@@ -85,7 +86,7 @@
         <Border x:Name="Surface" Grid.Row="1" Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}">
             <DockPanel>
                 <!-- Menu + command bar -->
-                <Border x:Name="CommandBar" DockPanel.Dock="Top" Padding="4,4,8,4"
+                <Border x:Name="CommandBar" DockPanel.Dock="Top" app:TextScale.Scales="True" Padding="4,4,8,4"
                         BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                     <!-- One row at every width: commands that don't fit go into the "More" (…) menu at the end of the bar. -->
                     <DockPanel MinHeight="34">
@@ -409,7 +410,7 @@
                     <Grid x:Name="DocsHost" />
 
                     <!-- Start page -->
-                    <ScrollViewer x:Name="StartPage" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="StartPage" VerticalScrollBarVisibility="Auto" app:TextScale.Scales="True">
                         <StackPanel MaxWidth="920" Margin="40,40,40,32">
                             <StackPanel.Resources>
                                 <!-- A Tools card: runs its command (Tag); one that needs a document asks for a PDF first (OnToolCard) -->
@@ -573,10 +574,10 @@
                     </Border>
 
                     <!-- Toasts (bottom-left) -->
-                    <StackPanel x:Name="Toasts" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,76" />
+                    <StackPanel x:Name="Toasts" app:TextScale.Scales="True" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,76" />
 
                     <!-- Command palette -->
-                    <Grid x:Name="Palette" Visibility="Collapsed" Background="Transparent">
+                    <Grid x:Name="Palette" app:TextScale.Scales="True" Visibility="Collapsed" Background="Transparent">
                         <Border Width="600" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" Padding="8"
                                 CornerRadius="10" Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
@@ -604,6 +605,9 @@
                                 </Grid>
                                 <TextBlock DockPanel.Dock="Bottom" Margin="6,8,6,2" FontSize="11" Style="{StaticResource Caption}"
                                            Text="↑↓ to choose · Enter to run · Esc to close · type a number to go to that page" />
+                                <!-- Nothing matches: say so, and what to try (PaletteText) -->
+                                <TextBlock x:Name="PaletteEmpty" DockPanel.Dock="Top" Margin="12,14,12,6" TextWrapping="Wrap" Visibility="Collapsed"
+                                           AutomationProperties.LiveSetting="Polite" />
                                 <ListBox x:Name="PaletteList" MaxHeight="420" Margin="0,8,0,0" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource SubtleListItem}"
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Commands">
                                     <ListBox.ItemTemplate>
