@@ -103,8 +103,8 @@ internal static partial class HtmlWriter
         return char.IsLower(text[0]) ? (new("ol", " type=\"a\""), text[0] - 'a' + 1, runs) : (new("ol", " type=\"A\""), text[0] - 'A' + 1, runs);
     }
 
-    // "3." "3)" "a." "b)": what <ol> shows by itself; "(iv)" and "7.2.1." aren't.
-    [GeneratedRegex(@"^(\d{1,3}|[a-zA-Z])[.)]$")]
+    // "3." "3)" "a." "b)": what <ol> shows by itself; "(iv)" and "7.2.1." aren't, nor digits of other scripts.
+    [GeneratedRegex(@"^([0-9]{1,3}|[a-zA-Z])[.)]$")]
     private static partial Regex Numbered();
 
     /// <summary>The runs without the marker they start with and the space after it.</summary>

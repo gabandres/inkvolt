@@ -227,6 +227,16 @@ public class ExportHtmlTests
     }
 
     [Fact]
+    public void Digits_of_other_scripts_stay_as_typed()
+    {
+        // \d also matches Arabic-Indic digits: "٣." isn't a letter list numbered 1571, and "1٣." mustn't stop the export.
+        var lines = new[] { Line("٣. Arabic numbered item", 72, 100), Line("1٣. Mixed numbered item", 72, 116) };
+        var root = Dom(Html([new ExportPage(612, 792, lines, [], [])]));
+        Assert.Empty(All(root, "ol"));
+        Assert.Contains("٣. Arabic numbered item", TextOf(root));
+    }
+
+    [Fact]
     public void A_deeper_indent_nests_the_list()
     {
         var lines = new[]
