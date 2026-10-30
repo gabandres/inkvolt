@@ -26,18 +26,10 @@ public static class ScanPage
 
     private static void Replace(PdfDocument doc, PdfPage page, CleanedPageImage img)
     {
-        var pixels = img.Pixels;
-        if (img.Channels == 3)
-        {
-            pixels = new byte[img.Pixels.Length];
-            for (var i = 0; i < pixels.Length; i += 3)
-            {
-                pixels[i] = img.Pixels[i + 2];
-                pixels[i + 1] = img.Pixels[i + 1];
-                pixels[i + 2] = img.Pixels[i];
-            }
-        }
-        var image = PdfObj.AddStream(doc, pixels);
+        var image = new PdfDictionary(doc);
+        image.CreateStream(img.Deflated);
+        image.Elements["/Filter"] = new PdfName("/FlateDecode");
+        doc.Internals.AddObject(image);
         image.Elements["/Type"] = new PdfName("/XObject");
         image.Elements["/Subtype"] = new PdfName("/Image");
         image.Elements["/Width"] = new PdfInteger(img.Width);

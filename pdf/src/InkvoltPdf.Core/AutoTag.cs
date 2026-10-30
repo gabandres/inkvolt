@@ -191,7 +191,8 @@ public static partial class AutoTag
     {
         var found = new List<(int, RectD?, string)>();
         var pages = doc.Pages.Cast<PdfPage>().ToList();
-        var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        // Arrays too: an array shared (or in itself) is walked once, not once per path to it.
+        var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
         var root = PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"]);
         var roles = PdfObj.Dict(root?.Elements["/RoleMap"]);
         bool IsFigure(string? name)
@@ -214,7 +215,7 @@ public static partial class AutoTag
             if (depth > 64 || found.Count > 10_000) return;
             switch (PdfObj.Resolve(item))
             {
-                case PdfArray a:
+                case PdfArray a when seen.Add(a):
                     foreach (var x in a.Elements) Visit(x, depth + 1, inherited);
                     break;
                 case PdfDictionary d when seen.Add(d):

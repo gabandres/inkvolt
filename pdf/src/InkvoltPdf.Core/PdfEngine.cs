@@ -965,7 +965,7 @@ public sealed class PdfEngine : IDisposable
             ExportShapes.Raster? raster = null;
             if (ExportShapes.NeedsRaster(drawn) && RenderRegionRgba(page, new RectD(0, 0, g.Width, g.Height), 2, cancel) is { } whole)
                 raster = new ExportShapes.Raster(whole.Rgba, whole.Width, whole.Height, whole.Width / Math.Max(1, g.Width));
-            var (simple, keep) = ExportShapes.Read(drawn, raster, lines, [.. pictures.Select(p => p.Box)], g.Width, g.Height);
+            var (simple, keep) = ExportShapes.Read(drawn, raster, lines, [.. pictures.Select(p => p.Box)], g.Width, g.Height, cancel);
             found = simple;
             foreach (var area in keep)
                 if (RenderRegionRgba(page, area, 2, cancel) is { } r)

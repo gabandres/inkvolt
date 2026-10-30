@@ -16,10 +16,29 @@ public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true,
 
 /// <summary>
 /// A cleaned page to write into the document (<see cref="ScanPage.WriteBack"/>): straightened, despeckled and whitened, in
-/// the page's displayed orientation (rows of <see cref="Width"/> × <see cref="Channels"/> bytes, 1 = grey, 3 = BGR), and the
-/// quarter turns clockwise that then set the page upright.
+/// the page's displayed orientation, and the quarter turns clockwise that then set the page upright. <see cref="Deflated"/>:
+/// the pixels as the PDF's image stream will hold them (rows of <see cref="Width"/> × <see cref="Channels"/> bytes, 1 = grey,
+/// 3 = RGB, zlib-compressed), so many pages waiting to be written take what they will take in the file, not 25 MB each.
 /// </summary>
-public sealed record CleanedPageImage(int Width, int Height, int Channels, byte[] Pixels, int QuarterTurns);
+public sealed record CleanedPageImage(int Width, int Height, int Channels, byte[] Deflated, int QuarterTurns)
+{
+    /// <summary>A cleaned page from its raw pixels (grey, or BGR as rendered).</summary>
+    public static CleanedPageImage From(int width, int height, int channels, byte[] pixels, int quarterTurns)
+    {
+        if (channels == 3)
+        {
+            var rgb = new byte[pixels.Length];
+            for (var i = 0; i + 2 < pixels.Length; i += 3)
+            {
+                rgb[i] = pixels[i + 2];
+                rgb[i + 1] = pixels[i + 1];
+                rgb[i + 2] = pixels[i];
+            }
+            pixels = rgb;
+        }
+        return new CleanedPageImage(width, height, channels, PdfObj.Deflate(pixels), quarterTurns);
+    }
+}
 
 /// <summary>
 /// A recognized page: its words in page space (points from the top-left of the displayed page, each box turned by its
@@ -89,8 +108,8 @@ public static class ScanText
             // Stored in the page's own orientation; the page's /Rotate then turns it upright.
             var (w, h) = turns % 2 == 0 ? (gray.Width, gray.Height) : (gray.Height, gray.Width);
             keep = bgr is not null
-                ? new CleanedPageImage(w, h, 3, ScanCleanup.Turn(bgr, gray.Width, gray.Height, 3, -turns), turns)
-                : new CleanedPageImage(w, h, 1, ScanCleanup.Turn(gray.Pixels, gray.Width, gray.Height, 1, -turns), turns);
+                ? CleanedPageImage.From(w, h, 3, ScanCleanup.Turn(bgr, gray.Width, gray.Height, 3, -turns), turns)
+                : CleanedPageImage.From(w, h, 1, ScanCleanup.Turn(gray.Pixels, gray.Width, gray.Height, 1, -turns), turns);
         }
         return new RecognizedPage(words, cleaned.Skew, turns, keep);
     }

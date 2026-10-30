@@ -103,8 +103,8 @@ internal static partial class HtmlWriter
         return char.IsLower(text[0]) ? (new("ol", " type=\"a\""), text[0] - 'a' + 1, runs) : (new("ol", " type=\"A\""), text[0] - 'A' + 1, runs);
     }
 
-    // "3." "3)" "a." "b)": what <ol> shows by itself; "(iv)" and "7.2.1." aren't.
-    [GeneratedRegex(@"^(\d{1,3}|[a-zA-Z])[.)]$")]
+    // "3." "3)" "a." "b)": what <ol> shows by itself; "(iv)" and "7.2.1." aren't, nor digits of other scripts.
+    [GeneratedRegex(@"^([0-9]{1,3}|[a-zA-Z])[.)]$")]
     private static partial Regex Numbered();
 
     /// <summary>The runs without the marker they start with and the space after it.</summary>
@@ -259,18 +259,16 @@ internal static partial class HtmlWriter
     private static string Inline(IReadOnlyList<ExportSpan> runs, bool bold = true)
     {
         var sb = new StringBuilder();
-        var (b, i, m) = (false, false, false);
+        var open = new List<string>();  // outermost first, always in the order strong, em, code
         void Set(bool nb, bool ni, bool nm)
         {
-            if (m && !nm) sb.Append("</code>");
-            if (i && !(ni && (!m || nm))) sb.Append("</em>");
-            if (b && (!nb || (i && !ni) || (m && !nm))) sb.Append("</strong>");
-            var closedB = b && (!nb || (i && !ni) || (m && !nm));
-            var closedI = i && !(ni && (!m || nm));
-            if (nb && (!b || closedB)) sb.Append("<strong>");
-            if (ni && (!i || closedI)) sb.Append("<em>");
-            if (nm && !m) sb.Append("<code>");
-            (b, i, m) = (nb, ni, nm);
+            // What stays open is the start both have in common; the rest closes inside out, so tags always nest.
+            List<string> want = [.. new[] { (nb, "strong"), (ni, "em"), (nm, "code") }.Where(t => t.Item1).Select(t => t.Item2)];
+            var keep = 0;
+            while (keep < open.Count && keep < want.Count && open[keep] == want[keep]) keep++;
+            for (var k = open.Count - 1; k >= keep; k--) sb.Append($"</{open[k]}>");
+            for (var k = keep; k < want.Count; k++) sb.Append($"<{want[k]}>");
+            open = want;
         }
         foreach (var run in runs)
         {
