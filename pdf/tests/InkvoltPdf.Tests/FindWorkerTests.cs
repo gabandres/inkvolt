@@ -10,6 +10,7 @@ namespace InkvoltPdf.Tests;
 /// Find in worker processes (roadmap 3.6): the pages a long search reads come from other processes, and everything else
 /// about the search stays as it was. The worker here is the bench tool (it takes the same switch as the app).
 /// </summary>
+[Collection("KeptText")]
 public class FindWorkerTests
 {
     private static string WorkerExe => Path.Combine(AppContext.BaseDirectory, "Bench.exe");
