@@ -334,8 +334,8 @@ extension ProGated {
     @Test func aLockedFileWaitsUntilItIsLetGo() async throws {
         let path = try put("inbox/held.pdf", TestPdf.make(1, marker: "held"))
         let token = CancelToken()
-        let inbox = inbox, plan = rotatePlan
-        let watch = Task { try await WatchedFolder.run(inbox, plan, BatchHost(), Self.quick, cancel: token) }
+        let inbox = inbox, plan = rotatePlan, quick = Self.quick // a local: Xcode 26's region checker can't follow Self.quick into the task
+        let watch = Task { try await WatchedFolder.run(inbox, plan, BatchHost(), quick, cancel: token) }
         let doneFolder = (inbox as NSString).appendingPathComponent(WatchedFolder.doneFolder)
         let fd = open(path, O_RDWR | O_EXLOCK) // another app holds it
         #expect(fd >= 0)
@@ -374,8 +374,8 @@ extension ProGated {
         try put("inbox/working/crashed.pdf", TestPdf.make(1)) // the app closed while working on it
         try put("inbox/new.pdf", TestPdf.make(1))
         let token = CancelToken()
-        let inbox = inbox, plan = rotatePlan
-        let first = Task { try await WatchedFolder.run(inbox, plan, BatchHost(), Self.quick, cancel: token) }
+        let inbox = inbox, plan = rotatePlan, quick = Self.quick
+        let first = Task { try await WatchedFolder.run(inbox, plan, BatchHost(), quick, cancel: token) }
         let doneFolder = (inbox as NSString).appendingPathComponent(WatchedFolder.doneFolder)
         try await Self.until { Self.names(doneFolder).count == 1 }
 
