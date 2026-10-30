@@ -699,7 +699,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     private func column(_ views: [NSView], spacing: CGFloat = 8, in stack: NSStackView = NSStackView()) -> NSStackView {
         stack.orientation = .vertical
-        stack.alignment = .leading
+        stack.alignment = .width // every row as wide as the panel
         stack.spacing = spacing
         for v in views { stack.addArrangedSubview(v) }
         return stack
@@ -708,9 +708,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     /// A control with its small title above it, as wide as the panel.
     private func row(_ title: String, _ control: NSView, in stack: NSStackView = NSStackView()) -> NSStackView {
         control.setAccessibilityLabel(title)
-        let r = column([small(title), control], spacing: 3, in: stack)
-        control.widthAnchor.constraint(equalTo: r.widthAnchor).isActive = true
-        return r
+        return column([small(title), control], spacing: 3, in: stack)
     }
 
     private func wire(_ field: NSTextField, _ action: Selector) {
@@ -798,28 +796,21 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         _ = column([row("Label", captionField), row("When clicked", actionPopup)], in: buttonGroup)
         _ = row("Default value", defaultField, in: defaultTextRow)
         _ = row("Selected by default", defaultChoice, in: defaultChoiceRow)
-        let tabRow = NSStackView(views: [earlierButton, laterButton])
-        let commandRow = NSStackView(views: [duplicateButton, deleteButton])
+        let tabRow = Self.buttons([earlierButton, laterButton])
+        let commandRow = Self.buttons([duplicateButton, deleteButton])
         _ = column([
             row("Name (dots group fields: address.city)", nameField), row("Tooltip", tooltipField), requiredBox, readOnlyBox,
             textGroup, choicesGroup, exportGroup, buttonGroup, defaultTextRow, defaultChoiceRow, defaultCheck,
             row("Text size", sizeCombo), row("Alignment", alignPopup), row("Border", borderPopup), row("Fill", fillPopup),
             tabRow, commandRow,
         ], in: fieldGroup)
-        let suggestionRow = NSStackView(views: [acceptButton, rejectButton])
+        let suggestionRow = Self.buttons([acceptButton, rejectButton])
         _ = column([row("Name", suggestionName), row("Kind", suggestionKind), suggestionSource, suggestionRow], in: suggestionGroup)
-        let allRow = NSStackView(views: [acceptAllButton, rejectAllButton])
+        let allRow = Self.buttons([acceptAllButton, rejectAllButton])
         _ = column([suggestionCount, allRow], in: allGroup)
 
         let stack = column([titleLabel, errorLabel, hintLabel, fieldGroup, suggestionGroup, allGroup], spacing: 12)
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        for group in [fieldGroup, suggestionGroup, allGroup, textGroup, choicesGroup, exportGroup, buttonGroup, defaultTextRow, defaultChoiceRow] {
-            group.translatesAutoresizingMaskIntoConstraints = false
-        }
-        for group in [fieldGroup, suggestionGroup, allGroup] { group.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true }
-        for group in [textGroup, choicesGroup, exportGroup, buttonGroup, defaultTextRow, defaultChoiceRow] {
-            group.widthAnchor.constraint(equalTo: fieldGroup.widthAnchor).isActive = true
-        }
         for text in [hintLabel, errorLabel, suggestionSource, suggestionCount] { text.preferredMaxLayoutWidth = 236 }
 
         let document = FlippedView()
@@ -828,7 +819,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         let scroll = NSScrollView()
         scroll.documentView = document
         scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
+        scroll.backgroundColor = .windowBackgroundColor
         document.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: document.leadingAnchor), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
@@ -839,6 +830,13 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         panelController.view = scroll
         scroll.setAccessibilityLabel("Field properties")
         for group in [fieldGroup, suggestionGroup, allGroup] { group.isHidden = true }
+    }
+
+    /// Buttons side by side, sharing the panel's width.
+    private static func buttons(_ views: [NSView]) -> NSStackView {
+        let row = NSStackView(views: views)
+        row.distribution = .fillEqually
+        return row
     }
 
     private final class FlippedView: NSView {
