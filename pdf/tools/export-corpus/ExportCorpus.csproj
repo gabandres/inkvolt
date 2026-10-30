@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Dev tool, not shipped: exports real-world PDFs to Word and dumps MuPDF's glyphs. See README.md. -->
+  <!-- Dev tool, not shipped: exports real-world PDFs to Word, PowerPoint and HTML, checks them, and dumps MuPDF's glyphs. See README.md. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,5 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
   </ItemGroup>
 </Project>
