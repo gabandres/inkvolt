@@ -7,8 +7,8 @@ import Testing
 /// committed test vector against the public key built in, install and remove, the gate. The suite runs serialized (it
 /// sets `Pro.store` and `Pro.enforced`, which the command line asks too). Adapted: Issuing_refuses… expects
 /// `PdfEditError` (.NET's ArgumentException); The_command_line_without_a_licence… comes with E8's command line.
-@Suite(.serialized)
-struct ProTests {
+extension ProGated {
+@Suite struct ProTests {
     private static let ada = ProLicence("Ada Lovelace", "ada@example.com", "2026-10-30", ["pdf", "print"])
 
     private let signer = P256.Signing.PrivateKey()
@@ -228,4 +228,5 @@ struct ProTests {
         }
         #expect(Pro.howToGet.contains("$19"))
     }
+}
 }

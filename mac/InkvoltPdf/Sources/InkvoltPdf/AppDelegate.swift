@@ -1,4 +1,5 @@
 import AppKit
+import PdfCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
