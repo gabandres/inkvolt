@@ -14,8 +14,10 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     private let table = ThumbTable()
     private let outlineView = KeyOutlineView()
     private let readBookmarks: @MainActor () -> [Bookmark]
-    private let picker = NSSegmentedControl(labels: ["Pages", "Bookmarks", "Comments"], trackingMode: .selectOne, target: nil, action: nil)
+    private let picker = NSSegmentedControl(labels: ["Pages", "Bookmarks", "Comments", "Signatures"], trackingMode: .selectOne, target: nil,
+                                            action: nil)
     let comments = CommentsList()
+    let signatures = SignaturesPane()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
     private(set) var outline: [OutlineItem] = []
@@ -98,9 +100,12 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         picker.setAccessibilityLabel("Sidebar shows")
         outlineScroll.isHidden = true
         comments.isHidden = true
+        signatures.isHidden = true
+        picker.setEnabled(showsSignatures, forSegment: 3)
 
-        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments])
+        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures])
         comments.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        signatures.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         stack.orientation = .vertical
         stack.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 0, right: 0)
         stack.spacing = 6
@@ -117,9 +122,19 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         tableScroll.isHidden = picker.selectedSegment != 0
         outlineScroll.isHidden = picker.selectedSegment != 1
         comments.isHidden = picker.selectedSegment != 2
+        signatures.isHidden = picker.selectedSegment != 3
     }
 
-    /// Shows the thumbnails (0), the bookmarks (1) or the comments (2).
+    /// The Signatures segment can be chosen (the document has signature fields); without, the thumbnails come back.
+    var showsSignatures = false {
+        didSet {
+            guard isViewLoaded else { return }
+            picker.setEnabled(showsSignatures, forSegment: 3)
+            if !showsSignatures && picker.selectedSegment == 3 { show(0) }
+        }
+    }
+
+    /// Shows the thumbnails (0), the bookmarks (1), the comments (2) or the signatures (3).
     func show(_ segment: Int) {
         _ = view
         picker.selectedSegment = segment

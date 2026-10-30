@@ -85,7 +85,7 @@ enum Report {
     }
 
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
-        guard isRunning, !AppTest.isActive else { return } // the app test's own documents get only its checks
+        guard isRunning, !AppTest.isActive, !CompareTest.isActive else { return } // the app and compare tests' own documents get only their checks
         started += 1
         Task { @MainActor in
             var test = SelfTest(controller: controller, name: name)
@@ -110,6 +110,12 @@ enum Report {
                 }
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
+                if openedFrom != nil && openedFrom == syntheticPath {
+                    var sign = SignTest(controller: controller, name: name)
+                    await sign.run()
+                    var compare = CompareTest()
+                    await compare.run()
+                }
             }
             done()
         }

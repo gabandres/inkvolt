@@ -4,19 +4,26 @@ import Testing
 
 /// Ported from EditTransactionTests.cs: the edit transaction (`DocumentSession.edit`) through its interface, the
 /// questions it asks (answered by a script) and the session afterwards. Adapted: AnAes256Edit… asks nothing on the Mac (MuPDF keeps the open password
-/// without knowing it), so it checks that the protection and the open password stay. Left out until digital signatures:
-/// ASignedFileAsksBeforeAnEditBreaksItsSignature (it verifies the signature), and AnEncryptedSignedFileWarnsOnceBeforeItsFirstEdit
-/// (MuPDF appends to an encrypted signed file, so there is no rewrite to warn about).
+/// without knowing it), so it checks that the protection and the open password stay; ASignedFileAsksBeforeAnEditBreaksItsSignature
+/// uses IncrSignatureTests' really signed two-page form (SignedEditTests' fixture is only signed-looking on the Mac). Left out:
+/// AnEncryptedSignedFileWarnsOnceBeforeItsFirstEdit (MuPDF appends to an encrypted signed file, so there is no rewrite to warn about).
 struct EditTransactionTests {
     /// Answers the transaction's questions from fixed answers and records what it was asked.
     final class ScriptedPrompts: EditPrompts, @unchecked Sendable {
         var ownerPasswords: [String?] = []
         var rewrite = true
+        var breaking = true
         var asked: [String] = []
 
-        init(ownerPasswords: [String?] = [], rewrite: Bool = true) {
+        init(ownerPasswords: [String?] = [], rewrite: Bool = true, breaking: Bool = true) {
             self.ownerPasswords = ownerPasswords
             self.rewrite = rewrite
+            self.breaking = breaking
+        }
+
+        func confirmBreakingEdit(label: String, broken: [SignatureInfo]) -> Bool {
+            asked.append("breaks " + broken.map(\.fieldName).joined(separator: ", "))
+            return breaking
         }
 
         func askOwnerPassword(wrong: Bool) -> String? {
@@ -193,6 +200,41 @@ struct EditTransactionTests {
         try session.undo()
         #expect(session.password == nil && session.openPassword == nil)
         #expect(!session.engine.isEncrypted)
+    }
+
+    @Test func aSignedFileAsksBeforeAnEditBreaksItsSignature() async throws {
+        let session = try DocumentSession.fromBytes(try IncrSignatureTests.signedForm(twoPages: true), "s.pdf")
+        defer { session.close() }
+        session.signedOnOpen = true
+        let no = ScriptedPrompts(breaking: false)
+
+        // A comment is appended: the signature stays valid, nothing to ask.
+        let note = EditRequest("Add note") { d, pw in try Annotations.addNote(d, pw, 0, 100, 100, "Hi", author: "Me") }
+        let noted = await session.edit(note, prompts: no)
+        #expect(noted.outcome == .done)
+        #expect(!noted.removedItemKept)
+        #expect(no.asked.isEmpty)
+
+        // Deleting a page alters what was signed.
+        let before = session.data
+        let delete = EditRequest("Delete pages") { d, pw in try PageEditor.delete(d, pw, [1]) }
+        #expect(await session.edit(delete, prompts: no).outcome == .declined)
+        #expect(no.asked == ["breaks Approval"])
+        #expect(session.data == before)
+
+        let yes = ScriptedPrompts()
+        let deleted = await session.edit(delete, prompts: yes)
+        #expect(deleted.outcome == .done)
+        #expect(deleted.removedItemKept) // appended: the page is still in the signed revision
+        #expect(session.engine.pageCount == 1)
+
+        // Already warned (redaction): no question.
+        try session.undo()
+        let warned = ScriptedPrompts()
+        var quiet = delete
+        quiet.signaturesWarned = true
+        #expect(await session.edit(quiet, prompts: warned).outcome == .done)
+        #expect(warned.asked.isEmpty)
     }
 
     @Test func anEditThatRewritesASignedFileAsksFirst() async throws {

@@ -1,4 +1,5 @@
 import AppKit
+import PdfCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -14,7 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         Report.startIfAsked()
+        // The Inkvolt Pro licence key lives in the settings (the self-test's suite, when it runs).
+        Pro.store = SettingsProStore(defaults: AppSettings.defaults)
         AppSettings.applyTheme()
+        FolderWatches.shared.startSaved()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
         RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
@@ -43,10 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newFromImages(_ sender: Any?) { NewDocuments.chooseImages() }
     @objc func newFromClipboard(_ sender: Any?) { NewDocuments.fromClipboard() }
     @objc func combineFiles(_ sender: Any?) { _ = CombineWindowController.show() }
+    @objc func compareFiles(_ sender: Any?) { CompareWindowController.pick() }
     @objc func scan(_ sender: Any?) { ScanWindowController.show() }
     @objc func showSettings(_ sender: Any?) { SettingsWindowController.show(updates: updates) }
     @objc func showAbout(_ sender: Any?) { AboutWindowController.show() }
     @objc func showWhatsNew(_ sender: Any?) { WhatsNew.show(WhatsNew.notes()) }
+    @objc func showPro(_ sender: Any?) { ProWindowController.show() }
+    @objc func showBatch(_ sender: Any?) { BatchWindowController.show() }
+    @objc func showWatchedFolders(_ sender: Any?) {
+        if Pro.allows(.watchedFolders) { WatchedFoldersWindowController.show() } else { ProWindowController.show(feature: .watchedFolders) }
+    }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
 
@@ -134,7 +144,11 @@ enum MainMenu {
         menu.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
         menu.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
         menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
+        menu.addItem(item("Compare Files…", #selector(AppDelegate.compareFiles(_:))))
         menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Batch…", #selector(AppDelegate.showBatch(_:)), "b", [.command, .shift]))
+        menu.addItem(item("Watched Folders…", #selector(AppDelegate.showWatchedFolders(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
@@ -159,6 +173,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Protect with Password…", #selector(DocumentWindowController.protectDocument(_:))))
         menu.addItem(item("Remove Password Protection…", #selector(DocumentWindowController.removeProtection(_:))))
+        menu.addItem(item("Reduce File Size…", #selector(DocumentWindowController.reduceFileSize(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Page Setup…", #selector(NSDocument.runPageLayout(_:)), "p", [.command, .shift]))
         menu.addItem(item("Print…", #selector(NSDocument.printDocument(_:)), "p"))
@@ -196,6 +211,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
         menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))
+        menu.addItem(item("Show Signatures", #selector(DocumentWindowController.showSignatures(_:)), "4", [.command, .option]))
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         return menu
     }
@@ -228,6 +244,12 @@ enum MainMenu {
         menu.addItem(item("Extract Pages…", #selector(DocumentWindowController.extractPages(_:))))
         menu.addItem(item("Crop Pages…", #selector(DocumentWindowController.cropPages(_:))))
         menu.addItem(.separator())
+        menu.addItem(item("Add Header & Footer…", #selector(DocumentWindowController.addHeaderFooter(_:))))
+        menu.addItem(item("Remove Header & Footer", #selector(DocumentWindowController.removeHeaderFooter(_:))))
+        menu.addItem(item("Add Watermark…", #selector(DocumentWindowController.addWatermark(_:))))
+        menu.addItem(item("Remove Watermark", #selector(DocumentWindowController.removeWatermark(_:))))
+        menu.addItem(item("Flatten…", #selector(DocumentWindowController.flattenDocument(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("Add Bookmark", #selector(DocumentWindowController.addBookmark(_:)), "d"))
         menu.addItem(item("Show Bookmarks", #selector(DocumentWindowController.showBookmarks(_:)), "2", [.command, .option]))
         return menu
@@ -258,6 +280,7 @@ enum MainMenu {
         menu.addItem(item("Type Signature…", #selector(DocumentWindowController.typeSignature(_:))))
         menu.addItem(item("Draw Initials…", #selector(DocumentWindowController.drawInitials(_:))))
         menu.addItem(item("Type Initials…", #selector(DocumentWindowController.typeInitials(_:))))
+        menu.addItem(item("Sign Digitally…", #selector(DocumentWindowController.signDigitally(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Recognize Text (OCR)…", #selector(DocumentWindowController.recognizeText(_:))))
         menu.addItem(.separator())
@@ -289,6 +312,7 @@ enum MainMenu {
     private static func helpMenu() -> NSMenu {
         let menu = NSMenu(title: "Help")
         menu.addItem(item("What's New in Inkvolt PDF", #selector(AppDelegate.showWhatsNew(_:))))
+        menu.addItem(item("Inkvolt Pro…", #selector(AppDelegate.showPro(_:))))
         menu.addItem(item("Inkvolt PDF on GitHub", #selector(AppDelegate.openSourcePage(_:))))
         return menu
     }

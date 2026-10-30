@@ -108,6 +108,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     var stamp: StampDesign = RubberStamps.builtIn[0]
     /// The picture the Image tool puts down next.
     var pendingImage: StampImage?
+    /// Waiting for a box to be dragged (a new visible digital signature): called once with it, or nil when Esc cancels.
+    var boxPicker: ((_ page: Int, _ rect: RectD?) -> Void)? {
+        didSet {
+            drag = nil
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     /// The selected comment or link (its id).
     private(set) var selectedId: String?
     /// The edit a press started, until it has committed (the self-test awaits it).
@@ -403,6 +410,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch drag {
         case .text, .pan, .link:
             return
+        case .box(_, let a, let b) where boxPicker != nil:
+            let rect = viewRect(DrawingGeometry.dragBox(a, b, square: false), r)
+            NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+            rect.fill(using: .sourceOver)
+            NSColor.controlAccentColor.setStroke()
+            outline(rect, px)
         case .box(_, let a, let b) where tool == .redact:
             let rect = viewRect(DrawingGeometry.dragBox(a, b, square: false), r)
             NSColor.black.withAlphaComponent(0.45).setFill()
@@ -689,6 +702,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         guard let hit = page(at: point) else { return }
         let p = pagePoint(point, on: hit.page)
+        if boxPicker != nil {
+            drag = .box(page: hit.page, start: p, now: p)
+            return
+        }
         if tool == .editContent {
             contentDown(hit.page, p)
             return
@@ -882,6 +899,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         guard let editor, let page = finished.page else { return }
         let g = engine.page(page)
         let size = (width: g.width, height: g.height)
+        if let picker = boxPicker, case .box(_, let a, let b) = finished {
+            boxPicker = nil
+            var box = DrawingGeometry.dragBox(a, b, square: false)
+            if box.width < 20 || box.height < 10 {
+                // A click: a box of the usual size (3.6 : 1), kept on the page.
+                box = RectD(min(max(b.x - 90, 0), max(size.width - 180, 0)), min(max(b.y - 25, 0), max(size.height - 50, 0)), 180, 50)
+            }
+            picker(page, box)
+            return
+        }
         let style = styles.style(tool)
         let tool = self.tool
         switch finished {
@@ -1222,6 +1249,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     // MARK: Keys
 
     override func keyDown(with event: NSEvent) {
+        if let picker = boxPicker, event.keyCode == 53 { // Esc: no box
+            boxPicker = nil
+            picker(0, nil)
+            return
+        }
         if form?.handleKey(event) == true || handleContentKey(event) || handleEditingKey(event) || handleToolKey(event) { return }
         guard let scroll = enclosingScrollView else { return super.keyDown(with: event) }
         let clip = scroll.contentView

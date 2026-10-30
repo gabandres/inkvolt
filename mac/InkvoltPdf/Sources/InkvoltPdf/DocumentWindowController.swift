@@ -19,6 +19,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// The redaction marks' bar, and what the redaction commands keep (Redaction.swift).
     let redactBar = RedactBar()
     let redaction = RedactionState()
+    /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
+    let signing = SigningState()
     /// The form's fields on the pages, and Edit Text & Images.
     private(set) var form: FormFiller!
     private(set) var content: ContentEditing!
@@ -133,6 +135,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         wireRedaction()
         wireComments()
         wireBookmarks()
+        sidebar.signatures.onGo = { [weak self] info in self?.goToSignature(info) }
+        sidebar.signatures.onSign = { [weak self] field in self?.signDigitally(field: field) }
+        verifySignatures(onOpen: true)
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
         editor.onChanged = { [weak self] in self?.commentsChanged() }
@@ -197,6 +202,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         organizer?.reload(engine: engine)
         if !foundQuery.isEmpty { find(foundQuery) }
         if change == .reload { hideDiskBar() }
+        verifySignatures(onOpen: change == .reload)
         updateSubtitle()
     }
 
@@ -247,9 +253,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             ("Draw Initials…", #selector(drawInitials(_:)), true), ("Type Initials…", #selector(typeInitials(_:)), true),
             ("Use My Signature", #selector(useSignature(_:)), library.signature != nil),
             ("Use My Initials", #selector(useInitials(_:)), library.initials != nil),
+            ("Sign Digitally…", #selector(signDigitally(_:)), true),
         ]
         for (i, entry) in entries.enumerated() where entry.2 {
-            if i == 4 { menu.addItem(.separator()) }
+            if i == 4 || i == 6 { menu.addItem(.separator()) }
             let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
             item.target = self
             menu.addItem(item)
@@ -506,6 +513,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.show(2)
     }
 
+    @objc func showSignatures(_ sender: Any?) {
+        if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
+        sidebar.show(3)
+    }
+
     @objc func showBookmarks(_ sender: Any?) {
         if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
         sidebar.show(1)
@@ -528,7 +540,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
             return !form.widgets.isEmpty
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
-             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)):
+             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
+             #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),
+             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)):
             return longTask == nil && progressSheet == nil && redaction.task == nil
         case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
             return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil
@@ -541,6 +555,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return true
         case #selector(deletePages(_:)):
             return engine.pageCount > 1
+        case #selector(signDigitally(_:)):
+            return !signing.signing && longTask == nil && progressSheet == nil
+        case #selector(showSignatures(_:)):
+            return !signing.signatures.isEmpty
         case #selector(removeProtection(_:)):
             return pdf.session?.hasEncryption == true
         case #selector(protectDocument(_:)):

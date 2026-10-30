@@ -95,7 +95,7 @@ struct AppTest {
         StartWindowController.show()
         guard let start = StartWindowController.shared else { return check(false, "start page: not shown") }
         _ = await wait(3) { start.recentCount == 2 }
-        check(start.isShown && start.cards.count == 8 && start.recentCount == 2,
+        check(start.isShown && start.cards.count == StartWindowController.ToolCard.allCases.count && start.recentCount == 2,
               "start page: shown with \(start.cards.count) tool cards and \(start.recentCount) recent files")
         try? await Task.sleep(for: .milliseconds(500)) // page 1 of each drawn
         snapshot(start.window, "start-page.png")
@@ -108,7 +108,7 @@ struct AppTest {
         document(at: a)?.close()
 
         // Each card that works on a PDF: pick one, it opens straight in that tool.
-        for card in StartWindowController.ToolCard.allCases where card != .combine && card != .create {
+        for card in StartWindowController.ToolCard.allCases where card != .combine && card != .create && card != .batch {
             guard let file = copy("Tool \(card.rawValue).pdf") else { continue }
             StartWindowController.show()
             StartWindowController.testPicks = [[file]]
@@ -124,7 +124,7 @@ struct AppTest {
             case .exportWord, .ocr: started = window?.attachedSheet != nil
             case .protect: started = c?.protectSheet != nil
             case .organize: started = c?.organizerShown == true
-            case .combine, .create: break
+            case .combine, .create, .batch: break
             }
             check(ready && started, "start page › \(card.title): a PDF picked, opened straight in the tool")
             if let sheet = window?.attachedSheet { window?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }

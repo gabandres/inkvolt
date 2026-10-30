@@ -532,6 +532,22 @@ struct AppPrompts: EditPrompts {
         }
     }
 
+    func confirmBreakingEdit(label: String, broken: [SignatureInfo]) -> Bool {
+        ask {
+            if Report.isRunning { return false }
+            let alert = NSAlert()
+            let who = broken.count == 1 ? "the signature of \(broken[0].signerName ?? broken[0].fieldName)" : "\(broken.count) signatures"
+            alert.messageText = "\(label) invalidates \(who)."
+            alert.informativeText = "A signature allows filling in forms, comments and more signatures afterwards, but not this change: it alters what was "
+                + "signed, or it can't be added without rewriting the file. Afterwards the signature shows as invalid.\n\nTo keep the signed original, "
+                + "undo the change, or save your changes as a copy (Save As)."
+            alert.addButton(withTitle: "\(label) Anyway")
+            alert.addButton(withTitle: "Cancel")
+            alert.alertStyle = .warning
+            return alert.runModal() == .alertFirstButtonReturn
+        }
+    }
+
     private func ask<T: Sendable>(_ f: @escaping @MainActor () -> T) -> T {
         if Thread.isMainThread { return MainActor.assumeIsolated { f() } }
         return DispatchQueue.main.sync { MainActor.assumeIsolated { f() } }

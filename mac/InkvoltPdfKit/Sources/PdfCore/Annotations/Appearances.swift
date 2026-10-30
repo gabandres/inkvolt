@@ -2,8 +2,8 @@ import Foundation
 
 /// Numbers as content streams and appearance entries write them (the Windows app's `PdfObj.F`): rounded to three
 /// decimals, no trailing zeros.
-enum PdfNum {
-    static func f(_ v: Double) -> String {
+public enum PdfNum {
+    public static func f(_ v: Double) -> String {
         let r = (v * 1000).rounded() / 1000
         if r == 0 || !r.isFinite { return "0" }
         if r == r.rounded() && abs(r) < 1e15 { return String(Int(r)) }
@@ -14,7 +14,7 @@ enum PdfNum {
     }
 
     /// Two decimals at most (.NET's "0.##"), for /DA font sizes and Fill & Sign text.
-    static func f2(_ v: Double) -> String {
+    public static func f2(_ v: Double) -> String {
         let r = (v * 100).rounded() / 100
         if r == 0 || !r.isFinite { return "0" }
         if r == r.rounded() && abs(r) < 1e15 { return String(Int(r)) }

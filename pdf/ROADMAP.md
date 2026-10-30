@@ -78,7 +78,8 @@ project or as a licence a business can invoice. It flips on, in a release noted 
 few thousand installs or about 50 Store ratings; from then on a locked feature shows what it does and a button to the
 window, and the command line prints the message and exits 2 (the UI and tests for both states are in place). Still to
 do: the checkout itself (the owner sets it up with a merchant of record; the Get button opens the product page until
-then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
+then). The Mac's verification (CryptoKit `P256.Signing`, same key, the test vector read in place) and its Help › Inkvolt
+Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `ProWindowController`).
 
 ## Wave 1 (next)
 
@@ -103,7 +104,7 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax; Batch's action with E8).
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30).
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
@@ -122,7 +123,7 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   any failure (2 for a wrong command line or preset, 3 stopped), `--help`; Protect's passwords from environment
   variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
   with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
-  originals move right, an interrupted file never runs twice, the command line's exit codes. Still to do: the Mac; a
+  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` comes with 1.4). Still to do: a
   500-file run over a real network share; the alias tested in an installed Store package.
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
@@ -209,7 +210,7 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
   picture. Fix redacts, sanitizes and rewrites. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28; Batch's action with E8). Still to
+  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
   do: glyph-spacing inference around pixel redactions.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
@@ -396,7 +397,7 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   JSON (format marker, version, fields in a fixed order). Tests (`DocumentInventoryTests`): Sanitize's planted corpus with
   an appended revision lists every planted item, and after Sanitize with everything the report is empty; white,
   off-page and boxed text; automatic, pointer and click triggers; signatures; script calls; HTML and JSON; Batch. The
-  Mac: done (2026-10-28, with E1's Sanitize; Batch's action with E8).
+  Mac: done (2026-10-28, with E1's Sanitize; Batch's action with E8, 2026-10-30).
 - **Effort** S (most of it is Sanitize's scan). Windows; Mac with Sanitize.
 
 ## Wave 3
@@ -430,7 +431,8 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
   first); font, size, color and style changes are listed apart from wording; moved paragraphs show as moves; shifted
   or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
   contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
-- **Effort** M. Windows; Mac with Compare.
+- **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
+  formatting are still to do on both).
 
 ### 3.4 Long-term validation for signatures
 - **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped
@@ -438,7 +440,8 @@ then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
 - **Beat it when:** signing embeds OCSP/CRL responses for the whole chain (DSS/VRI) and can add a document timestamp
   (PAdES B-LT, B-LTA); Add Verification Information works on any signed file; DocMDP and FieldMDP are enforced when
   verifying. Test: Acrobat shows "LTV enabled" and the EU DSS validator reports B-LTA for our signed files.
-- **Effort** M. Windows; Mac with signatures.
+- **Effort** M. Windows; Mac with signatures (verifying and signing came with E2, 2026-10-30, DocMDP and FieldMDP enforced
+  as on Windows; the long-term data is still to do on both).
 
 ### 3.5 Indexed folder search
 - **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search

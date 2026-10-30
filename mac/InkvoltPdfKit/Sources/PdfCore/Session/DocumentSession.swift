@@ -333,6 +333,10 @@ public final class DocumentSession: @unchecked Sendable {
     /// An edit is running (its questions included): another one now returns `.busy`.
     public var isEditing: Bool { editGate.withLock { editing } }
 
+    /// The document had valid-looking signatures when it was opened (or last reloaded). Set by whoever verified them
+    /// (verifying takes a while, so it isn't done here); edits then check which signatures they would break.
+    public var signedOnOpen = false
+
     /// The edit transaction (the Windows app's `EditAsync`): runs the request's edit on a worker and commits it as one undo
     /// step, keeping an encrypted document's protection and a signed document's signatures where it can, asking `prompts`
     /// what only the user can answer: the permissions password an edit needs (then the same edit runs again with it), or
@@ -383,6 +387,14 @@ public final class DocumentSession: @unchecked Sendable {
             if closed { return EditResult(.failed) }
             if let pw, pw != password { usePassword(pw) } // only once it worked
             if result == original { return EditResult(.noChange) }
+            // Signed document: an edit a signature doesn't allow (a page change) shows that signature as invalid from
+            // then on. Say so before it happens; a rewrite the user allowed was asked about already.
+            if signedOnOpen && !request.signaturesWarned && !rewrite {
+                let (edited, given) = (result, pw)
+                let broken = await Task.detached { Signatures.brokenByEdits(Signatures.verify(original, given), edited, given) }.value
+                if closed { return EditResult(.failed) }
+                if !broken.isEmpty && !prompts.confirmBreakingEdit(label: request.label, broken: broken) { return EditResult(.declined) }
+            }
             let change: ContentChange = request.contentOnly ? .contentOnlyEdit : .edit
             let id = if let np = request.newPasswords {
                 try commit(result, request.label, np.password, np.openPassword, change)
@@ -460,4 +472,7 @@ public protocol EditPrompts: Sendable {
     /// The edit can't be appended to the signed file: saving it rewrites the file and invalidates `signatures`
     /// signatures. `reason` says why, for the log.
     func confirmSignatureRewrite(label: String, signatures: Int, reason: String) -> Bool
+
+    /// The edit alters what intact signatures signed (they would show as invalid afterwards).
+    func confirmBreakingEdit(label: String, broken: [SignatureInfo]) -> Bool
 }
