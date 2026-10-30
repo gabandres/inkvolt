@@ -462,6 +462,28 @@ struct FormDesignTests {
         #expect(doc.page(0).array("Annots")?[0]?.text("DA") == "/ZaDb 0 Tf 0 g")
     }
 
+    /// A Mac addition, opt-in (INKVOLTPDF_WINDOWS_FORM: a form the Windows code made): it reads, fills and moves here.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["INKVOLTPDF_WINDOWS_FORM"] != nil))
+    func aFormMadeOnWindowsWorksHere() throws {
+        let path = try #require(ProcessInfo.processInfo.environment["INKVOLTPDF_WINDOWS_FORM"])
+        let pdf = Array(try Data(contentsOf: URL(fileURLWithPath: path)))
+        let fields = try FormDesign.read(pdf, nil)
+        #expect(fields.map(\.name).sorted() == ["Win button", "Win check", "Win radio", "Win radio", "Win text", "Win.nested"])
+        let text = try single(fields) { $0.name == "Win text" }
+        #expect(text.required && text.tooltip == "From Windows" && text.format?.currency == "$")
+        #expect(try single(fields) { $0.name == "Win.nested" }.shownOptions == ["Ex", "Why"])
+        #expect(try single(fields) { $0.name == "Win button" }.action == .print)
+        #expect(try FormEditor.read(pdf, nil).first { $0.fieldName == "Win radio" }?.value == "B")
+        let filledPdf = try FormEditor.setValues(pdf, nil, ["Win text": "12", "Win check": "Yes", "Win radio": "A", "Win.nested": "x"])
+        let after = try FormEditor.read(filledPdf, nil)
+        #expect(try single(after) { $0.fieldName == "Win text" }.displayValue == "$12.00")
+        #expect(try single(after) { $0.fieldName == "Win check" }.value == "Yes")
+        #expect(after.first { $0.fieldName == "Win radio" }?.value == "A")
+        #expect(try Core2Pdf.allText(filledPdf).contains("$12.00"))
+        let moved = try FormDesign.update(filledPdf, nil, [text.with { $0.rect.y = 300 }])
+        #expect(near(try single(FormDesign.read(moved, nil)) { $0.name == "Win text" }.rect.y, 300, 2))
+    }
+
     /// A Mac addition: on Windows `SetDefault` compares an array /DV with nothing, so any change of such a list box
     /// clears its /DV and /V. Here an unchanged array default stays, with the selection.
     @Test func aListBoxWithSeveralDefaultsKeepsThemWhenMoved() throws {

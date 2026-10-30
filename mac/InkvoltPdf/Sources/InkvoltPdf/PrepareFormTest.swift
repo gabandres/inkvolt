@@ -83,6 +83,16 @@ struct PrepareFormTest {
         await design.settle()
     }
 
+    /// With `--snapshots`: a PNG of the window, as AppKit draws it.
+    private func snapshot(_ file: String) {
+        guard let dir = Report.snapshots, let view = controller.window?.contentView else { return }
+        view.layoutSubtreeIfNeeded()
+        pages.displayIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent(file))
+    }
+
     private func saved() -> [DesignField] {
         guard let s = controller.pdf.session else { return [] }
         return (try? FormDesign.read(s.data, s.password)) ?? []
@@ -106,6 +116,7 @@ struct PrepareFormTest {
         await design.settle()
         check(design.isDesigning && !design.bar.isHidden && !design.panelItem.isCollapsed && !design.hintLabel.isHidden,
               "Tools › Prepare Form shows the bar, the panel and the hint")
+        snapshot("prepare-form-hint.png")
 
         // Each kind. A drag with the Text tool, a click for the others; each is one undo step, then back to selecting.
         let edits = editor.finishedEdits
@@ -138,6 +149,7 @@ struct PrepareFormTest {
         // The panel: a text field.
         await click(PointD(150, 80))
         check(design.model.selectedField?.name == "Text1", "a click selects a field")
+        snapshot("prepare-form-text.png")
         await type(design.nameField, "Full name")
         check(field("Full name") != nil && design.model.selectedField?.name == "Full name", "Name renames it, and it stays selected")
         await type(design.tooltipField, "Your name")
@@ -183,6 +195,7 @@ struct PrepareFormTest {
         check(f?.options == ["g", "s", "Bronze"] && f?.shownOptions == ["Gold", "Silver", "Bronze"] && design.defaultChoice.numberOfItems == 4, "choices with their shown text")
         await choose(design.defaultChoice, 2)
         await toggle(design.editableBox)
+        snapshot("prepare-form-dropdown.png")
         f = field("Dropdown1")
         check(f?.defaultValue == "s" && f?.editable == true && widgets().first { $0.fieldName == "Dropdown1" }?.value == "s", "its default is what the form starts with")
 
@@ -196,6 +209,7 @@ struct PrepareFormTest {
         check(!design.buttonGroup.isHidden && design.requiredBox.isHidden, "a button shows its label and action")
         await type(design.captionField, "Print it")
         await choose(design.actionPopup, 2)
+        snapshot("prepare-form-button.png")
         check(field("Button1")?.caption == "Print it" && field("Button1")?.action == .print && widgets().first { $0.fieldName == "Button1" }?.triggers.contains(.up) == true, "the label and the print action")
 
         // A check box and a radio button.
@@ -276,6 +290,9 @@ struct PrepareFormTest {
         }
         design.showSuggestions([suggestion("Alpha", 330), suggestion("Beta", 360), suggestion("Gamma", 390), suggestion("Delta", 420)])
         check(!design.allGroup.isHidden && design.suggestionCount.stringValue.hasPrefix("4 suggested"), "suggestions show in the panel")
+        design.selectSuggestion(0)
+        snapshot("prepare-form-suggestions.png")
+        design.selectSuggestion(-1)
         await click(PointD(100, 340))
         check(design.model.selectedSuggestion?.name == "Alpha" && !design.suggestionGroup.isHidden && design.suggestionSource.stringValue == "Found from a line to write on.", "a click selects one")
         await type(design.suggestionName, "Alpha two")
