@@ -52,14 +52,20 @@ struct MeasurementTests {
         #expect(Self.near(MeasureScale.default.value(.distance, [o, PointD(72, 0)]), 1, 9))
     }
 
-    @Test(arguments: [
-        ("1 in = 10 ft", 10.0 / 72, "ft"),
-        ("1in=10ft", 10.0 / 72, "ft"),
-        ("1/4 in = 1 ft", 4.0 / 72, "ft"),
-        ("1 cm = 0.5 m", 0.5 * 2.54 / 72, "m"),
-        ("2 mm = 1 km", 0.5 * 25.4 / 72, "km"),
-        ("1:100 m", 100 * 0.0254 / 72, "m"),
-    ])
+    /// The ratio, its real units per point and its unit.
+    static let ratios: [(String, Double, String)] = {
+        let perInch: Double = 1 / 72
+        var r: [(String, Double, String)] = []
+        r.append(("1 in = 10 ft", 10 * perInch, "ft"))
+        r.append(("1in=10ft", 10 * perInch, "ft"))
+        r.append(("1/4 in = 1 ft", 4 * perInch, "ft"))
+        r.append(("1 cm = 0.5 m", 0.5 * 2.54 * perInch, "m"))
+        r.append(("2 mm = 1 km", 0.5 * 25.4 * perInch, "km"))
+        r.append(("1:100 m", 100 * 0.0254 * perInch, "m"))
+        return r
+    }()
+
+    @Test(arguments: ratios)
     func ratiosAreRead(_ text: String, _ perPoint: Double, _ unit: String) throws {
         let s = try #require(MeasureScale.parse(text), "\(text)")
         #expect(Self.near(s.perPoint, perPoint, 9))
