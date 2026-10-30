@@ -40,7 +40,7 @@ struct OptimizerTests {
                 pixels[o + 2] = 128
             }
         }
-        let small = (0..<(64 * 64)).map { UInt8($0 * 7 % 256) }
+        let small: [UInt8] = (0..<(64 * 64)).map { (i: Int) -> UInt8 in UInt8(i * 7 % 256) }
         let text = "BT /F1 24 Tf 72 720 Td (Hello optimizer) Tj ET q 300 0 0 300 72 300 cm /Big Do Q"
         let hex = Array(text.utf8).map { String(format: "%02X", $0) }.joined() + ">"
         func s(_ t: String) -> [UInt8] { Array(t.utf8) }

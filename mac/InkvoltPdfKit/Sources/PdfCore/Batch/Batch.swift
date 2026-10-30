@@ -825,8 +825,10 @@ public enum BatchRunner {
 
     static func looksLikePdf(_ data: [UInt8]) -> Bool { data.prefix(1024).firstRange(of: Array("%PDF-".utf8)) != nil }
 
-    /// Signed-looking files count as signed (verifying the signatures comes with E2).
-    static func isSigned(_ data: [UInt8], _ password: String?) -> Bool { SignedEdits.looksSigned(data) }
+    /// Files with a signature (not just an empty signature field).
+    static func isSigned(_ data: [UInt8], _ password: String?) -> Bool {
+        SignedEdits.looksSigned(data) && Signatures.verify(data, password).contains { $0.status != .unsigned }
+    }
 
     /// Why a file failed, in words for the list.
     static func describe(_ error: Error) -> String {

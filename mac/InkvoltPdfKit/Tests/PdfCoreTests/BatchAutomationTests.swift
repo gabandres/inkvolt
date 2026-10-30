@@ -314,11 +314,15 @@ extension ProGated {
             #expect(try Self.pages(path) == 3) // whole: taken once the copy was complete
             #expect(try Self.text(try Self.read(path), page: 2).contains((name as NSString).deletingPathExtension))
         }
-        #expect(Self.names(inbox).filter { $0 != WatchedFolder.logName && !$0.hasSuffix("/") }.filter { !Self.isFolder((inbox as NSString).appendingPathComponent($0)) } == ["notes.txt"])
-        let log = logLines()
+        let left: [String] = Self.names(inbox).filter { name in
+            name != WatchedFolder.logName && !name.hasSuffix("/") && !Self.isFolder((inbox as NSString).appendingPathComponent(name))
+        }
+        #expect(left == ["notes.txt"])
+        let log: [[String]] = logLines().map { line in line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
         #expect(log.count == each * 3)
-        #expect(log.allSatisfy { $0.split(separator: "\t", omittingEmptySubsequences: false)[1] == "done" })
-        #expect(log.map { String($0.split(separator: "\t", omittingEmptySubsequences: false)[2]) }.sorted { $0.lowercased() < $1.lowercased() } == done)
+        #expect(log.allSatisfy { $0[1] == "done" })
+        let logged: [String] = log.map { $0[2] }.sorted { $0.lowercased() < $1.lowercased() }
+        #expect(logged == done)
         #expect(entries.all.count == each * 3)
     }
 
@@ -359,7 +363,8 @@ extension ProGated {
         #expect(Self.names((inbox as NSString).appendingPathComponent(WatchedFolder.failedFolder)) == ["bad.pdf"])
         #expect(Self.names(results) == ["good.pdf"])
         #expect(Self.exists(p("inbox", "sub", "deeper.pdf")))
-        let log = logLines().map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }.sorted { $0[2] < $1[2] }
+        let lines: [[String]] = logLines().map { line in line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+        let log = lines.sorted { $0[2] < $1[2] }
         #expect(log.count == 2)
         #expect(log[0][1] == "failed" && log[0][2] == "bad.pdf" && log[0][3] == "This file isn't a PDF.")
         #expect(log[1][1] == "done" && log[1][2] == "good.pdf" && log[1][4] == (results as NSString).appendingPathComponent("good.pdf"))
