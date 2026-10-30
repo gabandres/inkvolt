@@ -48,10 +48,12 @@ extension DocumentWindowController {
             switch outcome {
             case .success(let result):
                 return result
-            case .failure(let e as OwnerPasswordRequired):
-                // Opened for viewing only: the copy is unencrypted, so its permissions password is needed.
+            case .failure(let e) where e is OwnerPasswordRequired || e is PasswordRequired && wrong:
+                // Opened for viewing only: the copy is unencrypted, so its permissions password is needed. (A wrong one
+                // given for a file that also has an open password doesn't even open it: asked again too.)
                 sheet.end()
-                guard let owner = await PdfAState.askOwnerPassword(self, name, wrong: wrong || e.wrongPassword && password != nil) else { return nil }
+                let wrongGiven = (e as? OwnerPasswordRequired)?.wrongPassword ?? true
+                guard let owner = await PdfAState.askOwnerPassword(self, name, wrong: wrong || wrongGiven && password != nil) else { return nil }
                 sheet.begin(on: window)
                 password = owner
                 wrong = true
