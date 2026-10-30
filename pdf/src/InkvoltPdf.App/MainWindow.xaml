@@ -133,6 +133,8 @@
                                     <MenuItem Header="_Export">
                                         <MenuItem Command="app:Cmd.ExportWord" Header="_Word Document (.docx)…" />
                                         <MenuItem Command="app:Cmd.ExportExcel" Header="_Excel Workbook (.xlsx): Tables…" />
+                                        <MenuItem Command="app:Cmd.ExportPowerPoint" Header="_PowerPoint Presentation (.pptx)…" />
+                                        <MenuItem Command="app:Cmd.ExportHtml" Header="_HTML Web Page (.html)…" />
                                         <MenuItem Command="app:Cmd.ExportText" Header="Plain _Text (.txt)…" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.ExportImages" Header="Pages as _Images…" />

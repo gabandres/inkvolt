@@ -231,6 +231,27 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportsToPowerPointAndHtml()
+    {
+        var a = Put("in/a.pdf", ExportTestPdf.Make());
+        var summary = await Run([a], Plan(new ExportStep(BatchExportFormat.PowerPoint), new ExportStep(BatchExportFormat.Html)));
+        Assert.Equal(1, summary.Done);
+        using var pptx = DocumentFormat.OpenXml.Packaging.PresentationDocument.Open(Path.Combine(Out, "a.pptx"), false);
+        Assert.Equal(2, pptx.PresentationPart!.SlideParts.Count());
+        Assert.Contains("<h1>Quarterly Report</h1>", File.ReadAllText(Path.Combine(Out, "a.html")));
+
+        // Nothing on the pages: no file, and a note.
+        var blank = new PdfSharp.Pdf.PdfDocument();
+        blank.AddPage();
+        using var ms = new MemoryStream();
+        blank.Save(ms, false);
+        var b = Put("in/b.pdf", ms.ToArray());
+        await Run([b], Plan(new ExportStep(BatchExportFormat.PowerPoint), new ExportStep(BatchExportFormat.Html)));
+        Assert.False(File.Exists(Path.Combine(Out, "b.pptx")));
+        Assert.False(File.Exists(Path.Combine(Out, "b.html")));
+    }
+
+    [Fact]
     public async Task ExportsCommentsFormDataAndSummaries()
     {
         var commented = Put("in/review.pdf", CommentFilesTests.Commented());

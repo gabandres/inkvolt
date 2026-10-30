@@ -55,6 +55,8 @@ public static class Cmd
     public static readonly RoutedUICommand ExportWord = Make("Export to _Word (.docx)…", nameof(ExportWord));
     public static readonly RoutedUICommand ExportExcel = Make("Export Tables to _Excel (.xlsx)…", nameof(ExportExcel));
     public static readonly RoutedUICommand ExportText = Make("Export as Plain _Text (.txt)…", nameof(ExportText));
+    public static readonly RoutedUICommand ExportPowerPoint = Make("Export to _PowerPoint (.pptx)…", nameof(ExportPowerPoint));
+    public static readonly RoutedUICommand ExportHtml = Make("Export to _HTML (.html)…", nameof(ExportHtml));
     public static readonly RoutedUICommand Properties = Make("Document P_roperties…", nameof(Properties), K(Key.D, ModifierKeys.Control));
     public static readonly RoutedUICommand ShowInFolder = Make("Show in _Folder", nameof(ShowInFolder));
     public static readonly RoutedUICommand Exit = Make("E_xit", nameof(Exit));

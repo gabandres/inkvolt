@@ -6,8 +6,8 @@ using Microsoft.Win32;
 namespace InkvoltPdf.App;
 
 /// <summary>
-/// File › Export: Word (.docx), Excel (.xlsx, the tables found) and plain text (.txt), rebuilt from the pages' text,
-/// fonts, pictures and lines by <see cref="DocumentExport"/>; this asks for the options and the file, shows progress and
+/// File › Export: Word (.docx), Excel (.xlsx, the tables found), plain text (.txt), PowerPoint (.pptx) and HTML (.html),
+/// rebuilt from the pages' text, fonts, pictures and lines by <see cref="DocumentExport"/>; this asks for the options and the file, shows progress and
 /// says what was exported. Scanned pages without a text layer are recognized with Windows' OCR first, when the user
 /// leaves that on. Everything runs on this PC.
 /// </summary>
@@ -21,6 +21,10 @@ internal static class ExportActions
             "Paragraphs, headings, lists, tables, pictures, running headers and footers and page sizes are rebuilt from the page layout, so the document can be edited; complex layouts may need tidying."),
         ExportFormat.Excel => new("Export Tables to Excel", ".xlsx", "Excel workbook (*.xlsx)|*.xlsx",
             "Each table found (ruled grids, or text lined up in columns) becomes a sheet, named after its page. Plain numbers become numbers; other values stay text as shown."),
+        ExportFormat.PowerPoint => new("Export to PowerPoint", ".pptx", "PowerPoint presentation (*.pptx)|*.pptx",
+            "One slide per page: text in editable text boxes where the page has it, headings as slide titles, tables, pictures and simple shapes. A presentation has one slide size, so pages of another size are shrunk to fit it."),
+        ExportFormat.Html => new("Export to HTML", ".html", "Web page (*.html)|*.html",
+            "One file that reflows to any screen: headings, lists, tables and pictures in reading order, with the alternate text the PDF's tags give. It holds no scripts and loads nothing from anywhere; the look and positions of the pages aren't kept."),
         _ => new("Export as Plain Text", ".txt", "Text file (*.txt)|*.txt",
             "The text in reading order (columns one after another), a paragraph per line, table rows as tab-separated cells. UTF-8."),
     };
@@ -60,6 +64,7 @@ internal static class ExportActions
         // Busy from here, so nothing replaces the engine this export reads.
         using var busy = tab.BeginBusy($"Exporting {Pages(pages.Length)}…");
         var engine = tab.ViewEngine; // what is shown (chosen layers included)
+        var (source, sourcePassword) = (tab.Session.Data, tab.Session.Password);
         using var progress = new ProgressPrompt(owner, kind.Title, "Reading the pages…");
         var cancel = progress.Token;
         var options = new ExportOptions
@@ -67,6 +72,8 @@ internal static class ExportActions
             Pages = pages,
             Title = name,
             Recognize = recognize ? (pdf, page, ct) => PageOcr.Recognize(ocr!, pdf, page, ct) : null,
+            Source = source,
+            SourcePassword = sourcePassword,
             Progress = at => progress.Report(at.Stage switch
             {
                 ExportStage.Reading => $"Reading page {at.Page + 1} ({at.Index + 1} of {at.Count})…",
@@ -77,7 +84,7 @@ internal static class ExportActions
 
         try
         {
-            // Nothing is saved when nothing was extracted: no text at all (and, for Word, no pictures either) or no tables.
+            // Nothing is saved when nothing was extracted: no text at all (and, for Word, PowerPoint and HTML, no pictures either) or no tables.
             var report = await Task.Run(() => DocumentExport.ExportToFile(engine, format, path, options, cancel), cancel);
             progress.Dispose();
             foreach (var problem in report.Unreadable) Log.Write($"Export: page {problem.Page + 1} can't be read: {problem.Message}");
@@ -103,7 +110,7 @@ internal static class ExportActions
             }
             var notes = new List<string>();
             if (recognized > 0) notes.Add($"{Pages(recognized)} recognized with OCR");
-            if (noText > 0) notes.Add($"{Pages(noText)} without text{(format == ExportFormat.Word && withPictures > 0 ? " (pictures kept)" : "")}");
+            if (noText > 0) notes.Add($"{Pages(noText)} without text{(format != ExportFormat.Excel && format != ExportFormat.Text && withPictures > 0 ? " (pictures kept)" : "")}");
             if (ocrFailed > 0) notes.Add($"text recognition failed on {Pages(ocrFailed)}");
             if (unreadable > 0) notes.Add($"{Pages(unreadable)} couldn't be read and {(unreadable == 1 ? "is" : "are")} empty");
             if (format == ExportFormat.Excel) notes.Insert(0, tables == 1 ? "1 table" : $"{tables} tables");

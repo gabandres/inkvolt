@@ -288,6 +288,7 @@ public enum BatchExportFormat
     FormDataXfdf, FormDataFdf, FormDataCsv, FormDataJson,
     /// <summary>A comment summary PDF (<see cref="CommentSummary"/>).</summary>
     CommentSummary,
+    PowerPoint, Html,
 }
 
 /// <param name="Dpi">Resolution of page images (PNG, JPEG).</param>
@@ -299,6 +300,8 @@ public sealed record ExportStep(BatchExportFormat Format, int Dpi = 150) : Batch
     {
         BatchExportFormat.Word => "Export to Word",
         BatchExportFormat.Excel => "Export tables to Excel",
+        BatchExportFormat.PowerPoint => "Export to PowerPoint",
+        BatchExportFormat.Html => "Export to HTML",
         BatchExportFormat.Text => "Export as plain text",
         BatchExportFormat.CommentsXfdf => "Export comments (XFDF)",
         BatchExportFormat.CommentsFdf => "Export comments (FDF)",
@@ -315,7 +318,7 @@ public sealed record ExportStep(BatchExportFormat Format, int Dpi = 150) : Batch
     public bool IsImages => Format is BatchExportFormat.Png or BatchExportFormat.Jpeg;
 
     /// <summary>Comments, form data or a comment summary (not the pages' content).</summary>
-    public bool IsReview => Format >= BatchExportFormat.CommentsXfdf;
+    public bool IsReview => Format is >= BatchExportFormat.CommentsXfdf and <= BatchExportFormat.CommentSummary;
 }
 
 public enum SignedFilePolicy
@@ -949,10 +952,12 @@ public static class BatchRunner
             {
                 BatchExportFormat.Word => ExportFormat.Word,
                 BatchExportFormat.Excel => ExportFormat.Excel,
+                BatchExportFormat.PowerPoint => ExportFormat.PowerPoint,
+                BatchExportFormat.Html => ExportFormat.Html,
                 _ => ExportFormat.Text,
             };
             using var ms = new MemoryStream();
-            var report = DocumentExport.Export(engine, format, ms, new ExportOptions { Title = Path.GetFileNameWithoutExtension(file.Path) }, cancel);
+            var report = DocumentExport.Export(engine, format, ms, new ExportOptions { Title = Path.GetFileNameWithoutExtension(file.Path), Source = data, SourcePassword = _password }, cancel);
             foreach (var problem in report.Unreadable) _notes.Add($"Page {problem.Page + 1} couldn't be read");
             if (!report.Saved)
             {
@@ -960,6 +965,8 @@ public static class BatchRunner
                 {
                     ExportFormat.Word => "Word: no text or pictures, nothing saved",
                     ExportFormat.Excel => "Excel: no tables found, nothing saved",
+                    ExportFormat.PowerPoint => "PowerPoint: nothing on the pages, nothing saved",
+                    ExportFormat.Html => "HTML: no text or pictures, nothing saved",
                     _ => "Text: no text found, nothing saved",
                 });
                 return;
