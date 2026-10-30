@@ -2096,11 +2096,25 @@ public partial class MainWindow : Window
 
     // ───────────────────────────── Settings ─────────────────────────────
 
+    /// <summary>
+    /// Settings take effect as they are changed and are saved at once, as Windows 11's do: there is no Save, only Close.
+    /// Undo changes puts back every setting changed since the window opened (Reset to defaults included), so turning off
+    /// recovery copies or resetting everything is one click from undone.
+    /// </summary>
     private void ShowSettings()
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(this, "Settings", "Save", 460);
-        var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], s.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 });
+        static string ThemeOf(string? t) => t is "Light" or "Dark" ? t : "System";
+        var session = new SettingsSession(new Dictionary<string, object?>
+        {
+            ["Theme"] = ThemeOf(s.Theme), ["RestorePosition"] = s.RestorePosition, ["ReopenTabs"] = s.ReopenTabs,
+            ["KeepRecoveryCopies"] = s.KeepRecoveryCopies, ["DarkPages"] = s.DarkPages, ["CheckForUpdates"] = s.CheckForUpdates,
+            ["AuthorName"] = s.AuthorName ?? "",
+        });
+        var dlg = new FormDialog(this, "Settings", "Close", 460);
+        dlg.HideCancel();
+        string[] themes = ["System", "Light", "Dark"];
+        var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], Array.IndexOf(themes, ThemeOf(s.Theme)));
         var restore = dlg.AddCheck("Reopen each file at the page where I left off", s.RestorePosition);
         var reopen = dlg.AddCheck("Reopen the files I had open when I closed Inkvolt PDF", s.ReopenTabs);
         var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes", s.KeepRecoveryCopies);
@@ -2125,34 +2139,103 @@ public partial class MainWindow : Window
             aiState.Text = AiActions.Describe();
             foreach (var t in Tabs) t.RefreshAiPane();
         };
+
         var reset = dlg.AddFooterButton("Reset to defaults");
-        reset.ToolTip = "These settings back to how Inkvolt PDF starts, once you press Save. Recent files, signatures and the AI assistant's settings are kept.";
+        reset.ToolTip = "These settings back to how Inkvolt PDF starts, at once (Undo changes puts them back). Recent files, signatures and the AI assistant's settings are kept.";
+        var undo = dlg.AddFooterButton("Undo changes");
+
+        // The controls show the settings; while they are set from them, their change events apply nothing.
+        var syncing = false;
+        void Show(string key, object? value)
+        {
+            syncing = true;
+            switch (key)
+            {
+                case "Theme": theme.SelectedIndex = Array.IndexOf(themes, (string)value!); break;
+                case "RestorePosition": restore.IsChecked = (bool)value!; break;
+                case "ReopenTabs": reopen.IsChecked = (bool)value!; break;
+                case "KeepRecoveryCopies": recovery.IsChecked = (bool)value!; break;
+                case "DarkPages": dark.IsChecked = (bool)value!; break;
+                case "CheckForUpdates": if (updates is not null) updates.IsChecked = (bool)value!; break;
+                case "AuthorName": author.Text = (string)value! is { Length: > 0 } n ? n : Environment.UserName; break;
+            }
+            syncing = false;
+        }
+        void Apply(string key, object? value)
+        {
+            switch (key)
+            {
+                case "Theme": s.Theme = (string)value!; break;
+                case "RestorePosition": s.RestorePosition = (bool)value!; break;
+                case "ReopenTabs": s.ReopenTabs = (bool)value!; break;
+                case "KeepRecoveryCopies": s.KeepRecoveryCopies = (bool)value!; break;
+                case "DarkPages": s.DarkPages = (bool)value!; break;
+                case "CheckForUpdates": s.CheckForUpdates = (bool)value!; break;
+                case "AuthorName": s.AuthorName = (string)value!; break;
+            }
+            session.Set(key, value);
+            if (key == "Theme") App.ApplyTheme();
+            if (key == "DarkPages") foreach (var t in Tabs) t.SetDarkPages(s.DarkPages);
+        }
+        void Done()
+        {
+            s.Save();
+            UpdateUi();
+            undo.IsEnabled = session.HasChanges;
+            undo.ToolTip = session.Summary is { } summary ? $"{summary}: put them back as they were" : "Nothing changed since Settings opened";
+        }
+        void Changed(string key, object? value)
+        {
+            if (syncing) return;
+            Apply(key, value);
+            Done();
+        }
+        theme.SelectionChanged += (_, _) => Changed("Theme", themes[Math.Max(0, theme.SelectedIndex)]);
+        void Toggles(CheckBox box, string key)
+        {
+            box.Checked += (_, _) => Changed(key, true);
+            box.Unchecked += (_, _) => Changed(key, false);
+        }
+        Toggles(restore, "RestorePosition");
+        Toggles(reopen, "ReopenTabs");
+        Toggles(recovery, "KeepRecoveryCopies");
+        Toggles(dark, "DarkPages");
+        if (updates is not null) Toggles(updates, "CheckForUpdates");
+        // Empty = follow the Windows user name.
+        author.TextChanged += (_, _) =>
+        {
+            var name = author.Text.Trim();
+            Changed("AuthorName", name == Environment.UserName ? "" : name);
+        };
+
         reset.Click += (_, _) =>
         {
             var d = new AppSettings();
-            theme.SelectedIndex = 0;
-            restore.IsChecked = d.RestorePosition;
-            reopen.IsChecked = d.ReopenTabs;
-            recovery.IsChecked = d.KeepRecoveryCopies;
-            dark.IsChecked = d.DarkPages;
-            if (updates is not null) updates.IsChecked = d.CheckForUpdates;
-            author.Text = Environment.UserName;
+            foreach (var (key, value) in new Dictionary<string, object?>
+                     {
+                         ["Theme"] = "System", ["RestorePosition"] = d.RestorePosition, ["ReopenTabs"] = d.ReopenTabs,
+                         ["KeepRecoveryCopies"] = d.KeepRecoveryCopies, ["DarkPages"] = d.DarkPages, ["CheckForUpdates"] = d.CheckForUpdates,
+                         ["AuthorName"] = "",
+                     })
+            {
+                Apply(key, value);
+                Show(key, value);
+            }
+            Done();
+            ShowStatus("Settings back to their defaults; Undo changes puts them back");
         };
-        if (!dlg.ShowModal()) return;
-
-        s.Theme = theme.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" };
-        s.RestorePosition = restore.IsChecked == true;
-        s.ReopenTabs = reopen.IsChecked == true;
-        s.KeepRecoveryCopies = recovery.IsChecked == true;
-        s.DarkPages = dark.IsChecked == true;
-        if (updates is not null) s.CheckForUpdates = updates.IsChecked == true;
-        var name = author.Text.Trim();
-        s.AuthorName = name == Environment.UserName ? "" : name; // empty = follow the Windows user name
-        s.Save();
-        App.ApplyTheme();
-        foreach (var t in Tabs) t.SetDarkPages(s.DarkPages);
-        UpdateUi();
-        ShowStatus("Settings saved");
+        undo.Click += (_, _) =>
+        {
+            foreach (var (key, value) in session.Revert())
+            {
+                Apply(key, value);
+                Show(key, value);
+            }
+            Done();
+            ShowStatus("Settings put back as they were");
+        };
+        Done();
+        dlg.ShowModal();
     }
 
     // ───────────────────────────── UI state ─────────────────────────────
