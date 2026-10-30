@@ -14,6 +14,10 @@ Every claim is checked: each item below has acceptance criteria that a test, a c
 locally, without a service, on what we already have (MuPDF, `DocLayout`, the edit transaction, Batch). Effort: S (about a
 week), M (2-4 weeks), L (more than a month).
 
+**Priority.** Decided 2026-10-30 with the owner: the features other apps keep behind their paid tiers come first, on both
+platforms. Second engines and other additions with no known demand wait for it: Tesseract in 2.2 stays to do until
+reviews or issues ask for missing languages.
+
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
 follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
