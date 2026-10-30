@@ -126,6 +126,46 @@ public class ScanTextTests
     }
 
     [Fact]
+    public void ACleanedPageIsHeldCompressedAsItWillBeWritten()
+    {
+        // Replace the scans holds every page until it writes them: raw, a 500-page Letter colour scan was about 12.6 GB.
+        RecognizedPage page;
+        using (var pdf = PdfEngine.Open(TurnedScan(), InputFileTypes.PDF, null))
+            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), new RecognizeOptions(CheckWords: false, KeepCleanedImage: true));
+        var cleaned = page.Cleaned!;
+        var raw = (long)cleaned.Width * cleaned.Height * cleaned.Channels;
+        Assert.InRange(cleaned.Deflated.LongLength, 1, raw / 4);
+    }
+
+    [Fact]
+    public void AColourPageWrittenBackKeepsItsColours()
+    {
+        var scan = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>",
+            Core2Pdf.Stream("BT /F1 24 Tf 72 700 Td (Heading) Tj ET 0.85 0.1 0.1 rg 72 300 200 150 re f 0.1 0.2 0.85 rg 320 300 200 150 re f"),
+        ]);
+        RecognizedPage page;
+        using (var pdf = PdfEngine.Open(scan, InputFileTypes.PDF, null))
+            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), new RecognizeOptions(CheckWords: false, KeepCleanedImage: true));
+        Assert.Equal(3, page.Cleaned!.Channels);
+        var data = ScanPage.WriteBack(scan, null, new Dictionary<int, CleanedPageImage> { [0] = page.Cleaned });
+        using var after = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        // So few lines may not say which way up: a page set upside down shows the boxes swapped round.
+        var flipped = page.Cleaned.QuarterTurns == 2;
+        (int R, int G, int B) At(double x, double y)
+        {
+            var px = after.Render(0, 1, flipped ? new RectD(612 - x - 4, 792 - y - 4, 4, 4) : new RectD(x, y, 4, 4)).Pixels; // BGR
+            return (px[2], px[1], px[0]);
+        }
+        var red = At(170, 410);
+        var blue = At(420, 410);
+        Assert.True(red.R > 150 && red.B < 100, $"red came out {red}");
+        Assert.True(blue.B > 150 && blue.R < 100, $"blue came out {blue}");
+    }
+
+    [Fact]
     public void TurnedWordsAreFoundWhereTheyWereRead()
     {
         var scan = Core2Pdf.Build([
