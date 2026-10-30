@@ -201,6 +201,13 @@ public sealed class DeviceHttp : IDisposable
         },
     };
 
+    /// <summary>
+    /// The network as an unpinned connection reaches it (any certificate the printer at <paramref name="host"/> shows, for
+    /// that host only), for a caller that wraps it: <see cref="Recording.PrinterRecorder"/> sees every reply this way. Never
+    /// used with credentials.
+    /// </summary>
+    public static HttpMessageHandler NetworkHandler(string host) => CreateHandler(host, (cert, _) => cert is not null);
+
     private static string? TargetHost(object sender) => sender is SslStream s ? s.TargetHostName : null;
 
     public void Dispose()

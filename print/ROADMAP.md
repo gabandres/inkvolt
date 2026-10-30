@@ -100,6 +100,20 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   as IppText, eSCL capabilities and status, SNMP as snmpwalk; nothing written), scrubbed as Report a problem scrubs
   (serials, UUIDs, addresses, host names out), into a folder `FixtureHandler` and `SnmpAgent` serve unchanged;
   `--scan` keeps one glass and one feeder page. A borrowed printer becomes a test forever; a bug report can carry one.
+- **Now (built 2026-10-30, Windows).** `inkvoltprint record <address> <folder>` in the developer CLI (`--scan`, `--community`,
+  `--escl` / `--ipp` hints, `--force`): `Core/Recording/PrinterRecorder` opens the printer through a recording handler that lets
+  GETs and IPP Get-Printer-Attributes through and refuses anything else, drives the app's own readers (probe, reading, UUID
+  check, LEDM documents by type and the firmware manifest, CDM's five, the maintenance probe, eSCL status) and walks SNMP's
+  system, Host Resources device / printer and Printer MIB subtrees, then writes every reply under its fixture name
+  (`IppText.FromResponse` for IPP, `SnmpAgent.FormatWalk` for SNMP) with `recording.tsv` (each request's milliseconds, status,
+  file). `FixtureScrubber` replaces identifiers with stand-ins of the same shape, consistent across documents (serials, UUIDs,
+  IPv4/IPv6, MAC, host names, e-mail, this PC's user and computer names; typed names, locations, contacts, users, jobs, SSIDs
+  become words), so identity checks still agree on replay. Tests: `RecordingTests` (9: the M234dw, the demo inkjet, the CDM
+  laser and the SNMP-only laser recorded through the fixture transport and served again read the same, interfaces, model,
+  firmware, scanner, IPP attributes and reading; a recording sends only GETs and Get-Printer-Attributes; identifiers planted in
+  LEDM, eSCL, IPP and SNMP replies, as Report a problem's tests use them, none left in any file, and the recording still one
+  printer; versions, masks, models kept; `IppText` and the walk read back what they write). **Pending on hardware:** the five
+  recordings the item asks for, and the Help › Report a problem path (the command only for now). Mac: not started.
 - **Beat it when:** the repo holds fixtures from at least one Canon, one Epson, one Brother, one SNMP-only laser and
   one CDM-only HP, each with the status, supplies, alerts and scan tests the demo fixtures have, and the README's "to
   try on hardware" lists shrink to what no fixture can show (a jam, a feeder's duplex order). Test: recording the
