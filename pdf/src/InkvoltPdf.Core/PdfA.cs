@@ -133,8 +133,8 @@ public static class PdfA
     }
 
     /// <summary>
-    /// Embeds the standard Helvetica, Times and Courier faces the document draws with but doesn't embed, as the PDF/A copy
-    /// does (Windows' metric-compatible fonts); other fonts are left as they are. How many were embedded.
+    /// Embeds the standard Helvetica, Times, Courier and ZapfDingbats faces the document draws with but doesn't embed, as the
+    /// PDF/A copy does (Windows' metric-compatible fonts, Segoe UI Symbol); other fonts are left as they are. How many were embedded.
     /// </summary>
     internal static int EmbedStandardFonts(PdfDocument doc)
     {

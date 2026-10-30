@@ -486,11 +486,13 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   now; the open document doesn't change. The copy gets an sRGB output intent (a profile Inkvolt PDF writes itself) and
   PDF/A metadata matching the document properties, loses what PDF/A forbids (password protection, which needs the
   permissions password; JavaScript and actions that run or hide things; multimedia; attached files; XFA; hidden comments;
-  rollover appearances; picture smoothing; LZW compression; transfer functions), its comments and fields print and keep
-  their look, and standard fonts that weren't embedded (Helvetica, Times, Courier, also named Arial, Times New Roman,
-  Courier New) are embedded from Windows' metric-compatible fonts. When something can't be kept without changing the
-  look (another font that isn't embedded, CMYK color without a profile, a digital signature, PostScript), nothing is
-  saved and the reasons are listed. A summary says what was changed.
+  rollover appearances; picture smoothing; LZW compression; transfer functions; pictures' and pages' own metadata; Reader
+  usage rights, the form maker's seal on a form such as the IRS's, which a rewritten copy would void), its comments and
+  fields print and keep their look, and standard fonts that weren't embedded (Helvetica, Times, Courier, also named Arial,
+  Times New Roman, Courier New) are embedded from Windows' metric-compatible fonts, ZapfDingbats (Fill & Sign's marks,
+  forms' check boxes) from Segoe UI Symbol, whose shapes differ a little. When something can't be kept without changing the
+  look (another font that isn't embedded, CMYK color without a profile, a digital signature or certification, PostScript),
+  nothing is saved and the reasons are listed. A summary says what was changed.
 - **Save as PDF/A-2a (Accessible Archive)** (File menu, command palette): the same archival copy at level A, which keeps
   the document's tags and needs a language: an untagged document is offered Make Accessible first. A document that says
   it is PDF/UA keeps saying so (with the extension schema PDF/A asks for).
@@ -809,8 +811,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   itself: the dictionaries follow the PDF standard and Acrobat's own measurements.
 - PDF/A: levels 2b and 2a (2a keeps tags a document has: Make Accessible adds them); not 1 or 3. Fonts that aren't embedded are
   embedded only for the standard Latin faces, in their style (bold, italic), and only when the document's widths are
-  that face's (other designs under a similar name, such as Helvetica Neue or condensed faces, refuse); Symbol and ZapfDingbats (often check marks in older forms), and other
-  fonts, refuse the conversion, as do CMYK colors without a profile (the copy's output intent is sRGB) and signed
+  that face's (other designs under a similar name, such as Helvetica Neue or condensed faces, refuse); ZapfDingbats is
+  embedded from Segoe UI Symbol, unless it has an encoding or widths of its own; Symbol and other
+  fonts refuse the conversion, as do CMYK colors without a profile (the copy's output intent is sRGB) and signed
   documents. A form field without an appearance of its own refuses it too; comments without one are left out. Inkvolt
   PDF checks the rules it handles (Validate); it isn't a full validator: the copies made from the test documents (Word,
   Excel, PowerPoint and PDFsharp output, scans, comments, forms, standard fonts) pass veraPDF 1.30, but unusual files may

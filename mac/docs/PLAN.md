@@ -572,15 +572,31 @@ Mac differences for the PDF app (so far):
   list their lines in a scrolling, selectable box (Windows: a message box);
   "sRGB output intent…" keeps its small s (Windows capitalizes it "SRGB"). PDF/A-2a isn't on the Mac (it needs Make
   Accessible): `PdfA` says where level A goes, and a preset asking for it ("conformance": "a") is refused by name. Found
-  on both platforms and left as Windows does (reported, not fixed): (1) a PDF/A copy keeps other XMP packets (pictures'
-  and pages' /Metadata from Photoshop and InDesign), whose properties aren't in PDF/A's schemas, so veraPDF fails 6.6.2.3.1
-  on 5 of the corpus files on both (pdfua-nutshell, ref-01, ref-04, ref-05, ref-06), though `validate` passes them; (2) a
-  form with Reader usage rights (a /ByteRange in /Perms, no signed field: the IRS forms irs-fw9, f1040, fw9) passes the
-  signature check, then Sanitize's signed-file rule throws "This edit can't be added to the signed file… would
-  invalidate its signature", which `check` doesn't catch and the app shows as a failure, although the copy drops /Perms
-  anyway; (3) a Fill & Sign check mark or cross is drawn with ZapfDingbats (`TextStamps`, as on Windows), which a PDF/A
-  copy can't embed, so a document with one refuses ("The font ZapfDingbats isn't embedded…"; PdfATest runs before
-  the self-test's Fill & Sign for that reason). What a person must look at on the screen (nobody has yet; SSH shows no
+  on both platforms; **fixed on Windows 2026-10-30, the Mac's `PdfA` must follow** (tests by name in PdfATests.cs; Windows'
+  veraPDF 2b on its 51 earlier copies: 44 pass, 7 fail before, all 51 pass after, and the 3 IRS forms and 4 new samples
+  also pass): (1) a PDF/A copy keeps other XMP packets (pictures' and pages' /Metadata from Photoshop and InDesign), whose
+  properties aren't in PDF/A's schemas, so veraPDF fails 6.6.2.3.1 on 5 of the corpus files on both (pdfua-nutshell, ref-01,
+  ref-04, ref-05, ref-06), though `validate` passes them. **Mac:** in the pass, remove /Metadata from every dictionary but
+  the catalog, count it in the changes, and have `validate` check it (PicturesAndPagesLoseTheirOwnMetadata). Windows also
+  shortens names over 127 bytes (NamesOverPdfALimitAreShortenedTogether, ALongNameInPageContentRefuses); the Mac's MuPDF
+  already caps them by cutting, which can make two names one: use the same shorter unique name there too, and refuse one in
+  page content. (2) A form with Reader usage rights (a /ByteRange in /Perms, no signed field: the IRS forms irs-fw9, f1040,
+  fw9) passes the signature check, then Sanitize's signed-file rule throws "This edit can't be added to the signed file…
+  would invalidate its signature", which `check` doesn't catch and the app shows as a failure. **Mac:** as `PdfA.Convert`
+  on Windows, once no field is signed: a /DocMDP in /Perms refuses ("It is certified…"), a /UR3 or /UR goes with a line in
+  the changes, and `PdfSecurity.unprotect` and Sanitize run with the rewrite allowed
+  (UsageRightsAreNoSignatureAndTheCopySaysTheyWent, ACertificationWithoutASignedFieldStillRefuses). PDF/A-2 itself allows
+  UR3 in /Perms (veraPDF's 6.1.12): it goes because a rewrite would void its signature, so the words say that. (3) A Fill &
+  Sign check mark or cross is drawn with ZapfDingbats (`TextStamps`, as on Windows), and the IRS forms' check boxes too, so
+  a document with one refuses ("The font ZapfDingbats isn't embedded…"; PdfATest runs before the self-test's Fill & Sign
+  for that reason: move it back once this is done). **Mac:** Windows embeds it from Segoe UI Symbol (`EmbedDingbats`, all
+  187 codes of the built-in encoding through `DingbatUnicode`). The Mac has no Segoe UI Symbol: use a system font that has
+  those code points (check its embedding bits, as Windows' fsType 8 was; /System/Library/Fonts/ZapfDingbats.ttf is the
+  first to try, and must cover the same codes). The font has to be symbolic: veraPDF's 6.2.11.6 refuses uniXXXX names in a
+  TrueType font's differences, as they aren't in the Adobe Glyph List, so `TrueTypeSubset` must write a single (3,0) cmap
+  at 0xF000 + code, Flags 4, no /Encoding, with a /ToUnicode; a font in the form's /DR is dropped as before, not embedded
+  (FillAndSignMarksConvertWithTheirSymbolsEmbedded, EveryZapfDingbatsCodeIsCovered,
+  ZapfDingbatsWithItsOwnEncodingOrWidthsRefusesSayingWhy). Unproven on the Mac: nobody has run it there. What a person must look at on the screen (nobody has yet; SSH shows no
   screen): the File menu item; the progress sheet; the permissions password sheet; the refusal sheet with many fonts (rw-in-fa-due-diligence-services.pdf)
   and its scrolling; the result sheet's list and Open the Copy; the save panel (its name "… (PDF-A).pdf", the document's
   folder); dark mode; and a copy opened in Acrobat or Preview.
@@ -589,7 +605,7 @@ Mac differences for the PDF app (so far):
   sits over the pages and the panel is a split view inspector (Windows floats both). The rules of clicks, drags, keys and typed values are PdfCore's `FormDesigner` and `FormDesignRules` (Windows keeps them in
   `PageViewer.FormDesign` and `DocumentTab.FormDesign`, untested), so they are tested on the Mac only (FormDesignerTests). ⌘D duplicates the selected field while the pages have the focus; without one it is Add Bookmark, as
   the menu says. Esc with nothing to let go goes back to Select Text, the Mac's default tool (Windows: Hand). The view doesn't turn on the Mac yet, so moves, handles and arrow keys work in page space (Windows goes through
-  `RotatedView`). A list box whose /DV is an array keeps it and its value when moved or otherwise changed; on Windows `SetDefault` clears both (reported, not fixed there; aListBoxWithSeveralDefaultsKeepsThemWhenMoved). A failed
+  `RotatedView`). A list box whose /DV is an array keeps it and its value when moved or otherwise changed; Windows' `SetDefault` cleared both until 2026-10-30 (aListBoxWithSeveralDefaultsKeepsThemWhenMoved). A failed
   move or property change says why in the usual error sheet (Windows' `quiet` edit a toast). `uniqueName` and `nextName` go through `NameBook`, which keeps its place, so a page of 3,600 check boxes is named in moments;
   Swift compares names by canonical equivalence where .NET compares ordinally. The tests draw in the built-in Helvetica through content streams (Windows: XGraphics with embedded Arial): MuPDF's boxes for it are taller, so an
   underscore field's bottom may reach 109 (Windows: 106). SignedFilesGetFieldsAppended uses `Core2SignatureTests.signed()`, which verifies, since the Mac's `SignedEditTests.signed()` has an empty signature. The pages keep their zoom when the panel opens, so a page shown wide runs under its edge until scrolled or zoomed (Windows leaves it room with a margin). What a person must look

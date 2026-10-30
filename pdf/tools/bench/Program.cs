@@ -29,6 +29,7 @@ System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureIn
 //                                             Write RESULTS.md (default: this tool's folder) from dir\results.json.
 // one <file.pdf> <word>                       Measure one file in this process and print the JSON (what run spawns).
 // find-crash <file.pdf> <word>                A test: starts a search with workers, prints their ids, kills itself mid-search.
+// find-worker-fault throw|die <page> <switch> <pipe>  A test: a Find worker that can't read that page, or dies on it.
 // png <file.pdf> <page> <out.png>             Render a page at 72 dpi, to look at a corpus file.
 var dir = Harness.DefaultOut;
 var small = false;
