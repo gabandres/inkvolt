@@ -64,7 +64,9 @@ internal static class ExportActions
         // Busy from here, so nothing replaces the engine this export reads.
         using var busy = tab.BeginBusy($"Exporting {Pages(pages.Length)}…");
         var engine = tab.ViewEngine; // what is shown (chosen layers included)
-        var (source, sourcePassword) = (tab.Session.Data, tab.Session.Password);
+        // PowerPoint and HTML read the language and alternate text from the PDF itself; the others have no use for its bytes.
+        var source = format is ExportFormat.PowerPoint or ExportFormat.Html && tab.Session.IsPdf ? tab.Session.Data : null;
+        var sourcePassword = tab.Session.Password;
         using var progress = new ProgressPrompt(owner, kind.Title, "Reading the pages…");
         var cancel = progress.Token;
         var options = new ExportOptions

@@ -303,6 +303,9 @@ public class ExportPptxTests
         Assert.Contains("<script>", text);
         Assert.Contains("</a:t>", text);
         Assert.DoesNotContain('\u0001', text);
+        // Nothing in the file points outside it.
+        Assert.All(SlideParts(doc), part => Assert.Empty(part.ExternalRelationships));
+        Assert.All(SlideParts(doc), part => Assert.Empty(part.HyperlinkRelationships));
     }
 
     [Fact]
