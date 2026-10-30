@@ -712,7 +712,7 @@ final class AccessibilityBatchTests {
         let summary = try await BatchRunner.run([BatchFile(good), BatchFile(bad)], plan, BatchHost(), progress: nil, cancel: CancelToken())
 
         let ok = summary.items[0]
-        #expect(ok.state == .done, "\(ok.message ?? "")")
+        #expect(ok.state == .done, "\(ok.message)")
         #expect(ok.outputs.contains(path("out", "good.pdf")))
         #expect(ok.outputs.contains(path("out", "good accessibility.html")))
         let goodReport = try String(contentsOfFile: path("out", "good accessibility.html"), encoding: .utf8)
@@ -720,7 +720,7 @@ final class AccessibilityBatchTests {
 
         let failed = summary.items[1]
         #expect(failed.state == .failed)
-        #expect(failed.message?.hasPrefix("Accessibility check: Fails 1 condition") == true)
+        #expect(failed.message.hasPrefix("Accessibility check: Fails 1 condition"))
         #expect(failed.notes.contains { $0.hasPrefix("13-004") })
         #expect(!FileManager.default.fileExists(atPath: path("out", "bad.pdf"))) // a failing file isn't saved
         #expect(failed.outputs == [path("out", "bad accessibility.html")])
