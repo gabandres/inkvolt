@@ -557,6 +557,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return !form.widgets.isEmpty
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
              #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
+             #selector(checkAccessibility(_:)),
              #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),
              #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)):
             return longTask == nil && progressSheet == nil && redaction.task == nil

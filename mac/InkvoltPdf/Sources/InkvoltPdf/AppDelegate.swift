@@ -292,6 +292,7 @@ enum MainMenu {
         menu.addItem(item("Check Redaction…", #selector(DocumentWindowController.checkRedaction(_:))))
         menu.addItem(item("Sanitize Document…", #selector(DocumentWindowController.sanitizeDocument(_:))))
         menu.addItem(item("What's in This PDF…", #selector(DocumentWindowController.whatsInThisPdf(_:))))
+        menu.addItem(item("Accessibility Check…", #selector(DocumentWindowController.checkAccessibility(_:))))
         menu.addItem(.separator())
         // Measure (Windows: Review › Measure): the measuring tools, then the scale.
         let measure = NSMenu(title: "Measure")
