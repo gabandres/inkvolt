@@ -148,7 +148,7 @@ extension DocumentWindowController {
     private static func pages(_ n: Int) -> String { n == 1 ? "1 page" : "\(n) pages" }
 
     /// A page choice for a dialog: all, the current page, or a range typed in.
-    private func pageChoice(allTitle: String) -> (view: NSView, read: () -> (pages: [Int]?, error: String?)) {
+    func pageChoice(allTitle: String) -> (view: NSView, read: () -> (pages: [Int]?, error: String?)) {
         let count = engine.pageCount, current = pages.currentPage
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
         popup.addItems(withTitles: [allTitle, "Current page (\(current + 1))", "Page range"])

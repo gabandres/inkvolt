@@ -5,6 +5,12 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Batch (File menu, and the start page): the same actions on many PDFs and pictures, saved to a folder with names from a template: reduce file size, protect or unprotect, sanitize, redact patterns, check redaction, report what's in each file, watermark, header and footer with Bates numbers, rotate, flatten, recognize text, export to Word, Excel, text, page images or form data. Save the list as a preset, export and import presets (the same files as on Windows), and watch folders: a file dropped in runs through a preset once it has finished copying.
+- The command line: `InkvoltPdf --batch preset.json files…` and `--watch folder --preset preset.json` run a preset without a window, from a terminal or launchd (`--help` explains).
+- Reduce File Size… (File menu): pictures downsampled to the chosen resolution, duplicates merged, streams compressed, unused objects dropped.
+- Add Header & Footer… and Add Watermark… (Pages menu): page numbers, dates, Bates numbers, a text or a picture across the pages, written into them so they print everywhere; Remove takes them off again.
+- Flatten… (Pages menu): comments and form fields become part of the pages.
+- Help › Inkvolt Pro…: enter an Inkvolt Pro licence key, see whom it's licensed to, or remove it. Everything in Inkvolt PDF for Mac stays free while it launches, Pro features included; a licence ($19, one time, no account, checked on your Mac and never sent anywhere) supports the project and keeps those features for you when they start asking for a key. One key works on Windows and the Mac.
 
 ## 1.2.0
 - What's in This PDF (Tools menu, and See What's in It… in Sanitize Document): one report of everything a PDF carries besides its pages: scripts and what they do, actions that run by themselves, every web address, file and program it can reach (marked when no click is needed), attachments, metadata and comment authors, signatures, earlier versions, hidden layers and text, form values and covers that hide nothing. It says what Sanitize removes, and saves as a web page or JSON. Nothing in the file is contacted.

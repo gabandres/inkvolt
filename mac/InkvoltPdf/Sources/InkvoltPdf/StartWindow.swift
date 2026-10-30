@@ -12,7 +12,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     /// A Tools card: what it says and what it does.
     enum ToolCard: Int, CaseIterable {
-        case fillSign, editContent, exportWord, combine, protect, ocr, organize, create
+        case fillSign, editContent, exportWord, combine, protect, ocr, organize, create, batch
 
         var title: String {
             switch self {
@@ -24,6 +24,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .ocr: "Recognize text (OCR)"
             case .organize: "Organize pages"
             case .create: "Create a PDF"
+            case .batch: "Batch"
             }
         }
 
@@ -37,6 +38,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .ocr: "Make a scan searchable and its text copyable"
             case .organize: "Reorder, rotate, delete, insert or extract pages"
             case .create: "From images, the clipboard or a scanner"
+            case .batch: "The same actions on many files; presets and watched folders"
             }
         }
 
@@ -50,6 +52,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .ocr: "text.viewfinder"
             case .organize: "square.grid.2x2"
             case .create: "doc.badge.plus"
+            case .batch: "square.stack.3d.down.right"
             }
         }
 
@@ -63,7 +66,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .protect: controller.protectDocument(nil)
             case .ocr: controller.recognizeText(nil)
             case .organize: if !controller.organizerShown { controller.toggleOrganizer(nil) }
-            case .combine, .create: break
+            case .combine, .create, .batch: break
             }
         }
 
@@ -358,6 +361,8 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         switch card {
         case .combine:
             _ = CombineWindowController.show()
+        case .batch:
+            BatchWindowController.show()
         case .create:
             let menu = NSMenu()
             for (title, action) in [("From Images…", #selector(AppDelegate.newFromImages(_:))),

@@ -391,7 +391,7 @@ public enum BatchPresets {
             throw BatchPresetError("This JSON file isn't an Inkvolt PDF batch preset (its \"format\" should be \"\(Self.format)\").")
         }
         guard let version = root["version"], !(version is NSNull) else { throw BatchPresetError("This JSON file isn't an Inkvolt PDF batch preset: it has no \"version\".") }
-        guard let n = version as? NSNumber, !(n is Bool), Double(truncating: n) == Double(truncating: n).rounded(), n.intValue >= 1 else {
+        guard let n = version as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), Double(truncating: n) == Double(truncating: n).rounded(), n.intValue >= 1 else {
             throw BatchPresetError("The preset's \"version\" (\(Fields.raw(version))) isn't one Inkvolt PDF knows: it should be \(Self.version).")
         }
         let v = n.intValue

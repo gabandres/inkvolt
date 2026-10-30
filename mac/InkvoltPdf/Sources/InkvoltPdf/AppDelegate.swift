@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The Inkvolt Pro licence key lives in the settings (the self-test's suite, when it runs).
         Pro.store = SettingsProStore(defaults: AppSettings.defaults)
         AppSettings.applyTheme()
+        FolderWatches.shared.startSaved()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
         RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
@@ -51,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showAbout(_ sender: Any?) { AboutWindowController.show() }
     @objc func showWhatsNew(_ sender: Any?) { WhatsNew.show(WhatsNew.notes()) }
     @objc func showPro(_ sender: Any?) { ProWindowController.show() }
+    @objc func showBatch(_ sender: Any?) { BatchWindowController.show() }
+    @objc func showWatchedFolders(_ sender: Any?) {
+        if Pro.allows(.watchedFolders) { WatchedFoldersWindowController.show() } else { ProWindowController.show(feature: .watchedFolders) }
+    }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
 
@@ -140,6 +145,9 @@ enum MainMenu {
         menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
         menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))
         menu.addItem(.separator())
+        menu.addItem(item("Batch…", #selector(AppDelegate.showBatch(_:)), "b", [.command, .shift]))
+        menu.addItem(item("Watched Folders…", #selector(AppDelegate.showWatchedFolders(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
         menu.addItem(item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]))
@@ -163,6 +171,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Protect with Password…", #selector(DocumentWindowController.protectDocument(_:))))
         menu.addItem(item("Remove Password Protection…", #selector(DocumentWindowController.removeProtection(_:))))
+        menu.addItem(item("Reduce File Size…", #selector(DocumentWindowController.reduceFileSize(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Page Setup…", #selector(NSDocument.runPageLayout(_:)), "p", [.command, .shift]))
         menu.addItem(item("Print…", #selector(NSDocument.printDocument(_:)), "p"))
@@ -231,6 +240,12 @@ enum MainMenu {
         menu.addItem(item("Insert Blank Page", #selector(DocumentWindowController.insertBlankPage(_:))))
         menu.addItem(item("Extract Pages…", #selector(DocumentWindowController.extractPages(_:))))
         menu.addItem(item("Crop Pages…", #selector(DocumentWindowController.cropPages(_:))))
+        menu.addItem(.separator())
+        menu.addItem(item("Add Header & Footer…", #selector(DocumentWindowController.addHeaderFooter(_:))))
+        menu.addItem(item("Remove Header & Footer", #selector(DocumentWindowController.removeHeaderFooter(_:))))
+        menu.addItem(item("Add Watermark…", #selector(DocumentWindowController.addWatermark(_:))))
+        menu.addItem(item("Remove Watermark", #selector(DocumentWindowController.removeWatermark(_:))))
+        menu.addItem(item("Flatten…", #selector(DocumentWindowController.flattenDocument(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Add Bookmark", #selector(DocumentWindowController.addBookmark(_:)), "d"))
         menu.addItem(item("Show Bookmarks", #selector(DocumentWindowController.showBookmarks(_:)), "2", [.command, .option]))
