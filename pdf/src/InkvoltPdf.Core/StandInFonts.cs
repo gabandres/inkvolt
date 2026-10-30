@@ -81,18 +81,116 @@ internal static class StandInFonts
         }
     }
 
-    /// <summary>The installed families a look can name, by name ("Arial", "Georgia"): the ones on this PC.</summary>
-    public static IReadOnlyList<string> Installed() => [.. Families.Where(f => SystemFonts.Get(f.Regular) is not null).Select(f => f.Name)];
+    /// <summary>
+    /// The installed families a look can name, by name ("Arial", "Georgia", "Comic Sans MS"): the common ones above
+    /// that are on this PC and every other TrueType family Windows lists (<see cref="InstalledFamilies"/>), sorted.
+    /// </summary>
+    public static IReadOnlyList<string> Installed() =>
+        [.. Families.Where(f => SystemFonts.Get(f.Regular) is not null).Select(f => f.Name).Concat(InstalledFamilies.Value.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>An installed family beyond the common ones: the file of each face Windows lists for it.</summary>
+    private sealed record Listed(string Name, string? Regular, string? Bold, string? Italic, string? BoldItalic);
+
+    /// <summary>
+    /// The TrueType families (.ttf, .ttc) Windows lists for the machine and the user, by name, read once: each entry
+    /// ("Arial Narrow Bold (TrueType)") gives a family and a face; a collection entry ("Cambria &amp; Cambria Math") gives
+    /// its first font, the one the file loads as. Other platforms: none.
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, Listed>> InstalledFamilies = new(ReadInstalled);
+
+    private static Dictionary<string, Listed> ReadInstalled()
+    {
+        var families = new Dictionary<string, Listed>(StringComparer.OrdinalIgnoreCase);
+        if (!OperatingSystem.IsWindows()) return families;
+        foreach (var hive in new[] { Microsoft.Win32.Registry.LocalMachine, Microsoft.Win32.Registry.CurrentUser })
+        {
+            try
+            {
+                using var key = hive.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts");
+                if (key is null) continue;
+                foreach (var entry in key.GetValueNames())
+                {
+                    if (key.GetValue(entry) is not string file || Path.GetExtension(file) is not (".ttf" or ".TTF" or ".ttc" or ".TTC")) continue;
+                    var name = entry;
+                    var paren = name.IndexOf(" (", StringComparison.Ordinal);
+                    if (paren > 0) name = name[..paren];
+                    var amp = name.IndexOf(" & ", StringComparison.Ordinal);
+                    if (amp > 0) name = name[..amp];
+                    name = name.Trim();
+                    if (name.Length == 0) continue;
+                    var (family, style) = StyleOf(name);
+                    var f = families.GetValueOrDefault(family) ?? new Listed(family, null, null, null, null);
+                    families[family] = style switch
+                    {
+                        (true, true) => f with { BoldItalic = f.BoldItalic ?? file },
+                        (true, false) => f with { Bold = f.Bold ?? file },
+                        (false, true) => f with { Italic = f.Italic ?? file },
+                        _ => f with { Regular = f.Regular ?? file },
+                    };
+                }
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                // No font list to read: the common families still stand.
+            }
+        }
+        foreach (var (name, f) in families.ToList())
+            if (f.Regular is null) families[name] = f with { Regular = f.Bold ?? f.Italic ?? f.BoldItalic };
+        return families;
+    }
+
+    /// <summary>A face name's family and style: "Arial Narrow Bold Italic" → ("Arial Narrow", bold, italic); weights by name ("Segoe UI Light") stay families.</summary>
+    private static (string Family, (bool Bold, bool Italic) Style) StyleOf(string name)
+    {
+        bool bold = false, italic = false;
+        while (true)
+        {
+            if (Strip(" Bold Italic")) bold = italic = true;
+            else if (Strip(" Bold")) bold = true;
+            else if (Strip(" Italic") || Strip(" Oblique")) italic = true;
+            else if (!Strip(" Regular")) break;
+        }
+        return (name, (bold, italic));
+
+        bool Strip(string suffix)
+        {
+            if (!name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) || name.Length <= suffix.Length) return false;
+            name = name[..^suffix.Length].TrimEnd();
+            return true;
+        }
+    }
+
+    /// <summary>A listed family's face closest to the style asked (its regular one when it has no bold or italic); null when its file can't be loaded.</summary>
+    private static StandInFont? Face(Listed f, bool bold, bool italic)
+    {
+        var file = (bold, italic) switch
+        {
+            (true, true) when f.BoldItalic is not null => f.BoldItalic,
+            (true, _) when f.Bold is not null => f.Bold,
+            (_, true) when f.Italic is not null => f.Italic,
+            _ => f.Regular,
+        };
+        if (file is null) return null;
+        var tt = SystemFonts.Get(file);
+        if (tt is null && file != f.Regular && f.Regular is not null) (file, tt) = (f.Regular, SystemFonts.Get(f.Regular));
+        if (tt is null) return null;
+        var name = f.Name + (file == f.BoldItalic ? " Bold Italic" : file == f.Bold ? " Bold" : file == f.Italic ? " Italic" : "");
+        return new StandInFont(tt, name);
+    }
 
     /// <summary>
     /// The installed font for text of <paramref name="font"/> given a look: <paramref name="family"/> when it is one of
-    /// the families here and installed (its bold or italic face when it has one), else the closest to the paragraph's font in that style.
+    /// the families here or one Windows lists, and installed (its bold or italic face when it has one), else the
+    /// closest to the paragraph's font in that style.
     /// </summary>
     internal static StandInFont Styled(TextFont font, string? family, bool bold, bool italic)
     {
         if (family is not null && Families.FirstOrDefault(f => f.Name.Equals(family, StringComparison.OrdinalIgnoreCase) || f.Aliases.Contains(family, StringComparer.OrdinalIgnoreCase)) is { } f
             && Face(f, bold, italic) is { } face)
             return face;
+        if (family is not null && InstalledFamilies.Value.TryGetValue(family, out var listed) && Face(listed, bold, italic) is { } other)
+            return other;
         return RankFor(font, bold, italic).FirstOrDefault() ?? throw new ContentEditException("No font on this PC can draw this text.");
     }
 

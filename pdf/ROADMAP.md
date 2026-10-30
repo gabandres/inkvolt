@@ -244,8 +244,13 @@ the checkout.
   as one with its looks (`TextParagraph.Spans`); a line with bigger text moves down (step = 0.25 of the line above's
   scale + 0.75 of its own), read back as the paragraph's own step. Text typed without looks keeps the looks of what
   didn't change (a character diff; typed letters inside a word take the look before them). Adjacent stretches in one
-  font are one operator. Decisions: a look's family must be one of the 14 (others fall back to the closest);
-  a styled space at a line's end isn't drawn, so its look goes. Tests: `ParagraphEditTests` (41, with
+  font are one operator. Decisions: a styled space at a line's end isn't drawn, so its look goes. The look bar first
+  listed the 14 common families only; since 2026-10-30 it lists every TrueType family Windows lists for the machine
+  and the user (`StandInFonts.Installed`, from the font registry: "Arial Narrow Bold" is Arial Narrow's bold face,
+  weights by name such as "Segoe UI Light" are families of their own, a collection entry gives the font its file
+  loads as), and a look in one of them is drawn in it; a family that isn't installed, or whose file isn't TrueType
+  (CFF OpenType), falls back to the closest ranked font as before. Stand-ins for characters the font lacks still come
+  from the ranked 14. Tests: `ParagraphEditTests` (41, with
   `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
   files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
   still uses the one-run editor; since 2026-10-30 it draws characters the font lacks from the same stand-in fonts
@@ -265,8 +270,8 @@ the checkout.
   back wherever the pair occurs, so edited lines are set as tightly as untouched ones; the one-run editor does the
   same for its changed middle from the run's own pairs. Pairs the original never had get no kerning (the font's own
   kern table isn't read). Still to do: paragraphs in turned
-  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); fonts
-  beyond the 14 families in the look bar; the Acrobat and pdf.js check.
+  text (they edit line by line); mixed-font paragraphs from other software (blocked: edited line by line); the
+  Acrobat and pdf.js check.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

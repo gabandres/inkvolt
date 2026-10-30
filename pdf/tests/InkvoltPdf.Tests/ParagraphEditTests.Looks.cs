@@ -27,6 +27,46 @@ public partial class ParagraphEditTests
         Assert.Equal(expected.OrderBy(s => s.Start).Select(s => (s.Start, s.Length, s.Look)), actual.OrderBy(s => s.Start).Select(s => (s.Start, s.Length, s.Look)));
 
     [Fact]
+    public void TheLookBarListsEveryInstalledFamily()
+    {
+        var fonts = ContentEditor.LookFonts();
+        Assert.Contains("Arial", fonts);
+        Assert.Contains("Times New Roman", fonts);
+        // Beyond the 14 common families: whatever Windows lists (Comic Sans MS and Impact ship with every Windows).
+        Assert.Contains("Comic Sans MS", fonts);
+        Assert.Contains("Impact", fonts);
+        Assert.Equal(fonts.Order(StringComparer.OrdinalIgnoreCase), fonts);
+        Assert.Equal(fonts.Distinct(StringComparer.OrdinalIgnoreCase).Count(), fonts.Count);
+        Assert.DoesNotContain(fonts, f => f.EndsWith(" Bold", StringComparison.Ordinal) || f.EndsWith(" Italic", StringComparison.Ordinal) || f.EndsWith(" Regular", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ALookInAFamilyBeyondTheFourteenDrawsInIt()
+    {
+        var (pdf, _) = Page(ParagraphAlign.Left, gap: 120);
+        var p = Body0(pdf);
+        var looks = new List<TextSpan>
+        {
+            Span(Body, "lazy dog", new TextLook(Font: "Comic Sans MS")),
+            Span(Body, "wizards", new TextLook(Font: "Comic Sans MS", Bold: true)),
+            Span(Body, "sphinx", new TextLook(Font: "No Such Family")),
+        };
+        var check = p.Check(Body, looks);
+        Assert.Null(check.LookProblem);
+        Assert.Empty(check.Missing);
+        // A family not installed falls back to the closest installed font, named as such.
+        Assert.Equal(["Comic Sans MS", "Comic Sans MS Bold", "Arial"], check.Faces);
+
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, Body, spans: looks);
+        Assert.Equal(Words(Body), Words(Regex.Replace(ContentEditPdf.Text(edited), "A Heading Here|Next block starts here", "")));
+        var q = Body0(edited);
+        AssertSpans(looks, q.Spans);
+        var runs = q.Runs.GroupBy(r => r.Text.Trim()).ToDictionary(g => g.Key, g => g.First());
+        Assert.Contains("comic", runs["lazy dog"].FontName, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("comicbd", runs["wizards"].FontName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void AStretchGetsItsOwnFontSizeColorBoldAndItalic()
     {
         var (pdf, _) = Page(ParagraphAlign.Left, gap: 120);
