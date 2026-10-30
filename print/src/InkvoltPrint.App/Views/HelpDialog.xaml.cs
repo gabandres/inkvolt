@@ -6,7 +6,7 @@ using InkvoltPrint.App.ViewModels;
 
 namespace InkvoltPrint.App.Views;
 
-/// <summary>Help (F1, the sidebar's "Help and shortcuts"): the keyboard shortcuts, finding a printer, What's New, Report a problem, the log.</summary>
+/// <summary>Help (F1, the sidebar's "Help and shortcuts"): the keyboard shortcuts, finding a printer, What's New, Report a problem, the log, Inkvolt Pro.</summary>
 public partial class HelpDialog : Window
 {
     /// <summary>Key → what it does, as the Help window lists them.</summary>
@@ -56,6 +56,12 @@ public partial class HelpDialog : Window
     private void WhatsNew_Click(object sender, RoutedEventArgs e) => WhatsNewDialog.Open(this, AppHelp.Notes());
 
     private void Report_Click(object sender, RoutedEventArgs e) => ReportProblemDialog.Open(this, AppHelp.Report(_vm));
+
+    private void Pro_Click(object sender, RoutedEventArgs e)
+    {
+        Close(); // Help is modal; the Pro window stays open over the main window
+        ProWindow.Open(Owner);
+    }
 
     private void LogFolder_Click(object sender, RoutedEventArgs e)
     {

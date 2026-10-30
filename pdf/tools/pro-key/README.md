@@ -1,8 +1,9 @@
 # pro-key: the Inkvolt Pro licence tool
 
 Makes the signing key pair, issues a licence key for a purchase and checks one. Not shipped. The format it writes is
-what `ProKeys` in `pdf/src/InkvoltPdf.Core/Pro.cs` reads (and the Mac port will read with CryptoKit); `test-vector.json`
-here is the shared check.
+what `ProKeys` in `shared/InkvoltPrint.Core/Suite/ProKeys.cs` reads, for Inkvolt PDF and Inkvolt Print alike (and the
+Mac port will read with CryptoKit); `test-vector.json` here is the shared check. The apps keep an entered key in
+`%LOCALAPPDATA%\Inkvolt\pro-key.txt` (`ProKeyFile`), so one key entered in either app licenses both.
 
 ```powershell
 dotnet run --project pdf/tools/pro-key -- keygen                                   # once: the pair into %USERPROFILE%\.inkvolt-pro
@@ -13,7 +14,7 @@ dotnet run --project pdf/tools/pro-key -- check INKVOLT-PRO-…                 
 `keygen` writes `inkvolt-pro.key` (the **private** key, PKCS#8 PEM) and `inkvolt-pro.pub` (the public key) to
 `%USERPROFILE%\.inkvolt-pro` (`--dir` for another folder) and refuses to overwrite. The private key is never in the repo
 and never printed; its backup is the `Inkvolt Pro licence key` folder under the company's Keys folder on OneDrive, with a
-README on restoring and rotating. The public key goes into Core as `ProKeys.PublicKeyBase64` (`keygen` prints it);
+README on restoring and rotating. The public key goes into the shared library as `ProKeys.PublicKeyBase64` (`keygen` prints it);
 `issue` warns when the private key it holds doesn't match the one built in.
 
 ## The key format (version 1)
@@ -41,9 +42,10 @@ INKVOLT-PRO-AFAWI-YJAJR-XXMZL-MMFRW-…-GYQ
 
 Reading is strict, each refusal with a plain reason: empty; not starting with the prefix; a character outside the
 alphabet; too short to hold a payload and a signature; a version byte other than 1 ("made for a newer version");
-signature doesn't verify ("altered or didn't paste whole"); payload not four lines or the date not a date. Inkvolt PDF
-then also refuses a verified key that doesn't list `pdf`. With the signature over the version byte and all four lines,
-nothing in a key can be changed without a new signature.
+signature doesn't verify ("altered or didn't paste whole"); payload not four lines or the date not a date. Each app
+then also refuses a verified key that doesn't list its product (Inkvolt PDF `pdf`, Inkvolt Print `print`), naming the
+app the key is for. With the signature over the version byte and all four lines, nothing in a key can be changed
+without a new signature.
 
 Why P-256 and not Ed25519: .NET 10 has no Ed25519 without a package (the apps take no new dependency for this), and
 CryptoKit has both; P-256 is the one both sides have.
@@ -52,5 +54,5 @@ CryptoKit has both; P-256 is the one both sides have.
 
 `test-vector.json`: the public key, a valid key (Ada Lovelace, `pdf,print`, 2026-10-30) with what it must read as, the
 same key with one character changed (must be refused as altered), and a valid key for `print` only (reads, but Inkvolt
-PDF refuses to install it). `ProTests` in `pdf/tests/InkvoltPdf.Tests` checks all three against the public key built
-into Core; the Mac port's tests use the same file.
+PDF refuses to install it; Inkvolt Print installs it). `ProTests` in `pdf/tests/InkvoltPdf.Tests` and in
+`print/tests/InkvoltPrint.Tests` check all three against the public key built in; the Mac port's tests use the same file.

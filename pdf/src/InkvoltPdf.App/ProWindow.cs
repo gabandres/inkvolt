@@ -2,10 +2,14 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPdf.App;
 
-/// <summary>The licence key lives in the settings (<see cref="AppSettings.ProKey"/>), so it survives reinstalling with them.</summary>
+/// <summary>
+/// The licence key in the settings (<see cref="AppSettings.ProKey"/>), so it survives reinstalling with them; App wraps it
+/// in a <see cref="SharedProStore"/>, which keeps the key where Inkvolt Print finds it too (<c>%LOCALAPPDATA%\Inkvolt\pro-key.txt</c>).
+/// </summary>
 internal sealed class SettingsProStore : IProStore
 {
     public string? Read() => AppSettings.Current.ProKey is { Length: > 0 } key ? key : null;
@@ -98,7 +102,7 @@ internal sealed class ProWindow : Window
         if (licence is not null)
         {
             _body.Children.Add(new TextBlock { Text = $"Pro licensed to {licence.Name}", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Key for {licence.Email}, issued {licence.Issued:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Thank you for supporting Inkvolt PDF."));
+            _body.Children.Add(Caption($"Key for {licence.Email}, issued {licence.Issued:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling{(licence.Covers(ProKeys.ProductPrint) ? "; Inkvolt Print on this PC finds it too" : "")}. Thank you for supporting Inkvolt PDF."));
             if (!Pro.Enforced)
                 _body.Children.Add(Caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line) when they start asking for a key."));
             var remove = new Button { Content = "Remove Licence", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };

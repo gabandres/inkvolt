@@ -51,6 +51,25 @@ by project reference for scanning (File › Scan…, Insert from Scanner…) and
   printers and queue associations), `QueueMatch` (Windows queue → printer: stored association, device container, address
   in the port, unambiguous name), `PrinterHealth` (ready/sleeping/error/offline, toner, paper problems), `ScanChoices`
   (sources, colors, resolutions, page sizes → `ScanRequest`; Inkvolt Print's Scan tab uses its page sizes).
+- **Inkvolt Pro, one key for both apps** (Help › Inkvolt Pro…): a one-time $19 licence, no account, nothing sent. The
+  window shows Free or "Pro licensed to NAME", takes a pasted key (a refused key says why in plain words: not an Inkvolt
+  Pro key, altered or not pasted whole, made for a newer version, for Inkvolt PDF only), opens the checkout (`Pro.BuyUrl`)
+  and removes the licence. The key (`INKVOLT-PRO-` and groups of five letters and digits, signed with our private key:
+  `pdf/tools/pro-key/README.md` has the format and the test vector) names the products it covers (`pdf`, `print`, or
+  both) and is checked on this PC against the public key in `InkvoltPrint.Core/Suite/ProKeys.cs` (ECDSA P-256), the
+  same code for both apps; each app's `Pro` (`InkvoltPrint.Core/Pro.cs`, `InkvoltPdf.Core/Pro.cs`) sits on the suite's
+  `ProCheck` for its product. The key lives in **`%LOCALAPPDATA%\Inkvolt\pro-key.txt`**, written and read by both apps
+  (`Suite/ProKeyFile`; a Store copy's write lands in its package folder, `Packages\<family>\LocalCache\Local\Inkvolt\`,
+  which the other app looks in too, as it does for `state.json`), so a key entered in Inkvolt PDF licenses Inkvolt Print
+  and removing it in either app removes it for both; a key from an app's own settings (Inkvolt PDF 1.2.1 kept it there)
+  moves into the file on first read, and the settings hold a copy only when the file can't be written. Inkvolt Print's
+  Pro features are the roadmap's office ones (supply history export, batch print lists and the command line, fleet
+  export, scanner sharing, SNMPv3; none built yet); `Pro.Allows(feature)` is their one check, and **the gate is off
+  while the apps launch** (`ProCheck.Enforced`, one switch for both; see the roadmap's "Free and Pro"): everything is
+  free, a key is still verified and shown. Tested in `ProTests` (the vector against the built-in key, every changed
+  character refused, a print-only key refused by the PDF check, the shared file, a packaged copy's redirected file).
+  Untried in the Store packages: that one packaged app sees the other's redirected copy, and that a packaged copy
+  deleting the file removes it for an unpackaged one (listed under "Not done").
 - One installer for both: `install-suite.ps1` at the repository root (`%LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf` and
   `\InkvoltPrint`, Start Menu folder "Inkvolt", App Paths; `-Uninstall` removes only what it added).
 - `InkvoltPrint.exe --unregister` (no window; exit code 0, or 1 when the registry refused) removes what the app itself writes
@@ -92,7 +111,7 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 ```
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
-(`--size 1366 860` window size in DIPs, `--fix` opens the offline fixer, `--fix all` also applies its repairs (demo printers only), `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--source glass|feeder|duplex`, `--split none|patch|blank|either` and `--keep-separators` set the Scan tab first (with `--preset`, demo only: the preset scans a batch from the feeder and splits it), `--find-photos` turns on Several photos on the glass (with `--crop n` the photo view opens on page n, `--photo-box n` selecting its n-th photo; with `--preset`, demo only: the preset finds the photos and saves them as JPEGs without the review), `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer, `--preset id|name` runs a scan preset (`--then print|email|pdf` sets its after-saving step first, demo only), `--presets [n]` renders the presets editor on its n-th preset instead of the window; `--maintenance [n]` scrolls to the Maintenance card and runs its n-th action (demo only, answering yes); `--photos [layout]` fills the Photos tab with generated sample pictures (layouts `full`, `4x6in`, `5x7in`, `8x10in`, `10x15cm`, `13x18cm`, `wallet`, `contact`; also `--paper key`, `--borderless`, `--fit`, `--one-per-sheet`, `--per-sheet n`, `--photo-zoom n`, and `--photo-sheets folder`, which renders each sheet with the print job's own paginator to PNGs there instead of printing); with `--tray` (the notification-area icon, on in demo mode) `--simulate-alerts` feeds a toner drop on the first demo printer and a jam on the second through the alert rules, and `--tray-shot menu|hidden|alert|settings` renders the icon's menu (hidden: after closing to the tray and one background check), a preview of the last alert or the Settings window instead of the window); `--dialog settings|help|whatsnew|report` renders that window instead. `--demo --no-printers` is a made-up PC that finds no printer (the empty list); `--demo --whatsnew-from 1.0.2` runs What's New as if updated from that version. `--demo --tray --simulate-alerts` without `--snapshot` shows the real notification.
+(`--size 1366 860` window size in DIPs, `--fix` opens the offline fixer, `--fix all` also applies its repairs (demo printers only), `--theme Dark`, `--scan [n]` runs one scan (or n) first, `--crop n` then opens the crop view on page n, `--source glass|feeder|duplex`, `--split none|patch|blank|either` and `--keep-separators` set the Scan tab first (with `--preset`, demo only: the preset scans a batch from the feeder and splits it), `--find-photos` turns on Several photos on the glass (with `--crop n` the photo view opens on page n, `--photo-box n` selecting its n-th photo; with `--preset`, demo only: the preset finds the photos and saves them as JPEGs without the review), `--scroll-end` scrolls the tab to its end, `--copy document|idcard-front|idcard` runs a copy first, `--printer n` shows the n-th printer, `--preset id|name` runs a scan preset (`--then print|email|pdf` sets its after-saving step first, demo only), `--presets [n]` renders the presets editor on its n-th preset instead of the window; `--maintenance [n]` scrolls to the Maintenance card and runs its n-th action (demo only, answering yes); `--photos [layout]` fills the Photos tab with generated sample pictures (layouts `full`, `4x6in`, `5x7in`, `8x10in`, `10x15cm`, `13x18cm`, `wallet`, `contact`; also `--paper key`, `--borderless`, `--fit`, `--one-per-sheet`, `--per-sheet n`, `--photo-zoom n`, and `--photo-sheets folder`, which renders each sheet with the print job's own paginator to PNGs there instead of printing); with `--tray` (the notification-area icon, on in demo mode) `--simulate-alerts` feeds a toner drop on the first demo printer and a jam on the second through the alert rules, and `--tray-shot menu|hidden|alert|settings` renders the icon's menu (hidden: after closing to the tray and one background check), a preview of the last alert or the Settings window instead of the window); `--dialog settings|help|whatsnew|report|addprinter|pro` renders that window instead (`pro`: Help › Inkvolt Pro; `--pro-key KEY` enters a key first, `--pro-enforce` shows the wording with the gate on; `pdf/tools/pro-key/test-vector.json` has a key). `--demo --no-printers` is a made-up PC that finds no printer (the empty list); `--demo --whatsnew-from 1.0.2` runs What's New as if updated from that version. `--demo --tray --simulate-alerts` without `--snapshot` shows the real notification.
 
 Demo mode: `InkvoltPrint.exe --demo` shows five made-up network printers: the HP laser at 192.0.2.10 served from the scrubbed test
 fixtures, an Epson-style inkjet at 192.0.2.11 (IPP and eSCL only, no HP interfaces; low yellow ink, maintenance box,
@@ -135,7 +154,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   (`AppState.ResetPreferences`; printers, presets, scans and the Scan tab's choices are kept) and turns Start with Windows off.
 - **Help** (sidebar › *Help and shortcuts*, F1): the keyboard shortcuts, why a printer may not be found (VPN, firewall, another
   network: *Add a printer* looks harder; the empty printer list says the same, with an *Add a printer…* button), *What's new*,
-  *Report a problem…* and *Open log folder*. **What's new** shows `WHATS-NEW.md` (embedded) once after an update, the versions
+  *Report a problem…*, *Open log folder* and *Inkvolt Pro…* (the licence window, see "Inkvolt suite"). **What's new** shows `WHATS-NEW.md` (embedded) once after an update, the versions
   since the one last run (`AppState.LastVersionSeen`; nothing on a new install, in demos or snapshots). **Report a problem** shows,
   then copies, the version, Windows, a settings summary (printer models, not names or addresses) and the log's last 200 lines,
   scrubbed of IP addresses (IPv4-mapped IPv6 too; versions such as 1.0.7.0 kept), MAC addresses, host names (`name:port`,
@@ -190,6 +209,12 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   between-page pause; two-sided feeder scanning; services published with different UUIDs for printing and scanning show
   up as two entries. Usage counters, settings and firmware updates stay HP only (no standard IPP equivalent is read).
 - Scanners that only offer PDF (no JPEG) from a source say so instead of scanning (no PDF-page path yet).
+- Inkvolt Pro: the key is checked on this PC only, so a key can be entered on any number of PCs (the licence is per person,
+  on trust); there is no way to revoke one short of a release with a new public key. No checkout yet: the Get Inkvolt Pro
+  button opens the product page. The shared key file was tested with folders standing in for `%LOCALAPPDATA%` and the
+  package folders, not with the Store packages themselves: to try, a key entered in the Store copy of one app found by the
+  Store copy of the other, and removed from there. No Pro feature exists yet, so the locked views (`--dialog pro --pro-enforce`)
+  show only the window.
 - Batch scanning: patch code and blank detection were built test-first on generated scans (patches at 72 and 100 dpi, turned
   up to 6°, bars widened or thinned by 0.02 in, grey toner; text, tables, even bars and barcodes as non-patches) and run on
   the demo feeder; never on a real feeder batch. To try on hardware: the sheet from Print a separator sheet… printed on an

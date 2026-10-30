@@ -20,7 +20,8 @@ public partial class App : Application
             args.SetObserved();
         };
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
-        Core.Pro.Store = new SettingsProStore(); // the Pro check reads the key from the settings, in the window and on the command line
+        // The Pro check reads the key from the file both Inkvolt apps share, then from the settings, in the window and on the command line.
+        Core.Pro.Store = new InkvoltPrint.Core.Suite.SharedProStore(new SettingsProStore(), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
 
         var args = e.Args;
         // The Office conversion helper (see OfficeConverter): no window, no single-instance check, exits when done.

@@ -64,6 +64,7 @@ public static class AppHelp
             ("Inkvolt PDF", InkvoltApps.Find(InkvoltApps.InkvoltPdf) is null ? "not installed" : $"installed, open scans {OnOff(s.OpenScansInInkvoltPdf)}"),
             ("Notification area", tray is { Enabled: true } ? $"on, alerts {OnOff(tray.Alerts)}" : "off"),
             ("Start with Windows", OnOff(StartWithWindows.IsOn)),
+            ("Inkvolt Pro", Core.Pro.Licence is not null ? "licensed" : Core.Pro.Problem is not null ? "key not accepted" : "none"),
         };
         return Diagnostics.Report("Inkvolt Print", AboutDialog.AppVersion, RuntimeInformation.OSDescription,
             RuntimeInformation.ProcessArchitecture.ToString(), AppPackage.IsPackaged, settings, Diagnostics.Tail(Log.FilePath),

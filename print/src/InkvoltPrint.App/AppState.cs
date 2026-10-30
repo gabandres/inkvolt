@@ -60,6 +60,12 @@ public sealed class AppState
     /// <summary>Packaged installs: saved scans and sent prints counted toward the one Store rating request (RatingRequest).</summary>
     public RatingProgress? Rating { get; set; }
 
+    /// <summary>
+    /// The Inkvolt Pro licence key as entered in Help › Inkvolt Pro ("" = none): this app's own copy, behind the file both
+    /// Inkvolt apps share (Core.Suite.ProKeyFile), read by Core's <c>Pro</c> through <c>StateProStore</c>.
+    /// </summary>
+    public string ProKey { get; set; } = "";
+
     /// <summary>Batch scanning: what starts a new file (Core.Imaging.SplitAt, as a number), and whether separator sheets are kept.</summary>
     public int ScanSplitAt { get; set; }
     public bool ScanKeepSeparators { get; set; }

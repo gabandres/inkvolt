@@ -353,10 +353,13 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   "Pro licensed to NAME", takes a pasted key (a refused key says why in plain words: not an Inkvolt Pro key, altered or
   not pasted whole, made for a newer version, for Inkvolt Print only), opens the checkout (`Pro.BuyUrl`) and removes the
   licence. The key (`INKVOLT-PRO-` and groups of five letters and digits; `tools/pro-key/README.md` has the format) is
-  signed with our private key and checked on this PC against the public key in Core (`ProKeys`, ECDSA P-256), kept in
-  the settings, so it survives reinstalling; one key works on Windows and the Mac. The Pro features are batch presets,
+  signed with our private key and checked on this PC against the public key in the suite's shared library
+  (`InkvoltPrint.Core/Suite/ProKeys.cs`, ECDSA P-256; Core's `Pro` sits on the suite's `ProCheck` for the `pdf`
+  product), kept in `%LOCALAPPDATA%\Inkvolt\pro-key.txt` where Inkvolt Print reads it too (`Suite/ProKeyFile`; a key
+  from the settings of 1.2.1 moves there on first read), so it survives reinstalling and one key licenses both apps when
+  it lists both; one key works on Windows and the Mac. The Pro features are batch presets,
   watched folders and the command line; `Pro.Allows(feature)` is their one check, and **the gate is off while Inkvolt
-  PDF launches** (`Pro.Enforced`, see the roadmap's "Free and Pro"): everything is free, a key is still verified and
+  PDF launches** (`Pro.Enforced`, one switch shared with Inkvolt Print; see the roadmap's "Free and Pro"): everything is free, a key is still verified and
   shown, and buying supports the project or gives a business a licence to invoice. With the gate on, a locked feature
   shows what it does and a button to the window (the command line prints the message and exits 2); removing the licence
   never takes away a result already made (saved presets and files the features produced stay).

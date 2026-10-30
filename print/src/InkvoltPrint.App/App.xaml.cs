@@ -95,6 +95,9 @@ public partial class App : Application
 
         var pc = !demo ? PcEnvironment.Real : e.Args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         _vm = new MainViewModel(pc.LoadState(), pc);
+        // The Pro check reads the key from the file both Inkvolt apps share, then from state.json (demo: memory only).
+        Core.Pro.Store = demo ? new Core.Suite.MemoryProStore()
+            : new Core.Suite.SharedProStore(new StateProStore(_vm.State), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
         WindowFrame.FollowAllWindows();
         WindowFrame.ApplyTheme(Array.IndexOf(e.Args, "--theme") is var t and >= 0 && t + 1 < e.Args.Length ? e.Args[t + 1] : _vm.State.Theme);
         MainWindow = new MainWindow { DataContext = _vm };

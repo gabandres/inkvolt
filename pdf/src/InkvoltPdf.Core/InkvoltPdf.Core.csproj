@@ -18,7 +18,8 @@
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Inkvolt Print's shared library (MIT): RunFolder, the per-run folder recovery copies are kept in, as Inkvolt Print keeps unsaved scans -->
+    <!-- Inkvolt Print's shared library (MIT): RunFolder, the per-run folder recovery copies are kept in, as Inkvolt Print keeps unsaved
+         scans; Suite/ProKeys and ProCheck, the Inkvolt Pro key and its check, one for both apps -->
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPdf.Tests;
 
@@ -11,7 +12,10 @@ namespace InkvoltPdf.Tests;
 [CollectionDefinition("Pro")]
 public sealed class ProCollection;
 
-/// <summary>The Inkvolt Pro licence: the key format (pdf/tools/pro-key/README.md), its checks, install and remove, the gate.</summary>
+/// <summary>
+/// The Inkvolt Pro licence: the key format (pdf/tools/pro-key/README.md; <c>ProKeys</c> in InkvoltPrint.Core/Suite, shared
+/// with Inkvolt Print), its checks, install and remove, the gate, as Inkvolt PDF's <see cref="Pro"/> presents them.
+/// </summary>
 [Collection("Pro")]
 public sealed class ProTests : IDisposable
 {

@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using InkvoltPdf.Core;
+using InkvoltPrint.Core.Suite;
 
 // The Inkvolt Pro licence tool: keygen | issue | check. README.md says how; the private key never leaves the key folder
 // and is never printed.
@@ -22,7 +22,7 @@ static int Usage()
           dotnet run -- issue --name "Full Name" --email who@example.com [--date yyyy-MM-dd] [--products pdf,print] [--dir <folder>]
               Prints a licence key (today's date, product pdf unless given).
           dotnet run -- check <key> [--pub <base64>]
-              Reads a key against the public key built into Inkvolt PDF (or --pub) and prints what it says, or why it is refused.
+              Reads a key against the public key built into the Inkvolt apps (or --pub) and prints what it says, or why it is refused.
         """);
     return 2;
 }
@@ -51,7 +51,7 @@ static int Keygen(string[] args)
     File.WriteAllText(keyPath, ecdsa.ExportPkcs8PrivateKeyPem() + "\n");
     File.WriteAllText(pubPath, pub + "\n");
     Console.WriteLine($"Private key written to {keyPath} (keep it out of the repo; back it up as README.md says).");
-    Console.WriteLine($"Public key written to {pubPath}. Put this in InkvoltPdf.Core's ProKeys.PublicKeyBase64:");
+    Console.WriteLine($"Public key written to {pubPath}. Put this in InkvoltPrint.Core/Suite/ProKeys.cs as ProKeys.PublicKeyBase64:");
     Console.WriteLine(pub);
     return 0;
 }
@@ -82,7 +82,7 @@ static int Issue(string[] args)
     using var ecdsa = ECDsa.Create();
     ecdsa.ImportFromPem(File.ReadAllText(keyPath));
     if (PublicPoint(ecdsa) != ProKeys.PublicKeyBase64)
-        Console.Error.WriteLine("Warning: this private key doesn't match the public key built into Inkvolt PDF; the key it issues won't be accepted there.");
+        Console.Error.WriteLine("Warning: this private key doesn't match the public key built into the Inkvolt apps; the key it issues won't be accepted there.");
     try
     {
         Console.WriteLine(ProKeys.Issue(new ProLicence(name, email, date, products), ecdsa));
