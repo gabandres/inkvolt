@@ -137,6 +137,7 @@ internal static class AppHelp
             ("Dark pages", OnOff(s.DarkPages)),
             ("Update check at start", OnOff(s.CheckForUpdates)),
             ("AI assistant", s.AiEnabled ? $"on ({s.AiPreset})" : "off"),
+            ("Inkvolt Pro", Core.Pro.Licence is not null ? "licensed" : Core.Pro.Problem is not null ? "key not accepted" : "none"),
             ("Open documents", openDocuments.ToString()),
             ("Inkvolt Print", Inkvolt.InkvoltPrintPath is null ? "not installed" : "installed"),
         };

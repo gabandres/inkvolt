@@ -41,13 +41,13 @@ internal static class PresetLibrary
     }
 }
 
-/// <summary>The Pro check's face in the app: <see cref="Pro.Allows"/>, and a word on what isn't unlocked.</summary>
+/// <summary>The Pro check's face in the app: <see cref="Pro.Allows"/>; a feature that isn't unlocked opens <see cref="ProWindow"/> on what it does.</summary>
 internal static class ProGate
 {
     public static bool Check(Window owner, ProFeature feature)
     {
         if (Pro.Allows(feature)) return true;
-        Prompt.Info(owner, "Inkvolt Pro", Pro.Locked(feature));
+        ProWindow.Open(owner, feature);
         return false;
     }
 }
@@ -333,6 +333,18 @@ internal sealed class WatchWindow : Window
     {
         var caption = (Style)Application.Current.FindResource("Caption");
         _list.Children.Clear();
+        if (!Pro.Allows(ProFeature.WatchedFolders))
+        {
+            // Locked: say what it does and where Pro is; the folders listed below stay as they are (nothing made is taken away).
+            var banner = new Border { Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 12), CornerRadius = new CornerRadius(6) };
+            banner.SetResourceReference(Border.BackgroundProperty, "SystemFillColorAttentionBackgroundBrush");
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = Pro.Locked(ProFeature.WatchedFolders), FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = Pro.Describe(ProFeature.WatchedFolders), TextWrapping = TextWrapping.Wrap, Style = caption, Margin = new Thickness(0, 4, 0, 8) });
+            text.Children.Add(Small("About Inkvolt Pro…", () => ProWindow.Open(this, ProFeature.WatchedFolders)));
+            banner.Child = text;
+            _list.Children.Add(banner);
+        }
         if (FolderWatches.All.Count == 0)
             _list.Children.Add(new TextBlock { Text = "No folder is watched. Watch a Folder chooses one and the preset it runs.", Style = caption, TextWrapping = TextWrapping.Wrap });
         foreach (var w in FolderWatches.All)

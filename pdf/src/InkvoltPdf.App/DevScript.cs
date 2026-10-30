@@ -29,7 +29,8 @@ namespace InkvoltPdf.App;
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
-/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
+/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli] ·
+/// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
@@ -984,6 +985,17 @@ internal static class DevScript
             }
             case "watchshot": WatchWindow.Open(window); await Task.Delay(500); Shot(WatchWindow.Open(window), arg); break;
             case "watchstate": log.Add($"watch: {WatchWindow.Open(window).DevState()}; title '{FolderWatches.Summary}'"); break;
+            // Inkvolt Pro: prowindow [presets|watched|cli] (Help › Inkvolt Pro, or as a locked feature opens it) · pro <key>|remove (enter or
+            // remove a key in that window) · proenforce on|off (the gate, to see the locked views) · proshot out.png · prostate
+            case "prowindow":
+                ProWindow.Open(window, arg switch { "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, _ => null });
+                await Task.Delay(300);
+                break;
+            case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;
+            case "pro": ProWindow.Open(window, null).DevEnter(arg); break;
+            case "proenforce": Pro.Enforced = arg == "on"; FolderWatches.RaiseChanged(); break;
+            case "proshot": Shot(ProWindow.Open(window, null), arg); break;
+            case "prostate": log.Add($"pro: {ProWindow.Open(window, null).DevState()}"); break;
             // Create PDF: convert path (an Office file or a saved web page, as File › Open does) · webpage address|file
             // (Create PDF from Web Page with the saved options) · converters (what is installed)
             case "convert":

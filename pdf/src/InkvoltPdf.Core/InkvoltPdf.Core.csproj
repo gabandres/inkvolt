@@ -23,6 +23,8 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
+    <!-- The app's dev script flips Pro.Enforced to show the locked views -->
+    <InternalsVisibleTo Include="InkvoltPdf" />
     <InternalsVisibleTo Include="A11yCorpus" />
   </ItemGroup>
 </Project>

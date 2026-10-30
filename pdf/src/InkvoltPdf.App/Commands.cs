@@ -131,6 +131,7 @@ public static class Cmd
     public static readonly RoutedUICommand WhatsNew = Make("_What's New", nameof(WhatsNew));
     public static readonly RoutedUICommand ReportProblem = Make("_Report a Problem…", nameof(ReportProblem));
     public static readonly RoutedUICommand CheckForUpdates = Make("Check for _Updates…", nameof(CheckForUpdates));
+    public static readonly RoutedUICommand InkvoltPro = Make("_Inkvolt Pro…", nameof(InkvoltPro));
     public static readonly RoutedUICommand Settings = Make("_Settings…", nameof(Settings), K(Key.OemComma, ModifierKeys.Control, "Ctrl+,"));
     public static readonly RoutedUICommand Shortcuts = Make("_Keyboard Shortcuts", nameof(Shortcuts), K(Key.F1));
     public static readonly RoutedUICommand DarkPages = Make("_Dark Pages (Night Reading)", nameof(DarkPages));

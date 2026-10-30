@@ -154,6 +154,7 @@ public static class BatchCommandLine
         if (!Pro.Allows(ProFeature.CommandLine))
         {
             error.WriteLine(Pro.Locked(ProFeature.CommandLine));
+            error.WriteLine(Pro.HowToGet);
             return Wrong;
         }
 
@@ -265,6 +266,7 @@ public static class BatchCommandLine
         if (!Pro.Allows(ProFeature.WatchedFolders))
         {
             error.WriteLine(Pro.Locked(ProFeature.WatchedFolders));
+            error.WriteLine(Pro.HowToGet);
             return Wrong;
         }
         if (WatchedFolder.Validate(folder, outFolder) is { } folderError)

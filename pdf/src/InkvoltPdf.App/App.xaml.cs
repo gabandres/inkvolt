@@ -20,6 +20,7 @@ public partial class App : Application
             args.SetObserved();
         };
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
+        Core.Pro.Store = new SettingsProStore(); // the Pro check reads the key from the settings, in the window and on the command line
 
         var args = e.Args;
         // The Office conversion helper (see OfficeConverter): no window, no single-instance check, exits when done.

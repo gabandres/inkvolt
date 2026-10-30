@@ -32,10 +32,11 @@ there are business users.
   and anyone may build them. What a purchase buys is the ready, signed, updating build and the licence; the unlock is a
   convenience, not a lock. Closing the source would take Artifex's commercial MuPDF licence (quoted per customer, per
   copy with quarterly minimums): only worth a quote if Pro sells well.
-- **No account, still.** A Pro licence is a key signed with our private key (Ed25519) and checked on the PC against
-  the public key in the app: no server is asked, nothing is sent, the key works offline and survives reinstalling.
-  Inside the app one entitlement check (a single `Pro` seam in Core) decides what shows; a feature without the licence
-  shows what it would do and where to get Pro, and never takes away a result already made.
+- **No account, still.** A Pro licence is a key signed with our private key (ECDSA P-256: in .NET's own library and in
+  CryptoKit, where Ed25519 would have needed a package) and checked on the PC against the public key in the app: no
+  server is asked, nothing is sent, the key works offline and survives reinstalling. Inside the app one entitlement
+  check (a single `Pro` seam in Core) decides what shows; a feature without the licence shows what it would do and
+  where to get Pro, and never takes away a result already made.
 - **Selling.** Windows: through our own checkout (a merchant of record such as Paddle or Lemon Squeezy: it handles sales
   tax and VAT worldwide for about 5% plus a small fee per sale), since the Microsoft Store leaves non-game apps that use
   their own commerce 100% of the revenue, against 15% through the Store's add-ons
@@ -64,9 +65,18 @@ there are business users.
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
 
-The seam is in (with 1.2): `Pro.Allows(feature)` in Core (`Pro.cs`) is the one check every Pro feature asks, today always
-yes; presets, watched folders and the command line ask it. Not built yet: the key format, its check behind that seam and
-the checkout.
+**Built (2026-10-30), gate off.** Decided with the owner: **$19**, one time. `Pro.Allows(feature)` in Core (`Pro.cs`) is
+the one check every Pro feature asks (presets, watched folders, the command line); behind it the licence is real: a key
+`INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
+signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
+the public key in Core, kept in the settings, entered and removed in Help › Inkvolt Pro…, issued with `pdf/tools/pro-key`
+(the private key stays off the repo). **Enforcement is off**: `Pro.Enforced` in `Pro.cs` is false, so everyone gets
+everything while Inkvolt PDF launches; a key is still verified and shown, and buying is presented as supporting the
+project or as a licence a business can invoice. It flips on, in a release noted in WHATS-NEW, once Inkvolt PDF has a
+few thousand installs or about 50 Store ratings; from then on a locked feature shows what it does and a button to the
+window, and the command line prints the message and exits 2 (the UI and tests for both states are in place). Still to
+do: the checkout itself (the owner sets it up with a merchant of record; the Get button opens the product page until
+then) and the Mac's verification (CryptoKit `P256.Signing`, same key).
 
 ## Wave 1 (next)
 
