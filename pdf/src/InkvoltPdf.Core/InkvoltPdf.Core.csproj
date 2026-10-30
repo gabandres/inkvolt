@@ -27,5 +27,7 @@
     <!-- The app's dev script flips Pro.Enforced to show the locked views -->
     <InternalsVisibleTo Include="InkvoltPdf" />
     <InternalsVisibleTo Include="A11yCorpus" />
+    <!-- The speed benchmark's crashing app for FindWorkerTests sets a search's worker plan -->
+    <InternalsVisibleTo Include="Bench" />
   </ItemGroup>
 </Project>

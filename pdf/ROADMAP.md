@@ -537,15 +537,27 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   not per pixel, so a preview still takes a few hundred ms) and its first Find 164 s on that run (106 s in a quieter
   moment; about 250 ms a sheet of MuPDF parsing the paths for a text pass that ignores them). Threads in one process
   can't take these further: MuPDFCore's native wrapper guards MuPDF's allocations with process-wide mutexes (four
-  instances use four times the CPU of one for no gain), while four processes run four times as fast. Next: read text
-  for Find in worker processes (the app started again with a worker switch, the hits sent back), and a display list
-  kept per sheet across scrolls. Mac: still to do.
+  instances use four times the CPU of one for no gain), while four processes run four times as fast. So (third run,
+  2026-10-30, decided with the owner) a long Find reads text in **find workers** (`Core/FindWorkers.cs`,
+  `PdfEngine.Find.cs`): the app started again with `--find-worker` and a per-launch pipe name, no WPF on that path. Find
+  across 5,000 pages 2.71 s (9.64 s before, run straight after on the same PC), target met; the drawing set's first
+  Find 31.7 s (106 s); the app with its workers at most 0.87 GB, against 1.5 GB. A search starts on its two threads and
+  starts workers when its pace, from 200 ms on, says over 2 s is left and 16 pages or more (about 1,000 pages of a
+  text); up to eight, two cores left free, 100 MB each within half the free memory and 1.2 GB. A worker that fails, can't
+  start or stalls for 2 minutes loses nothing: its pages go to the threads, with no message. Workers end with the
+  search, on Cancel, with the engine and with the app, even a crash (a Job Object, and a watch of the parent in the worker).
+  A file with a password stays in process, so no password crosses a pipe; a PDF in memory is shared through a section
+  with no file behind it, and nothing is written to disk. Formats other than PDF stay in process. The Store smoke test
+  searches in workers. The drawing set's scroll stays over target (761 ms a sheet): a display list kept per sheet
+  doesn't change that, as the engine already keeps 32 and painting is three quarters of the cost (581 ms again against 761 ms
+  the first time), so that idea was dropped. Mac: still to do, measuring first (`mac/docs/PLAN.md` E16; its shim gives
+  MuPDF no locks).
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
-- **Effort** M. Windows: the benchmark and the first round of fixes are done (2026-10-30), Find in worker processes
-  and the drawing set's scroll remain; Mac: both.
+- **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30);
+  the drawing set's scroll and first Find remain over target; Mac: both.
 
 ## Where we already win
 
