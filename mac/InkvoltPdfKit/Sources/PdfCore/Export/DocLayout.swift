@@ -22,6 +22,8 @@ public struct DocParagraph: Equatable, Sendable {
     /// Space above and below (points), as the page leaves it; nil: the writer's usual spacing.
     public var spaceBefore: Double?
     public var spaceAfter: Double?
+    /// Where its runs are on the page as shown, in reading order (only from `DocLayout.analyzeForTags`).
+    public var sources: [RectD] = []
 
     public init(_ runs: [ExportSpan], _ box: RectD) {
         self.runs = runs
@@ -167,6 +169,37 @@ public enum DocLayout {
         var laid = upright.map { layOut($0, body) }
         laid = assignHeadings(laid, body)
         return DocLayoutResult(pages: dehyphenate(laid, upright), header: header, footer: footer)
+    }
+
+    /// `analyzeDocument` for tagging: each paragraph and picture also says where it is on the page as shown
+    /// (`DocParagraph.sources`, `ExportImage.pageBox`), whatever turning a page for layout did, and `pages`' running headers
+    /// and footers come back as boxes on each page.
+    public static func analyzeForTags(_ pages: [ExportPage]) -> (layout: DocLayoutResult, running: [[RectD]]) {
+        let marked = pages.map { p -> ExportPage in
+            var p = p
+            p.lines = p.lines.map { l in
+                var l = l
+                l.spans = l.spans.map { s in
+                    var s = s
+                    s.pageBox = s.box
+                    return s
+                }
+                return l
+            }
+            // The writer's ref tells a repeated logo: without its bytes, the same size at the same place.
+            p.images = p.images.map { i in
+                var i = i
+                i.pageBox = i.box
+                i.ref = "\(i.pixelWidth)x\(i.pixelHeight)"
+                return i
+            }
+            return p
+        }
+        let (stripped, header, footer, runningBoxes) = runningWithBoxes(marked)
+        let upright = stripped.map(DocLayout.upright)
+        let body = bodySize(upright)
+        let laid = assignHeadings(upright.map { layOut($0, body) }, body)
+        return (DocLayoutResult(pages: dehyphenate(laid, upright), header: header, footer: footer), runningBoxes)
     }
 
     /// A page whose text mostly reads sideways (a landscape table set on a portrait page) turned so that it reads left to

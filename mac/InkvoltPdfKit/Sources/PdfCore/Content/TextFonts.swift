@@ -36,7 +36,8 @@ final class TextFont: @unchecked Sendable {
     static let gap = -1
 
     private let lock = NSRecursiveLock()
-    private let program: FontProgram?
+    /// The embedded font program, when there is a readable one.
+    let program: FontProgram?
     private var toUnicode: [Int: String] = [:]
     private var hasToUnicode = false
     private var names = [String?](repeating: nil, count: 256)
@@ -284,6 +285,18 @@ final class TextFont: @unchecked Sendable {
         twoByte ? toUnicode[code] : (0..<256).contains(code) ? simpleText[code] : nil
     }
 
+    /// A simple font's glyph name for a code (nil for composite fonts and codes without one).
+    func glyphNameOf(_ code: Int) -> String? { !twoByte && (0..<256).contains(code) ? names[code] : nil }
+
+    /// The text a code stands for, from any source (ToUnicode, encoding, glyph names).
+    func unicodeOf(_ code: Int) -> String? { textOf(code) }
+
+    /// The ToUnicode CMap's own value for a code, or nil when it has none.
+    func toUnicodeOf(_ code: Int) -> String? { toUnicode[code] }
+
+    /// Every code the ToUnicode CMap maps, with its text.
+    var toUnicodeMap: [Int: String] { toUnicode }
+
     /// A code's width in thousandths of an em (as the PDF says, else the program's, else a fallback).
     func widthOf(_ code: Int) -> Double {
         lock.lock()
@@ -361,20 +374,8 @@ final class TextFont: @unchecked Sendable {
 
     // ---- What the accessibility check reads (AccessibilityCheckFonts) ----
 
-    /// The embedded program, when it could be read.
-    var fontProgram: FontProgram? { program }
-
     /// A code's glyph in an embedded TrueType program (0: .notdef), or -1 when the program isn't TrueType.
     func glyphIdOf(_ code: Int) -> Int { gidOf(code) }
-
-    /// A simple font's glyph name for a code (from its encoding and /Differences), or nil.
-    func glyphNameOf(_ code: Int) -> String? { !twoByte && (0..<256).contains(code) ? names[code] : nil }
-
-    /// The Unicode text a code stands for (ToUnicode, else the glyph name), or nil when it can't be told.
-    func unicodeOf(_ code: Int) -> String? { textOf(code) }
-
-    /// The ToUnicode CMap's own value for a code, or nil when it has none.
-    func toUnicodeOf(_ code: Int) -> String? { toUnicode[code] }
 
     /// The width the PDF itself gives a code (/Widths or /W), or nil.
     func dictionaryWidth(_ code: Int) -> Double? {

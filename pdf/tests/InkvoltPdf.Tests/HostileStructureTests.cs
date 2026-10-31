@@ -217,4 +217,206 @@ public class HostileStructureTests
         var tags = await Within(() => ExportTags.Read(Core2Pdf.Build(objects), null));
         Assert.Equal("A cat", Assert.Single(tags.Figures).Alt);
     }
+
+    // ───────────────────────────── the accessibility check ─────────────────────────────
+
+    /// <summary>The check's report and what it allocated on this thread.</summary>
+    private static (AccessibilityReport Report, long Bytes) CheckAndMeasure(A11yDoc doc)
+    {
+        var data = doc.Build();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var report = AccessibilityCheck.Run(data, null);
+        return (report, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    private const long CheckAllocationLimit = 1L << 30;
+
+    [Fact]
+    public async Task AccessibilityCheckWalksARenditionSelectorListingItselfOnce()
+    {
+        // 100 entries to itself, 8 levels deep: 100^8 walks unless each selector is walked once.
+        var doc = new A11yDoc
+        {
+            Annots = "11 0 R",
+            More = [
+                "<< /Type /Annot /Subtype /Screen /Rect [100 100 200 200] /Contents (A video) /A << /S /Rendition /R 12 0 R >> >>",
+                $"<< /S /SR /R [{string.Concat(Enumerable.Repeat("12 0 R ", 100))} 13 0 R] >>",
+                "<< /S /MR /C << /S /MCD /Alt [(en) (A video)] >> >>",
+            ],
+        };
+        var report = await Within(doc.Check);
+        Assert.Contains("28-014", report.FailedConditions); // the clip behind the selector is still found
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckWalksSelectorsSharedByEveryAnnotationOnce()
+    {
+        // 20,000 annotations share a selector with 200,000 entries: 4 billion steps if each annotation walks it.
+        var doc = new A11yDoc
+        {
+            Annots = string.Concat(Enumerable.Repeat("11 0 R ", 20_000)),
+            More = [
+                "<< /Type /Annot /Subtype /Screen /Rect [100 100 200 200] /Contents (A video) /A << /S /Rendition /R 12 0 R >> >>",
+                $"<< /S /SR /R [{string.Concat(Enumerable.Repeat("13 0 R ", 200_000))}] >>",
+                "<< /S /MR /C << /S /MCD /CT (video/mp4) /Alt [(en) (A video)] >> >>",
+            ],
+        };
+        await Within(doc.Check);
+    }
+
+    /// <summary>A table of <paramref name="rows"/> rows, built by each row's cells.</summary>
+    private static A11yDoc TableOf(int rows, Func<int, string> cells) => new()
+    {
+        DocKids = "10 0 R",
+        ParentTree = "",
+        Content = "BT ET",
+        Elems = [$"<< /Type /StructElem /S /Table /P 6 0 R /K [{string.Concat(Enumerable.Range(0, rows).Select(r => $"<< /Type /StructElem /S /TR /K [{cells(r)}] >> "))}] >>"],
+    };
+
+    private static string Cell(int rowSpan, int colSpan) => $"<< /Type /StructElem /S /TD /A << /O /Table /RowSpan {rowSpan} /ColSpan {colSpan} >> >> ";
+
+    [Fact]
+    public async Task AccessibilityCheckWontTakeGigabytesForATablesSpans()
+    {
+        // One cell in each row, each 1000 by 1000, each starting right of the one above: the grid's rows grow to 600,000 places.
+        var (report, bytes) = await Within(() => CheckAndMeasure(TableOf(600, _ => Cell(1000, 1000))), 120);
+        Assert.True(bytes < CheckAllocationLimit, $"The check allocated {bytes:N0} bytes.");
+        Assert.Contains(report.Notes, n => n.Contains("table", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckCountsTheEmptyPlacesASpanLeavesToo()
+    {
+        // The first row's last cell starts 999,000 places in and goes down 100 rows, whose places left of it hold nothing.
+        var first = string.Concat(Enumerable.Repeat(Cell(1, 1000), 999)) + Cell(100, 1000);
+        var (report, bytes) = await Within(() => CheckAndMeasure(TableOf(100, r => r == 0 ? first : "")), 120);
+        Assert.True(bytes < CheckAllocationLimit, $"The check allocated {bytes:N0} bytes.");
+        Assert.Contains(report.Notes, n => n.Contains("table", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AccessibilityCheckStillComparesAnOrdinaryLargeTable()
+    {
+        var report = TableOf(2000, r => string.Concat(Enumerable.Repeat(Cell(1, r == 0 ? 2 : 1), r == 0 ? 10 : 20))).Check();
+        Assert.Empty(report.Notes);
+        Assert.DoesNotContain("09-004", report.FailedConditions);
+    }
+
+    private static A11yDoc XfaOf(string array, params string[] more) => new()
+    {
+        Catalog = new A11yDoc().Catalog + $" /AcroForm << /Fields [] /XFA {array} >>",
+        More = more,
+    };
+
+    [Fact]
+    public async Task AccessibilityCheckSaysSoWhenItCantFinishLookingAtAnXfaForm()
+    {
+        // No '>' anywhere: each opening runs to the end of the text before failing, quadratic until the regular expression's time is up.
+        var doc = XfaOf("11 0 R", Core2Pdf.Stream(string.Concat(Enumerable.Repeat("<dynamicRender ", 1_000_000))));
+        var report = await Within(doc.Check, 60);
+        Assert.Contains(report.Notes, n => n.Contains("XFA", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckReadsAnXfaStreamListedManyTimesOnce()
+    {
+        // 500 entries to one stream of a megabyte: 2.5 GB in byte arrays and strings if each entry is read.
+        var list = string.Concat(Enumerable.Repeat("(part) 11 0 R ", 500));
+        var doc = XfaOf($"[{list}]", Core2Pdf.Stream(new string('x', 1 << 20)));
+        var (_, bytes) = await Within(() => CheckAndMeasure(doc), 120);
+        Assert.True(bytes < CheckAllocationLimit / 4, $"The check allocated {bytes:N0} bytes.");
+    }
+
+    [Fact]
+    public void AccessibilityCheckStillFindsADynamicXfaForm()
+    {
+        var report = XfaOf("[(a) 11 0 R (b) 11 0 R]", Core2Pdf.Stream("<config><dynamicRender>required</dynamicRender></config>")).Check();
+        Assert.Contains("25-001", report.FailedConditions);
+        Assert.Empty(report.Notes);
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckWalksAnAppearanceSharedByManyAnnotationsOnce()
+    {
+        // 20,000 annotations with one appearance of a megabyte of nothing: 20 GB read, in a page of very few drawing steps.
+        var doc = new A11yDoc
+        {
+            Annots = string.Concat(Enumerable.Repeat("11 0 R ", 20_000)),
+            More = [
+                "<< /Type /Annot /Subtype /Stamp /Rect [100 100 200 200] /Contents (A stamp) /AP << /N 12 0 R >> >>",
+                Core2Pdf.Stream(new string(' ', 1 << 20), "/Type /XObject /Subtype /Form /BBox [0 0 100 100]"),
+            ],
+        };
+        await Within(doc.Check);
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckCountsWhatAFormDrawnManyTimesTakesToRead()
+    {
+        // 200,000 draws of a form of a megabyte of nothing: 200 GB read, well under the limit of drawing steps.
+        var doc = new A11yDoc
+        {
+            Resources = "/XObject << /X 11 0 R >>",
+            Content = "/Artifact BMC " + string.Concat(Enumerable.Repeat("/X Do ", 200_000)) + "EMC",
+            More = [Core2Pdf.Stream(new string(' ', 1 << 20), "/Type /XObject /Subtype /Form /BBox [0 0 100 100]")],
+        };
+        var report = await Within(doc.Check);
+        Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
+    }
+
+    /// <summary>Pages sharing one content stream and the given resources; objects from 3 on are the content, the <paramref name="more"/>, then the pages.</summary>
+    private static byte[] SharedPages(int pages, string content, string resources = "", params string[] more)
+    {
+        var first = 4 + more.Length;
+        var kids = string.Concat(Enumerable.Range(0, pages).Select(i => $"{first + i} 0 R "));
+        var objects = new List<string> { "<< /Type /Catalog /Pages 2 0 R >>", $"<< /Type /Pages /Kids [{kids}] /Count {pages} >>", Core2Pdf.Stream(content) };
+        objects.AddRange(more);
+        for (var i = 0; i < pages; i++) objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 3 0 R /Resources << {resources} >> >>");
+        return Core2Pdf.Build(objects);
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckStopsOnAFileWhosePagesAllDrawTheSameLongContent()
+    {
+        // 5,000 pages sharing a content stream at the limit of drawing steps for a page: 10 billion steps. (The document's limit
+        // lowered here: the real one takes minutes to reach.)
+        var data = SharedPages(5000, string.Concat(Enumerable.Repeat("q Q ", 1_000_000)));
+        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 60);
+        Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AccessibilityCheckStopsOnAFileWhosePagesAllListTheSameAnnotations()
+    {
+        // 20,000 pages share an array of 20,000 annotations: 400 million looked at.
+        const int pages = 20_000;
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            $"<< /Type /Pages /Kids [{string.Concat(Enumerable.Range(0, pages).Select(i => $"{5 + i} 0 R "))}] /Count {pages} >>",
+            $"[{string.Concat(Enumerable.Repeat("4 0 R ", 20_000))}]",
+            "<< /Type /Annot /Subtype /Link /Rect [100 100 200 200] /Contents (A link) >>",
+        };
+        for (var i = 0; i < pages; i++) objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots 3 0 R >>");
+        var data = Core2Pdf.Build(objects);
+        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 60);
+        Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExportTagsDoesntLookForEachTagsPageThroughEveryPage()
+    {
+        // 100,000 tags on the last of 20,000 pages: 2 billion looks.
+        const int pages = 20_000;
+        var tags = string.Concat(Enumerable.Repeat($"<< /S /P /Pg {3 + pages} 0 R >> ", 100_000));
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 3 0 R >>",
+            $"<< /Type /Pages /Kids [{string.Concat(Enumerable.Range(0, pages).Select(i => $"{4 + i} 0 R "))}] /Count {pages} >>",
+            $"<< /Type /StructTreeRoot /K [{tags}] >>",
+        };
+        for (var i = 0; i < pages; i++) objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>");
+        var data = Core2Pdf.Build(objects);
+        await Within(() => ExportTags.Read(data, null));
+    }
 }

@@ -223,10 +223,44 @@ final class CffProgram: FontProgram, @unchecked Sendable {
     private(set) var names: Set<String> = []
     private(set) var cids: Set<Int> = []
 
+    private var blank: Set<Int> = []
+    private var glyphNames: [String?] = []
+
+    /// The CIDs of a CID-keyed program, 0 (.notdef) left out.
+    var cidList: [Int] { cids.sorted() }
+
+    /// The glyph draws nothing (a space): by CID in a CID-keyed program, by glyph index in a name-keyed one.
+    func isBlank(_ glyph: Int) -> Bool { blank.contains(glyph) }
+
+    /// A name-keyed program's glyph name at a glyph index (nil for CID-keyed programs and unknown names).
+    func nameOfGlyph(_ gid: Int) -> String? { gid >= 0 && gid < glyphNames.count ? glyphNames[gid] : nil }
+
     func hasName(_ name: String) -> Bool { !isCid && names.contains(name) }
     func hasCid(_ cid: Int) -> Bool { isCid ? cids.contains(cid) : cid > 0 && cid < numGlyphs }
 
     static func read(_ data: [UInt8]) -> CffProgram? { try? parse(data) }
+
+    /// A Type 2 charstring that ends before drawing: at most a width, then endchar (with four more operands it is an accented seac).
+    private static func blankCharString(_ b: [UInt8], _ start: Int, _ length: Int) -> Bool {
+        var operands = 0
+        var p = start
+        while p >= 0 && p < start + length && p < b.count {
+            let v = b[p]
+            if v == 28 {
+                p += 3
+            } else if (32...246).contains(v) {
+                p += 1
+            } else if (247...254).contains(v) {
+                p += 2
+            } else if v == 255 {
+                p += 5
+            } else {
+                return v == 14 && operands <= 1
+            }
+            operands += 1
+        }
+        return false
+    }
 
     private static func parse(_ data: [UInt8]) throws -> CffProgram? {
         guard data.count >= 4, data[0] == 1 else { return nil }
@@ -276,12 +310,15 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         } else {
             return font.isCid ? nil : font // Expert charsets: names unknown here
         }
+        if !cid { font.glyphNames = [String?](repeating: nil, count: n) }
         for gid in stride(from: 1, to: n, by: 1) {
             if cid {
                 font.cids.insert(sids[gid])
             } else if let name = sid(sids[gid], data, strings) {
                 font.names.insert(name)
+                font.glyphNames[gid] = name
             }
+            if blankCharString(data, charStrings[gid].offset, charStrings[gid].length) { font.blank.insert(cid ? sids[gid] : gid) }
         }
         return font
     }

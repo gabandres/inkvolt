@@ -9,6 +9,12 @@ public enum ProFeature: CaseIterable, Sendable {
     case watchedFolders
     /// `--batch` and `--watch` on the command line.
     case commandLine
+    /// Make Accessible: tagging a PDF from its layout, in the app and in Batch (viewing tags and alt text stays free).
+    case autoTagging
+    /// The Reading Order pane's fixes: moving pieces and applying the edited tags.
+    case readingOrder
+    /// Save as PDF/A-2a (tagged, PDF/UA identifier kept), in the app and in Batch.
+    case accessibleOutput
 }
 
 /// What a licence key says: who it was issued to, when (yyyy-MM-dd), and for which Inkvolt apps ("pdf", "print").
@@ -184,6 +190,9 @@ public enum Pro {
         case .batchPresets: "Batch presets"
         case .watchedFolders: "Watched folders"
         case .commandLine: "Command line"
+        case .autoTagging: "Make Accessible"
+        case .readingOrder: "Reading order"
+        case .accessibleOutput: "Accessible PDF/A-2a"
         }
     }
 
@@ -196,6 +205,12 @@ public enum Pro {
             "Drop PDFs or images into a folder and Inkvolt PDF runs a preset on each one once it has finished copying, moves the original to \"done\" or \"failed\" and logs a line for it."
         case .commandLine:
             "inkvoltpdf --batch runs a preset on files or folders without a window; inkvoltpdf --watch watches a folder from a terminal or a scheduled task."
+        case .autoTagging:
+            "Tag a PDF for screen readers on this Mac, nothing sent anywhere: headings, paragraphs, lists, tables and pictures read from the pages, running headers and page numbers set aside, the title and language set; in Batch over many files too."
+        case .readingOrder:
+            "See the order a screen reader follows as numbered boxes on the page, move pieces up, down or to another page, and write the tags again."
+        case .accessibleOutput:
+            "Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too."
         }
     }
 
@@ -205,6 +220,9 @@ public enum Pro {
         case .batchPresets: "Saved batch presets are part of Inkvolt Pro."
         case .watchedFolders: "Watched folders are part of Inkvolt Pro."
         case .commandLine: "The command line is part of Inkvolt Pro."
+        case .autoTagging: "Make Accessible is part of Inkvolt Pro."
+        case .readingOrder: "Fixing the reading order is part of Inkvolt Pro."
+        case .accessibleOutput: "Saving accessible PDF/A-2a files is part of Inkvolt Pro."
         }
     }
 

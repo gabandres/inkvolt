@@ -25,6 +25,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var aiSummaryAlert: (alert: NSAlert, field: NSTextField)?
     /// Prepare Form's bar, panel and fields.
     private(set) lazy var design = PrepareForm(controller: self)
+    /// The Reading Order and Alt Text pane (ReadingOrder.swift).
+    private(set) lazy var readingOrder = ReadingOrderPane(controller: self)
     /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
     let signing = SigningState()
     /// The form's fields on the pages, and Edit Text & Images.
@@ -125,6 +127,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         split.addSplitViewItem(side)
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
         split.addSplitViewItem(design.panelItem)
+        split.addSplitViewItem(readingOrder.panelItem)
         sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 820))
@@ -211,6 +214,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
+        readingOrder.contentChanged()
         if !foundQuery.isEmpty { find(foundQuery) }
         if change == .reload { hideDiskBar() }
         verifySignatures(onOpen: change == .reload)
@@ -565,6 +569,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(togglePrepareForm(_:)):
             item.state = design.isDesigning ? .on : .off
             return pdf.session != nil
+        case #selector(toggleReadingOrder(_:)):
+            item.state = readingOrder.isShown ? .on : .off
+            return pdf.session != nil && longTask == nil && progressSheet == nil
         case #selector(detectFormFields(_:)):
             return pdf.session != nil && longTask == nil && progressSheet == nil
         case #selector(openInspector(_:)), #selector(replyToSelected(_:)):
@@ -579,7 +586,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
              #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
              #selector(checkAccessibility(_:)),
              #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),
-             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)), #selector(saveAsPdfA(_:)):
+             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)), #selector(saveAsPdfA(_:)), #selector(saveAsPdfA2a(_:)), #selector(makeAccessible(_:)):
             return longTask == nil && progressSheet == nil && redaction.task == nil
         case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
             return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil
@@ -838,6 +845,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc private func scrolled() {
         updateSubtitle()
         sidebar.showCurrent(pages.currentPage)
+        readingOrder.currentPageChanged()
         window?.invalidateCursorRects(for: pages) // the links of the pages now in view
     }
 

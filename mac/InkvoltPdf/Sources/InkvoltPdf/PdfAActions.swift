@@ -2,37 +2,53 @@ import AppKit
 import PdfCore
 import UniformTypeIdentifiers
 
-/// File › Save as PDF/A-2b… (the Windows app's `PdfAActions`): an archival copy of the document as it is now (edits
+/// File › Save as PDF/A-2b…, and Save as PDF/A-2a (the accessible archive: the tags kept, Make Accessible first when there
+/// are none) (the Windows app's `PdfAActions`): an archival copy of the document as it is now (edits
 /// included), made by `PdfA.convert` in the background; the open document doesn't change. A document opened without its
 /// permissions password asks for it (the copy can't be encrypted). When something can't be made conforming without
 /// changing the look, nothing is saved and the reasons are listed; else the copy is saved where the user chooses (never
-/// over the open document) and a sheet says what was changed, with Open the Copy. Free, as on Windows. PDF/A-2a (the
-/// Windows app's Save as PDF/A-2a) needs Make Accessible, which the Mac doesn't have yet.
+/// over the open document) and a sheet says what was changed, with Open the Copy. PDF/A-2b is free and PDF/A-2a asks the Pro
+/// check, as on Windows.
 extension DocumentWindowController {
     @objc func saveAsPdfA(_ sender: Any?) {
         startLongTask { await self.saveAsPdfA() }
     }
 
+    @objc func saveAsPdfA2a(_ sender: Any?) {
+        startLongTask { await self.saveAsPdfA2a() }
+    }
+
+    /// Save as PDF/A-2a: the Pro check, and Make Accessible first when the document has no tags.
+    @discardableResult
+    func saveAsPdfA2a() async -> Bool {
+        guard pdf.session != nil, proAllows(.accessibleOutput), await settleForTags(), let session = pdf.session else { return false }
+        let data = session.data, password = session.password
+        if !(await Task.detached { AutoTag.isTagged(data, password) }.value) {
+            guard await AccessibleState.askTagFirst(window), await makeAccessible() else { return false }
+        }
+        return await saveAsPdfA(conformance: .a)
+    }
+
     /// The whole command; false when nothing was saved (refused, cancelled, failed).
     @discardableResult
-    func saveAsPdfA() async -> Bool {
+    func saveAsPdfA(conformance: PdfAConformance = .b) async -> Bool {
         guard pdf.session != nil else { return false }
         form.commitEditor()
         await form.settle()
         await content.settle()
         guard let session = pdf.session else { return false }
         let data = session.data, displayName = session.displayName
-        guard let result = await makePdfACopy(data, session.password, name: displayName) else { return false }
-        guard let url = await pickPdfACopyLocation(PdfA.copyName(displayName), folder: session.filePath.map { ($0 as NSString).deletingLastPathComponent }) else {
+        guard let result = await makePdfACopy(data, session.password, name: displayName, conformance: conformance) else { return false }
+        guard let url = await pickPdfACopyLocation(PdfA.copyName(displayName, conformance: conformance), folder: session.filePath.map { ($0 as NSString).deletingLastPathComponent }, conformance) else {
             return false
         }
-        return await writePdfACopy(result, to: url)
+        return await writePdfACopy(result, to: url, conformance: conformance)
     }
 
     /// The PDF/A copy of `data`, with the progress sheet; asks for the permissions password while it is needed. Nil when
     /// refused (the reasons shown), cancelled or failed.
-    func makePdfACopy(_ data: [UInt8], _ password: String?, name: String) async -> PdfAResult? {
-        let sheet = ProgressSheet(title: "Save as PDF/A-2b", text: "Making a PDF/A copy…")
+    func makePdfACopy(_ data: [UInt8], _ password: String?, name: String, conformance: PdfAConformance = .b) async -> PdfAResult? {
+        let sheet = ProgressSheet(title: "Save as \(conformance.name)", text: "Making a PDF/A copy…")
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -43,7 +59,7 @@ extension DocumentWindowController {
         var wrong = false
         while true {
             let pw = password
-            let outcome = await Task.detached { () -> Result<PdfAResult, Error> in Result { try PdfA.convert(data, pw) } }.value
+            let outcome = await Task.detached { () -> Result<PdfAResult, Error> in Result { try PdfA.convert(data, pw, conformance: conformance) } }.value
             if sheet.cancelled { return nil }
             switch outcome {
             case .success(let result):
@@ -60,24 +76,24 @@ extension DocumentWindowController {
             case .failure(let e as PdfAError):
                 Report.progress("PDF/A refused: \(e.blockers.count) reasons")
                 sheet.end()
-                await PdfAState.show(self, "Can't save as PDF/A-2b", PdfA.refusalMessage(e.blockers))
+                await PdfAState.show(self, "Can't save as \(conformance.name)", PdfA.refusalMessage(e.blockers, conformance: conformance))
                 return nil
             case .failure(let error):
                 Report.progress("PDF/A failed: \(type(of: error))")
                 let message = (error as? PdfEditError)?.message ?? "\(error)"
                 sheet.end()
-                await PdfAState.show(self, "Can't save as PDF/A-2b", message, isError: true)
+                await PdfAState.show(self, "Can't save as \(conformance.name)", message, isError: true)
                 return nil
             }
         }
     }
 
     /// Where the copy goes (the save panel, next to the document); the self-test's own file while it runs.
-    private func pickPdfACopyLocation(_ name: String, folder: String?) async -> URL? {
+    private func pickPdfACopyLocation(_ name: String, folder: String?, _ conformance: PdfAConformance) async -> URL? {
         if Report.isRunning { return PdfAState.testTarget }
         guard let window else { return nil }
         let panel = NSSavePanel()
-        panel.title = "Save as PDF/A-2b"
+        panel.title = "Save as \(conformance.name)"
         panel.prompt = "Save Copy"
         panel.nameFieldStringValue = name
         panel.allowedContentTypes = [.pdf]
@@ -88,7 +104,7 @@ extension DocumentWindowController {
     }
 
     /// Saves the copy at `url` (never over the open document) and says what was changed; true when saved.
-    func writePdfACopy(_ result: PdfAResult, to url: URL) async -> Bool {
+    func writePdfACopy(_ result: PdfAResult, to url: URL, conformance: PdfAConformance = .b) async -> Bool {
         if let open = pdf.session?.filePath, URL(fileURLWithPath: open).standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath() {
             await PdfAState.show(self, "Choose another name", "The PDF/A copy can't replace the open document. Choose another name or folder.")
             return false
@@ -101,7 +117,7 @@ extension DocumentWindowController {
             return false
         }
         Report.progress("PDF/A saved: \(result.changes.count) changes")
-        let open = await PdfAState.show(self, "Saved as PDF/A-2b", PdfA.savedMessage(url.lastPathComponent, result.changes), openButton: true)
+        let open = await PdfAState.show(self, "Saved as \(conformance.name)", PdfA.savedMessage(url.lastPathComponent, result.changes, conformance: conformance), openButton: true)
         if open { NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in } }
         return true
     }

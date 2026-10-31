@@ -17,10 +17,10 @@ internal static class Core2Pdf
         var offsets = new List<int>();
         for (var i = 0; i < objects.Count; i++)
         {
-            offsets.Add(Encoding.Latin1.GetByteCount(sb.ToString()));
+            offsets.Add(sb.Length); // Latin-1: a byte a character
             sb.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
         }
-        var xref = Encoding.Latin1.GetByteCount(sb.ToString());
+        var xref = sb.Length;
         sb.Append($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
         foreach (var o in offsets) sb.Append($"{o:D10} 00000 n \n");
         sb.Append($"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R {trailerExtra}>>\nstartxref\n{xref}\n%%EOF\n");

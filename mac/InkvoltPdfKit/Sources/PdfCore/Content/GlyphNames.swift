@@ -27,7 +27,24 @@ enum GlyphNames {
         + "zcaron 17E Ydieresis 178 fi FB01 fl FB02 ff FB00 ffi FB03 ffl FB04 dotlessi 131 Lslash 141 lslash 142 fraction 2044 "
         + "minus 2212 breve 2D8 dotaccent 2D9 ring 2DA hungarumlaut 2DD ogonek 2DB caron 2C7 nbspace A0 sfthyphen AD "
         + "Delta 2206 Omega 2126 approxequal 2248 notequal 2260 lessequal 2264 greaterequal 2265 infinity 221E partialdiff 2202 "
-        + "summation 2211 product 220F pi 3C0 integral 222B radical 221A lozenge 25CA"
+        + "summation 2211 product 220F pi 3C0 integral 222B radical 221A lozenge 25CA "
+        // Greek and mathematics from the Adobe Glyph List (the names TeX's math fonts use; veraPDF reads them as text too).
+        + "Alpha 391 Beta 392 Gamma 393 Epsilon 395 Zeta 396 Eta 397 Theta 398 Iota 399 Kappa 39A Lambda 39B Mu 39C Nu 39D "
+        + "Xi 39E Omicron 39F Pi 3A0 Rho 3A1 Sigma 3A3 Tau 3A4 Upsilon 3A5 Phi 3A6 Chi 3A7 Psi 3A8 alpha 3B1 beta 3B2 gamma 3B3 "
+        + "delta 3B4 epsilon 3B5 zeta 3B6 eta 3B7 theta 3B8 iota 3B9 kappa 3BA lambda 3BB nu 3BD xi 3BE omicron 3BF rho 3C1 "
+        + "sigma1 3C2 sigma 3C3 tau 3C4 upsilon 3C5 phi 3C6 chi 3C7 psi 3C8 omega 3C9 theta1 3D1 Upsilon1 3D2 phi1 3D5 omega1 3D6 "
+        + "aleph 2135 Ifraktur 2111 Rfraktur 211C weierstrass 2118 arrowleft 2190 arrowup 2191 arrowright 2192 arrowdown 2193 "
+        + "arrowboth 2194 arrowupdn 2195 arrowdblleft 21D0 arrowdblup 21D1 arrowdblright 21D2 arrowdbldown 21D3 arrowdblboth 21D4 "
+        + "universal 2200 existential 2203 emptyset 2205 gradient 2207 element 2208 notelement 2209 suchthat 220B asteriskmath 2217 "
+        + "proportional 221D orthogonal 221F angle 2220 logicaland 2227 logicalor 2228 intersection 2229 union 222A therefore 2234 "
+        + "similar 223C congruent 2245 equivalence 2261 propersubset 2282 propersuperset 2283 notsubset 2284 reflexsubset 2286 "
+        + "reflexsuperset 2287 circleplus 2295 circlemultiply 2297 perpendicular 22A5 dotmath 22C5 integraltp 2320 integralbt 2321 "
+        + "angleleft 2329 angleright 232A minute 2032 second 2033 openbullet 25E6 club 2663 heart 2665 diamond 2666 spade 2660 "
+        // The Symbol font's pieces of big brackets, which the list puts in the Private Use Area: their Unicode characters.
+        + "parenlefttp 239B parenleftex 239C parenleftbt 239D parenrighttp 239E parenrightex 239F parenrightbt 23A0 "
+        + "bracketlefttp 23A1 bracketleftex 23A2 bracketleftbt 23A3 bracketrighttp 23A4 bracketrightex 23A5 bracketrightbt 23A6 "
+        + "bracelefttp 23A7 braceleftmid 23A8 braceleftbt 23A9 braceex 23AA bracerighttp 23AB bracerightmid 23AC bracerightbt 23AD "
+        + "integralex 23AE arrowhorizex 23AF arrowvertex 23D0"
 
     private struct Tables: Sendable {
         var byName: [String: String] = [:]

@@ -18,17 +18,29 @@ public static partial class AccessibilityCheck
     private sealed partial class Checker
     {
         private const int MaxOperators = 2_000_000, MaxFormDepth = 12;
+        /// <summary>Bytes of content read for one drawing step counted: a form of nothing but spaces has no steps to count, however often it is drawn.</summary>
+        private const int BytesPerOperator = 64;
+        /// <summary>Drawing steps one annotation counts as: every page can list the same long array of them.</summary>
+        private const int OperatorsPerAnnotation = 32;
 
         private readonly Dictionary<PdfDictionary, FontUse> _fonts = new(ReferenceEqualityComparer.Instance);
         /// <summary>Form XObjects drawn from page content: how often, whether they hold marked-content ids, where first.</summary>
         private readonly Dictionary<PdfDictionary, (int Uses, bool Tagged, int Page)> _forms = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<PdfDictionary> _refForms = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<PdfDictionary> _selectors = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<PdfDictionary> _appearances = new(ReferenceEqualityComparer.Instance);
+        private long _documentOperators;
 
         private void Pages()
         {
             for (var p = 0; p < doc.PageCount; p++)
             {
                 cancel.ThrowIfCancellationRequested();
+                if (_documentOperators > maxDocumentOperators)
+                {
+                    _notes.Add($"The document's content is very long: pages {p + 1} to {doc.PageCount} weren't checked.");
+                    break;
+                }
                 var page = doc.Pages[p];
                 var walk = new Walk(this, p, page);
                 try
@@ -39,7 +51,8 @@ public static partial class AccessibilityCheck
                 {
                     _notes.Add($"Page {p + 1}'s content couldn't be read in full: {ex.Message}");
                 }
-                if (walk.Stopped) _notes.Add($"Page {p + 1}: its content is very long; only the first {MaxOperators:N0} drawing steps were checked.");
+                _documentOperators += walk.Operators;
+                if (walk.Stopped) _notes.Add($"Page {p + 1}: its content is very long; only the first part of it was checked.");
                 if (walk.Untagged > 0)
                     Add("01-005", $"{Count(walk.Untagged, "content item")} on this page {(walk.Untagged == 1 ? "is" : "are")} neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).",
                         p, walk.UntaggedBox, "Page content", walk.Untagged);
@@ -96,6 +109,7 @@ public static partial class AccessibilityCheck
             public RectD UntaggedBox, NoLangBox;
             public readonly HashSet<string> BadLangs = new(StringComparer.Ordinal);
             public bool Stopped;
+            public int Operators => _ops;
             private int _ops;
             private readonly HashSet<PdfDictionary> _active = new(ReferenceEqualityComparer.Instance);
 
@@ -111,6 +125,7 @@ public static partial class AccessibilityCheck
             /// <param name="contentOnly">An annotation's appearance: only its fonts count.</param>
             public void Run(byte[] content, PdfDictionary? resources, Mat ctm, int? key, List<Mc> marks, int depth, bool contentOnly)
             {
+                _ops += content.Length / BytesPerOperator;
                 var ops = ContentLexer.Parse(content, c.Cancel);
                 var st = new State { Ctm = ctm };
                 var stack = new Stack<State>();
@@ -397,6 +412,7 @@ public static partial class AccessibilityCheck
             if (tabs is null) Add("28-008", "This page has comments, links or form fields but doesn't set its tab order (no Tabs entry).", p, default, "Page");
             else if (tabs != "S") Add("28-009", $"This page's tab order is “{tabs}”, not the order of the tags (S).", p, default, "Page");
             var (cx1, cy1, cx2, cy2) = PdfObj.VisibleBox(page);
+            _documentOperators += Math.Min(annots.Elements.Count, 20_000L) * OperatorsPerAnnotation;
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Take(20_000))
             {
                 var subtype = PdfObj.NameOf(a, "/Subtype").TrimStart('/');
@@ -502,6 +518,9 @@ public static partial class AccessibilityCheck
             if (r is null || depth > 8) return;
             if (PdfObj.NameOf(r, "/S") == "/SR" && PdfObj.Array(r.Elements["/R"]) is { } list)
             {
+                // Each selector once in the document: one listing itself 100 times would be 100^8 walks, and thousands of
+                // annotations may share one. A clip it leads to is reported where it is first reached.
+                if (!_selectors.Add(r)) return;
                 foreach (var sub in list.Elements.Select(PdfObj.Dict)) Rendition(sub, p, box, depth + 1);
                 return;
             }
@@ -521,10 +540,12 @@ public static partial class AccessibilityCheck
             var streams = new List<PdfDictionary>();
             if (n.Stream is not null) streams.Add(n);
             else streams.AddRange(n.Elements.Values.Select(PdfObj.Dict).OfType<PdfDictionary>().Where(s => s.Stream is not null).Take(8)); // every state (a check box's on and off)
-            foreach (var s in streams)
+            foreach (var s in streams.Where(_appearances.Add)) // each stream once: walked again it adds no fonts, and thousands of annotations may share one
                 try
                 {
-                    new Walk(this, p, page).Run(PdfObj.StreamBytes(s), PdfObj.Dict(s.Elements["/Resources"]), Mat.Identity, null, [], 0, contentOnly: true);
+                    var walk = new Walk(this, p, page);
+                    walk.Run(PdfObj.StreamBytes(s), PdfObj.Dict(s.Elements["/Resources"]), Mat.Identity, null, [], 0, contentOnly: true);
+                    _documentOperators += walk.Operators;
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException)
                 {

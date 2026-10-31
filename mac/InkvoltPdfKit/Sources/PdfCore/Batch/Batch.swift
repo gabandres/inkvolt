@@ -190,9 +190,14 @@ public enum BatchStep: Equatable, Sendable {
     case flatten(FlattenOptions)
     /// Text recognition of pages without text, added as an invisible text layer (the recognizer comes from `BatchHost.recognize`).
     case ocr
-    /// An archival PDF/A-2b copy (`PdfA.convert`); a file that can't be made one fails, saying why. (Windows' PDF/A-2a
-    /// level needs Make Accessible, which the Mac doesn't have yet.)
+    /// Make Accessible (`AutoTag`): tags each file from its layout, with the title (metadata, else the first heading, else
+    /// the file name) and language (the file's, else read from the text, else `language`) it proposes; tags a file had are
+    /// replaced. Pictures can't get alternate text here: the notes say how many need it.
+    case makeAccessible(language: String?)
+    /// An archival PDF/A-2b copy (`PdfA.convert`); a file that can't be made one fails, saying why.
     case saveAsPdfA
+    /// PDF/A-2a: it keeps the tags, so the file must be tagged (Make Accessible before it in the list).
+    case saveAsPdfA2a
     /// `dpi`: resolution of page images (PNG, JPEG).
     case export(BatchExportFormat, dpi: Int)
 
@@ -220,7 +225,9 @@ public enum BatchStep: Equatable, Sendable {
         case .rotate: "Rotate pages"
         case .flatten: "Flatten"
         case .ocr: "Recognize text (OCR)"
+        case .makeAccessible: "Make accessible"
         case .saveAsPdfA: "Save as PDF/A"
+        case .saveAsPdfA2a: "Save as PDF/A-2a"
         case .export(let format, _):
             switch format {
             case .word: "Export to Word"
@@ -233,6 +240,18 @@ public enum BatchStep: Equatable, Sendable {
             }
         }
     }
+
+    /// The Pro feature the action needs (nil: free).
+    public var proFeature: ProFeature? {
+        switch self {
+        case .makeAccessible: .autoTagging
+        case .saveAsPdfA2a: .accessibleOutput
+        default: nil
+        }
+    }
+
+    /// One of the Save as PDF/A actions.
+    public var isPdfA: Bool { self == .saveAsPdfA || self == .saveAsPdfA2a }
 
     public var exportFormat: BatchExportFormat? {
         if case .export(let f, _) = self { return f }
@@ -315,6 +334,7 @@ public struct BatchPlan: Sendable {
     /// What is wrong with the plan (for the dialog), or nil.
     public func validate(ocrAvailable: Bool) -> String? {
         if steps.isEmpty { return "Add at least one action." }
+        if let locked = steps.lazy.compactMap(\.proFeature).first(where: { !Pro.allows($0) }) { return Pro.locked(locked) }
         if outputFolder.trimmingCharacters(in: .whitespaces).isEmpty || !outputFolder.hasPrefix("/") { return "Choose a folder for the results." }
         if let nameError = BatchNames.validate(nameTemplate) { return nameError }
         if let protect = steps.firstIndex(where: \.isProtect), steps[(protect + 1)...].contains(where: \.changesPdf) {
@@ -324,7 +344,7 @@ public struct BatchPlan: Sendable {
             if p.needsPasswords { return "Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them." }
             if (p.userPassword ?? "").isEmpty && (p.ownerPassword ?? "").isEmpty { return "Protect with a password needs an open password, a permissions password, or both." }
         }
-        if let pdfa = steps.firstIndex(of: .saveAsPdfA) {
+        if let pdfa = steps.firstIndex(where: \.isPdfA) {
             if steps.contains(where: \.isProtect) {
                 return "A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\"."
             }
@@ -726,6 +746,24 @@ public enum BatchRunner {
                 let r = try PdfA.convert(d, pw)
                 notes.append(r.changes.isEmpty ? "PDF/A-2b: nothing needed changing" : "PDF/A-2b: \(r.changes.joined(separator: "; "))")
                 return r.data
+            case .saveAsPdfA2a:
+                let r = try PdfA.convert(d, pw, conformance: .a)
+                notes.append(r.changes.isEmpty ? "PDF/A-2a: nothing needed changing" : "PDF/A-2a: \(r.changes.joined(separator: "; "))")
+                return r.data
+            case .makeAccessible(let fallback):
+                let engine = try PdfEngine.open(d, password: pw)
+                defer { engine.close() }
+                let tags = try AutoTag.plan(engine, d, pw, cancel: cancel)
+                let title = tags.title ?? ((file.namedAs as NSString).lastPathComponent as NSString).deletingPathExtension
+                let language = tags.language ?? fallback
+                let tagged = try AutoTag.write(d, pw, tags, AccessibleOptions(title: title, language: language), cancel: cancel)
+                let said = language.map { "language \($0)\(tags.languageGuessed && tags.language != nil ? " (read from the text)" : "")" } ?? "no language (none could be told)"
+                notes.append("Tagged: \(tags.blocks.count) \(tags.blocks.count == 1 ? "piece" : "pieces") in reading order, title \"\(title)\", \(said)"
+                    + (tags.wasTagged ? "; its earlier tags replaced" : ""))
+                if tags.figuresWithoutAlt > 0 {
+                    notes.append("\(tags.figuresWithoutAlt) \(tags.figuresWithoutAlt == 1 ? "picture needs" : "pictures need") alternate text: open the file and use Tools › Reading Order and Alt Text")
+                }
+                return tagged
             default:
                 throw PdfEditError("\(step.title) isn't an action that changes the file.")
             }
@@ -737,7 +775,7 @@ public enum BatchRunner {
             case .protect(let p):
                 password = (p.ownerPassword ?? "").isEmpty ? p.userPassword : p.ownerPassword
                 openPassword = (p.userPassword ?? "").isEmpty ? nil : p.userPassword
-            case .unprotect, .saveAsPdfA: // PDF/A files aren't encrypted
+            case .unprotect, .saveAsPdfA, .saveAsPdfA2a: // PDF/A files aren't encrypted
                 password = nil
                 openPassword = nil
             default:

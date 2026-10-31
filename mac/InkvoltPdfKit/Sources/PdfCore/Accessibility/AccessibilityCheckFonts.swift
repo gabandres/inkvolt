@@ -109,7 +109,7 @@ extension AccessibilityChecker {
         let collection = ordering.map { collections.contains($0) } == true || cmapOrdering.map { collections.contains($0) } == true
         // A symbolic Type 1 font without an Encoding uses its program's own: a CFF program's isn't read here (its glyphs
         // and characters aren't judged), and without a program nothing tells which glyph or character a code is.
-        let ownEncoding = (subtype == "Type1" || subtype == "MMType1") && !font.has("Encoding") && !(tf.fontProgram is Type1Program)
+        let ownEncoding = (subtype == "Type1" || subtype == "MMType1") && !font.has("Encoding") && !(tf.program is Type1Program)
             && (symbolic || (descriptor == nil && Self.isSymbolName(name)))
         // A composite font with a CMap other than Identity: its codes aren't its CIDs, and CMaps aren't read here, so its
         // glyphs and widths aren't judged (its characters still are, through ToUnicode).
@@ -121,7 +121,7 @@ extension AccessibilityChecker {
                 if !embedded { unmapped += 1 }
                 continue
             }
-            if shown, embedded, subtype != "Type3", let program = tf.fontProgram {
+            if shown, embedded, subtype != "Type3", let program = tf.program {
                 if let tt = program as? TrueTypeProgram {
                     let gid = tf.glyphIdOf(code)
                     if gid == 0 {
@@ -171,9 +171,9 @@ extension AccessibilityChecker {
         } else if subtype == "Type1" || subtype == "MMType1", embedded, Self.isSubset(name), let charSet = Self.text(descriptor?["CharSet"]) {
             let listed = Set(charSet.split(separator: "/").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
             var held: Set<String>?
-            if let t1 = tf.fontProgram as? Type1Program {
+            if let t1 = tf.program as? Type1Program {
                 held = t1.names
-            } else if let cff = tf.fontProgram as? CffProgram, !cff.isCid {
+            } else if let cff = tf.program as? CffProgram, !cff.isCid {
                 held = cff.names
             }
             if let held {
@@ -187,7 +187,7 @@ extension AccessibilityChecker {
 
     private func trueType(_ font: PObj, _ tf: TextFont, _ symbolic: Bool, _ embedded: Bool, _ name: String, _ fail: (String, String) -> Void) {
         let encoding = font["Encoding"]
-        let tt = embedded ? tf.fontProgram as? TrueTypeProgram : nil
+        let tt = embedded ? tf.program as? TrueTypeProgram : nil
         let cmaps = tt?.cmapCount ?? 0
         let has30 = tt?.hasCmap(3, 0) == true
         if !symbolic {
@@ -277,7 +277,7 @@ extension AccessibilityChecker {
         let holds: (Int) -> Bool
         let limit: Int
         var unlisted = 0
-        switch tf.fontProgram {
+        switch tf.program {
         case let cff as CffProgram where cff.isCid:
             holds = { cff.hasCid($0) }
             limit = (cff.cids.max() ?? 0) + 1

@@ -717,6 +717,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 ## Known limits
 
+- Accessibility Check on a crafted file: it says what it didn't check instead of going on. A table whose spans ask for more
+  than 16,000,000 places isn't compared cell by cell, a page or document with too much content (2,000,000 drawing steps a
+  page, 500,000,000 a document, reading counted too) is checked as far as that, and an XFA form the search runs out of time
+  on isn't called dynamic or not. A rendition selector or an appearance is looked at once, so a clip behind a selector
+  several annotations share is reported at the first.
 - Page edits go through PDFsharp, which rewrites the whole file, so its size can change. Signed PDFs are the
   exception: edits are appended as an incremental update, so signatures stay intact and show as "changed after
   signing". Redaction, page extraction and encrypted signed files still rewrite the file and break signatures
