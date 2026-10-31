@@ -232,7 +232,7 @@ struct AiAssistantTests {
         #expect(runs == [
             AiRun("Title ", bold: true), AiRun("[p. 1]", bold: true, page: 0), AiRun("\n"),
             AiRun("•  one "), AiRun("two", bold: true), AiRun(" "), AiRun("[p. 2]", page: 1), AiRun("\n"),
-            AiRun("loose ** star [p. 99]"),
+            AiRun("loose "), AiRun("** star [p. 99]"),
         ])
         #expect(AiAnswerMarkup.copied("A") == "A\n\n(AI-generated, may be wrong)")
     }
@@ -289,7 +289,8 @@ struct AiAssistantTests {
         await #expect(throws: CancellationError.self) { _ = try await AiPageCache().read([0], engine: other, cancel: cancelled) }
     }
 
-    /// The real Keychain, opt-in: `INKVOLTPDF_KEYCHAIN_TEST=1` (a locked keychain over SSH says errSecInteractionNotAllowed).
+    /// The real Keychain, opt-in: `INKVOLTPDF_KEYCHAIN_TEST=1`. Over SSH the login keychain is locked and says
+    /// errSecInteractionNotAllowed (-25308): run it with an unlocked keychain made for the test as the session's default.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["INKVOLTPDF_KEYCHAIN_TEST"] != nil))
     func theKeychainKeepsAKeyPerEndpoint() throws {
         let store = AiKeychainStore(service: "com.bermudezsystems.InkvoltPdf.ai-key.test")

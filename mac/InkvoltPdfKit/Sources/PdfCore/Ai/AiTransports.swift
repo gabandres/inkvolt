@@ -736,9 +736,13 @@ public final class AiLoopbackServer: @unchecked Sendable {
     private var requests: [Received] = []
     private var open: [Int32] = []
     private var stopped = false
+    private let answersAtOnce: Bool
     private let answer: @Sendable (Received) -> Answer
 
-    public init?(answer: @escaping @Sendable (Received) -> Answer) {
+    /// - Parameter answersAtOnce: answer on connecting, without waiting for a request (what a plain server does to a TLS
+    ///   greeting it can't read).
+    public init?(answersAtOnce: Bool = false, answer: @escaping @Sendable (Received) -> Answer) {
+        self.answersAtOnce = answersAtOnce
         self.answer = answer
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
@@ -813,7 +817,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
         var buffer = [UInt8](repeating: 0, count: size)
         var headEnd: Int?
         var wanted = 0
-        while headEnd == nil || data.count < headEnd! + 4 + wanted {
+        while !answersAtOnce && (headEnd == nil || data.count < headEnd! + 4 + wanted) {
             let n = recv(client, &buffer, size, 0)
             if n <= 0 { break }
             data += buffer[0..<n]
