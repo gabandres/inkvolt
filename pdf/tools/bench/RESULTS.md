@@ -14,6 +14,40 @@ Written by `dotnet run --project pdf/tools/bench -c Release -- report` on 2026-1
 | `drawings.pdf` | 400-sheet drawing set (ARCH D, 36 × 24 in): hatching, polylines and circles, 72,000 paths per sheet, a title block | 1,017.0 MB | `f5067a3ce4224aef…` |
 | `comments.pdf` | 250-page text document with 10,000 comments: notes, highlights, underlines, strike-outs, boxes, circles, ink, text boxes, with popups, and replies | 6.5 MB | `efdfd602a82dbe54…` |
 
+## 2026-10-30, fourth run: before the release
+
+- **Build:** commit a900032, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.
+- Other sessions were open on this PC: total CPU 81% when sampled just before the build and 25% just after the run, so the
+  numbers are indicative, and the on-screen frame rates most of all. Same corpus as the third run (the SHA-256s above).
+
+### Measures against the targets
+
+| Measure | Target | `text.pdf` | `scan.pdf` | `drawings.pdf` | `comments.pdf` |
+|---|---|---|---|---|---|
+| Pages |  | 5,000 | 500 | 400 | 250 |
+| First page (read + open + render) | < 1 s | 0.08 s pass | 0.07 s pass | 0.48 s pass | 0.32 s pass |
+|   of which: read the file / open / render |  | 4 / 41 / 31 ms | 0 / 25 / 41 ms | 0 / 15 / 463 ms | 3 / 282 / 38 ms |
+| Scrolling proxy: 20 pages after a cold open, ms/page (slowest) | no page > 200 ms | 6 ms (15) pass | 26 ms (31) pass | 773 ms (941) **miss**, 20 over | 10 ms (21) pass |
+|   the same pages again, engine still holding them: ms/page |  | 4 ms | 4 ms | 587 ms | 7 ms |
+| Find a word across all pages | < 5 s | 2.96 s pass ("lantern": 11,011 hits) | 0.45 s pass ("lantern": 0 hits) | 31.39 s **miss** ("detail": 80 hits) | 0.76 s pass ("lantern": 579 hits) |
+|   find workers started, pages they read |  | 8 (4,897 pages) | 0 (0 pages) | 8 (396 pages) | 0 (0 pages) |
+| Comment list ready | < 2 s | 0.37 s pass (0 comments) | 0.19 s pass (0 comments) | 0.65 s pass (0 comments) | 0.76 s pass (10,000 comments) |
+| Peak working set | < 1.5 GB | 0.30 GB pass | 0.18 GB pass | 0.17 GB pass | 0.17 GB pass |
+|   with the find workers' peaks added (an upper bound) | < 1.5 GB | 0.90 GB pass | 0.18 GB pass | 0.61 GB pass | 0.17 GB pass |
+| On-screen scroll (app, 4 s at 1,500 px/s): frames per second | 60 fps | 75 fps pass, longest gap 42 ms | 74 fps pass, longest gap 42 ms | 75 fps pass, longest gap 19 ms | 53 fps **miss**, longest gap 125 ms |
+|   frames with a blank page |  | 0 of 299 | 0 of 297 | 221 of 302 | 0 of 214 |
+|   pages still blank 200 ms after the scroll stops | none | 0 pass | 0 pass | 1 **miss** | 0 pass |
+
+### What missed
+
+- `drawings.pdf`: 20 of the first 20 pages took over 200 ms to render (slowest 941 ms; 773 ms on average).
+- `drawings.pdf`: find across 400 pages took 31.4 s.
+- `drawings.pdf`: on-screen scroll at 75 fps, 1 page(s) still blank 200 ms after the scroll stopped.
+- `comments.pdf`: on-screen scroll at 53 fps, 0 page(s) still blank 200 ms after the scroll stopped.
+
+The drawing set's misses are the third run's (the 5 s target is written for a 5,000-page text). `comments.pdf`'s 53 fps is
+new against the third run's 58 fps (56 to 58 in every run before): nothing in this build touches scrolling, and three more scrolls of it alone at 26 to 29% CPU gave 58.6, 60.6 and 56.4 fps, so it is the load, not a change.
+
 ## 2026-10-30, third run: Find in worker processes
 
 - **Build:** commit 3e8b925, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.
