@@ -31,20 +31,21 @@ public static class AccessibilityReportHtml
           .Append("which spells out PDF/UA-1 (ISO 14289-1). ")
           .Append(report.Pages == 1 ? "1 page" : $"{report.Pages} pages").Append(report.Tagged ? ", tagged." : ", not tagged.").Append("</p>\n</header>\n")
           .Append("<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#result\">Result</a></li>\n")
-          .Append(report.Passed ? "" : "<li><a href=\"#failures\">What fails</a></li>\n")
+          .Append(report.Failures.Count == 0 ? "" : "<li><a href=\"#failures\">What fails</a></li>\n")
           .Append("<li><a href=\"#person\">Checks for a person</a></li>\n<li><a href=\"#conditions\">Every condition</a></li>\n")
           .Append(report.Notes.Count > 0 ? "<li><a href=\"#notes\">Not checked</a></li>\n" : "")
           .Append("</ul>\n</nav>\n<main id=\"main\">\n");
 
         // Result
-        sb.Append("<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict ").Append(report.Passed ? "pass" : "fail").Append("\"><strong>")
-          .Append(report.Passed ? "Passes the machine checks." : "Fails.").Append("</strong> ").Append(E(report.Summary)).Append("</p>\n");
+        var verdict = report.Outcome switch { AccessibilityOutcome.Passes => "pass", AccessibilityOutcome.NotFullyChecked => "partly", _ => "fail" };
+        sb.Append("<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict ").Append(verdict).Append("\"><strong>")
+          .Append(report.Verdict).Append("</strong> ").Append(E(report.Summary)).Append("</p>\n");
         var ticked = report.HumanChecks.Count(h => done.Contains(h.Id));
         sb.Append("<p>Checks for a person: ").Append(ticked).Append(" of ").Append(report.HumanChecks.Count).Append(" done. ")
           .Append("A document is accessible only when it passes the machine checks and a person has made these checks.</p>\n</section>\n");
 
         // What fails, by checkpoint
-        if (!report.Passed)
+        if (report.Failures.Count > 0)
         {
             sb.Append("<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">What fails (").Append(report.Failures.Count).Append(")</h2>\n");
             foreach (var group in report.Failures.GroupBy(f => AccessibilityCheck.Condition(f.Condition)?.Checkpoint ?? "00"))
@@ -85,6 +86,7 @@ public static class AccessibilityReportHtml
             var (css, result) = c.How switch
             {
                 ConditionCheck.Machine when counts.TryGetValue(c.Id, out var n) => ("fail", n == 1 ? "Fails (1 problem)" : $"Fails ({n} problems)"),
+                ConditionCheck.Machine when report.Notes.Count > 0 => ("none", "Nothing found in what was checked"),
                 ConditionCheck.Machine => ("pass", "Passes"),
                 ConditionCheck.Human => ("human", "For a person to check"),
                 ConditionCheck.NotChecked => ("none", c.Note ?? "Not checked"),
@@ -121,7 +123,7 @@ public static class AccessibilityReportHtml
         .file { font-size: 1.1rem; font-weight: 600; margin: .2rem 0; word-break: break-all; }
         nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; }
         .verdict { font-size: 1.1rem; padding: .7rem 1rem; border-left: 6px solid; }
-        .verdict.pass { border-color: var(--pass); } .verdict.fail { border-color: var(--fail); }
+        .verdict.pass { border-color: var(--pass); } .verdict.fail { border-color: var(--fail); } .verdict.partly { border-color: var(--muted); }
         table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
         th, td { border: 1px solid var(--line); padding: .4rem .55rem; text-align: left; vertical-align: top; }
         thead th { background: var(--head); }

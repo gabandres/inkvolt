@@ -61,14 +61,38 @@ public sealed record AccessibilityFinding(string Condition, string Problem)
 /// <param name="How">How to check it with Inkvolt PDF (or a screen reader).</param>
 public sealed record HumanCheck(string Id, IReadOnlyList<string> Conditions, string Question, string How);
 
+/// <summary>What the check says of a document as a whole.</summary>
+public enum AccessibilityOutcome
+{
+    /// <summary>Checked in full, and nothing fails (the person's checks are still to do).</summary>
+    Passes,
+
+    /// <summary>Something fails, whether or not all of it was checked.</summary>
+    Fails,
+
+    /// <summary>Nothing fails in what was checked, but part of it wasn't: a limit on a crafted or huge file, or something that couldn't be read.</summary>
+    NotFullyChecked,
+}
+
 /// <summary>The checker's result for one document.</summary>
 /// <param name="Failures">What fails, in checkpoint order, then by page.</param>
 /// <param name="Notes">What couldn't be checked in this document, and why.</param>
 /// <param name="Tagged">The document has a structure tree (tags).</param>
 public sealed record AccessibilityReport(IReadOnlyList<AccessibilityFinding> Failures, IReadOnlyList<string> Notes, int Pages, bool Tagged)
 {
-    /// <summary>No machine-checkable condition fails (the person's checks are still to do).</summary>
-    public bool Passed => Failures.Count == 0;
+    public AccessibilityOutcome Outcome =>
+        Failures.Count > 0 ? AccessibilityOutcome.Fails : Notes.Count > 0 ? AccessibilityOutcome.NotFullyChecked : AccessibilityOutcome.Passes;
+
+    /// <summary>All of it was checked and no machine-checkable condition fails (the person's checks are still to do).</summary>
+    public bool Passed => Outcome == AccessibilityOutcome.Passes;
+
+    /// <summary>The result in a few words: what the report's verdict and the log say.</summary>
+    public string Verdict => Outcome switch
+    {
+        AccessibilityOutcome.Passes => "Passes the machine checks.",
+        AccessibilityOutcome.NotFullyChecked => "Not fully checked.",
+        _ => "Fails.",
+    };
 
     /// <summary>The conditions that fail, each once, in order.</summary>
     public IReadOnlyList<string> FailedConditions => [.. Failures.Select(f => f.Condition).Distinct().Order(StringComparer.Ordinal)];
@@ -76,19 +100,35 @@ public sealed record AccessibilityReport(IReadOnlyList<AccessibilityFinding> Fai
     /// <summary>The checks for a person (the same for every document).</summary>
     public IReadOnlyList<HumanCheck> HumanChecks => AccessibilityCheck.HumanChecks;
 
-    /// <summary>"Fails 4 conditions (12 problems): …" or "Passes every machine check."</summary>
+    /// <summary>"Fails 4 conditions (12 problems): …", "Passes every machine check." or "Not fully checked: …"</summary>
     public string Summary
     {
         get
         {
-            if (Passed) return $"Passes every machine check ({AccessibilityCheck.Conditions.Count(c => c.How == ConditionCheck.Machine)} conditions). " +
-                               $"{AccessibilityCheck.HumanChecks.Count} checks are left for a person.";
+            if (Outcome == AccessibilityOutcome.Passes)
+                return $"Passes every machine check ({AccessibilityCheck.Conditions.Count(c => c.How == ConditionCheck.Machine)} conditions). " +
+                       $"{AccessibilityCheck.HumanChecks.Count} checks are left for a person.";
+            if (Outcome == AccessibilityOutcome.NotFullyChecked)
+                return "Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass.";
             var conditions = FailedConditions.Count;
             var problems = Failures.Count;
             return $"Fails {conditions} {(conditions == 1 ? "condition" : "conditions")} ({problems} {(problems == 1 ? "problem" : "problems")})" +
-                   (Tagged ? "." : ": the document isn't tagged, so a screen reader can't tell its headings, lists, tables or reading order.");
+                   (Tagged ? "." : ": the document isn't tagged, so a screen reader can't tell its headings, lists, tables or reading order.") +
+                   (Notes.Count > 0 ? " Part of the file wasn't checked." : "");
         }
     }
+
+    /// <summary>The pane's line at the top: the result, and what couldn't be checked.</summary>
+    public string PaneSummary =>
+        (Passed ? "Passes the machine checks of PDF/UA-1. " : "") + Summary + (Notes.Count == 0 ? "" : " Not checked: " + string.Join(" ", Notes));
+
+    /// <summary>The title of the pane's list of failures.</summary>
+    public string FailuresTitle => Failures.Count > 0 ? $"Fails ({Failures.Count})" : Passed ? "Fails (none)" : "Fails (none found so far)";
+
+    /// <summary>What the pane's list of failures says when it is empty.</summary>
+    public string NothingFailsText => Passed
+        ? "Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist."
+        : "Nothing fails in what was checked, but part of the file wasn't checked (see above), so it can't be called a pass.";
 }
 
 /// <summary>

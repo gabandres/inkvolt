@@ -145,7 +145,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         icon.heightAnchor.constraint(equalToConstant: 56).isActive = true
         let name = NSTextField(labelWithString: "Inkvolt PDF")
         name.font = .systemFont(ofSize: 24, weight: .semibold)
-        let caption = NSTextField(labelWithString: "Read, search, print and organize PDFs. Nothing you open leaves this Mac.")
+        let caption = NSTextField(labelWithString: "Read, search, print and organize PDFs. Nothing you open leaves this Mac unless you send it.")
         caption.textColor = .secondaryLabelColor
         let titles = NSStackView(views: [name, caption])
         titles.orientation = .vertical

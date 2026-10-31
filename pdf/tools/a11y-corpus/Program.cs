@@ -1,7 +1,7 @@
 using System.Xml.Linq;
 using InkvoltPdf.Core;
 
-// check <file.pdf>...                       Each file's result: PASS/FAIL and the conditions that fail.
+// check <file.pdf>...                       Each file's result: PASS/FAIL/PARTLY and the conditions that fail.
 // show <file.pdf>                           Every finding of one file (condition, page, element, problem).
 // html <file.pdf> <out.html>                The report as the app saves it.
 // obj <file.pdf> <number|root>             One object as PDFsharp reads it (a stream's first 1,500 bytes decoded).
@@ -24,7 +24,7 @@ switch (args)
         foreach (var f in files)
         {
             var r = Check(f);
-            Console.WriteLine($"{Path.GetFileName(f)} {(r is null ? "ERROR" : r.Passed ? "PASS" : "FAIL")} {(r is null ? "" : string.Join(' ', r.FailedConditions))}");
+            Console.WriteLine($"{Path.GetFileName(f)} {(r is null ? "ERROR" : r.Outcome switch { AccessibilityOutcome.Passes => "PASS", AccessibilityOutcome.NotFullyChecked => "PARTLY", _ => "FAIL" })} {(r is null ? "" : string.Join(' ', r.FailedConditions))}");
         }
         return 0;
     case ["tag", .. var tagArgs] when tagArgs.Length > 0:
@@ -57,7 +57,7 @@ switch (args)
                 var path = Path.Combine(outDir, name);
                 File.WriteAllBytes(path, tagged);
                 var r = AccessibilityCheck.Run(tagged, null);
-                Console.WriteLine($"{name} {(r.Passed ? "PASS" : "FAIL")} {string.Join(' ', r.FailedConditions)} ({plan.Blocks.Count} blocks, {figures} figures)");
+                Console.WriteLine($"{name} {r.Outcome switch { AccessibilityOutcome.Passes => "PASS", AccessibilityOutcome.NotFullyChecked => "PARTLY", _ => "FAIL" }} {string.Join(' ', r.FailedConditions)} ({plan.Blocks.Count} blocks, {figures} figures)");
             }
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or ArgumentException or NotSupportedException)
             {

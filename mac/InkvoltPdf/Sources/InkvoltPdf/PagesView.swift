@@ -1396,6 +1396,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if selectedText != nil {
             menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+            if AppSettings.ai.enabled {
+                menu.addItem(withTitle: "Explain with AI", action: #selector(DocumentWindowController.aiExplain(_:)), keyEquivalent: "")
+            }
             menu.addItem(.separator())
             menu.addItem(withTitle: "Highlight", action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: "Underline", action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")

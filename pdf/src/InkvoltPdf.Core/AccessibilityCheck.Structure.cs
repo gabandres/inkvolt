@@ -117,6 +117,8 @@ public static partial class AccessibilityCheck
                         }
                         Kids(e, d.Elements["/K"], depth + 1);
                     }
+                    else if (d.Elements.ContainsKey("/S") && !_elems.ContainsKey(d))
+                        NoteOnce("The document's tags are too many or too deeply nested; the rest weren't checked.");
                     break;
             }
         }
@@ -390,6 +392,7 @@ public static partial class AccessibilityCheck
             {
                 while (grid.Count <= r) grid.Add([]);
                 var c = 0;
+                if (rows[r].Kids.Count(x => x.Kind is "TH" or "TD") > 1000) NoteOnce("A table's row has more than 1,000 cells; only the first 1,000 were compared.");
                 foreach (var cell in rows[r].Kids.Where(x => x.Kind is "TH" or "TD").Take(1000))
                 {
                     while (c < grid[r].Count && grid[r][c] is not null) c++;
@@ -405,8 +408,7 @@ public static partial class AccessibilityCheck
                         places += Math.Max(0, c + cs - row.Count) + cs;
                         if (places > MaxTablePlaces)
                         {
-                            const string note = "A table's rows and columns are too many to lay out; its cells weren't compared.";
-                            if (!_notes.Contains(note)) _notes.Add(note);
+                            NoteOnce("A table's rows and columns are too many to lay out; its cells weren't compared.");
                             return;
                         }
                         while (row.Count < c + cs) row.Add(null);

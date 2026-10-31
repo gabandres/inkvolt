@@ -421,7 +421,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
   PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model
-  comes with the Mac's AI features (E11).
+  came with the Mac's AI assistant (E11, 2026-10-30).
 - **Beat it when:** Make Accessible tags an untagged PDF on the PC from `DocLayout` (H1-H6, P, L/LI, Table/TR/TH/TD with
   header scope, Figure, Artifact for running headers and page numbers), sets title, language and tab order; a reading
   order panel shows the order as numbered boxes, reordered by drag; alt text is typed per figure, or suggested by the

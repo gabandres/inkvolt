@@ -83,7 +83,6 @@ enum TagTest {
 /// Ported from AutoTagTests.cs (same names): Make Accessible: an untagged PDF tagged from its layout, each tag kind, the
 /// marked content in the page streams, title, language and tab order, reading-order edits, alternate text. PDF/A-2a and
 /// Batch: `AutoTagOutputTests`.
-/// `Alt_text_request_carries_the_picture…` isn't ported: the Mac app has no AI client (`docs/PLAN.md`).
 @Suite struct AutoTagTests {
     private func plan(_ pdf: [UInt8]) throws -> TagPlan { try TagTest.plan(pdf) }
 
@@ -272,6 +271,30 @@ enum TagTest {
         #expect(!TagTest.tree(doc).contains { $0.type == "Figure" })
         try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
+    }
+
+    @Test func Alt_text_request_carries_the_picture_and_the_answer_is_cleaned() throws {
+        let pdf = ExportTestPdf.make()
+        let engine = try PdfEngine.open(pdf)
+        defer { engine.close() }
+        let plan = try AutoTag.plan(engine, pdf, nil)
+        let fig = try #require(plan.blocks.firstIndex { $0.kind == .figure })
+        let png = try AutoTag.figurePng(engine, 0, plan.blocks[fig].box)
+        #expect(png[0] == 0x89) // a PNG
+        #expect(AutoTag.nearbyText(plan, fig).contains("Figure 1. A picture."))
+
+        let messages = AiPrompts.altText(png, nearby: AutoTag.nearbyText(plan, fig), language: "en", page: 0)
+        let json = AiProtocol.chatRequestJson("llava", messages)
+        #expect(json.contains("\"type\":\"image_url\""))
+        #expect(json.contains("data:image/png;base64,"))
+        #expect(json.contains("Figure 1. A picture."))
+        #expect(AiPrompts.preview([messages]).contains("[a picture: PNG,"))
+        // A request without pictures is written as before.
+        #expect(AiProtocol.chatRequestJson("m", [.user("hi")]).contains("\"content\":\"hi\""))
+
+        #expect(AiPrompts.cleanAltText("Alt text: \"A bar chart of sales by quarter\"\n") == "A bar chart of sales by quarter")
+        let longer = AiPrompts.cleanAltText(Array(repeating: "word", count: 100).joined(separator: " "))
+        #expect(longer.utf16.count <= 251 && longer.hasSuffix("…"))
     }
 
     @Test func Alt_text_round_trips_and_tagging_again_replaces_the_tags() throws {

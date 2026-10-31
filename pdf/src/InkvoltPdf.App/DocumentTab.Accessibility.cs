@@ -88,7 +88,7 @@ public partial class DocumentTab
             }
         }
         if (IsDisposed || !ReferenceEquals(data, Session.Data)) return false;
-        Log.Write($"Accessibility check: {(report.Passed ? "passes" : $"fails {string.Join(' ', report.FailedConditions)}")}");
+        Log.Write($"Accessibility check: {report.Verdict} {string.Join(' ', report.FailedConditions)}");
         ShowAccessibility(report, DateTime.Now);
         return true;
     }
@@ -98,12 +98,12 @@ public partial class DocumentTab
         _a11yReport = report;
         _a11yCheckedAt = checkedAt;
         AccessibilityRail.Visibility = Visibility.Visible;
-        var notes = report.Notes.Count == 0 ? "" : " Not checked: " + string.Join(" ", report.Notes);
-        A11ySummary.Text = (report.Passed ? "Passes the machine checks of PDF/UA-1. " : "") + report.Summary + notes;
+        A11ySummary.Text = report.PaneSummary;
         A11yList.ItemsSource = report.Failures.Select(f => new A11yItem(f)).ToList();
-        A11yNone.Visibility = report.Passed ? Visibility.Visible : Visibility.Collapsed;
-        A11yList.Visibility = report.Passed ? Visibility.Collapsed : Visibility.Visible;
-        A11yFailuresTab.Header = report.Passed ? "Fails (none)" : $"Fails ({report.Failures.Count})";
+        A11yNone.Text = report.NothingFailsText;
+        A11yNone.Visibility = report.Failures.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        A11yList.Visibility = report.Failures.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        A11yFailuresTab.Header = report.FailuresTitle;
         A11yTabs.SelectedItem = report.Passed ? A11yPersonTab : A11yFailuresTab;
         ShowPane(NavPaneKind.Accessibility);
         // Keyboard and screen-reader users land on the result.

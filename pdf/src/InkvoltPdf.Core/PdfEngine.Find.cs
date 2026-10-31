@@ -524,16 +524,7 @@ public sealed partial class PdfEngine
             // Only this user's processes may open it, and only this one instance can exist under this name.
             _pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
                 PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | PipeOptions.FirstPipeInstance, 1 << 16, 1 << 18);
-            var info = new ProcessStartInfo(plan.Exe)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = Path.GetDirectoryName(plan.Exe) ?? "",
-            };
-            foreach (var a in plan.Args) info.ArgumentList.Add(a);
-            info.ArgumentList.Add(FindWorkers.Switch);
-            info.ArgumentList.Add(name);
-            var process = Process.Start(info) ?? throw new InvalidOperationException("The worker didn't start.");
+            var process = FindWorkers.StartWithoutHandles(plan.Exe, [.. plan.Args, FindWorkers.Switch, name], Path.GetDirectoryName(plan.Exe) ?? "");
             lock (_gate)
             {
                 _process = process;
