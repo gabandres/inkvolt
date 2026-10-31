@@ -4,11 +4,18 @@ extension AccessibilityCheck {
     /// Most findings listed per condition; the rest are counted in one more finding.
     static let maxPerCondition = 200
 
+    /// Drawing steps in the whole document (minutes of work; a real file comes well under it): a file's pages can all draw the same long content.
+    static let maxDocumentOperators = 500_000_000
+
     /// Checks the document. Nothing is changed.
     /// - Parameter progress: (pages done, pages).
     /// - Throws: `PdfEditError` when the file can't be read as a PDF, `PasswordRequired` when the password is missing or
     ///   wrong, `CancellationError` when `cancel` fires.
     public static func run(_ data: [UInt8], _ password: String?, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil) throws -> AccessibilityReport {
+        try run(data, password, progress: progress, cancel: cancel, maxDocumentOperators: maxDocumentOperators)
+    }
+
+    static func run(_ data: [UInt8], _ password: String?, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil, maxDocumentOperators: Int) throws -> AccessibilityReport {
         let doc: MuDoc
         let pages: Int
         let data = HybridXref.normalize(data) // Word's files keep their tags where MuPDF alone doesn't look
@@ -22,7 +29,7 @@ extension AccessibilityCheck {
         }
         // MuPDF rebuilds what it can of a damaged file, so a file that isn't one opens as a document without pages.
         guard pages > 0 else { throw PdfEditError("This PDF can't be checked: it has no pages.") }
-        return try AccessibilityChecker(data, doc, pages, progress, cancel).run()
+        return try AccessibilityChecker(data, doc, pages, progress, cancel, maxDocumentOperators).run()
     }
 
     /// An encrypted file's permissions (/P) against Matterhorn 26: "26-001" without them, "26-002" when they don't allow
@@ -55,6 +62,7 @@ final class AccessibilityChecker {
     let pageCount: Int
     let progress: ((Int, Int) -> Void)?
     let cancel: CancelToken?
+    let maxDocumentOperators: Int
     let catalog: PObj
     var root: PObj?
     /// The catalog's /Lang is a language: every text's language can be told.
@@ -87,13 +95,15 @@ final class AccessibilityChecker {
     var parsedOps = 0
     var totalOps = 0
     var walkedAppearances = Set<UInt>()
+    var walkedSelectors = Set<UInt>()
 
-    init(_ data: [UInt8], _ doc: MuDoc, _ pageCount: Int, _ progress: ((Int, Int) -> Void)?, _ cancel: CancelToken?) {
+    init(_ data: [UInt8], _ doc: MuDoc, _ pageCount: Int, _ progress: ((Int, Int) -> Void)?, _ cancel: CancelToken?, _ maxDocumentOperators: Int) {
         self.data = data
         self.doc = doc
         self.pageCount = pageCount
         self.progress = progress
         self.cancel = cancel
+        self.maxDocumentOperators = maxDocumentOperators
         catalog = doc.catalog
     }
 
@@ -300,19 +310,21 @@ final class AccessibilityChecker {
 
     private func xfa() {
         guard let xfa = catalog.dict("AcroForm")?["XFA"] else { return }
-        var bytes: [UInt8] = []
-        if xfa.isStream {
-            bytes = xfa.streamData ?? []
-        } else if xfa.isArray {
-            for i in stride(from: 1, to: xfa.count, by: 2) {
-                if let part = xfa[i], part.isStream { bytes += part.streamData ?? [] }
-            }
-        } else {
-            return
-        }
-        if Self.requiresDynamicRender(bytes) {
+        if Self.requiresDynamicRender(Self.xfaBytes(xfa)) {
             add("25-001", "The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use.")
         }
+    }
+
+    /// An XFA form's text: its stream, or the array's parts with each stream once, however often it is listed.
+    static func xfaBytes(_ xfa: PObj) -> [UInt8] {
+        if xfa.isStream { return xfa.streamData ?? [] }
+        guard xfa.isArray else { return [] }
+        var bytes: [UInt8] = []
+        var read = Set<UInt>()
+        for i in stride(from: 1, to: xfa.count, by: 2) {
+            if let part = xfa[i], part.isStream, read.insert(part.identity).inserted { bytes += part.streamData ?? [] }
+        }
+        return bytes
     }
 
     /// `<dynamicRender[^>]*>\s*required\s*</dynamicRender\s*>`, ignoring case, in one pass over the bytes (Windows runs it
@@ -327,6 +339,7 @@ final class AccessibilityChecker {
         let open = Array("<dynamicrender".utf8), close = Array("</dynamicrender".utf8), required = Array("required".utf8)
         var i = 0
         var nextEnd = -1 // the first '>' at or after i, once known
+        var lookedAfter = -1 // the '>' whose following text was looked at: openings sharing one share the answer
         while i < b.count {
             guard b[i] == 60, matches(open, at: i) else {
                 i += 1
@@ -336,6 +349,11 @@ final class AccessibilityChecker {
                 guard let found = b[i...].firstIndex(of: 62) else { return false }
                 nextEnd = found
             }
+            if nextEnd == lookedAfter {
+                i += open.count
+                continue
+            }
+            lookedAfter = nextEnd
             var p = nextEnd + 1
             while p < b.count && isSpace(b[p]) { p += 1 }
             if matches(required, at: p) {

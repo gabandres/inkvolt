@@ -1,3 +1,49 @@
+# Handoff, 2026-10-30 night (newest first)
+
+Work stopped here on the owner's word, to save the weekly quota. Read this part first; "evening" below is older, and
+its items 1, 8 and 9 are done.
+
+**Owner decisions since the evening.** The features other apps keep behind their paid tiers come first (`pdf/ROADMAP.md`
+"Priority"). Tesseract waits until someone asks for missing languages. Find in worker processes: yes, done. A Mac release
+may ship with UI nobody has seen; the list of what to look at is in `mac/docs/PLAN.md` under each step.
+
+**On master.** Windows: 2.2 OCR stage A (deskew, cleanup, suspect words), 3.2 PowerPoint and HTML export, 3.6 Find in
+worker processes, PDF/A copies passing veraPDF, "Not fully checked". Mac: E5 Prepare Form, E6 Measure, E7 PDF/A-2b, 1.3
+accessibility checker, 2.4 Make Accessible with PDF/A-2a, E11 AI assistant.
+
+**Released.** Inkvolt PDF 1.4.0.0: published in the Store, GitHub release `pdf-v1.4.0.0`, website updated. New Store
+listings live on both apps. Print has nothing new for users. Inkvolt PDF for Mac 1.4.0: published
+(notarized DMG, appcast, GitHub release `pdf-mac-v1.4.0`, Homebrew tap, website), with Measure, Prepare Form, PDF/A, the
+checker, Make Accessible and the AI assistant, none of whose UI a person has seen.
+
+**Stopped partway, on origin, not merged.**
+- `t3/pdf-compare-office-scans-formatting` (`58b63e9`): 3.3's matching in Core (formatting apart from wording, moves).
+  Left: Office and scan inputs, alignment, UI, docs, the 30 planted changes, the PLAN.md step.
+- `t3/mac-e12-office-web-convert` (`4bc3bdb`): E12's `PdfCore/Convert` with LibreOffice, and two unbuilt app files in the
+  last commit. Left: the app, Word for Mac, tests, docs. Its web-page and converter work has not been reviewed.
+
+**Next, in order.** Mac: E12, E9, E10, E13, E14, E15. Windows: 3.3, 3.5, 3.4. Mac: UX pass (`mac/docs/UX-BRIEF.md`), the
+Mac halves of 1.4, 2.1, 2.3, 3.6 and 3.3-3.5, Inkvolt Print's 1.1, 1.2, 1.3, 1.5, 1.6, a `--snapshot` step and screenshots.
+Windows: Print waves 2-3, Report a problem, WIA PDF-only scanners, TWAIN and black-and-white in Scan, 3.1, 2.1 leftovers,
+UX still-short items.
+
+**Small fixes queued.** Windows: `ParseWhole` and `OllamaLoadedContext` throw on non-object JSON. Both apps: a single huge
+Flate stream is unbounded. Find: the drawing set's first Find (31 s) and scroll (770 ms a sheet) still miss their targets,
+and a page that crashes MuPDF natively is re-read in the app's process. A partly checked file in Batch isn't saved. Mac:
+`PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s. Before `Pro.Enforced` is turned on, the Mac must set `Pro.store`
+ahead of the command line (`main.swift:8`).
+
+**Only a person.** Look at the new Mac UI (PLAN.md lists it per step; `/Applications/Inkvolt PDF.app` on the Mac may be a
+branch's build). The privacy policy should mention the Mac's AI assistant. Never run: real Ollama, LM Studio or https from
+the Mac, a key saved to the login keychain, LibreOffice on Windows, a real screen reader on the HTML, OCR on a real scan.
+
+**How it ran.** Usage without tokens: `(claude -p "/usage" --output-format json | ConvertFrom-Json).result` in PowerShell.
+Partner Center: Edge with `--remote-debugging-port=9333` and the profile `%LOCALAPPDATA%\inkvolt-partnercenter-profile`
+(signed in), scripts in `~/.inkvolt-visibility/` (`pc-export`, `pc-import`, `pc-reorder`, `pc-submit`). Mac agents: one
+worktree each, `~/Repos/inkvolt-<step>`, and the lock `~/Repos/.inkvolt-mac-lock`. A branch started before another step
+merged will conflict in `BatchWindow.swift`, `Report.swift` and PLAN.md: merge master into it, then retest. One daily
+task remains (9:00, this thread): the awesome-list PRs, Apple's review, the Store.
+
 # Handoff, 2026-10-30 evening
 
 What the 2026-10-30 session shipped and everything still open, so the next session (or the owner) can pick up

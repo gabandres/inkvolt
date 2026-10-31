@@ -157,13 +157,13 @@ enum HybridXref {
         let rowLength = w1 + w2 + w3
         if let predictor = number(dict, "/Predictor"), predictor >= 10 {
             let columns = number(dict, "/Columns") ?? 1
-            guard columns > 0 else { throw Damaged() }
+            guard columns > 0, columns <= 1 << 20 else { throw Damaged() } // a row of xref entries is a few bytes
             bytes = unpredict(bytes, columns)
         }
         var index: [(first: Int, count: Int)] = []
         if let ix = groups(#"/Index\s*\[([\d\s]*)\]"#, dict) {
             let nums = ix[0].split(whereSeparator: \.isWhitespace).compactMap { Int($0) }
-            for i in stride(from: 0, to: nums.count - 1, by: 2) { index.append((nums[i], nums[i + 1])) }
+            for i in stride(from: 0, to: nums.count - 1, by: 2) where nums[i] <= maxObjects { index.append((nums[i], nums[i + 1])) }
         } else {
             index.append((0, number(dict, "/Size") ?? 0))
         }

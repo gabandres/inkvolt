@@ -9,8 +9,9 @@ import Testing
 /// dictionary by hand (Windows makes it with PDFsharp); ConvertedFilesPassVeraPdf converts the same samples and checks
 /// each with `PdfA.validate`, and with INKVOLTPDF_SAMPLES set writes them to its pdfa folder, for veraPDF on the Windows
 /// PC (veraPDF needs Java, which the Mac doesn't get; pdf/tools/a11y-corpus/README.md). Mac additions: the subset font
-/// program (`TrueTypeSubset`) draws the glyphs it was asked for with the system font's widths, and a PDF 2.0 file comes
-/// out as 1.7.
+/// program (`TrueTypeSubset`) draws the glyphs it was asked for with the system font's widths, a PDF 2.0 file comes out as
+/// 1.7, and what `LongNames` does that Windows does on PDFsharp's whole names. Fill & Sign marks are embedded from macOS's
+/// ZapfDingbats where Windows' test names Segoe UI Symbol.
 struct PdfATests {
     private static func xmp(_ pdf: [UInt8]) throws -> String {
         let doc = try Core2Pdf.open(pdf)
@@ -216,6 +217,161 @@ struct PdfATests {
         #expect(result.changes.contains { $0.contains("password") })
     }
 
+    private static let photoshopXmp = "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:made=\"http://example.com/made/\"><made:Tool>Photoshop</made:Tool></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>"
+
+    /// A picture and a page with XMP packets of their own, in a schema PDF/A doesn't know (Photoshop's, InDesign's).
+    static func ownMetadataPdf() -> [UInt8] {
+        Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Metadata 7 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>",
+            Core2Pdf.stream("q 100 0 0 100 50 50 cm /Im0 Do Q"),
+            Core2Pdf.stream("FF0000>", "/Type /XObject /Subtype /Image /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Metadata 6 0 R /Filter /ASCIIHexDecode"),
+            Core2Pdf.stream(photoshopXmp, "/Type /Metadata /Subtype /XML"),
+            Core2Pdf.stream(photoshopXmp, "/Type /Metadata /Subtype /XML"),
+        ])
+    }
+
+    @Test func PicturesAndPagesLoseTheirOwnMetadata() throws {
+        let pdf = Self.ownMetadataPdf()
+        #expect(PdfA.validate(pdf).contains { $0.contains("metadata of its own") })
+        let result = try PdfA.convert(pdf, nil)
+        #expect(PdfA.validate(result.data) == [])
+        let doc = try Core2Pdf.open(result.data)
+        #expect(doc.catalog.dict("Metadata") != nil)
+        #expect(!doc.page(0).has("Metadata"))
+        let image = try #require(doc.page(0).dict("Resources")?.dict("XObject")?.dict("Im0"))
+        #expect(!image.has("Metadata"))
+        #expect(!latin1String(result.data).contains("made:Tool"))
+        #expect(result.changes.contains { $0.contains("2 pictures' and pages' own metadata") })
+        let before = try PdfEngine.open(pdf), after = try PdfEngine.open(result.data)
+        defer {
+            before.close()
+            after.close()
+        }
+        #expect(try before.render(0, scale: 1).pixels == after.render(0, scale: 1).pixels)
+    }
+
+    private static let longRole = "Caption,Figure" + String(repeating: "#20Caption#20Char", count: 12)
+
+    /// A role name over PDF/A's 127 bytes, as Word's styles make one (nist-sp800-63-3.pdf), in the role map and on the element.
+    static func longRolePdf(_ content: String = "BT ET") -> [UInt8] {
+        Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot << /Type /StructTreeRoot /RoleMap << /\(longRole) /P >> /K 5 0 R >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>",
+            Core2Pdf.stream(content),
+            "<< /Type /StructElem /S /\(longRole) /P null >>",
+        ])
+    }
+
+    @Test func NamesOverPdfALimitAreShortenedTogether() throws {
+        let pdf = Self.longRolePdf()
+        #expect(PdfA.validate(pdf).contains { $0.contains("127") })
+        let result = try PdfA.convert(pdf, nil)
+        #expect(PdfA.validate(result.data) == [])
+        #expect(result.changes.contains { $0.contains("1 name") })
+        let doc = try Core2Pdf.open(result.data)
+        let root = try #require(doc.catalog.dict("StructTreeRoot"))
+        let roles = try #require(root.dict("RoleMap"))
+        #expect(roles.keys.count == 1)
+        let key = try #require(roles.keys.first)
+        #expect((1...127).contains(key.utf8.count))
+        #expect(key.contains("~"))
+        #expect(root.dict("K")?.name("S") == key)
+        #expect(roles.name(key) == "P")
+    }
+
+    @Test func ALongNameInPageContentRefuses() throws {
+        // The page's content refers to it by name; a rewrite of the content is more than a copy should do.
+        let blockers = try PdfA.check(Self.longRolePdf("/\(Self.longRole) BMC EMC"), nil)
+        #expect(blockers.contains { $0.contains("127") })
+    }
+
+    /// A form as the IRS sends it: Reader usage rights in the catalog's /Perms (a /ByteRange, so it looks signed), no signed field.
+    static func usageRightsPdf(_ perm: String = "/UR3") -> [UInt8] {
+        Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /V (Ada) /P 3 0 R >>"],
+                      catalogExtra: "/Perms << \(perm) << /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 10 20 30] /Contents <00> /Reference [<< /TransformMethod /UR3 >>] >> >>")
+    }
+
+    @Test func UsageRightsAreNoSignatureAndTheCopySaysTheyWent() throws {
+        let pdf = Self.usageRightsPdf()
+        #expect(SignedEdits.looksSigned(pdf))
+        #expect(try PdfA.check(pdf, nil) == [])
+        let result = try PdfA.convert(pdf, nil)
+        #expect(PdfA.validate(result.data) == [])
+        #expect(result.changes.contains { $0.contains("usage rights") })
+        #expect(try FormEditor.read(result.data, nil).contains { $0.fieldName == "name" })
+        #expect(try !Core2Pdf.open(result.data).catalog.has("Perms"))
+
+        // A plain form says nothing about them.
+        let plain = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"])
+        #expect(try !PdfA.convert(plain, nil).changes.contains { $0.contains("usage rights") })
+    }
+
+    @Test func ACertificationWithoutASignedFieldStillRefuses() throws {
+        // Somebody certified it, even if no field shows it: a rewrite must not drop that quietly.
+        let blockers = try PdfA.check(Self.usageRightsPdf("/DocMDP"), nil)
+        #expect(blockers.contains { $0.contains("certified") })
+    }
+
+    static func marksPdf() throws -> [UInt8] {
+        try TextStamps.put(TextStamps.put(TestPdf.make(1), nil, 0, RectD(300, 400, 14, 14), .check, "", 12), nil, 0, RectD(330, 400, 14, 14), .cross, "", 12)
+    }
+
+    @Test func FillAndSignMarksConvertWithTheirSymbolsEmbedded() throws {
+        let pdf = try Self.marksPdf()
+        #expect(try PdfA.check(pdf, nil) == [])
+        let result = try PdfA.convert(pdf, nil)
+        #expect(PdfA.validate(result.data) == [])
+        #expect(result.changes.contains { $0.contains("ZapfDingbats") })
+        #expect(result.changes.contains { $0.contains("1 standard font embedded") }) // TestPdf's Helvetica (Windows' embeds Arial); the marks aren't counted
+        let engine = try PdfEngine.open(result.data)
+        defer { engine.close() }
+        // Drawn where the stamps are: dark pixels inside both boxes, none just beside them.
+        let image = try engine.render(0, scale: 1)
+        func dark(_ x1: Int, _ y1: Int, _ x2: Int, _ y2: Int) -> Int {
+            let bpp = image.pixels.count / (image.width * image.height)
+            var n = 0
+            for y in y1..<y2 {
+                for x in x1..<x2 where image.pixels[(y * image.width + x) * bpp + 1] < 128 { n += 1 }
+            }
+            return n
+        }
+        #expect(dark(300, 400, 314, 414) > 10)
+        #expect(dark(330, 400, 344, 414) > 10)
+        #expect(dark(316, 400, 328, 414) == 0)
+    }
+
+    @Test func EveryZapfDingbatsCodeIsCovered() throws {
+        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
+        let codes = Array(0x21..<(0x21 + 0x5E)) + Array(0xA1..<(0xA1 + 0x5E)).filter { $0 != 0xF0 }
+        let all = codes.map { "\\" + String(format: "%03o", $0) }.joined()
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 2000 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            Core2Pdf.stream("BT /F1 9 Tf 5 40 Td (\(all)) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
+        ])
+        let result = try PdfA.convert(pdf, nil)
+        #expect(PdfA.validate(result.data) == [])
+        let engine = try PdfEngine.open(result.data)
+        defer { engine.close() }
+        let text = try engine.text(0).text
+        for symbol in ["\u{2714}", "\u{2718}", "\u{2605}", "\u{25CF}", "\u{25A0}", "\u{25C6}", "\u{2460}", "\u{2192}", "\u{27BE}"] { #expect(text.contains(symbol), "\(symbol)") }
+        // Mac addition: macOS's font has them all, so every code of the 187 gets its own glyph.
+        let ttf = try #require(SystemFonts.get("ZapfDingbats.ttf"))
+        #expect(codes.allSatisfy { PdfA.Pass.dingbatUnicode($0) != 0 && ttf.has(PdfA.Pass.dingbatUnicode($0)) })
+        let file = try #require(ttf.fileData)
+        #expect(TrueTypeSubset.allowsEmbedding(file))
+    }
+
+    @Test func ZapfDingbatsWithItsOwnEncodingOrWidthsRefusesSayingWhy() throws {
+        #expect(try PdfA.check(Self.oneFont("<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats /Encoding << /Differences [114 /a20] >> >>"), nil).contains { $0.contains("encoding of its own") })
+        #expect(try PdfA.check(Self.oneFont("<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats /FirstChar 114 /LastChar 114 /Widths [5] >>"), nil).contains { $0.contains("widths") })
+    }
+
     /// The samples Windows checks with veraPDF, each converted and checked with `validate`. With INKVOLTPDF_SAMPLES set
     /// they are written to its pdfa folder, to be checked with veraPDF on the Windows PC; INKVOLTPDF_PDFA_INPUTS (a
     /// folder) adds more PDFs, and those that can't be converted are skipped (the refusals are written to refused.txt
@@ -231,6 +387,10 @@ struct PdfATests {
                                                                               note: "check", author: "Ada"), nil, 0, 300, 300, "A note", author: "Ada")),
             ("form", try FormEditor.setValues(Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 600 472 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>"]),
                                               nil, ["name": "Ada Lovelace"])),
+            ("own-metadata", Self.ownMetadataPdf()),
+            ("long-role", Self.longRolePdf()),
+            ("usage-rights", Self.usageRightsPdf()),
+            ("marks", try Self.marksPdf()),
             ("export", ExportTestPdf.make(logo: true)),
             ("stamped", try HeaderFooter.apply(Watermarks.apply(TestPdf.make(2), nil, [0, 1], WatermarkOptions(text: "DRAFT")), nil, [0, 1],
                                                { var o = HeaderFooterOptions(); o.footerCenter = "Page <<page>> of <<pages>>"; return o }())),
@@ -264,6 +424,118 @@ struct PdfATests {
     }
 
     // ───────────── Mac additions ─────────────
+
+    /// Two role names alike in their first 127 bytes, each its own role: MuPDF alone reads them as one.
+    private static let twins = (String(repeating: "A", count: 130) + "1", String(repeating: "A", count: 130) + "2")
+
+    @Test func twoLongNamesAlikeUpToTheLimitStayTwo() throws {
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot << /Type /StructTreeRoot /RoleMap << /\(Self.twins.0) /P /\(Self.twins.1) /H1 >> /K [5 0 R 6 0 R] >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>",
+            Core2Pdf.stream("BT ET"),
+            "<< /Type /StructElem /S /\(Self.twins.0) /P null >>",
+            "<< /Type /StructElem /S /\(Self.twins.1) /P null >>",
+        ])
+        let result = try PdfA.convert(pdf, nil)
+        #expect(result.changes.contains { $0.contains("2 names") })
+        let doc = try Core2Pdf.open(result.data)
+        let root = try #require(doc.catalog.dict("StructTreeRoot"))
+        let roles = try #require(root.dict("RoleMap"))
+        #expect(roles.keys.count == 2)
+        let first = try #require(root.array("K")?[0]?.name("S")), second = try #require(root.array("K")?[1]?.name("S"))
+        #expect(first != second)
+        #expect(roles.name(first) == "P")
+        #expect(roles.name(second) == "H1")
+    }
+
+    @Test func aLongNameInAnObjectStreamIsFoundToo() throws {
+        // The element and the role map in an object stream, as Word writes them; no usable table, so MuPDF rebuilds it.
+        let inStream = ["<< /Type /StructTreeRoot /RoleMap << /\(Self.longRole) /P >> /K 6 0 R >>", "<< /Type /StructElem /S /\(Self.longRole) /P null >>"]
+        let header = "5 0 6 \(inStream[0].utf8.count + 1) "
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 5 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>",
+            Core2Pdf.stream(header + inStream.joined(separator: " "), "/Type /ObjStm /N 2 /First \(header.utf8.count)"),
+        ]).dropLastTable()
+        #expect(PdfA.validate(pdf).contains { $0.contains("127") })
+        let result = try PdfA.convert(pdf, nil)
+        #expect(result.changes.contains { $0.contains("1 name") })
+        let doc = try Core2Pdf.open(result.data)
+        let root = try #require(doc.catalog.dict("StructTreeRoot"))
+        let key = try #require(root.dict("RoleMap")?.keys.first)
+        #expect(key.contains("~"))
+        #expect(root.dict("K")?.name("S") == key)
+    }
+
+    @Test func aLongNameInAStreamsDictionaryKeepsTheStream() throws {
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>",
+            Core2Pdf.stream("0 0 1 rg 10 10 100 100 re f", "/\(Self.longRole) 1"),
+        ])
+        let result = try PdfA.convert(pdf, nil)
+        #expect(result.changes.contains { $0.contains("1 name") })
+        let engine = try PdfEngine.open(result.data), before = try PdfEngine.open(pdf)
+        defer {
+            engine.close()
+            before.close()
+        }
+        #expect(try engine.render(0, scale: 1).pixels == before.render(0, scale: 1).pixels)
+    }
+
+    @Test func aStringIsNotAName() throws {
+        // Over the limit in a string, a comment and a stream's bytes: nothing to shorten.
+        let long = "/" + String(repeating: "x", count: 200)
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /Note (\(long)) >> % \(long)",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Hex <2F78> >>",
+            Core2Pdf.stream("% \(long)\n0 0 1 rg 10 10 100 100 re f"),
+        ])
+        #expect(!PdfA.validate(pdf).contains { $0.contains("127") })
+        #expect(try !PdfA.convert(pdf, nil).changes.contains { $0.contains("shortened") })
+    }
+
+    @Test func aProtectedFilesLongNameIsShortenedAndItsStringsStayReadable() throws {
+        // MuPDF writes a name of 127 bytes; a byte added afterwards makes it too long, offsets off (MuPDF rebuilds the table).
+        let exact = String(repeating: "A", count: 127)
+        let plain = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot << /Type /StructTreeRoot /RoleMap << /\(exact) /P >> /K 5 0 R >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>",
+            Core2Pdf.stream("BT ET"),
+            "<< /Type /StructElem /S /\(exact) /P null /Alt (A cat) >>",
+        ])
+        let locked = try PdfSecurity.protect(plain, nil, userPassword: "", ownerPassword: "owner")
+        let longer = latin1Bytes(latin1String(locked).replacingOccurrences(of: "/" + exact, with: "/" + exact + "B"))
+        #expect(longer.count > locked.count)
+        let result = try PdfA.convert(longer, "owner")
+        #expect(PdfA.validate(result.data) == [])
+        #expect(result.changes.contains { $0.contains("1 name") })
+        let doc = try Core2Pdf.open(result.data)
+        let root = try #require(doc.catalog.dict("StructTreeRoot"))
+        let key = try #require(root.dict("RoleMap")?.keys.first)
+        #expect(key.contains("~"))
+        #expect(root.dict("K")?.name("S") == key)
+        #expect(root.dict("K")?.text("Alt") == "A cat")
+    }
+
+    @Test func aSymbolicSubsetLooksItsCodesUpAtF000() throws {
+        let ttf = try #require(SystemFonts.get("ZapfDingbats.ttf"))
+        let file = try #require(ttf.fileData)
+        let glyphs: [(codePoint: UInt32, glyph: Int)] = [(0xF034, ttf.glyphOf(0x2714))]
+        let program = try #require(TrueTypeSubset.subset(file, glyphs, symbolic: true))
+        let provider = try #require(CGDataProvider(data: Data(program) as CFData))
+        let cg = try #require(CGFont(provider))
+        let font = CTFontCreateWithGraphicsFont(cg, 1000, nil, nil)
+        var glyph: CGGlyph = 0
+        #expect(CTFontGetGlyphsForCharacters(font, [0xF034], &glyph, 1))
+        #expect(Int(glyph) == ttf.glyphOf(0x2714))
+        #expect(CTFontCreatePathForGlyph(font, glyph, nil) != nil)
+    }
 
     @Test func theSubsetFontDrawsTheGlyphsItWasAskedFor() throws {
         let arial = try #require(StdFont(.helvetica, false, false).metrics)
@@ -308,5 +580,13 @@ struct PdfATests {
         let result = try PdfA.convert(pdf, nil)
         #expect(String(decoding: result.data.prefix(8), as: UTF8.self) == "%PDF-1.7")
         #expect(PdfA.validate(result.data) == [])
+    }
+}
+
+private extension Array where Element == UInt8 {
+    /// The file without its cross-reference table: MuPDF rebuilds it, object streams included.
+    func dropLastTable() -> [UInt8] {
+        guard let at = firstRange(of: Array("xref\n".utf8))?.lowerBound else { return self }
+        return Array(self[..<at]) + Array("trailer\n<< /Root 1 0 R >>\n".utf8)
     }
 }

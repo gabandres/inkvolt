@@ -39,8 +39,8 @@ final class AccessibilityElem {
 
 extension AccessibilityChecker {
     static let maxElements = 500_000, maxDepth = 256
-    /// Most places a table's cells may fill (a crafted table's spans would otherwise take gigabytes).
-    static let maxTableCells = 16_000_000
+    /// Places a table's grid may add or write (about 64 MB). Spans can ask for 5,000 rows of a million columns; no real table comes near.
+    static let maxTablePlaces = 16_000_000
 
     func pageOf(_ pg: PObj?) -> Int {
         guard let pg else { return -1 }
@@ -375,7 +375,7 @@ extension AccessibilityChecker {
         var grid = [[Int32]](repeating: [], count: rows.count)
         var placed: [(cell: AccessibilityElem, row: Int, column: Int)] = []
         var overlap = false, spanPast = false
-        var filled = 0
+        var places = 0
         for r in 0..<rows.count {
             var c = 0
             for cell in rows[r].kids.lazy.filter({ $0.kind == "TH" || $0.kind == "TD" }).prefix(1000) {
@@ -385,9 +385,11 @@ extension AccessibilityChecker {
                 if r + rs > rows.count { spanPast = true }
                 placed.append((cell, r, c))
                 for dr in 0..<rs where r + dr < rows.count {
-                    filled += cs
-                    if filled > Self.maxTableCells {
-                        notes.append("A table's rows and columns are too many to lay out; its cells weren't compared.")
+                    // What this adds (the empty places left of a span too) and what it writes (over other cells too).
+                    places += max(0, c + cs - grid[r + dr].count) + cs
+                    if places > Self.maxTablePlaces {
+                        let note = "A table's rows and columns are too many to lay out; its cells weren't compared."
+                        if !notes.contains(note) { notes.append(note) }
                         return
                     }
                     if grid[r + dr].count < c + cs { grid[r + dr] += [Int32](repeating: -1, count: c + cs - grid[r + dr].count) }

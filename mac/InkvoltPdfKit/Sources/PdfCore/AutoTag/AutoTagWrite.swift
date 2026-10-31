@@ -361,6 +361,9 @@ extension AutoTag {
             let links: [(annot: PObj, box: RectD)] = annots.filter { $0.name("Subtype") == "Link" && $0.array("Rect") != nil }
                 .map { ($0, PageBoxes.rectToPage(page, $0.array("Rect"))) }
 
+            if ContentEditor.hasUnreadableContent(page) {
+                throw PdfEditError("Part of page \(index + 1)'s content can't be read (it is damaged), so it can't be tagged without losing it.")
+            }
             let content = ContentEditor.contentBytes(page)
             let walk = PageWalk(PageBoxes.frame(page), AutoTag.resources(page), shared)
             let ops = try ContentLexer.parse(content, cancel: cancel)

@@ -148,7 +148,7 @@ final class AboutWindowController: NSWindowController {
         let header = NSStackView(views: [icon, titles])
         header.spacing = 16
 
-        let privacy = NSTextField(wrappingLabelWithString: "Nothing you open leaves this Mac. No account, no tracking, no analytics: documents, "
+        let privacy = NSTextField(wrappingLabelWithString: "Nothing you open leaves this Mac unless you send text to an AI you set up. No account, no tracking, no analytics: documents, "
             + "text recognition and exports are all done here. Update checks ask Inkvolt PDF's feed on GitHub and send nothing about you.")
         let license = NSTextField(wrappingLabelWithString: "Inkvolt PDF is free software: you can share and change it under the GNU Affero General "
             + "Public License, version 3 (AGPL-3.0), which MuPDF, the engine it is built on, requires. It comes with no warranty. "

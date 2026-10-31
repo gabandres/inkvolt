@@ -63,6 +63,10 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     let altLabel = NSTextField(labelWithString: "")
     let altField = NSTextField()
     let decorativeBox = NSButton(checkboxWithTitle: "Decorative: nothing a reader needs", target: nil, action: nil)
+    let suggestButton = NSButton(title: "Suggest with AI…", target: nil, action: nil)
+    /// The suggestion being asked for (the self-test awaits it).
+    private(set) var suggestion: Task<Void, Never>?
+    private var suggesting: CancelToken?
     let applyButton = NSButton(title: "Apply Changes", target: nil, action: nil)
     let doneButton = NSButton(title: "Done", target: nil, action: nil)
 
@@ -121,6 +125,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func hide() {
+        suggesting?.cancel()
         controller?.pages.readingBoxes = []
         panelItem.isCollapsed = true
     }
@@ -165,6 +170,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         applyButton.isEnabled = state.canApply
         altField.isEnabled = state.editable && selectedItem?.block.decorative != true
         decorativeBox.isEnabled = state.editable
+        suggestButton.isEnabled = altField.isEnabled && suggesting == nil
     }
 
     /// A picture's alternate text (or decorative), a formula's (what a screen reader says for it: its text to begin with).
@@ -180,6 +186,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         updating = false
         decorativeBox.state = item.block.decorative ? .on : .off
         decorativeBox.isHidden = formula
+        suggestButton.isHidden = formula
         let name = formula ? "How formula \(item.number) is read" : "Alternate text for picture \(item.number)"
         altLabel.stringValue = name
         altField.setAccessibilityLabel(name)
@@ -265,6 +272,42 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         setPlan(AutoTag.with(plan, item.index) { $0.decorative = on }, select: item.index)
     }
 
+    /// Asks the user's own AI model for the selected picture's alternate text, after the usual "what is sent, where" window
+    /// (the Windows `SuggestAltAsync`). The text goes into the box and the plan, to be read over.
+    func suggestAlt() async {
+        guard let controller, let plan, let item = selectedItem, item.block.kind == .figure, suggesting == nil else { return }
+        let engine = controller.engine, block = item.block
+        let png: [UInt8]
+        do {
+            png = try await Task.detached(priority: .userInitiated) { try AutoTag.figurePng(engine, block.page, block.box) }.value
+        } catch {
+            controller.notify("The picture couldn't be rendered to send.")
+            return
+        }
+        let token = CancelToken()
+        suggesting = token
+        suggestButton.isEnabled = false
+        let before = altField.stringValue
+        let alt = await controller.suggestAltText(png: png, nearby: AutoTag.nearbyText(plan, item.index), language: plan.language, page: block.page,
+                                                  number: item.number, cancel: token, onAsking: { [weak self] in
+            guard let self else { return }
+            self.updating = true
+            self.altField.stringValue = "Asking your AI model…"
+            self.altField.isEditable = false
+            self.updating = false
+        })
+        suggesting = nil
+        updating = true
+        altField.isEditable = true
+        altField.stringValue = before
+        updating = false
+        suggestButton.isEnabled = altField.isEnabled
+        guard let alt, let now = self.plan, selected == item.index else { return }
+        setPlan(AutoTag.with(now, item.index) { $0.alt = alt }, select: item.index)
+        announce("Suggested alternate text: \(alt)")
+        controller.window?.makeFirstResponder(altField)
+    }
+
     /// Writes the tags from the plan as it is now (title and language asked first when they never were).
     @discardableResult
     func apply() async -> Bool {
@@ -279,6 +322,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     @objc private func pageBeforeClicked() { moveSelectedToPage(-1) }
     @objc private func pageAfterClicked() { moveSelectedToPage(1) }
     @objc private func decorativeClicked() { setDecorative(decorativeBox.state == .on) }
+    @objc func suggestClicked() { suggestion = Task { @MainActor in await suggestAlt() } }
     @objc private func doneClicked() { hide() }
 
     @objc private func applyClicked() {
@@ -403,10 +447,13 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         altField.heightAnchor.constraint(equalToConstant: 64).isActive = true
         decorativeBox.target = self
         decorativeBox.action = #selector(decorativeClicked)
+        suggestButton.target = self
+        suggestButton.action = #selector(suggestClicked)
+        suggestButton.toolTip = "Ask your own AI model (AI Assistant Settings) to describe the picture; you see what is sent, and where, first"
         figureGroup.orientation = .vertical
         figureGroup.alignment = .leading
         figureGroup.spacing = 4
-        for v in [altLabel, altField, decorativeBox] { figureGroup.addArrangedSubview(v) }
+        for v in [altLabel, altField, decorativeBox, suggestButton] { figureGroup.addArrangedSubview(v) }
         altField.widthAnchor.constraint(equalTo: figureGroup.widthAnchor).isActive = true
         figureGroup.isHidden = true
 
