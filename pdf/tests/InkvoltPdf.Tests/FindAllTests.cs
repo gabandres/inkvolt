@@ -3,7 +3,15 @@ using MuPDFCore;
 
 namespace InkvoltPdf.Tests;
 
+/// <summary>
+/// These classes run one at a time: <see cref="PdfEngine.KeptTextChars"/> is process-wide, and FindAllTests lowers it
+/// while a test runs, which changes what any other search in the process keeps.
+/// </summary>
+[CollectionDefinition("KeptText")]
+public sealed class KeptTextCollection;
+
 /// <summary>Find across a document (roadmap 3.6): pages read on several threads, in order, remembered for the next search.</summary>
+[Collection("KeptText")]
 public class FindAllTests
 {
     [Theory]

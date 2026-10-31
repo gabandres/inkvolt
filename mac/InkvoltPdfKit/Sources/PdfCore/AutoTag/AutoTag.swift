@@ -151,7 +151,7 @@ public enum AutoTag {
             from = (title ?? "").isEmpty ? .none : .heading
         }
         var guessed = false
-        if lang == nil || lang!.isBlank || !isLanguage(lang) {
+        if lang == nil || lang!.isBlank || !AccessibilityCheck.isLanguage(lang) {
             lang = Language.guess(blocks.map(\.text).joined(separator: " "))
             guessed = true
         }
@@ -225,15 +225,6 @@ public enum AutoTag {
         guard catalog.has("StructTreeRoot"), let marked = catalog.dict("MarkInfo")?["Marked"] else { return false }
         return marked.kind == .bool && marked.bool
     }
-
-    /// A language tag as RFC 3066 writes them ("en", "en-US", "zh-Hant-TW", "x-klingon"): what PDF/UA-1 asks of every Lang
-    /// (the Windows app's `AccessibilityCheck.IsLanguage`).
-    public static func isLanguage(_ s: String?) -> Bool {
-        guard let s, !s.isEmpty, s.utf16.count <= 64 else { return false }
-        return languageTag.firstMatch(in: s, range: NSRange(location: 0, length: s.utf16.count)) != nil
-    }
-
-    private static let languageTag = try! NSRegularExpression(pattern: "^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$")
 
     private static func primary(_ lang: String) -> String { String(lang.split(separator: "-", omittingEmptySubsequences: false).first ?? "") }
 

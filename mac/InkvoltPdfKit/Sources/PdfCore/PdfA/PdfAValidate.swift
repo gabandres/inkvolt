@@ -21,7 +21,7 @@ extension PdfA {
         if conformance == .a {
             if !catalog.has("StructTreeRoot") { problems.append("It isn't tagged (no structure tree).") }
             if catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true { problems.append("It doesn't say it is tagged (MarkInfo).") }
-            if !AutoTag.isLanguage(catalog.text("Lang")) { problems.append("It doesn't say its language.") }
+            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { problems.append("It doesn't say its language.") }
         }
         let pdfa = catalog.array("OutputIntents")?.elements.first { $0.isDict && $0.name("S") == "GTS_PDFA1" }
         let profile = pdfa?.dict("DestOutputProfile")

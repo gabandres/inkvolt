@@ -126,6 +126,9 @@ final class TrueTypeProgram: FontProgram, @unchecked Sendable {
 
     func hasCmap(_ platform: Int, _ encoding: Int) -> Bool { cmaps[platform << 16 | encoding] != nil }
 
+    /// How many cmap subtables were read (formats 0, 4, 6 and 12).
+    var cmapCount: Int { cmaps.count }
+
     /// Whether the font has a Unicode cmap (3,1), (3,10) or (0,*).
     var hasUnicodeCmap: Bool { cmaps.keys.contains { $0 >> 16 == 0 || $0 == (3 << 16 | 1) || $0 == (3 << 16 | 10) } }
 
@@ -217,8 +220,8 @@ final class TrueTypeProgram: FontProgram, @unchecked Sendable {
 final class CffProgram: FontProgram, @unchecked Sendable {
     private(set) var numGlyphs = 0
     private(set) var isCid = false
-    private var names: Set<String> = []
-    private var cids: Set<Int> = []
+    private(set) var names: Set<String> = []
+    private(set) var cids: Set<Int> = []
 
     private var blank: Set<Int> = []
     private var glyphNames: [String?] = []
@@ -415,7 +418,7 @@ final class CffProgram: FontProgram, @unchecked Sendable {
 
 /// A Type 1 program (FontFile): the glyph names in its CharStrings and its built-in encoding.
 final class Type1Program: FontProgram, @unchecked Sendable {
-    private var names: Set<String> = []
+    private(set) var names: Set<String> = []
 
     /// The program's own encoding (code → glyph name); nil for StandardEncoding or when it can't be read.
     private(set) var builtIn: [String?]?

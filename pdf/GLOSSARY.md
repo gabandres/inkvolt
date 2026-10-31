@@ -5,6 +5,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
 
 - **Document session** (`Core/DocumentSession.cs`): one open document: its bytes, the MuPDF engine over them, the
   passwords that open them, undo/redo steps and the saved/dirty state. The tab shows it; it never touches WPF.
+- **Find worker** (`Core/FindWorkers.cs`, its parent's side in `Core/PdfEngine.Find.cs`): the app started again with
+  `--find-worker <pipe name>`, reading pages' text for one long search and sending each page's text and hits back over
+  a private pipe. It writes nothing and shows nothing, and ends with the search or the app. A worker that fails loses
+  nothing: this process's threads read its pages.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
@@ -57,7 +61,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   Protocol 1.1 (PDF/UA-1) run on a document: each **finding** has its condition number ("13-004"), page, element, what is
   wrong and what fixes it; the **human checks** are the checklist of what only a person can judge. The **report** is the
   findings, the ticked checklist and every condition's result as one web page (`AccessibilityReportHtml`). Runs from
-  Review › Accessibility Check… (the Accessibility pane) and in Batch.
+  Review › Accessibility Check… (the Accessibility pane) and in Batch. On the Mac: `PdfCore/Accessibility`, Tools ›
+  Accessibility Check…, the same pane as a segment of the sidebar.
 - **Make Accessible** (`Core/AutoTag*.cs`): tagging a document from its layout. The **tag plan** (`TagPlan`) is what
   will be written: the **blocks** (`TagBlock`: paragraph, heading, list, table, figure, caption, footnote, table of
   contents, formula) of each page in reading order, the running headers and footers (artifacts), the title and

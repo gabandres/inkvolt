@@ -132,7 +132,7 @@ public enum ReadingOrder {
     /// What the title and language are missing, or nil when they will do.
     public static func problem(title: String, language: String) -> String? {
         if title.isBlank { return "Type a title: PDF/UA asks for one." }
-        return AutoTag.isLanguage(language.trimmedWS) ? nil : "Choose or type a language code, such as en, en-US or es."
+        return AccessibilityCheck.isLanguage(language.trimmedWS) ? nil : "Choose or type a language code, such as en, en-US or es."
     }
 
     public static let introduction = "Tags the document on this Mac, from its layout: headings, paragraphs, lists, tables and pictures in reading order; running headers, footers and page numbers are marked as decoration. Screen readers and Reflow use the tags. You can undo this until you save."

@@ -3,9 +3,7 @@ import Testing
 @testable import PdfCore
 
 /// Ported from BatchAutomationTests.cs (same names): batch presets (JSON in and out), the watched folder and the command
-/// line (roadmap 1.2). Adapted: the Everything preset leaves out the action the Mac doesn't have (Check accessibility; a
-/// preset naming it is refused saying so);
-/// the JSON refusals are the Mac's words for the same mistakes; ALockedFileWaitsUntilItIsLetGo holds an flock on the
+/// line (roadmap 1.2). Adapted: the JSON refusals are the Mac's words for the same mistakes; ALockedFileWaitsUntilItIsLetGo holds an flock on the
 /// file (what "held open" means on a Mac); the command line's `/?` isn't a Mac spelling. Serialized with ProTests
 /// (`ProGated`): the command line asks the Pro check that those tests flip.
 extension ProGated {
@@ -60,6 +58,7 @@ extension ProGated {
             .redactPatterns(RedactionPatternOptions(patterns: [.zipCode, .email], phrases: ["Acme Corp", "Jane \"JD\" Doe"], wholeWord: false, matchCase: true,
                                                     expression: #"CASE-\d{4}"#, pages: [0, 2])),
             .checkRedaction,
+            .checkAccessibility,
             .reportContents,
             .watermark(WatermarkOptions(text: "DRAFT", fontSize: 60, color: AnnotColor(1, 0, 0), opacity: 0.25, rotation: -30, layout: .tiled, behind: true)),
             .watermark(WatermarkOptions(image: StampImage(2, 1, [255, 0, 0, 0, 0, 255], [255, 128]), color: AnnotColor(0, 0, 1), imageScale: 0.2)), // colors keep 8 bits a channel
@@ -161,7 +160,6 @@ extension ProGated {
         ("{ \"version\": 1 }", "has no \"actions\""),
         ("{ \"version\": 1, \"actions\": [] }", "list is empty"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"stamp\" } ] }", "Action 1: \"stamp\" isn't an action"),
-        ("{ \"version\": 1, \"actions\": [ { \"action\": \"checkAccessibility\" } ] }", "Inkvolt PDF for Windows"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"ocr\" }, { \"action\": \"rotate\", \"degres\": 90 } ] }", "Action 2 (rotate): \"degres\" isn't a setting"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"rotate\", \"degrees\": 45 } ] }", "should be 90, -90 or 180"),
         ("{ \"version\": 1, \"actions\": [ { \"action\": \"watermark\", \"text\": \"X\", \"opacity\": \"half\" } ] }", "\"opacity\" should be a number"),

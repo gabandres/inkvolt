@@ -61,8 +61,9 @@ struct ContentLexer {
 
     private init(_ data: [UInt8]) { b = data }
 
+    /// - Parameter limit: stop after this many operators (a small file can inflate to a stream of billions).
     /// - Throws: `CancellationError` when `cancel` fires.
-    static func parse(_ data: [UInt8], cancel: CancelToken?) throws -> [COp] {
+    static func parse(_ data: [UInt8], cancel: CancelToken?, limit: Int? = nil) throws -> [COp] {
         var lx = ContentLexer(data)
         var ops: [COp] = []
         var operands: [CObj] = []
@@ -91,6 +92,7 @@ struct ContentLexer {
             if op.name == "BI" { lx.inlineImage(op) }
             ops.append(op)
             if op.broken { break } // where the content goes on is unknown: stop rather than misread it
+            if let limit, ops.count >= limit { break }
         }
         return ops
     }

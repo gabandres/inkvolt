@@ -18,6 +18,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
                                             action: nil)
     let comments = CommentsList()
     let signatures = SignaturesPane()
+    let accessibility = AccessibilityPane()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
     private(set) var outline: [OutlineItem] = []
@@ -101,11 +102,13 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         outlineScroll.isHidden = true
         comments.isHidden = true
         signatures.isHidden = true
+        accessibility.isHidden = true
         picker.setEnabled(showsSignatures, forSegment: 3)
 
-        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures])
+        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, accessibility])
         comments.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         signatures.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        accessibility.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         stack.orientation = .vertical
         stack.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 0, right: 0)
         stack.spacing = 6
@@ -123,6 +126,25 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         outlineScroll.isHidden = picker.selectedSegment != 1
         comments.isHidden = picker.selectedSegment != 2
         signatures.isHidden = picker.selectedSegment != 3
+        accessibility.isHidden = picker.selectedSegment != 4
+    }
+
+    /// Shows the Accessibility pane; its segment appears with the first check (a symbol: the four words fill the width).
+    func showAccessibility() {
+        _ = view
+        if picker.segmentCount == 4 {
+            picker.segmentCount = 5
+            picker.setImage(NSImage(systemSymbolName: "accessibility", accessibilityDescription: "Accessibility"), forSegment: 4)
+            picker.setToolTip("Accessibility", forSegment: 4)
+            picker.setWidth(28, forSegment: 4)
+        }
+        show(4)
+    }
+
+    /// How many segments the picker has (the self-test reads it).
+    var segmentCount: Int {
+        _ = view
+        return picker.segmentCount
     }
 
     /// The Signatures segment can be chosen (the document has signature fields); without, the thumbnails come back.
@@ -134,7 +156,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         }
     }
 
-    /// Shows the thumbnails (0), the bookmarks (1), the comments (2) or the signatures (3).
+    /// Shows the thumbnails (0), the bookmarks (1), the comments (2), the signatures (3) or, after a check, accessibility (4).
     func show(_ segment: Int) {
         _ = view
         picker.selectedSegment = segment

@@ -176,6 +176,9 @@ public enum BatchStep: Equatable, Sendable {
     /// Redaction check (`RedactionCheck`): the file fails when anything recoverable is found (it isn't saved). After
     /// Redact Patterns, what that action redacted is looked for everywhere in the file.
     case checkRedaction
+    /// Accessibility check (`AccessibilityCheck`, PDF/UA-1 through the Matterhorn Protocol): its report is saved beside the
+    /// result as a web page, and a file with any failure fails (its PDF isn't saved; the report is).
+    case checkAccessibility
     /// What's in this PDF (`DocumentInventory`): its report is saved beside the result as a web page and as JSON. Never
     /// fails a file: it reports, it doesn't judge.
     case reportContents
@@ -201,7 +204,7 @@ public enum BatchStep: Equatable, Sendable {
     /// The action changes the PDF (an export only reads it).
     public var changesPdf: Bool {
         switch self {
-        case .checkRedaction, .reportContents, .export: false
+        case .checkRedaction, .checkAccessibility, .reportContents, .export: false
         default: true
         }
     }
@@ -215,6 +218,7 @@ public enum BatchStep: Equatable, Sendable {
         case .sanitize: "Sanitize"
         case .redactPatterns: "Redact patterns"
         case .checkRedaction: "Check redaction"
+        case .checkAccessibility: "Check accessibility"
         case .reportContents: "Report contents"
         case .watermark: "Add watermark"
         case .headerFooter(let o, _): o.bates != nil ? "Add header, footer & Bates numbers" : "Add header & footer"
@@ -629,6 +633,8 @@ public enum BatchRunner {
                         try export(data, format, dpi)
                     case .checkRedaction:
                         try checkRedaction(data)
+                    case .checkAccessibility:
+                        try checkAccessibility(data)
                     case .reportContents:
                         try reportContents(data)
                     case .ocr:
@@ -785,6 +791,19 @@ public enum BatchRunner {
             for f in report.findings.prefix(10) { notes.append("\(f.place): \(RedactionCheck.name(f.kind))") }
             if report.findings.count > 10 { notes.append("… and \(report.findings.count - 10) more") }
             throw BatchCheckFailed(message: "Redaction check: \(report.summary)")
+        }
+
+        /// The accessibility check: its report beside the result, and a failure fails the file (the first ones go in its notes).
+        private func checkAccessibility(_ data: [UInt8]) throws {
+            let report = try AccessibilityCheck.run(data, password, progress: { [self] done, total in
+                self.report("Checking accessibility…", Double(done) / Double(max(1, total)))
+            }, cancel: cancel)
+            let html = AccessibilityReportHtml.write(report, (file.namedAs as NSString).lastPathComponent, checkedAt: Date())
+            outputs.append(try names.place(folder, baseName + " accessibility.html") { try html.write(toFile: $0, atomically: false, encoding: .utf8) })
+            if report.passed { return }
+            for f in report.failures.prefix(10) { notes.append("\(f.condition) · \(f.place): \(f.problem)") }
+            if report.failures.count > 10 { notes.append("… and \(report.failures.count - 10) more (see the report)") }
+            throw BatchCheckFailed(message: "Accessibility check: \(report.summary)")
         }
 
         /// What's in this PDF: its report beside the result, as a web page and as JSON.

@@ -92,7 +92,7 @@ public enum PdfA {
             if !catalog.has("StructTreeRoot") || catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true {
                 blockers.append("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Tools › Make Accessible).")
             }
-            if !AutoTag.isLanguage(catalog.text("Lang")) { blockers.append("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).") }
+            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { blockers.append("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).") }
             if !blockers.isEmpty { throw PdfAError(blockers) }
             pdfUa = Xmp.saysPdfUa(Xmp.read(doc))
             // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.

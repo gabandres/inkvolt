@@ -47,12 +47,18 @@ enum TagTest {
         PdfStructure.numberTree(doc.catalog.dict("StructTreeRoot")?.dict("ParentTree")).first { $0.key == key }?.value
     }
 
-    /// What the machine check (`AccessibilityCheck`, roadmap 1.3, not on this branch) would also see in the tags: every page
-    /// has marks that balance, numbered in order, each MCID's parent holds it, no element is empty.
+    /// The machine check passes, as the Windows tests ask it, with its failures in the message.
+    static func passesTheCheck(_ pdf: [UInt8]) throws {
+        let report = try AccessibilityCheck.run(pdf, nil)
+        #expect(report.passed, "\(report.failures.map { "\($0.condition) p\($0.page): \($0.problem)" }.joined(separator: "\n"))")
+    }
+
+    /// The tags looked at directly (the Mac's addition to the check): every page has marks that balance, numbered in order,
+    /// each MCID's parent holds it, no element is empty.
     static func tagsHold(_ pdf: [UInt8]) throws {
         let doc = try PdfEdit.openToRead(pdf, nil)
         #expect(doc.catalog.dict("MarkInfo")?["Marked"]?.bool == true)
-        #expect(AutoTag.isLanguage(doc.catalog.text("Lang")))
+        #expect(AccessibilityCheck.isLanguage(doc.catalog.text("Lang")))
         #expect(!InfoDict.text(doc, "Title").isEmpty)
         for page in try doc.pages() {
             let text = content(page)
@@ -75,9 +81,8 @@ enum TagTest {
 }
 
 /// Ported from AutoTagTests.cs (same names): Make Accessible: an untagged PDF tagged from its layout, each tag kind, the
-/// marked content in the page streams, title, language and tab order, reading-order edits, alternate text. Adapted: the
-/// Windows tests also ask `AccessibilityCheck` (roadmap 1.3), which isn't on this branch: `TagTest.tagsHold` looks at the
-/// tags instead, and `Untagged_file_passes_the_machine_checks…` waits for it. PDF/A-2a and Batch: `AutoTagOutputTests`.
+/// marked content in the page streams, title, language and tab order, reading-order edits, alternate text. PDF/A-2a and
+/// Batch: `AutoTagOutputTests`.
 /// `Alt_text_request_carries_the_picture…` isn't ported: the Mac app has no AI client (`docs/PLAN.md`).
 @Suite struct AutoTagTests {
     private func plan(_ pdf: [UInt8]) throws -> TagPlan { try TagTest.plan(pdf) }
@@ -137,6 +142,17 @@ enum TagTest {
         #expect((230...234).contains(bbox.num(2)))
         // Every element points at its parent.
         #expect(tree.dropFirst().allSatisfy { $0.elem.has("P") })
+    }
+
+    @Test func Untagged_file_passes_the_machine_checks_once_figures_have_alt_text() throws {
+        let pdf = ExportTestPdf.make(logo: true)
+        #expect(try !AccessibilityCheck.run(pdf, nil).passed)
+
+        let plan = try plan(pdf)
+        let withoutAlt = try AccessibilityCheck.run(AutoTag.write(pdf, nil, plan), nil)
+        #expect(withoutAlt.failedConditions == ["13-004"])
+
+        try TagTest.passesTheCheck(AutoTag.write(pdf, nil, TagTest.withAlt(plan)))
     }
 
     @Test func Content_is_marked_with_mcids_the_parent_tree_resolves_and_running_content_is_an_artifact() throws {
@@ -205,6 +221,7 @@ enum TagTest {
         let tagged = try AutoTag.write(pdf, nil, TagTest.withAlt(moved))
         let doc = try PdfEdit.openToRead(tagged, nil)
         #expect(TagTest.tree(doc).first { $0.depth == 1 }?.type == "Table")
+        try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
     }
 
@@ -234,6 +251,7 @@ enum TagTest {
         #expect(h > 0)
         #expect(top[h].type.hasPrefix("H"))
         #expect(top[..<h].allSatisfy { $0.elem["Pg"] == nil || doc.pageIndex(of: $0.elem["Pg"]) == 0 })
+        try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
 
         // Back with its own page: before page 2's first piece, read with its own page again.
@@ -252,6 +270,7 @@ enum TagTest {
         let tagged = try AutoTag.write(pdf, nil, plan)
         let doc = try PdfEdit.openToRead(tagged, nil)
         #expect(!TagTest.tree(doc).contains { $0.type == "Figure" })
+        try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
     }
 
@@ -269,6 +288,7 @@ enum TagTest {
         let mcids = TagTest.all(#"MCID (\d+)"#, TagTest.content(doc.page(0))).map { $0[1] }
         #expect(Set(mcids).count == mcids.count) // the old ones are gone
         #expect(TagTest.tree(doc).count { $0.type == "Document" } == 1)
+        try TagTest.passesTheCheck(twice)
         try TagTest.tagsHold(twice)
     }
 
@@ -292,6 +312,7 @@ enum TagTest {
         let annot = try #require(read.page(0).array("Annots")?[0])
         #expect(annot.has("StructParent"))
         #expect(annot.text("Contents") == "Summary")
+        try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
     }
 
@@ -482,6 +503,7 @@ enum TagTest {
         #expect(th.count { $0.name("Scope") == "Column" } == 5)
         #expect(th.contains { $0.int("ColSpan") == 2 })
         #expect(tree.count { $0.type == "TD" } == 6)
+        try TagTest.passesTheCheck(tagged)
         try TagTest.tagsHold(tagged)
     }
 

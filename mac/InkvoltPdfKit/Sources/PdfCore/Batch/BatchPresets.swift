@@ -218,17 +218,15 @@ public enum BatchPresets {
                 w.string("language", language)
             case .saveAsPdfA2a:
                 w.string("conformance", "a")
-            case .unprotect, .checkRedaction, .reportContents, .ocr, .saveAsPdfA:
+            case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .saveAsPdfA:
                 break
             }
         }
     }
 
-    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list; the action it
-    /// has that the Mac doesn't yet, checkAccessibility, is refused by name).
-    public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "reportContents", "watermark",
+    /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list).
+    public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark",
                                      "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "export"]
-    static let windowsOnlyActions = ["checkAccessibility"]
 
     private static func actionName(_ step: BatchStep) -> String {
         switch step {
@@ -238,6 +236,7 @@ public enum BatchPresets {
         case .sanitize: "sanitize"
         case .redactPatterns: "redactPatterns"
         case .checkRedaction: "checkRedaction"
+        case .checkAccessibility: "checkAccessibility"
         case .reportContents: "reportContents"
         case .watermark: "watermark"
         case .headerFooter: "headerFooter"
@@ -443,9 +442,6 @@ public enum BatchPresets {
         guard let name = dict["action"] as? String else {
             throw BatchPresetError("Action \(n) has no \"action\" saying what it does (one of \(actionNames.joined(separator: ", "))).")
         }
-        if windowsOnlyActions.contains(name) {
-            throw BatchPresetError("Action \(n): \"\(name)\" is an action of Inkvolt PDF for Windows that the Mac doesn't have yet (it knows \(actionNames.joined(separator: ", "))).")
-        }
         if !actionNames.contains(name) {
             throw BatchPresetError("Action \(n): \"\(name)\" isn't an action Inkvolt PDF knows (it knows \(actionNames.joined(separator: ", "))).")
         }
@@ -478,6 +474,8 @@ public enum BatchPresets {
                 pages: try f.pages("pages")))
         case "checkRedaction":
             step = .checkRedaction
+        case "checkAccessibility":
+            step = .checkAccessibility
         case "reportContents":
             step = .reportContents
         case "watermark":

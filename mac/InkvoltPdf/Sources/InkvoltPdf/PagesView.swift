@@ -257,6 +257,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         return first <= last ? first...last : nil
     }
 
+    /// The place outlined for a moment (`flash`).
+    private(set) var flashed: (page: Int, box: RectD)?
+    private var flashTask: Task<Void, Never>?
+
     override func draw(_ dirtyRect: NSRect) {
         guard let range = pages(in: dirtyRect) else { return }
         for i in range {
@@ -287,6 +291,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
             drawReadingBoxes(i, r)
+            if let flashed, flashed.page == i {
+                NSColor.systemOrange.setStroke()
+                let outline = NSBezierPath(rect: viewRect(flashed.box, r).insetBy(dx: -2, dy: -2))
+                outline.lineWidth = 2
+                outline.stroke()
+            }
         }
         requestVisible()
     }
@@ -316,6 +326,19 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             color.setFill()
             NSBezierPath(roundedRect: badge, xRadius: 3 * px, yRadius: 3 * px).fill()
             label.draw(at: NSPoint(x: badge.minX + (width - size.width) / 2, y: badge.minY + (height - size.height) / 2))
+        }
+    }
+
+    /// Outlines a place for a moment (a finding chosen in the Accessibility pane; Windows' `Viewer.Flash`).
+    func flash(_ page: Int, _ box: RectD) {
+        flashed = (page, box)
+        needsDisplay = true
+        flashTask?.cancel()
+        flashTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.flashed = nil
+            self.needsDisplay = true
         }
     }
 

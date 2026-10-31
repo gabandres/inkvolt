@@ -16,7 +16,7 @@ import PdfCore
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -38,6 +38,8 @@ enum Report {
     private(set) static var onlyMeasure = false
     /// `--only-prepare-form`: with `--edit`, only `PrepareFormTest` (quicker runs while working on Prepare Form).
     private(set) static var onlyPrepareForm = false
+    /// `--only-accessibility`: with `--edit`, only `AccessibilityTest` (quicker runs while working on the check).
+    private(set) static var onlyAccessibility = false
     /// `--only-pdfa`: with `--edit`, only `PdfATest` (quicker runs while working on Save as PDF/A).
     private(set) static var onlyPdfA = false
     /// `--only-accessible`: with `--edit`, only `AccessibleTest` (quicker runs while working on Make Accessible).
@@ -66,6 +68,7 @@ enum Report {
         onlyRedaction = args.contains("--only-redaction")
         onlyMeasure = args.contains("--only-measure")
         onlyPrepareForm = args.contains("--only-prepare-form")
+        onlyAccessibility = args.contains("--only-accessibility")
         onlyPdfA = args.contains("--only-pdfa")
         onlyAccessible = args.contains("--only-accessible")
         snapshots = value("--snapshots")
@@ -117,6 +120,11 @@ enum Report {
                     var accessible = AccessibleTest(controller: controller, name: name)
                     await accessible.run()
                 }
+            } else if edits && onlyAccessibility {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var check = AccessibilityTest(controller: controller, name: name)
+                    await check.run()
+                }
             } else if edits && onlyPdfA {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var pdfa = PdfATest(controller: controller, name: name)
@@ -153,6 +161,8 @@ enum Report {
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
                 if openedFrom != nil && openedFrom == syntheticPath {
+                    var check = AccessibilityTest(controller: controller, name: name)
+                    await check.run()
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
                     // Before signing: a signed document declines the scale's page edits.
@@ -183,7 +193,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyPdfA && !onlyAccessible {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

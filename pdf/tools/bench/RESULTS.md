@@ -14,6 +14,78 @@ Written by `dotnet run --project pdf/tools/bench -c Release -- report` on 2026-1
 | `drawings.pdf` | 400-sheet drawing set (ARCH D, 36 × 24 in): hatching, polylines and circles, 72,000 paths per sheet, a title block | 1,017.0 MB | `f5067a3ce4224aef…` |
 | `comments.pdf` | 250-page text document with 10,000 comments: notes, highlights, underlines, strike-outs, boxes, circles, ink, text boxes, with popups, and replies | 6.5 MB | `efdfd602a82dbe54…` |
 
+## 2026-10-30, third run: Find in worker processes
+
+- **Build:** commit 3e8b925, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.
+- Other sessions were open on this PC, but it was quieter than for the runs below (total CPU 4 to 22% at the moments it was
+  sampled before and after each run), so the numbers are indicative, and the drawing set's "before" is the low end of the
+  earlier 106 to 164 s. The build before the workers (c8839f7) was run straight after this one, 18:43 to 18:50, on the same
+  PC, for the comparison below.
+
+### Before and after
+
+| Find, first search | Before (c8839f7) | With workers | Workers | Peak with workers added |
+|---|---|---|---|---|
+| `text.pdf`, 5,000 pages | 9.64 s **miss** | 2.71 s pass | 8 | 0.87 GB |
+| `drawings.pdf`, 400 sheets | 106.45 s | 31.73 s | 8 | 0.60 GB |
+| `scan.pdf`, 500 pages | 0.42 s | 0.55 s | 0 (none started) | 0.19 GB |
+| `comments.pdf`, 250 pages | 0.78 s | 0.74 s | 0 (none started) | 0.17 GB |
+
+Hits are the same in both builds (11,011, 0, 80 and 579). The scan's 0.42 and 0.55 s are the same code on either side: no
+worker started.
+
+### Measures against the targets
+
+| Measure | Target | `text.pdf` | `scan.pdf` | `drawings.pdf` | `comments.pdf` |
+|---|---|---|---|---|---|
+| Pages |  | 5,000 | 500 | 400 | 250 |
+| First page (read + open + render) | < 1 s | 0.07 s pass | 0.07 s pass | 0.48 s pass | 0.33 s pass |
+|   of which: read the file / open / render |  | 4 / 37 / 34 ms | 0 / 21 / 49 ms | 0 / 16 / 467 ms | 4 / 294 / 37 ms |
+| Scrolling proxy: 20 pages after a cold open, ms/page (slowest) | no page > 200 ms | 6 ms (16) pass | 25 ms (29) pass | 761 ms (888) **miss**, 20 over | 10 ms (23) pass |
+|   the same pages again, engine still holding them: ms/page |  | 4 ms | 4 ms | 581 ms | 7 ms |
+| Find a word across all pages | < 5 s | 2.71 s pass ("lantern": 11,011 hits) | 0.55 s pass ("lantern": 0 hits) | 31.73 s **miss** ("detail": 80 hits) | 0.74 s pass ("lantern": 579 hits) |
+|   find workers started, pages they read |  | 8 (4,893 pages) | 0 (0 pages) | 8 (396 pages) | 0 (0 pages) |
+| Comment list ready | < 2 s | 0.40 s pass (0 comments) | 0.17 s pass (0 comments) | 0.63 s pass (0 comments) | 0.77 s pass (10,000 comments) |
+| Peak working set | < 1.5 GB | 0.27 GB pass | 0.19 GB pass | 0.17 GB pass | 0.17 GB pass |
+|   with the find workers' peaks added (an upper bound) | < 1.5 GB | 0.87 GB pass | 0.19 GB pass | 0.60 GB pass | 0.17 GB pass |
+| On-screen scroll (app, 4 s at 1,500 px/s): frames per second | 60 fps | 74 fps pass, longest gap 38 ms | 75 fps pass, longest gap 33 ms | 75 fps pass, longest gap 24 ms | 58 fps pass, longest gap 91 ms |
+|   frames with a blank page |  | 0 of 297 | 0 of 299 | 43 of 302 | 0 of 234 |
+|   pages still blank 200 ms after the scroll stops | none | 0 pass | 0 pass | 0 pass | 0 pass |
+
+### What missed
+
+- `drawings.pdf`: 20 of the first 20 pages took over 200 ms to render (slowest 888 ms; 761 ms on average).
+- `drawings.pdf`: find across 400 pages took 31.7 s. (The 5 s target is written for a 5,000-page text; a sheet's 72,000 paths
+  are still parsed for a text pass that ignores them, some 600 ms a sheet on each of eight workers.)
+
+### How the numbers were decided
+
+One `Bench one` each, on the same day, the load changing between them:
+
+| Workers | `text.pdf` | Their peaks added | `drawings.pdf` | Their peaks added |
+|---|---|---|---|---|
+| 2 | 5.68 s | 155 MB | | |
+| 4 | 2.69 s | 307 MB | 37.48 s | 243 MB |
+| 6 | 2.28 s | 461 MB | | |
+| 8 | 2.40 s | 605 MB | 30.06 s | 447 MB |
+
+- **How many:** cores less two, at most eight: a long text gains nothing past six, and the drawing set still gains at eight.
+  A worker peaks at 77 MB on the text and 56 MB on the drawing set; 100 MB each is budgeted, within half the free memory and
+  1.2 GB, so the app and its workers stay under the 1.5 GB target. The parent's peak is 0.27 GB against 0.18 GB, from the
+  pages in flight.
+- **When:** the search starts on its two threads, and from 200 ms on, once at least 16 pages are left, its pace says how much
+  is left. Workers started at once on the 250-page and 500-page files, eight of them: 0.87 s against 0.78 s and 0.47 s
+  against 0.42 s, so they don't pay under a second or so, as they are reading some 400 ms after being asked. Hence
+  **2 s** left by the pace, about 1,000 pages of a text, with all the workers from 4 s and fewer below that.
+
+### Drawing set: a display list kept per sheet across scrolls
+
+Tried on paper and dropped, as the numbers show it can't help enough. The engine already keeps the last 32 sheets with their
+display lists, and rendering the same 20 sheets again takes 581 ms each against 761 ms the first time: the list saves about a
+quarter, and the rest is painting 72,000 paths. Keeping more only helps coming back to a sheet more than 32 sheets away, and
+never the first look at one. The 200 ms target needs something else (pictures of the sheets kept, or fewer paths painted at
+that scale). No code changed for this; `the same pages again` above is the new measure.
+
 ## 2026-10-30, second run: after the speed work (branch `speed`)
 
 - **Build:** commit 2440000, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.

@@ -3,8 +3,7 @@ import Testing
 @testable import PdfCore
 
 /// Ported from AutoTagTests.cs and AutoTagBatchTests (same names): PDF/A-2a, Make Accessible in Batch and presets. Serialized
-/// with the other Pro tests (`ProGated`): Batch asks the Pro check for Make Accessible and PDF/A-2a. Adapted: where the Windows
-/// tests ask `AccessibilityCheck` (roadmap 1.3, not on this branch), the tags are looked at.
+/// with the other Pro tests (`ProGated`): Batch asks the Pro check for Make Accessible and PDF/A-2a.
 extension ProGated {
 @Suite final class AutoTagOutputTests {
     private let root: String
@@ -30,6 +29,7 @@ extension ProGated {
         #expect(xmp.contains("<pdfuaid:part>1</pdfuaid:part>"))
         #expect(xmp.contains("pdfaSchema:prefix>pdfuaid<")) // the extension schema PDF/A asks for
         #expect(doc.catalog.has("StructTreeRoot"))
+        try TagTest.passesTheCheck(result.data)
         try TagTest.tagsHold(result.data)
     }
 
@@ -50,8 +50,7 @@ extension ProGated {
         #expect(item.notes.contains { $0.hasPrefix("PDF/A-2a") })
         let result = [UInt8](try Data(contentsOf: URL(fileURLWithPath: (out as NSString).appendingPathComponent("report.pdf"))))
         #expect(PdfA.validate(result, conformance: .a) == [])
-        let doc = try PdfEdit.openToRead(result, nil)
-        #expect(TagTest.tree(doc).first { $0.type == "Figure" }.map { !$0.elem.has("Alt") } == true) // only the alternate text is left
+        #expect(try AccessibilityCheck.run(result, nil).failedConditions == ["13-004"]) // only the alternate text is left
     }
 
     @Test func Presets_keep_make_accessible_and_the_pdfa_level() throws {

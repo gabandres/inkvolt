@@ -86,6 +86,8 @@ public static class Harness
         {
             ReadMs = Med(m => m.ReadMs), OpenMs = Med(m => m.OpenMs), FirstRenderMs = Med(m => m.FirstRenderMs), PageMs = pageMs,
             FindMs = Med(m => m.FindMs), CommentsMs = Med(m => m.CommentsMs), PeakWorkingSetMb = Med(m => m.PeakWorkingSetMb),
+            FindWorkersPeakMb = Med(m => m.FindWorkersPeakMb),
+            PageAgainMs = first.PageAgainMs is { } again ? [.. again.Select((_, k) => Med(m => m.PageAgainMs?[k] ?? 0))] : null,
         };
     }
 
@@ -227,9 +229,12 @@ public static class Harness
         Row("  of which: read the file / open / render", "", f => $"{f.Median.ReadMs:N0} / {f.Median.OpenMs:N0} / {f.Median.FirstRenderMs:N0} ms");
         Row($"Scrolling proxy: {r.Files.Max(f => f.Median.PageMs.Length)} pages after a cold open, ms/page (slowest)", "no page > 200 ms",
             f => Verdict($"{f.Median.PageMsAverage:N0} ms ({f.Median.PageMsMax:N0})", f.Median.PagesOver200 == 0) + (f.Median.PagesOver200 > 0 ? $", {f.Median.PagesOver200} over" : ""));
+        Row("  the same pages again, engine still holding them: ms/page", "", f => $"{f.Median.PageAgainMsAverage:N0} ms");
         Row("Find a word across all pages", "< 5 s", f => Verdict($"{f.Median.FindMs / 1000:N2} s", f.Median.FindMs < Targets.FindMs) + $" (\"{f.Median.FindWord}\": {f.Median.FindHits:N0} hits)");
+        Row("  find workers started, pages they read", "", f => $"{f.Median.FindWorkers} ({f.Median.FindWorkerPages:N0} pages)");
         Row("Comment list ready", "< 2 s", f => Verdict($"{f.Median.CommentsMs / 1000:N2} s", f.Median.CommentsMs < Targets.CommentsMs) + $" ({f.Median.Comments:N0} comments)");
         Row("Peak working set", "< 1.5 GB", f => Verdict($"{f.Median.PeakWorkingSetMb / 1024:N2} GB", f.Median.PeakWorkingSetMb < Targets.MemoryMb));
+        Row("  with the find workers' peaks added (an upper bound)", "< 1.5 GB", f => Verdict($"{f.Median.PeakWithWorkersMb / 1024:N2} GB", f.Median.PeakWithWorkersMb < Targets.MemoryMb));
         if (r.Files.Any(f => f.Scroll is not null))
         {
             Row("On-screen scroll (app, 4 s at 1,500 px/s): frames per second", "60 fps", f => f.Scroll is null ? "not run" : Verdict($"{f.Scroll.Fps:N0} fps", f.Scroll.Fps >= 55) + $", longest gap {f.Scroll.LongestGapMs:N0} ms");
@@ -247,7 +252,7 @@ public static class Harness
             if (m.PagesOver200 > 0) missed.Add($"`{f.File}`: {m.PagesOver200} of the first {m.PageMs.Length} pages took over 200 ms to render (slowest {m.PageMsMax:N0} ms; {m.PageMsAverage:N0} ms on average).");
             if (m.FindMs >= Targets.FindMs) missed.Add($"`{f.File}`: find across {m.Pages:N0} pages took {m.FindMs / 1000:N1} s.");
             if (m.CommentsMs >= Targets.CommentsMs) missed.Add($"`{f.File}`: the comment list took {m.CommentsMs / 1000:N1} s.");
-            if (m.PeakWorkingSetMb >= Targets.MemoryMb) missed.Add($"`{f.File}`: peak working set {m.PeakWorkingSetMb / 1024:N2} GB (the file is {Size(m.Bytes)}).");
+            if (m.PeakWithWorkersMb >= Targets.MemoryMb) missed.Add($"`{f.File}`: peak working set {m.PeakWithWorkersMb / 1024:N2} GB with its find workers (the file is {Size(m.Bytes)}).");
             if (f.Scroll is { } s && (s.Fps < 55 || s.BlankAfterPause > 0)) missed.Add($"`{f.File}`: on-screen scroll at {s.Fps:N0} fps, {s.BlankAfterPause} page(s) still blank 200 ms after the scroll stopped.");
         }
         if (missed.Count == 0) sb.AppendLine("Nothing: every measure met its target on this run.");

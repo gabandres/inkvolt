@@ -50,6 +50,7 @@ final class TextFont: @unchecked Sendable {
     private let symbolic: Bool
     private var standard14 = false
     private let hasDescriptor: Bool, embedded: Bool, hasWidths: Bool
+    private var hasCidFont = false
     private var glyphKnown: [Int: Bool] = [:]
     private var inverseMap: [String: [Int]]?
     private var gidToCid: [Int: Int]?
@@ -91,6 +92,7 @@ final class TextFont: @unchecked Sendable {
                 twoByte = encoding.map { $0.contains("UCS2") || $0.contains("UTF16") } ?? false
             }
             if let cidFont {
+                hasCidFont = true
                 dw = cidFont.number("DW") ?? 1000
                 cidWidths = Self.readW(cidFont.array("W"))
                 if let map = cidFont.dict("CIDToGIDMap"), map.isStream {
@@ -326,10 +328,11 @@ final class TextFont: @unchecked Sendable {
         }
         guard (0..<256).contains(code) else { return 0 }
         // PDF 32000 9.6.6.4: a (3,1) cmap is reached through the glyph name's Unicode value, else (3,0) and (1,0) by code.
-        if tt.hasCmap(3, 1) && !symbolic {
+        // (A Unicode-platform cmap, (0,*), is read the same way: some Mac fonts have only that.)
+        if tt.hasUnicodeCmap && !symbolic {
             let t = names[code].map { GlyphNames.toUnicode($0) } ?? simpleText[code]
             if let t, !t.isEmpty {
-                let g = tt.lookup(3, 1, firstCodePoint(t))
+                let g = tt.lookupUnicode(firstCodePoint(t))
                 if g > 0 { return g }
             }
         }
@@ -338,6 +341,11 @@ final class TextFont: @unchecked Sendable {
                 let g = tt.lookup(3, 0, c)
                 if g > 0 { return g }
             }
+        }
+        // A (1,0) Mac cmap is reached through the glyph name's Mac Roman code (9.6.6.4); a symbolic font's by the code itself.
+        if tt.hasCmap(1, 0) && !symbolic, let glyph = names[code], let mac = Self.macCodes[glyph] {
+            let m = tt.lookup(1, 0, mac)
+            if m > 0 { return m }
         }
         if tt.hasCmap(1, 0) {
             let m = tt.lookup(1, 0, code)
@@ -350,10 +358,36 @@ final class TextFont: @unchecked Sendable {
         return 0
     }
 
+    private static let macCodes: [String: Int] = {
+        var map: [String: Int] = [:]
+        for c in 0..<256 {
+            if let n = GlyphNames.inEncoding("MacRomanEncoding", c), map[n] == nil { map[n] = c }
+        }
+        return map
+    }()
+
     private func programAdvance(_ code: Int) -> Double? {
         guard let tt = program as? TrueTypeProgram else { return nil }
         let g = gidOf(code)
         return g > 0 ? tt.advance(g) : nil
+    }
+
+    // ---- What the accessibility check reads (AccessibilityCheckFonts) ----
+
+    /// A code's glyph in an embedded TrueType program (0: .notdef), or -1 when the program isn't TrueType.
+    func glyphIdOf(_ code: Int) -> Int { gidOf(code) }
+
+    /// The width the PDF itself gives a code (/Widths or /W), or nil.
+    func dictionaryWidth(_ code: Int) -> Double? {
+        if twoByte { return cidWidths[code] ?? (hasCidFont ? dw : nil) }
+        return (0..<256).contains(code) ? widths[code] : nil
+    }
+
+    /// A code's advance in the embedded TrueType program, in thousandths of an em, or nil.
+    func programWidth(_ code: Int) -> Double? {
+        guard let tt = program as? TrueTypeProgram else { return nil }
+        let g = gidOf(code)
+        return g >= 0 && g < tt.numGlyphs ? tt.advance(g) : nil
     }
 
     /// Whether the font can draw a code: its glyph is in the embedded program, or the font isn't embedded.

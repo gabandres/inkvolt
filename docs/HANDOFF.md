@@ -36,8 +36,8 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
 7. Pro checkout: pick Paddle or Lemon Squeezy, create the account, give the session the product link; the Pro page
    and the window link to https://bermudezsystems.com/products/inkvolt/pro until then. GitHub Sponsors is not set up
    (github.com/sponsors/gabandres has no listing).
-8. Decision for speed 3.6: Find across 5,000 pages is 9.7 s against the 5 s target because MuPDFCore's process-wide
-   locks make threads useless; the fix is text extraction in worker processes. Say yes/no.
+8. Answered 2026-10-30: yes. Decision for speed 3.6: text for a long Find is read in worker processes. Done: Find across
+   5,000 pages 2.71 s against the 5 s target (`pdf/tools/bench/RESULTS.md`, third run).
 9. Partner Center listing text: the keyword/description proposals ("Listing proposals 2026-10-30" in
    `pdf/packaging/README.md`, `print/packaging/README.md`) and the Spanish release notes for 1.3.0/1.1.0 go in through
    the Partner Center pages (the API refuses a draft edited there), after this certification.

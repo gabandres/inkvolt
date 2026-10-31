@@ -82,7 +82,7 @@ import Testing
     }
 
     @Test func Language_tags_are_as_pdfua_asks() {
-        for good in ["en", "en-US", "zh-Hant-TW", "x-klingon", "es-419"] { #expect(AutoTag.isLanguage(good), "\(good)") }
-        for bad in [nil, "", "english language", "en_US", "-en", String(repeating: "a", count: 70)] as [String?] { #expect(!AutoTag.isLanguage(bad), "\(bad ?? "nil")") }
+        for good in ["en", "en-US", "zh-Hant-TW", "x-klingon", "es-419"] { #expect(AccessibilityCheck.isLanguage(good), "\(good)") }
+        for bad in [nil, "", "english language", "en_US", "-en", String(repeating: "a", count: 70)] as [String?] { #expect(!AccessibilityCheck.isLanguage(bad), "\(bad ?? "nil")") }
     }
 }
