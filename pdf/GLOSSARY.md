@@ -87,6 +87,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   overlap) and by each **measurement** (a Line, PolyLine or Polygon comment with /Measure, labeled with its value).
   Without one, values are real size. The Mac calls a measurement still being clicked a **measurement under way**
   (`MeasureDraft`, in PdfCore; Windows keeps it in `PageViewer.Measure`).
+- **Reading order state** (`ReadingOrder.state`, `ReadingOrderState`; Mac, in PdfCore): what the Reading Order pane shows for a
+  tag plan on a page: its pieces numbered, the boxes on every page, the summary, what can be done. Windows keeps the same rules
+  in `DocumentTab.ReadingOrder`.
 - **Prepare Form's designer** (`FormDesigner`, with `FormDesignRules`; Mac, in PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does. Windows keeps
   the same rules in `PageViewer.FormDesign` and `DocumentTab.FormDesign`. It hands over the edits; `FormDesign` makes them.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor

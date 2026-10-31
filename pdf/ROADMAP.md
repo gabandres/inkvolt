@@ -415,14 +415,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   10 made, all 10 pass veraPDF 2a and ua1 (both papers, the NIST standard, the Word files); 4 refused as before (a
   signature, CMYK without a profile twice, a Times that would move). Still to do: content inside form XObjects tagged
   piece by piece, changing a piece's kind in the pane, row spans, Unicode for Type 3 bitmap fonts, Acrobat and PAC checks
-  of the output, and the Mac.
+  of the output. **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
+  Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
+  Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
+  PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model
+  comes with the Mac's AI features (E11).
 - **Beat it when:** Make Accessible tags an untagged PDF on the PC from `DocLayout` (H1-H6, P, L/LI, Table/TR/TH/TD with
   header scope, Figure, Artifact for running headers and page numbers), sets title, language and tab order; a reading
   order panel shows the order as numbered boxes, reordered by drag; alt text is typed per figure, or suggested by the
   user's own vision model (sent only after the usual window); output passes veraPDF PDF/UA-1 on the 1.3 corpus after
   the human checks; Save as PDF/A-2a. Test: 1.3's checker and veraPDF both pass on the corpus's untagged Word and
   LaTeX files after Make Accessible plus alt text.
-- **Effort** L. Windows; Mac after 1.0.
+- **Effort** L. Windows; Mac done 2026-10-30.
 
 ### 2.5 What's in this PDF (differentiator, Windows done 2026-10-28)
 - **The gap.** Acrobat's sanitize step removes hidden data when redacting
