@@ -254,8 +254,33 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   Canon's Auto scan "detects the item type" ([Canon](https://ij.manual.canon/ij/webmanual/ScanUtility/W/G3010%20series/1.1/EN/SU/su-105.html));
   VueScan restores faded colors and removes dust ([Hamrick](https://www.hamrick.com/)); NAPS2 deskews, crops, adjusts
   brightness and contrast, OCR in over 100 languages ([NAPS2](https://www.naps2.com/)).
-- **Now.** Straighten, skip blank pages, crop by hand, OCR through Windows' recognizer (Vision on the Mac) into a
-  WinAnsi text layer where "non-Latin scripts degrade to `?`" (README).
+- **Now (built 2026-10-31, Windows).** Per scan (Scan settings › Clean up) and per preset (`ScanPreset.Cleanup`, all off
+  by default, free as the table says), and per page in the review's Clean up view (`--clean n`: the page large, Show as
+  scanned to compare, All pages, Done is one step of Undo, as is a whole scan's clean up; the page's note names what was
+  done; a page's filters are in its `PageEdits`, kept by crash recovery): **Crop to the paper** (`PaperEdge`, the lid's level
+  along the scan's edges, in the straightened page, into the same `Crop` as a hand crop: it only ever removes lid, refused
+  when anything but dust lies outside a solid rectangle, faint marks and a line of tiny letters included), **Whiten the
+  background** (`PageBackground`, its own white point from the scan's noise; faint thin strokes kept; pictures and dark pages
+  left), **Descreen printed pictures** (`Descreen`, blocks that repeat at a short period across and down; other pixels byte for
+  byte), **Restore faded colors** (`FadedColors`; a scan of photos gets this and Descreen, per photo). Filters run off the UI
+  thread on a copy; a preview cancels when a newer choice comes, a save has Cancel, a page over 300 million pixels is left as
+  scanned and says so. `ScanCleanup` (Recognize Text, Compare) only gained cancel tokens: the ocr-corpus's rates are the
+  same to the digit as its committed RESULTS.md, so that file wasn't rewritten. The OCR layer is a CID font with /ToUnicode (`OcrFont`, `OcrText`): one
+  embedded glyph that paints nothing, one code per letter with its marks, surrogate pairs in one code, composed, broken
+  characters out, right-to-left words in visual order; a Text language choice per scan and preset when more than one OCR
+  language is installed. **Measured** (`ocr-corpus cleanup`, [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md),
+  today → cleaned, this PC's en-US and es-MX): skewed on a lid 5.9 → 5.7 %, grey 20.2 → 19.7 and 20.6 → 18.8, halftoned
+  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.4 and **2.7 → 3.0 (not lower, two words)**, so the roadmap's "every file" isn't met
+  on that one. Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
+  Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
+  layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`. veraPDF's PDF/A-2b font rules (6.2.11) pass; the
+  file isn't PDF/A otherwise. **Not checked:** Acrobat isn't installed here; Cyrillic and Japanese error rates couldn't run
+  (no such OCR languages installed, none added: their words were planted, and their corpus files wait in the tool), so what Windows' recognizer gives
+  for those scripts' word boxes is unseen; no scanner was used, only synthetic pages and the demo; Undo in the review was
+  checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
+  shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
+  space); MuPDF finds a word mixing right-to-left letters and digits only in parts; Inkvolt PDF's Scan dialog ignores a
+  preset's clean up. Mac: not started, on hold since 2026-10-31.
 - **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
   whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
   review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found

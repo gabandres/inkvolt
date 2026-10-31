@@ -337,7 +337,7 @@ public static class PageBackground
                     continue;
                 }
                 if (smooth[i] >= white * level) result[i] = strokes[i] ? (byte)Math.Clamp(gray[i] * 255f / (level * white), 0, 254) : (byte)255;
-                else result[i] = (byte)Math.Clamp(smooth[i] * 255f / (level * white), 0, 254);
+                else result[i] = (byte)Math.Clamp(Math.Min(smooth[i], gray[i]) * 255f / (level * white), 0, 254); // the darker of the two: a serif the median thins stays
             }
         });
         cancel.ThrowIfCancellationRequested();

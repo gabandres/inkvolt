@@ -31,6 +31,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
   out straight (`PhotoFinder`, `PhotoBox`). Their boxes can be moved, resized, turned or drawn by hand before saving
   (Windows `PhotoBoxesView`; Mac `PhotoBoxEditor`).
+- **Clean up** (of a scanned page): the filters a page can have, in its edits and undone with them: crop to the paper,
+  whiten, descreen, restore colors (`PageFilters`, `PageCleanup`). **The paper's edge**: where a sheet stops differing from
+  the lid (`PaperEdge`); no sure edge, no crop.
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and

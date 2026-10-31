@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Clean up scans: crop to the paper, whiten the background and remove specks, take the dots out of printed pictures, and restore faded colors. Turn each on for a scan or a preset, or per page in the review, and Undo puts it back.
+- Searchable PDFs now work in any language: Greek, Cyrillic, Arabic, Hebrew, Chinese, Japanese, Korean and more can be found in the hidden text. If you have several OCR languages installed, choose one under Text language.
 
 ## 1.1.0
 - Ink and toner history: Inkvolt Print keeps a reading a day on your PC and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).

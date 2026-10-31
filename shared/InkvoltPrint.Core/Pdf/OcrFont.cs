@@ -34,7 +34,14 @@ public static class OcrText
             }
             if (!Unwanted(c)) kept.Append(c);
         }
-        return kept.ToString().Normalize(NormalizationForm.FormC).Trim();
+        try
+        {
+            return kept.ToString().Normalize(NormalizationForm.FormC).Trim();
+        }
+        catch (ArgumentException)
+        {
+            return kept.ToString().Trim(); // a character Windows won't normalize: as recognized is still valid
+        }
     }
 
     /// <summary>Controls, the byte order mark, the replacement character, noncharacters, and direction marks and overrides, which would split a search.</summary>
