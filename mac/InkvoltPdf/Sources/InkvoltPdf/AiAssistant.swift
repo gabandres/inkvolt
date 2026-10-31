@@ -174,10 +174,7 @@ extension DocumentWindowController {
             let force = config.endpoint.reach == .internet
             let confirm: @Sendable ([[AiMessage]], CancelToken?) async throws -> Bool
             if job.showCombine {
-                confirm = { [weak self] round, _ in
-                    guard let self else { return false }
-                    return await self.confirmCombine(config, round, pages: job.pages, force: force)
-                }
+                confirm = { round, _ in await self.confirmCombine(config, round, pages: job.pages, force: force) }
             } else {
                 confirm = { _, _ in true }
             }

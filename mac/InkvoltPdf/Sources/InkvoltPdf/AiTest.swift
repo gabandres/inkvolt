@@ -205,7 +205,7 @@ struct AiTest {
         }
         let fileName = controller.pdf.fileURL?.lastPathComponent ?? "no-file-name"
         check(got?.head.contains(fileName) == false && got?.body.contains(fileName) == false, "no file name goes")
-        var answer = pane.answers.last
+        let answer = pane.answers.last
         check(answer?.text == "The answer **says** it [p. 1] and [p. 2]." && answer?.finished == true, "the answer arrived in the card: \(answer?.text.prefix(50) ?? "none")")
         let attributed = answer?.shownText ?? ""
         check(attributed.contains("says") && !attributed.contains("**") && answer?.links == [0, 1] && answer?.isCopyEnabled == true, "bold drawn, two citations linked, Copy on")
@@ -302,7 +302,8 @@ struct AiTest {
 
         // The window's rules for what must be ticked (nothing is sent: both are cancelled).
         if let config = AiService.current(AppSettings.ai).config {
-            let restricted = Task { @MainActor in await controller.confirmSend(config, AiOutgoing([[.user("x")]], what: "X"), restricted: true) }
+            let owner = controller
+            let restricted = Task { @MainActor in await owner.confirmSend(config, AiOutgoing([[.user("x")]], what: "X"), restricted: true) }
             let r = await confirm()
             check(r?.sendButton.isEnabled == false && r?.blockedNote.stringValue.contains("Send it anyway") == true, "restricted text: Send is off until ticked")
             r?.restrictedOk?.performClick(nil)
@@ -314,7 +315,8 @@ struct AiTest {
         cloudSettings.customUrl = "https://api.example.com/v1"
         AppSettings.ai = cloudSettings
         if let cloud = AiService.current(AppSettings.ai).config {
-            let task = Task { @MainActor in await controller.confirmSend(cloud, AiOutgoing([[.user("x")]], what: "X"), restricted: false) }
+            let owner = controller
+            let task = Task { @MainActor in await owner.confirmSend(cloud, AiOutgoing([[.user("x")]], what: "X"), restricted: false) }
             let c = await confirm()
             check(c?.sendButton.isEnabled == false && c?.toBox.label.stringValue.contains("Leaves this Mac: sent to api.example.com") == true, "the first send to the internet says so, and needs I understand")
             snapshot(c?.window, "ai-confirm-internet.png")

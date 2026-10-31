@@ -108,6 +108,7 @@ final class AiReachBox: NSView {
     }
 }
 
+@MainActor
 private func note(_ text: String = "", bold: Bool = false) -> NSTextField {
     let f = NSTextField(wrappingLabelWithString: text)
     f.font = bold ? .boldSystemFont(ofSize: NSFont.smallSystemFontSize) : .systemFont(ofSize: NSFont.smallSystemFontSize)
