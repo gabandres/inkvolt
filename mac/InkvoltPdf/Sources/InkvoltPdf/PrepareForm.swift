@@ -85,6 +85,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     init(controller: DocumentWindowController) {
         self.controller = controller
+        pages = controller.pages
+        editor = controller.editor
         super.init()
         buildBar()
         buildPanel()
@@ -95,8 +97,9 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         bar.isHidden = true
     }
 
-    private var pages: PagesView { controller!.pages }
-    private var editor: DocumentEditor { controller!.editor }
+    // The controller's own, kept here: an edit under way goes on after the window closes and the controller is gone.
+    private let pages: PagesView
+    private let editor: DocumentEditor
     var isDesigning: Bool { controller?.pages.tool == .prepareForm }
 
     // MARK: Entering and leaving

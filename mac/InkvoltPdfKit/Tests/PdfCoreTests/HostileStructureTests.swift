@@ -230,6 +230,106 @@ struct HostileStructureTests {
         #expect(try !within { AccessibilityChecker.requiresDynamicRender(junk) })
     }
 
+    // MARK: Numbers a crafted file makes too big (each of these stopped the app until fixed)
+
+    /// A file whose last startxref points at `dict` as an xref stream, with `rows` as its data.
+    private static func xrefStream(_ dict: String, _ rows: [UInt8] = []) -> [UInt8] {
+        let head = latin1Bytes("%PDF-1.7\n1 0 obj\n<< /Type /XRef \(dict) /Length \(rows.count) >>\nstream\n")
+        return head + rows + latin1Bytes("\nendstream\nendobj\nstartxref\n9\n%%EOF\n")
+    }
+
+    @Test func HybridXrefSurvivesAColumnCountOfInt64Max() throws {
+        let file = Self.xrefStream("/W [1 1 1] /Predictor 12 /Columns 9223372036854775807")
+        #expect(HybridXref.normalize(file) == file)
+    }
+
+    @Test func HybridXrefSurvivesAnIndexOfInt64Max() throws {
+        let file = Self.xrefStream("/W [1 1 1] /Index [9223372036854775807 2]", [1, 0, 0, 1, 0, 0])
+        #expect(HybridXref.normalize(file) == file)
+    }
+
+    @Test func HybridXrefSurvivesAnIndexOfInt64MaxInAHybridFile() throws {
+        // A classic table's trailer leads to the stream, so the merge goes on to the highest object number.
+        var file = Array("%PDF-1.7\n".utf8)
+        let streamAt = file.count
+        file += latin1Bytes("1 0 obj\n<< /Type /XRef /W [1 1 1] /Index [9223372036854775807 1] /Length 3 >>\nstream\n")
+        file += [1, 0, 0]
+        file += Array("\nendstream\nendobj\n".utf8)
+        let tableAt = file.count
+        file += Array("xref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 1 /XRefStm \(streamAt) >>\nstartxref\n\(tableAt)\n%%EOF\n".utf8)
+        _ = HybridXref.normalize(file) // it must not stop the app; whatever it makes of such a file
+    }
+
+    private static let huge = "1" + String(repeating: "0", count: 308)
+
+    @Test func FieldDetectionSurvivesCoordinatesThatComeToNothingANumberCanHold() throws {
+        // Two matrices of 1e308 make the rule's left edge minus infinity and its width infinity, so its right edge isn't a number.
+        let file = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            Core2Pdf.stream("\(Self.huge) 0 0 1 0 0 cm \(Self.huge) 0 0 1 0 0 cm -1 0 2 1 re f"),
+        ])
+        let engine = try PdfEngine.open(file)
+        defer { engine.close() }
+        _ = try FieldDetection.suggest(engine, file, nil, [0], [])
+    }
+
+    @Test func TheFeaturesNewIn14SurviveAPageOfEnormousNumbers() throws {
+        // Text and pictures placed where a float or a double runs out: the check, Make Accessible's plan and writing, Detect Form Fields.
+        let n = String(repeating: "9", count: 60)
+        let file = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>",
+            Core2Pdf.stream("BT /F1 12 Tf \(n) 0 0 \(n) \(n) \(n) Tm (Far away) Tj ET q \(Self.huge) 0 0 \(Self.huge) 0 0 cm \(Self.huge) 0 0 \(Self.huge) 0 0 cm BT /F1 12 Tf (Further) Tj ET Q BT /F1 12 Tf 72 700 Td (Here) Tj ET"),
+        ])
+        _ = try AccessibilityCheck.run(file, nil)
+        let plan = try TagTest.plan(file)
+        _ = try AutoTag.write(file, nil, plan, AccessibleOptions(title: "Far", language: "en"))
+        let engine = try PdfEngine.open(file)
+        defer { engine.close() }
+        _ = try FieldDetection.suggest(engine, file, nil, [0], [])
+    }
+
+    @Test func AScaleOfAnEnormousPrecisionIsRead() throws {
+        let d = "1" + String(repeating: "0", count: 400)
+        let file = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /VP [<< /Type /Viewport /BBox [0 0 612 792] /Measure << /Type /Measure /Subtype /RL /R (1 in = 10 ft) /X [<< /Type /NumberFormat /U (ft) /C 0.138889 /D \(d) >>] >> >>] >>",
+        ])
+        #expect(try Measurements.pageScale(file, nil, 0, PointD(100, 100))?.unit == "ft")
+    }
+
+    @Test func MakeAccessibleRefusesAPagePartOfWhichItCantRead() throws {
+        // One of the page's two streams is damaged, so it decodes to nothing: writing the page from what was read would lose it.
+        let file = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [4 0 R 5 0 R] >>",
+            Core2Pdf.stream("0 0 1 rg 72 72 100 100 re f"),
+            Core2Pdf.stream("not a deflate stream at all", "/Filter /FlateDecode"),
+        ])
+        let error = #expect(throws: PdfEditError.self) { try AutoTag.write(file, nil, TagPlan(blocks: [], running: [[]]), AccessibleOptions(title: "Damaged", language: "en")) }
+        #expect(error?.message.contains("damaged") == true)
+    }
+
+    @Test func ATabOrderKeepsFieldsThatShareAnIdentifier() throws {
+        // Two widgets with one /NM: as many in /Annots after a reorder, none dropped.
+        let pdf = Core2Pdf.form([
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /NM (same) /Rect [72 600 172 630] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /NM (same) /Rect [72 500 172 530] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (c) /NM (other) /Rect [72 400 172 430] /DA (/Helv 12 Tf 0 g) /P 3 0 R >>",
+        ])
+        let reordered = try FormDesign.setTabOrder(pdf, nil, 0, ["other", "same"])
+        let names = try FormEditor.read(reordered, nil).map(\.fieldName).sorted()
+        #expect(names == ["a", "b", "c"])
+        let doc = try Core2Pdf.open(reordered)
+        let annots = try #require(doc.page(0).array("Annots"))
+        #expect(annots.count == 3)
+    }
+
     // MARK: From Windows
 
     @Test func AccessibilityCheckWalksARenditionSelectorListingItselfOnce() throws {
