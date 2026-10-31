@@ -26,7 +26,7 @@ iText); arXiv papers, tagged (LuaTeX) and untagged (pdfTeX); IRS form W-9, a NIS
 of veraPDF's own PDF/UA-1 test files (one pass and one fail for headings, tables, figures, tab order, fonts, notes).
 14 pass veraPDF, 36 fail.
 
-**Result (2026-10-27, veraPDF 1.30.3):** the same pass or fail for 50 of 50 files; the same failing conditions for 49 of 50.
+**Result (2026-10-30, veraPDF 1.30.3):** the same pass or fail for 50 of 50 files; the same failing conditions for 50 of 50.
 With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296.
 
 ## Make Accessible on the corpus
@@ -47,11 +47,6 @@ Times that would move).
 
 ## Known differences
 
-- **wcag-table-word.pdf, 15-003 (ours only).** The table's header cells have no Scope and its data cells name no headers
-  (Headers), which is exactly what Matterhorn 15-003 fails, and what veraPDF fails in pdfua-nutshell.pdf and
-  rw-table-with-attributes.pdf. veraPDF's PDF/UA-1 rule (GFSETable) gives the same answer for this table's structure,
-  yet passes this one file: a veraPDF inconsistency, not a different rule. Both fail the file (it lacks the PDF/UA
-  identifier), so the file-level result matches.
 - **7.5-t01-fail-c.pdf (synthetic).** Its content lives in an external file stream (`/F` in a stream dictionary), which
   PDFsharp can't read: the check reports that the file can't be checked.
 - veraPDF reports a CMap that another CMap uses (`/UseCMap`) under its CMap rule (7.21.3.3-1) as well as the referenced-CMap
@@ -60,7 +55,7 @@ Times that would move).
 ## What veraPDF taught the checker
 
 Each was found by this comparison and fixed (with a unit test where a hand-built file can show it): Word's
-hybrid-reference files keep the structure tree where PDFsharp doesn't look (`HybridXref`); tags the structure tree's root
+hybrid-reference files keep the structure tree where PDFsharp doesn't look (`HybridXref`); a later revision's object stream holds the current tags, and PDFsharp kept the older stream's (wcag-table-word.pdf, which this README long called a veraPDF inconsistency); tags the structure tree's root
 doesn't lead to tag nothing; an artifact inside tagged content fails both 01-003 and 01-004; a standard type mapped to
 itself is a circular mapping; indirect /Lang and DisplayDocTitle values; TrueType glyph lookup through a Mac (1,0) cmap
 by glyph name and through Unicode-platform cmaps; CIDSet must match the font program exactly (subset TrueType fonts that

@@ -40,6 +40,8 @@ public static partial class AccessibilityCheck
     private sealed partial class Checker
     {
         private const int MaxElements = 500_000, MaxDepth = 256;
+        /// <summary>Places a table's grid may add or write (about 130 MB). Spans can ask for 5,000 rows of a million columns; no real table comes near.</summary>
+        private const int MaxTablePlaces = 16_000_000;
 
         private readonly Dictionary<PdfDictionary, Elem> _elems = new(ReferenceEqualityComparer.Instance);
         private readonly List<Elem> _ordered = [];
@@ -383,6 +385,7 @@ public static partial class AccessibilityCheck
             var place = new Dictionary<Elem, (int Row, int Col)>();
             var overlap = false;
             var spanPast = false;
+            var places = 0;
             for (var r = 0; r < rows.Count; r++)
             {
                 while (grid.Count <= r) grid.Add([]);
@@ -398,6 +401,14 @@ public static partial class AccessibilityCheck
                     {
                         while (grid.Count <= r + dr) grid.Add([]);
                         var row = grid[r + dr];
+                        // What this adds (the empty places left of a span too) and what it writes (over other cells too).
+                        places += Math.Max(0, c + cs - row.Count) + cs;
+                        if (places > MaxTablePlaces)
+                        {
+                            const string note = "A table's rows and columns are too many to lay out; its cells weren't compared.";
+                            if (!_notes.Contains(note)) _notes.Add(note);
+                            return;
+                        }
                         while (row.Count < c + cs) row.Add(null);
                         for (var dc = 0; dc < cs; dc++)
                         {

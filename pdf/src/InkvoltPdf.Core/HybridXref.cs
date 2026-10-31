@@ -9,7 +9,8 @@ namespace InkvoltPdf.Core;
 /// Hybrid-reference files (Word writes them: a classic xref table whose trailer points at an xref stream with /XRefStm, for
 /// the objects kept in object streams). PDFsharp reads the table and ignores /XRefStm, so those objects (in Word's files,
 /// the structure tree among them) resolve to null. <see cref="Normalize"/> appends one xref stream that lists every object
-/// of the whole chain, as a reader that knows /XRefStm sees them; PDFsharp then finds them all. Nothing before it changes.
+/// of the whole chain, as a reader that knows /XRefStm sees them; PDFsharp then finds them all, each as its latest revision
+/// has it. Nothing before it changes.
 /// </summary>
 internal static partial class HybridXref
 {
@@ -67,8 +68,18 @@ internal static partial class HybridXref
         var size = self + 1;
         var offset = data.Length + 1L;
         entries[self] = new Entry(1, offset, 0);
+        // PDFsharp reads an object stream whole at the first row naming it and keeps what it read first, so an object a later
+        // revision rewrote in a stream of its own would come from the older stream: the rows of the streams latest in the file go first.
+        var order = Enumerable.Range(0, size).OrderByDescending(n =>
+            entries.TryGetValue(n, out var e) && e.Type == 2 && entries.TryGetValue((int)e.Field2, out var stream) ? stream.Field2 : -1).ToList();
+        var index = new StringBuilder();
+        for (int i = 0, run; i < order.Count; i += run)
+        {
+            for (run = 1; i + run < order.Count && order[i + run] == order[i] + run; run++) { }
+            index.Append($"{order[i]} {run} ");
+        }
         var rows = new MemoryStream();
-        for (var n = 0; n < size; n++)
+        foreach (var n in order)
         {
             var e = entries.TryGetValue(n, out var found) ? found : new Entry(0, 0, n == 0 ? 65535 : 0);
             rows.WriteByte((byte)e.Type);
@@ -80,7 +91,7 @@ internal static partial class HybridXref
         foreach (var key in new[] { "Root", "Info", "Encrypt" })
             if (Regex.Match(lastTrailer, $@"/{key}\s+(\d+\s+\d+\s+R)") is { Success: true } m) keys.Append($" /{key} {m.Groups[1].Value}");
         if (Regex.Match(lastTrailer, @"/ID\s*(\[[^\]]*\])") is { Success: true } id) keys.Append($" /ID {id.Groups[1].Value}");
-        var head = Encoding.Latin1.GetBytes($"\n{self} 0 obj\n<< /Type /XRef /Size {size} /W [1 8 2]{keys} /Length {rows.Length} >>\nstream\n");
+        var head = Encoding.Latin1.GetBytes($"\n{self} 0 obj\n<< /Type /XRef /Size {size} /Index [{index}] /W [1 8 2]{keys} /Length {rows.Length} >>\nstream\n");
         var tail = Encoding.Latin1.GetBytes($"\nendstream\nendobj\nstartxref\n{offset}\n%%EOF\n");
         var result = new byte[data.Length + head.Length + rows.Length + tail.Length];
         data.CopyTo(result, 0);
