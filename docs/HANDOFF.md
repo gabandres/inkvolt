@@ -13,10 +13,11 @@ accessibility checker, 2.4 Make Accessible with PDF/A-2a, E11 AI assistant.
 
 **Released.** Inkvolt PDF 1.4.0.0: submitted to the Store (Certification when work stopped), GitHub release
 `pdf-v1.4.0.0`. New Store listings live on both apps. Print has nothing new for users. After the Store publishes: the
-website's Windows `softwareVersion` for PDF goes to 1.4.0 (the daily task does it).
+website's Windows `softwareVersion` for PDF goes to 1.4.0 (the daily task does it). Inkvolt PDF for Mac 1.4.0: published
+(notarized DMG, appcast, GitHub release `pdf-mac-v1.4.0`, Homebrew tap, website), with Measure, Prepare Form, PDF/A, the
+checker, Make Accessible and the AI assistant, none of whose UI a person has seen.
 
 **Stopped partway, on origin, not merged.**
-- `t3/mac-release-windows-parity`: the Mac's pre-release fixes and review; see the end of this list if it has merged.
 - `t3/pdf-compare-office-scans-formatting` (`58b63e9`): 3.3's matching in Core (formatting apart from wording, moves).
   Left: Office and scan inputs, alignment, UI, docs, the 30 planted changes, the PLAN.md step.
 - `t3/mac-e12-office-web-convert` (`4bc3bdb`): E12's `PdfCore/Convert` with LibreOffice, and two unbuilt app files in the
@@ -29,7 +30,9 @@ UX still-short items.
 
 **Small fixes queued.** Windows: `ParseWhole` and `OllamaLoadedContext` throw on non-object JSON. Both apps: a single huge
 Flate stream is unbounded. Find: the drawing set's first Find (31 s) and scroll (770 ms a sheet) still miss their targets,
-and a page that crashes MuPDF natively is re-read in the app's process. A partly checked file in Batch isn't saved.
+and a page that crashes MuPDF natively is re-read in the app's process. A partly checked file in Batch isn't saved. Mac:
+`PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s. Before `Pro.Enforced` is turned on, the Mac must set `Pro.store`
+ahead of the command line (`main.swift:8`).
 
 **Only a person.** Look at the new Mac UI (PLAN.md lists it per step; `/Applications/Inkvolt PDF.app` on the Mac may be a
 branch's build). The privacy policy should mention the Mac's AI assistant. Never run: real Ollama, LM Studio or https from

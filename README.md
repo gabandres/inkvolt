@@ -6,7 +6,7 @@ source, with **no account, no ads, no telemetry and no cloud**: your files stay 
 <p>
   <a href="https://apps.microsoft.com/detail/9MXDTSFJ9W28"><b>Get Inkvolt PDF</b></a> ·
   <a href="https://apps.microsoft.com/detail/9PNR76HJ62SK"><b>Get Inkvolt Print</b></a> (Microsoft Store, Windows 10 and 11, x64 and native ARM64) ·
-  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.3.0">Inkvolt PDF for Mac</a> ·
+  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.4.0">Inkvolt PDF for Mac</a> ·
   <a href="https://bermudezsystems.com/products/inkvolt/">Website</a>
 </p>
 
