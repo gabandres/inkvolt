@@ -4,12 +4,12 @@ Made by `dotnet run --project pdf/tools/ocr-corpus -c Release -- run` on 2026-10
 
 | File | Words | Today | Today, its language chosen | Stage A (cleaned) | ms a page, today → stage A |
 |---|---:|---:|---:|---:|---:|
-| `en-skew3-light` | 767 | 1.8 % (en-US) | 1.8 % (en-US) | **1.3 %** | 497 → 896 |
-| `en-skew6-noisy` | 807 | 16.9 % (en-US) | 16.9 % (en-US) | **12.9 %** | 1558 → 1320 |
-| `en-skew10-shaded` | 911 | 5.4 % (en-US) | 5.4 % (en-US) | **3.8 %** | 1790 → 1157 |
-| `es-skew4-noisy` | 688 | 44.9 % (en-US) | 12.8 % (es-MX) | **8.0 %** | 1514 → 1264 |
-| `es-skew8-shaded` | 738 | 41.3 % (en-US) | 5.1 % (es-MX) | **4.3 %** | 1975 → 1124 |
-| `en-turned` | 767 | 99.9 % (en-US) | 99.9 % (en-US) | **3.7 %** | 1414 → 1209 |
+| `en-skew3-light` | 767 | 1.8 % (en-US) | 1.8 % (en-US) | **1.3 %** | 533 → 848 |
+| `en-skew6-noisy` | 807 | 16.9 % (en-US) | 16.9 % (en-US) | **12.9 %** | 1508 → 1160 |
+| `en-skew10-shaded` | 911 | 5.4 % (en-US) | 5.4 % (en-US) | **3.8 %** | 1703 → 1243 |
+| `es-skew4-noisy` | 688 | 44.9 % (en-US) | 12.8 % (es-MX) | **8.0 %** | 1566 → 1257 |
+| `es-skew8-shaded` | 738 | 41.3 % (en-US) | 5.1 % (es-MX) | **4.3 %** | 1797 → 1125 |
+| `en-turned` | 767 | 99.9 % (en-US) | 99.9 % (en-US) | **3.7 %** | 1275 → 1159 |
 
 Lower than today's on every file: **yes**.
 
