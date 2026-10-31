@@ -649,11 +649,41 @@ public class AccessibilityCheckTests
         Assert.Same(plainFile, HybridXref.Normalize(plainFile));
     }
 
+    [Fact]
+    public void AHybridFilesObjectRewrittenInALaterObjectStreamIsReadFromThere()
+    {
+        // As wcag-table-word.pdf: a later revision rewrites a tag in an object stream of its own (Scope added to Word's TH
+        // tags), and the older object stream still holds the old one.
+        using var doc = PdfReader.Open(new MemoryStream(HybridXref.Normalize(RevisedHybridFile())), PdfDocumentOpenMode.Import);
+        var tag = doc.Internals.GetAllObjects().OfType<PdfDictionary>().Single(d => PdfObj.Name(d.Elements["/S"]) == "P");
+        Assert.Equal("Newer", PdfObj.Text(tag.Elements["/Alt"]));
+        Assert.NotNull(PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"]));
+    }
+
+    /// <summary><see cref="HybridFile"/> with tag 7 in object stream 10, then a revision that rewrites it in object stream 12.</summary>
+    private static byte[] RevisedHybridFile()
+    {
+        var first = Encoding.Latin1.GetString(HybridFile(tagInStream: true));
+        var prev = first.LastIndexOf("xref\n0 12", StringComparison.Ordinal);
+        var sb = new StringBuilder(first);
+        int At() => Encoding.Latin1.GetByteCount(sb.ToString());
+        const string header = "7 0 ";
+        var at12 = At();
+        sb.Append($"12 0 obj\n{Core2Pdf.Stream(header + "<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R /K 0 /Alt (Newer) >>", $"/Type /ObjStm /N 1 /First {header.Length}")}\nendobj\n");
+        var at13 = At();
+        byte[] rows = [2, 0, 0, 0, 12, 0, 1, (byte)(at12 >> 24), (byte)(at12 >> 16), (byte)(at12 >> 8), (byte)at12, 0];
+        sb.Append($"13 0 obj\n<< /Type /XRef /Size 14 /Index [7 1 12 1] /W [1 4 1] /Root 1 0 R /Length {rows.Length} >>\nstream\n");
+        sb.Append(Encoding.Latin1.GetString(rows)).Append("\nendstream\nendobj\n");
+        var xref = At();
+        sb.Append($"xref\n0 1\n0000000000 65535 f \n7 1\n0000000000 00000 f \ntrailer\n<< /Size 14 /Root 1 0 R /Prev {prev} /XRefStm {at13} >>\nstartxref\n{xref}\n%%EOF\n");
+        return Encoding.Latin1.GetBytes(sb.ToString());
+    }
+
     /// <summary>
     /// As Word writes them: objects 1-4 and 7-9 in a classic table; the structure tree root (5) and the Document tag (6) in
     /// object stream 10, listed only by the xref stream 11 that the trailer's /XRefStm points at.
     /// </summary>
-    private static byte[] HybridFile()
+    private static byte[] HybridFile(bool tagInStream = false)
     {
         var content = "/P << /MCID 0 >> BDC BT /F1 12 Tf 72 700 Td (AB) Tj ET EMC";
         string[] plain =
@@ -665,9 +695,10 @@ public class AccessibilityCheckTests
         ];
         var o5 = "<< /Type /StructTreeRoot /K 6 0 R /ParentTree << /Nums [0 [7 0 R]] >> >>";
         var o6 = "<< /Type /StructElem /S /Document /P 5 0 R /K [7 0 R] >>";
+        var o7 = "<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R /K 0 >>";
         string[] after =
         [
-            "<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R /K 0 >>",
+            o7,
             A11yDoc.Type3Font,
             Core2Pdf.Stream("600 0 d0 0 0 600 700 re f"),
         ];
@@ -679,18 +710,19 @@ public class AccessibilityCheckTests
             sb.Append($"{n} 0 obj\n{body}\nendobj\n");
         }
         for (var i = 0; i < plain.Length; i++) Obj(i + 1, plain[i]);
-        for (var i = 0; i < after.Length; i++) Obj(7 + i, after[i]);
-        var objs = o5 + "\n" + o6;
-        var header = $"5 0 6 {o5.Length + 1} ";
-        Obj(10, Core2Pdf.Stream(header + objs, $"/Type /ObjStm /N 2 /First {header.Length}"));
+        for (var i = tagInStream ? 1 : 0; i < after.Length; i++) Obj(7 + i, after[i]);
+        var objs = o5 + "\n" + o6 + (tagInStream ? "\n" + o7 : "");
+        var header = $"5 0 6 {o5.Length + 1} " + (tagInStream ? $"7 {o5.Length + o6.Length + 2} " : "");
+        Obj(10, Core2Pdf.Stream(header + objs, $"/Type /ObjStm /N {(tagInStream ? 3 : 2)} /First {header.Length}"));
         // The xref stream: 5 and 6 in object stream 10 (type 2), itself and the rest as usual.
         var rows = new List<byte>();
         void Row(int type, int f2, int f3) => rows.AddRange([(byte)type, (byte)(f2 >> 24), (byte)(f2 >> 16), (byte)(f2 >> 8), (byte)f2, (byte)f3]);
         Row(2, 10, 0);
         Row(2, 10, 1);
+        if (tagInStream) Row(2, 10, 2);
         var xrefStmAt = Encoding.Latin1.GetByteCount(sb.ToString());
         offsets[11] = xrefStmAt;
-        sb.Append($"11 0 obj\n<< /Type /XRef /Size 12 /Index [5 2] /W [1 4 1] /Root 1 0 R /Length {rows.Count} >>\nstream\n");
+        sb.Append($"11 0 obj\n<< /Type /XRef /Size 12 /Index [5 {(tagInStream ? 3 : 2)}] /W [1 4 1] /Root 1 0 R /Length {rows.Count} >>\nstream\n");
         sb.Append(Encoding.Latin1.GetString([.. rows])).Append("\nendstream\nendobj\n");
         var xref = Encoding.Latin1.GetByteCount(sb.ToString());
         sb.Append("xref\n0 12\n0000000000 65535 f \n");
