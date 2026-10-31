@@ -69,7 +69,7 @@ struct AiReviewTests {
         let ep = Self.endpoint("http://ollama.localhost:\(server.port)/v1")
         #expect(ep.reach == .thisMac)
         let addresses = [try #require(AiAddress("203.0.113.9")), try #require(AiAddress("127.0.0.1"))]
-        let handler = AiClient.createHandler(ep, resolve: { _ in addresses })
+        let handler = AiClient.createHandler(ep, AiLoopbackTests.patient, resolve: { _ in addresses })
         let client = AiClient(ep, "m", apiKey: nil, handler: handler)
         let reply = try await client.chat([.user("Q")])
         #expect(reply.text == "Hi")

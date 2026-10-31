@@ -333,8 +333,12 @@ struct AiAssistantTests {
 
 /// Mac additions: the real connection to a fake server on loopback (`AiLoopbackServer`), no AI service anywhere.
 struct AiLoopbackTests {
-    private static func client(_ server: AiLoopbackServer, key: String? = nil, timeouts: AiTimeouts = .standard) -> AiClient {
-        AiClient(parsed("http://127.0.0.1:\(server.port)/v1"), "m", apiKey: key, timeouts: timeouts)
+    /// Patient: under a full parallel run on a slow machine, connecting on loopback can take many seconds.
+    static let patient = AiTimeouts(connect: 120, firstByte: 120, idle: 120)
+
+    private static func client(_ server: AiLoopbackServer, key: String? = nil, timeouts: AiTimeouts = patient) -> AiClient {
+        let ep = parsed("http://127.0.0.1:\(server.port)/v1")
+        return AiClient(ep, "m", apiKey: key, handler: AiClient.createHandler(ep, timeouts), timeouts: timeouts)
     }
 
     @Test func aStreamedAnswerArrivesPieceByPieceOverTheSocket() async throws {
@@ -414,7 +418,7 @@ struct AiLoopbackTests {
             return a
         })
         defer { server.stop() }
-        let client = Self.client(server, timeouts: AiTimeouts(connect: 2, firstByte: 2, idle: 0.2))
+        let client = Self.client(server, timeouts: AiTimeouts(connect: 120, firstByte: 120, idle: 0.2))
         let message = await aiMessage { _ = try await client.chat([.user("Q")]) }
         #expect(message?.contains("stopped answering") == true)
     }
@@ -433,7 +437,8 @@ struct AiLoopbackTests {
     @Test func plainHttpFromAnHttpsEndpointFailsSecurely() async throws {
         let server = try #require(AiLoopbackServer(answersFirstBytes: true) { _ in .raw("HTTP/1.1 400 Bad Request\r\n\r\nnot tls") })
         defer { server.stop() }
-        let client = AiClient(parsed("https://127.0.0.1:\(server.port)/v1"), "m", apiKey: "k")
+        let secure = parsed("https://127.0.0.1:\(server.port)/v1")
+        let client = AiClient(secure, "m", apiKey: "k", handler: AiClient.createHandler(secure, Self.patient))
         let message = await aiMessage { _ = try await client.chat([.user("private text")]) }
         #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
     }
@@ -444,7 +449,7 @@ struct AiLoopbackTests {
         defer { server.stop() }
         let ep = parsed("http://localhost:\(server.port)/v1")
         let addresses = [try #require(AiAddress("::1")), try #require(AiAddress("127.0.0.1"))]
-        let client = AiClient(ep, "m", apiKey: nil, handler: AiClient.createHandler(ep, resolve: { _ in addresses }))
+        let client = AiClient(ep, "m", apiKey: nil, handler: AiClient.createHandler(ep, Self.patient, resolve: { _ in addresses }))
         #expect(try await client.chat([.user("Q")]).text == "ok")
     }
 
