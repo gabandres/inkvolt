@@ -553,7 +553,8 @@ public class FindWorkerTests
         }
         finally
         {
-            File.Delete(path);
+            // The system can hold a killed process's file a moment longer; this is only the test's temp file.
+            try { File.Delete(path); } catch (IOException) { }
         }
     }
 }
