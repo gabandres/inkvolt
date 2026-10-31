@@ -128,20 +128,35 @@ public enum RowText
 
 /// <summary>One row of the comparison: an old page and the new page it lines up with, or a page only one side has.</summary>
 /// <param name="Changes">How many changes are on this row.</param>
-public sealed record CompareRow(int? OldPage, int? NewPage, RowText Text, int Changes = 0);
+/// <param name="PageMoved">A page only one side has here because it moved: its text is on another row, as a move.</param>
+public sealed record CompareRow(int? OldPage, int? NewPage, RowText Text, int Changes = 0, bool PageMoved = false);
 
-public enum ChangeKind { Inserted, Deleted, Changed, PageInserted, PageRemoved }
+public enum ChangeKind { Inserted, Deleted, Changed, PageInserted, PageRemoved, Moved, Formatted }
 
 /// <summary>Characters [Start, End) of a page's text (Start == End: a position between characters).</summary>
 public readonly record struct WordSpan(int Page, int Start, int End);
 
 /// <summary>
 /// A change: words removed (Old), added (New) or both (a replacement), on one page of each side, or a whole page
-/// removed or inserted. An insertion's <see cref="OldAnchor"/> is where it goes in the old text, a deletion's
-/// <see cref="NewAnchor"/> where it was taken from in the new text (null when that isn't on the same row).
+/// removed or inserted, or text moved (Old where it was, New where it is), or text set differently (<see cref="Look"/>). An
+/// insertion's <see cref="OldAnchor"/> is where it goes in the old text, a deletion's <see cref="NewAnchor"/> where it was
+/// taken from in the new text (null when that isn't on the same row), a move's the same.
 /// </summary>
 public sealed record CompareChange(ChangeKind Kind, int Row, IReadOnlyList<WordSpan> Old, IReadOnlyList<WordSpan> New,
-    string OldText, string NewText, WordSpan? OldAnchor = null, WordSpan? NewAnchor = null);
+    string OldText, string NewText, WordSpan? OldAnchor = null, WordSpan? NewAnchor = null)
+{
+    /// <summary>What a <see cref="ChangeKind.Formatted"/> change did.</summary>
+    public LookChange? Look { get; init; }
+
+    /// <summary>One of its sides was read from a picture of the page.</summary>
+    public bool ReadFromScan { get; init; }
+
+    /// <summary>Read from a scan, and the difference is what recognizers confuse, or a stray mark: listed, but say so (<see cref="CompareScan.LooksLikeASlip"/>).</summary>
+    public bool MaybeMisread { get; init; }
+
+    /// <summary>A change of the words themselves (not a move, a look or a whole page).</summary>
+    public bool IsWording => Kind is ChangeKind.Inserted or ChangeKind.Deleted or ChangeKind.Changed;
+}
 
 public sealed class CompareResult
 {
@@ -152,6 +167,11 @@ public sealed class CompareResult
     public int Changed { get; init; }
     public int PagesInserted { get; init; }
     public int PagesRemoved { get; init; }
+    public int Moved { get; init; }
+    public int Formatted { get; init; }
+
+    /// <summary>Of the text changes, those read from a scan that may be misreadings.</summary>
+    public int MaybeMisread { get; init; }
 
     /// <summary>Rows pairing two pages whose text couldn't be compared, because one or both have none (scans).</summary>
     public int PairsWithoutText { get; init; }
@@ -168,9 +188,11 @@ public sealed class CompareResult
         if (text > 0)
         {
             var kinds = new[] { (Inserted, "inserted"), (Deleted, "removed"), (Changed, "changed") }.Where(k => k.Item1 > 0).Select(k => $"{k.Item1} {k.Item2}");
-            parts.Add($"{Count(text, "text change")} ({string.Join(", ", kinds)})");
+            parts.Add($"{Count(text, "text change")} ({string.Join(", ", kinds)})" + (MaybeMisread > 0 ? $", {MaybeMisread} of them may be misread on the scan" : ""));
         }
         else parts.Add("No text changes");
+        if (Moved > 0) parts.Add($"{Moved} moved");
+        if (Formatted > 0) parts.Add(Count(Formatted, "formatting change"));
         if (PagesInserted > 0) parts.Add($"{Count(PagesInserted, "page")} inserted");
         if (PagesRemoved > 0) parts.Add($"{Count(PagesRemoved, "page")} removed");
         if (PairsWithoutText > 0) parts.Add($"{Count(PairsWithoutText, "page")} without text to compare");
@@ -186,39 +208,45 @@ public sealed class CompareResult
 /// their matched words are paired; between such pairs, pages are paired by a small alignment that prefers pairing to
 /// leaving a page out (a page rewritten in place is "changed", not removed and inserted). Pages left over were removed
 /// or inserted and are reported once each, not word by word; pages without text (scans) are flagged instead of
-/// having all their words reported as changed.
+/// having all their words reported as changed. Running headers and footers both documents have stay out of the diff
+/// (<see cref="CompareRunningLines"/>), text taken out in one place and put back in another is one move
+/// (<see cref="CompareMoves"/>) and the same words set differently are formatting changes, where looks are known.
 /// </summary>
 public static class DocumentCompare
 {
     /// <summary>Largest old × new page block aligned exactly; bigger blocks without shared words are paired in order.</summary>
     private const long MaxAlignCells = 4_000_000;
 
-    public static CompareResult Run(IReadOnlyList<PageText> oldPages, IReadOnlyList<PageText> newPages, CancellationToken cancel = default)
+    public static CompareResult Run(IReadOnlyList<PageText> oldPages, IReadOnlyList<PageText> newPages, CancellationToken cancel = default) =>
+        Run(new CompareSource(oldPages), new CompareSource(newPages), cancel);
+
+    public static CompareResult Run(CompareSource oldSide, CompareSource newSide, CancellationToken cancel = default)
     {
+        var (oldPages, newPages) = (oldSide.Pages, newSide.Pages);
+        var oldHasText = new bool[oldPages.Count];
+        var newHasText = new bool[newPages.Count];
+        var (oldRunning, newRunning) = CompareRunningLines.Find(oldPages, newPages, cancel);
         var oldWords = new List<CompareWord>();
         var newWords = new List<CompareWord>();
-        for (var p = 0; p < oldPages.Count; p++) oldWords.AddRange(CompareWords.Of(oldPages[p], p));
-        for (var p = 0; p < newPages.Count; p++) newWords.AddRange(CompareWords.Of(newPages[p], p));
+        for (var p = 0; p < oldPages.Count; p++) AddWords(oldWords, oldPages[p], p, oldRunning[p], oldHasText);
+        for (var p = 0; p < newPages.Count; p++) AddWords(newWords, newPages[p], p, newRunning[p], newHasText);
         cancel.ThrowIfCancellationRequested();
 
         var oldKeys = oldWords.ConvertAll(w => w.Key);
         var newKeys = newWords.ConvertAll(w => w.Key);
-        var ops = WordDiff.Diff(oldKeys, newKeys, cancel);
-        // Prefer runs that start and end with a page: a removed page shouldn't take the next page's first word along.
-        ops = WordDiff.Slide(ops, oldKeys, newKeys, (kind, s, e) =>
-        {
-            var words = kind == DiffKind.Delete ? oldWords : newWords;
-            var spans = words[e - 1].Page - words[s].Page + 1;
-            var starts = s == 0 || words[s - 1].Page != words[s].Page;
-            var ends = e == words.Count || words[e].Page != words[e - 1].Page;
-            return spans * 4 - (starts ? 1 : 0) - (ends ? 1 : 0);
-        });
+        var ops = PageWiseDiff(oldWords, newWords, oldKeys, newKeys, cancel);
         cancel.ThrowIfCancellationRequested();
 
-        var oldHasText = new bool[oldPages.Count];
-        var newHasText = new bool[newPages.Count];
-        foreach (var w in oldWords) oldHasText[w.Page] = true;
-        foreach (var w in newWords) newHasText[w.Page] = true;
+        // What moved leaves the diff: without it the words around it line up again, even those it took a "." from.
+        var moves = CompareMoves.Find(ops, oldKeys, newKeys, cancel);
+        var movedOld = new bool[oldWords.Count];
+        var movedNew = new bool[newWords.Count];
+        foreach (var m in moves)
+        {
+            Array.Fill(movedOld, true, m.OldStart, m.OldEnd - m.OldStart);
+            Array.Fill(movedNew, true, m.NewStart, m.NewEnd - m.NewStart);
+        }
+        if (moves.Count > 0) ops = DiffOfTheRest(oldWords, newWords, movedOld, movedNew, cancel);
 
         var shared = new Dictionary<(int Old, int New), int>();
         foreach (var op in ops)
@@ -249,15 +277,37 @@ public static class DocumentCompare
             if (rows[r].NewPage is { } n) rowOfNew[n] = r;
         }
 
+        // Words that are the same on both sides: where they stayed, then where they moved.
+        var matched = new List<(int Old, int New)>();
+        foreach (var op in ops.Where(op => op.Kind == DiffKind.Equal))
+            for (var k = 0; k < op.Length; k++) matched.Add((op.A + k, op.B + k));
+
         var changes = WordChanges(ops, oldWords, newWords, oldPages, newPages, rows, rowOfOld, rowOfNew);
+        var oldToNew = new Dictionary<int, int>(matched.Count);
+        foreach (var (o, n) in matched) oldToNew[o] = n;
+        foreach (var m in moves)
+        {
+            foreach (var op in m.Inner.Where(op => op.Kind == DiffKind.Equal))
+                for (var k = 0; k < op.Length; k++) matched.Add((op.A + k, op.B + k));
+            changes.AddRange(WordChanges([.. m.Inner], oldWords, newWords, oldPages, newPages, rows, rowOfOld, rowOfNew, inMove: true));
+            changes.Add(MoveChange(m, oldWords, newWords, oldPages, newPages, rowOfNew, oldToNew));
+        }
+        changes.AddRange(FormatChanges(matched, oldWords, newWords, oldSide, newSide, rowOfNew));
         for (var r = 0; r < rows.Count; r++)
         {
             if (rows[r].Text == RowText.OnlyOld && rows[r].OldPage is { } o)
-                changes.Add(new CompareChange(ChangeKind.PageRemoved, r, [new WordSpan(o, 0, 0)], [], Excerpt(oldPages[o]), ""));
+            {
+                if (MostlyMoved(oldWords, movedOld, o)) rows[r] = rows[r] with { PageMoved = true };
+                else changes.Add(new CompareChange(ChangeKind.PageRemoved, r, [new WordSpan(o, 0, 0)], [], Excerpt(oldPages[o]), ""));
+            }
             else if (rows[r].Text == RowText.OnlyNew && rows[r].NewPage is { } n)
-                changes.Add(new CompareChange(ChangeKind.PageInserted, r, [], [new WordSpan(n, 0, 0)], "", Excerpt(newPages[n])));
+            {
+                if (MostlyMoved(newWords, movedNew, n)) rows[r] = rows[r] with { PageMoved = true };
+                else changes.Add(new CompareChange(ChangeKind.PageInserted, r, [], [new WordSpan(n, 0, 0)], "", Excerpt(newPages[n])));
+            }
         }
-        changes = [.. changes.OrderBy(c => c.Row)]; // stable: within a row, in reading order
+        // Stable: within a row, wording in reading order, then moves, then looks.
+        changes = [.. changes.Select(c => MarkScan(c, oldSide, newSide)).OrderBy(c => c.Row).ThenBy(c => c.Kind switch { ChangeKind.Moved => 1, ChangeKind.Formatted => 2, _ => 0 })];
         var perRow = new int[rows.Count];
         foreach (var c in changes) perRow[c.Row]++;
         for (var r = 0; r < rows.Count; r++) rows[r] = rows[r] with { Changes = perRow[r] };
@@ -271,8 +321,165 @@ public static class DocumentCompare
             Changed = changes.Count(c => c.Kind == ChangeKind.Changed),
             PagesInserted = changes.Count(c => c.Kind == ChangeKind.PageInserted),
             PagesRemoved = changes.Count(c => c.Kind == ChangeKind.PageRemoved),
+            Moved = changes.Count(c => c.Kind == ChangeKind.Moved),
+            Formatted = changes.Count(c => c.Kind == ChangeKind.Formatted),
+            MaybeMisread = changes.Count(c => c.MaybeMisread),
             PairsWithoutText = rows.Count(r => r.Text is RowText.NoTextOld or RowText.NoTextNew or RowText.NoTextBoth),
         };
+    }
+
+    /// <summary>The word diff, preferring runs that start and end with a page: a removed page shouldn't take the next page's first word along.</summary>
+    private static List<DiffOp> PageWiseDiff(List<CompareWord> oldWords, List<CompareWord> newWords, List<string> oldKeys, List<string> newKeys, CancellationToken cancel) =>
+        WordDiff.Slide(WordDiff.Diff(oldKeys, newKeys, cancel), oldKeys, newKeys, (kind, s, e) =>
+        {
+            var words = kind == DiffKind.Delete ? oldWords : newWords;
+            var spans = words[e - 1].Page - words[s].Page + 1;
+            var starts = s == 0 || words[s - 1].Page != words[s].Page;
+            var ends = e == words.Count || words[e].Page != words[e - 1].Page;
+            return spans * 4 - (starts ? 1 : 0) - (ends ? 1 : 0);
+        });
+
+    /// <summary>The diff of the words no move took, as runs of word indices of the whole documents (a run may go past moved words).</summary>
+    private static List<DiffOp> DiffOfTheRest(List<CompareWord> oldWords, List<CompareWord> newWords, bool[] movedOld, bool[] movedNew, CancellationToken cancel)
+    {
+        var oldRest = Enumerable.Range(0, oldWords.Count).Where(i => !movedOld[i]).ToList();
+        var newRest = Enumerable.Range(0, newWords.Count).Where(j => !movedNew[j]).ToList();
+        var (oldLeft, newLeft) = (oldRest.ConvertAll(i => oldWords[i]), newRest.ConvertAll(j => newWords[j]));
+        var ops = new List<DiffOp>();
+        foreach (var op in PageWiseDiff(oldLeft, newLeft, oldLeft.ConvertAll(w => w.Key), newLeft.ConvertAll(w => w.Key), cancel))
+            for (var k = 0; k < op.Length; k++)
+            {
+                var (a, b) = (op.Kind == DiffKind.Insert ? op.A : op.A + k, op.Kind == DiffKind.Delete ? op.B : op.B + k);
+                ops.Add(new DiffOp(op.Kind, a < oldRest.Count ? oldRest[a] : oldWords.Count, b < newRest.Count ? newRest[b] : newWords.Count, 1));
+            }
+        return ops;
+    }
+
+    private static void AddWords(List<CompareWord> words, PageText page, int p, (int Start, int End)[] skip, bool[] hasText)
+    {
+        var all = CompareWords.Of(page, p);
+        if (all.Count > 0) hasText[p] = true;
+        if (skip.Length == 0)
+        {
+            words.AddRange(all);
+            return;
+        }
+        foreach (var w in all)
+            if (!skip.Any(r => w.Start >= r.Start && w.Start < r.End)) words.Add(w);
+    }
+
+    private static bool MostlyMoved(List<CompareWord> words, bool[] moved, int page)
+    {
+        int all = 0, gone = 0;
+        for (var i = 0; i < words.Count; i++)
+        {
+            if (words[i].Page != page) continue;
+            all++;
+            if (moved[i]) gone++;
+        }
+        return all > 0 && gone >= all * 0.8;
+    }
+
+    /// <summary>Says whether a change was read from a scan, and whether it may be a misreading.</summary>
+    private static CompareChange MarkScan(CompareChange c, CompareSource oldSide, CompareSource newSide)
+    {
+        if (!c.Old.Any(s => oldSide.IsScanned(s.Page)) && !c.New.Any(s => newSide.IsScanned(s.Page))) return c;
+        var slip = c.Kind switch
+        {
+            ChangeKind.Changed => CompareScan.LooksLikeASlip(c.OldText, c.NewText),
+            ChangeKind.Inserted => CompareScan.IsOnlyMarks(c.NewText),
+            ChangeKind.Deleted => CompareScan.IsOnlyMarks(c.OldText),
+            _ => false,
+        };
+        return c with { ReadFromScan = true, MaybeMisread = slip };
+    }
+
+    /// <summary>A run of words as a span per page it is on, and its text for showing.</summary>
+    private static (List<WordSpan> Spans, string Text) Spans(List<CompareWord> words, int first, int last, IReadOnlyList<PageText> pages)
+    {
+        var spans = new List<WordSpan>();
+        var text = new StringBuilder();
+        var start = first;
+        for (var i = first; i <= last; i++)
+        {
+            if (i < last && words[i + 1].Page == words[start].Page) continue;
+            var (page, from, to) = (words[start].Page, words[start].Start, words[i].End);
+            spans.Add(new WordSpan(page, from, to));
+            if (text.Length > 0) text.Append(' ');
+            text.Append(CompareWords.Display(pages[page].Text, from, to));
+            start = i + 1;
+        }
+        return (spans, text.ToString());
+    }
+
+    private static CompareChange MoveChange(CompareMove m, List<CompareWord> oldWords, List<CompareWord> newWords, IReadOnlyList<PageText> oldPages, IReadOnlyList<PageText> newPages,
+        int[] rowOfNew, Dictionary<int, int> oldToNew)
+    {
+        var (oldSpans, oldText) = Spans(oldWords, m.OldStart, m.OldEnd - 1, oldPages);
+        var (newSpans, newText) = Spans(newWords, m.NewStart, m.NewEnd - 1, newPages);
+
+        // Where it was, in the new text: right after the last word before it that stayed.
+        WordSpan? from = null;
+        for (var i = m.OldStart - 1; i >= Math.Max(0, m.OldStart - 200) && from is null; i--)
+            if (oldToNew.TryGetValue(i, out var j)) from = new WordSpan(newWords[j].Page, newWords[j].End, newWords[j].End);
+        return new CompareChange(ChangeKind.Moved, rowOfNew[newSpans[0].Page], oldSpans, newSpans, oldText, newText, NewAnchor: from);
+    }
+
+    /// <summary>
+    /// Matched words whose look differs, in the new text's order, one change per run of neighbouring words with the same
+    /// change. Words with no look on either side are skipped.
+    /// </summary>
+    private static List<CompareChange> FormatChanges(List<(int Old, int New)> matched, List<CompareWord> oldWords, List<CompareWord> newWords, CompareSource oldSide, CompareSource newSide, int[] rowOfNew)
+    {
+        var changes = new List<CompareChange>();
+        if (oldSide.Looks is null || newSide.Looks is null) return changes;
+        (int OFirst, int OLast, int NFirst, int NLast, LookChange Look)? open = null;
+
+        void Close()
+        {
+            if (open is not { } g) return;
+            var (oldSpans, oldText) = Spans(oldWords, g.OFirst, g.OLast, oldSide.Pages);
+            var (newSpans, newText) = Spans(newWords, g.NFirst, g.NLast, newSide.Pages);
+            changes.Add(new CompareChange(ChangeKind.Formatted, rowOfNew[newSpans[0].Page], oldSpans, newSpans, oldText, newText) { Look = g.Look });
+            open = null;
+        }
+
+        foreach (var (o, n) in matched.OrderBy(m => m.New))
+        {
+            var look = LookOf(oldWords[o], newWords[n], oldSide, newSide);
+            if (look is null)
+            {
+                Close();
+                continue;
+            }
+            if (open is { } g && g.OLast + 1 == o && g.NLast + 1 == n && SameChange(g.Look, look))
+                open = g with { OLast = o, NLast = n };
+            else
+            {
+                Close();
+                open = (o, o, n, n, look);
+            }
+        }
+        Close();
+        return changes;
+    }
+
+    private static bool SameChange(LookChange a, LookChange b) =>
+        a.Parts == b.Parts && a.Old.PartsDifferentFrom(b.Old) == LookParts.None && a.New.PartsDifferentFrom(b.New) == LookParts.None;
+
+    /// <summary>How one word's look changed, or null: unit by unit when both are spelled alike, else what most of each has.</summary>
+    private static LookChange? LookOf(CompareWord oldWord, CompareWord newWord, CompareSource oldSide, CompareSource newSide)
+    {
+        if (oldSide.LooksOf(oldWord.Page) is not { IsEmpty: false } oldLooks || newSide.LooksOf(newWord.Page) is not { IsEmpty: false } newLooks) return null;
+        if (oldWord.End - oldWord.Start == newWord.End - newWord.Start)
+        {
+            for (var k = 0; k < oldWord.End - oldWord.Start; k++)
+                if (oldLooks.At(oldWord.Start + k) is { } a && newLooks.At(newWord.Start + k) is { } b && a.PartsDifferentFrom(b) is var parts and not LookParts.None)
+                    return new LookChange(a, b, parts);
+            return null;
+        }
+        return oldLooks.Main(oldWord.Start, oldWord.End) is { } m && newLooks.Main(newWord.Start, newWord.End) is { } n && m.PartsDifferentFrom(n) is var p and not LookParts.None
+            ? new LookChange(m, n, p) : null;
     }
 
     /// <summary>The start of a page's text, for naming a removed or inserted page.</summary>
@@ -284,10 +491,13 @@ public static class DocumentCompare
 
     /// <summary>
     /// Groups the diff's inserted and deleted words into changes: a group ends at an unchanged word, at a page break on
-    /// either side and at a word of a row whose text isn't compared (a removed, inserted or textless page).
+    /// either side and at a word of a row whose text isn't compared (a removed, inserted or textless page). Words of a move
+    /// aren't in the diff, and a group ends where one was. <paramref name="inMove"/>: the diff inside a moved passage,
+    /// whose two sides are on different rows and any page.
     /// </summary>
     private static List<CompareChange> WordChanges(List<DiffOp> ops, List<CompareWord> oldWords, List<CompareWord> newWords,
-        IReadOnlyList<PageText> oldPages, IReadOnlyList<PageText> newPages, List<CompareRow> rows, int[] rowOfOld, int[] rowOfNew)
+        IReadOnlyList<PageText> oldPages, IReadOnlyList<PageText> newPages, List<CompareRow> rows, int[] rowOfOld, int[] rowOfNew,
+        bool inMove = false)
     {
         var changes = new List<CompareChange>();
         int? oFirst = null, oLast = null, nFirst = null, nLast = null; // word indices of the open group
@@ -321,8 +531,8 @@ public static class DocumentCompare
                     case DiffKind.Delete:
                     {
                         var i = op.A + k;
-                        if (rows[rowOfOld[oldWords[i].Page]].Text != RowText.Compared) { Close(); break; }
-                        if (oLast is { } l && oldWords[l].Page != oldWords[i].Page) Close();
+                        if (!inMove && rows[rowOfOld[oldWords[i].Page]].Text != RowText.Compared) { Close(); break; }
+                        if (oLast is { } l && (l + 1 != i || oldWords[l].Page != oldWords[i].Page)) Close();
                         oFirst ??= i;
                         oLast = i;
                         break;
@@ -330,9 +540,9 @@ public static class DocumentCompare
                     default:
                     {
                         var j = op.B + k;
-                        if (rows[rowOfNew[newWords[j].Page]].Text != RowText.Compared) { Close(); break; }
-                        if (nLast is { } l && newWords[l].Page != newWords[j].Page) Close();
-                        else if (nLast is null && oLast is { } ol && rowOfOld[oldWords[ol].Page] != rowOfNew[newWords[j].Page]) Close();
+                        if (!inMove && rows[rowOfNew[newWords[j].Page]].Text != RowText.Compared) { Close(); break; }
+                        if (nLast is { } l && (l + 1 != j || newWords[l].Page != newWords[j].Page)) Close();
+                        else if (!inMove && nLast is null && oLast is { } ol && rowOfOld[oldWords[ol].Page] != rowOfNew[newWords[j].Page]) Close();
                         nFirst ??= j;
                         nLast = j;
                         break;
@@ -348,7 +558,7 @@ public static class DocumentCompare
         {
             var oldSpan = g.OF is { } of ? new WordSpan(oldWords[of].Page, oldWords[of].Start, oldWords[g.OL!.Value].End) : (WordSpan?)null;
             var newSpan = g.NF is { } nf ? new WordSpan(newWords[nf].Page, newWords[nf].Start, newWords[g.NL!.Value].End) : (WordSpan?)null;
-            var row = oldSpan is { } os ? rowOfOld[os.Page] : rowOfNew[newSpan!.Value.Page];
+            var row = inMove && newSpan is { } ns ? rowOfNew[ns.Page] : oldSpan is { } os ? rowOfOld[os.Page] : rowOfNew[newSpan!.Value.Page];
             var kind = oldSpan is null ? ChangeKind.Inserted : newSpan is null ? ChangeKind.Deleted : ChangeKind.Changed;
 
             // Where an insertion goes in the old text (or a deletion was in the new): next to the neighbouring
