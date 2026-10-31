@@ -130,9 +130,13 @@ enum ExportTestPdf {
             if greek && res == "F1" {
                 let encoding = doc.dict([("Type", doc.name("Encoding")), ("BaseEncoding", doc.name("WinAnsiEncoding")),
                                          ("Differences", doc.array([doc.int(0xE1), doc.name("alpha"), doc.name("beta")]))])
+                // Those two codes' widths are the letters', not WinAnsi's á and â (the check's 31-016 compares them with the font).
+                let font = TrueTypeProgram.read(program.bytes)!
+                var widths = program.widths
+                for (code, letter) in [(0xE1, 0x3B1), (0xE2, 0x3B2)] { widths[code - 32] = Int((font.advance(font.lookupUnicode(letter)) ?? 0).rounded()) }
                 fonts.append(("F4", doc.add(doc.dict([
                     ("Type", doc.name("Font")), ("Subtype", doc.name("TrueType")), ("BaseFont", doc.name(name)), ("FirstChar", doc.int(32)),
-                    ("LastChar", doc.int(255)), ("Widths", doc.array(program.widths.map { doc.int($0) })),
+                    ("LastChar", doc.int(255)), ("Widths", doc.array(widths.map { doc.int($0) })),
                     ("Encoding", encoding), ("FontDescriptor", descriptor),
                 ]))))
             }
