@@ -142,6 +142,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let recovery = NSButton(checkboxWithTitle: "Keep recovery copies of unsaved changes", target: nil, action: nil)
     let updates = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     let author = NSTextField(string: "")
+    let aiState = NSTextField(wrappingLabelWithString: "")
     private let updater: Updates?
     /// Called after Save (the self-test waits on it).
     var onSaved: (() -> Void)?
@@ -156,7 +157,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     init(updater: Updates?) {
         self.updater = updater
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 380), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Settings"
         window.isRestorable = false
         super.init(window: window)
@@ -168,6 +169,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         author.placeholderString = AppSettings.userName
         author.setAccessibilityLabel("Author name on comments")
 
+        aiState.preferredMaxLayoutWidth = 330
+        aiState.isSelectable = false
+        let aiSetUp = NSButton(title: "AI Assistant Settings…", target: self, action: #selector(aiSettingsClicked))
+        let aiRow = NSStackView(views: [aiState, aiSetUp])
+        aiRow.orientation = .vertical
+        aiRow.alignment = .leading
+        aiRow.spacing = 6
         let grid = NSGridView(views: [
             [NSTextField(labelWithString: "App theme:"), theme],
             [NSTextField(labelWithString: "Open documents at:"), zoom],
@@ -175,6 +183,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             [NSGridCell.emptyContentView, recovery],
             [NSGridCell.emptyContentView, updates],
             [NSTextField(labelWithString: "Author name on comments:"), author],
+            [NSTextField(labelWithString: "AI assistant:"), aiRow],
         ])
         grid.column(at: 0).xPlacement = .trailing
         grid.rowSpacing = 10
@@ -216,6 +225,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         updates.state = updater?.controller.updater.automaticallyChecksForUpdates == true ? .on : .off
         updates.isEnabled = updater != nil
         author.stringValue = AppSettings.authorName.isEmpty ? AppSettings.userName : AppSettings.authorName
+        aiState.stringValue = AiService.describe(AppSettings.ai)
+    }
+
+    /// Its own sheet, saved on its own, as on Windows.
+    @objc func aiSettingsClicked() {
+        guard let window else { return }
+        Task { @MainActor in
+            guard await AiSettingsSheet.show(on: window) else { return }
+            aiState.stringValue = AiService.describe(AppSettings.ai)
+            DocumentWindowController.refreshAllAiPanes()
+        }
     }
 
     @objc func resetClicked() {

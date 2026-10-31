@@ -20,6 +20,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let redactBar = RedactBar()
     let redaction = RedactionState()
     let measure = MeasureState()
+    /// The AI assistant's pane, conversation and running request (AiAssistant.swift), and Summarize's page question.
+    let ai = AiState()
+    var aiSummaryAlert: (alert: NSAlert, field: NSTextField)?
     /// Prepare Form's bar, panel and fields.
     private(set) lazy var design = PrepareForm(controller: self)
     /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
@@ -179,6 +182,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive, let path = pdf.fileURL?.path { AppSettings.remember(page: pages.currentPage, for: path) }
         progressSheet?.cancelClicked()
+        ai.cancel?.cancel()
+        ai.pageTexts.clear()
         form.cancelEditor()
         diskTimer?.invalidate()
         inspectorPopover?.close()
@@ -234,6 +239,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         toolStrip.onSignatureMenu = { [weak self] view, rect in self?.popUp(self?.signatureMenu(), view, rect) }
         wireMeasuring()
     }
+
+    /// Adds a panel on the right, as the AI assistant's when it is first opened.
+    func addSidePanel(_ item: NSSplitViewItem) { split.addSplitViewItem(item) }
 
     /// Says what just happened in the bar over the pages.
     func notify(_ message: String, canUndo: Bool = false) {
@@ -548,6 +556,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return true
         case #selector(setMeasuringScale(_:)):
             return pdf.session != nil && engine.pageCount > 0
+        case #selector(aiSummarize(_:)):
+            return engine.pageCount > 0 && !ai.isBusy
+        case #selector(aiAsk(_:)):
+            return engine.pageCount > 0
+        case #selector(aiExplain(_:)):
+            return pages.selectedText != nil && !ai.isBusy
         case #selector(togglePrepareForm(_:)):
             item.state = design.isDesigning ? .on : .off
             return pdf.session != nil

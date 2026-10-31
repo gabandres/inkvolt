@@ -16,7 +16,7 @@ import PdfCore
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -42,6 +42,8 @@ enum Report {
     private(set) static var onlyAccessibility = false
     /// `--only-pdfa`: with `--edit`, only `PdfATest` (quicker runs while working on Save as PDF/A).
     private(set) static var onlyPdfA = false
+    /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
+    private(set) static var onlyAi = false
     private(set) static var snapshots: String?
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
@@ -68,6 +70,7 @@ enum Report {
         onlyPrepareForm = args.contains("--only-prepare-form")
         onlyAccessibility = args.contains("--only-accessibility")
         onlyPdfA = args.contains("--only-pdfa")
+        onlyAi = args.contains("--only-ai")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -76,6 +79,7 @@ enum Report {
         // Settings go to a suite of the self-test's own, never the user's.
         AppSettings.clearTestSuite(AppTest.settingsSuite)
         AppSettings.defaults = UserDefaults(suiteName: AppTest.settingsSuite) ?? .standard
+        AppSettings.aiKeys = AiMemoryKeyStore() // never the user's keychain
         if let snapshots { try? FileManager.default.createDirectory(atPath: snapshots, withIntermediateDirectories: true) }
         if args.contains("--synthetic") {
             let folder = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-selftest-\(UUID().uuidString.prefix(8))")
@@ -122,6 +126,11 @@ enum Report {
                     var pdfa = PdfATest(controller: controller, name: name)
                     await pdfa.run()
                 }
+            } else if edits && onlyAi {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var assistant = AiTest(controller: controller, name: name)
+                    await assistant.run()
+                }
             } else if edits && onlyMeasure {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var measure = MeasureTest(controller: controller, name: name)
@@ -151,6 +160,8 @@ enum Report {
                 var redact = RedactTest(controller: controller, name: name, openedFrom: openedFrom)
                 await redact.run()
                 if openedFrom != nil && openedFrom == syntheticPath {
+                    var assistant = AiTest(controller: controller, name: name)
+                    await assistant.run()
                     var check = AccessibilityTest(controller: controller, name: name)
                     await check.run()
                     var form = PrepareFormTest(controller: controller, name: name)
@@ -183,7 +194,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAi {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

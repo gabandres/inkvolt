@@ -427,7 +427,7 @@ struct AiLoopbackTests {
     }
 
     @Test func plainHttpFromAnHttpsEndpointFailsSecurely() async throws {
-        let server = try #require(AiLoopbackServer { _ in .raw("HTTP/1.1 200 OK\r\n\r\nnot tls") })
+        let server = try #require(AiLoopbackServer(answersFirstBytes: true) { _ in .raw("HTTP/1.1 400 Bad Request\r\n\r\nnot tls") })
         defer { server.stop() }
         let client = AiClient(parsed("https://127.0.0.1:\(server.port)/v1"), "m", apiKey: "k")
         let message = await aiMessage { _ = try await client.chat([.user("private text")]) }

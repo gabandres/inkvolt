@@ -307,6 +307,16 @@ enum MainMenu {
         let measureItem = NSMenuItem(title: "Measure", action: nil, keyEquivalent: "")
         measureItem.submenu = measure
         menu.addItem(measureItem)
+        // AI Assistant (Windows: Review › AI Assistant): bring your own, off by default.
+        let assistant = NSMenu(title: "AI Assistant")
+        assistant.addItem(item("Summarize with AI…", #selector(DocumentWindowController.aiSummarize(_:))))
+        assistant.addItem(item("Ask AI about This Document", #selector(DocumentWindowController.aiAsk(_:))))
+        assistant.addItem(item("Explain Selection with AI", #selector(DocumentWindowController.aiExplain(_:))))
+        assistant.addItem(.separator())
+        assistant.addItem(item("AI Assistant Settings…", #selector(DocumentWindowController.aiSettings(_:))))
+        let assistantItem = NSMenuItem(title: "AI Assistant", action: nil, keyEquivalent: "")
+        assistantItem.submenu = assistant
+        menu.addItem(assistantItem)
         menu.addItem(.separator())
         menu.addItem(item("Prepare Form", #selector(DocumentWindowController.togglePrepareForm(_:)), "f", [.command, .option]))
         menu.addItem(item("Detect Form Fields", #selector(DocumentWindowController.detectFormFields(_:))))
