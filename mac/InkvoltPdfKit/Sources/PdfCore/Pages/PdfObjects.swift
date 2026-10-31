@@ -87,6 +87,13 @@ final class PObj {
         return o.kind == .null && !o.isRef ? nil : o
     }
 
+    /// The entry under a name given as its bytes (a name that isn't UTF-8, read from a content stream).
+    subscript(raw key: [UInt8]) -> PObj? {
+        guard let p = inkv_obj_get(doc.ctx, ptr, (key + [0]).map { CChar(bitPattern: $0) }) else { return nil }
+        let o = PObj(doc, p)
+        return o.kind == .null && !o.isRef ? nil : o
+    }
+
     func has(_ key: String) -> Bool { self[key] != nil }
 
     /// Sets a dictionary entry; nil removes it.

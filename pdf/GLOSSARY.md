@@ -61,7 +61,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   Protocol 1.1 (PDF/UA-1) run on a document: each **finding** has its condition number ("13-004"), page, element, what is
   wrong and what fixes it; the **human checks** are the checklist of what only a person can judge. The **report** is the
   findings, the ticked checklist and every condition's result as one web page (`AccessibilityReportHtml`). Runs from
-  Review › Accessibility Check… (the Accessibility pane) and in Batch.
+  Review › Accessibility Check… (the Accessibility pane) and in Batch. On the Mac: `PdfCore/Accessibility`, Tools ›
+  Accessibility Check…, the same pane as a segment of the sidebar.
 - **Make Accessible** (`Core/AutoTag*.cs`): tagging a document from its layout. The **tag plan** (`TagPlan`) is what
   will be written: the **blocks** (`TagBlock`: paragraph, heading, list, table, figure, caption, footnote, table of
   contents, formula) of each page in reading order, the running headers and footers (artifacts), the title and

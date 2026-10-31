@@ -155,12 +155,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
   OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
   conditions for 49 (the other is a veraPDF inconsistency, see the tool's README); veraPDF's own 297 PDF/UA-1 test
-  files: 296 of 297 (the other can't be opened by PDFsharp). Still to do: the Mac.
+  files: 296 of 297 (the other can't be opened by PDFsharp). Mac: done 2026-10-30 (Tools › Accessibility Check…, the sidebar's pane, the
+  report, Batch's action): against Windows on the same files, the same pass or fail for 50 of 50 and 296 of 297, the same conditions
+  for 49 and 296; the two differences are files Windows' PDF reader reads differently (`mac/docs/PLAN.md`).
 - **Beat it when:** a local checker covers the machine-checkable Matterhorn conditions and agrees with veraPDF's
   PDF/UA-1 result on a corpus of 50 files (tagged and untagged, Word, InDesign and LaTeX output); each failure links to
   the page and element, says in plain words what is wrong and what fixes it, and the human-check items are a checklist
   in the same panel; the report saves as HTML; runs in Batch. Test: the corpus result matches veraPDF file by file.
-- **Effort** M. Windows; Mac after 1.0.
+- **Effort** M. Windows; Mac: done 2026-10-30.
 
 ### 1.4 Comments and form data in and out (done 2026-10-27)
 - **Leader.** Acrobat Pro: export and import comments as FDF or XFDF

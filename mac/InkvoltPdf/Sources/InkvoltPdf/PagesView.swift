@@ -255,6 +255,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         return first <= last ? first...last : nil
     }
 
+    /// The place outlined for a moment (`flash`).
+    private(set) var flashed: (page: Int, box: RectD)?
+    private var flashTask: Task<Void, Never>?
+
     override func draw(_ dirtyRect: NSRect) {
         guard let range = pages(in: dirtyRect) else { return }
         for i in range {
@@ -284,8 +288,27 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             if tool == .prepareForm { design?.draw(i, r) } else { form?.draw(i, r) }
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
+            if let flashed, flashed.page == i {
+                NSColor.systemOrange.setStroke()
+                let outline = NSBezierPath(rect: viewRect(flashed.box, r).insetBy(dx: -2, dy: -2))
+                outline.lineWidth = 2
+                outline.stroke()
+            }
         }
         requestVisible()
+    }
+
+    /// Outlines a place for a moment (a finding chosen in the Accessibility pane; Windows' `Viewer.Flash`).
+    func flash(_ page: Int, _ box: RectD) {
+        flashed = (page, box)
+        needsDisplay = true
+        flashTask?.cancel()
+        flashTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.flashed = nil
+            self.needsDisplay = true
+        }
     }
 
     private func drawMarks(_ page: Int, _ r: NSRect) {
