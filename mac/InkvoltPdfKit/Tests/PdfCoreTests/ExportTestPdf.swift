@@ -104,7 +104,14 @@ enum ExportTestPdf {
         p2.text("Two Columns", "F2", 16, 72, 80)
         _ = p2.wrap("The left column talks about apples and how they grow in orchards on the hills around the town every autumn.", "F1", 11, 72, 110, 216)
         _ = p2.wrap("The right column talks about pears, which ripen later and keep for weeks in a cool dark cellar room.", "F1", 11, 324, 110, 216)
+        let made = written([p1, p2])
+        cache.made[key] = made
+        return made
+    }
 
+    /// Pages drawn on `Canvas`es, over the faces and pictures `make` uses. `greek`: also "F4", Arial with codes E1 and E2 as
+    /// alpha and beta (PDFsharp writes Unicode text as a composite font; here only those two letters are needed).
+    static func written(_ canvases: [Canvas], greek: Bool = false) -> [UInt8] {
         let doc = try! MuDoc.create()
         var fonts: [(String, PObj)] = []
         for (res, name, _, flags, angle) in faces {
@@ -120,6 +127,19 @@ enum ExportTestPdf {
                 ("LastChar", doc.int(255)), ("Widths", doc.array(program.widths.map { doc.int($0) })),
                 ("Encoding", doc.name("WinAnsiEncoding")), ("FontDescriptor", descriptor),
             ]))))
+            if greek && res == "F1" {
+                let encoding = doc.dict([("Type", doc.name("Encoding")), ("BaseEncoding", doc.name("WinAnsiEncoding")),
+                                         ("Differences", doc.array([doc.int(0xE1), doc.name("alpha"), doc.name("beta")]))])
+                // Those two codes' widths are the letters', not WinAnsi's á and â (the check's 31-016 compares them with the font).
+                let font = TrueTypeProgram.read(program.bytes)!
+                var widths = program.widths
+                for (code, letter) in [(0xE1, 0x3B1), (0xE2, 0x3B2)] { widths[code - 32] = Int((font.advance(font.lookupUnicode(letter)) ?? 0).rounded()) }
+                fonts.append(("F4", doc.add(doc.dict([
+                    ("Type", doc.name("Font")), ("Subtype", doc.name("TrueType")), ("BaseFont", doc.name(name)), ("FirstChar", doc.int(32)),
+                    ("LastChar", doc.int(255)), ("Widths", doc.array(widths.map { doc.int($0) })),
+                    ("Encoding", encoding), ("FontDescriptor", descriptor),
+                ]))))
+            }
         }
         func rgb(_ w: Int, _ h: Int, _ pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) -> PObj {
             var samples: [UInt8] = []
@@ -136,15 +156,13 @@ enum ExportTestPdf {
             ("Fig", rgb(40, 30) { x, yy in (UInt8(x * 6), UInt8(yy * 8), 200) }),
         ])
         let resources = doc.dict([("Font", doc.dict(fonts)), ("XObject", xobjects)])
-        for (i, canvas) in [p1, p2].enumerated() {
+        for (i, canvas) in canvases.enumerated() {
             let page = doc.dict([("Type", doc.name("Page")), ("MediaBox", doc.reals(0, 0, 612, 792)), ("Resources", resources),
                                  ("Contents", doc.addStream(latin1Bytes(canvas.content), deflate: true))])
             doc.insertPage(doc.add(page), at: i)
         }
         try! doc.checkFailure()
-        let made = try! doc.write("")
-        cache.made[key] = made
-        return made
+        return try! doc.write("")
     }
 
     /// Pages without any text (a scan without its text layer, say).

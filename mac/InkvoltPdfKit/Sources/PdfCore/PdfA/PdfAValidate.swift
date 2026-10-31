@@ -1,9 +1,10 @@
 import Foundation
 
 extension PdfA {
-    /// The PDF/A-2b rules `convert` handles, checked on a finished file (empty: none broken). Not a full validator: font
-    /// program internals, color in shadings and inline images, and many other rules are not looked at.
-    public static func validate(_ pdf: [UInt8]) -> [String] {
+    /// The PDF/A-2b (or 2a) rules `convert` handles, checked on a finished file (empty: none broken). Not a full validator:
+    /// font program internals, color in shadings and inline images, and many other rules are not looked at.
+    public static func validate(_ pdf: [UInt8], conformance: PdfAConformance = .b) -> [String] {
+        let level = conformance.rawValue
         var problems: [String] = []
         if !hasPdfAHeader(pdf) { problems.append("The file header isn't a PDF 1.x header followed by a binary comment.") }
         let doc: MuDoc
@@ -17,6 +18,11 @@ extension PdfA {
         if doc.hasEncrypt { problems.append("It is encrypted.") }
         if (doc.trailer.array("ID")?[0]?.bytes ?? []).isEmpty { problems.append("The trailer has no file identifier (/ID).") }
         let catalog = doc.catalog
+        if conformance == .a {
+            if !catalog.has("StructTreeRoot") { problems.append("It isn't tagged (no structure tree).") }
+            if catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true { problems.append("It doesn't say it is tagged (MarkInfo).") }
+            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { problems.append("It doesn't say its language.") }
+        }
         let pdfa = catalog.array("OutputIntents")?.elements.first { $0.isDict && $0.name("S") == "GTS_PDFA1" }
         let profile = pdfa?.dict("DestOutputProfile")
         let icc = profile?.isStream == true && profile?.int("N") == 3 ? profile?.streamData ?? [] : []
@@ -29,6 +35,9 @@ extension PdfA {
             if !xmp.contains("pdfaid:part=\"2\"") && !xmp.contains("<pdfaid:part>2</pdfaid:part>") { problems.append("The XMP metadata doesn't say PDF/A-2.") }
             if !xmp.contains("pdfaid:conformance=\"\(level)\"") && !xmp.contains("<pdfaid:conformance>\(level)</pdfaid:conformance>") {
                 problems.append("The XMP metadata doesn't say conformance \(level).")
+            }
+            if conformance == .a && xmp.contains("pdfuaid") && !xmp.contains("pdfaSchema:prefix>pdfuaid<") {
+                problems.append("The XMP metadata says PDF/UA without the extension schema PDF/A requires.")
             }
         } else {
             problems.append("There is no XMP metadata.")

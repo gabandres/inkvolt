@@ -33,7 +33,7 @@ extension AccessibilityCheck {
     }
 
     /// A language tag as RFC 3066 writes them ("en", "en-US", "zh-Hant-TW", "x-klingon"): what PDF/UA-1 asks of every Lang.
-    static func isLanguage(_ s: String?) -> Bool {
+    public static func isLanguage(_ s: String?) -> Bool {
         guard let s, !s.isEmpty, s.utf16.count <= 64 else { return false }
         let parts = s.split(separator: "-", omittingEmptySubsequences: false)
         func isLetter(_ c: UInt8) -> Bool { (65...90).contains(c) || (97...122).contains(c) }

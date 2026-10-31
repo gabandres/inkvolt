@@ -101,6 +101,39 @@ enum Xmp {
         return rdfElement(xml) == nil ? nil : xml
     }
 
+    static let pdfUaId = "http://www.aiim.org/pdfua/ns/id/"
+
+    /// The packet says the file is PDF/UA (pdfuaid:part).
+    static func saysPdfUa(_ xml: XMLDocument?) -> Bool {
+        guard let xml, let r = rdfElement(xml) else { return false }
+        return descriptions(r).contains { !$0.elements(forLocalName: "part", uri: pdfUaId).isEmpty || $0.attribute(forLocalName: "part", uri: pdfUaId) != nil }
+    }
+
+    /// Writes the document's XMP packet (a new one when it has none), its Info-backed properties as they are now, with
+    /// pdfuaid:part 1 (Windows' `MarkPdfUa` writes the mark and its save updates the properties).
+    static func markPdfUa(_ doc: MuDoc) {
+        let xml = document(Values(doc), original: read(doc))
+        guard let r = rdfElement(xml) else { return }
+        for d in descriptions(r) {
+            if let a = d.attribute(forLocalName: "part", uri: pdfUaId), let name = a.name { d.removeAttribute(forName: name) }
+            for e in d.elements(forLocalName: "part", uri: pdfUaId) { e.detach() }
+        }
+        let d = XMLElement(name: "rdf:Description", uri: rdf)
+        d.addAttribute(XMLNode.attribute(withName: "rdf:about", uri: rdf, stringValue: "") as! XMLNode)
+        d.addNamespace(XMLNode.namespace(withName: "pdfuaid", stringValue: pdfUaId) as! XMLNode)
+        let part = XMLElement(name: "pdfuaid:part", uri: pdfUaId)
+        part.stringValue = "1"
+        d.addChild(part)
+        r.addChild(d)
+        let bytes = packet(xml)
+        let catalog = doc.catalog
+        if let stream = catalog["Metadata"], stream.isStream {
+            stream.setStream(bytes, deflate: false)
+        } else {
+            catalog.set("Metadata", doc.addStream(bytes, dict: doc.dict([("Type", doc.name("Metadata")), ("Subtype", doc.name("XML"))]), deflate: false))
+        }
+    }
+
     /// The Info values as the packet carries them.
     struct Values {
         var title = "", author = "", subject = "", keywords = "", producer = "", creator = ""

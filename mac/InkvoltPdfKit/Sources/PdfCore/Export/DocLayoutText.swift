@@ -269,6 +269,7 @@ extension DocLayout {
         p.firstLine = firstLine
         p.tabs = tabs
         p.linePitch = lines.count > 1 ? (lines[lines.count - 1].box.y - lines[0].box.y) / Double(lines.count - 1) : 0
+        p.sources = lines.flatMap(\.spans).compactMap(\.pageBox)
         return p
     }
 
@@ -360,7 +361,14 @@ extension DocLayout {
     /// pages, two at least, with no other page text on their row: taken off the pages and returned as header and footer
     /// rows. A number that changes from page to page becomes `pageField`.
     static func running(_ pages: [ExportPage]) -> (pages: [ExportPage], header: DocRunning?, footer: DocRunning?) {
-        if pages.count < 2 { return (pages, nil, nil) }
+        let r = runningWithBoxes(pages)
+        return (r.pages, r.header, r.footer)
+    }
+
+    /// `running`, also saying where on each page the lines and pictures it took off were.
+    static func runningWithBoxes(_ pages: [ExportPage]) -> (pages: [ExportPage], header: DocRunning?, footer: DocRunning?, boxes: [[RectD]]) {
+        let none = [[RectD]](repeating: [], count: pages.count)
+        if pages.count < 2 { return (pages, nil, nil, none) }
         var seen: [(key: RunningKey, list: [At])] = []
         var seenIndex: [RunningKey: Int] = [:]
         var seenPictures: [(key: RunningKey, list: [At])] = []
@@ -404,7 +412,7 @@ extension DocLayout {
         }
         let running = seen.filter { $0.list.count >= need }.map { ($0.key, $0.list.filter(alone)) }.filter { $0.1.count >= need }
         let runningPictures = seenPictures.filter { $0.list.count >= need }
-        if running.isEmpty && runningPictures.isEmpty { return (pages, nil, nil) }
+        if running.isEmpty && runningPictures.isEmpty { return (pages, nil, nil, none) }
 
         let dropLines = Set(running.flatMap(\.1))
         let dropImages = Set(runningPictures.flatMap(\.list))
@@ -414,7 +422,11 @@ extension DocLayout {
             p.images = p.images.indices.filter { !dropImages.contains(At(page: i, index: $0)) }.map { p.images[$0] }
             return p
         }
-        return (stripped, rows(true), rows(false))
+        let boxes = pages.enumerated().map { i, p -> [RectD] in
+            p.lines.indices.filter { dropLines.contains(At(page: i, index: $0)) }.map { p.lines[$0].box }
+                + p.images.indices.filter { dropImages.contains(At(page: i, index: $0)) }.map { p.images[$0].box }
+        }
+        return (stripped, rows(true), rows(false), boxes)
 
         func zone(_ box: RectD, _ width: Double) -> TextAlign {
             box.centerX < width * 0.36 ? .left : box.centerX > width * 0.64 ? .right : .center

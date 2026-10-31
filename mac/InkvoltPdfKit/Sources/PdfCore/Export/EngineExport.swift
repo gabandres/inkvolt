@@ -32,9 +32,10 @@ extension PdfEngine {
     /// the pictures (encoded, when `images`; transparent ones as PNG with their transparency) and the thin lines and box
     /// outlines the page draws. Charts and diagrams drawn with vectors (`DocLayout.figureRegions`) become one picture
     /// each, rendered as shown, and their labels and lines are left out of the text. Not cached.
+    /// `boxesOnly`: pictures and figures say where they are, without their pixels (tagging needs no more).
     /// - Throws: `CancellationError` when `cancel` fired; `PdfEngineError` when MuPDF can't read the page.
-    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil) throws -> ExportPage {
-        let read = try exportRead(page, images: images, jpegAbovePixels: Self.jpegAbovePixels, cancel: cancel)
+    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil, boxesOnly: Bool = false) throws -> ExportPage {
+        let read = try exportRead(page, images: images, boxesOnly: boxesOnly, jpegAbovePixels: Self.jpegAbovePixels, cancel: cancel)
         let g = read.geometry
         var pictures: [ExportImage] = []
         for img in read.images {
@@ -83,7 +84,9 @@ extension PdfEngine {
             rules = rules.filter { !inFigure($0) }
             pictures.removeAll { inFigure($0.box) }
         }
-        if images {
+        if images && boxesOnly {
+            pictures += figures.map { ExportImage([], "png", 0, 0, $0) }
+        } else if images {
             // Rendered again where the picture stands: what MuPDF draws applies its soft mask, so a transparent logo keeps
             // its transparency (the picture's own pixels have none). Not where text lies over it (it would be doubled).
             for i in pictures.indices.reversed() {
