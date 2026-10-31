@@ -384,6 +384,7 @@ public enum BatchPresets {
     /// - Throws: `BatchPresetError` when it isn't JSON, isn't a preset, comes from a newer version, or a setting is wrong.
     public static func read(_ json: String, fallbackName: String? = nil) throws -> BatchPreset {
         let parsed: Any
+        guard JsonNesting.isSafe(Data(json.utf8)) else { throw BatchPresetError("This isn't a batch preset: it isn't valid JSON (it nests too deep).") }
         do {
             parsed = try JSONSerialization.jsonObject(with: Data(json.utf8), options: [.json5Allowed, .fragmentsAllowed])
         } catch {

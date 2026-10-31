@@ -12,6 +12,11 @@ final class AiByteQueue: AiBody, @unchecked Sendable {
     private var waiter: CheckedContinuation<[UInt8]?, Error>?
     private let onClose: @Sendable () -> Void
 
+    /// Most bytes waiting for the reader: an answer is far smaller, and a server sending faster than it is read would
+    /// otherwise fill memory (nothing makes it wait).
+    static let maxQueuedBytes = 64 << 20
+    private var queued = 0
+
     init(onClose: @escaping @Sendable () -> Void = {}) { self.onClose = onClose }
 
     func yield(_ bytes: [UInt8]) {
@@ -23,7 +28,18 @@ final class AiByteQueue: AiBody, @unchecked Sendable {
             w.resume(returning: bytes)
             return
         }
+        if finished {
+            lock.unlock()
+            return
+        }
+        if queued + bytes.count > Self.maxQueuedBytes {
+            lock.unlock()
+            finish(AiNetError.other("the server sent far more than an answer, faster than it could be read"))
+            onClose()
+            return
+        }
         pieces.append(bytes)
+        queued += bytes.count
         lock.unlock()
     }
 
@@ -51,6 +67,7 @@ final class AiByteQueue: AiBody, @unchecked Sendable {
             lock.lock()
             if !pieces.isEmpty {
                 let first = pieces.removeFirst()
+                queued -= first.count
                 lock.unlock()
                 c.resume(returning: first)
             } else if finished {
@@ -145,7 +162,10 @@ struct AiHttpReader {
         var out: [UInt8] = []
         while !bodyDone {
             if inTrailers {
-                guard let end = Self.find(pending, [13, 10]) else { break }
+                guard let end = Self.find(pending, [13, 10]) else {
+                    if pending.count > Self.maxHeadBytes { throw AiNetError.other("the server's trailers are too long") }
+                    break
+                }
                 let isEnd = end == 0
                 pending.removeFirst(end + 2)
                 if isEnd { bodyDone = true }

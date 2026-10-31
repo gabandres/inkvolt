@@ -330,6 +330,20 @@ struct HostileStructureTests {
         #expect(annots.count == 3)
     }
 
+    @Test func APresetFileNestedWithoutEndIsRefused() throws {
+        // JSONSerialization recurses without a limit: a preset file of a few kilobytes would run a thread out of stack.
+        let json = String(repeating: "{\"a\":", count: 200_000)
+        let error = try within { () -> String? in
+            do {
+                _ = try BatchPresets.read(json)
+                return nil
+            } catch let e as BatchPresetError {
+                return e.message
+            }
+        }
+        #expect(error?.contains("isn't valid JSON") == true)
+    }
+
     // MARK: From Windows
 
     @Test func AccessibilityCheckWalksARenditionSelectorListingItselfOnce() throws {
