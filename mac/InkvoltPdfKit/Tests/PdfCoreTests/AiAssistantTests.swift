@@ -313,7 +313,11 @@ struct AiAssistantTests {
         var keychain: SecKeychain?
         #expect(unsafeBitCast(opener, to: Open.self)(path, &keychain) == errSecSuccess)
 
-        let store = AiKeychainStore(service: "com.bermudezsystems.InkvoltPdf.ai-key.test", keychain: try #require(keychain))
+        guard let keychain else {
+            Issue.record("no test keychain")
+            return
+        }
+        let store = AiKeychainStore(service: "com.bermudezsystems.InkvoltPdf.ai-key.test", keychain: keychain)
         let a = "https://tests.example.invalid/v1"
         try store.set(a, " not-a-real-key-1 ")
         #expect(store.get(a) == "not-a-real-key-1")
