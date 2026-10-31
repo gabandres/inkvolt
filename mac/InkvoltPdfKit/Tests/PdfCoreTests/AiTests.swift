@@ -587,7 +587,7 @@ struct AiPromptTests {
         // The app asks before sending text of a PDF whose permissions forbid copying.
         var noCopy = PdfPermissions.all
         noCopy.copy = false
-        let pdf = try PdfSecurity.protect(ExportTestPdf.make(), userPassword: nil, ownerPassword: "owner-pw", permissions: noCopy)
+        let pdf = try PdfSecurity.protect(ExportTestPdf.make(), nil, userPassword: nil, ownerPassword: "owner-pw", permissions: noCopy)
         #expect(try !PdfSecurity.readSecurity(pdf, nil).permissions.copy)
         #expect(!PdfSecurity.isOpenPassword(pdf, "owner-pw"))
         // The Windows `IsCopyRestrictedAsync`, which is a Kit rule here.

@@ -275,14 +275,14 @@ struct AiAssistantTests {
     }
 
     @Test func pageTextIsReadOnceForAnEngine() async throws {
-        let engine = try PdfEngine(data: TestPdf.make(3))
+        let engine = try PdfEngine.open(TestPdf.make(3))
         let cache = AiPageCache()
         let token = CancelToken()
         let first = try await cache.read([0, 2], engine: engine, cancel: token)
         #expect(first.map(\.page) == [0, 2])
         #expect(first.allSatisfy { !$0.text.isEmpty })
         #expect(cache.missing([0, 1, 2], engine: engine) == [1])
-        let other = try PdfEngine(data: TestPdf.make(2))
+        let other = try PdfEngine.open(TestPdf.make(2))
         #expect(cache.missing([0], engine: other) == [0]) // an edit replaced the engine: read again
         let cancelled = CancelToken()
         cancelled.cancel()
