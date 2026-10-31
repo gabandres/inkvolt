@@ -273,7 +273,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.4 and **2.7 → 3.0 (not lower, two words)**, so the roadmap's "every file" isn't met
   on that one. Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
   Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
-  layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`. veraPDF's PDF/A-2b font rules (6.2.11) pass; the
+  layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`; `ocr-corpus layer` goes the whole way with
+  Latin text (a cleaned page's JPEG, Windows' recognizer, this writer, every word read found again by MuPDF). veraPDF's PDF/A-2b font rules (6.2.11) pass; the
   file isn't PDF/A otherwise. **Not checked:** Acrobat isn't installed here; Cyrillic and Japanese error rates couldn't run
   (no such OCR languages installed, none added: their words were planted, and their corpus files wait in the tool), so what Windows' recognizer gives
   for those scripts' word boxes is unseen; no scanner was used, only synthetic pages and the demo; Undo in the review was

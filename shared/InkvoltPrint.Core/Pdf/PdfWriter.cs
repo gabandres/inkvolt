@@ -105,8 +105,9 @@ public static class PdfWriter
             Show(content, font, clusters, box.X * scale, baseline, size, width * scale);
             if (!sameLine || unspaced || next.Box.X + next.Box.Width <= box.X) continue;
             var gap2 = next.Box.X - right;
-            if (gap2 > 0 && gap2 < 2 * Math.Max(box.Height, next.Box.Height))
-                Show(content, font, [" "], right * scale, baseline, size, gap2 * scale);
+            // Boxes that touch or overlap a little are still two words: their space gets almost no width.
+            if (gap2 > -box.Height / 2 && gap2 < 2 * Math.Max(box.Height, next.Box.Height))
+                Show(content, font, [" "], right * scale, baseline, size, Math.Max(gap2, box.Height / 100) * scale);
         }
         return content.Length == 0 ? "" : $"BT 3 Tr\n{content}ET\n";
     }

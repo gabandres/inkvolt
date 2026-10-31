@@ -59,6 +59,7 @@ The cleanup's settings came from trying variants on this corpus: whitening at 86
 ```powershell
 dotnet run --project pdf/tools/ocr-corpus -c Release -- cleanup              # measure every file, write RESULTS-cleanup.md
 dotnet run --project pdf/tools/ocr-corpus -c Release -- cleanup --only en-grey
+dotnet run --project pdf/tools/ocr-corpus -c Release -- layer                # JPEG, recognizer, Inkvolt Print's PDF, search: every word read found again
 ```
 
 Roadmap 2.3 of Inkvolt Print (`print/ROADMAP.md`). Pages are made up from the same seed each time, in four kinds of damage: skewed

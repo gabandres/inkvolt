@@ -420,6 +420,13 @@ public class OcrLayerTests
     }
 
     [Fact]
+    public void Words_whose_boxes_touch_still_get_a_space()
+    {
+        Assert.Equal(["one", " ", "two"], Shown(Pdf(At("one", x: 100, w: 200), At("two", x: 300, w: 200))));
+        Assert.Equal(["one", " ", "two"], Shown(Pdf(At("one", x: 100, w: 200), At("two", x: 295, w: 200))));
+    }
+
+    [Fact]
     public void A_CJK_word_and_a_Latin_word_still_get_a_space()
     {
         var pdf = Pdf(At("東京", x: 100, w: 120), At("Tokyo", x: 240, w: 200));
