@@ -267,6 +267,69 @@ public static class FindWorkers
         }
     }
 
+    /// <summary>The command line of a program started by hand, as Windows' C runtime splits it again (nothing else reads it).</summary>
+    internal static string CommandLine(string exe, IEnumerable<string> args)
+    {
+        var line = new System.Text.StringBuilder();
+        foreach (var arg in args.Prepend(exe))
+        {
+            if (line.Length > 0) line.Append(' ');
+            if (arg.Length > 0 && arg.AsSpan().IndexOfAny(' ', '\t', '"') < 0)
+            {
+                line.Append(arg);
+                continue;
+            }
+            line.Append('"');
+            var slashes = 0;
+            foreach (var c in arg)
+            {
+                if (c == '\\')
+                {
+                    slashes++;
+                    continue;
+                }
+                line.Append('\\', c == '"' ? slashes * 2 + 1 : slashes).Append(c);
+                slashes = 0;
+            }
+            line.Append('\\', slashes * 2).Append('"');
+        }
+        return line.ToString();
+    }
+
+    /// <summary>
+    /// Starts a worker that inherits no handle: Process.Start always passes on the inheritable ones, and MuPDF's for files
+    /// open in place are, so a worker on one tab's search would keep another tab's file from being saved over. It needs none:
+    /// its pipe and its document's bytes go by name. Held suspended until this process has hold of it, so it can't end first.
+    /// </summary>
+    internal static Process StartWithoutHandles(string exe, IEnumerable<string> args, string directory)
+    {
+        var startup = new StartupInfo { Size = Marshal.SizeOf<StartupInfo>() };
+        if (!CreateProcess(null, new System.Text.StringBuilder(CommandLine(exe, args)), IntPtr.Zero, IntPtr.Zero, false, CreateNoWindow | CreateSuspended, IntPtr.Zero, directory, ref startup, out var info))
+            throw new Win32Exception();
+        try
+        {
+            var process = Process.GetProcessById(info.ProcessId);
+            _ = process.Handle; // held from here on, whenever it ends
+            if (ResumeThread(info.Thread) == uint.MaxValue)
+            {
+                var error = new Win32Exception();
+                process.Kill();
+                process.Dispose();
+                throw error;
+            }
+            return process;
+        }
+        catch (ArgumentException)
+        {
+            throw new InvalidOperationException("The worker didn't start.");
+        }
+        finally
+        {
+            CloseHandle(info.Thread);
+            CloseHandle(info.Process);
+        }
+    }
+
     /// <summary>Ends every worker with this process, even if it crashes: they all belong to a job that dies with its handle.</summary>
     internal static class Job
     {
@@ -329,6 +392,24 @@ public static class FindWorkers
     private const uint SemFailCriticalErrors = 1, SemNoGpFaultErrorBox = 2;
     private const uint JobKillOnClose = 0x2000;
     private const int JobExtendedLimitInformation = 9;
+    private const uint CreateNoWindow = 0x08000000, CreateSuspended = 4;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int Size;
+        public string? Reserved, Desktop, Title;
+        public int X, Y, Width, Height, CountChars, CountLines, FillAttribute, Flags;
+        public short ShowWindow, Reserved2;
+        public IntPtr Reserved3, StdInput, StdOutput, StdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process, Thread;
+        public int ProcessId, ThreadId;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BasicLimits
@@ -367,6 +448,16 @@ public static class FindWorkers
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateProcessW")]
+    private static extern bool CreateProcess(string? application, System.Text.StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes,
+        bool inheritHandles, uint flags, IntPtr environment, string? directory, ref StartupInfo startup, out ProcessInformation info);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
 
     [DllImport("kernel32.dll")]
     private static extern uint SetErrorMode(uint mode);

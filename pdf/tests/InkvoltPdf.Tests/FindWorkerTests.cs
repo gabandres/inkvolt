@@ -460,6 +460,76 @@ public class FindWorkerTests
     }
 
     [Fact]
+    public void AWorkerDoesntKeepAnotherTabsFile()
+    {
+        // Big file B is open in place in another tab; a search with workers runs in file A; B saves. The workers must have no
+        // hold on B: MuPDF's handle to it is inheritable.
+        var dir = Directory.CreateTempSubdirectory("inkvolt-worker-handles-");
+        try
+        {
+            var a = Path.Combine(dir.FullName, "a.pdf");
+            var b = Path.Combine(dir.FullName, "b.pdf");
+            var copy = Path.Combine(dir.FullName, "b copy.pdf");
+            File.WriteAllBytes(a, MixedDocument());
+            File.WriteAllBytes(b, TestPdf.Make(2, "file b"));
+            File.WriteAllBytes(copy, TestPdf.Make(2, "file b, saved"));
+            var tabB = PdfEngine.OpenFile(b, InputFileTypes.PDF, null);
+            using var tabA = PdfEngine.OpenFile(a, InputFileTypes.PDF, null);
+            tabA.WorkerPlan = Forced();
+            var replaced = false;
+            foreach (var _ in tabA.FindAll("fox", false, false))
+            {
+                if (replaced) continue;
+                while (tabA.FindWorkerPids.Count < 2) Thread.Sleep(1);
+                Assert.Contains(tabA.FindWorkerPids, IsRunning);
+                tabB.Dispose(); // what a save does: MuPDF lets go, the copy goes over the file
+                File.Move(copy, b, overwrite: true);
+                Assert.Contains(tabA.FindWorkerPids, IsRunning);
+                replaced = true;
+            }
+            Assert.True(replaced);
+            Assert.True(tabA.LastFindWorkers!.PagesFromWorkers > 0); // they still read, without inheriting anything
+            using var saved = PdfEngine.OpenFile(b, InputFileTypes.PDF, null);
+            Assert.Contains("saved", saved.GetText(0).Text);
+        }
+        finally
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            try { dir.Delete(true); } catch (IOException) { }
+        }
+    }
+
+    [Theory]
+    [InlineData("plain")]
+    [InlineData("two words")]
+    [InlineData(@"C:\Program Files\Inkvolt\")]
+    [InlineData("a \"quoted\" word")]
+    [InlineData(@"back\\slashes\ and ""quotes"" \\")]
+    [InlineData("")]
+    public void AWorkersArgumentsReachItAsTheyAre(string arg)
+    {
+        var line = FindWorkers.CommandLine(WorkerExe, [arg, "--find-worker"]);
+        var argv = CommandLineToArgvW(line, out var count);
+        try
+        {
+            Assert.Equal(3, count);
+            Assert.Equal(WorkerExe, System.Runtime.InteropServices.Marshal.PtrToStringUni(System.Runtime.InteropServices.Marshal.ReadIntPtr(argv, 0)));
+            Assert.Equal(arg, System.Runtime.InteropServices.Marshal.PtrToStringUni(System.Runtime.InteropServices.Marshal.ReadIntPtr(argv, IntPtr.Size)));
+        }
+        finally
+        {
+            LocalFree(argv);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr CommandLineToArgvW(string line, out int count);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
+
+    [Fact]
     public void WorkersEndWhenTheAppIsKilled()
     {
         // The bench tool as the app: it starts a search with workers, prints their ids and kills itself mid-search.
