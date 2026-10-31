@@ -54,28 +54,29 @@ final class AccessibilityXObject {
 
 extension AccessibilityChecker {
     static let maxOperators = 2_000_000, maxFormDepth = 12
-    /// Most drawing steps of forms kept parsed, and most walked in one document. Windows has neither limit: a crafted
-    /// file could point every page at a stream of two million steps, for hours. A real document stays far below both.
-    static let maxParsedOps = 2_500_000, maxTotalOps = 500_000_000
+    /// Most drawing steps of forms kept parsed: a form past it is read again each time it is drawn, which `read` counts.
+    static let maxParsedOps = 2_500_000
+    /// Bytes of content read for one drawing step counted: content of nothing but spaces has no steps to count.
+    static let bytesPerOperator = 64
+    /// Drawing steps one annotation counts as: every page can list the same long array of them.
+    static let operatorsPerAnnotation = 32
 
     func pages() throws {
-        var outOfBudget = false
         for p in 0..<pageCount {
             try cancel.check()
+            if totalOps > maxDocumentOperators {
+                notes.append("The document's content is very long: pages \(p + 1) to \(pageCount) weren't checked.")
+                break
+            }
             let page = pageObjects[p]
-            if totalOps < Self.maxTotalOps {
-                let walk = AccessibilityWalk(self, p, page)
-                let bytes = ContentEditor.contentBytes(page)
-                let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
-                var marks: [AccessibilityWalk.Mc] = []
-                try walk.run(ops, PageBoxes.inherited(page, "Resources"), .identity, page.int("StructParents"), &marks, 0, false)
-                if walk.stopped { notes.append("Page \(p + 1): its content is very long; only the first \(DocumentInventory.n0(Self.maxOperators)) drawing steps were checked.") }
-                report(walk, p)
-            }
-            if totalOps >= Self.maxTotalOps && !outOfBudget {
-                outOfBudget = true
-                notes.append("The document's content is very long: only its first \(DocumentInventory.n0(Self.maxTotalOps)) drawing steps were checked, up to page \(p + 1).")
-            }
+            let walk = AccessibilityWalk(self, p, page)
+            let bytes = ContentEditor.contentBytes(page)
+            walk.read(bytes.count)
+            let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
+            var marks: [AccessibilityWalk.Mc] = []
+            try walk.run(ops, PageBoxes.inherited(page, "Resources"), .identity, page.int("StructParents"), &marks, 0, false)
+            if walk.stopped { notes.append("Page \(p + 1): its content is very long; only the first part of it was checked.") }
+            report(walk, p)
             try annotations(p, page)
             step(p + 1)
         }
@@ -149,10 +150,9 @@ extension AccessibilityChecker {
         return made
     }
 
-    /// A form's drawing steps; kept while they fit `maxParsedOps`, so a form drawn again isn't read again.
-    func ops(of x: AccessibilityXObject) throws -> [COp] {
-        if let ops = x.ops { return ops }
-        let ops = try ContentLexer.parse(x.obj.streamData ?? [], cancel: cancel, limit: Self.maxOperators + 1)
+    /// A form's drawing steps from its bytes; kept while they fit `maxParsedOps`, so a form drawn again isn't read again.
+    func parse(_ x: AccessibilityXObject, _ bytes: [UInt8]) throws -> [COp] {
+        let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
         if parsedOps + ops.count <= Self.maxParsedOps {
             parsedOps += ops.count
             x.ops = ops
@@ -171,6 +171,7 @@ extension AccessibilityChecker {
             add("28-009", "This page's tab order is “\(tabs ?? "")”, not the order of the tags (S).", page: p, element: "Page")
         }
         let clip = PageBoxes.visibleBox(page)
+        totalOps += min(annots.count, 20_000) * Self.operatorsPerAnnotation
         for (i, a) in annots.elements.lazy.filter(\.isDict).prefix(20_000).enumerated() {
             if i & 255 == 255 { try cancel.check() }
             let subtype = a.name("Subtype") ?? ""
@@ -274,15 +275,18 @@ extension AccessibilityChecker {
     private func mediaClips(_ a: PObj, _ p: Int, _ box: RectD) {
         var actions: [PObj] = []
         if let act = a.dict("A") { actions.append(act) }
-        if let aa = a.dict("AA") { actions += aa.keys.compactMap { aa.dict($0) } }
-        var seen = Set<UInt>() // each rendition once: a crafted selector listing itself would otherwise be walked n^8 times
-        for action in actions.prefix(32) where action.name("S") == "Rendition" { rendition(action.dict("R"), p, box, 0, &seen) }
+        // A real one has a few triggers; a crafted one shared by every annotation could hold a million.
+        if let aa = a.dict("AA"), aa.count <= 32 { actions += aa.keys.compactMap { aa.dict($0) } }
+        for action in actions where action.name("S") == "Rendition" { rendition(action.dict("R"), p, box, 0) }
     }
 
-    private func rendition(_ r: PObj?, _ p: Int, _ box: RectD, _ depth: Int, _ seen: inout Set<UInt>) {
-        guard let r, depth <= 8, seen.insert(r.identity).inserted else { return }
+    private func rendition(_ r: PObj?, _ p: Int, _ box: RectD, _ depth: Int) {
+        guard let r, depth <= 8 else { return }
         if r.name("S") == "SR", let list = r.array("R") {
-            for sub in list.elements where sub.isDict { rendition(sub, p, box, depth + 1, &seen) }
+            // Each selector once in the document: one listing itself 100 times would be 100^8 walks, and thousands of
+            // annotations may share one. A clip it leads to is reported where it is first reached.
+            guard walkedSelectors.insert(r.identity).inserted else { return }
+            for sub in list.elements where sub.isDict { rendition(sub, p, box, depth + 1) }
             return
         }
         guard let clip = r.dict("C"), clip.name("S") == "MCD" else { return }
@@ -304,17 +308,20 @@ extension AccessibilityChecker {
     /// The fonts an annotation's appearance draws with (they must meet the font rules too). Each stream once: walking it
     /// again adds no fonts, and thousands of annotations may share one.
     private func appearance(_ a: PObj, _ p: Int, _ page: PObj) throws {
-        guard let n = a.dict("AP")?.dict("N") else { return }
+        guard let n = a.dict("AP")?.dict("N"), walkedAppearances.insert(n.identity).inserted else { return }
         var streams: [PObj] = []
         if n.isStream {
             streams.append(n)
         } else {
             streams = Array(n.keys.compactMap { n.dict($0) }.filter(\.isStream).prefix(8)) // every state (a check box's on and off)
         }
-        for s in streams where walkedAppearances.insert(s.identity).inserted && totalOps < Self.maxTotalOps {
-            let ops = try ContentLexer.parse(s.streamData ?? [], cancel: cancel, limit: Self.maxOperators + 1)
+        for s in streams where (s.identity == n.identity || walkedAppearances.insert(s.identity).inserted) && totalOps <= maxDocumentOperators {
+            let bytes = s.streamData ?? []
+            let walk = AccessibilityWalk(self, p, page)
+            walk.read(bytes.count)
+            let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
             var marks: [AccessibilityWalk.Mc] = []
-            try AccessibilityWalk(self, p, page).run(ops, s.dict("Resources"), .identity, nil, &marks, 0, true)
+            try walk.run(ops, s.dict("Resources"), .identity, nil, &marks, 0, true)
         }
     }
 
@@ -390,6 +397,21 @@ final class AccessibilityWalk {
 
     private static func mat(_ op: COp) -> Mat { Mat(op.n(0), op.n(1), op.n(2), op.n(3), op.n(4), op.n(5)) }
 
+    /// Counts content read against the limits: a form of nothing but spaces has no drawing steps to count, however often it is read.
+    func read(_ bytes: Int) {
+        let steps = bytes / AccessibilityChecker.bytesPerOperator
+        opCount += steps
+        c.totalOps += steps
+    }
+
+    /// A form's drawing steps; only reading its bytes counts, not drawing what was kept.
+    private func formOps(_ x: AccessibilityXObject) throws -> [COp] {
+        if let ops = x.ops { return ops }
+        let bytes = x.obj.streamData ?? []
+        read(bytes.count)
+        return try c.parse(x, bytes)
+    }
+
     /// - Parameter contentOnly: an annotation's appearance: only its fonts count.
     func run(_ ops: [COp], _ resources: PObj?, _ ctm: Mat, _ key: Int?, _ marks: inout [Mc], _ depth: Int, _ contentOnly: Bool) throws {
         var st = State(ctm: ctm)
@@ -400,8 +422,8 @@ final class AccessibilityWalk {
         for op in ops {
             opCount += 1
             c.totalOps += 1
-            if opCount > AccessibilityChecker.maxOperators || c.totalOps > AccessibilityChecker.maxTotalOps {
-                stopped = opCount > AccessibilityChecker.maxOperators || stopped
+            if opCount > AccessibilityChecker.maxOperators || c.totalOps > c.maxDocumentOperators {
+                stopped = true
                 break
             }
             if opCount & 4095 == 0 { try c.cancel.check() }
@@ -516,7 +538,7 @@ final class AccessibilityWalk {
                     if depth >= AccessibilityChecker.maxFormDepth || !active.insert(x.identity).inserted { break }
                     let outer = form
                     form = x.identity
-                    try run(try c.ops(of: x), x.resources ?? resources, x.matrix.times(st.ctm), x.structParents ?? key, &marks, depth + 1, contentOnly)
+                    try run(try formOps(x), x.resources ?? resources, x.matrix.times(st.ctm), x.structParents ?? key, &marks, depth + 1, contentOnly)
                     form = outer
                     active.remove(x.identity)
                 }

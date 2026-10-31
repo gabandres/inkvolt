@@ -103,7 +103,7 @@ enum FontUnicode {
     }
 
     /// A ToUnicode CMap of one- or two-byte codes.
-    private static func cmap(_ map: [Int: String], _ bytes: Int) -> [UInt8] {
+    static func cmap(_ map: [Int: String], _ bytes: Int) -> [UInt8] {
         let format = bytes == 1 ? "%02X" : "%04X"
         var s = "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
         s += "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
