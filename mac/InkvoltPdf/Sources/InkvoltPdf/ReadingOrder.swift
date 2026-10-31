@@ -314,9 +314,8 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         selected = state.items.indices.contains(row) ? state.items[row].index : nil
         fill()
         // Shows where it is: the page scrolled to it when the piece isn't on the page shown.
-        if let item = selectedItem, let controller, item.block.page < controller.pages.pageRects.count, item.block.page != controller.pages.currentPage {
+        if let item = selectedItem, let controller, item.block.readWith == nil, item.block.page < controller.pages.pageRects.count, item.block.page != controller.pages.currentPage {
             controller.go(item.block.page, targetY: item.block.box.y)
-            page = AutoTag.readingPage(item.block)
         }
     }
 

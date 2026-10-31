@@ -77,7 +77,7 @@ import Testing
         let plan = try plan()
         #expect(ReadingOrder.titleNote(plan).hasPrefix("From the first heading"))
         #expect(ReadingOrder.languageNote(plan).hasPrefix("Read from the text"))
-        #expect(ReadingOrder.found(plan).hasPrefix("Found: 3 headings, 1 table, 1 picture; 1 picture still needs alternate text"))
+        #expect(ReadingOrder.found(plan).hasPrefix("Found: 4 headings, 1 table, 1 picture; 1 picture still needs alternate text"))
         #expect(ReadingOrder.written(plan).contains("1 picture needs alternate text"))
     }
 

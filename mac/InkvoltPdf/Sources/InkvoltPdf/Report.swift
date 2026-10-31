@@ -9,14 +9,14 @@ import PdfCore
 /// document's text. A file that can't be opened is reported as such. With `--quit` the app quits once every document
 /// is done.
 ///
-/// Editing (`--edit`): after the reader's checks, `PdfATest` on the synthetic text document (`--only-pdfa` runs it
-/// alone), then each document goes through `EditTest` (every comment tool through the
+/// Editing (`--edit`): after the reader's checks, `PdfATest` and `AccessibleTest` on the synthetic text document (`--only-pdfa` and
+/// `--only-accessible` run them alone), then each document goes through `EditTest` (every comment tool through the
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AccessibleTest` (`--only-accessible` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -137,6 +137,8 @@ enum Report {
                     // ZapfDingbats a PDF/A copy refuses (as on Windows).
                     var pdfa = PdfATest(controller: controller, name: name)
                     await pdfa.run()
+                    var accessible = AccessibleTest(controller: controller, name: name)
+                    await accessible.run()
                 }
                 if openedFrom != syntheticFormPath {
                     var edit = EditTest(controller: controller, name: name)
@@ -156,8 +158,6 @@ enum Report {
                     // Before signing: a signed document declines the scale's page edits.
                     var measure = MeasureTest(controller: controller, name: name)
                     await measure.run()
-                    var accessible = AccessibleTest(controller: controller, name: name)
-                    await accessible.run()
                     var sign = SignTest(controller: controller, name: name)
                     await sign.run()
                     var compare = CompareTest()

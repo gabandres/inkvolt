@@ -1,7 +1,7 @@
 import AppKit
 import PdfCore
 
-/// The self-test's scenario for roadmap 2.4 (`--edit`, on the synthetic text document, after `MeasureTest`; `--only-accessible`
+/// The self-test's scenario for roadmap 2.4 (`--edit`, first on the synthetic text document, after `PdfATest`; `--only-accessible`
 /// runs it alone): Make Accessible, the Reading Order pane and Save as PDF/A-2a through the app's own paths. The commands in
 /// the menu bar; a title refused and the tags written as one undo step; the pane's list and the boxes; the keyboard (⌥↓, ⌥↑,
 /// Page Down, ⌥Page Up, Return, Esc, as real key events on the list); a picture's alternate text typed and written by Apply
