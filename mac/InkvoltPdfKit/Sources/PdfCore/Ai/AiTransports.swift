@@ -359,6 +359,7 @@ final class AiSocketTransport: AiTransport {
             throw error
         }
         for connection in connections where connection !== winner { connection.cancel() }
+        winner.stateUpdateHandler = nil // from here on, a failure comes out of the read or write it stops
         return winner
     }
 
@@ -766,28 +767,24 @@ public final class AiLoopbackServer: @unchecked Sendable {
         DispatchQueue.global(qos: .userInitiated).async { [self] in acceptLoop() }
     }
 
-    deinit { stop() }
-
     public var received: [Received] { lock.withLock { requests } }
 
+    /// Stops listening and ends the connections. Each socket is closed by the thread using it, so its number can't be
+    /// reused under that thread (these run beside real connections in the same process).
     public func stop() {
         let sockets: [Int32] = lock.withLock {
-            if stopped { return [] }
             stopped = true
-            let all = open + [listener]
-            open = []
-            return all
+            return open
         }
-        for s in sockets {
-            shutdown(s, SHUT_RDWR)
-            Darwin.close(s)
-        }
+        for s in sockets { shutdown(s, SHUT_RDWR) }
     }
 
     private func acceptLoop() {
-        while true {
+        var waiting = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
+        while !lock.withLock({ stopped }) {
+            if poll(&waiting, 1, 50) <= 0 { continue }
             let client = accept(listener, nil, nil)
-            if client < 0 { return }
+            if client < 0 { continue }
             let keep: Bool = lock.withLock {
                 if stopped { return false }
                 open.append(client)
@@ -795,18 +792,16 @@ public final class AiLoopbackServer: @unchecked Sendable {
             }
             guard keep else {
                 Darwin.close(client)
-                return
+                continue
             }
             DispatchQueue.global(qos: .userInitiated).async { [self] in serve(client) }
         }
+        Darwin.close(listener)
     }
 
-    private func forget(_ client: Int32) -> Bool {
-        lock.withLock {
-            guard let i = open.firstIndex(of: client) else { return false }
-            open.remove(at: i)
-            return true
-        }
+    private func finish(_ client: Int32) {
+        lock.withLock { open.removeAll { $0 == client } }
+        Darwin.close(client)
     }
 
     private func serve(_ client: Int32) {
@@ -842,8 +837,10 @@ public final class AiLoopbackServer: @unchecked Sendable {
                 at += n
             }
         }
-        if reply.holdOpen { return } // closed by stop()
-        if forget(client) { Darwin.close(client) }
+        if reply.holdOpen { // until the other side closes, or stop()
+            while recv(client, &buffer, size, 0) > 0 {}
+        }
+        finish(client)
     }
 
     private static func headEnd(_ data: [UInt8]) -> Int? {

@@ -59,18 +59,25 @@ extension AiKeyStore {
 /// the app's service name, with the endpoint as its account. Never in UserDefaults or a file of ours, never logged; the
 /// Keychain's access list ties it to this app's signature. The file-based keychain, not the data protection one, which
 /// needs an entitlement the DMG app doesn't have.
-public struct AiKeychainStore: AiKeyStore {
+public struct AiKeychainStore: AiKeyStore, @unchecked Sendable {
     public static let appService = "com.bermudezsystems.InkvoltPdf.ai-key"
     private let service: String
+    /// For tests: a keychain of their own (a `SecKeychain`), so they never touch the user's.
+    private let keychain: AnyObject?
 
-    public init(service: String = AiKeychainStore.appService) { self.service = service }
+    public init(service: String = AiKeychainStore.appService, keychain: AnyObject? = nil) {
+        self.service = service
+        self.keychain = keychain
+    }
 
     private func query(_ endpointKey: String) -> [String: Any] {
-        [
+        var q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: endpointKey.lowercased(),
         ]
+        if let keychain { q[kSecMatchSearchList as String] = [keychain] }
+        return q
     }
 
     public func get(_ endpointKey: String) -> String? {
@@ -94,6 +101,8 @@ public struct AiKeychainStore: AiKeyStore {
         if updated == errSecSuccess { return }
         guard updated == errSecItemNotFound else { throw Self.notSaved(updated) }
         var add = query(endpointKey)
+        add[kSecMatchSearchList as String] = nil
+        if let keychain { add[kSecUseKeychain as String] = keychain }
         add[kSecValueData as String] = secret
         add[kSecAttrLabel as String] = "Inkvolt PDF: AI assistant key"
         let status = SecItemAdd(add as CFDictionary, nil)

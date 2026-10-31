@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import PdfCore
 
@@ -289,18 +290,37 @@ struct AiAssistantTests {
         await #expect(throws: CancellationError.self) { _ = try await AiPageCache().read([0], engine: other, cancel: cancelled) }
     }
 
-    /// The real Keychain, opt-in: `INKVOLTPDF_KEYCHAIN_TEST=1`. Over SSH the login keychain is locked and says
-    /// errSecInteractionNotAllowed (-25308): run it with an unlocked keychain made for the test as the session's default.
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["INKVOLTPDF_KEYCHAIN_TEST"] != nil))
-    func theKeychainKeepsAKeyPerEndpoint() throws {
-        let store = AiKeychainStore(service: "com.bermudezsystems.InkvoltPdf.ai-key.test")
+    /// The real Keychain API, on a keychain made for the test and thrown away: the login keychain is locked over SSH
+    /// (errSecInteractionNotAllowed) and is the user's. SecKeychainOpen is deprecated, so it is found by name (nothing else
+    /// reads a keychain by path); the app itself never calls it.
+    @Test func theKeychainKeepsAKeyPerEndpoint() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-ai-\(UUID().uuidString).keychain-db").path
+        func security(_ args: String...) throws {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            p.arguments = args
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try p.run()
+            p.waitUntilExit()
+            #expect(p.terminationStatus == 0, "security \(args[0])")
+        }
+        try security("create-keychain", "-p", "throwaway", path)
+        defer { try? security("delete-keychain", path) }
+        try security("unlock-keychain", "-p", "throwaway", path)
+        typealias Open = @convention(c) (UnsafePointer<CChar>, UnsafeMutablePointer<SecKeychain?>) -> OSStatus
+        let opener = try #require(dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SecKeychainOpen")) // RTLD_DEFAULT
+        var keychain: SecKeychain?
+        #expect(unsafeBitCast(opener, to: Open.self)(path, &keychain) == errSecSuccess)
+
+        let store = AiKeychainStore(service: "com.bermudezsystems.InkvoltPdf.ai-key.test", keychain: try #require(keychain))
         let a = "https://tests.example.invalid/v1"
-        defer { try? store.set(a, nil) }
-        try store.set(a, "not-a-real-key-1")
+        try store.set(a, " not-a-real-key-1 ")
         #expect(store.get(a) == "not-a-real-key-1")
         try store.set(a, "not-a-real-key-2")
         #expect(store.get(a.uppercased()) == "not-a-real-key-2")
         #expect(store.get("https://other.example.invalid/v1") == nil)
+        #expect(store.has(a))
         try store.set(a, nil)
         #expect(store.get(a) == nil)
         try store.set(a, nil) // removing what isn't there is fine
@@ -407,7 +427,7 @@ struct AiLoopbackTests {
         defer { server.stop() }
         let client = AiClient(parsed("https://127.0.0.1:\(server.port)/v1"), "m", apiKey: "k")
         let message = await aiMessage { _ = try await client.chat([.user("private text")]) }
-        #expect(message?.contains("secure connection") == true)
+        #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
     }
 
     @Test func happyEyeballsSkipsAnAddressThatRefuses() async throws {
