@@ -737,13 +737,13 @@ public final class AiLoopbackServer: @unchecked Sendable {
     private var requests: [Received] = []
     private var open: [Int32] = []
     private var stopped = false
-    private let answersAtOnce: Bool
+    private let answersFirstBytes: Bool
     private let answer: @Sendable (Received) -> Answer
 
-    /// - Parameter answersAtOnce: answer on connecting, without waiting for a request (what a plain server does to a TLS
-    ///   greeting it can't read).
-    public init?(answersAtOnce: Bool = false, answer: @escaping @Sendable (Received) -> Answer) {
-        self.answersAtOnce = answersAtOnce
+    /// - Parameter answersFirstBytes: answer whatever comes first, without waiting for a whole request (what a plain
+    ///   server does to a TLS greeting it can't read).
+    public init?(answersFirstBytes: Bool = false, answer: @escaping @Sendable (Received) -> Answer) {
+        self.answersFirstBytes = answersFirstBytes
         self.answer = answer
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
@@ -812,10 +812,11 @@ public final class AiLoopbackServer: @unchecked Sendable {
         var buffer = [UInt8](repeating: 0, count: size)
         var headEnd: Int?
         var wanted = 0
-        while !answersAtOnce && (headEnd == nil || data.count < headEnd! + 4 + wanted) {
+        while headEnd == nil || data.count < headEnd! + 4 + wanted {
             let n = recv(client, &buffer, size, 0)
             if n <= 0 { break }
             data += buffer[0..<n]
+            if answersFirstBytes { break }
             if headEnd == nil, let end = Self.headEnd(data) {
                 headEnd = end
                 let head = String(decoding: data[..<end], as: UTF8.self).lowercased()
