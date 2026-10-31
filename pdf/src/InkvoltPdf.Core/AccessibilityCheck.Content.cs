@@ -23,6 +23,7 @@ public static partial class AccessibilityCheck
         /// <summary>Form XObjects drawn from page content: how often, whether they hold marked-content ids, where first.</summary>
         private readonly Dictionary<PdfDictionary, (int Uses, bool Tagged, int Page)> _forms = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<PdfDictionary> _refForms = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<PdfDictionary> _selectors = new(ReferenceEqualityComparer.Instance);
 
         private void Pages()
         {
@@ -502,6 +503,9 @@ public static partial class AccessibilityCheck
             if (r is null || depth > 8) return;
             if (PdfObj.NameOf(r, "/S") == "/SR" && PdfObj.Array(r.Elements["/R"]) is { } list)
             {
+                // Each selector once in the document: one listing itself 100 times would be 100^8 walks, and thousands of
+                // annotations may share one. A clip it leads to is reported where it is first reached.
+                if (!_selectors.Add(r)) return;
                 foreach (var sub in list.Elements.Select(PdfObj.Dict)) Rendition(sub, p, box, depth + 1);
                 return;
             }
