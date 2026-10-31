@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.4.0
 - Save as PDF/A now works on IRS forms and on documents with Fill & Sign check marks, which it used to refuse. The list of changes says what the copy lost or gained: the form's Reader usage rights, and check marks drawn in a slightly different shape.
 - PDF/A copies pass an independent validator on more files: pictures' and pages' own metadata no longer stays in the copy.
 - Accessibility check: a file it can't check to the end (very long, or built to slow it down) now says "Not fully checked" and what was left out, and is never called a pass; Batch counts it as failed. Some tables in files saved by Word no longer fail by mistake.
