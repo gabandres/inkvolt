@@ -737,6 +737,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
     private var requests: [Received] = []
     private var open: [Int32] = []
     private var stopped = false
+    private let listenerClosed = DispatchSemaphore(value: 0)
     private let answersFirstBytes: Bool
     private let answer: @Sendable (Received) -> Answer
 
@@ -769,14 +770,16 @@ public final class AiLoopbackServer: @unchecked Sendable {
 
     public var received: [Received] { lock.withLock { requests } }
 
-    /// Stops listening and ends the connections. Each socket is closed by the thread using it, so its number can't be
-    /// reused under that thread (these run beside real connections in the same process).
+    /// Stops listening and ends the connections, and returns once the port is closed. Each socket is closed by the thread
+    /// using it, so its number can't be reused under that thread (these run beside real connections in the same process).
     public func stop() {
         let sockets: [Int32] = lock.withLock {
             stopped = true
             return open
         }
         for s in sockets { shutdown(s, SHUT_RDWR) }
+        listenerClosed.wait()
+        listenerClosed.signal() // for another stop()
     }
 
     private func acceptLoop() {
@@ -797,6 +800,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
             DispatchQueue.global(qos: .userInitiated).async { [self] in serve(client) }
         }
         Darwin.close(listener)
+        listenerClosed.signal()
     }
 
     private func finish(_ client: Int32) {
