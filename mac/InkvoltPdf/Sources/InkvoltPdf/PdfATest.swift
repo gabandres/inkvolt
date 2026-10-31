@@ -53,7 +53,7 @@ struct PdfATest {
         let saved = await controller.saveAsPdfA()
         check(saved && PdfAState.lastTitle == "Saved as PDF/A-2b" && PdfAState.lastMessage.hasPrefix(target.lastPathComponent)
               && PdfAState.lastMessage.contains("• sRGB output intent and PDF/A metadata added"),
-              "the command saves the copy and says what changed (\(PdfAState.lastMessage.components(separatedBy: "\n• ").count - 1) changes)")
+              "the command saves the copy and says what changed (\(PdfAState.lastMessage.components(separatedBy: "\n• ").count - 1) changes\(PdfAState.lastMessage.contains("ZapfDingbats") ? ", the Fill & Sign marks' font embedded" : ""))")
         if !saved { lines.append("note: \(PdfAState.lastTitle): \(PdfAState.lastMessage.replacingOccurrences(of: "\n", with: " ").prefix(400))") }
         let copy = (try? Data(contentsOf: target)).map { [UInt8]($0) } ?? []
         let problems = PdfA.validate(copy)
