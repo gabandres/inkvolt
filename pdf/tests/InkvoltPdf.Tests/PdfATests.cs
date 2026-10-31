@@ -376,12 +376,10 @@ public class PdfATests
         Assert.Equal(0, Dark(316, 400, 328, 414));
     }
 
-    [Fact]
-    public void EveryZapfDingbatsCodeIsCovered()
+    private static byte[] AllDingbatsPdf()
     {
-        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
-        var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
-        var pdf = Core2Pdf.Build(
+        var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0x80, 14)).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
+        return Core2Pdf.Build(
         [
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -389,11 +387,77 @@ public class PdfATests
             Core2Pdf.Stream($"BT /F1 9 Tf 5 40 Td ({all}) Tj ET"),
             "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
         ]);
+    }
+
+    [Fact]
+    public void EveryZapfDingbatsCodeIsCovered()
+    {
+        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
+        var pdf = AllDingbatsPdf();
         var result = PdfA.Convert(pdf, null);
         Assert.Empty(PdfA.Validate(result.Data));
         using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
         var text = engine.GetText(0).Text;
-        foreach (var symbol in new[] { "\u2714", "\u2718", "\u2605", "\u25CF", "\u25A0", "\u25C6", "\u2460", "\u2192", "\u27BE" }) Assert.Contains(symbol, text);
+        foreach (var symbol in new[] { "\u2714", "\u2718", "\u2605", "\u25CF", "\u25A0", "\u25C6", "\u2460", "\u2192", "\u27BE", "\u2768", "\u2775" }) Assert.Contains(symbol, text);
+    }
+
+    [Fact]
+    public void EveryZapfDingbatsCodeDrawsInTheCopyIfItDrawsInTheOriginal()
+    {
+        // One code a page, read back as pixels: a symbol missing from the font would draw nothing, and nothing would say so.
+        var codes = Enumerable.Range(0, 256).ToArray();
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            $"<< /Type /Pages /Kids [{string.Concat(codes.Select(c => $"{4 + 2 * c} 0 R "))}] /Count 256 >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
+        };
+        foreach (var c in codes)
+        {
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents {5 + 2 * c} 0 R /Resources << /Font << /F1 3 0 R >> >> >>");
+            objects.Add(Core2Pdf.Stream($"BT /F1 24 Tf 8 8 Td <{c:X2}> Tj ET"));
+        }
+        var pdf = Core2Pdf.Build(objects);
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var before = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        using var after = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        static bool Ink(PdfEngine e, int page)
+        {
+            var image = e.Render(page, 1);
+            var bpp = image.Pixels.Length / (image.Width * image.Height);
+            for (var i = 1; i < image.Pixels.Length; i += bpp)
+                if (image.Pixels[i] < 128) return true;
+            return false;
+        }
+        var drawn = codes.Where(c => Ink(before, c)).ToList();
+        Assert.Equal(PdfA.DingbatsCount, drawn.Count);
+        Assert.Empty(drawn.Where(c => !Ink(after, c)).Select(c => $"0x{c:X2}"));
+        Assert.Empty(codes.Except(drawn).Where(c => c != 0x20 && Ink(after, c)).Select(c => $"0x{c:X2}")); // and nothing where the original shows nothing
+    }
+
+    [Fact]
+    public void ZapfDingbatsMissingFromThisPcsFontRefusesInsteadOfDrawingNothing()
+    {
+        Assert.Empty(PdfA.DingbatsMissing(_ => true));
+        Assert.Equal([0x34], PdfA.DingbatsMissing(u => u != 0x2714)); // the check mark
+        Assert.Equal(PdfA.DingbatsCount, PdfA.DingbatsMissing(_ => false).Count);
+        Assert.Equal(201, PdfA.DingbatsCount);
+        Assert.Equal("The font ZapfDingbats isn't embedded, and this PC's Segoe UI Symbol lacks 1 of its symbols, which would draw blank.", PdfA.DingbatsMissingMessage("ZapfDingbats", 1));
+    }
+
+    [Fact]
+    public void WindowsSegoeUiSymbolHasEverySymbolAndAllowsEmbedding()
+    {
+        var font = SystemFonts.Get("seguisym.ttf");
+        Assert.NotNull(font);
+        Assert.Empty(PdfA.DingbatsMissing(font!.Has));
+        // OS/2's fsType: 8 is editable embedding; 2 (restricted) would forbid this copy.
+        var bytes = font.Bytes;
+        var tables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(4));
+        var os2 = Enumerable.Range(0, tables).Select(i => 12 + 16 * i).Single(r => System.Text.Encoding.ASCII.GetString(bytes, r, 4) == "OS/2");
+        var fsType = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(os2 + 8)) + 8));
+        Assert.Equal(0, fsType & 2);
     }
 
     [Fact]
@@ -425,6 +489,7 @@ public class PdfATests
             ("long-role", LongRolePdf()),
             ("usage-rights", UsageRightsPdf()),
             ("marks", MarksPdf()),
+            ("dingbats", AllDingbatsPdf()),
             ("export", ExportTestPdf.Make(logo: true)),
             ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
                 new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),

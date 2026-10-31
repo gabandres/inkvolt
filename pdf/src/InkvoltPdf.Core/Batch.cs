@@ -610,7 +610,7 @@ public static class BatchRunner
     /// <summary>The redaction check found something: the file fails.</summary>
     private sealed class RedactionCheckFailedException(string message) : Exception(message);
 
-    /// <summary>The accessibility check found failures: the file fails (its report is kept).</summary>
+    /// <summary>The accessibility check found failures, or couldn't check all of the file: the file fails (its report is kept).</summary>
     private sealed class AccessibilityCheckFailedException(string message) : Exception(message);
 
     private sealed class Job(BatchFile file, int index, BatchPlan plan, BatchHost host, OutputNames names, SemaphoreSlim prompts,
@@ -871,7 +871,7 @@ public static class BatchRunner
             throw new RedactionCheckFailedException($"Redaction check: {report.Summary}");
         }
 
-        /// <summary>The accessibility check: its report beside the result, and a failure fails the file (the first ones go in its notes).</summary>
+        /// <summary>The accessibility check: its report beside the result, and a failure or a part not checked fails the file (the first ones go in its notes).</summary>
         private void CheckAccessibility(byte[] data)
         {
             var report = AccessibilityCheck.Run(data, _password,
@@ -881,6 +881,8 @@ public static class BatchRunner
             if (report.Passed) return;
             foreach (var f in report.Failures.Take(10)) _notes.Add($"{f.Condition} · {f.Where}: {f.Problem}");
             if (report.Failures.Count > 10) _notes.Add($"… and {report.Failures.Count - 10} more (see the report)");
+            foreach (var n in report.Notes.Take(10)) _notes.Add($"Not checked: {n}");
+            if (report.Notes.Count > 10) _notes.Add($"… and {report.Notes.Count - 10} more not checked (see the report)");
             throw new AccessibilityCheckFailedException($"Accessibility check: {report.Summary}");
         }
 

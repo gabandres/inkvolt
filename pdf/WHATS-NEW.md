@@ -7,10 +7,13 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Save as PDF/A now works on IRS forms and on documents with Fill & Sign check marks, which it used to refuse. The list of changes says what the copy lost or gained: the form's Reader usage rights, and check marks drawn in a slightly different shape.
 - PDF/A copies pass an independent validator on more files: pictures' and pages' own metadata no longer stays in the copy.
+- Accessibility check: a file it can't check to the end (very long, or built to slow it down) now says "Not fully checked" and what was left out, and is never called a pass; Batch counts it as failed. Some tables in files saved by Word no longer fail by mistake.
+- Make Accessible no longer closes the app on a file with a form that draws itself.
 - Prepare Form: editing a list box no longer clears its default selections, or what was picked in it.
 - Find is much faster on long documents: about three times as fast on a 5,000-page PDF or a large set of drawings. For a long search Inkvolt PDF works on several processor cores at once, and files with a password are searched as before.
 - Export to PowerPoint: one slide per page, with text you can edit in text boxes, headings as slide titles, tables, pictures and simple shapes.
 - Export to HTML: one web page that fits any screen, with real headings, lists and tables, the pictures inside it and their descriptions. It has no scripts and loads nothing from anywhere.
+- Batch can export to PowerPoint and HTML too.
 - Recognize Text straightens and cleans each page before reading it: skewed pages up to 15°, sideways and upside-down pages, specks and grey paper. Fewer words come out wrong, and you can choose any text recognition language installed in Windows.
 - Words that may have come out wrong are listed as suspect words, each beside how it looks on the page. Correct one or keep it as read; search finds the corrected word (Review › Review Suspect Words).
 - Recognize Text can also replace the scanned pages with the cleaned ones, straight, upright and on white paper. It's off unless you tick it.

@@ -39,6 +39,8 @@ internal sealed record A11yDoc
     public string Annots { get; init; } = "";
     public string Font { get; init; } = Type3Font;
     public string[] More { get; init; } = [];
+    /// <summary>Which of <see cref="More"/> are more pages, after the first.</summary>
+    public int[] MorePages { get; init; } = [];
 
     /// <summary>The object number of <see cref="More"/>[<paramref name="i"/>].</summary>
     public int MoreAt(int i) => 10 + Elems.Length + i;
@@ -48,7 +50,7 @@ internal sealed record A11yDoc
         string[] objects =
         [
             $"<< /Type /Catalog /Pages 2 0 R {(Tagged ? "/StructTreeRoot 5 0 R" : "")} {Catalog} >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Pages /Kids [3 0 R {string.Concat(MorePages.Select(i => $"{MoreAt(i)} 0 R "))}] /Count {1 + MorePages.Length} >>",
             $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /StructParents 0 /Resources << /Font << /F1 8 0 R {Fonts} >> {Resources} >> " +
             $"{(Annots.Length > 0 ? $"/Annots [{Annots}]" : "")} {Page} >>",
             Core2Pdf.Stream(Content),
@@ -596,6 +598,119 @@ public class AccessibilityCheckTests
         Assert.Contains("Fails 1 condition (1 problem)", report.Summary);
     }
 
+    // ───────────────────────────── a file checked in part ─────────────────────────────
+
+    /// <summary>Passes as it is, but its second page's content isn't tagged: only a check that gets there can tell.</summary>
+    private static A11yDoc UntaggedSecondPage() => new()
+    {
+        More =
+        [
+            Core2Pdf.Stream("BT /F1 12 Tf 72 700 Td (AB) Tj ET"),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 11 0 R /Resources << /Font << /F1 8 0 R >> >> >>",
+        ],
+        MorePages = [1],
+    };
+
+    private const string NotFully = "Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass.";
+
+    private static void ReadsAsPartlyChecked(AccessibilityReport report)
+    {
+        Assert.False(report.Passed);
+        Assert.Empty(report.Failures);
+        Assert.Equal(AccessibilityOutcome.NotFullyChecked, report.Outcome);
+        Assert.Equal(NotFully, report.Summary);
+        Assert.StartsWith(NotFully + " Not checked: ", report.PaneSummary);
+        Assert.Equal("Fails (none found so far)", report.FailuresTitle);
+        Assert.DoesNotContain("Passes", report.PaneSummary);
+        Assert.DoesNotContain("Nothing fails the machine checks", report.NothingFailsText);
+        var html = AccessibilityReportHtml.Write(report, "a.pdf", new DateTime(2026, 10, 30));
+        Assert.Contains("<strong>Not fully checked.</strong> " + System.Net.WebUtility.HtmlEncode(NotFully), html);
+        Assert.Contains("id=\"notes\"", html);
+        Assert.DoesNotContain("Passes", html);
+    }
+
+    [Fact]
+    public void AFileWhoseLastPagesWerentCheckedDoesntPass()
+    {
+        var data = UntaggedSecondPage().Build();
+        Assert.Contains("01-005", AccessibilityCheck.Run(data, null).FailedConditions); // what the limit hides
+        var report = AccessibilityCheck.Run(data, null, null, default, 5);
+        Assert.Contains(report.Notes, n => n.Contains("weren't checked", StringComparison.Ordinal));
+        ReadsAsPartlyChecked(report);
+    }
+
+    [Fact]
+    public void APageTooLongToReadToTheEndDoesntPass() =>
+        ReadsAsPartlyChecked(new A11yDoc { Content = string.Concat(Enumerable.Repeat("q Q ", 1_100_000)) + "BT /F1 12 Tf 72 700 Td (AB) Tj ET" }.Check());
+
+    [Fact]
+    public void AFileWhoseXfaTookTooLongToReadDoesntPass()
+    {
+        var report = new A11yDoc
+        {
+            Catalog = "/Lang (en-US) /MarkInfo << /Marked true >> /ViewerPreferences << /DisplayDocTitle true >> /Metadata 7 0 R /AcroForm << /Fields [] /XFA 11 0 R >>",
+            More = [Core2Pdf.Stream(string.Concat(Enumerable.Repeat("<dynamicRender ", 400_000)))],
+        }.Check();
+        Assert.Contains(report.Notes, n => n.Contains("XFA", StringComparison.Ordinal));
+        ReadsAsPartlyChecked(report);
+    }
+
+    [Fact]
+    public void AnAppearanceTooLongToReadIsSaidNotToBeChecked()
+    {
+        var report = new A11yDoc
+        {
+            Annots = "11 0 R",
+            More =
+            [
+                "<< /Type /Annot /Subtype /Stamp /Rect [0 0 10 10] /Contents (A stamp) /AP << /N 12 0 R >> >>",
+                Core2Pdf.Stream(string.Concat(Enumerable.Repeat("q Q ", 1_100_000)), "/Type /XObject /Subtype /Form /BBox [0 0 10 10]"),
+            ],
+        }.Check();
+        Assert.Contains(report.Notes, n => n.Contains("appearance", StringComparison.Ordinal) && n.Contains("very long", StringComparison.Ordinal));
+        Assert.False(report.Passed);
+    }
+
+    [Fact]
+    public void FormsNestedPastTheLimitAreSaidNotToBeChecked()
+    {
+        // Forms inside each other, deeper than the check goes, the untagged drawing in the last: the report must say it stopped.
+        const int forms = 14;
+        var more = Enumerable.Range(0, forms).Select(i => i + 1 < forms
+            ? Core2Pdf.Stream("/X Do", $"/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /XObject << /X {12 + i} 0 R >> >>")
+            : Core2Pdf.Stream("0 0 100 100 re f", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]")).ToArray();
+        var report = new A11yDoc
+        {
+            Resources = "/XObject << /X 11 0 R >>",
+            Content = "/P << /MCID 0 >> BDC /X Do BT /F1 12 Tf 72 700 Td (AB) Tj ET EMC",
+            More = more,
+        }.Check();
+        Assert.Contains(report.Notes, n => n.Contains("nested", StringComparison.Ordinal));
+        Assert.False(report.Passed);
+    }
+
+    [Fact]
+    public void AFileThatFailsAndWasCheckedInPartSaysBoth()
+    {
+        var doc = UntaggedSecondPage() with { Content = "BT /F1 12 Tf 72 700 Td (AB) Tj ET" };
+        var report = AccessibilityCheck.Run(doc.Build(), null, null, default, 1);
+        Assert.Equal(AccessibilityOutcome.Fails, report.Outcome);
+        Assert.NotEmpty(report.Notes);
+        Assert.EndsWith("Part of the file wasn't checked.", report.Summary);
+        Assert.Contains("<strong>Fails.</strong>", AccessibilityReportHtml.Write(report, "a.pdf", new DateTime(2026, 10, 30)));
+    }
+
+    [Fact]
+    public void AFileCheckedInFullKeepsItsWords()
+    {
+        var report = new A11yDoc().Check();
+        Assert.Equal(AccessibilityOutcome.Passes, report.Outcome);
+        Assert.StartsWith("Passes the machine checks of PDF/UA-1. Passes every machine check", report.PaneSummary);
+        Assert.Equal("Fails (none)", report.FailuresTitle);
+        Assert.Contains("Nothing fails the machine checks", report.NothingFailsText);
+        Assert.Contains("Passes the machine checks.", AccessibilityReportHtml.Write(report, "a.pdf", new DateTime(2026, 10, 30)));
+    }
+
     [Fact]
     public void TheHtmlReportIsSelfContainedAndAccessible()
     {
@@ -782,6 +897,23 @@ public sealed class AccessibilityBatchTests : IDisposable
         var report = Assert.Single(failed.Outputs);
         Assert.Equal(Path.Combine(outFolder, "bad accessibility.html"), report);
         Assert.Contains("<th scope=\"row\">13-004</th>", File.ReadAllText(report));
+    }
+
+    [Fact]
+    public async Task AFileCheckedOnlyInPartIsNotCountedAsPassed()
+    {
+        var partly = Path.Combine(_root, "partly.pdf");
+        File.WriteAllBytes(partly, new A11yDoc { Content = string.Concat(Enumerable.Repeat("q Q ", 1_100_000)) + "BT /F1 12 Tf 72 700 Td (AB) Tj ET" }.Build());
+        var outFolder = Path.Combine(_root, "out");
+        var plan = new BatchPlan { Steps = [new CheckAccessibilityStep()], OutputFolder = outFolder };
+
+        var summary = await BatchRunner.RunAsync([new BatchFile(partly)], plan, new BatchHost(), null, CancellationToken.None);
+
+        var item = Assert.Single(summary.Items);
+        Assert.Equal(BatchItemState.Failed, item.State);
+        Assert.StartsWith("Accessibility check: Not fully checked: ", item.Message);
+        Assert.Contains(item.Notes, n => n.StartsWith("Not checked: Page 1", StringComparison.Ordinal));
+        Assert.Contains("Not fully checked.", File.ReadAllText(Assert.Single(item.Outputs)));
     }
 
     [Fact]

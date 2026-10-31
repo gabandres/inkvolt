@@ -720,7 +720,8 @@ public static partial class AutoTag
     /// forms. Notes the marked content around each item (inside an artifact already, it is left alone), and with
     /// <c>strip</c> the BDC operators that carry an MCID and their EMC (tags being replaced) in <see cref="Stripped"/>.
     /// </summary>
-    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel)
+    /// <param name="lookInsideForms">False for a form's own walk: all that is read of it is whether its items are artifacts, so it goes no deeper (a form can draw itself).</param>
+    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel, bool lookInsideForms = true)
     {
         /// <summary>Operators to replace (by index): an MCID's BDC and its EMC by nothing, an artifact's BDC with an MCID by a plain BMC.</summary>
         public Dictionary<int, string> Stripped { get; } = [];
@@ -893,9 +894,9 @@ public static partial class AutoTag
                             var bytes = SafeBytes(x);
                             var hasText = bytes.AsSpan().IndexOf("Tj"u8) >= 0 || bytes.AsSpan().IndexOf("TJ"u8) >= 0;
                             bool hasArtifact = false, artifactOnly = false;
-                            if (bytes.AsSpan().IndexOf("/Artifact"u8) >= 0)
+                            if (lookInsideForms && bytes.AsSpan().IndexOf("/Artifact"u8) >= 0)
                             {
-                                var inner = new PageWalk(null, PdfObj.Dict(x.Elements["/Resources"]) ?? resources, cancel).Items(ContentLexer.Parse(bytes, cancel), strip: false);
+                                var inner = new PageWalk(null, PdfObj.Dict(x.Elements["/Resources"]) ?? resources, cancel, lookInsideForms: false).Items(ContentLexer.Parse(bytes, cancel), strip: false);
                                 hasArtifact = inner.Any(t => t.InArtifact);
                                 artifactOnly = inner.Count > 0 && inner.All(t => t.InArtifact);
                             }
