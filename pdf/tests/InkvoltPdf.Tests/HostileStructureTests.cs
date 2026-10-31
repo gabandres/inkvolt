@@ -1,5 +1,6 @@
 using System.Text;
 using InkvoltPdf.Core;
+using MuPDFCore;
 using PdfSharp.Pdf;
 
 namespace InkvoltPdf.Tests;
@@ -401,6 +402,55 @@ public class HostileStructureTests
         var data = Core2Pdf.Build(objects);
         var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 60);
         Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
+    }
+
+    /// <summary>A page that draws form 5, whose own content is <paramref name="form"/>, with the given more objects.</summary>
+    private static byte[] FormPage(string form, string formResources, params string[] more) => Core2Pdf.Build(
+    [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /X 5 0 R >> >> >>",
+        Core2Pdf.Stream("/X Do"),
+        Core2Pdf.Stream(form, $"/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << {formResources} >>"),
+        .. more,
+    ]);
+
+    private static async Task<byte[]> MakeAccessible(byte[] data)
+    {
+        using var engine = PdfEngine.Open(data, InputFileTypes.PDF, null);
+        var plan = await Within(() => AutoTag.Plan(engine, data, null));
+        return await Within(() => AutoTag.Write(data, null, plan));
+    }
+
+    [Fact]
+    public async Task MakeAccessibleSurvivesAFormThatDrawsItself()
+    {
+        // Each walk of the form used to walk it again: the stack's end ends the process, and no handler can stop that.
+        var tagged = await MakeAccessible(FormPage("/Artifact BMC 0 0 10 10 re f EMC /X Do", "/XObject << /X 5 0 R >>"));
+        using var doc = Core2Pdf.Open(tagged);
+        Assert.Equal(1, doc.PageCount);
+    }
+
+    [Fact]
+    public async Task MakeAccessibleSurvivesFormsThatDrawEachOtherManyTimes()
+    {
+        // Two forms that draw each other 2,000 times, in a loop: walked in full, 2,000 to the power of the stack's depth.
+        var draws = string.Concat(Enumerable.Repeat("/X Do ", 2000));
+        var other = Core2Pdf.Stream("/Artifact BMC 0 0 10 10 re f EMC " + draws, "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /XObject << /X 5 0 R >> >>");
+        var tagged = await MakeAccessible(FormPage("/Artifact BMC 0 0 10 10 re f EMC " + draws, "/XObject << /X 6 0 R >>", other));
+        using var doc = Core2Pdf.Open(tagged);
+        Assert.Equal(1, doc.PageCount);
+    }
+
+    [Fact]
+    public async Task MakeAccessibleStillLeavesAFormOfOnlyArtifactsAlone()
+    {
+        // What looking inside a form is for: marked all through as artifacts, it stays one, however it is drawn.
+        var data = FormPage("/Artifact BMC 0 0 10 10 re f EMC", "");
+        var tagged = await MakeAccessible(data);
+        using var doc = Core2Pdf.Open(tagged);
+        var content = Encoding.Latin1.GetString(ContentEditor.ContentBytes(doc.Pages[0]));
+        Assert.DoesNotContain("MCID", content);
     }
 
     [Fact]
