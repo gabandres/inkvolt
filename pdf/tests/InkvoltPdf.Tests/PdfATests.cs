@@ -376,12 +376,10 @@ public class PdfATests
         Assert.Equal(0, Dark(316, 400, 328, 414));
     }
 
-    [Fact]
-    public void EveryZapfDingbatsCodeIsCovered()
+    private static byte[] AllDingbatsPdf()
     {
-        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
         var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0x80, 14)).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
-        var pdf = Core2Pdf.Build(
+        return Core2Pdf.Build(
         [
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -389,6 +387,13 @@ public class PdfATests
             Core2Pdf.Stream($"BT /F1 9 Tf 5 40 Td ({all}) Tj ET"),
             "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
         ]);
+    }
+
+    [Fact]
+    public void EveryZapfDingbatsCodeIsCovered()
+    {
+        // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
+        var pdf = AllDingbatsPdf();
         var result = PdfA.Convert(pdf, null);
         Assert.Empty(PdfA.Validate(result.Data));
         using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
@@ -484,6 +489,7 @@ public class PdfATests
             ("long-role", LongRolePdf()),
             ("usage-rights", UsageRightsPdf()),
             ("marks", MarksPdf()),
+            ("dingbats", AllDingbatsPdf()),
             ("export", ExportTestPdf.Make(logo: true)),
             ("stamped", HeaderFooter.Apply(Watermarks.Apply(TestPdf.Make(2), null, [0, 1], new WatermarkOptions { Text = "DRAFT" }), null, [0, 1],
                 new HeaderFooterOptions { FooterCenter = "Page <<page>> of <<pages>>" })),
