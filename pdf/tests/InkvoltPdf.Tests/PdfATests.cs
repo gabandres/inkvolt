@@ -397,6 +397,66 @@ public class PdfATests
     }
 
     [Fact]
+    public void EveryZapfDingbatsCodeDrawsInTheCopyIfItDrawsInTheOriginal()
+    {
+        // One code a page, read back as pixels: a symbol missing from the font would draw nothing, and nothing would say so.
+        var codes = Enumerable.Range(0, 256).ToArray();
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            $"<< /Type /Pages /Kids [{string.Concat(codes.Select(c => $"{4 + 2 * c} 0 R "))}] /Count 256 >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>",
+        };
+        foreach (var c in codes)
+        {
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents {5 + 2 * c} 0 R /Resources << /Font << /F1 3 0 R >> >> >>");
+            objects.Add(Core2Pdf.Stream($"BT /F1 24 Tf 8 8 Td <{c:X2}> Tj ET"));
+        }
+        var pdf = Core2Pdf.Build(objects);
+        var result = PdfA.Convert(pdf, null);
+        Assert.Empty(PdfA.Validate(result.Data));
+        using var before = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        using var after = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
+        static bool Ink(PdfEngine e, int page)
+        {
+            var image = e.Render(page, 1);
+            var bpp = image.Pixels.Length / (image.Width * image.Height);
+            for (var i = 1; i < image.Pixels.Length; i += bpp)
+                if (image.Pixels[i] < 128) return true;
+            return false;
+        }
+        var drawn = codes.Where(c => Ink(before, c)).ToList();
+        Assert.Equal(PdfA.DingbatsCount, drawn.Count);
+        Assert.Empty(drawn.Where(c => !Ink(after, c)).Select(c => $"0x{c:X2}"));
+        Assert.Empty(codes.Except(drawn).Where(c => c != 0x20 && Ink(after, c)).Select(c => $"0x{c:X2}")); // and nothing where the original shows nothing
+        foreach (var (e, tag) in new[] { (before, "a"), (after, "b") }) foreach (var c in Enumerable.Concat(Enumerable.Range(0x7E, 16), Enumerable.Range(0xAC, 3))) { var im = e.Render(c, 1); var bpp = im.Pixels.Length / (im.Width * im.Height); var o = new System.Text.StringBuilder(); using var f = File.Create(Path.Combine(Path.GetTempPath(), $"dingb_{tag}_{c:X2}.pgm")); var h = System.Text.Encoding.ASCII.GetBytes($"P5 {im.Width} {im.Height} 255 "); f.Write(h); for (var i = 1; i < im.Pixels.Length; i += bpp) f.WriteByte(im.Pixels[i]); }
+    }
+
+    [Fact]
+    public void ZapfDingbatsMissingFromThisPcsFontRefusesInsteadOfDrawingNothing()
+    {
+        Assert.Empty(PdfA.DingbatsMissing(_ => true));
+        Assert.Equal([0x34], PdfA.DingbatsMissing(u => u != 0x2714)); // the check mark
+        Assert.Equal(PdfA.DingbatsCount, PdfA.DingbatsMissing(_ => false).Count);
+        Assert.Equal(201, PdfA.DingbatsCount);
+        Assert.Equal("The font ZapfDingbats isn't embedded, and this PC's Segoe UI Symbol lacks 1 of its symbols, which would draw blank.", PdfA.DingbatsMissingMessage("ZapfDingbats", 1));
+    }
+
+    [Fact]
+    public void WindowsSegoeUiSymbolHasEverySymbolAndAllowsEmbedding()
+    {
+        var font = SystemFonts.Get("seguisym.ttf");
+        Assert.NotNull(font);
+        Assert.Empty(PdfA.DingbatsMissing(font!.Has));
+        // OS/2's fsType: 8 is editable embedding; 2 (restricted) would forbid this copy.
+        var bytes = font.Bytes;
+        var tables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(4));
+        var os2 = Enumerable.Range(0, tables).Select(i => 12 + 16 * i).Single(r => System.Text.Encoding.ASCII.GetString(bytes, r, 4) == "OS/2");
+        var fsType = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(os2 + 8)) + 8));
+        Assert.Equal(0, fsType & 2);
+    }
+
+    [Fact]
     public void ZapfDingbatsWithItsOwnEncodingOrWidthsRefusesSayingWhy()
     {
         Assert.Contains(PdfA.Check(OneFont("<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats /Encoding << /Differences [114 /a20] >> >>"), null), b => b.Contains("encoding of its own"));

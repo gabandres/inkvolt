@@ -183,6 +183,15 @@ public static class PdfA
 
     // ───────────────────────────── the pass ─────────────────────────────
 
+    /// <summary>How many codes ZapfDingbats' built-in encoding has symbols for.</summary>
+    internal static int DingbatsCount => Enumerable.Range(0, 256).Count(c => Pass.DingbatUnicode(c) > 0);
+
+    /// <summary>The codes whose symbols a font doesn't have (<paramref name="has"/> asks by Unicode value): in the copy they would draw nothing.</summary>
+    internal static List<int> DingbatsMissing(Func<int, bool> has) => [.. Enumerable.Range(0, 256).Where(c => Pass.DingbatUnicode(c) is var u and > 0 && !has(u))];
+
+    internal static string DingbatsMissingMessage(string name, int missing) =>
+        $"The font {name} isn't embedded, and this PC's Segoe UI Symbol lacks {missing} of its symbols, which would draw blank.";
+
     private sealed class Pass(PdfDocument doc, List<string> changes)
     {
         public readonly List<string> Blockers = [];
@@ -667,7 +676,7 @@ public static class PdfA
         }
 
         /// <summary>The Unicode value of a code in ZapfDingbats' built-in encoding (Adobe's zdingbat.txt), else 0.</summary>
-        private static int DingbatUnicode(int code) => code switch
+        internal static int DingbatUnicode(int code) => code switch
         {
             0x25 => 0x260E,
             0x2A => 0x261B,
@@ -687,6 +696,7 @@ public static class PdfA
             0xD6 => 0x2194,
             0xD7 => 0x2195,
             >= 0xAC and <= 0xB5 => 0x2460 + code - 0xAC,
+            >= 0x80 and <= 0x8D => 0x2768 + code - 0x80, // the brackets a89 to a96: unnamed in the AFM's encoding, but the base font draws them
             >= 0x21 and <= 0x7E => 0x2700 + code - 0x20,
             >= 0xA1 and <= 0xFE and not 0xF0 => 0x26C0 + code,
             _ => 0,
@@ -704,6 +714,7 @@ public static class PdfA
             if (PdfObj.Name(font.Elements["/Subtype"]) is not ("Type1" or "TrueType" or "MMType1") || font.Elements.ContainsKey("/Encoding"))
                 return $"The font {name} isn't embedded, and it has an encoding of its own, so its symbols can't be matched.";
             if (SystemFonts.Get("seguisym.ttf") is not { } ttf) return $"The font {name} isn't embedded, and Windows' Segoe UI Symbol, which has its symbols, isn't installed.";
+            if (DingbatsMissing(ttf.Has) is { Count: > 0 } missing) return DingbatsMissingMessage(name, missing.Count);
             var unicodes = Enumerable.Range(0, 256).Select(c => DingbatUnicode(c) is var u && ttf.Has(u) ? u : 0).ToArray();
             unicodes[0x20] = 0x20;
             if (PdfObj.Array(font.Elements["/Widths"]) is { } own)
