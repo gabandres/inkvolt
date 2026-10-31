@@ -8,7 +8,10 @@ namespace InkvoltPdf.App;
 /// <summary>One side of a comparison: a PDF's bytes as they are now, with the password that opens them.</summary>
 internal sealed record CompareSide(string Name, byte[] Data, string? Password);
 
-/// <summary>File › Compare Files…: pick the original and the changed PDF (open tabs, the saved copy of a tab, or files), then compare.</summary>
+/// <summary>
+/// File › Compare Files…: pick the original and the changed version (open tabs, the saved copy of a tab, or files: PDFs, Office
+/// files made into PDFs by the installed Office, pictures of scanned pages), then compare.
+/// </summary>
 internal static class Comparing
 {
     /// <summary>A choice in the pickers: an open tab as it is now, the saved file behind an open tab, or a file.</summary>
@@ -38,7 +41,8 @@ internal static class Comparing
 
         var dlg = new FormDialog(host, "Compare Files", "Compare", 520);
         dlg.AddNote("Shows what changed from the original to the changed version: text side by side with the differences " +
-                    "highlighted, or the pages overlaid to spot changes in drawings and scans.");
+                    "highlighted, moves and formatting listed apart, or the pages overlaid to spot changes in drawings and scans. " +
+                    "Either one can be a Word, Excel or PowerPoint file, or a scan: its words are recognized on this PC.");
         var original = Picker(dlg, host, "Original (older version)", choices);
         var changed = Picker(dlg, host, "Changed (newer version)", choices);
         var swap = new Button { Content = "Swap", Padding = new Thickness(12, 4, 12, 4), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
@@ -71,7 +75,7 @@ internal static class Comparing
         foreach (var c in new[] { (Choice)original.SelectedItem!, (Choice)changed.SelectedItem! })
             if (c.Tab is { IsDisposed: false } t && !c.Saved) await t.FlushPendingEditsAsync();
 
-        if (Load(host, (Choice)original.SelectedItem!) is not { } oldSide || Load(host, (Choice)changed.SelectedItem!) is not { } newSide) return;
+        if (await Load(host, (Choice)original.SelectedItem!) is not { } oldSide || await Load(host, (Choice)changed.SelectedItem!) is not { } newSide) return;
         CompareWindow.Open(host, oldSide, newSide);
     }
 
@@ -83,7 +87,7 @@ internal static class Comparing
         System.Windows.Automation.AutomationProperties.SetName(browse, $"Browse for the {label.Split(' ')[0].ToLowerInvariant()} file");
         browse.Click += (_, _) =>
         {
-            if (PdfFiles.PickPdf(owner, $"{label.Split(' ')[0]} file") is not { } path) return;
+            if (PickFile(owner, $"{label.Split(' ')[0]} file") is not { } path) return;
             var existing = choices.FirstOrDefault(c => c.Path is not null && !c.Saved && string.Equals(c.Path, path, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
             {
@@ -101,6 +105,22 @@ internal static class Comparing
         return combo;
     }
 
+    /// <summary>What Compare can read: PDFs, Office files if Office is here, and pictures of pages.</summary>
+    private static string? PickFile(Window owner, string title)
+    {
+        var office = OfficeFiles.FilterPattern(OfficeConverter.InstalledApps);
+        const string Pictures = "*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp";
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = title,
+            InitialDirectory = AppSettings.Current.LastFolder,
+            Filter = $"Documents|*.pdf;{(office.Length > 0 ? office + ";" : "")}{Pictures}|PDF files (*.pdf)|*.pdf" +
+                     (office.Length > 0 ? $"|Office files (converted with Microsoft Office)|{office}" : "") +
+                     $"|Pictures of scanned pages|{Pictures}|All files (*.*)|*.*",
+        };
+        return dlg.ShowDialog(owner) == true ? dlg.FileName : null;
+    }
+
     private static IEnumerable<ComboBox> FindCombos(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
@@ -111,7 +131,7 @@ internal static class Comparing
     }
 
     /// <summary>The bytes to compare. Null (after saying why) when a file can't be read or its password isn't given.</summary>
-    private static CompareSide? Load(Window owner, Choice choice)
+    private static async Task<CompareSide?> Load(MainWindow owner, Choice choice)
     {
         if (choice.Tab is { } tab && !choice.Saved)
         {
@@ -137,8 +157,62 @@ internal static class Comparing
                 // fall through to the prompting loader
             }
         }
+        if (!choice.Saved && !path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return await LoadFile(owner, path);
         return PdfFiles.LoadForImport(owner, path) is { } source
             ? new CompareSide(choice.Saved ? $"{source.Name} (saved)" : source.Name, source.Data, source.Password)
             : null;
+    }
+
+    /// <summary>A file as one side: a PDF as it is, an Office file made into a PDF by Office, a picture as a page. Null (after saying why) when it can't be.</summary>
+    internal static async Task<CompareSide?> LoadFile(MainWindow owner, string path)
+    {
+        var name = Path.GetFileName(path);
+        if (OfficeFiles.AppFor(path) is { } app)
+        {
+            if (OfficeConverter.Precheck(path, app) is { } problem)
+            {
+                Prompt.Info(owner, $"Can't compare {name}", problem);
+                return null;
+            }
+            var appName = OfficeFiles.AppName(app);
+            // As for opening one: automation opens files without Protected View, so one from the internet needs an OK first.
+            var internet = OfficeConverter.ZoneOf(path) >= 3;
+            if (internet && !Prompt.Confirm(owner, $"{name} came from the internet",
+                    $"Windows marks this file as downloaded from the internet. {appName} opens it here without Protected View: its macros stay off, " +
+                    "but it could still fetch content linked from elsewhere (a template, pictures, linked data). Convert it only if you trust where it came from.",
+                    "Convert Anyway", warning: true))
+                return null;
+            using var progress = new ProgressPrompt(owner, $"Comparing {name}", $"Converting with {appName}…");
+            try
+            {
+                var made = await OfficeConverter.ConvertAsync(path, app, internet, progress.Token);
+                return new CompareSide(name, made.Pdf, null);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or ArgumentException)
+            {
+                progress.Dispose();
+                Prompt.Error(owner, $"Couldn't convert {name}", ex.Message);
+                return null;
+            }
+        }
+        if (Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".tif" or ".tiff" or ".bmp")
+        {
+            try
+            {
+                var pdf = await Task.Run(() => ImageImport.ImagesToPdf([(File.ReadAllBytes(path), name)]));
+                return new CompareSide(name, pdf, null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException)
+            {
+                Prompt.Error(owner, $"Couldn't read {name}", ex.Message);
+                return null;
+            }
+        }
+        return PdfFiles.LoadForImport(owner, path) is { } source ? new CompareSide(source.Name, source.Data, source.Password) : null;
     }
 }

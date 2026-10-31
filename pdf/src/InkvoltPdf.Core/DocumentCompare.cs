@@ -307,7 +307,7 @@ public static class DocumentCompare
             }
         }
         // Stable: within a row, wording in reading order, then moves, then looks.
-        changes = [.. changes.Select(c => MarkScan(c, oldSide, newSide)).OrderBy(c => c.Row).ThenBy(c => c.Kind switch { ChangeKind.Moved => 1, ChangeKind.Formatted => 2, _ => 0 })];
+        changes = [.. changes.Select(c => MarkScan(c, oldSide, newSide, rows)).OrderBy(c => c.Row).ThenBy(c => c.Kind switch { ChangeKind.Moved => 1, ChangeKind.Formatted => 2, _ => 0 })];
         var perRow = new int[rows.Count];
         foreach (var c in changes) perRow[c.Row]++;
         for (var r = 0; r < rows.Count; r++) rows[r] = rows[r] with { Changes = perRow[r] };
@@ -328,7 +328,11 @@ public static class DocumentCompare
         };
     }
 
-    /// <summary>The word diff, preferring runs that start and end with a page: a removed page shouldn't take the next page's first word along.</summary>
+    /// <summary>
+    /// The word diff, preferring runs that start and end with a page, so a removed page doesn't take the next page's first
+    /// word along; then with a sentence, so a removed paragraph doesn't take the next one's first word ("Article") along, which
+    /// leaves that word removed on one side and inserted on the other when the paragraph only moved.
+    /// </summary>
     private static List<DiffOp> PageWiseDiff(List<CompareWord> oldWords, List<CompareWord> newWords, List<string> oldKeys, List<string> newKeys, CancellationToken cancel) =>
         WordDiff.Slide(WordDiff.Diff(oldKeys, newKeys, cancel), oldKeys, newKeys, (kind, s, e) =>
         {
@@ -336,8 +340,12 @@ public static class DocumentCompare
             var spans = words[e - 1].Page - words[s].Page + 1;
             var starts = s == 0 || words[s - 1].Page != words[s].Page;
             var ends = e == words.Count || words[e].Page != words[e - 1].Page;
-            return spans * 4 - (starts ? 1 : 0) - (ends ? 1 : 0);
+            var sentenceStarts = s == 0 || EndsASentence(words[s - 1].Key);
+            var sentenceEnds = EndsASentence(words[e - 1].Key);
+            return spans * 4 - (starts ? 1 : 0) - (ends ? 1 : 0) - (sentenceStarts ? 0.4 : 0) - (sentenceEnds ? 0.4 : 0);
         });
+
+    private static bool EndsASentence(string key) => key is "." or "!" or "?" or ":" or ";" or "。";
 
     /// <summary>The diff of the words no move took, as runs of word indices of the whole documents (a run may go past moved words).</summary>
     private static List<DiffOp> DiffOfTheRest(List<CompareWord> oldWords, List<CompareWord> newWords, bool[] movedOld, bool[] movedNew, CancellationToken cancel)
@@ -381,14 +389,17 @@ public static class DocumentCompare
     }
 
     /// <summary>Says whether a change was read from a scan, and whether it may be a misreading.</summary>
-    private static CompareChange MarkScan(CompareChange c, CompareSource oldSide, CompareSource newSide)
+    private static CompareChange MarkScan(CompareChange c, CompareSource oldSide, CompareSource newSide, List<CompareRow> rows)
     {
-        if (!c.Old.Any(s => oldSide.IsScanned(s.Page)) && !c.New.Any(s => newSide.IsScanned(s.Page))) return c;
+        // Its row too: a word only one side has may be one the scan on the other side lost.
+        var row = rows[c.Row];
+        if (!c.Old.Any(s => oldSide.IsScanned(s.Page)) && !c.New.Any(s => newSide.IsScanned(s.Page))
+            && !(row.OldPage is { } o && oldSide.IsScanned(o)) && !(row.NewPage is { } n && newSide.IsScanned(n))) return c;
         var slip = c.Kind switch
         {
             ChangeKind.Changed => CompareScan.LooksLikeASlip(c.OldText, c.NewText),
-            ChangeKind.Inserted => CompareScan.IsOnlyMarks(c.NewText),
-            ChangeKind.Deleted => CompareScan.IsOnlyMarks(c.OldText),
+            ChangeKind.Inserted => CompareScan.IsOnlyMarks(c.NewText) || (row.OldPage is { } lostOld && oldSide.IsScanned(lostOld) && CompareScan.CouldBeALostLine(c.NewText)),
+            ChangeKind.Deleted => CompareScan.IsOnlyMarks(c.OldText) || (row.NewPage is { } lostNew && newSide.IsScanned(lostNew) && CompareScan.CouldBeALostLine(c.OldText)),
             _ => false,
         };
         return c with { ReadFromScan = true, MaybeMisread = slip };

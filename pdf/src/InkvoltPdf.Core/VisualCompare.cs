@@ -22,8 +22,12 @@ public static class VisualCompare
     /// (0-255), so faint scanner noise and tints don't count; a <paramref name="block"/>-pixel square counts toward a
     /// region only with at least <paramref name="minPixels"/> differing pixels, so a lone speck doesn't either.
     /// </summary>
+    /// <param name="slack">
+    /// Pixels a difference may be off by and still be the same ink (two scans never fall on exactly the same pixels): a pixel
+    /// counts only if the other image has nothing like it this close. 0 for pages made by a program.
+    /// </param>
     public static VisualDiff Overlay(RenderedImage oldImage, RenderedImage newImage, int tolerance = 48, int block = 8, int minPixels = 2,
-        CancellationToken cancel = default)
+        CancellationToken cancel = default, int slack = 0)
     {
         var w = Math.Max(oldImage.Width, newImage.Width);
         var h = Math.Max(oldImage.Height, newImage.Height);
@@ -47,7 +51,7 @@ public static class VisualCompare
                 var ln = Luma(newImage, x, y);
                 var i = row + x * 3;
                 var d = lo - ln;
-                if (Math.Abs(d) <= tolerance)
+                if (Math.Abs(d) <= tolerance || (slack > 0 && (d < 0 ? Near(newImage, x, y, lo, tolerance, slack) : Near(oldImage, x, y, ln, tolerance, slack))))
                 {
                     // Shared: grey, lightened so the colors stand out.
                     var g = (byte)(255 - (255 - ln) * 55 / 100);
@@ -68,6 +72,18 @@ public static class VisualCompare
 
         var regions = Regions(counts, bounds, bw, bh, minPixels);
         return new VisualDiff(new RenderedImage(w, h, output), changed, w * h == 0 ? 0 : (double)changed / (w * h), regions);
+    }
+
+    /// <summary>A scan's thin strokes come out this light where a program's are nearly black: still ink.</summary>
+    private const int FaintInk = 205;
+
+    /// <summary>Whether <paramref name="image"/> has ink as dark as this within <paramref name="slack"/> pixels of (x, y).</summary>
+    private static bool Near(RenderedImage image, int x, int y, int luma, int tolerance, int slack)
+    {
+        for (var dy = -slack; dy <= slack; dy++)
+            for (var dx = -slack; dx <= slack; dx++)
+                if (x + dx >= 0 && y + dy >= 0 && Luma(image, x + dx, y + dy) <= Math.Max(luma + tolerance, FaintInk)) return true;
+        return false;
     }
 
     /// <summary>Brightness 0-255 of a BGR pixel; white outside the image.</summary>

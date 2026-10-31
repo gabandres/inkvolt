@@ -18,7 +18,10 @@ week), M (2-4 weeks), L (more than a month).
 platforms. Second engines and other additions with no known demand wait for it: Tesseract in 2.2 stays to do until
 reviews or issues ask for missing languages.
 
-**Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
+**Mac on hold (owner, 2026-10-31).** The Mac isn't up and running, so work goes on on Windows alone, even where that leaves
+the Mac behind. An item below that is done on Windows counts as done for now; its Mac half waits until the Mac is back.
+
+**Platforms.** Full parity (decided 2026-10-27, on hold, see above): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
 follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
 Windows": 1.0, then steps E1-E13), new items queue behind those steps on the Mac. One Pro key works on both.
@@ -503,7 +506,21 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
   contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
 - **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
-  formatting are still to do on both).
+  formatting are still to do there).
+- **Now.** Windows done 2026-10-31. Either side can be an Office file (Word, Excel, PowerPoint through the installed Office,
+  with the same checks as opening one), a picture of a page or a PDF. A page whose pictures cover 70% of it is a scan; one with
+  no text is recognized first (Windows' OCR, skippable), and its text gets no formatting changes. Font, size, bold, italic and color
+  changes are listed apart from wording, moved passages as moves with the edits inside them as their own changes, running
+  headers and footers left out, each kind with a box to hide it (`CompareLooks`, `CompareMoves`, `CompareScan`). Scans are lined up
+  for shift and skew before the overlay (`CompareAlign`, from each page's lines and where the ink falls; used only when the ink
+  agrees better). What looks different besides the words is listed and in the annotated copy, with moves and formatting.
+  **Checked:** `CompareContractTests`: a contract and its edited .docx with the 30 planted changes (8 changed, 5 inserted, 5
+  removed, 4 moves, 8 formatting) made into PDFs by Word 16 list all 30, none extra; the PDFs are in the tests' `Data`, so CI runs it
+  (`INKVOLTPDF_WORD` makes them again). The app compared the two .docx files through Word and listed the same 30. The edited
+  PDF against a synthetic scan of itself (200 dpi, turned 1.3°, shifted) found 1.3° and the shift to a tenth of a point.
+  **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
+  marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`. A scan
+  isn't lined up when scanned at another size or a quarter turn off.
 
 ### 3.4 Long-term validation for signatures
 - **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped

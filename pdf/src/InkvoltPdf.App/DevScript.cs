@@ -37,7 +37,7 @@ namespace InkvoltPdf.App;
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
 /// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
-/// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
+/// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
@@ -989,8 +989,7 @@ internal static class DevScript
             case "compare":
             {
                 var a = arg.Split(' ', 2);
-                var cw = CompareWindow.Open(window, new CompareSide(Path.GetFileName(a[0]), await File.ReadAllBytesAsync(a[0]), null),
-                    new CompareSide(Path.GetFileName(a[1]), await File.ReadAllBytesAsync(a[1]), null), offScreen: true);
+                var cw = CompareWindow.Open(window, (await Comparing.LoadFile(window, a[0]))!, (await Comparing.LoadFile(window, a[1]))!, offScreen: true);
                 await CompareIdle(cw);
                 log.Add(cw.DevDescribe());
                 break;
@@ -1008,6 +1007,19 @@ internal static class DevScript
                 break;
             case "compareselect": Application.Current.Windows.OfType<CompareWindow>().Last().DevSelect(int.Parse(arg)); break;
             case "comparezoom": Application.Current.Windows.OfType<CompareWindow>().Last().DevZoom(arg == "fit" ? 0 : double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) / 100); break;
+            case "comparegroup":
+            {
+                var a = arg.Split(' ', 2);
+                Application.Current.Windows.OfType<CompareWindow>().Last().DevShowGroup(a[0], a[1] == "on");
+                break;
+            }
+            case "comparelist": CompareWindow.DevListed = int.Parse(arg); break;
+            case "comparetext":
+            {
+                var a = arg.Split(' ', 2);
+                log.Add(Application.Current.Windows.OfType<CompareWindow>().Last().DevText(a[0] == "old", int.Parse(a[1])));
+                break;
+            }
             case "comparestate": log.Add(Application.Current.Windows.OfType<CompareWindow>().Last().DevDescribe()); break;
             case "comparereport":
                 await Application.Current.Windows.OfType<CompareWindow>().Last().DevReportAsync();

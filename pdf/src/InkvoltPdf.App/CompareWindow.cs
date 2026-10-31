@@ -5,7 +5,8 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Markup;
@@ -20,7 +21,8 @@ namespace InkvoltPdf.App;
 /// Compare: the original and the changed document as rows of lined-up pages (one scroll bar, so both sides always
 /// scroll together), the text differences highlighted on both, a list of changes to step through (F8 / Shift+F8,
 /// Alt+Down / Alt+Up) and a summary; or the pages overlaid (red: only in the original, blue: only in the changed
-/// file) for drawings and scans. Pages render on demand, off the UI thread; the text is read and compared in the
+/// file) for drawings and scans. A scan's words are recognized first, and scans are lined up before they are overlaid
+/// (<see cref="CompareAlign"/>). Pages render on demand, off the UI thread; the text is read and compared in the
 /// background (Cancel or closing the window stops it). Works on its own copies of both documents, so the tabs can
 /// change or close meanwhile.
 /// </summary>
@@ -30,7 +32,10 @@ internal sealed class CompareWindow : Window
     private const double MinZoom = 0.1, MaxZoom = 8;
     private const int KeepRendered = 8; // rows beyond the visible ones that keep their bitmaps
 
-    private sealed record ChangeItem(int Change, int Row, string Kind, string Where, string Text, Brush Chip)
+    /// <summary>The list's groups, each of which can be hidden: wording apart from formatting, moves and pictures.</summary>
+    private enum ItemGroup { Wording, Moved, Formatting, Visual }
+
+    private sealed record ChangeItem(int Change, int Row, string Kind, string Where, string Text, Brush Chip, ItemGroup Group = ItemGroup.Wording)
     {
         public override string ToString() => $"{Kind}, {Where}: {Text}";
     }
@@ -41,6 +46,17 @@ internal sealed class CompareWindow : Window
     private readonly CancellationTokenSource _cts = new();
     private PdfEngine? _oldEngine, _newEngine;
     private PageText[] _oldText = [], _newText = [];
+    private bool[] _oldScan = [], _newScan = [];
+    private readonly Dictionary<int, PageAlignment> _alignments = [];
+    private readonly List<CompareVisualArea> _visualAreas = [];
+    private readonly HashSet<ItemGroup> _hidden = [];
+    private readonly Dictionary<ItemGroup, CheckBox> _groupBoxes = [];
+    private readonly WrapPanel _groups = new() { Margin = new Thickness(12, 0, 12, 4), Visibility = Visibility.Collapsed };
+    private CancellationTokenSource? _skipReading;
+    private readonly Button _busySkip = new() { Content = "Compare Without Reading Them", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 8, 0), Visibility = Visibility.Collapsed };
+    private string? _scanNote;
+    private Task _checkTask = Task.CompletedTask;
+    private bool _makingReport;
     private CompareResult? _result;
     private readonly List<CompareRowView> _rows = [];
     private double[] _tops = [];
@@ -147,7 +163,7 @@ internal sealed class CompareWindow : Window
         _zoomText.Click += (_, _) => SetZoom(0);
         AutomationProperties.SetName(_zoomText, "Fit to window");
         _report.Style = (Style)FindResource("CommandButton");
-        _report.ToolTip = "Open a copy of the changed file with every text change as a comment, in a new tab";
+        _report.ToolTip = "Open a copy of the changed file with every change, and what looks different, as a comment, in a new tab";
         _report.Click += async (_, _) => await MakeReportAsync();
         _report.IsEnabled = false;
         foreach (var (rb, tip) in new[] { (_textMode, "Text differences side by side (Ctrl+1)"), (_visualMode, "Visual overlay: red only in the original, blue only in the changed file (Ctrl+2)") })
@@ -192,6 +208,15 @@ internal sealed class CompareWindow : Window
 
         // The change list.
         _list.ItemsSource = _items;
+        CollectionViewSource.GetDefaultView(_items).Filter = o => o is ChangeItem i && !_hidden.Contains(i.Group);
+        foreach (var (group, text) in new[] { (ItemGroup.Wording, "Wording"), (ItemGroup.Moved, "Moves"), (ItemGroup.Formatting, "Formatting"), (ItemGroup.Visual, "Looks different") })
+        {
+            var box = new CheckBox { Content = text, IsChecked = true, Margin = new Thickness(0, 0, 12, 2), Visibility = Visibility.Collapsed };
+            AutomationProperties.SetName(box, $"Show {text.ToLowerInvariant()}");
+            box.Click += (_, _) => ShowGroup(group, box.IsChecked == true);
+            _groupBoxes[group] = box;
+            _groups.Children.Add(box);
+        }
         _list.ItemTemplate = (DataTemplate)XamlReader.Parse(
             "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
             "<DockPanel Margin='0,3,0,3'>" +
@@ -207,6 +232,8 @@ internal sealed class CompareWindow : Window
         var side = new DockPanel { Width = 300 };
         DockPanel.SetDock(listHeader, Dock.Top);
         side.Children.Add(listHeader);
+        DockPanel.SetDock(_groups, Dock.Top);
+        side.Children.Add(_groups);
         DockPanel.SetDock(_status, Dock.Bottom);
         side.Children.Add(_status);
         side.Children.Add(_list);
@@ -235,7 +262,12 @@ internal sealed class CompareWindow : Window
         busyPanel.Children.Add(_busyBar);
         var cancel = new Button { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0), MinWidth = 96 };
         cancel.Click += (_, _) => Close();
-        busyPanel.Children.Add(cancel);
+        _busySkip.Click += (_, _) => _skipReading?.Cancel();
+        var busyButtons = new DockPanel { LastChildFill = false };
+        DockPanel.SetDock(cancel, Dock.Right);
+        busyButtons.Children.Add(cancel);
+        busyButtons.Children.Add(_busySkip);
+        busyPanel.Children.Add(busyButtons);
         _busy.Child = busyPanel;
         _busy.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorQuarternaryBrush");
         _busy.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
@@ -284,9 +316,10 @@ internal sealed class CompareWindow : Window
 
     private void UpdateButtons()
     {
-        var any = _items.Count > 0;
+        var count = _list.Items.Count;
+        var any = count > 0;
         _prev.IsEnabled = _next.IsEnabled = any;
-        _position.Text = !any ? "" : _list.SelectedIndex < 0 ? $"{_items.Count} in all" : $"{_list.SelectedIndex + 1} of {_items.Count}";
+        _position.Text = !any ? "" : _list.SelectedIndex < 0 ? $"{count} in all" : $"{_list.SelectedIndex + 1} of {count}";
         _zoomText.Content = _zoom <= 0 ? "Fit" : $"{_zoom * 100:0}%";
         _legend.Visibility = _visual ? Visibility.Visible : Visibility.Collapsed;
         _headers.Visibility = _visual ? Visibility.Collapsed : Visibility.Visible;
@@ -326,28 +359,33 @@ internal sealed class CompareWindow : Window
             var done = 0;
             var progress = new Progress<int>(_ => SetBusy($"Reading the text… page {done} of {total}", total == 0 ? 0 : (double)done / total));
             IProgress<int> report = progress;
-            PageText[] Read(PdfEngine engine) =>
+            ComparePage[] Read(PdfEngine engine) =>
                 [.. Enumerable.Range(0, engine.PageCount).Select(p =>
                 {
-                    PageText t;
+                    ComparePage t;
                     try
                     {
-                        t = engine.GetText(p, cache: false, cancel);
+                        t = engine.GetComparePage(p, cancel);
                     }
                     catch (MuPDFCore.MuPDFException)
                     {
-                        t = PageText.Empty; // a damaged page: no text to compare (its row says so)
+                        t = ComparePage.Empty; // a damaged page: no text to compare (its row says so)
                     }
                     report.Report(Interlocked.Increment(ref done));
                     return t;
                 })];
             var oldEngine = _oldEngine;
             var newEngine = _newEngine;
-            var texts = await Task.WhenAll(Task.Run(() => Read(oldEngine), cancel), Task.Run(() => Read(newEngine), cancel));
-            (_oldText, _newText) = (texts[0], texts[1]);
+            var pages = await Task.WhenAll(Task.Run(() => Read(oldEngine), cancel), Task.Run(() => Read(newEngine), cancel));
+            (_oldScan, _newScan) = ([.. pages[0].Select(p => p.IsPicture)], [.. pages[1].Select(p => p.IsPicture)]);
+
+            var (oldRead, newRead) = await ReadScansAsync(oldEngine, pages[0], newEngine, pages[1], cancel);
+            var oldSource = CompareSource.Of(pages[0], oldRead);
+            var newSource = CompareSource.Of(pages[1], newRead);
+            (_oldText, _newText) = ([.. oldSource.Pages], [.. newSource.Pages]);
 
             SetBusy("Comparing…");
-            _result = await Task.Run(() => DocumentCompare.Run(_oldText, _newText, cancel), cancel);
+            _result = await Task.Run(() => DocumentCompare.Run(oldSource, newSource, cancel), cancel);
         }
         catch (OperationCanceledException)
         {
@@ -366,7 +404,130 @@ internal sealed class CompareWindow : Window
         }
         SetBusy(null);
         ShowResult();
-        _ = CheckScansAsync();
+        _checkTask = CheckVisuallyAsync();
+    }
+
+    /// <summary>
+    /// Recognizes the pages that are pictures with no text, one at a time (nothing leaves the PC). Reading long scans takes
+    /// minutes, so it can be skipped: those pages are then only compared by how they look.
+    /// </summary>
+    private async Task<(Dictionary<int, PageText> Old, Dictionary<int, PageText> New)> ReadScansAsync(PdfEngine oldEngine, ComparePage[] oldPages, PdfEngine newEngine, ComparePage[] newPages, CancellationToken cancel)
+    {
+        var (oldRead, newRead) = (new Dictionary<int, PageText>(), new Dictionary<int, PageText>());
+        var todo = Enumerable.Range(0, oldPages.Length).Where(p => oldPages[p].IsPicture && oldPages[p].Text.IsEmpty).Select(p => (Pdf: oldEngine, Page: p, Into: oldRead))
+            .Concat(Enumerable.Range(0, newPages.Length).Where(p => newPages[p].IsPicture && newPages[p].Text.IsEmpty).Select(p => (Pdf: newEngine, Page: p, Into: newRead))).ToList();
+        if (todo.Count == 0) return (oldRead, newRead);
+        if (PageOcr.For(AppSettings.Current.OcrLanguage) is not { } ocr)
+        {
+            _scanNote = "Scans weren't read: " + PageOcr.Unavailable;
+            return (oldRead, newRead);
+        }
+
+        using var skip = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        _skipReading = skip;
+        _busySkip.Visibility = Visibility.Visible;
+        var read = 0;
+        try
+        {
+            foreach (var (pdf, page, into) in todo)
+            {
+                SetBusy($"Reading the scans… page {read + 1} of {todo.Count}", (double)read / todo.Count);
+                try
+                {
+                    var words = await Task.Run(() => PageOcr.Recognize(ocr, pdf, page, skip.Token), skip.Token);
+                    into[page] = CompareScan.PageTextOf(words);
+                }
+                catch (Exception ex) when (ex is MuPDFCore.MuPDFException or InvalidOperationException)
+                {
+                    Log.Write($"Compare couldn't read a scanned page: {ex.Message}");
+                }
+                read++;
+            }
+        }
+        catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
+        {
+            // Skipped: the pages read so far count, the others stay without text.
+        }
+        finally
+        {
+            _skipReading = null;
+            _busySkip.Visibility = Visibility.Collapsed;
+        }
+        _scanNote = read == todo.Count
+            ? "The words on scanned pages were recognized, so some differences may be misreadings."
+            : $"{todo.Count - read} scanned {(todo.Count - read == 1 ? "page wasn't" : "pages weren't")} read.";
+        return (oldRead, newRead);
+    }
+
+    private bool IsScanRow(CompareRow row) =>
+        (row.OldPage is { } o && _oldScan[o]) || (row.NewPage is { } n && _newScan[n]);
+
+    /// <summary>The alignment of a row of two pages, a scan among them; found once.</summary>
+    private async Task<PageAlignment> AlignmentOfAsync(CompareRowView view, CancellationToken cancel)
+    {
+        if (!IsScanRow(view.Row) || view.Row.OldPage is not { } o || view.Row.NewPage is not { } n) return PageAlignment.None;
+        if (_alignments.TryGetValue(view.Index, out var known)) return known;
+        var (oldEngine, newEngine) = (_oldEngine!, _newEngine!);
+        var found = await Task.Run(() => CompareAlign.Find(oldEngine, o, newEngine, n, cancel), cancel);
+        _alignments[view.Index] = found;
+        return found;
+    }
+
+    /// <summary>The overlay of a row at a scale, or of a part of it: a scan's page lined up first, and allowed to land a little off.</summary>
+    private static VisualDiff OverlayOf(PdfEngine oldEngine, int oldPage, PdfEngine newEngine, int newPage, double scale, RectD? region, (double Width, double Height) size, PageAlignment alignment, bool scan, CancellationToken cancel)
+    {
+        var old = Crop(oldEngine, oldPage, scale, region, cancel);
+        RenderedImage changed;
+        if (alignment.IsNone) changed = Crop(newEngine, newPage, scale, region, cancel);
+        else
+        {
+            var area = region ?? new RectD(0, 0, size.Width, size.Height);
+            var (width, height) = ((int)Math.Ceiling(area.Width * scale), (int)Math.Ceiling(area.Height * scale));
+            var g = newEngine.GetPage(newPage);
+            var part = alignment.BoxToNew(area).Inflate(2).Intersect(new RectD(0, 0, g.Width, g.Height));
+            changed = part.IsEmpty
+                ? CompareAlign.Resample(new RenderedImage(1, 1, [255, 255, 255]), 0, 0, scale, alignment, width, height, area.X, area.Y, cancel)
+                : CompareAlign.Resample(newEngine.Render(newPage, scale, part, cancel), part.X, part.Y, scale, alignment, width, height, area.X, area.Y, cancel);
+        }
+        return scan
+            ? VisualCompare.Overlay(old, changed, minPixels: 6, cancel: cancel, slack: (int)Math.Clamp(Math.Round(1.5 * scale), 2, 6))
+            : VisualCompare.Overlay(old, changed, cancel: cancel);
+    }
+
+    /// <summary>Hides or shows one group of the list, and its marks on the pages.</summary>
+    private void ShowGroup(ItemGroup group, bool show)
+    {
+        if (show) _hidden.Remove(group);
+        else _hidden.Add(group);
+        CollectionViewSource.GetDefaultView(_items).Refresh();
+        foreach (var r in _rows)
+        {
+            r.Hidden = KindHidden;
+            r.InvalidateVisual();
+        }
+        UpdateButtons();
+    }
+
+    private bool KindHidden(ChangeKind kind) => _hidden.Contains(GroupOf(kind));
+
+    private static ItemGroup GroupOf(ChangeKind kind) => kind switch
+    {
+        ChangeKind.Moved => ItemGroup.Moved,
+        ChangeKind.Formatted => ItemGroup.Formatting,
+        _ => ItemGroup.Wording,
+    };
+
+    /// <summary>Offers a group's box once the list has something in it, and when there's more than one group to tell apart.</summary>
+    private void UpdateGroups()
+    {
+        var present = _items.Select(i => i.Group).Distinct().ToList();
+        foreach (var (group, box) in _groupBoxes)
+        {
+            var count = _items.Count(i => i.Group == group);
+            box.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            box.Content = $"{(group switch { ItemGroup.Wording => "Wording", ItemGroup.Moved => "Moves", ItemGroup.Formatting => "Formatting", _ => "Looks different" })} ({count})";
+        }
+        _groups.Visibility = present.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ShowResult()
@@ -418,9 +579,10 @@ internal sealed class CompareWindow : Window
         }
 
         _summary.Text = $"{r.Summary()}." + (r.PairsWithoutText > 0
-            ? " Pages without text (scans) can't be compared word by word: they are checked visually, and Visual shows them overlaid."
-            : "");
+            ? " Pages without text can't be compared word by word: they are checked visually, and Visual shows them overlaid."
+            : "") + (_scanNote is null ? "" : " " + _scanNote);
         _report.IsEnabled = r.Changes.Count > 0;
+        UpdateGroups();
         Relayout(keepPlace: false);
         UpdateButtons();
         Announce(_summary.Text);
@@ -453,6 +615,8 @@ internal sealed class CompareWindow : Window
     private static readonly Brush DeletedChip = Frozen(Color.FromRgb(214, 60, 60));
     private static readonly Brush ChangedChip = Frozen(Color.FromRgb(230, 150, 20));
     private static readonly Brush VisualChip = Frozen(Color.FromRgb(90, 110, 230));
+    private static readonly Brush MovedChip = Frozen(Color.FromRgb(128, 90, 213));
+    private static readonly Brush FormattedChip = Frozen(Color.FromRgb(30, 130, 170));
 
     private ChangeItem Item(int index, CompareChange c)
     {
@@ -465,11 +629,15 @@ internal sealed class CompareWindow : Window
             { NewPage: { } n } => $"changed page {n + 1}",
             _ => "",
         };
+        var misread = c.MaybeMisread ? " (may be misread)" : "";
         return c.Kind switch
         {
-            ChangeKind.Inserted => new ChangeItem(index, c.Row, "Inserted", where, Quote(c.NewText), InsertedChip),
-            ChangeKind.Deleted => new ChangeItem(index, c.Row, "Removed", where, Quote(c.OldText), DeletedChip),
-            ChangeKind.Changed => new ChangeItem(index, c.Row, "Changed", where, $"{Quote(c.OldText)} → {Quote(c.NewText)}", ChangedChip),
+            ChangeKind.Inserted => new ChangeItem(index, c.Row, "Inserted" + misread, where, Quote(c.NewText), InsertedChip),
+            ChangeKind.Deleted => new ChangeItem(index, c.Row, "Removed" + misread, where, Quote(c.OldText), DeletedChip),
+            ChangeKind.Changed => new ChangeItem(index, c.Row, "Changed" + misread, where, $"{Quote(c.OldText)} → {Quote(c.NewText)}", ChangedChip),
+            ChangeKind.Moved => new ChangeItem(index, c.Row, "Moved", c.Old is [var from, ..] && c.New is [var to, ..] ? (from.Page == to.Page ? $"on page {to.Page + 1}" : $"page {from.Page + 1} → {to.Page + 1}") : where,
+                Quote(c.NewText), MovedChip, ItemGroup.Moved),
+            ChangeKind.Formatted => new ChangeItem(index, c.Row, "Formatting", where, $"{c.Look?.Describe()}: {Quote(c.NewText)}", FormattedChip, ItemGroup.Formatting),
             ChangeKind.PageInserted => new ChangeItem(index, c.Row, "Page inserted", where, c.NewText.Length > 0 ? Quote(c.NewText) : "(no text)", InsertedChip),
             _ => new ChangeItem(index, c.Row, "Page removed", where, c.OldText.Length > 0 ? Quote(c.OldText) : "(no text)", DeletedChip),
         };
@@ -490,8 +658,8 @@ internal sealed class CompareWindow : Window
         var pages = RowPages(r);
         var state = r.Text switch
         {
-            RowText.OnlyOld => "removed: the changed file doesn't have it",
-            RowText.OnlyNew => "inserted: the original doesn't have it",
+            RowText.OnlyOld => r.PageMoved ? "only in the original: its text moved to another page" : "removed: the changed file doesn't have it",
+            RowText.OnlyNew => r.PageMoved ? "only in the changed file: its text moved from another page" : "inserted: the original doesn't have it",
             RowText.NoTextOld => "no text on the original page (a scan?): checking visually…",
             RowText.NoTextNew => "no text on the changed page (a scan?): checking visually…",
             RowText.NoTextBoth => "no text (scans?): checking visually…",
@@ -500,25 +668,40 @@ internal sealed class CompareWindow : Window
         return $"{pages} · {state}";
     }
 
+    /// <summary>Most rows whose text was compared that are also looked at (the check renders each page).</summary>
+    private const int MaxLookedAtRows = 2000;
+
     /// <summary>
-    /// Pages without text can't be compared word by word: render each such pair small and overlay them, then say
-    /// whether they look the same, and list the ones that don't.
+    /// What the words don't say: render each pair of pages small and overlay them, then list what differs. Pages without
+    /// text are all looked at. Pages with text only off the text, and only where it stayed in place (text that reflowed moves
+    /// everything under it); a scan against a page made by a program is left out, since it differs all over.
     /// </summary>
-    private async Task CheckScansAsync()
+    private async Task CheckVisuallyAsync()
     {
         var cancel = _cts.Token;
         _checking = true;
         try
         {
-            foreach (var view in _rows.Where(v => v.Row.Text is RowText.NoTextOld or RowText.NoTextNew or RowText.NoTextBoth).ToList())
+            var looked = 0;
+            foreach (var view in _rows.Where(v => v.Row is { OldPage: not null, NewPage: not null }).ToList())
             {
                 int o = view.Row.OldPage!.Value, n = view.Row.NewPage!.Value;
+                var noText = view.Row.Text is RowText.NoTextOld or RowText.NoTextNew or RowText.NoTextBoth;
+                var scan = IsScanRow(view.Row);
+                if (!noText)
+                {
+                    if (scan != (_oldScan[o] && _newScan[n]) || !VisualAreas.SameLayout(_oldText[o], _newText[n]) || ++looked > MaxLookedAtRows) continue;
+                }
                 VisualDiff diff;
+                PageAlignment alignment;
+                const double Scale = 0.7;
                 try
                 {
                     var oldEngine = _oldEngine!;
                     var newEngine = _newEngine!;
-                    diff = await Task.Run(() => VisualCompare.Overlay(oldEngine.Render(o, 0.7, null, cancel), newEngine.Render(n, 0.7, null, cancel), cancel: cancel), cancel);
+                    alignment = await AlignmentOfAsync(view, cancel);
+                    var size = view.SizeOf(CompareRowView.Part.Overlay);
+                    diff = await Task.Run(() => OverlayOf(oldEngine, o, newEngine, n, Scale, null, size, alignment, scan, cancel), cancel);
                 }
                 catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
                 {
@@ -526,28 +709,41 @@ internal sealed class CompareWindow : Window
                 }
                 catch (Exception ex) when (ex is MuPDFCore.MuPDFException or InvalidOperationException)
                 {
-                    view.Label = RowLabel(view.Row).Replace("checking visually…", "couldn't be checked");
-                    view.InvalidateVisual();
+                    if (noText)
+                    {
+                        view.Label = RowLabel(view.Row).Replace("checking visually…", "couldn't be checked");
+                        view.InvalidateVisual();
+                    }
                     continue;
                 }
-                var areas = diff.Regions.Count;
+                var inPoints = diff.Regions.Select(r => new RectD(r.X / Scale, r.Y / Scale, r.Width / Scale, r.Height / Scale)).ToList();
+                var boxes = noText ? inPoints : VisualAreas.OffText(inPoints, _oldText[o], _newText[n], alignment);
+                var areas = boxes.Count;
                 var what = view.Row.Text switch
                 {
                     RowText.NoTextOld => "no text on the original page",
                     RowText.NoTextNew => "no text on the changed page",
-                    _ => "no text",
+                    RowText.NoTextBoth => "no text",
+                    _ => null,
                 };
-                view.Label = RowPages(view.Row) + " · " + what + (areas == 0 ? ": looks the same" : areas == 1 ? ": 1 area looks different" : $": {areas} areas look different");
-                AutomationProperties.SetName(view, view.Label);
-                view.InvalidateVisual();
+                if (what is not null)
+                {
+                    view.Label = RowPages(view.Row) + " · " + what + (areas == 0 ? ": looks the same" : areas == 1 ? ": 1 area looks different" : $": {areas} areas look different");
+                    AutomationProperties.SetName(view, view.Label);
+                    view.InvalidateVisual();
+                }
                 if (areas == 0) continue;
+                _visualAreas.Add(new CompareVisualArea(n, [.. boxes.Select(alignment.BoxToNew)]));
+                if (!_makingReport) _report.IsEnabled = true;
 
                 // Listed after the row's other entries, in row order.
+                var count = areas == 1 ? "1 area" : $"{areas} areas";
                 var item = new ChangeItem(-1, view.Index, "Looks different", o == n ? $"page {o + 1}" : $"page {o + 1} → {n + 1}",
-                    $"{(areas == 1 ? "1 area" : $"{areas} areas")} ({diff.ChangedShare:P1} of the page); no text to compare. Visual shows where.", VisualChip);
+                    noText ? $"{count} ({diff.ChangedShare:P1} of the page); no text to compare. Visual shows where." : $"{count} besides the text. Visual shows where.", VisualChip, ItemGroup.Visual);
                 var at = 0;
                 while (at < _items.Count && _items[at].Row <= view.Index) at++;
                 _items.Insert(at, item);
+                UpdateGroups();
                 UpdateButtons();
             }
         }
@@ -770,9 +966,11 @@ internal sealed class CompareWindow : Window
             if (job.Part == CompareRowView.Part.Overlay)
             {
                 int op = view.Row.OldPage!.Value, np = view.Row.NewPage!.Value;
+                var alignment = await AlignmentOfAsync(view, cancel);
+                var scan = IsScanRow(view.Row);
                 (bmp, regions) = await Task.Run(() =>
                 {
-                    var diff = VisualCompare.Overlay(Crop(oldEngine, op, scale, region, cancel), Crop(newEngine, np, scale, region, cancel), cancel: cancel);
+                    var diff = OverlayOf(oldEngine, op, newEngine, np, scale, region, size, alignment, scan, cancel);
                     // Areas come from the whole page only; a tile just draws sharper.
                     return (PageViewer.ToBitmap(diff.Image),
                         region is null ? diff.Regions.Select(r => new RectD(r.X / scale, r.Y / scale, r.Width / scale, r.Height / scale)).ToList() : null);
@@ -854,8 +1052,9 @@ internal sealed class CompareWindow : Window
     /// <summary>Selects the next or previous change (wrapping around).</summary>
     public void Step(int delta)
     {
-        if (_items.Count == 0) return;
-        var i = _list.SelectedIndex < 0 ? (delta > 0 ? 0 : _items.Count - 1) : (_list.SelectedIndex + delta + _items.Count) % _items.Count;
+        var count = _list.Items.Count;
+        if (count == 0) return;
+        var i = _list.SelectedIndex < 0 ? (delta > 0 ? 0 : count - 1) : (_list.SelectedIndex + delta + count) % count;
         _list.SelectedIndex = i;
         _list.ScrollIntoView(_list.SelectedItem);
         if (_list.ItemContainerGenerator.ContainerFromIndex(i) is ListBoxItem li && _list.IsKeyboardFocusWithin) li.Focus();
@@ -867,7 +1066,7 @@ internal sealed class CompareWindow : Window
         if (_list.SelectedItem is not ChangeItem item) return;
         foreach (var r in _rows) r.Select(item.Change);
         GoTo(item);
-        Announce($"{_list.SelectedIndex + 1} of {_items.Count}: {item}");
+        Announce($"{_list.SelectedIndex + 1} of {_list.Items.Count}: {item}");
     }
 
     /// <summary>Scrolls the change into view: its row, and the change itself a third of the way down.</summary>
@@ -886,7 +1085,8 @@ internal sealed class CompareWindow : Window
     private void OnRowClick(CompareRowView view, MouseButtonEventArgs e)
     {
         var change = view.ChangeAt(e.GetPosition(view));
-        var at = change is { } c ? _items.ToList().FindIndex(i => i.Change == c) : _items.ToList().FindIndex(i => i.Row == view.Index && i.Change < 0);
+        var shown = _list.Items.Cast<ChangeItem>().ToList();
+        var at = change is { } c ? shown.FindIndex(i => i.Change == c) : shown.FindIndex(i => i.Row == view.Index && i.Change < 0);
         if (at >= 0) _list.SelectedIndex = at;
     }
 
@@ -896,10 +1096,15 @@ internal sealed class CompareWindow : Window
     {
         if (_result is not { } r) return;
         _report.IsEnabled = false;
+        _makingReport = true;
         try
         {
-            var summary = $"Compared with {_old.Name} on {DateTime.Now.ToString("g", CultureInfo.CurrentCulture)}: {r.Summary()}.";
-            var bytes = await Task.Run(() => CompareReport.Annotate(_new.Data, _new.Password, r, _newText, _old.Name, summary));
+            if (!_checkTask.IsCompleted) Announce("Finishing the visual check first, so the copy has what looks different too…");
+            await _checkTask;
+            var looks = _visualAreas.Count == 0 ? "" : $" {_visualAreas.Sum(a => a.Boxes.Count)} other areas look different.";
+            var summary = $"Compared with {_old.Name} on {DateTime.Now.ToString("g", CultureInfo.CurrentCulture)}: {r.Summary()}.{looks}";
+            var areas = _visualAreas.ToList();
+            var bytes = await Task.Run(() => CompareReport.Annotate(_new.Data, _new.Password, r, _newText, _old.Name, summary, areas));
             var stem = Path.GetFileNameWithoutExtension(_new.Name.Replace(" (saved)", ""));
             _host.OpenSession(DocumentSession.FromBytes(bytes, $"{stem} (compared).pdf", _new.Password));
             _host.ShowStatus($"The changes are comments in \"{stem} (compared).pdf\". Save it to keep it.");
@@ -917,6 +1122,7 @@ internal sealed class CompareWindow : Window
         }
         finally
         {
+            _makingReport = false;
             _report.IsEnabled = true;
         }
     }
@@ -926,9 +1132,17 @@ internal sealed class CompareWindow : Window
     /// <summary>For DevScript: the summary, the list and the selection.</summary>
     internal string DevDescribe() =>
         $"compare: busy={_busy.Visibility == Visibility.Visible} '{_summary.Text}' rows=[{string.Join("; ", _rows.Select(r => r.Label))}] " +
-        $"items={_items.Count} [{string.Join(" | ", _items.Take(12))}] selected={_list.SelectedIndex} visual={_visual} zoom={_zoom:0.##} report={_report.IsEnabled}";
+        $"items={_items.Count} [{string.Join(" | ", _items.Take(DevListed))}] areas={_visualAreas.Sum(a => a.Boxes.Count)} aligned=[{string.Join("; ", _alignments.Select(a => $"{a.Key}: {a.Value.Dx:0.#},{a.Value.Dy:0.#} {a.Value.Angle:0.##}°"))}] selected={_list.SelectedIndex} visual={_visual} zoom={_zoom:0.##} report={_report.IsEnabled}";
 
     internal Task DevReportAsync() => MakeReportAsync();
+
+    /// <summary>For DevScript: a page's text as compared.</summary>
+    internal string DevText(bool old, int page) => (old ? _oldText : _newText)[page].Text;
+
+    /// <summary>How many of the list's entries <see cref="DevDescribe"/> spells out.</summary>
+    internal static int DevListed { get; set; } = 12;
+
+    internal void DevShowGroup(string group, bool show) => ShowGroup(Enum.Parse<ItemGroup>(group, ignoreCase: true), show);
 
     internal void DevMode(bool visual) => (visual ? _visualMode : _textMode).IsChecked = true;
 
@@ -1161,7 +1375,12 @@ internal sealed class CompareRowView : FrameworkElement
         [ChangeKind.Inserted] = Look(Color.FromRgb(46, 160, 67)),
         [ChangeKind.Deleted] = Look(Color.FromRgb(214, 60, 60)),
         [ChangeKind.Changed] = Look(Color.FromRgb(230, 150, 20)),
+        [ChangeKind.Moved] = Look(Color.FromRgb(128, 90, 213)),
+        [ChangeKind.Formatted] = Look(Color.FromRgb(30, 130, 170)),
     };
+
+    /// <summary>Kinds of marks left off the pages (a group hidden in the list).</summary>
+    public Func<ChangeKind, bool>? Hidden { get; set; }
 
     private static (Brush, Pen) Look(Color c)
     {
@@ -1259,6 +1478,7 @@ internal sealed class CompareRowView : FrameworkElement
         DrawPage(dc, part, box, edge, face, dpi);
         foreach (var m in marks)
         {
+            if (Hidden?.Invoke(m.Kind) == true) continue;
             var r = ToView(m.Rect, box);
             r.Inflate(1.5, 1); // a little room, so the outline doesn't run through the letters
             var (fill, pen) = Looks.GetValueOrDefault(m.Kind, Looks[ChangeKind.Changed]);
@@ -1266,6 +1486,7 @@ internal sealed class CompareRowView : FrameworkElement
         }
         foreach (var m in carets)
         {
+            if (Hidden?.Invoke(m.Kind) == true) continue;
             // Where words went missing (or were added on the other side): a small wedge at the spot.
             var r = ToView(m.Rect, box);
             var (_, pen) = Looks.GetValueOrDefault(m.Kind, Looks[ChangeKind.Changed]);

@@ -1,4 +1,17 @@
-# Handoff, 2026-10-30 night (newest first)
+# Handoff, 2026-10-31 (newest first)
+
+**Owner decision.** Windows only for now: the Mac isn't up, so nothing waits for it and parity is on hold (`pdf/ROADMAP.md`
+"Mac on hold"). The Mac items below stay listed for when it is back; skip them. The next Windows items are in the night's list
+below, 3.3 now done.
+
+**On master, not released.** Windows 3.3 Compare: Office files and scans on either side, formatting and moves apart from wording,
+scans aligned, visual differences in the annotated copy; the 30 planted changes pass (`pdf/ROADMAP.md` 3.3).
+
+**Small fixes queued, new.** Windows' recognizer can skip a whole line that is on the page (seen on a synthetic scan, with or
+without cleanup): `ScanText` could re-read bands with ink and no words, which would help Recognize Text too. A script step whose
+file can't be read waits on an off-screen dialog: `compare` in `DevScript` hangs on a bad path.
+
+# Handoff, 2026-10-30 night
 
 Work stopped here on the owner's word, to save the weekly quota. Read this part first; "evening" below is older, and
 its items 1, 8 and 9 are done.
@@ -17,8 +30,6 @@ listings live on both apps. Print has nothing new for users. Inkvolt PDF for Mac
 checker, Make Accessible and the AI assistant, none of whose UI a person has seen.
 
 **Stopped partway, on origin, not merged.**
-- `t3/pdf-compare-office-scans-formatting` (`58b63e9`): 3.3's matching in Core (formatting apart from wording, moves).
-  Left: Office and scan inputs, alignment, UI, docs, the 30 planted changes, the PLAN.md step.
 - `t3/mac-e12-office-web-convert` (`4bc3bdb`): E12's `PdfCore/Convert` with LibreOffice, and two unbuilt app files in the
   last commit. Left: the app, Word for Mac, tests, docs. Its web-page and converter work has not been reviewed.
 

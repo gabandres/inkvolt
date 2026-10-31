@@ -90,6 +90,13 @@ public sealed class PageLooks
     }
 }
 
+/// <summary>What Compare reads from a page.</summary>
+/// <param name="IsPicture">Pictures cover most of the page: a scan, whatever text lies over it.</param>
+public sealed record ComparePage(PageText Text, PageLooks Looks, bool IsPicture)
+{
+    public static ComparePage Empty { get; } = new(PageText.Empty, new PageLooks([]), false);
+}
+
 /// <summary>One document's side of a comparison: its pages' text, and what is known about them.</summary>
 /// <param name="Looks">Per page, how its text is set; null, or null for a page, when unknown (a scan's text has no looks): nothing is said about formatting there.</param>
 /// <param name="Scanned">Per page, whether its text was read from a picture of the page (recognized, or an OCR layer over a scan), so a difference may be a misreading.</param>
@@ -98,4 +105,13 @@ public sealed record CompareSource(IReadOnlyList<PageText> Pages, IReadOnlyList<
     public PageLooks? LooksOf(int page) => Looks is not null && page < Looks.Count ? Looks[page] : null;
 
     public bool IsScanned(int page) => Scanned is not null && page < Scanned.Count && Scanned[page];
+
+    /// <summary>
+    /// A document as read for Compare, with what was recognized on its scans in place of the pages' text (null where a page
+    /// wasn't). A scan says nothing about formatting: an OCR layer's font and size aren't what the page shows.
+    /// </summary>
+    public static CompareSource Of(IReadOnlyList<ComparePage> pages, IReadOnlyDictionary<int, PageText>? recognized = null) =>
+        new([.. pages.Select((p, i) => recognized is not null && recognized.TryGetValue(i, out var read) ? read : p.Text)],
+            [.. pages.Select(p => p.IsPicture ? null : p.Looks)],
+            [.. pages.Select(p => p.IsPicture)]);
 }

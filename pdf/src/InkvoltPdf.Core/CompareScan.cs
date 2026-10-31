@@ -81,6 +81,12 @@ public static class CompareScan
     /// <summary>Marks only: a stray speck read as punctuation.</summary>
     public static bool IsOnlyMarks(string s) => s.Length > 0 && !s.Any(char.IsLetterOrDigit);
 
+    /// <summary>
+    /// Words a scan doesn't have, enough of them to fill a line: Windows' recognizer now and then skips a whole line that is
+    /// plainly on the page, so this may not have been removed at all.
+    /// </summary>
+    public static bool CouldBeALostLine(string s) => s.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 6;
+
     private static string Blurred(string s)
     {
         var sb = new StringBuilder(s.Length);

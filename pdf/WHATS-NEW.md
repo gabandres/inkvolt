@@ -5,6 +5,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Compare Files takes Word, Excel and PowerPoint files and scans as well as PDFs, on either side. Words on a scan are recognized on your PC first, and a difference that may be a misreading says so.
+- Compare lists formatting changes (font, size, bold, italic, color) and moved paragraphs apart from changes of wording, and leaves running headers and footers out. Tick off any kind to hide it.
+- Scans are lined up before they are overlaid, so a page fed a little crooked no longer looks different all over.
+- The annotated copy now also marks moves, formatting and areas that look different, such as a picture that was swapped.
 
 ## 1.4.0
 - Save as PDF/A now works on IRS forms and on documents with Fill & Sign check marks, which it used to refuse. The list of changes says what the copy lost or gained: the form's Reader usage rights, and check marks drawn in a slightly different shape.
