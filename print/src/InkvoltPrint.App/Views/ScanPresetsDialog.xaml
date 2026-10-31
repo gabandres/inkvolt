@@ -125,6 +125,22 @@
                             </StackPanel>
                         </CheckBox>
                     </WrapPanel>
+                    <TextBlock Text="Clean up each page" Style="{StaticResource Label}" Margin="0,8,0,4" />
+                    <WrapPanel>
+                        <CheckBox Content="Crop to the paper" IsChecked="{Binding CropToPaper}" Margin="0,0,24,6" AutomationProperties.Name="Crop to the paper"
+                                  ToolTip="Takes off the lid around a sheet; a page it can't be sure of stays whole" />
+                        <CheckBox Content="Whiten the background" IsChecked="{Binding WhitenPages}" Margin="0,0,24,6" AutomationProperties.Name="Whiten the background"
+                                  ToolTip="Evens grey or yellowed paper out to white and removes specks" />
+                        <CheckBox Content="Descreen printed pictures" IsChecked="{Binding DescreenPages}" Margin="0,0,24,6" AutomationProperties.Name="Descreen printed pictures"
+                                  ToolTip="Takes the dots out of pictures from magazines and newspapers" />
+                        <CheckBox Content="Restore faded colors" IsChecked="{Binding RestoreColors}" Margin="0,0,0,6" AutomationProperties.Name="Restore faded colors"
+                                  ToolTip="Brings back the blacks and colors of a faded print" />
+                    </WrapPanel>
+                    <StackPanel Margin="0,4,0,0" Visibility="{Binding HasOcrLanguageChoice, Converter={StaticResource VisibleWhen}}">
+                        <TextBlock Text="Text language" Style="{StaticResource Label}" />
+                        <ComboBox ItemsSource="{Binding OcrLanguages}" SelectedItem="{Binding OcrLanguage}" HorizontalAlignment="Left" MinWidth="220"
+                                  AutomationProperties.Name="Text language" AutomationProperties.HelpText="The language text recognition reads" />
+                    </StackPanel>
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

@@ -25,5 +25,6 @@
     <!-- The OCR corpus's generator and word error rate (pdf/tools/ocr-corpus; its runner needs Windows' recognizer) -->
     <Compile Include="..\..\tools\ocr-corpus\ScanCorpus.cs" Link="OcrCorpus\ScanCorpus.cs" />
     <Compile Include="..\..\tools\ocr-corpus\WordErrorRate.cs" Link="OcrCorpus\WordErrorRate.cs" />
+    <Compile Include="..\..\tools\ocr-corpus\CleanupCorpus.cs" Link="OcrCorpus\CleanupCorpus.cs" />
   </ItemGroup>
 </Project>

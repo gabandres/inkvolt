@@ -27,7 +27,7 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
@@ -74,12 +74,26 @@ internal static class DevSnapshot
                 });
             if (args.Contains("--keep-separators")) scanner.KeepSeparators = true;
             if (args.Contains("--find-photos")) scanner.FindPhotos = true;
+            // --cleanup crop,whiten,descreen,restore: the tab's clean up, before scanning.
+            if (Value(args, "--cleanup") is { } cleanup)
+            {
+                scanner.CropToPaper = cleanup.Contains("crop");
+                scanner.WhitenPages = cleanup.Contains("whiten");
+                scanner.DescreenPages = cleanup.Contains("descreen");
+                scanner.RestoreColors = cleanup.Contains("restore");
+            }
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
             // --delete n: delete page n, as the Delete key does (the review then offers Undo); --undo puts it back.
             if (int.TryParse(Value(args, "--delete"), out var delete) && delete > 0 && delete <= scanner.Pages.Count)
                 scanner.RemovePageCommand.Execute(scanner.Pages[delete - 1]);
             if (args.Contains("--undo")) scanner.UndoCommand.Execute(null);
+            // --clean n: the clean up view on the n-th page.
+            if (int.TryParse(Value(args, "--clean"), out var cleanPage) && cleanPage > 0 && cleanPage <= scanner.Pages.Count)
+            {
+                await scanner.CleanUpCommand.ExecuteAsync(scanner.Pages[cleanPage - 1]);
+                await Task.Delay(500);
+            }
             // --photo-box n: select the n-th photo in the photo view (opened by --crop on a scan of photos).
             if (int.TryParse(Value(args, "--photo-box"), out var photoBox) && scanner.IsEditingPhotos && photoBox <= scanner.EditedPhotos.Count)
                 scanner.SelectedPhoto = photoBox - 1;

@@ -281,14 +281,14 @@ public static class PhotoFinder
         return result;
     }
 
-    private static bool[] Dilate(bool[] mask, int w, int h, int r) => Window(mask, w, h, r, dilate: true);
-    private static bool[] Erode(bool[] mask, int w, int h, int r) => Window(mask, w, h, r, dilate: false);
+    internal static bool[] Dilate(bool[] mask, int w, int h, int r) => Window(mask, w, h, r, dilate: true);
+    internal static bool[] Erode(bool[] mask, int w, int h, int r) => Window(mask, w, h, r, dilate: false);
 
     /// <summary>
     /// Closing on a grid padded with lid all round, so a gap between a print and the edge of the glass stays open (the clipped
     /// window alone would fill it), while a print against the edge keeps its edge.
     /// </summary>
-    private static bool[] Close(bool[] mask, int w, int h, int r)
+    internal static bool[] Close(bool[] mask, int w, int h, int r)
     {
         var (pw, ph) = (w + 2 * r, h + 2 * r);
         var padded = new bool[pw * ph];
@@ -300,7 +300,7 @@ public static class PhotoFinder
     }
 
     /// <summary>Lid cells the lid around the edges can't reach (light patches inside a print) become print.</summary>
-    private static void FillHoles(bool[] mask, int w, int h)
+    internal static void FillHoles(bool[] mask, int w, int h)
     {
         var outside = new bool[mask.Length];
         var stack = new Stack<int>();

@@ -194,13 +194,15 @@ public readonly record struct CropBox(double X, double Y, double Width, double H
 /// <summary>
 /// What's been done to a scanned page, applied in this order when the page is saved: straightened by
 /// <see cref="Deskew"/> degrees (anticlockwise by that much), cropped to <see cref="Crop"/> (in the straightened page),
-/// then turned <see cref="QuarterTurns"/> quarters clockwise. No edits: the scanner's own JPEG is saved untouched.
+/// cleaned up by <see cref="Filters"/> (<see cref="PageCleanup"/>), then turned <see cref="QuarterTurns"/> quarters clockwise.
+/// No edits: the scanner's own JPEG is saved untouched. <see cref="PageFilters.CropToPaper"/> only says where
+/// <see cref="Crop"/> came from, so on its own (no paper's edge was found) it changes nothing.
 /// </summary>
-public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox? Crop = null)
+public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox? Crop = null, PageFilters Filters = PageFilters.None)
 {
     public static readonly PageEdits None = new();
 
-    public bool IsEmpty => QuarterTurns % 4 == 0 && Deskew == 0 && (Crop is null || Crop.Value.IsFull);
+    public bool IsEmpty => QuarterTurns % 4 == 0 && Deskew == 0 && (Crop is null || Crop.Value.IsFull) && (Filters & PageFilters.PixelFilters) == 0;
 
     public PageEdits Turned(int quarters) => this with { QuarterTurns = (((QuarterTurns + quarters) % 4) + 4) % 4 };
 
@@ -209,7 +211,7 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
 
     /// <summary>Sets the crop from a box drawn on the turned page.</summary>
     public PageEdits WithShownCrop(CropBox? shown) =>
-        this with { Crop = shown is { } box && !box.IsFull ? box.Clamp().Turn(-QuarterTurns) : null };
+        this with { Crop = shown is { } box && !box.IsFull ? box.Clamp().Turn(-QuarterTurns) : null, Filters = Filters & ~PageFilters.CropToPaper };
 }
 
 /// <summary>Arbitrary-angle rotation of raw pixels (straightening a page), bilinear, same size, uncovered corners white.</summary>
@@ -217,12 +219,13 @@ public static class PageRotate
 {
     /// <summary>
     /// <paramref name="pixels"/> turned <paramref name="degrees"/> clockwise (as seen on screen) about the centre.
-    /// <paramref name="channels"/>: 1 for grey, 3 for BGR; rows are <paramref name="stride"/> bytes apart.
+    /// <paramref name="channels"/>: 1 for grey, 3 for BGR; rows are <paramref name="stride"/> bytes apart. Uncovered corners
+    /// get <paramref name="fill"/>.
     /// </summary>
-    public static byte[] Rotate(byte[] pixels, int width, int height, int stride, int channels, double degrees)
+    public static byte[] Rotate(byte[] pixels, int width, int height, int stride, int channels, double degrees, byte fill = 255)
     {
         var result = new byte[pixels.Length];
-        Array.Fill(result, (byte)255);
+        Array.Fill(result, fill);
         var (sin, cos) = Math.SinCos(degrees * Math.PI / 180);
         var (cx, cy) = ((width - 1) / 2.0, (height - 1) / 2.0);
         Parallel.For(0, height, y =>
@@ -239,7 +242,7 @@ public static class PageRotate
                 var (fx, fy) = (sx - x0, sy - y0);
                 for (var c = 0; c < channels; c++)
                 {
-                    double At(int px, int py) => px < 0 || py < 0 || px >= width || py >= height ? 255 : pixels[py * stride + px * channels + c];
+                    double At(int px, int py) => px < 0 || py < 0 || px >= width || py >= height ? fill : pixels[py * stride + px * channels + c];
                     var top = At(x0, y0) * (1 - fx) + At(x0 + 1, y0) * fx;
                     var bottom = At(x0, y0 + 1) * (1 - fx) + At(x0 + 1, y0 + 1) * fx;
                     result[y * stride + x * channels + c] = (byte)Math.Clamp(Math.Round(top * (1 - fy) + bottom * fy), 0, 255);

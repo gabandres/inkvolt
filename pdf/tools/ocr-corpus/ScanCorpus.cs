@@ -70,6 +70,15 @@ public static class ScanCorpus
         return ScanPage(file, engine, lines, page);
     }
 
+    /// <summary>One page as typeset, grey at 300 dpi, before any damage, and its words.</summary>
+    public static (byte[] Pixels, int Width, int Height, List<string> Words) CleanPage(CorpusFile file, int page)
+    {
+        var (text, lines) = TextPdf(file);
+        using var engine = PdfEngine.Open(text, InputFileTypes.PDF, null);
+        var gray = Gray(engine.Render(page, Dpi / 72.0));
+        return (gray.Pixels, gray.Width, gray.Height, [.. lines[page].SelectMany(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries))]);
+    }
+
     private static (byte[] Pixels, int Width, int Height, CorpusPage Truth) ScanPage(CorpusFile file, PdfEngine engine, List<List<string>> lines, int p)
     {
         var rng = new Rng(Seed(file.Name) + 977UL * (ulong)(p + 1));

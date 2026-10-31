@@ -23,4 +23,6 @@ $env:INKVOLTPDF_PDFJS = '1'; $env:INKVOLTPDF_CORPUS = 'Z:\PdfDesk\pdf\tools\expo
 dotnet test pdf/tests/InkvoltPdf.Tests --filter FullyQualifiedName~ReadTheSameInPdfJs
 ```
 
+`OcrLayerSearchTests` (with the same variable) reads Inkvolt Print's scan PDFs with it: every planted non-Latin word found.
+
 Needs Node 20 or later. The edited PDFs are written to a temporary folder and deleted; results go to the test output.

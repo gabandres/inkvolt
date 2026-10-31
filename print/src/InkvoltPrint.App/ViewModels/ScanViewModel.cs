@@ -26,6 +26,13 @@ public sealed record Option<T>(T Value, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>The OCR languages a scan or preset can read in: Windows' own choice, then each installed on this PC.</summary>
+public static class OcrLanguageChoices
+{
+    public static IReadOnlyList<Option<string?>> List() =>
+        [new Option<string?>(null, "Windows' language"), .. WindowsRecognizer.Languages().Select(l => new Option<string?>(l.Tag, l.Name))];
+}
+
 /// <summary>Scan area in 1/300 inch (eSCL units). Null size = the whole glass.</summary>
 public sealed record ScanArea(string Key, int? Width, int? Height);
 
@@ -84,6 +91,12 @@ public sealed partial class ScanViewModel : ObservableObject
         UseOcr = state.ScanOcr && OcrAvailable;
         SkipBlank = state.ScanSkipBlank;
         Straighten = state.ScanStraighten;
+        var cleanup = (PageFilters)state.ScanCleanup & PageFilters.All;
+        CropToPaper = cleanup.HasFlag(PageFilters.CropToPaper);
+        WhitenPages = cleanup.HasFlag(PageFilters.Whiten);
+        DescreenPages = cleanup.HasFlag(PageFilters.Descreen);
+        RestoreColors = cleanup.HasFlag(PageFilters.RestoreColors);
+        OcrLanguage = OcrLanguages.FirstOrDefault(o => o.Value == state.ScanOcrLanguage) ?? OcrLanguages[0];
         SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
         KeepSeparators = _batchKeep = state.ScanKeepSeparators;
         FindPhotos = state.ScanFindPhotos;
@@ -180,6 +193,40 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>Straighten pages scanned a little crooked (up to 10°).</summary>
     [ObservableProperty] public partial bool Straighten { get; set; }
 
+    // The tab's clean up: what each scanned page gets (a preset has its own). Each can be changed on a page in the review.
+    [ObservableProperty] public partial bool CropToPaper { get; set; }
+    [ObservableProperty] public partial bool WhitenPages { get; set; }
+    [ObservableProperty] public partial bool DescreenPages { get; set; }
+    [ObservableProperty] public partial bool RestoreColors { get; set; }
+
+    private PageFilters TabCleanup =>
+        (CropToPaper ? PageFilters.CropToPaper : 0) | (WhitenPages ? PageFilters.Whiten : 0) | (DescreenPages ? PageFilters.Descreen : 0) | (RestoreColors ? PageFilters.RestoreColors : 0);
+
+    private void SaveCleanup()
+    {
+        _state.ScanCleanup = (int)TabCleanup;
+        _state.Save();
+    }
+
+    partial void OnCropToPaperChanged(bool value) => SaveCleanup();
+    partial void OnWhitenPagesChanged(bool value) => SaveCleanup();
+    partial void OnDescreenPagesChanged(bool value) => SaveCleanup();
+    partial void OnRestoreColorsChanged(bool value) => SaveCleanup();
+
+    /// <summary>The OCR languages to choose from: Windows' own choice, then each one installed on this PC.</summary>
+    public IReadOnlyList<Option<string?>> OcrLanguages { get; } = OcrLanguageChoices.List();
+
+    public bool HasOcrLanguageChoice => OcrLanguages.Count > 2;
+
+    [ObservableProperty] public partial Option<string?>? OcrLanguage { get; set; }
+
+    partial void OnOcrLanguageChanged(Option<string?>? value)
+    {
+        if (value is null) return;
+        _state.ScanOcrLanguage = value.Value;
+        _state.Save();
+    }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand))]
     public partial bool IsBusy { get; set; }
@@ -198,6 +245,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (!CanUndo()) return;
         CancelCrop();
         CancelPhotos();
+        CancelClean();
         if (History.Undo() is { } what)
         {
             Message = $"Undone: {what}.";
@@ -229,7 +277,18 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>True only while pages are coming off the scanner (not while saving).</summary>
-    [ObservableProperty] public partial bool IsScanning { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelWork))]
+    public partial bool IsScanning { get; set; }
+
+    /// <summary>A save is under way: cleaning huge pages takes time, so it can be cancelled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCancelWork))]
+    public partial bool IsSaving { get; set; }
+
+    public bool CanCancelWork => IsScanning || IsSaving;
+
+    private CancellationTokenSource? _saveCts;
 
     [ObservableProperty] public partial string? Message { get; set; }
     [ObservableProperty] public partial string? LastSavedPath { get; set; }
@@ -600,14 +659,14 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>What one scan uses: the tab's settings, or a preset's matched to this scanner.</summary>
     private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes,
-        SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false);
+        SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false, PageFilters Cleanup = PageFilters.None, string? OcrLanguage = null);
 
     private ScanJob TabJob()
     {
         var area = PageSize?.Value;
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
-        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos);
+        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value);
     }
 
     /// <summary>
@@ -648,11 +707,11 @@ public sealed partial class ScanViewModel : ObservableObject
             _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos); // what made-up scanners then hold
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
-                var page = new ScanPageViewModel(jpeg, dpi, job.Ocr);
+                var page = new ScanPageViewModel(jpeg, dpi, job.Ocr, job.OcrLanguage);
                 page.PropertyChanged += PageChanged;
                 Pages.Add(page);
                 added.Add(page);
-                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos)); // while the next page scans
+                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup)); // while the next page scans
                 Message = $"Scanned page {Pages.Count}. Scanning…";
             }
             await Task.WhenAll(checks);
@@ -663,6 +722,7 @@ public sealed partial class ScanViewModel : ObservableObject
             var separators = added.Count(p => p.IsSeparator);
             var files = Files().Count;
             var photos = added.Sum(p => p.Photos?.Count ?? 0);
+            var cleaned = RecordCleanup(added, job.Cleanup);
             var notes = string.Join(" ", new List<string>
             {
                 !findPhotos ? "" : photos == 0 ? "No photos were found on the glass: the whole scan is saved. Crop (or the photo view) marks them by hand."
@@ -671,6 +731,7 @@ public sealed partial class ScanViewModel : ObservableObject
                     : $"{(separators == 1 ? "1 separator sheet" : $"{separators} separator sheets")} found: {(files == 1 ? "1 file" : $"{files} files")}.",
                 blank == 0 ? "" : blank == 1 ? "1 blank page is left out (Keep puts it back)." : $"{blank} blank pages are left out (Keep puts them back).",
                 straightened == 0 ? "" : straightened == 1 ? "1 page was straightened." : $"{straightened} pages were straightened.",
+                cleaned,
                 request.Source == ScanSource.AdfDuplex && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
                     ? "Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better." : "",
                 PdfNote(added, request),
@@ -706,6 +767,27 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
+    /// A scan cleaned up by its settings is one step back with Undo, however many pages it has. What to say about it: how many
+    /// pages, and any whose paper's edge couldn't be found (they stay whole).
+    /// </summary>
+    private string RecordCleanup(List<ScanPageViewModel> added, PageFilters cleanup)
+    {
+        if (cleanup == PageFilters.None) return "";
+        var changed = added.Where(p => p.BeforeCleanup is not null).ToList();
+        if (changed.Count > 0)
+        {
+            var before = changed.Select(p => (Page: p, Edits: p.BeforeCleanup!)).ToList();
+            History.Record(changed.Count == 1 ? $"Clean up page {changed[0].Number}" : $"Clean up {changed.Count} pages", () =>
+            {
+                foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters };
+            });
+        }
+        var noEdge = cleanup.HasFlag(PageFilters.CropToPaper) ? changed.Count(p => !p.Edits.Filters.HasFlag(PageFilters.CropToPaper) && !p.HasPhotos) : 0;
+        var text = changed.Count == 0 ? "" : changed.Count == 1 ? "1 page was cleaned up (Undo puts it back)." : $"{changed.Count} pages were cleaned up (Undo puts them back).";
+        return noEdge == 0 ? text : $"{text} The paper's edge couldn't be told from the lid on {(noEdge == 1 ? "1 page" : $"{noEdge} pages")}: kept whole.";
+    }
+
+    /// <summary>
     /// Two-sided scans: the other side of a patch code sheet is part of the sheet (<see cref="BatchSplit.DuplexSeparatorBacks"/>),
     /// so it neither starts the next file nor ends up in it.
     /// </summary>
@@ -721,7 +803,15 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Cancel() => _scanCts?.Cancel();
+    private void Cancel()
+    {
+        _scanCts?.Cancel();
+        if (_saveCts is { } save)
+        {
+            save.Cancel();
+            foreach (var page in Pages) page.CancelWork();
+        }
+    }
 
     [RelayCommand]
     private void RemovePage(ScanPageViewModel? page)
@@ -806,12 +896,13 @@ public sealed partial class ScanViewModel : ObservableObject
     public bool IsCropping => CropPage is not null;
 
     /// <summary>The crop or photo view is open: it takes the whole pane, the review's toolbar and status line too.</summary>
-    public bool IsAdjustingPage => IsCropping || IsEditingPhotos;
+    public bool IsAdjustingPage => IsCropping || IsEditingPhotos || IsCleaning;
 
     [RelayCommand]
     private async Task CropAsync(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
+        CancelClean();
         if (page.FindsPhotos)
         {
             await EditPhotosAsync(page); // a scan of photos: adjust the photos instead
@@ -823,7 +914,8 @@ public sealed partial class ScanViewModel : ObservableObject
         var edits = page.Edits with { Crop = null };
         try
         {
-            var image = await Task.Run(() => ScanImaging.Render(page.Original, edits, 1600));
+            // The crop box goes on the page as it is, filters and all, without the wait for a full-size clean up.
+            var image = await Task.Run(() => ScanImaging.Render(page.Original, edits, 1600, page.Dpi));
             if (CropPage == page) CropImage = image;
         }
         catch (Exception ex)
@@ -848,6 +940,157 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void ResetCrop() => CropBox = CropBox.Full;
 
+    // ---- Clean up: one page, large, with the filters to turn on and off ----
+
+    /// <summary>The page being cleaned up; null when the view is closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCleaning), nameof(IsAdjustingPage), nameof(CleanTitle), nameof(CleansWholePage))]
+    public partial ScanPageViewModel? CleanPage { get; set; }
+
+    public bool IsCleaning => CleanPage is not null;
+
+    /// <summary>A scan of photos is cleaned photo by photo: no paper to crop to, no background to whiten.</summary>
+    public bool CleansWholePage => CleanPage is { HasPhotos: false };
+
+    public string CleanTitle => CleanPage is not { } page ? "" : page.HasPhotos ? $"Clean up the photos on page {page.Number} (photo 1 shown)" : $"Clean up page {page.Number}";
+
+    [ObservableProperty] public partial BitmapSource? CleanImage { get; set; }
+
+    /// <summary>What the view says about the choices: still working, what a filter found nothing to do on, a page too large.</summary>
+    [ObservableProperty] public partial string? CleanStatus { get; set; }
+
+    [ObservableProperty] public partial bool CleanCrop { get; set; }
+    [ObservableProperty] public partial bool CleanWhiten { get; set; }
+    [ObservableProperty] public partial bool CleanDescreen { get; set; }
+    [ObservableProperty] public partial bool CleanRestore { get; set; }
+
+    /// <summary>Held down or on: shows the page as scanned (straightened and turned), to compare.</summary>
+    [ObservableProperty] public partial bool ShowOriginal { get; set; }
+
+    private bool _settingCleanChoices;
+    private CancellationTokenSource? _cleanCts;
+
+    private PageFilters CleanChoices =>
+        (CleanCrop ? PageFilters.CropToPaper : 0) | (CleanWhiten ? PageFilters.Whiten : 0) | (CleanDescreen ? PageFilters.Descreen : 0) | (CleanRestore ? PageFilters.RestoreColors : 0);
+
+    partial void OnCleanCropChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanWhitenChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanDescreenChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanRestoreChanged(bool value) => CleanChoiceChanged();
+    partial void OnShowOriginalChanged(bool value) => CleanChoiceChanged();
+
+    private void CleanChoiceChanged()
+    {
+        if (!_settingCleanChoices && CleanPage is not null) _ = PreviewCleanAsync();
+    }
+
+    [RelayCommand]
+    private async Task CleanUpAsync(ScanPageViewModel? page)
+    {
+        if (page is null || IsBusy) return;
+        CancelCrop();
+        CancelPhotos();
+        CleanPage = page;
+        CleanImage = null;
+        _settingCleanChoices = true;
+        var filters = page.Edits.Filters;
+        (CleanCrop, CleanWhiten, CleanDescreen, CleanRestore) = (filters.HasFlag(PageFilters.CropToPaper), filters.HasFlag(PageFilters.Whiten), filters.HasFlag(PageFilters.Descreen), filters.HasFlag(PageFilters.RestoreColors));
+        ShowOriginal = false;
+        _settingCleanChoices = false;
+        await PreviewCleanAsync();
+    }
+
+    /// <summary>The page with what's chosen, drawn off the UI thread at the view's size; a newer choice cancels it.</summary>
+    private async Task PreviewCleanAsync()
+    {
+        if (CleanPage is not { } page) return;
+        _cleanCts?.Cancel();
+        var cts = _cleanCts = new CancellationTokenSource();
+        var choices = ShowOriginal ? PageFilters.None : CleanChoices;
+        CleanStatus = "Working…";
+        try
+        {
+            var edits = await page.EditsWithAsync(choices, cts.Token);
+            var photos = page.Photos;
+            var image = await Task.Run(() => photos is { Count: > 0 } boxes
+                ? ScanImaging.PhotoPreview(page.Original, boxes[0], choices, 1600, page.Dpi, cts.Token)
+                : ScanImaging.Render(page.Original, edits, 1600, page.Dpi, cts.Token), cts.Token);
+            if (CleanPage != page || cts != _cleanCts) return;
+            CleanImage = image;
+            CleanStatus = ShowOriginal ? "As scanned." : page.CleanNote(choices, edits);
+            Prompt.Announce(CleanStatus);
+        }
+        catch (OperationCanceledException)
+        {
+            // a newer choice, or the view closed
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Clean up preview failed: {ex}");
+            if (cts == _cleanCts) CleanStatus = $"Couldn't show the page: {ex.Message}";
+        }
+    }
+
+    /// <summary>Done: the page gets what's chosen, one step back with Undo.</summary>
+    [RelayCommand]
+    private async Task ApplyCleanAsync()
+    {
+        if (CleanPage is not { } page) return;
+        var choices = CleanChoices;
+        try
+        {
+            var edits = await page.EditsWithAsync(choices, default);
+            if (edits != page.Edits)
+            {
+                RecordLook($"Clean up page {page.Number}", page);
+                page.Edits = edits;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Write($"Clean up failed: {ex}");
+            Message = $"Couldn't clean up page {page.Number}: {ex.Message}";
+        }
+        CancelClean();
+    }
+
+    /// <summary>What's chosen, on every page that can take it; one step back with Undo.</summary>
+    [RelayCommand]
+    private async Task ApplyCleanToAllAsync()
+    {
+        if (CleanPage is null) return;
+        var choices = CleanChoices;
+        var targets = Pages.Where(p => !p.IsSeparator && !p.IsSkipped).ToList();
+        CleanStatus = "Working…";
+        var results = new List<(ScanPageViewModel Page, PageEdits Before, PageEdits After)>();
+        foreach (var page in targets)
+        {
+            var edits = await page.EditsWithAsync(choices, default);
+            if (edits != page.Edits) results.Add((page, page.Edits, edits));
+        }
+        if (results.Count > 0)
+        {
+            History.Record($"Clean up {results.Count} pages", () =>
+            {
+                foreach (var (page, before, _) in results) page.Edits = before;
+            });
+            foreach (var (page, _, after) in results) page.Edits = after;
+        }
+        CancelClean();
+        Message = results.Count == 1 ? "1 page was cleaned up (Undo puts it back)." : $"{results.Count} pages were cleaned up (Undo puts them back).";
+        Prompt.Announce(Message);
+    }
+
+    [RelayCommand]
+    private void CancelClean()
+    {
+        _cleanCts?.Cancel();
+        _cleanCts = null;
+        CleanPage = null;
+        CleanImage = null;
+        CleanStatus = null;
+    }
+
     [RelayCommand]
     private void CancelCrop()
     {
@@ -871,9 +1114,10 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         CancelCrop();
         CancelPhotos();
+        CancelClean();
         foreach (var (jpeg, kept) in pages)
         {
-            var page = new ScanPageViewModel(jpeg, kept.Dpi, kept.Ocr) { Edits = kept.Edits, IsSkipped = kept.Skipped, StartsFile = kept.StartsFile, IsAnalysed = true };
+            var page = new ScanPageViewModel(jpeg, kept.Dpi, kept.Ocr, kept.OcrLanguage) { Edits = kept.Edits, IsSkipped = kept.Skipped, StartsFile = kept.StartsFile, IsAnalysed = true };
             page.PropertyChanged += PageChanged;
             Pages.Add(page);
         }
@@ -888,6 +1132,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         CancelCrop();
         CancelPhotos();
+        CancelClean();
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
         History.Clear(); // the question before it was the safeguard
@@ -926,7 +1171,9 @@ public sealed partial class ScanViewModel : ObservableObject
 
         CancelCrop();
         CancelPhotos();
+        CancelClean();
         IsBusy = true;
+        BeginSave();
         try
         {
             for (var n = 0; n < files.Count; n++)
@@ -959,6 +1206,10 @@ public sealed partial class ScanViewModel : ObservableObject
             RatingRequest.NoteSuccess(_state);
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
+        catch (OperationCanceledException)
+        {
+            Message = "Save cancelled.";
+        }
         catch (Exception ex)
         {
             Log.Write($"Save failed: {ex}");
@@ -966,8 +1217,22 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         finally
         {
+            EndSave();
             IsBusy = false;
         }
+    }
+
+    private void BeginSave()
+    {
+        _saveCts = new CancellationTokenSource();
+        IsSaving = true;
+    }
+
+    private void EndSave()
+    {
+        IsSaving = false;
+        _saveCts?.Dispose();
+        _saveCts = null;
     }
 
     /// <summary>What <see cref="ScannerPdf.KeepAsSent"/> needs to know of a file's pages: where each came from, and whether it changed.</summary>
@@ -1102,7 +1367,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var r = plan.Request;
         Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}");
         _presetNotes = plan.Notes;
-        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos);
+        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos, preset.Cleanup, preset.OcrLanguage);
     }
 
     /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
@@ -1151,7 +1416,9 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         CancelCrop();
         CancelPhotos();
+        CancelClean();
         IsBusy = true;
+        BeginSave();
         var saved = new List<string>();
         var before = new List<string>(); // written by an earlier save that failed part-way: not written again
         var done = 0;
@@ -1200,6 +1467,11 @@ public sealed partial class ScanViewModel : ObservableObject
             Prompt.Announce(Message);
             RatingRequest.NoteSuccess(_state);
         }
+        catch (OperationCanceledException)
+        {
+            Message = "Save cancelled.";
+            return;
+        }
         catch (Exception ex)
         {
             Log.Write($"Preset save failed: {ex}");
@@ -1211,6 +1483,7 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         finally
         {
+            EndSave();
             IsBusy = false;
         }
         // Not busy any more: a mail app's new-message window (classic Outlook's stays open until it's sent) doesn't hold up the tab.
@@ -1360,12 +1633,14 @@ public sealed partial class ScanPageViewModel : ObservableObject
     private readonly bool _ocr;
     private (PageEdits Edits, Task<byte[]> Jpeg)? _jpeg;
     private (PageEdits Edits, Task<IReadOnlyList<OcrWord>?> Words)? _words;
+    private CancellationTokenSource _work = new();
 
-    public ScanPageViewModel(byte[] jpeg, int dpi, bool ocr)
+    public ScanPageViewModel(byte[] jpeg, int dpi, bool ocr, string? ocrLanguage = null)
     {
         Original = jpeg;
         Dpi = dpi;
         _ocr = ocr;
+        OcrLanguage = ocrLanguage;
         FromPdf = ScannerPdf.OriginOf(jpeg);
         try
         {
@@ -1387,6 +1662,50 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     /// <summary>Gets an OCR text layer when saved as PDF.</summary>
     public bool Ocr => _ocr;
+
+    /// <summary>The language to read it in; null: Windows' first display language that has OCR.</summary>
+    public string? OcrLanguage { get; }
+
+    /// <summary>What the page's look was before the scan's settings cleaned it up; null when they didn't.</summary>
+    public PageEdits? BeforeCleanup { get; private set; }
+
+    /// <summary>A save was cancelled: what's being encoded stops, and the next save starts it again.</summary>
+    public void CancelWork()
+    {
+        _work.Cancel();
+        _work = new CancellationTokenSource();
+    }
+
+    /// <summary>The page's edits with <paramref name="filters"/> in place of its filters; the paper's edge is looked for when asked for and not found yet.</summary>
+    public async Task<PageEdits> EditsWithAsync(PageFilters filters, CancellationToken cancel)
+    {
+        var edits = Edits;
+        var photos = HasPhotos;
+        var wantsCrop = filters.HasFlag(PageFilters.CropToPaper) && !photos;
+        if (wantsCrop == edits.Filters.HasFlag(PageFilters.CropToPaper))
+            return edits with { Filters = (filters & PageFilters.PixelFilters) | (wantsCrop ? PageFilters.CropToPaper : 0) };
+        if (!wantsCrop) return edits with { Crop = null, Filters = filters & PageFilters.PixelFilters };
+        var (original, dpi, width, deskew) = (Original, Dpi, _size.Width, edits.Deskew);
+        var crop = await Task.Run(() =>
+        {
+            var image = ScanImaging.Analysis(original);
+            return PaperEdge.Find(image, image.Width * (double)dpi / width, deskew);
+        }, cancel);
+        // No edge found: what was there stays, and the view says so.
+        return crop is { } found
+            ? edits with { Crop = found, Filters = (filters & PageFilters.PixelFilters) | PageFilters.CropToPaper }
+            : edits with { Filters = filters & PageFilters.PixelFilters };
+    }
+
+    /// <summary>What the clean up view says after drawing <paramref name="edits"/> for <paramref name="wanted"/>.</summary>
+    public string CleanNote(PageFilters wanted, PageEdits edits)
+    {
+        if (PageCleanup.TooLarge(_size.Width, _size.Height) && (wanted & PageFilters.PixelFilters) != 0)
+            return $"This page is too large to clean up ({(long)_size.Width * _size.Height / 1_000_000} million pixels): it is saved as scanned.";
+        if (wanted.HasFlag(PageFilters.CropToPaper) && !edits.Filters.HasFlag(PageFilters.CropToPaper) && !HasPhotos)
+            return "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.";
+        return wanted == PageFilters.None ? "As scanned." : $"Shown {PageCleanup.Describe(wanted)}.";
+    }
 
     [ObservableProperty] public partial BitmapSource Thumbnail { get; private set; }
 
@@ -1467,16 +1786,17 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     partial void OnPhotosChanged(IReadOnlyList<PhotoBox>? value) => _ = RefreshThumbnailAsync(Edits);
 
-    private (IReadOnlyList<PhotoBox> Photos, Task<IReadOnlyList<byte[]>> Images)? _images;
+    private (IReadOnlyList<PhotoBox> Photos, PageFilters Filters, Task<IReadOnlyList<byte[]>> Images)? _images;
 
     /// <summary>The pictures as saved: the page's JPEG, or each photo cut out straight (encoded once per set of boxes).</summary>
     public async Task<IReadOnlyList<byte[]>> ImagesAsync()
     {
         if (Photos is not { Count: > 0 } photos) return [await JpegAsync()];
-        if (_images is { } cached && ReferenceEquals(cached.Photos, photos) && !cached.Images.IsFaulted) return await cached.Images;
-        var original = Original;
-        var task = Task.Run(() => (IReadOnlyList<byte[]>)ScanImaging.Photos(original, photos));
-        _images = (photos, task);
+        var filters = Edits.Filters & (PageFilters.Descreen | PageFilters.RestoreColors);
+        if (_images is { } cached && ReferenceEquals(cached.Photos, photos) && cached.Filters == filters && !cached.Images.IsFaulted && !cached.Images.IsCanceled) return await cached.Images;
+        var (original, dpi, cancel) = (Original, Dpi, _work.Token);
+        var task = Task.Run(() => (IReadOnlyList<byte[]>)ScanImaging.Photos(original, photos, filters, dpi, cancel), cancel);
+        _images = (photos, filters, task);
         return await task;
     }
 
@@ -1503,9 +1823,12 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <summary>What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", or nothing.</summary>
     public string Note => IsSeparator ? (SeparatorKept ? "Separator, kept" : "Separator, not saved")
         : IsSkipped ? "Blank, not saved"
-        : HasPhotos ? (Photos!.Count == 1 ? "1 photo" : $"{Photos.Count} photos")
+        : HasPhotos ? (Photos!.Count == 1 ? "1 photo" : $"{Photos.Count} photos") + (Edits.Filters != PageFilters.None ? $", {PageCleanup.Describe(Edits.Filters)}" : "")
         : FindsPhotos ? "No photos found"
+        : Edits.Filters != PageFilters.None ? Capitalized(PageCleanup.Describe(Edits.Filters))
         : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
+
+    private static string Capitalized(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     partial void OnEditsChanged(PageEdits value) => _ = RefreshThumbnailAsync(value);
 
@@ -1514,8 +1837,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
     {
         var edits = Edits;
         if (edits.IsEmpty) return Task.FromResult(Original);
-        if (_jpeg is { } cached && cached.Edits == edits && !cached.Jpeg.IsFaulted) return cached.Jpeg;
-        var task = Task.Run(() => ScanImaging.Jpeg(ScanImaging.Render(Original, edits)));
+        if (_jpeg is { } cached && cached.Edits == edits && !cached.Jpeg.IsFaulted && !cached.Jpeg.IsCanceled) return cached.Jpeg;
+        var (original, dpi, cancel) = (Original, Dpi, _work.Token);
+        var task = Task.Run(() => ScanImaging.Jpeg(ScanImaging.Render(original, edits, 0, dpi, cancel)), cancel);
         _jpeg = (edits, task);
         return task;
     }
@@ -1525,8 +1849,8 @@ public sealed partial class ScanPageViewModel : ObservableObject
     {
         if (!_ocr) return Task.FromResult<IReadOnlyList<OcrWord>?>(null);
         var edits = Edits;
-        if (_words is { } cached && cached.Edits == edits) return cached.Words;
-        var task = RunOcrAsync(JpegAsync(), Dpi);
+        if (_words is { } cached && cached.Edits == edits && !cached.Words.IsCanceled) return cached.Words;
+        var task = RunOcrAsync(JpegAsync(), Dpi, OcrLanguage);
         _words = (edits, task);
         return task;
     }
@@ -1536,13 +1860,14 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// A separator sheet is neither skipped nor straightened.
     /// </summary>
     /// <param name="findPhotos">A scan of photos on the glass: find them (each is saved by itself), don't straighten the page.</param>
-    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false)
+    /// <param name="cleanup">What the scan's settings clean each page up with (a blank page or separator stays as it came, a scan of photos gets what suits a print).</param>
+    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false, PageFilters cleanup = PageFilters.None)
     {
         try
         {
-            if (skipBlank || straighten || split != SplitAt.None || findPhotos)
+            if (skipBlank || straighten || split != SplitAt.None || findPhotos || cleanup != PageFilters.None)
             {
-                var (blank, angle, separator, looksBlank, photos) = await Task.Run(() =>
+                var (blank, angle, separator, looksBlank, photos, crop) = await Task.Run(() =>
                 {
                     var image = ScanImaging.Analysis(Original);
                     var ppi = image.Width * (double)Dpi / _size.Width;
@@ -1551,13 +1876,24 @@ public sealed partial class ScanPageViewModel : ObservableObject
                     var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
                     var photos = findPhotos && !isBlank && !separator.IsSeparator ? PhotoFinder.Find(image, ppi) : null;
                     var angle = straighten && !isBlank && !separator.IsSeparator && photos is null ? Deskew.Angle(image) : 0;
-                    return (isBlank, angle, separator, looksBlank, photos);
+                    var crop = cleanup.HasFlag(PageFilters.CropToPaper) && !isBlank && !looksBlank && !separator.IsSeparator && photos is null ? PaperEdge.Find(image, ppi, angle) : null;
+                    return (isBlank, angle, separator, looksBlank, photos, crop);
                 });
                 LooksBlank = looksBlank;
                 Separator = separator;
                 IsSkipped = blank;
                 if (photos is not null) Photos = photos;
                 if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
+                if (cleanup != PageFilters.None && !blank && !looksBlank && !separator.IsSeparator && Edits.Filters == PageFilters.None && Edits.Crop is null)
+                {
+                    var filters = cleanup & (photos is { Count: > 0 } ? PageFilters.Descreen | PageFilters.RestoreColors : PageFilters.PixelFilters);
+                    if (crop is not null) filters |= PageFilters.CropToPaper;
+                    if (filters != PageFilters.None)
+                    {
+                        BeforeCleanup = Edits;
+                        Edits = Edits with { Crop = crop, Filters = filters };
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -1573,7 +1909,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
         try
         {
             var photos = Photos;
-            var thumbnail = await Task.Run(() => ScanImaging.Render(Original, photos is { Count: > 0 } ? PageEdits.None : edits, ThumbnailWidth));
+            var thumbnail = await Task.Run(() => ScanImaging.Render(Original, photos is { Count: > 0 } ? PageEdits.None : edits, ThumbnailWidth, Dpi));
             // A later edit's thumbnail wins; photos are drawn over the scan as found (on the UI thread: it's drawing).
             if (edits == Edits && ReferenceEquals(photos, Photos)) Thumbnail = photos is { Count: > 0 } ? ScanImaging.WithPhotos(thumbnail, photos) : thumbnail;
         }
@@ -1583,12 +1919,16 @@ public sealed partial class ScanPageViewModel : ObservableObject
         }
     }
 
-    private static async Task<IReadOnlyList<OcrWord>?> RunOcrAsync(Task<byte[]> jpeg, int dpi)
+    private static async Task<IReadOnlyList<OcrWord>?> RunOcrAsync(Task<byte[]> jpeg, int dpi, string? language)
     {
         try
         {
             var bytes = await jpeg;
-            return await Task.Run(() => WindowsOcr.RecognizeAsync(bytes, dpi));
+            return await Task.Run(() => WindowsOcr.RecognizeAsync(bytes, dpi, default, language));
+        }
+        catch (OperationCanceledException)
+        {
+            throw; // the save was cancelled: not an answer to keep
         }
         catch (Exception ex)
         {

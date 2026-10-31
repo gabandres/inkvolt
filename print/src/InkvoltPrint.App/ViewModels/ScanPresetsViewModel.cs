@@ -205,6 +205,11 @@ public sealed partial class PresetItem : ObservableObject
         Review = preset.Review;
         SkipBlank = preset.SkipBlank;
         Straighten = preset.Straighten;
+        CropToPaper = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.CropToPaper);
+        WhitenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Whiten);
+        DescreenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Descreen);
+        RestoreColors = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.RestoreColors);
+        OcrLanguage = OcrLanguages.FirstOrDefault(o => o.Value == preset.OcrLanguage) ?? OcrLanguages[0];
         SplitAt = ScanPresetsViewModel.Splits.First(o => o.Value == preset.SplitAt);
         KeepSeparators = preset.KeepSeparators;
         FindPhotos = preset.FindPhotos;
@@ -234,6 +239,15 @@ public sealed partial class PresetItem : ObservableObject
     [ObservableProperty] public partial bool Review { get; set; }
     [ObservableProperty] public partial bool SkipBlank { get; set; }
     [ObservableProperty] public partial bool Straighten { get; set; }
+    [ObservableProperty] public partial bool CropToPaper { get; set; }
+    [ObservableProperty] public partial bool WhitenPages { get; set; }
+    [ObservableProperty] public partial bool DescreenPages { get; set; }
+    [ObservableProperty] public partial bool RestoreColors { get; set; }
+
+    /// <summary>The OCR languages to choose from; more than Windows' own only when more are installed.</summary>
+    public IReadOnlyList<Option<string?>> OcrLanguages { get; } = OcrLanguageChoices.List();
+    public bool HasOcrLanguageChoice => OcrLanguages.Count > 2;
+    [ObservableProperty] public partial Option<string?> OcrLanguage { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Splits), nameof(Example))]
@@ -321,6 +335,9 @@ public sealed partial class PresetItem : ObservableObject
         Review = Review,
         SkipBlank = SkipBlank,
         Straighten = Straighten,
+        Cleanup = (CropToPaper ? Core.Imaging.PageFilters.CropToPaper : 0) | (WhitenPages ? Core.Imaging.PageFilters.Whiten : 0)
+            | (DescreenPages ? Core.Imaging.PageFilters.Descreen : 0) | (RestoreColors ? Core.Imaging.PageFilters.RestoreColors : 0),
+        OcrLanguage = OcrLanguage.Value,
         SplitAt = SplitAt.Value,
         KeepSeparators = KeepSeparators,
         FindPhotos = FindPhotos,

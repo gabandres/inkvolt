@@ -8,7 +8,7 @@ using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Windows.Ocr;
 using MuPDFCore;
 
-// dotnet run --project pdf/tools/ocr-corpus -c Release -- make|run|report [--out dir] [--note text]
+// dotnet run --project pdf/tools/ocr-corpus -c Release -- make|run|report|cleanup|layer [--out dir] [--note text] [--only name]
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 var command = args.FirstOrDefault() ?? "run";
 string Option(string name, string fallback) => args.SkipWhile(a => a != name).Skip(1).FirstOrDefault() ?? fallback;
@@ -32,11 +32,68 @@ switch (command)
     case "report":
         Report(JsonSerializer.Deserialize<List<FileResult>>(File.ReadAllText(resultsJson))!);
         break;
+    case "cleanup":
+        return Cleanup();
+    case "layer":
+        return Layer();
     default:
-        Console.Error.WriteLine("Usage: make | run | report [--out dir] [--note text]");
+        Console.Error.WriteLine("Usage: make | run | report | cleanup | layer [--out dir] [--note text] [--only name]");
         return 2;
 }
 return 0;
+
+// Inkvolt Print's filters (roadmap 2.3): today's reading and the cleaned one, in the languages this PC has.
+int Cleanup()
+{
+    var only = Option("--only", "");
+    var installed = WindowsRecognizer.Languages().Select(l => l.Tag).ToList();
+    var measured = new List<CleanupResult>();
+    foreach (var file in CleanupCorpus.Files.Where(f => only.Length == 0 || f.Name == only))
+    {
+        var tag = CleanupCorpus.Tag(file.Language);
+        var recognizer = installed.Contains(tag, StringComparer.OrdinalIgnoreCase) ? WindowsRecognizer.Create(tag) : null;
+        var result = CleanupCorpus.Measure(file, recognizer);
+        Console.WriteLine(result.Today is null ? $"{file.Name}: {result.Words} words; {tag} isn't installed, not run"
+            : $"{file.Name}: {result.Words} words; today {result.Today:P1}, cleaned {result.After:P1}; filters {result.AfterMs:0} ms a page");
+        measured.Add(result);
+    }
+    if (only.Length == 0)
+    {
+        var path = Path.Combine(toolDir, "RESULTS-cleanup.md");
+        File.WriteAllText(path, CleanupCorpus.Report(measured, installed));
+        Console.WriteLine($"Wrote {path}");
+    }
+    return measured.Where(r => r.Today is not null).All(r => r.After < r.Today) ? 0 : 1;
+}
+
+// The whole way, as the Scan tab saves: a page's JPEG, Windows' recognizer, Inkvolt Print's PDF, then search for each true word in it.
+int Layer()
+{
+    var dirOut = Path.Combine(Path.GetTempPath(), "inkvolt-ocr-layer");
+    Directory.CreateDirectory(dirOut);
+    var failed = false;
+    foreach (var file in CleanupCorpus.Files.Where(f => f.Name is "en-grey" or "es-grey"))
+    {
+        var (px, w, h, _, words) = CleanupCorpus.ScanPage(file, 0);
+        var cleaned = CleanupCorpus.Cleaned(px, w, h, 1, file.Filters);
+        var jpeg = InkvoltPdf.Bench.JpegEncoder.EncodeGray(cleaned.Pixels, cleaned.Width, cleaned.Height, 90, CleanupCorpus.Dpi);
+        var read = InkvoltPrint.Windows.Ocr.WindowsOcr.RecognizeAsync(jpeg, CleanupCorpus.Dpi, default, CleanupCorpus.Tag(file.Language)).GetAwaiter().GetResult();
+        using var ms = new MemoryStream();
+        InkvoltPrint.Core.Pdf.PdfWriter.Write(ms, [new InkvoltPrint.Core.Pdf.PdfPage(jpeg, CleanupCorpus.Dpi, read)], file.Name);
+        File.WriteAllBytes(Path.Combine(dirOut, file.Name + ".pdf"), ms.ToArray());
+        using var engine = PdfEngine.Open(ms.ToArray(), InputFileTypes.PDF, null);
+        var text = engine.GetText(0);
+        var recognized = read.Select(r => r.Text).Distinct().ToList();
+        // A hyphen at a line's end is joined up by the reader, as in any PDF: the word is found without it.
+        var missed = recognized.Where(t => text.Find(t.TrimEnd('-'), matchCase: true, wholeWord: false).Count == 0).ToList();
+        var foundRead = recognized.Count - missed.Count;
+        foreach (var t in missed) Console.WriteLine($"  not found: [{t}] ({string.Join(' ', t.Select(c => $"{(int)c:X4}"))})");
+        var foundTrue = words.Distinct().Count(t => text.Find(t, matchCase: true, wholeWord: false).Count > 0);
+        Console.WriteLine($"{file.Name}: {read.Count} words read; {foundRead} of {recognized.Count} different words read found in the PDF; {foundTrue} of {words.Distinct().Count()} true words found");
+        failed |= foundRead < recognized.Count;
+    }
+    return failed ? 1 : 0;
+}
 
 void Make()
 {

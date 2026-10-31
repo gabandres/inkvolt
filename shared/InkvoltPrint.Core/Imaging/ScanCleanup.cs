@@ -137,10 +137,10 @@ public static class ScanCleanup
 /// <summary>A 3 × 3 median: takes out the paper's grain and single-pixel noise, keeps the edges of letters.</summary>
 public static class Smooth
 {
-    public static byte[] Median3(byte[] gray, int width, int height)
+    public static byte[] Median3(byte[] gray, int width, int height, CancellationToken cancel = default)
     {
         var result = new byte[gray.Length];
-        Parallel.For(0, height, y =>
+        Parallel.For(0, height, new ParallelOptions { CancellationToken = cancel }, y =>
         {
             Span<byte> v = stackalloc byte[9];
             for (var x = 0; x < width; x++)
@@ -295,7 +295,7 @@ public static class Despeckle
     private const byte Ink = 160;
 
     /// <summary>Turns lone specks white (in place); returns how many went.</summary>
-    public static int Remove(byte[] gray, int width, int height, int dpi)
+    public static int Remove(byte[] gray, int width, int height, int dpi, CancellationToken cancel = default)
     {
         var maxArea = Math.Max(2, (int)(MaxArea * (dpi / 300.0) * (dpi / 300.0)));
         var reach = Math.Max(2, (int)Math.Round(dpi * Isolation));
@@ -304,6 +304,7 @@ public static class Despeckle
         var sums = new int[(width + 1) * (height + 1)];
         for (var y = 0; y < height; y++)
         {
+            cancel.ThrowIfCancellationRequested();
             var row = 0;
             for (var x = 0; x < width; x++)
             {
@@ -323,6 +324,7 @@ public static class Despeckle
         var removed = 0;
         for (var start = 0; start < gray.Length; start++)
         {
+            if (start % width == 0) cancel.ThrowIfCancellationRequested();
             if (seen[start] || gray[start] >= Ink) continue;
             // One spot of ink (8-connected), given up on as soon as it is too big to be a speck.
             pixels.Clear();
