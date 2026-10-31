@@ -219,6 +219,14 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
     func followFirstLink() { if let first = links.first { goTo(first) } }
 }
 
+/// The pane's background: solid, as Prepare Form's panel, not the inspector's see-through one.
+private final class AiPaneView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        dirtyRect.fill()
+    }
+}
+
 /// A flipped view for the conversation, so it grows downward.
 private final class AiListView: NSStackView {
     override var isFlipped: Bool { true }
@@ -266,7 +274,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
     var isBusy: Bool { !stopButton.isHidden }
 
     override func loadView() {
-        let root = NSView()
+        let root = AiPaneView()
         let title = NSTextField(labelWithString: "AI assistant")
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         for (button, tip, action) in [

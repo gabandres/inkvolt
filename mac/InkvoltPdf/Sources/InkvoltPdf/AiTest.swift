@@ -285,10 +285,9 @@ struct AiTest {
         send?.sendClicked()
         _ = await waitFor { pane.answers.count == before + 1 && pane.isBusy && server.received.contains { $0.body.contains("STALL please") } }
         check(pane.isBusy, "Stop shows while an answer runs")
-        controller.aiAsk(nil)
-        await controller.ai.job?.value
+        let running = controller.ai.job
         pane.stopClicked()
-        await waitPaneIdle(pane)
+        await running?.value
         check(!pane.isBusy && pane.answers.last?.note == "Stopped." && pane.statusLabel.stringValue == "Stopped.", "Stop ends it: \(pane.answers.last?.note ?? "no note")")
 
         // An error is an error on the card.
@@ -296,7 +295,7 @@ struct AiTest {
         pane.askClicked()
         send = await confirm()
         send?.sendClicked()
-        await waitPaneIdle(pane)
+        await controller.ai.job?.value
         check(pane.answers.last?.note?.contains("isn't available") == true && pane.answers.last?.isCopyEnabled == false, "the server's refusal is worded on the card: \(pane.answers.last?.note?.prefix(50) ?? "none")")
         snapshot(controller.window, "ai-pane-error.png")
 
@@ -327,6 +326,14 @@ struct AiTest {
         cloudSettings.customUrl = url
         AppSettings.ai = cloudSettings
 
+        // The app's Settings says how it stands, and has the way in.
+        SettingsWindowController.show(updates: nil)
+        let general = SettingsWindowController.shared
+        check(general?.aiState.stringValue.hasPrefix("On: test-model") == true, "Settings shows the assistant's state: \(general?.aiState.stringValue.prefix(50) ?? "none")")
+        snapshot(general?.window, "ai-general-settings.png")
+        general?.close()
+        SettingsWindowController.shared = nil
+
         // Clear, close, off again.
         pane.clearClicked()
         check(pane.answers.isEmpty && controller.ai.turns.isEmpty && pane.statusLabel.stringValue == "Conversation cleared", "Clear empties the conversation")
@@ -346,10 +353,6 @@ struct AiTest {
         controller.pages.clearSelection()
         lines.append("note: \(pane.stateReport().prefix(160))")
         finish()
-    }
-
-    private func waitPaneIdle(_ pane: AiPane) async {
-        _ = await waitFor { !pane.isBusy && controller.ai.cancel == nil }
     }
 
     private static func rightClick(_ controller: DocumentWindowController) -> NSEvent {

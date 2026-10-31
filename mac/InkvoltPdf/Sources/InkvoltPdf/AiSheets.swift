@@ -321,6 +321,7 @@ final class AiSettingsSheet: AiSheet {
     /// What depends on the address and the switch.
     func refresh() {
         defer { fitWindow() }
+        problem.isHidden = true // said again by the next Save, if it still applies
         let on = enabled.state == .on
         for c in [preset, url, model, key, context, test, forgetKey] as [NSControl] { c.isEnabled = on }
         url.isEditable = preset.indexOfSelectedItem == 2 && on
