@@ -502,7 +502,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Redact Patterns (the choices of Redact by Pattern, applied at once; each row says how many matches of each kind),
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
-  file; a file that fails any isn't saved), Report What's in Each File ("name contents.html" and "name contents.json"
+  file; a file that fails any, or can't be checked in full, isn't saved and counts as failed, its notes saying what wasn't checked), Report What's in Each File ("name contents.html" and "name contents.json"
   beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
   Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
   say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
@@ -717,10 +717,14 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 ## Known limits
 
-- Accessibility Check on a crafted file: it says what it didn't check instead of going on. A table whose spans ask for more
+- Accessibility Check on a crafted file: it says what it didn't check instead of going on, and a file with anything left
+  unchecked and nothing failing reads "Not fully checked" in the pane, the report and Batch (where it counts as failed),
+  never as passing. A table whose spans ask for more
   than 16,000,000 places isn't compared cell by cell, a page or document with too much content (2,000,000 drawing steps a
   page, 500,000,000 a document, reading counted too) is checked as far as that, and an XFA form the search runs out of time
-  on isn't called dynamic or not. A rendition selector or an appearance is looked at once, so a clip behind a selector
+  on isn't called dynamic or not; so do forms nested over 12 deep, more than 20,000 annotations on a page, 8 appearances of
+  one annotation, 1,000 cells in a table's row, 500,000 tags or 256 levels of them, 10,000 attached files, 50,000 form
+  fields, 256 layer configurations, and an appearance too long or unreadable. A rendition selector or an appearance is looked at once, so a clip behind a selector
   several annotations share is reported at the first.
 - Page edits go through PDFsharp, which rewrites the whole file, so its size can change. Signed PDFs are the
   exception: edits are appended as an incremental update, so signatures stay intact and show as "changed after

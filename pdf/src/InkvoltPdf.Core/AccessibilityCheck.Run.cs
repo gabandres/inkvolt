@@ -85,6 +85,12 @@ public static partial class AccessibilityCheck
             _findings.Add(f);
         }
 
+        /// <summary>What wasn't checked, said once however often it comes up: any note means the file doesn't pass.</summary>
+        private void NoteOnce(string note)
+        {
+            if (!_notes.Contains(note)) _notes.Add(note);
+        }
+
         private void Add(string condition, string problem, int page = -1, RectD box = default, string element = "Document", int count = 1, string? fix = null) =>
             Add(new AccessibilityFinding(condition, problem) { Page = page, Box = box, Element = element, Count = count, FixOverride = fix });
 
@@ -219,15 +225,26 @@ public static partial class AccessibilityCheck
             }
             Config(PdfObj.Dict(oc.Elements["/D"]), "20-002", "default");
             if (PdfObj.Array(oc.Elements["/Configs"]) is { } configs)
+            {
                 foreach (var c in configs.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Take(256)) Config(c, "20-001", "other");
+                if (configs.Elements.Count > 256) NoteOnce("The file has very many layer configurations; only the first 256 were checked.");
+            }
         }
 
         private void EmbeddedFiles()
         {
             var names = PdfObj.Dict(PdfObj.Dict(_catalog.Elements["/Names"])?.Elements["/EmbeddedFiles"]);
-            foreach (var (key, value) in PdfObj.NameTree(names).Take(10_000))
+            var attached = 0;
+            foreach (var (key, value) in PdfObj.NameTree(names))
+            {
+                if (++attached > 10_000)
+                {
+                    NoteOnce("The file has very many attached files; only the first 10,000 were checked.");
+                    break;
+                }
                 if (PdfObj.Dict(value) is { } spec && spec.Elements.ContainsKey("/EF") && !HasBothNames(spec))
                     Add("21-001", $"The attached file “{Short(key)}” lacks {(spec.Elements.ContainsKey("/UF") ? "its F name" : "its UF (Unicode) name")}.", element: "Attached file");
+            }
         }
 
         private static bool HasBothNames(PdfDictionary spec) =>

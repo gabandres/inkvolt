@@ -269,7 +269,12 @@ public static partial class AccessibilityCheck
                                     var known = c._forms.TryGetValue(x, out var use);
                                     c._forms[x] = (known ? use.Uses + 1 : 1, use.Tagged, known ? use.Page : pageIndex);
                                 }
-                                if (depth >= MaxFormDepth || !_active.Add(x)) break;
+                                if (depth >= MaxFormDepth)
+                                {
+                                    c.NoteOnce($"Forms nested more than {MaxFormDepth} deep weren't checked.");
+                                    break;
+                                }
+                                if (!_active.Add(x)) break;
                                 var m = PdfObj.Array(x.Elements["/Matrix"]) is { Elements.Count: 6 } a
                                     ? new Mat(PdfObj.Num(a, 0), PdfObj.Num(a, 1), PdfObj.Num(a, 2), PdfObj.Num(a, 3), PdfObj.Num(a, 4), PdfObj.Num(a, 5))
                                     : Mat.Identity;
@@ -413,6 +418,7 @@ public static partial class AccessibilityCheck
             else if (tabs != "S") Add("28-009", $"This page's tab order is “{tabs}”, not the order of the tags (S).", p, default, "Page");
             var (cx1, cy1, cx2, cy2) = PdfObj.VisibleBox(page);
             _documentOperators += Math.Min(annots.Elements.Count, 20_000L) * OperatorsPerAnnotation;
+            if (annots.Elements.Count > 20_000) _notes.Add($"Page {p + 1}: it has very many annotations; only the first 20,000 were checked.");
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Take(20_000))
             {
                 var subtype = PdfObj.NameOf(a, "/Subtype").TrimStart('/');
@@ -539,17 +545,22 @@ public static partial class AccessibilityCheck
             if (PdfObj.Dict(PdfObj.Dict(a.Elements["/AP"])?.Elements["/N"]) is not { } n) return;
             var streams = new List<PdfDictionary>();
             if (n.Stream is not null) streams.Add(n);
-            else streams.AddRange(n.Elements.Values.Select(PdfObj.Dict).OfType<PdfDictionary>().Where(s => s.Stream is not null).Take(8)); // every state (a check box's on and off)
+            else
+            {
+                streams.AddRange(n.Elements.Values.Select(PdfObj.Dict).OfType<PdfDictionary>().Where(s => s.Stream is not null).Take(8)); // every state (a check box's on and off)
+                if (n.Elements.Count > 8) NoteOnce("An annotation has very many appearances; only the first 8 were checked.");
+            }
             foreach (var s in streams.Where(_appearances.Add)) // each stream once: walked again it adds no fonts, and thousands of annotations may share one
                 try
                 {
                     var walk = new Walk(this, p, page);
                     walk.Run(PdfObj.StreamBytes(s), PdfObj.Dict(s.Elements["/Resources"]), Mat.Identity, null, [], 0, contentOnly: true);
                     _documentOperators += walk.Operators;
+                    if (walk.Stopped) _notes.Add($"Page {p + 1}: an annotation's appearance is very long; only the first part of it was checked.");
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException)
                 {
-                    // An unreadable appearance: its fonts aren't counted.
+                    NoteOnce("An annotation's appearance couldn't be read, so its fonts weren't checked.");
                 }
         }
 
@@ -581,6 +592,7 @@ public static partial class AccessibilityCheck
                 if (PdfObj.Array(f.Elements["/Kids"]) is { } kids)
                     foreach (var kid in kids.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) stack.Push((kid, depth + 1));
             }
+            if (stack.Count > 0) NoteOnce("The file has very many form fields; only the first 50,000 were checked.");
             if (count > 0) Add("11-005", $"The tooltips of {Count(count, "form field")} have no language, and the document has none.", element: "Form fields", count: count);
         }
     }
