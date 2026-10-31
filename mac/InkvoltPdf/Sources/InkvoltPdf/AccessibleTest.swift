@@ -130,6 +130,35 @@ struct AccessibleTest {
                 t.doCommand(by: #selector(NSResponder.cancelOperation(_:)))
                 check(controller.window?.firstResponder === pane.table, "Esc goes back to the list")
             }
+            // Suggest with AI, against a fake server on loopback: shown first, nothing sent until approved.
+            let answer = #"data: {"choices":[{"index":0,"delta":{"content":"Alt text: \"A gradient of colors, left to right\""},"finish_reason":"stop"}]}"# + "\n\ndata: [DONE]\n\n"
+            let server = AiLoopbackServer { _ in
+                .raw("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: \(answer.utf8.count)\r\nConnection: close\r\n\r\n\(answer)")
+            }
+            if let server {
+                var ai = AiSettings()
+                ai.enabled = true
+                ai.preset = "Custom"
+                ai.customUrl = "http://127.0.0.1:\(server.port)/v1"
+                ai.model = "vision-model"
+                AppSettings.ai = ai
+                check(!pane.suggestButton.isHidden && pane.suggestButton.isEnabled, "a picture offers Suggest with AI")
+                pane.suggestClicked()
+                for _ in 0..<200 where AiConfirmSheet.current == nil { try? await Task.sleep(for: .milliseconds(20)) }
+                let sheet = AiConfirmSheet.current
+                check(sheet?.whatLabel.stringValue.contains("(as an image) and the text near it") == true && server.received.isEmpty, "it shows what goes, and sends nothing yet")
+                sheet?.disclosure.performClick(nil)
+                check(sheet?.preview.string.contains("[a picture: PNG,") == true, "the preview says a picture goes")
+                sheet?.sendClicked()
+                await pane.suggestion?.value
+                let body = server.received.first?.body ?? ""
+                check(body.contains("data:image/png;base64,") && body.contains("\"model\":\"vision-model\""), "Send sends the picture to the model")
+                check(pane.altField.stringValue == "A gradient of colors, left to right" && pane.plan?.figuresWithoutAlt == 0, "the suggestion, cleaned, goes into the box and the plan")
+                server.stop()
+                AppSettings.ai = AiSettings()
+            } else {
+                check(false, "the fake AI server starts")
+            }
             pane.altField.stringValue = "A gradient of colors"
             NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: pane.altField)
             check(pane.plan?.figuresWithoutAlt == 0 && !pane.written, "the text goes into the plan")

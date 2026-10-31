@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- AI assistant (Tools › AI Assistant), off until you turn it on: connect an AI you choose, Ollama or LM Studio on this Mac or a service with your own key (kept in your keychain). Summarize pages, ask about the document in a pane at the right, or Control-click selected text › Explain with AI. Before anything is sent, a window shows where it goes and exactly what goes; answers are marked as AI-generated and link their page citations to the pages. Inkvolt PDF has no AI of its own and Bermudez Systems receives nothing
 - Make Accessible (Tools menu): tags a PDF for screen readers on this Mac, nothing sent anywhere: headings, paragraphs, lists, tables, contents, footnotes, formulas and pictures read from the pages, running headers and page numbers set aside, the title and language set. You can undo it until you save.
 - Reading Order and Alt Text (Tools menu): the order a screen reader follows, as a list and as numbered boxes on the pages. Move a piece by drag, the buttons or ⌥↑ ⌥↓, even to the page before or after; type a picture's alternate text or mark it decorative; Apply Changes tags the document again.
 - Save as PDF/A-2a (File menu): the archival copy that keeps the tags and says it is accessible. Batch has Make Accessible and Save as PDF/A-2a as actions.

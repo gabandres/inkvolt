@@ -365,10 +365,10 @@ extension DocumentWindowController {
         return false
     }
 
-    /// Asks the user's own AI model for a picture's alternate text, after the usual "what is sent, where" window (the
-    /// Windows `SuggestAltAsync`, for Make Accessible's Reading Order pane, which is on its own branch). Nil when the user
+    /// Asks the user's own AI model for a picture's alternate text, after the usual "what is sent, where" window (for the
+    /// Reading Order pane; the Windows `SuggestAltAsync`). `onAsking` runs once the user has approved it. Nil when the user
     /// declined, or there is no suggestion; an error is shown as a sheet.
-    func suggestAltText(png: [UInt8], nearby: String, language: String?, page: Int, number: Int, cancel: CancelToken) async -> String? {
+    func suggestAltText(png: [UInt8], nearby: String, language: String?, page: Int, number: Int, cancel: CancelToken, onAsking: () -> Void) async -> String? {
         var now = AiService.current(AppSettings.ai)
         if now.config == nil {
             guard let window, await AiSettingsSheet.show(on: window, why: "\(now.problem.map { $0 + " " } ?? "")\(AiJobs.altTextSetup)") else { return nil }
@@ -379,6 +379,7 @@ extension DocumentWindowController {
         let request = AiJobs.altText(png: png, nearby: nearby, language: language, page: page, number: number)
         let restricted = AiCopyRestriction.isRestricted(session.data, password: session.password, hasEncryption: session.hasEncryption)
         guard await confirmSend(config, request.outgoing, restricted: restricted, title: AiJobs.altTextTitle) else { return nil }
+        onAsking()
         do {
             config = try await AiService.resolve(config, keys: AppSettings.aiKeys, cancel: cancel)
             let reply = try await AiService.client(config, keys: AppSettings.aiKeys).chat(request.messages, cancel: cancel)
