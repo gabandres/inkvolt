@@ -157,7 +157,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     init(updater: Updates?) {
         self.updater = updater
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 380), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Settings"
         window.isRestorable = false
         super.init(window: window)
@@ -210,6 +210,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         window.contentView = stack
+        stack.layoutSubtreeIfNeeded()
+        window.setContentSize(NSSize(width: 520, height: stack.fittingSize.height))
         window.center()
     }
 
