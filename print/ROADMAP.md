@@ -318,8 +318,32 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   out of paper, paper jams, missing trays, low toner" ([Vasion](https://docs.vasion.com/v/Print/SNMP/Alerts.htm));
   Printix "monitors printers" from its cloud ([Printix](https://printix.net/features-printix)). A small office has
   one person who walks over.
-- **Now.** Every printer is read, alerted on and listed, one at a time; the offline fixer works on network printers
-  only (the queue printers' fixer is in the backlog).
+- **Now (built 2026-10-31, Windows).** The sidebar's **Fleet** button (also the palette) shows `Views/FleetView`: every entry of the
+  printer list, most trouble first (`Core/Fleet/FleetOrder`: error, warning, can't be reached, not known yet, fine, as the tray ranks
+  them, then by name), each with its state and problems, each supply's level, page count, firmware and last reading. It reads no
+  printer: each printer's own loop keeps its view model current and the page looks at them every 2 s, so a printer that hangs holds
+  up only that loop; for one that hasn't answered, the supply history gives its last levels, day and count, marked last known. Every
+  string a printer writes is cleaned and bounded once (`FleetText`, `FleetPrinter.Of`: no control or invisible characters, no bidi
+  overrides, no half surrogates, 240 characters, 16 supplies and problems). The offline fixer runs on queue printers
+  (`OfflineDiagnosis`, `OfflineDevice.ForQueue`): spooler, that queue by its exact name, its state; no network step or port repair;
+  a read that doesn't answer in 10 s says so instead of calling the queue gone; a printer shared from another PC gets steps, never a
+  UAC prompt. Resume and Use Printer Offline now ask first on every printer's fixer. Pro, through `Pro.Allows`: **Export…** (CSV, a row
+  per supply, formula-safe cells in `Suite/CsvCell`, which the supply history export now uses too; or JSON), `inkvoltprint status --all
+  [--json] [--out file]` in the app itself, since the developer CLI isn't packaged (`Core/Fleet/FleetCommand`, `FleetReader`: read only, a
+  printer gets 30 s, eight at a time, exit codes as Inkvolt PDF's), and **Fix all** (`FleetFixAll`: resume and Use Printer Offline over
+  every queue known to be a printer's, each confirmed by name, the queue read again after the yes). Exports go through
+  `Diagnostics.Scrub` and hold no address, serial number or UUID field (`print/schemas/fleet-status.schema.json`). Tests: `QueueFixerTests`
+  (the diagnosis order, no network step, no other queue, gone against unreadable, a hung read, the shared printer),
+  `FleetTests` and `FleetReadTests` (the demo PC's nine entries in order, read through the real readers over the fixtures; the JSON against the
+  schema with a small checker, as no package is added; what the scrubber's test plants in LEDM, IPP and SNMP replies out of the JSON and CSV;
+  formula starts including fullwidth and hidden ones; hung, throwing and vanishing printers; another device at the address; Fix all's
+  questions, a queue renamed or fixed while one was open, refusals, the gate). Seen: `--demo --fleet --snapshot` (light, dark, 900 wide, Text size 150%),
+  `--fleet fix`, `--printer 6 --fix`, `--a11y-audit` (no findings); `--demo status --all --json` and `--pro-enforce` (exit 2, nothing on standard
+  output); `status --all` on the development PC, whose one printer was away, in 7 s with `state.json` unchanged. **Not checked:** any real
+  printer or real queue repair (paused, Use Printer Offline, a printer shared from a PC that's off, access denied); the Pro window opening
+  from the page with the gate on; the Save dialog (the snapshot aid writes the file directly); Excel opening the CSV; a screen reader, and Tab
+  through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: on
+  hold (owner, 2026-10-31).
 - **Beat it when:** a Fleet page lists every printer's state, each supply's level, page count, firmware and the last
   reading's time, sorted by trouble; the offline fixer runs on queue printers too (paused, Use Printer Offline, stuck
   jobs, without the network steps). Pro: Export CSV, `inkvoltprint status --all --json` for a script or a scheduled

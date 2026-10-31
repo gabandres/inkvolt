@@ -39,9 +39,5 @@ public static class SupplyHistoryCsv
 
     private static string Number(int? n) => n?.ToString(CultureInfo.InvariantCulture) ?? "";
 
-    private static string Cell(string text)
-    {
-        if (text.Length > 0 && text[0] is '=' or '+' or '-' or '@') text = "'" + text;
-        return text.AsSpan().IndexOfAny(",\"\r\n") >= 0 ? $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : text;
-    }
+    private static string Cell(string text) => Suite.CsvCell.Of(text);
 }

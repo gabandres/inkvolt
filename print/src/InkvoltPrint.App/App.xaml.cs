@@ -43,6 +43,13 @@ public partial class App : Application
             Shutdown(ShellIntegration.Unregister());
             return;
         }
+        // status --all (Inkvolt Pro): a list on standard output, no window, no single-instance hand-off, no state written.
+        if (Core.Fleet.FleetCommand.IsFor(e.Args))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = RunStatusAsync(e.Args);
+            return;
+        }
         // The Store package started by its startup task behaves as --background; one started by a toast clicked after it
         // had exited opens that printer once the window is up.
         var activation = PackagedActivation.Read();
@@ -201,6 +208,13 @@ public partial class App : Application
                 tray: args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: args.Contains("--simulate-alerts"),
                 args: args);
         _started = true;
+    }
+
+    /// <summary>A hung printer's read may still be running when the list is done: the process ends here regardless.</summary>
+    private static async Task RunStatusAsync(string[] args)
+    {
+        var code = await Task.Run(() => StatusCommand.RunAsync(args));
+        Environment.Exit(code);
     }
 
     private static string? PresetArg(string[] args) =>

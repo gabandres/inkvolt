@@ -35,7 +35,31 @@ internal sealed class DemoOfflinePc : IOfflineProbes, IOfflineRepairs
                 ReportsOffline = true,
                 Jobs = [new(21, "Invoice 1043.pdf", 2, 0, JobStatus.Error | JobStatus.Printing, DateTime.Now.AddMinutes(-14), Environment.UserName)],
             },
+            // The queue printers (roadmap 2.6): the USB laser is paused in Windows, Front desk holds a stuck job, the MFP is fine.
+            new QueueFacts(UsbQueue, new QueuePort("USB001", PortKind.Other)) { Paused = true },
+            new QueueFacts(SharedQueue, new QueuePort(SharedQueue, PortKind.Other))
+            {
+                ReportsOffline = true,
+                Jobs = [new(31, "Visitor list.pdf", 1, 0, JobStatus.Error, DateTime.Now.AddMinutes(-40), Environment.UserName)],
+            },
+            new QueueFacts("Office color MFP", new QueuePort("Office color", PortKind.TcpIp) { Host = Demo.SnmpQueueHost }),
         ];
+    }
+
+    private const string UsbQueue = "Demo USB laser", SharedQueue = @"\\demo-pc\Front desk";
+
+    /// <summary>A demo queue as it stands now, so the printer list and the Fleet page show what a repair changed.</summary>
+    public Core.Queues.SpoolerQueue Current(Core.Queues.SpoolerQueue queue)
+    {
+        lock (_lock)
+        {
+            if (_queues.FirstOrDefault(q => q.Name == queue.Name) is not { } now) return queue;
+            return queue with
+            {
+                Status = now.Paused ? queue.Status | Core.Queues.SpoolerFlags.StatusPaused : queue.Status & ~Core.Queues.SpoolerFlags.StatusPaused,
+                Attributes = now.WorkOffline ? queue.Attributes | Core.Queues.SpoolerFlags.AttributeWorkOffline : queue.Attributes & ~Core.Queues.SpoolerFlags.AttributeWorkOffline,
+            };
+        }
     }
 
     public Task<SpoolerState> SpoolerAsync(CancellationToken ct) => Task.FromResult(SpoolerState.Running);

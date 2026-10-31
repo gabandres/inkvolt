@@ -31,26 +31,23 @@ namespace InkvoltPrint.App;
 /// </summary>
 internal static class Demo
 {
-    private const string Uuid = "12345678-1234-4abc-8def-123456789abc"; // the fixtures' (fake) UUID
-    private const string InkjetUuid = "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"; // Fixtures/inkjet-demo (made up)
-    private const string OfficeUuid = "3c9a7e51-8d2b-4f60-a1e4-5b7c9d0e2f13"; // made up
-    private const string CdmUuid = "4d1e2c3b-0a9f-4e8d-b7c6-5a4b3c2d1e0f"; // Fixtures/cdm-laser (made up)
+    private const string Uuid = Core.Fleet.DemoFleet.LaserUuid, InkjetUuid = Core.Fleet.DemoFleet.InkjetUuid, OfficeUuid = Core.Fleet.DemoFleet.OfficeUuid;
     private const string ResourcePrefix = "Demo.", InkjetPrefix = "DemoInkjet.", CdmPrefix = "DemoCdm.";
 
     /// <summary>The demo HP color laser that speaks CDM, not LEDM (newer HP models).</summary>
-    public const string CdmHost = "192.0.2.13";
+    public const string CdmHost = Core.Fleet.DemoFleet.CdmHost;
 
     /// <summary>The demo office laser's address before the (made-up) router gave it a new one, and after.</summary>
-    public const string OfficeOldHost = "192.0.2.12", OfficeNewHost = "192.0.2.23";
+    public const string OfficeOldHost = Core.Fleet.DemoFleet.OfficeOldHost, OfficeNewHost = Core.Fleet.DemoFleet.OfficeNewHost;
 
     /// <summary>The demo printer that answers SNMP only, and the demo color MFP behind a Windows TCP/IP port.</summary>
-    public const string SnmpHost = "192.0.2.14", SnmpQueueHost = "192.0.2.15";
+    public const string SnmpHost = Core.Fleet.DemoFleet.SnmpHost, SnmpQueueHost = Core.Fleet.DemoFleet.SnmpQueueHost;
 
     /// <summary>A demo laser on the network that isn't listed: only Add a printer's Search my network finds it (SNMP only).</summary>
     public const string UnlistedHost = "192.0.2.16";
 
     /// <summary>The demo inkjet's address: RFC 5737 documentation range, like <see cref="FixtureHandler.DemoHost"/>.</summary>
-    public const string InkjetHost = "192.0.2.11";
+    public const string InkjetHost = Core.Fleet.DemoFleet.InkjetHost;
 
     /// <summary>The made-up PC: every adapter the app reaches outside itself, made up (see <see cref="PcEnvironment"/>).</summary>
     public static PcEnvironment Pc { get; } = new DemoPc(empty: false);
@@ -104,19 +101,27 @@ internal static class Demo
         }
     }
 
+    /// <summary>What <c>--demo status --all</c> reads: the made-up PC, or with <paramref name="empty"/> (<c>--no-printers</c>) one with nothing on it.</summary>
+    public static Core.Fleet.IFleetPc FleetPc(bool empty) =>
+        empty ? new EmptyFleetPc() : new Core.Fleet.DemoFleetPc(CreateTransport, Snmp, Wia, OfflinePc.Current);
+
+    /// <summary>A made-up PC with nothing on it.</summary>
+    private sealed class EmptyFleetPc : Core.Fleet.IFleetPc
+    {
+        public Core.Suite.InkvoltPrinters Remembered => Core.Suite.InkvoltPrinters.Empty;
+        public IReadOnlyCollection<string> Hidden => [];
+        public Core.Probe.PrinterRecipe Recipe(Core.Suite.InkvoltPrinter printer) => throw new InvalidOperationException("No printers on this made-up PC.");
+        public Task<IReadOnlyList<Core.Queues.SpoolerQueue>> QueuesAsync(Func<Core.Queues.SpoolerQueue, bool> needsPresence, CancellationToken ct) => Task.FromResult<IReadOnlyList<Core.Queues.SpoolerQueue>>([]);
+        public Core.Queues.IQueueStatusSource QueueStatus(Core.Queues.SpoolerQueue queue) => throw new InvalidOperationException("No queues on this made-up PC.");
+        public Task<IReadOnlyList<Core.Wia.WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Core.Wia.WiaDeviceInfo>>([]);
+        public Core.Wia.IWiaSystem Wia => Demo.Wia;
+        public Core.History.SupplyHistoryStore? History => null;
+    }
+
     public static AppState CreateState() => new()
     {
         IsInMemory = true,
-        Printers =
-        [
-            new KnownPrinter(Uuid, "Demo printer", null, FixtureHandler.DemoHost, $"http://{FixtureHandler.DemoHost}/eSCL/"),
-            new KnownPrinter(InkjetUuid, "Demo inkjet", null, InkjetHost, $"http://{InkjetHost}/eSCL/", $"http://{InkjetHost}:631/ipp/print"),
-            new KnownPrinter(OfficeUuid, "Demo office laser", null, OfficeOldHost, $"http://{OfficeOldHost}/eSCL/"),
-            new KnownPrinter(CdmUuid, "Demo color laser (CDM)", null, CdmHost, null),
-            // Added by address, as an SNMP-only printer is (no UUID: its id comes from the address).
-            new KnownPrinter(Core.Model.PrinterId.Normalize(null, SnmpHost), "Demo Laser 5200 Series", null, SnmpHost, null,
-                Snmp: new Core.Snmp.SnmpDevice("DEMO0005200", "Demo Laser 5200 Series", "demo-laser")), // as its made-up agent says
-        ],
+        Printers = [.. Core.Fleet.DemoFleet.Printers.Select(p => new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.Snmp))],
         SelectedUuid = Uuid,
         // The firmware watch's notice (roadmap 1.5): the demo printer had an older version until today's connection.
         Firmware = new(StringComparer.OrdinalIgnoreCase) { [Uuid] = new Core.History.FirmwareRecord("2023-11-02", new DateOnly(2025, 11, 20)) },
@@ -283,42 +288,22 @@ internal static class Demo
         return ms.ToArray();
     }
 
-    /// <summary>
-    /// The made-up PC's Windows queues: a USB laser that discovery can't see (listed from its queue, toner low as its driver
-    /// reports it), a printer shared from another PC that is off, a color MFP on a Standard TCP/IP port (renamed, so its address
-    /// comes from the port's configuration; read over SNMP), and two that stay out of the list: Microsoft Print to PDF
-    /// (virtual) and the demo HP laser's own WSD queue (its device container is the printer's UUID, so it isn't listed twice).
-    /// </summary>
-    public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues { get; } =
-    [
-        new("Demo USB laser", "USB001", "Demo Laser 2100 PCL6", Core.Queues.SpoolerFlags.StatusTonerLow, Core.Queues.SpoolerFlags.AttributeLocal, 0)
-            { PortMonitor = "USB Monitor" },
-        new(@"\\demo-pc\Front desk", @"\\demo-pc\Front desk", "Demo Inkjet 3700 Series", Core.Queues.SpoolerFlags.StatusOffline,
-            Core.Queues.SpoolerFlags.AttributeNetwork, 0),
-        new("Office color MFP", "Office color", "Demo Color MFP 4400 PCL6", 0, Core.Queues.SpoolerFlags.AttributeLocal, 1)
-            { PortMonitor = "Standard TCP/IP Port", PortAddress = SnmpQueueHost, PortCommunity = "public", Location = "Copy room" },
-        new("Microsoft Print to PDF", "PORTPROMPT:", "Microsoft Print To PDF", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0) { PortMonitor = "Local Monitor" },
-        new("HP LaserJet MFP M234dw (demo)", "WSD-00000000-0000-4000-8000-000000000000", "Microsoft IPP Class Driver", 0, Core.Queues.SpoolerFlags.AttributeLocal, 0)
-            { PortMonitor = "WSD Port Monitor", ContainerId = Uuid },
-    ];
+    /// <summary>The made-up PC's Windows queues (<see cref="Core.Fleet.DemoFleet.Queues"/>).</summary>
+    public static IReadOnlyList<Core.Queues.SpoolerQueue> Queues => Core.Fleet.DemoFleet.Queues;
 
     /// <summary>
-    /// The made-up PC's scanners (WIA), so the Scan and Copy tabs of printers without eSCL can be tried: the scanner part of the
-    /// USB laser (glass and a feeder, color or grey, its own driver's resolutions; Windows lists it apart from the print queue, and
-    /// its model number matches it to the queue's driver) and a USB photo flatbed that belongs to no printer, listed on its own.
-    /// Pages are the demo's generated ones; nothing on this PC is asked.
+    /// The made-up PC's scanners (WIA, <see cref="Core.Fleet.DemoFleet.Scanners"/>), so the Scan and Copy tabs of printers without eSCL
+    /// can be tried. Pages are the demo's generated ones; nothing on this PC is asked.
     /// </summary>
-    public static Core.Wia.FakeWiaSystem Wia { get; } = new(
-    [
-        new(new Core.Wia.WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0000", "Demo Laser 2100", "Demo", "Demo Laser 2100 scanner", @"\\.\Usbscan0"),
-            new Core.Wia.WiaScannerInfo(Core.Wia.WiaIds.CapFeed | Core.Wia.WiaIds.CapFlat | Core.Wia.WiaIds.CapDetectFeedAvailable, 8500, 11690, 8500, 14000,
-                Core.Wia.WiaValues.Of(300, 100, 150, 200, 300, 600), [0, Core.Wia.WiaIds.DataGrayscale, Core.Wia.WiaIds.DataColor], [Core.Wia.WiaIds.FormatBmp]),
-            WiaPage) { FeederStack = () => FeederBatch ? Batch.Value.Count : 3, HandlingStatus = Core.Wia.WiaIds.FeedReady },
-        new(new Core.Wia.WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0001", "Demo Photo Scanner 40", "Demo", "Demo Photo Scanner 40", @"\\.\Usbscan1"),
-            new Core.Wia.WiaScannerInfo(null, 8500, 11700, null, null, Core.Wia.WiaValues.Range(300, 50, 2400, 1),
-                [Core.Wia.WiaIds.DataGrayscale, Core.Wia.WiaIds.DataColor], [Core.Wia.WiaIds.FormatJpeg, Core.Wia.WiaIds.FormatBmp]),
-            WiaPage),
-    ]);
+    public static Core.Wia.FakeWiaSystem Wia { get; } = MadeUpScanners();
+
+    private static Core.Wia.FakeWiaSystem MadeUpScanners()
+    {
+        var scanners = Core.Fleet.DemoFleet.Scanners(WiaPage);
+        scanners[0].FeederStack = () => FeederBatch ? Batch.Value.Count : 3;
+        scanners[0].HandlingStatus = Core.Wia.WiaIds.FeedReady;
+        return new(scanners);
+    }
 
     /// <summary>A demo WIA page: the feeder batch's next page when the scan splits into files, else what an eSCL demo scan of that area gives.</summary>
     private static byte[] WiaPage(Core.Wia.WiaScanSettings s, int page) =>
@@ -326,15 +311,7 @@ internal static class Demo
             : Scan((int)((long)s.Width * 300 / s.Resolution), (int)((long)s.Height * 300 / s.Resolution));
 
     /// <summary>A demo queue's status: what <see cref="Core.Queues.SpoolerStatus"/> makes of its made-up bits (no spooler is asked).</summary>
-    public static Core.Queues.IQueueStatusSource QueueStatus(Core.Queues.SpoolerQueue queue) => new DemoQueueStatus(queue);
-
-    private sealed class DemoQueueStatus(Core.Queues.SpoolerQueue queue) : Core.Queues.IQueueStatusSource
-    {
-        public string Origin => "Windows and the printer's driver";
-        public bool HasSupplyLevels => false;
-        public Task<Core.Queues.QueueStatusRead?> ReadAsync(CancellationToken ct) =>
-            Task.FromResult<Core.Queues.QueueStatusRead?>(Core.Queues.QueueStatusRead.From(Core.Queues.SpoolerStatus.Describe(queue)));
-    }
+    public static Core.Queues.IQueueStatusSource QueueStatus(Core.Queues.SpoolerQueue queue) => Core.Fleet.DemoFleet.QueueStatus(queue, OfflinePc.Current);
 
     /// <summary>The demo printers' made-up Windows queue (shared: nothing is printed anyway).</summary>
     public static DemoPrintJobs PrintJobs { get; } = new();

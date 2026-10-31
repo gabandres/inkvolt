@@ -16,7 +16,21 @@ public partial class MainWindow : Window
         InitializeComponent();
         Root.SizeChanged += (_, _) => FoldSidebar();
         // Choosing a printer in the folded sidebar closes it, as Windows Settings' pane does.
-        PrinterList.SelectionChanged += (_, _) => { if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false)); };
+        PrinterList.SelectionChanged += (_, _) =>
+        {
+            if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false));
+            // Moving through the list by keyboard leaves the Fleet page; the list changing by itself (a queue added, a printer gone) doesn't.
+            if (PrinterList.IsKeyboardFocusWithin && Vm is { } vm) vm.IsFleetShown = false;
+        };
+        // The printer already selected is chosen again: the selection doesn't change, the Fleet page still goes.
+        PrinterList.PreviewMouseLeftButtonUp += (_, e) =>
+        {
+            if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(PrinterList, d) is ListBoxItem && Vm is { } vm) vm.IsFleetShown = false;
+        };
+        PrinterList.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter && Vm is { } vm) vm.IsFleetShown = false;
+        };
         PreviewKeyDown += OnPreviewKey;
         CommandBindings.Add(new CommandBinding(PaletteCommand, (_, _) => OpenPalette()));
         PaletteBox.TextChanged += (_, _) => FilterPalette();
@@ -41,6 +55,16 @@ public partial class MainWindow : Window
     private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.Selected) && IsLoaded) Motion.Enter(PrinterPane);
+        if (e.PropertyName == nameof(MainViewModel.IsFleetShown) && IsLoaded && Vm is { IsFleetShown: false })
+        {
+            Motion.Enter(PrinterPane);
+            // The Fleet page took the keyboard's place with it: back to the printer, on the list.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                if (Keyboard.FocusedElement is UIElement { IsVisible: true }) return;
+                (PrinterList.ItemContainerGenerator.ContainerFromItem(PrinterList.SelectedItem) as ListBoxItem)?.Focus();
+            });
+        }
     }
 
     // ───────────── The sidebar, folded on a narrow window or at a large Text size ─────────────
@@ -178,8 +202,10 @@ public partial class MainWindow : Window
         {
             if (command?.CanExecute(parameter) == true) command.Execute(parameter);
         }
+        if (kind is "section" or "show" or "preset" or "printer") vm.IsFleetShown = false; // what they do is on the printer's page
         switch (kind, arg)
         {
+            case ("app", "fleet"): ShowFleet(); break;
             case ("section", _) when p is not null && int.TryParse(arg, out var section): p.SelectedSection = section; break;
             case ("show", _) when int.TryParse(arg, out var n) && n < vm.Printers.Count: vm.Selected = vm.Printers[n]; break;
             case ("preset", _) when int.TryParse(arg, out var preset) && p?.Scan is not null && preset < vm.Presets.Items.Count:
@@ -223,6 +249,18 @@ public partial class MainWindow : Window
 
     private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
 
+    private void Fleet_Click(object sender, RoutedEventArgs e) => ShowFleet();
+
+    /// <summary>The Fleet page, with the keyboard on its first row.</summary>
+    public void ShowFleet()
+    {
+        if (Vm is not { } vm) return;
+        ShowSidebar(open: false, focus: false);
+        vm.IsFleetShown = true;
+        Motion.Enter(FleetPage);
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, FleetPage.FocusList);
+    }
+
     private void AddPrinter_Click(object sender, RoutedEventArgs e)
     {
         if (Vm is { } vm) AddPrinterWindow.Open(this, vm);
@@ -262,7 +300,7 @@ public partial class MainWindow : Window
             {
                 e.Cancel = true;
                 if (Vm.Selected is { Scan: not null } sel && sel.Scan.HasUnsavedPages) sel.SelectedSection = PrinterViewModel.ScanSection;
-                else Vm.Selected = printers[0];
+                else Vm.ShowPrinter(printers[0]);
             }
         }
         base.OnClosing(e);

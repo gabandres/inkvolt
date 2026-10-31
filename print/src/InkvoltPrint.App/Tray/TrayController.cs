@@ -364,7 +364,7 @@ public sealed class TrayController : IDisposable
         ShowWindow();
         if (_vm.Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase)) is { } printer)
         {
-            _vm.Selected = printer;
+            _vm.ShowPrinter(printer);
             printer.SelectedSection = PrinterViewModel.OverviewSection;
         }
     }

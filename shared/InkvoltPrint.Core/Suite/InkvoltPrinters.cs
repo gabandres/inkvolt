@@ -3,7 +3,20 @@ using System.Text.Json;
 namespace InkvoltPrint.Core.Suite;
 
 /// <summary>A printer Inkvolt Print remembers (its <c>state.json</c>), as other Inkvolt apps see it.</summary>
-public sealed record InkvoltPrinter(string Uuid, string Name, string? Model, string Host, Uri? EsclRoot);
+public sealed record InkvoltPrinter(string Uuid, string Name, string? Model, string Host, Uri? EsclRoot)
+{
+    /// <summary>The IPP URL it answered on last.</summary>
+    public Uri? IppUri { get; init; }
+
+    /// <summary>Set for a printer added as SNMP-only: what it said about itself, which tells whether the device at its address is still it.</summary>
+    public Snmp.SnmpDevice? Snmp { get; init; }
+
+    /// <summary>Other UUIDs the user confirmed are this printer's ("This is my printer").</summary>
+    public IReadOnlyList<string> AcceptedUuids { get; init; } = [];
+
+    /// <summary>Its firmware version when last seen (the firmware watch's record).</summary>
+    public string? Firmware { get; init; }
+}
 
 /// <summary>
 /// Read-only view of Inkvolt Print's remembered printers and queue associations, for the other Inkvolt apps (Inkvolt PDF).
@@ -26,6 +39,12 @@ public sealed class InkvoltPrinters
 
     /// <summary>Printer UUID → Windows queue name Inkvolt Print created for it (printers added by address).</summary>
     public IReadOnlyDictionary<string, string> QueueNames { get; }
+
+    /// <summary>Ids the user removed from the printer list (queues, scanners, printers).</summary>
+    public IReadOnlyList<string> Forgotten { get; init; } = [];
+
+    /// <summary>The Pro key kept in the state file, when it couldn't be moved to the file both apps share (<see cref="ProKeyFile"/>).</summary>
+    public string? ProKey { get; init; }
 
     /// <summary>
     /// Reads <paramref name="path"/>, or by default Inkvolt Print's current state file wherever it is installed: unpackaged
@@ -61,20 +80,39 @@ public sealed class InkvoltPrinters
                     var host = Str(p, "Host");
                     if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(host)) continue;
                     var escl = Uri.TryCreate(Str(p, "EsclRoot"), UriKind.Absolute, out var u) && u.Scheme is "http" or "https" ? u : null;
-                    printers.Add(new InkvoltPrinter(uuid, Str(p, "Name") is { Length: > 0 } n ? n : host, Str(p, "Model"), host, escl));
+                    printers.Add(new InkvoltPrinter(uuid, Str(p, "Name") is { Length: > 0 } n ? n : host, Str(p, "Model"), host, escl)
+                    {
+                        IppUri = Uri.TryCreate(Str(p, "IppUri"), UriKind.Absolute, out var ipp) ? ipp : null,
+                        Snmp = p.TryGetProperty("Snmp", out var snmp) && snmp.ValueKind == JsonValueKind.Object
+                            ? new Snmp.SnmpDevice(Str(snmp, "SerialNumber"), Str(snmp, "Model"), Str(snmp, "SystemName")) : null,
+                        AcceptedUuids = Accepted(doc.RootElement, uuid),
+                        Firmware = doc.RootElement.TryGetProperty("Firmware", out var firmware) && firmware.ValueKind == JsonValueKind.Object
+                            && firmware.TryGetProperty(uuid, out var record) && record.ValueKind == JsonValueKind.Object ? Str(record, "Version") : null,
+                    });
                 }
             var queues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (doc.RootElement.TryGetProperty("QueueNames", out var map) && map.ValueKind == JsonValueKind.Object)
                 foreach (var kv in map.EnumerateObject())
                     if (kv.Value.ValueKind == JsonValueKind.String && kv.Value.GetString() is { Length: > 0 } q)
                         queues[kv.Name] = q;
-            return new InkvoltPrinters(printers, queues);
+            return new InkvoltPrinters(printers, queues)
+            {
+                Forgotten = Strings(doc.RootElement, "ForgottenUuids"),
+                ProKey = Str(doc.RootElement, "ProKey") is { Length: > 0 } key ? key : null,
+            };
         }
         catch (JsonException)
         {
             return Empty;
         }
     }
+
+    private static IReadOnlyList<string> Accepted(JsonElement root, string uuid) =>
+        root.TryGetProperty("AcceptedUuids", out var map) && map.ValueKind == JsonValueKind.Object ? Strings(map, uuid) : [];
+
+    private static IReadOnlyList<string> Strings(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array
+            ? v.EnumerateArray().Where(s => s.ValueKind == JsonValueKind.String).Select(s => s.GetString()!).ToList() : [];
 
     private static string? Str(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()?.Trim() : null;

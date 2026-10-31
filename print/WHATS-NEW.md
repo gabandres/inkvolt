@@ -7,6 +7,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Clean up scans: crop to the paper, whiten the background and remove specks, take the dots out of printed pictures, and restore faded colors. Turn each on for a scan or a preset, or per page in the review, and Undo puts it back.
 - Searchable PDFs now work in any language: Greek, Cyrillic, Arabic, Hebrew, Chinese, Japanese, Korean and more can be found in the hidden text. If you have several OCR languages installed, choose one under Text language.
+- Fleet: a new page, from the button at the top of the printer list, shows every printer at once with its state, ink or toner levels, page count, firmware and when it was last read, the ones in trouble first.
+- Fix it… now works on printers known only to Windows too (USB, shared from another PC): it finds a paused queue, Use Printer Offline and stuck jobs, and fixes them after asking. Resuming a queue and turning off Use Printer Offline now ask first on every printer, since waiting jobs start printing.
+- Inkvolt Pro (free for now): Export… on the Fleet page saves the list as a spreadsheet file or JSON, inkvoltprint status --all --json gives a script or a scheduled task the same list, and Fix all resumes paused queues and turns off Use Printer Offline everywhere, asking about each one.
 
 ## 1.1.0
 - Ink and toner history: Inkvolt Print keeps a reading a day on your PC and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).

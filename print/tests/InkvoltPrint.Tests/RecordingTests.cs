@@ -149,14 +149,14 @@ public sealed class RecordingTests : IDisposable
     private const string Serial = "CNB7K2M9QZ", Uuid = "9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f", Mac = "a0:b1:c2:d3:e4:f5";
 
     /// <summary>What a real printer's replies carry about it, its network and its people: none may survive a recording.</summary>
-    private static readonly string[] Planted =
+    internal static readonly string[] Planted =
     [
         Serial, Uuid, Mac, "A0B1C2D3E4F5", "A0-B1-C2-D3-E4-F5", PlantedHost, "10.20.30.41", "fe80::1c2b:3a4d:5e6f:7a8b", "2a02:810d:4b3f:1200",
         "NPI7A1B2C", "jdoe-printer", "corp.lan", "HPF0A1B2", "A1B2C3", "jane", "contoso", "jdoe", "JDOE-LAPTOP", "Tax return",
         "Second floor", "Garcia family", "12345678-1234-4abc-8def-123456789abc", "CNB0A00000", "VNB3R12345",
     ];
 
-    private static string Plant(string name, string text) => name switch
+    internal static string Plant(string name, string text) => name switch
     {
         "DevMgmt_ProductConfigDyn.xml" => text.Replace("12345678-1234-4abc-8def-123456789abc", Uuid).Replace("CNB0A00000", Serial)
             .Replace("<dd:DeviceLocation ></dd:DeviceLocation>", "<dd:DeviceLocation>Jane's office, second floor</dd:DeviceLocation>"),
@@ -172,7 +172,7 @@ public sealed class RecordingTests : IDisposable
         _ => text,
     };
 
-    private const string PlantedIpp = $"""
+    internal const string PlantedIpp = $"""
         printer-uri-supported uri ipp://{PlantedHost}:631/ipp/print
         printer-uri-supported uri ipps://[fe80::1c2b:3a4d:5e6f:7a8b]:631/ipp/print
         printer-uri-supported uri ipps://jdoe-printer.corp.lan:631/ipp/print
@@ -191,7 +191,7 @@ public sealed class RecordingTests : IDisposable
         operations-supported enum 11
         """;
 
-    private static string PlantedWalk()
+    internal static string PlantedWalk()
     {
         var walk = File.ReadAllText(Path.Combine(FixtureDir("snmp-demo"), "workgroup-laser.txt"));
         var keep = SnmpAgent.ParseWalk(walk).Where(o => !o.Name.ToString().StartsWith("1.3.6.1.2.1.1.", StringComparison.Ordinal)

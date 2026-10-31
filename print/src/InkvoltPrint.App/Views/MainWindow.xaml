@@ -246,6 +246,10 @@
                                             AutomationProperties.HelpText="Accept the device that now answers at this address as this printer, after a repair or reset gave it a new ID"
                                             Visibility="{Binding IsElsewhere, Converter={StaticResource VisibleWhen}}" />
                                 </StackPanel>
+                                <!-- A queue printer that answers but is paused or in trouble: Windows' side may be what's wrong -->
+                                <Button Content="Fix it…" Command="{Binding OpenFixerCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        AutomationProperties.Name="Fix printing problems"
+                                        Visibility="{Binding ShowQueueFix, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -1534,6 +1538,14 @@
                 <Image local:AppIcon.Size="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
                 <TextBlock x:Name="AppName" Text="Inkvolt Print" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
+            <!-- Every printer at once (roadmap 2.6) -->
+            <Button x:Name="FleetButton" DockPanel.Dock="Top" Click="Fleet_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8" Margin="0,0,0,12"
+                    AutomationProperties.Name="Fleet: every printer at once" ToolTip="Every printer's state, supplies, pages and firmware, most trouble first">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A9;" Margin="0,0,10,0" />
+                    <TextBlock Text="Fleet" />
+                </StackPanel>
+            </Button>
             <TextBlock DockPanel.Dock="Top" Text="Printers" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
             <!-- Add a printer that discovery can't see -->
@@ -1645,8 +1657,11 @@
                 </DockPanel>
             </Border>
             <Grid>
+                <!-- The Fleet page takes the printer's place -->
+                <views:FleetView x:Name="FleetPage" DataContext="{Binding Fleet}" Margin="32,24,16,0"
+                                 Visibility="{Binding DataContext.IsFleetShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            Visibility="{Binding ShowNoPrinterHint, Converter={StaticResource VisibleWhen}}">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="56" HorizontalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="Your printers will show up here" FontSize="16" Margin="0,12,0,0" HorizontalAlignment="Center" />
@@ -1654,7 +1669,7 @@
 
                 <!-- Hidden without a printer: a template applied to no printer would show its buttons, tabs and setup banner -->
                 <ContentControl x:Name="PrinterPane" Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
-                                Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
+                                Visibility="{Binding ShowPrinterPane, Converter={StaticResource VisibleWhen}}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>

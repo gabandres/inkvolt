@@ -16,6 +16,16 @@ public sealed record OfflineDevice(string Uuid, string Name, string? Model, stri
 
     /// <summary>Windows sees the printer's association endpoint, so its queue can be set up again by pairing (no admin).</summary>
     public bool CanPair { get; init; }
+
+    /// <summary>
+    /// A printer known only by its Windows queue (<see cref="StoredQueueName"/>): the fixer looks at the spooler and that queue,
+    /// by its exact name, with no network step and no port repair (it has no UUID or address to look for).
+    /// </summary>
+    public bool QueueOnly { get; init; }
+
+    /// <summary>The fixer's view of a printer known only by the Windows queue <paramref name="queue"/>.</summary>
+    public static OfflineDevice ForQueue(string queue, string name, string? model) =>
+        new(queue, name, model, null) { StoredQueueName = queue, QueueOnly = true };
 }
 
 public enum SpoolerState { Running, Stopped, Changing, Unknown }
@@ -178,6 +188,13 @@ public interface IOfflineProbes
 
     /// <summary>Every local print queue, with its port, state and jobs.</summary>
     Task<IReadOnlyList<QueueFacts>> QueuesAsync(CancellationToken ct);
+
+    /// <summary>
+    /// One queue by its exact name (Windows' names ignore case), a connection to another PC's shared printer included; null when
+    /// Windows no longer has it. Throws when it can't tell (a print server that's off, a spooler that doesn't answer).
+    /// </summary>
+    async Task<QueueFacts?> QueueAsync(string name, CancellationToken ct) =>
+        (await QueuesAsync(ct).ConfigureAwait(false)).FirstOrDefault(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase));
 }
 
 public enum CheckKind { Spooler, Network, Connection, Queues, QueueState }

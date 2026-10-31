@@ -84,8 +84,11 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
     private void ResetChecks()
     {
         Checks.Clear();
-        foreach (var kind in Enum.GetValues<CheckKind>()) Checks.Add(new FixerCheckViewModel(CheckResult.Waiting(kind)));
+        foreach (var kind in OfflineDiagnosis.StepsFor(_device())) Checks.Add(new FixerCheckViewModel(CheckResult.Waiting(kind)));
     }
+
+    /// <summary>A step's line, when this printer's diagnosis has it (a queue printer has no network steps).</summary>
+    private void Show(CheckResult r) => Checks.FirstOrDefault(c => c.Kind == r.Kind)?.Update(r);
 
     public async Task RunAsync()
     {
@@ -100,7 +103,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         ResetChecks();
         var progress = new Progress<CheckResult>(r =>
         {
-            if (!run.IsCancellationRequested) Checks[(int)r.Kind].Update(r);
+            if (!run.IsCancellationRequested) Show(r);
         });
         try
         {
@@ -109,7 +112,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
             if (run.IsCancellationRequested) return;
             // Progress<T> posts: let the last step's update land before the summary replaces "Checking…".
             await Task.Yield();
-            foreach (var c in report.Checks) Checks[(int)c.Kind].Update(c);
+            foreach (var c in report.Checks) Show(c);
             // The UUID mDNS answered for is public: two devices claiming it, or the old address still answering, means ask.
             if (report.Found is { } found && (report.Adoption == AdoptDecision.Adopt
                                               || report.Adoption == AdoptDecision.Ask && Prompt.Ask(report.AdoptionQuestion!, $"Use {found.Address}")))
@@ -280,7 +283,7 @@ public sealed partial class FixerRepairViewModel(Repair repair, OfflineFixerView
     /// <summary>Shown under the button: it will ask for administrator permission (unpackaged copies).</summary>
     public string? AdminNote => owner.CanElevate && Repair.AdminOnly && !Repair.ManualOnly
         ? "Windows asks for administrator permission."
-        : Repair.Kind is RepairKind.ResumeQueue or RepairKind.ClearWorkOffline && owner.CanElevate
+        : Repair.Kind is RepairKind.ResumeQueue or RepairKind.ClearWorkOffline && owner.CanElevate && !Repair.OnAnotherPc
             ? "May ask for administrator permission if you didn't set this printer up."
             : null;
 

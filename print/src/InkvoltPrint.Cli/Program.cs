@@ -22,6 +22,16 @@ switch (cmd)
     case "probe" when host is not null:
         await Probe(host);
         break;
+    case "status" when InkvoltPrint.Core.Fleet.FleetCommand.IsFor(args) && (host is null || host.StartsWith("--", StringComparison.Ordinal)):
+        {
+            // Every printer at once, as the app's own "status --all" (Inkvolt Pro).
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var pc = new InkvoltPrint.Windows.Fleet.WindowsFleetPc(local);
+            InkvoltPrint.Core.Pro.Store = pc.ProStore(local);
+            Environment.Exit(await InkvoltPrint.Core.Fleet.FleetCommand.RunAsync(args, Console.Out, Console.Error, pc, () => DateTimeOffset.Now,
+                InkvoltPrint.Core.Suite.Diagnostics.Identity.Current, ct));
+            break;
+        }
     case "status" when host is not null:
         await Status(host);
         break;
@@ -148,6 +158,7 @@ switch (cmd)
             inkvoltprint discover
             inkvoltprint probe <host>
             inkvoltprint status <host>
+            inkvoltprint status --all [--json] [--out file]   (read-only: every printer, most trouble first; Inkvolt Pro)
             inkvoltprint watch <host>                      (LEDM event long-poll; Ctrl+C to stop)
             inkvoltprint settings <host>                   (read-only)
             inkvoltprint spooler                           (read-only: spooler, Windows queues, ports, jobs)

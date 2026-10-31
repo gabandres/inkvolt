@@ -7,8 +7,7 @@ GlobalSign when probed); not yet confirmed that Acrobat trusts its timestamps. T
 certificate checks, the Mac's AI assistant). The folder index keeps a changed file's old text about 2 minutes until compaction: accepted
 for now, though just-redacted text lingers on the PC that long.
 
-**Released.** Inkvolt PDF 1.5.0.0: submitted to the Store on 2026-10-31 (`msstore submission status 9MXDTSFJ9W28`), GitHub release
-`pdf-v1.5.0.0`. When the Store publishes it, update the website and README's link as for 1.4.0. It holds the three below, with two
+**Released.** Inkvolt PDF 1.5.0.0: published in the Store on 2026-10-31, GitHub release `pdf-v1.5.0.0`, website updated. It holds the three below, with two
 pre-release reviews' fixes; each has its checks and limits in `pdf/ROADMAP.md`. The smoke test failed once on the Word step and passed on
 the same package when run again: the run started at 13:16 and failed at 13:53, past its 4-minute limit, so the PC most likely slept.
 The bench ran on battery: `text.pdf` scrolled at 54 fps, under the target and down from 75, which could be the battery; check on mains.
@@ -23,6 +22,17 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
 - 3.5 Folder search: 10,000 generated PDFs, a word in 3-114 ms, a changed file found in 3.4 s. Not checked: real PDFs at that scale, a
   hostile PDF, an MSIX install, network drives, OneDrive placeholders. One run took 569 s to index, not explained; a two-word phrase
   takes 3-4 s to list 500 pages.
+
+**Under way (owner's go, 2026-10-31).** Print wave 2, the three items no hardware is needed for, one branch each, not merged, pushed to
+origin as backups (they may be unfinished: each commit message says):
+- 2.6 Fleet page: `worktree-agent-aa5ca6a254c1712da`
+- 2.4 Batch print: `worktree-agent-aafc822e7ecd8b955`
+- 2.3 Scan cleanup and Unicode OCR layer: `worktree-agent-a7bfaa97044299e39`
+
+Resume: finish each against `print/ROADMAP.md`, run `dotnet test Inkvolt.slnx`, merge to master. Expect small conflicts in the docs and
+`SupplyHistoryCsv.cs`, which 2.6 and 2.4 both touched. Run a review for hostile input before any release, since the last two reviews found
+18 bugs in code whose tests passed. Then 2.1, 2.2 and 2.5, whose code and simulators can be done away from hardware, each needing a
+real printer or scanner to finish.
 
 **Next (Windows).** Print waves 2-3, Report a problem, WIA PDF-only scanners,
 TWAIN and black-and-white in Scan, 3.1, 2.1 leftovers, UX still-short items.

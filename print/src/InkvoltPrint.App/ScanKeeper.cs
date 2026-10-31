@@ -130,7 +130,7 @@ internal sealed class ScanKeeper : IDisposable
                 continue;
             }
             _pending.Remove(left);
-            _vm.Selected = target;
+            _vm.ShowPrinter(target);
             target.SelectedSection = PrinterViewModel.ScanSection;
             Log.Write($"Restored {pages.Count} unsaved scanned pages");
             // This run keeps its own copy first, so a crash right now still finds the pages; one that couldn't be written

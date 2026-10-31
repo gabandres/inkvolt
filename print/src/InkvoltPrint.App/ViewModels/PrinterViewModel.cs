@@ -78,9 +78,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// A printer known only by its Windows queue (USB, WSD, an older network printer, one shared from another PC): status from
-    /// <paramref name="source"/> (the spooler and driver), the print queue card, Print a PDF and Print photos through the queue.
-    /// No device connection, so no scanning, settings, maintenance or offline fixer. On the demo's made-up PC the queue is made
-    /// up and nothing is printed.
+    /// <paramref name="source"/> (the spooler and driver), the print queue card, Print a PDF and Print photos through the queue, and
+    /// the offline fixer on that queue. No device connection, so no scanning, settings or maintenance. On the demo's made-up PC the
+    /// queue is made up and nothing is printed.
     /// </summary>
     public PrinterViewModel(SpoolerQueue queue, IQueueStatusSource source, AppState state, ScanPresetLibrary presets,
         Action<PrinterViewModel> remember, PcEnvironment pc)
@@ -88,7 +88,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         _queueSource = source;
         WindowsQueue = queue;
-        Jobs.CanFix = false;
         Sync(About, new InfoRow?[]
         {
             new("Windows printer", queue.Name),
@@ -166,8 +165,40 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
     public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : ScannerDevice?.ConnectionText);
 
-    /// <summary>The offline fixer works on network printers (it finds them by their ID on the network).</summary>
-    public bool CanFix => IsNetworkPrinter;
+    /// <summary>The offline fixer: network printers (found by their ID on the network) and queue printers (their queue only); not a scanner on its own.</summary>
+    public bool CanFix => !IsScannerOnly;
+
+    /// <summary>A queue printer that answers but is paused or in trouble: the status card offers the fixer, which it otherwise does only offline.</summary>
+    public bool ShowQueueFix => IsQueuePrinter && IsOnline && StatusSeverity != Severity.Info;
+
+    // ---------------------------------------------------------------- what the Fleet page shows
+
+    private DateTimeOffset? _lastReading;
+    private int? _pages;
+
+    /// <summary>This printer as the Fleet page lists it, from what's on screen: nothing is read from it here. <paramref name="known"/>: the supply history's last word, for one that hasn't answered.</summary>
+    public Core.Fleet.FleetFacts FleetFacts(Core.Fleet.FleetLastKnown? known)
+    {
+        var live = Supplies.Select(s => s.Supply).ToList();
+        var waiting = !IsOnline && IsConnecting;
+        return new Core.Fleet.FleetFacts(Uuid, Name, IsScannerOnly ? Core.Fleet.FleetKind.Scanner : IsQueuePrinter ? Core.Fleet.FleetKind.Queue : Core.Fleet.FleetKind.Network)
+        {
+            Model = Model,
+            Connection = IsScannerOnly ? "Windows scanner" : WindowsQueue is { } q ? Core.Fleet.FleetReader.ConnectionWord(QueueKinds.Connection(q))
+                : _session.Connection is { } c ? string.Join(", ", c.Probe.Interfaces) : null,
+            Reachable = IsOnline || waiting,
+            Status = waiting ? PrinterStatus.Unavailable(StatusMessage) : new PrinterStatus("", StatusMessage, StatusSeverity, Alerts.ToList()),
+            Supplies = live.Count > 0 ? live : known?.Supplies ?? [],
+            Pages = _pages ?? known?.Pages,
+            Firmware = _state.GetFirmware(Uuid)?.Version,
+            LastReading = _lastReading,
+            LastReadingDay = _lastReading is null ? known?.Day : null,
+            LastKnown = !IsOnline && !waiting && (live.Count > 0 || known is not null || _pages is not null),
+        };
+    }
+
+    /// <summary>A printer's fixer view for Fix all: a queue printer's queue, a network printer's own (null: a scanner on its own has none).</summary>
+    public OfflineDevice? FleetFixDevice => IsScannerOnly ? null : FixerDevice();
 
     /// <summary>The Copy tab: always for network printers (it says when there's no scanner); for a queue printer once it has a scanner.</summary>
     public bool ShowCopy => IsNetworkPrinter || (IsQueuePrinter && Copy.HasScanner);
@@ -190,7 +221,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public OfflineFixerViewModel Fixer { get; }
 
     /// <summary>The printer as the fixer sees it: addresses it had, the queue Inkvolt Print knows, whether Windows can pair it.</summary>
-    private OfflineDevice FixerDevice() => new(Uuid, Name, Model, Host)
+    private OfflineDevice FixerDevice() => WindowsQueue is { } queue ? OfflineDevice.ForQueue(queue.Name, Name, Model) : new(Uuid, Name, Model, Host)
     {
         PreviousHosts = _previousHosts.ToList(),
         StoredQueueName = _state.GetQueueName(Uuid), // never set on the made-up PC: its queue lookup finds none
@@ -319,7 +350,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public partial bool IsConnecting { get; set; } = true;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(IsStale), nameof(StaleSuffix), nameof(ListStatus))]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(IsStale), nameof(StaleSuffix), nameof(ListStatus), nameof(ShowQueueFix))]
     public partial bool IsOnline { get; set; }
 
     [ObservableProperty]
@@ -336,7 +367,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool IsElsewhere { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(ListStatus))]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(ListStatus), nameof(ShowQueueFix))]
     public partial Severity StatusSeverity { get; set; } = Severity.Info;
 
     /// <summary>For the status dot: connecting, offline, ok, warning, error.</summary>
@@ -708,6 +739,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         IsConnecting = false;
         IsOnline = true;
+        _lastReading = DateTimeOffset.Now;
         StatusMessage = read.Status.Message;
         StatusDetail = read.Status.Detail;
         StatusSeverity = read.Status.Severity;
@@ -894,6 +926,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 StatusSeverity = Severity.Info;
                 StatusMessage = "Ready to scan";
                 StatusDetail = null;
+                _lastReading = DateTimeOffset.Now;
             }
         }
         catch (Exception ex) // any failure: this runs unobserved (fire and forget), and must not leave the scanner "connecting"
@@ -951,6 +984,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         IsConnecting = false;
         IsOnline = true;
+        _lastReading = DateTimeOffset.Now;
+        _pages = reading.Usage?.TotalImpressions ?? _pages;
         if (!status.IsUnavailable)
         {
             // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.

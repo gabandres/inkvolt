@@ -38,6 +38,7 @@ public static class PrintPalette
             list.Add(new("printer:remove", "Remove from Inkvolt Print…", category, "", "\uE74D"));
         }
         list.Add(new("app:add", "Add a printer…", "", "", "\uE710"));
+        list.Add(new("app:fleet", "Show the Fleet page (every printer)", "", "", "\uE8A9"));
         list.Add(new("app:search", "Search again for printers", "", "", "\uE72C"));
         list.Add(new("app:settings", "Settings", "", "", "\uE713"));
         list.Add(new("app:help", "Help and shortcuts", "", "F1", "\uE897"));

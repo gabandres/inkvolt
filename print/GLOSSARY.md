@@ -57,5 +57,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is
   off (the launch period).
+- **Fleet**: every entry of the printer list at once, most trouble first (`Core/Fleet`). **Trouble** is one ranking: error, warning, can't be
+  reached, not known yet, fine (`FleetTrouble`). **Last known**: what the supply history and the firmware watch kept of a printer that isn't
+  answering now.
+- **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
+  job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".

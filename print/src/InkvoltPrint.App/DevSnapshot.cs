@@ -171,6 +171,23 @@ internal static class DevSnapshot
             }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        // --fleet [fix]: the Fleet page; fix runs Fix all, answering yes (demo only); --fleet-export file writes its CSV or JSON.
+        if (args.Contains("--fleet") && window.DataContext is ViewModels.MainViewModel fleetMain)
+        {
+            window.ShowFleet();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            if (Value(args, "--fleet") == "fix" && fleetMain.Presets.IsDemo)
+            {
+                var ask = ViewModels.Prompt.Confirm;
+                ViewModels.Prompt.Confirm = (_, _) => true;
+                try { await fleetMain.Fleet.FixAllCommand.ExecuteAsync(null); }
+                finally { ViewModels.Prompt.Confirm = ask; }
+                await Task.Delay(TimeSpan.FromSeconds(6)); // the made-up queues' next read
+            }
+            if (Value(args, "--fleet-export") is { } fleetFile) await fleetMain.Fleet.WriteAsync(fleetFile);
+            fleetMain.Fleet.Refresh();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
         if (scrollToEnd && FindTabs(window) is { } shown)
         {
             foreach (var sv in Descendants<ScrollViewer>(shown)) sv.ScrollToEnd();
