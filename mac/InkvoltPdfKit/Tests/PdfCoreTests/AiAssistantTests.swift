@@ -395,11 +395,15 @@ struct AiLoopbackTests {
         })
         defer { server.stop() }
         let cancel = CancelToken()
-        let started = Date()
+        let stopped = AiRecorder<Date>()
         await #expect(throws: CancellationError.self) {
-            _ = try await Self.client(server).chat([.user("Q")], onText: { _ in cancel.cancel() }, cancel: cancel)
+            _ = try await Self.client(server).chat([.user("Q")], onText: { _ in
+                stopped.add(Date())
+                cancel.cancel()
+            }, cancel: cancel)
         }
-        #expect(Date().timeIntervalSince(started) < 5)
+        // From Stop, not from the start: under a full parallel run the connection itself can take seconds.
+        #expect(Date().timeIntervalSince(stopped.all[0]) < 5)
     }
 
     @Test func aQuietStreamIsGivenUp() async throws {
