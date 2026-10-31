@@ -11,9 +11,8 @@ may ship with UI nobody has seen; the list of what to look at is in `mac/docs/PL
 worker processes, PDF/A copies passing veraPDF, "Not fully checked". Mac: E5 Prepare Form, E6 Measure, E7 PDF/A-2b, 1.3
 accessibility checker, 2.4 Make Accessible with PDF/A-2a, E11 AI assistant.
 
-**Released.** Inkvolt PDF 1.4.0.0: submitted to the Store (Certification when work stopped), GitHub release
-`pdf-v1.4.0.0`. New Store listings live on both apps. Print has nothing new for users. After the Store publishes: the
-website's Windows `softwareVersion` for PDF goes to 1.4.0 (the daily task does it). Inkvolt PDF for Mac 1.4.0: published
+**Released.** Inkvolt PDF 1.4.0.0: published in the Store, GitHub release `pdf-v1.4.0.0`, website updated. New Store
+listings live on both apps. Print has nothing new for users. Inkvolt PDF for Mac 1.4.0: published
 (notarized DMG, appcast, GitHub release `pdf-mac-v1.4.0`, Homebrew tap, website), with Measure, Prepare Form, PDF/A, the
 checker, Make Accessible and the AI assistant, none of whose UI a person has seen.
 
