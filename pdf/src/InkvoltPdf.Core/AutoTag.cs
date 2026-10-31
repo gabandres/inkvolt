@@ -1,4 +1,5 @@
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
@@ -193,6 +194,10 @@ public static partial class AutoTag
         var pages = doc.Pages.Cast<PdfPage>().ToList();
         // Arrays too: an array shared (or in itself) is walked once, not once per path to it.
         var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
+        // Each page once: looking through every page for each tag took billions of looks on a file with many of both.
+        var pageOf = new Dictionary<PdfObjectID, int>();
+        for (var i = 0; i < pages.Count; i++)
+            if (pages[i].Reference is { } r) pageOf.TryAdd(r.ObjectID, i);
         var root = PdfObj.Dict(doc.Internals.Catalog.Elements["/StructTreeRoot"]);
         var roles = PdfObj.Dict(root?.Elements["/RoleMap"]);
         bool IsFigure(string? name)
@@ -219,7 +224,13 @@ public static partial class AutoTag
                     foreach (var x in a.Elements) Visit(x, depth + 1, inherited);
                     break;
                 case PdfDictionary d when seen.Add(d):
-                    var own = d.Elements.ContainsKey("/Pg") ? PdfObj.PageIndexOf(doc, d.Elements["/Pg"]) : -1;
+                    var own = d.Elements["/Pg"] switch
+                    {
+                        null => -1,
+                        PdfReference r => pageOf.GetValueOrDefault(r.ObjectID, -1),
+                        PdfDictionary => -1, // a page is never a direct object
+                        var number => PdfObj.PageIndexOf(doc, number),
+                    };
                     var p = own >= 0 ? own : inherited;
                     if (IsFigure(PdfObj.Name(d.Elements["/S"])) && PdfObj.Text(d.Elements["/Alt"]) is { Length: > 0 } alt && p >= 0)
                     {

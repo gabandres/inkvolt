@@ -12,11 +12,17 @@ public static partial class AccessibilityCheck
     /// <summary>Most findings listed per condition; the rest are counted in one more finding.</summary>
     private const int MaxPerCondition = 200;
 
+    /// <summary>Drawing steps in the whole document (minutes of work; a real file comes well under it): a file's pages can all draw the same long content.</summary>
+    private const long MaxDocumentOperators = 500_000_000;
+
     /// <summary>Checks the document. Nothing is changed.</summary>
     /// <param name="progress">(pages done, pages).</param>
     /// <exception cref="InvalidOperationException">The file can't be read as a PDF.</exception>
     /// <exception cref="PasswordRequiredException">The password is missing or wrong.</exception>
-    public static AccessibilityReport Run(byte[] data, string? password, IProgress<(int Done, int Total)>? progress = null, CancellationToken cancel = default)
+    public static AccessibilityReport Run(byte[] data, string? password, IProgress<(int Done, int Total)>? progress = null, CancellationToken cancel = default) =>
+        Run(data, password, progress, cancel, MaxDocumentOperators);
+
+    internal static AccessibilityReport Run(byte[] data, string? password, IProgress<(int Done, int Total)>? progress, CancellationToken cancel, long maxDocumentOperators)
     {
         if (PdfSecurity.NeedsOpenPassword(data) && string.IsNullOrEmpty(password)) throw new PasswordRequiredException(false);
         data = HybridXref.Normalize(data); // Word's files keep their tags where PDFsharp alone doesn't look
@@ -37,7 +43,7 @@ public static partial class AccessibilityCheck
         {
             try
             {
-                return new Checker(data, doc, progress, cancel).Run();
+                return new Checker(data, doc, progress, cancel, maxDocumentOperators).Run();
             }
             catch (Exception ex) when (Unreadable(ex))
             {
@@ -60,7 +66,7 @@ public static partial class AccessibilityCheck
     /// <summary>A language tag as RFC 3066 writes them ("en", "en-US", "zh-Hant-TW", "x-klingon"): what PDF/UA-1 asks of every Lang.</summary>
     internal static bool IsLanguage(string? s) => !string.IsNullOrEmpty(s) && s.Length <= 64 && LanguageTag().IsMatch(s);
 
-    private sealed partial class Checker(byte[] data, PdfDocument doc, IProgress<(int Done, int Total)>? progress, CancellationToken cancel)
+    private sealed partial class Checker(byte[] data, PdfDocument doc, IProgress<(int Done, int Total)>? progress, CancellationToken cancel, long maxDocumentOperators)
     {
         private readonly List<AccessibilityFinding> _findings = [];
         private readonly Dictionary<string, int> _dropped = [];
