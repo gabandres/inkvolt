@@ -13,7 +13,7 @@ extension PdfA.Pass {
                 let sub = f.name("Subtype") ?? ""
                 if sub == "Type3" || Self.isEmbedded(f.dict("FontDescriptor")) ||
                     sub == "Type0" && Self.isEmbedded(f.array("DescendantFonts")?[0]?.dict("FontDescriptor")) { continue }
-                if substitute(f) != nil { dr.remove(key) }
+                if Self.isDingbats(Self.fontName(f)) || substitute(f) != nil { dr.remove(key) }
             }
         }
         for font in used {
@@ -31,6 +31,11 @@ extension PdfA.Pass {
     }
 
     static func fontName(_ font: PObj) -> String { font.name("BaseFont") ?? "(unnamed)" }
+
+    private static func isDingbats(_ baseFont: String) -> Bool {
+        let c = Array(baseFont.utf8)
+        return c.count > 7 && c[6] == 0x2B ? String(baseFont.dropFirst(7)) == "ZapfDingbats" : baseFont == "ZapfDingbats"
+    }
 
     static func isEmbedded(_ descriptor: PObj?) -> Bool {
         guard let descriptor else { return false }
@@ -62,7 +67,8 @@ extension PdfA.Pass {
     private func substitute(_ font: PObj) -> String? {
         let subtype = font.name("Subtype")
         let name = font.name("BaseFont") ?? ""
-        let notEmbedded = "The font \(Self.fontName(font)) isn't embedded, and only the standard Helvetica, Times and Courier faces can be embedded here."
+        if Self.isDingbats(name) { return embedDingbats(font) }
+        let notEmbedded = "The font \(Self.fontName(font)) isn't embedded, and only the standard Helvetica, Times, Courier and ZapfDingbats faces can be embedded here."
         guard subtype == "Type1" || subtype == "TrueType" || subtype == "MMType1", let std = PdfA.standardFace(name) else { return notEmbedded }
         guard let ttf = std.metrics, let fileData = ttf.fileData else { return "The font \(Self.fontName(font)) isn't embedded, and the Mac's matching font isn't installed." }
 
@@ -139,6 +145,100 @@ extension PdfA.Pass {
             font.set("Encoding", doc.dict([("Type", doc.name("Encoding")), ("BaseEncoding", doc.name("WinAnsiEncoding")), ("Differences", differences)]))
         }
         noteEmbedded()
+        return nil
+    }
+
+    /// The Unicode value of a code in ZapfDingbats' built-in encoding (Adobe's zdingbat.txt), else 0.
+    static func dingbatUnicode(_ code: Int) -> UInt32 {
+        switch code {
+        case 0x25: 0x260E
+        case 0x2A: 0x261B
+        case 0x2B: 0x261E
+        case 0x48: 0x2605
+        case 0x6C: 0x25CF
+        case 0x6E: 0x25A0
+        case 0x73: 0x25B2
+        case 0x74: 0x25BC
+        case 0x75: 0x25C6
+        case 0x77: 0x25D7
+        case 0xA8: 0x2663
+        case 0xA9: 0x2666
+        case 0xAA: 0x2665
+        case 0xAB: 0x2660
+        case 0xD5: 0x2192
+        case 0xD6: 0x2194
+        case 0xD7: 0x2195
+        case 0xAC...0xB5: UInt32(0x2460 + code - 0xAC)
+        case 0x21...0x7E: UInt32(0x2700 + code - 0x20)
+        case 0xA1...0xFE where code != 0xF0: UInt32(0x26C0 + code)
+        default: 0
+        }
+    }
+
+    /// Embeds ZapfDingbats (a Fill & Sign mark, an Acrobat form's check box) from the ZapfDingbats.ttf macOS ships, which has
+    /// every symbol of the built-in encoding, at Adobe's widths, and whose embedding bits allow it (Windows has no such font
+    /// and uses Segoe UI Symbol). PDF/A accepts only the Adobe Glyph List's names in a TrueType font's differences and these
+    /// symbols aren't there, so the font is symbolic: no encoding, its codes in a (3,0) cmap, its text in a ToUnicode. Nil when
+    /// done, else why it can't be.
+    private func embedDingbats(_ font: PObj) -> String? {
+        let name = Self.fontName(font)
+        let subtype = font.name("Subtype")
+        if subtype != "Type1" && subtype != "TrueType" && subtype != "MMType1" || font.has("Encoding") {
+            return "The font \(name) isn't embedded, and it has an encoding of its own, so its symbols can't be matched."
+        }
+        guard let ttf = SystemFonts.get("ZapfDingbats.ttf"), let fileData = ttf.fileData else {
+            return "The font \(name) isn't embedded, and macOS's ZapfDingbats, which has its symbols, isn't installed."
+        }
+        guard TrueTypeSubset.allowsEmbedding(fileData) else {
+            return "The font \(name) isn't embedded, and macOS's ZapfDingbats doesn't allow embedding."
+        }
+        var unicodes = (0..<256).map { c -> UInt32 in
+            let u = Self.dingbatUnicode(c)
+            return u > 0 && ttf.has(u) ? u : 0
+        }
+        unicodes[0x20] = 0x20
+        if let own = font.array("Widths") {
+            let firstOwn = font.int("FirstChar") ?? 0
+            for i in 0..<own.count {
+                let code = firstOwn + i
+                let w = own.num(i)
+                if code < 0 || code > 255 || unicodes[code] == 0 || w <= 0 { continue }
+                if abs(w - ttf.advance(unicodes[code]) * 1000) > 20 {
+                    return "The font \(name) isn't embedded, and its symbols' widths differ from macOS's ZapfDingbats, so they would move."
+                }
+            }
+        }
+        let codes = (0..<256).filter { unicodes[$0] > 0 }
+        guard let program = TrueTypeSubset.subset(fileData, codes.map { (UInt32(0xF000 + $0), ttf.glyphOf(unicodes[$0])) }, symbolic: true),
+              let first = codes.first, let last = codes.last else {
+            return "The font \(name) isn't embedded, and macOS's ZapfDingbats couldn't be cut down to its symbols."
+        }
+        let file = doc.addStream(program, dict: doc.dict([("Length1", doc.int(program.count))]), deflate: true)
+        let baseFont = "\(Self.tag(name + codes.map(String.init).joined(separator: ",")))+ZapfDingbatsITC"
+        func em(_ units: Double) -> Double { (units * 1000 / ttf.unitsPerEm).rounded(.toNearestOrEven) }
+        let descriptor = doc.add(doc.dict([
+            ("Type", doc.name("FontDescriptor")),
+            ("FontName", doc.name(baseFont)),
+            ("Flags", doc.int(4)),
+            ("FontBBox", doc.reals(em(ttf.bbox[0]), em(ttf.bbox[1]), em(ttf.bbox[2]), em(ttf.bbox[3]))),
+            ("ItalicAngle", doc.int(0)),
+            ("Ascent", doc.int(Int((ttf.ascent * 1000).rounded(.toNearestOrEven)))),
+            ("Descent", doc.int(Int((ttf.descent * 1000).rounded(.toNearestOrEven)))),
+            ("CapHeight", doc.int(Int((ttf.ascent * 1000 * 0.9).rounded(.toNearestOrEven)))),
+            ("StemV", doc.int(80)),
+            ("FontFile2", file),
+        ]))
+        let widths = doc.array((first...last).map { c in doc.int(unicodes[c] > 0 ? Int((ttf.advance(unicodes[c]) * 1000).rounded(.toNearestOrEven)) : 0) })
+        var text: [Int: String] = [:]
+        for c in codes { if let u = Unicode.Scalar(unicodes[c]) { text[c] = String(Character(u)) } }
+        font.set("Subtype", doc.name("TrueType"))
+        font.set("BaseFont", doc.name(baseFont))
+        font.set("FirstChar", doc.int(first))
+        font.set("LastChar", doc.int(last))
+        font.set("Widths", widths)
+        font.set("FontDescriptor", descriptor)
+        font.set("ToUnicode", doc.addStream(FontUnicode.cmap(text, 1), deflate: true))
+        noteDingbats()
         return nil
     }
 

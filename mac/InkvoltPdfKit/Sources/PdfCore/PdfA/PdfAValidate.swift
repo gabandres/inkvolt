@@ -16,6 +16,7 @@ extension PdfA {
             return problems + ["The file can't be read: \(error)"]
         }
         if doc.hasEncrypt { problems.append("It is encrypted.") }
+        if LongNames.present(doc, pdf) { problems.append("A name is longer than the 127 bytes PDF/A allows.") }
         if (doc.trailer.array("ID")?[0]?.bytes ?? []).isEmpty { problems.append("The trailer has no file identifier (/ID).") }
         let catalog = doc.catalog
         if conformance == .a {
@@ -62,6 +63,7 @@ extension PdfA {
             for key in d.keys where key != "Parent" && key != "P" {
                 if let v = d[key], v.isDict || v.isArray { stack.append(v) }
             }
+            if d.identity != catalog.identity && d.has("Metadata") { problems.append("Something other than the document has metadata of its own.") }
             problems += objectProblems(d)
         }
         for page in (try? doc.pages()) ?? [] {
