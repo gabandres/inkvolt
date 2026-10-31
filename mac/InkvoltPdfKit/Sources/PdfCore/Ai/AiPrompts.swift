@@ -220,17 +220,19 @@ public enum AiPrompts {
         if whole > room {
             trimmed = true
             let wanted = words((turns.map(\.question) + [question]).joined(separator: " "))
-            let scored = all.enumerated().map { (index: $0.offset, chunk: $0.element, score: score($0.element.text, wanted)) }
-                .sorted { $0.score != $1.score ? $0.score > $1.score : $0.index < $1.index }
-            var picked: [(chunk: AiChunk, index: Int)] = []
+            let scores: [Double] = all.map { score($0.text, wanted) }
+            let order: [Int] = all.indices.sorted { a, b in
+                scores[a] != scores[b] ? scores[a] > scores[b] : a < b
+            }
+            var picked: [Int] = []
             var size = 0
-            for x in scored {
-                let tokens = AiText.estimateTokens(x.chunk.text) + 1
+            for i in order {
+                let tokens = AiText.estimateTokens(all[i].text) + 1
                 if size + tokens > room { continue }
-                picked.append((x.chunk, x.index))
+                picked.append(i)
                 size += tokens
             }
-            chosen = picked.sorted { $0.index < $1.index }.map(\.chunk) // back in reading order
+            chosen = picked.sorted().map { all[$0] } // back in reading order
         }
 
         let included = Array(Set(chosen.flatMap { Array($0.firstPage...$0.lastPage) })).sorted()
