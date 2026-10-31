@@ -231,6 +231,7 @@ public static partial class AccessibilityCheck
         {
             var xfa = PdfObj.Resolve(PdfObj.Dict(_catalog.Elements["/AcroForm"])?.Elements["/XFA"]);
             var parts = new List<byte[]>();
+            var read = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance); // each stream once, however often it is listed
             switch (xfa)
             {
                 case PdfDictionary { Stream: not null } s:
@@ -238,14 +239,21 @@ public static partial class AccessibilityCheck
                     break;
                 case PdfArray a:
                     for (var i = 1; i < a.Elements.Count; i += 2)
-                        if (PdfObj.Dict(a.Elements[i]) is { Stream: not null } s2) parts.Add(PdfObj.StreamBytes(s2));
+                        if (PdfObj.Dict(a.Elements[i]) is { Stream: not null } s2 && read.Add(s2)) parts.Add(PdfObj.StreamBytes(s2));
                     break;
                 default:
                     return;
             }
             var text = string.Concat(parts.Select(Encoding.UTF8.GetString));
-            if (Regex.IsMatch(text, @"<dynamicRender[^>]*>\s*required\s*</dynamicRender\s*>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2)))
-                Add("25-001", "The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use.");
+            try
+            {
+                if (Regex.IsMatch(text, @"<dynamicRender[^>]*>\s*required\s*</dynamicRender\s*>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2)))
+                    Add("25-001", "The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use.");
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                _notes.Add("The file's XFA form took too long to read, so whether it is dynamic wasn't checked.");
+            }
         }
 
         private void Outlines()
