@@ -9,11 +9,12 @@ import PdfCore
 /// document's text. A file that can't be opened is reported as such. With `--quit` the app quits once every document
 /// is done.
 ///
-/// Editing (`--edit`): after the reader's checks, `PdfATest` and `AccessibleTest` on the synthetic text document (`--only-pdfa` and
-/// `--only-accessible` run them alone), then each document goes through `EditTest` (every comment tool through the
+/// Editing (`--edit`): after the reader's checks, `AccessibleTest` on the synthetic text document (`--only-accessible` runs it
+/// alone), then each document goes through `EditTest` (every comment tool through the
 /// page view's own mouse and key handling, the inspector, the comments list, undo and redo, Save As and Save into a
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
-/// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), then `PagesTest` (links,
+/// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), `PdfATest` on the synthetic
+/// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
 /// runs it alone), and on the synthetic text document `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `SignTest` and
@@ -141,10 +142,6 @@ enum Report {
             } else if edits {
                 let openedFrom = controller.pdf.fileURL?.path
                 if openedFrom != nil && openedFrom == syntheticPath {
-                    // First, while the document is as made: the edits after it add a Fill & Sign check mark, whose
-                    // ZapfDingbats a PDF/A copy refuses (as on Windows).
-                    var pdfa = PdfATest(controller: controller, name: name)
-                    await pdfa.run()
                     var accessible = AccessibleTest(controller: controller, name: name)
                     await accessible.run()
                 }
@@ -154,6 +151,11 @@ enum Report {
                 }
                 var features = FeatureTest(controller: controller, name: name, openedFrom: openedFrom)
                 await features.run()
+                if openedFrom != nil && openedFrom == syntheticPath {
+                    // After FeatureTest, so the copy has its Fill & Sign marks (ZapfDingbats) to embed.
+                    var pdfa = PdfATest(controller: controller, name: name)
+                    await pdfa.run()
+                }
                 if openedFrom != syntheticFormPath {
                     var pagesTest = PagesTest(controller: controller, name: name, openedFrom: openedFrom)
                     await pagesTest.run()

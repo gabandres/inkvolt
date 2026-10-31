@@ -162,6 +162,32 @@ struct ContentEditorTests {
         #expect(ContentEditPdf.content(edited).contains("72 692 Td")) // the rest of the content is kept as written
     }
 
+    /// A text layer as Windows writes it since its OCR's %f line: comment lines the Mac doesn't read yet (E14).
+    private static let windowsLayer = "%InkvoltOCR 1 es-MX\n%f 0 0 0 612 792\n%w 1 72 600 40 12 0 6472616674\nq BT 3 Tr /FA 12 Tf 72 600 Td (draft) Tj ET Q"
+
+    @Test func aWindowsTextLayersCommentLinesStayWhenTextIsEdited() throws {
+        let pdf = ContentEditPdf.make("BT /FA 20 Tf 72 692 Td (Hello World) Tj ET\n" + Self.windowsLayer + "\nBT /FA 12 Tf 72 500 Td (after) Tj ET")
+        let edited = try ContentEditor.replaceText(pdf, nil, run(pdf, "Hello World"), "Hello Word")
+        let content = ContentEditPdf.content(edited)
+        #expect(content.contains(Self.windowsLayer)) // to the byte
+        #expect(try run(edited, "Hello Word").text == "Hello Word")
+        #expect(try run(edited, "draft").text == "draft")
+        // Editing the words after the layer; the layer's own word is refused, as invisible text.
+        let later = try ContentEditor.replaceText(edited, nil, run(edited, "after"), "later")
+        #expect(ContentEditPdf.content(later).contains("%InkvoltOCR 1 es-MX\n%f 0 0 0 612 792\n%w 1 72 600 40 12 0 6472616674\n"))
+        #expect(try run(later, "later").text == "later")
+        let layerWord = try run(later, "draft")
+        #expect(editError { try ContentEditor.replaceText(later, nil, layerWord, "drat") }?.message.contains("invisible") == true)
+    }
+
+    @Test func aWindowsTextLayersCommentLinesStayWhenTheDocumentIsTagged() throws {
+        let pdf = ContentEditPdf.make("BT /FA 20 Tf 72 692 Td (Hello World) Tj ET\n" + Self.windowsLayer)
+        let tagged = try AutoTag.write(pdf, nil, TagTest.plan(pdf), AccessibleOptions(title: "Layer", language: "en"))
+        let content = ContentEditPdf.content(tagged)
+        #expect(content.contains("%InkvoltOCR 1 es-MX\n%f 0 0 0 612 792\n%w 1 72 600 40 12 0 6472616674\n"))
+        #expect(try !AccessibilityCheck.run(tagged, nil).failedConditions.contains("01-005")) // nothing swallowed by a comment
+    }
+
     @Test func unchangedTextReturnsTheSameBytes() throws {
         let pdf = ContentEditPdf.make(Self.simple)
         #expect(try ContentEditor.replaceText(pdf, nil, run(pdf, "Hello World"), "Hello World") == pdf)
