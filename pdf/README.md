@@ -821,7 +821,10 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - PDF/A: levels 2b and 2a (2a keeps tags a document has: Make Accessible adds them); not 1 or 3. Fonts that aren't embedded are
   embedded only for the standard Latin faces, in their style (bold, italic), and only when the document's widths are
   that face's (other designs under a similar name, such as Helvetica Neue or condensed faces, refuse); ZapfDingbats is
-  embedded from Segoe UI Symbol, unless it has an encoding or widths of its own; Symbol and other
+  embedded from Segoe UI Symbol, whose embedding permission (OS/2 fsType 8, editable embedding) allows it, unless it has an
+  encoding or widths of its own. The font has all 201 of its symbols on Windows 11 (checked against the file, and every
+  code drawn and compared). On a PC without the font, or with one that lacks any of the symbols, the conversion refuses and
+  says so rather than drawing a blank. Symbol and other
   fonts refuse the conversion, as do CMYK colors without a profile (the copy's output intent is sRGB) and signed
   documents. A form field without an appearance of its own refuses it too; comments without one are left out. Inkvolt
   PDF checks the rules it handles (Validate); it isn't a full validator: the copies made from the test documents (Word,

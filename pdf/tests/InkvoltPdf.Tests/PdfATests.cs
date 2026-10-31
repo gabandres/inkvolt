@@ -380,7 +380,7 @@ public class PdfATests
     public void EveryZapfDingbatsCodeIsCovered()
     {
         // Every symbol in the built-in encoding draws, in a string a form might use (no code falls back to nothing).
-        var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
+        var all = string.Concat(Enumerable.Range(0x21, 0x5E).Concat(Enumerable.Range(0x80, 14)).Concat(Enumerable.Range(0xA1, 0x5E).Where(c => c != 0xF0)).Select(c => $"\\{System.Convert.ToString(c, 8).PadLeft(3, '0')}"));
         var pdf = Core2Pdf.Build(
         [
             "<< /Type /Catalog /Pages 2 0 R >>",
@@ -393,7 +393,7 @@ public class PdfATests
         Assert.Empty(PdfA.Validate(result.Data));
         using var engine = PdfEngine.Open(result.Data, InputFileTypes.PDF, null);
         var text = engine.GetText(0).Text;
-        foreach (var symbol in new[] { "\u2714", "\u2718", "\u2605", "\u25CF", "\u25A0", "\u25C6", "\u2460", "\u2192", "\u27BE" }) Assert.Contains(symbol, text);
+        foreach (var symbol in new[] { "\u2714", "\u2718", "\u2605", "\u25CF", "\u25A0", "\u25C6", "\u2460", "\u2192", "\u27BE", "\u2768", "\u2775" }) Assert.Contains(symbol, text);
     }
 
     [Fact]
@@ -429,7 +429,6 @@ public class PdfATests
         Assert.Equal(PdfA.DingbatsCount, drawn.Count);
         Assert.Empty(drawn.Where(c => !Ink(after, c)).Select(c => $"0x{c:X2}"));
         Assert.Empty(codes.Except(drawn).Where(c => c != 0x20 && Ink(after, c)).Select(c => $"0x{c:X2}")); // and nothing where the original shows nothing
-        foreach (var (e, tag) in new[] { (before, "a"), (after, "b") }) foreach (var c in Enumerable.Concat(Enumerable.Range(0x7E, 16), Enumerable.Range(0xAC, 3))) { var im = e.Render(c, 1); var bpp = im.Pixels.Length / (im.Width * im.Height); var o = new System.Text.StringBuilder(); using var f = File.Create(Path.Combine(Path.GetTempPath(), $"dingb_{tag}_{c:X2}.pgm")); var h = System.Text.Encoding.ASCII.GetBytes($"P5 {im.Width} {im.Height} 255 "); f.Write(h); for (var i = 1; i < im.Pixels.Length; i += bpp) f.WriteByte(im.Pixels[i]); }
     }
 
     [Fact]
