@@ -23,7 +23,8 @@ namespace InkvoltPrint.App.Tray;
 /// network), with the same read-only status calls as the window. Whichever reads a printer, the window or these checks,
 /// feeds the <see cref="AlertTracker"/>, whose alerts go out as toast notifications, one per printer with Open printer and
 /// Pause alerts buttons (<see cref="ToastAlerts"/>), or where those aren't available as the icon's balloons; clicking one
-/// opens that printer.
+/// opens that printer. With job alerts on, each printer's Windows queue is also read every minute (a local call, the window
+/// open or not) and your own job's failure or stuck state is told once, with Open the queue.
 /// </summary>
 public sealed class TrayController : IDisposable
 {
@@ -40,7 +41,7 @@ public sealed class TrayController : IDisposable
     private bool _toastsTried;
     private CancellationTokenSource? _poll, _wake;
     private string? _noticeUuid, _savedShown;
-    private bool _hidden, _powerEvents, _alertsOn;
+    private bool _hidden, _powerEvents, _alertsOn, _readingJobs;
 
     public TrayController(Application app, MainViewModel vm, AppState state, PcEnvironment pc)
     {
@@ -91,6 +92,7 @@ public sealed class TrayController : IDisposable
         Enabled = _settings.Alerts,
         LowPercent = _settings.LowPercent,
         Offline = _settings.OfflineAlerts,
+        Jobs = _settings.JobAlerts,
         Quiet = _settings.QuietHours ? new QuietHours(new TimeOnly(_settings.QuietFrom, 0), new TimeOnly(_settings.QuietTo, 0)) : null,
     };
 
@@ -139,8 +141,9 @@ public sealed class TrayController : IDisposable
 
     private void ResetTracker()
     {
-        _tracker = new AlertTracker(Rules()) { PausedUntil = _settings.PausedUntil };
-        _settings.Shown.Clear();
+        // A job told about stays told: "one notification per job" holds across alerts being turned off and on.
+        _tracker = new AlertTracker(Rules(), _tracker.ShownJobs()) { PausedUntil = _settings.PausedUntil };
+        _settings.Shown = _tracker.Shown().ToDictionary(kv => kv.Key, kv => kv.Value.ToList(), StringComparer.OrdinalIgnoreCase);
         _savedShown = ShownText();
     }
 
@@ -205,6 +208,42 @@ public sealed class TrayController : IDisposable
             Changed?.Invoke();
         }
         Show(_tracker.Release(DateTimeOffset.Now)); // quiet hours over
+        _ = ReadJobQueuesAsync();
+    }
+
+    private bool JobsOn => _settings is { Enabled: true, Alerts: true, JobAlerts: true };
+
+    /// <summary>Each printer's queue, one read at a time. A queue that can't be read is skipped: that says nothing about its jobs.</summary>
+    private async Task ReadJobQueuesAsync()
+    {
+        if (!JobsOn || _readingJobs) return;
+        _readingJobs = true;
+        try
+        {
+            foreach (var p in _vm.Printers.ToList())
+            {
+                Core.Alerts.JobQueueState? queue;
+                try { queue = await p.ReadJobQueueAsync(); }
+                catch (Exception ex)
+                {
+                    Log.Write($"Job queue not read: {ex.Message}");
+                    continue;
+                }
+                if (!JobsOn || !_vm.Printers.Contains(p)) continue; // turned off, or the printer removed, while reading
+                Show(_tracker.ObserveJobs(p.Uuid, p.Name, queue, JobOwner.Current, DateTimeOffset.Now));
+            }
+            // A job's wait ran out while the checks sleep: read the printer now, so "ready" is what it says now.
+            var now = DateTimeOffset.Now;
+            if (_hidden && _vm.Printers.Any(p => _schedule.TryGetValue(p.Uuid, out var s) && PendingDue(p.Uuid, s.Checked, now))) _wake?.Cancel();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Job alerts: {ex.GetType().Name}"); // never the message: it could quote what it was working on
+        }
+        finally
+        {
+            _readingJobs = false;
+        }
     }
 
     private void Show(IReadOnlyList<AlertNotice> notices)
@@ -245,6 +284,9 @@ public sealed class TrayController : IDisposable
         {
             case (ToastAction.OpenPrinter, var uuid):
                 OpenPrinter(uuid);
+                break;
+            case (ToastAction.OpenQueue, var uuid):
+                OpenPrinter(uuid); // the queue card is on its Overview
                 break;
             case (ToastAction.PauseAlerts, _):
                 Pause(AlertToasts.PauseFor);
@@ -298,6 +340,23 @@ public sealed class TrayController : IDisposable
             notices.AddRange(_tracker.Observe(new PrinterSnapshot(inkjet.Uuid, inkjet.Name, true, jam, supplies), now));
         }
         Show(notices); // read at the same moment: a toast per printer, or one balloon for both
+    }
+
+    /// <summary>Demo mode (snapshot aid <c>--simulate-jobs</c>): job alerts on, every made-up queue read twice two minutes apart, through the same rules as real reads.</summary>
+    public async Task SimulateJobsAsync()
+    {
+        if (!IsDemo) return;
+        _settings.JobAlerts = true;
+        _tracker.Rules = Rules();
+        var now = DateTimeOffset.Now;
+        var notices = new List<AlertNotice>();
+        foreach (var p in _vm.Printers.ToList())
+        {
+            var queue = await p.ReadJobQueueAsync();
+            _tracker.ObserveJobs(p.Uuid, p.Name, queue, JobOwner.Current, now.AddMinutes(-2));
+            notices.AddRange(_tracker.ObserveJobs(p.Uuid, p.Name, queue, JobOwner.Current, now));
+        }
+        Show(notices);
     }
 
     // ---------------------------------------------------------------- pause

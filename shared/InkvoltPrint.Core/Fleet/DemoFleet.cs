@@ -15,6 +15,22 @@ namespace InkvoltPrint.Core.Fleet;
 /// </summary>
 public static class DemoFleet
 {
+    /// <summary>The queue card's made-up jobs: yours printing and waiting, someone else's behind them.</summary>
+    public static List<Printing.QueueJob> CardJobs(string me, DateTime now) =>
+    [
+        new(11, "Quarterly report.pdf", 12, 3, Printing.JobStatus.Printing, now.AddMinutes(-2), me),
+        new(12, "Shipping label.pdf", 1, 0, Printing.JobStatus.None, now.AddMinutes(-1), me),
+        new(13, "Team schedule.docx", 2, 0, Printing.JobStatus.None, now.AddSeconds(-40), "alex"),
+    ];
+
+    /// <summary>The job stuck in the office laser's queue, which the offline fixer finds.</summary>
+    public static Printing.QueueJob OfficeStuckJob(string me, DateTime now) =>
+        new(21, "Invoice 1043.pdf", 2, 0, Printing.JobStatus.Error | Printing.JobStatus.Printing, now.AddMinutes(-14), me);
+
+    /// <summary>The job stuck in the shared Front desk queue.</summary>
+    public static Printing.QueueJob FrontDeskStuckJob(string me, DateTime now) =>
+        new(31, "Visitor list.pdf", 1, 0, Printing.JobStatus.Error, now.AddMinutes(-40), me);
+
     public const string LaserUuid = "12345678-1234-4abc-8def-123456789abc"; // the fixtures' (fake) UUID
     public const string InkjetUuid = "2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"; // Fixtures/inkjet-demo (made up)
     public const string OfficeUuid = "3c9a7e51-8d2b-4f60-a1e4-5b7c9d0e2f13"; // made up

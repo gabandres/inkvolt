@@ -116,12 +116,14 @@ internal static class Winspool
         Enumerate<PortInfo2>((buf, cb, out needed, out count) => EnumPorts(null, 2, buf, cb, out needed, out count))
             .Where(p => p.pPortName is not null).Select(p => new PortInfo(p.pPortName!, p.pMonitorName, p.pDescription)).ToList();
 
-    public static IReadOnlyList<QueueJob> Jobs(string printer)
+    /// <param name="printer">The queue's name.</param>
+    /// <param name="timeNotKnown">What a job gets for a submit time the spooler gives as nonsense; null: now.</param>
+    public static IReadOnlyList<QueueJob> Jobs(string printer, DateTime? timeNotKnown = null)
     {
         using var h = Open(printer, PrinterAccessUse) ?? throw new Win32Exception(Marshal.GetLastWin32Error());
         return Enumerate<JobInfo1>((buf, cb, out needed, out count) => EnumJobs(h, 0, 1000, 1, buf, cb, out needed, out count))
             .Select(j => new QueueJob((int)j.JobId, j.pDocument ?? "", (int)j.TotalPages, (int)j.PagesPrinted, (JobStatus)(int)j.Status,
-                j.Submitted.ToLocal(), j.pUserName ?? ""))
+                j.Submitted.ToLocal(timeNotKnown), j.pUserName ?? "") { Machine = j.pMachineName })
             .ToList();
     }
 
@@ -263,10 +265,10 @@ internal static class Winspool
         public ushort Year, Month, DayOfWeek, Day, Hour, Minute, Second, Milliseconds;
 
         /// <summary>The spooler reports submission times in UTC.</summary>
-        public readonly DateTime ToLocal()
+        public readonly DateTime ToLocal(DateTime? notKnown = null)
         {
             try { return new DateTime(Year, Month, Day, Hour, Minute, Second, Milliseconds, DateTimeKind.Utc).ToLocalTime(); }
-            catch (ArgumentOutOfRangeException) { return DateTime.Now; }
+            catch (ArgumentOutOfRangeException) { return notKnown ?? DateTime.Now; }
         }
     }
 

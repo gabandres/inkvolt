@@ -102,6 +102,12 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
         set => Set(S.OfflineAlerts, value, v => S.OfflineAlerts = v);
     }
 
+    public bool JobAlerts
+    {
+        get => S.JobAlerts;
+        set => Set(S.JobAlerts, value, v => S.JobAlerts = v);
+    }
+
     public bool QuietHours
     {
         get => S.QuietHours;

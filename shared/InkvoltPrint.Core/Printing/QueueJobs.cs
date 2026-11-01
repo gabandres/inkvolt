@@ -24,7 +24,11 @@ public enum JobStatus
 }
 
 /// <summary>One job in a printer's Windows queue, as the spooler reports it. <see cref="Pages"/> is 0 while it's still spooling.</summary>
-public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, JobStatus Status, DateTime Submitted, string Owner);
+public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, JobStatus Status, DateTime Submitted, string Owner)
+{
+    /// <summary>The PC it was printed from, where the reader gets it; null: not known.</summary>
+    public string? Machine { get; init; }
+}
 
 /// <summary>What the print queue card shows for a job: plain words for the spooler's status bits, pages, time, owner.</summary>
 public static class QueueJobText

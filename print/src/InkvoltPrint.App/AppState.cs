@@ -391,6 +391,10 @@ public sealed class TraySettings
     public bool Alerts { get; set; } = true;
     public int LowPercent { get; set; } = 15;
     public bool OfflineAlerts { get; set; } = true;
+
+    /// <summary>Tell me when my own print job fails or gets stuck (roadmap 3.4). Off by default; only with <see cref="Alerts"/> on.</summary>
+    public bool JobAlerts { get; set; }
+
     public bool QuietHours { get; set; }
 
     /// <summary>Quiet hours, whole hours of the local clock (22 → 7).</summary>
@@ -411,7 +415,7 @@ public sealed class TraySettings
     public void ResetPreferences()
     {
         var d = new TraySettings();
-        (Enabled, Alerts, LowPercent, OfflineAlerts) = (d.Enabled, d.Alerts, d.LowPercent, d.OfflineAlerts);
+        (Enabled, Alerts, LowPercent, OfflineAlerts, JobAlerts) = (d.Enabled, d.Alerts, d.LowPercent, d.OfflineAlerts, d.JobAlerts);
         (QuietHours, QuietFrom, QuietTo, PausedUntil) = (d.QuietHours, d.QuietFrom, d.QuietTo, d.PausedUntil);
     }
 

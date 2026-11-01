@@ -200,6 +200,8 @@ public partial class App : Application
                 twoSided: args.Contains("--two-sided"));
         if (args.Contains("--simulate-alerts") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
+        if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))
+            _ = DevSnapshot.SimulateJobsAsync(Tray);
         if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
                 scans: !args.Contains("--scan") ? 0 : int.TryParse(args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,

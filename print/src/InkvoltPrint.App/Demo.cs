@@ -78,6 +78,7 @@ internal static class Demo
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => Demo.PrintJobs;
+        public override IJobQueueReader JobQueue(string uuid, Func<Core.Queues.SpoolerQueue?> listed, Func<Task<string?>> findQueue) => new DemoJobQueue(uuid, listed);
         public override Action<string, int>? MadeUpPrint => Demo.PrintJobs.Add;
         public override Core.Printing.IBatchQueue BatchQueue(string uuid, Func<Task<string?>> findQueue) => new DemoBatchQueue(Demo.PhotoQueue(uuid).Options);
         public override ViewModels.DemoPhotoQueue? PhotoQueue(string uuid) => Demo.PhotoQueue(uuid);
@@ -602,6 +603,15 @@ internal sealed class DemoBatchQueue(PhotoQueueOptions options) : Core.Printing.
     }
 }
 
+/// <summary>What job alerts read on the made-up PC: the card's queue for the first demo printer, the fixer's queues for the others.</summary>
+internal sealed class DemoJobQueue(string uuid, Func<Core.Queues.SpoolerQueue?> listed) : IJobQueueReader
+{
+    public Task<Core.Alerts.JobQueueState?> ReadAsync() => Task.FromResult(
+        string.Equals(uuid, Core.Fleet.DemoFleet.LaserUuid, StringComparison.OrdinalIgnoreCase)
+            ? new Core.Alerts.JobQueueState(false, false, Demo.PrintJobs.Current())
+            : Demo.OfflinePc.JobQueue(uuid, listed()?.Name));
+}
+
 internal sealed class DemoPrintJobs : IPrintJobs
 {
     private readonly object _lock = new();
@@ -610,14 +620,13 @@ internal sealed class DemoPrintJobs : IPrintJobs
 
     public DemoPrintJobs()
     {
-        var now = DateTime.Now;
-        var me = Environment.UserName;
-        _jobs =
-        [
-            new(11, "Quarterly report.pdf", 12, 3, JobStatus.Printing, now.AddMinutes(-2), me),
-            new(12, "Shipping label.pdf", 1, 0, JobStatus.None, now.AddMinutes(-1), me),
-            new(13, "Team schedule.docx", 2, 0, JobStatus.None, now.AddSeconds(-40), "alex"),
-        ];
+        _jobs = Core.Fleet.DemoFleet.CardJobs(Environment.UserName, DateTime.Now);
+    }
+
+    /// <summary>The list as it stands, without moving it on as the card's read does.</summary>
+    public IReadOnlyList<QueueJob> Current()
+    {
+        lock (_lock) return _jobs.ToList();
     }
 
     /// <summary>A job "printed" by the demo printer (copies, the Copy tab), queued behind the others.</summary>

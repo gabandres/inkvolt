@@ -237,6 +237,11 @@ internal static class DevSnapshot
             trayController.Simulate();
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
+        if (args.Contains("--simulate-jobs") && trayController is not null)
+        {
+            await trayController.SimulateJobsAsync();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
         if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
@@ -413,6 +418,13 @@ internal static class DevSnapshot
         tray?.Simulate();
     }
 
+    /// <summary><c>--demo --tray --simulate-jobs</c> without a snapshot: the real notification for the made-up stuck jobs.</summary>
+    public static async Task SimulateJobsAsync(Tray.TrayController? tray)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        if (tray is not null) await tray.SimulateJobsAsync();
+    }
+
     /// <summary>The tray's menu, alert or settings rendered to <paramref name="path"/>; false for an unknown name.</summary>
     private static async Task<bool> TrayShotAsync(Tray.TrayController tray, string what, string path)
     {
@@ -491,12 +503,41 @@ internal static class DevSnapshot
             Environment.Exit(0);
         }) { IsBackground = true, Name = "Snapshot exit" }.Start();
 
+    /// <summary>The job toasts from the very XML Windows would be given (texts, attribution, buttons), each laid out like a notification.</summary>
+    private static FrameworkElement JobToastPreview(IReadOnlyList<Core.Alerts.AlertNotice> notices)
+    {
+        var column = new StackPanel { Margin = new Thickness(12) };
+        foreach (var toast in Core.Alerts.AlertToasts.PerPrinter(notices))
+        {
+            var xml = System.Xml.Linq.XDocument.Parse(Core.Alerts.AlertToasts.Xml(toast)).Root!;
+            var texts = xml.Element("visual")!.Element("binding")!.Elements("text").ToList();
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock { Text = "Inkvolt Print", FontSize = 12, Margin = new Thickness(0, 0, 0, 10) });
+            stack.Children.Add(new TextBlock { Text = texts[0].Value, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            stack.Children.Add(new TextBlock { Text = texts[1].Value, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            stack.Children.Add(new TextBlock { Text = texts[2].Value, FontSize = 12, Opacity = 0.7, Margin = new Thickness(0, 4, 0, 10) });
+            var buttons = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1 };
+            foreach (var action in xml.Element("actions")!.Elements("action"))
+                buttons.Children.Add(new Button { Content = action.Attribute("content")!.Value, Margin = new Thickness(2) });
+            stack.Children.Add(buttons);
+            var card = new Border { Width = 364, Padding = new Thickness(16), CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Child = stack, Margin = new Thickness(0, 0, 0, 8) };
+            card.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+            card.SetResourceReference(TextElement.ForegroundProperty, "TextFillColorPrimaryBrush");
+            column.Children.Add(card);
+        }
+        var outer = new Border { Child = column };
+        outer.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        return outer;
+    }
+
     /// <summary>
     /// The last alert laid out like a Windows notification (app name, badge icon, title, text). Windows draws the real one,
     /// which a window snapshot can't capture; this shows what it will say.
     /// </summary>
     private static FrameworkElement AlertPreview(Tray.TrayController tray)
     {
+        if (tray.LastNotices.Any(n => n.JobKey is not null)) return JobToastPreview(tray.LastNotices);
         var (title, text) = tray.LastNotices.Count > 0 ? Tray.TrayController.NoticeText(tray.LastNotices) : ("(no alert yet)", "Run with --simulate-alerts.");
         var level = tray.LastNotices.Count > 0 ? tray.LastNotices.Max(n => n.Level) : Core.Alerts.AlertLevel.Ok;
         var badge = level switch

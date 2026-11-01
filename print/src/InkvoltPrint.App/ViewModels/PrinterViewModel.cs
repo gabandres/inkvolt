@@ -65,6 +65,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids));
         Print = new PrintViewModel(FindQueueAsync, state) { Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state) };
         Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
+        _jobQueue = pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync);
         Copy = new CopyViewModel(FindQueueAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
         Photos = new PhotosViewModel(FindQueueAsync, state, pc.PhotoQueue(uuid));
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
@@ -459,6 +460,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>Each status read (or failure to reach the printer): the tray's alerts (Tray/TrayController) follow these.</summary>
     public event Action<PrinterSnapshot>? Observed;
+
+    private readonly Printing.IJobQueueReader _jobQueue;
+
+    /// <summary>This printer's Windows queue as job alerts read it (Tray/TrayController); null when it has none. Throws when it can't be read.</summary>
+    public Task<JobQueueState?> ReadJobQueueAsync() => IsScannerOnly ? Task.FromResult<JobQueueState?>(null) : _jobQueue.ReadAsync();
 
     /// <summary>The last of those reads, for a listener that comes later.</summary>
     public PrinterSnapshot? LastSnapshot { get; private set; }

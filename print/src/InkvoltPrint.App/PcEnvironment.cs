@@ -94,6 +94,9 @@ public abstract class PcEnvironment
     /// <summary>A printer's print queue as a list of jobs (the queue card).</summary>
     public abstract IPrintJobs PrintJobs(Func<Task<string?>> findQueue);
 
+    /// <summary>A printer's queue as job alerts read it (<paramref name="listed"/>: the queue it's known by, if any).</summary>
+    public abstract IJobQueueReader JobQueue(string uuid, Func<SpoolerQueue?> listed, Func<Task<string?>> findQueue);
+
     /// <summary>Where copies and preset scans "print" instead of a Windows queue (job name, sheets): the made-up queue; null: the Windows queue.</summary>
     public abstract Action<string, int>? MadeUpPrint { get; }
 
@@ -177,6 +180,7 @@ public abstract class PcEnvironment
 
         protected override IQueueStatusSource SpoolerStatus(SpoolerQueue q) => new SpoolerStatusSource(q);
         public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => new WindowsPrintJobs(findQueue);
+        public override IJobQueueReader JobQueue(string uuid, Func<SpoolerQueue?> listed, Func<Task<string?>> findQueue) => new WindowsJobQueueReader(findQueue);
         public override Action<string, int>? MadeUpPrint => null;
         public override Core.Printing.IBatchQueue BatchQueue(string uuid, Func<Task<string?>> findQueue) => new WindowsBatchQueue(findQueue);
         public override DemoPhotoQueue? PhotoQueue(string uuid) => null;
