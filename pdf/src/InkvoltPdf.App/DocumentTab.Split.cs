@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using InkvoltPdf.App.Viewer;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
@@ -24,6 +25,10 @@ public partial class DocumentTab
     private PageViewer? _second;
     private RenderScheduler? _secondScheduler;
     private bool _secondActive;
+    /// <summary>Another document the second pane shows beside this one (a translated copy's original): it scrolls with the main pane and takes no edits.</summary>
+    private PdfEngine? _beside;
+    private PageViewer? _moving;
+    private System.Windows.FrameworkElement? _mainCaption, _secondCaption;
 
     public SplitMode Split { get; private set; }
 
@@ -39,7 +44,7 @@ public partial class DocumentTab
         // Every engine the main pane gets (an edit, undo, layers shown or hidden) goes to the second pane too.
         Viewer.EngineChanged += (_, contentOnly) =>
         {
-            if (_second is not null && _secondScheduler is not null && Viewer.Engine is { } engine)
+            if (_beside is null && _second is not null && _secondScheduler is not null && Viewer.Engine is { } engine)
             {
                 _secondScheduler.Clear();
                 _second.SetEngine(engine, _secondScheduler, keepPosition: true, contentOnly: contentOnly);
@@ -56,6 +61,80 @@ public partial class DocumentTab
         };
         CloseSplitButton.Click += (_, _) => SetSplit(SplitMode.None);
         CloseSplitButton.ToolTip = Cmd.Tip("Close the split", Cmd.RemoveSplit);
+        Viewer.ScrollChanged += (_, e) =>
+        {
+            if (_second is { } other) Follow(Viewer, other, e);
+        };
+        Viewer.ZoomChanged += (_, _) =>
+        {
+            if (_beside is not null && _second is { } other) FollowZoom(Viewer, other);
+        };
+    }
+
+    /// <summary>
+    /// Shows another document beside this one in the second pane, on the left, and keeps the two at the same place and
+    /// zoom (they have the same pages). The pane owns <paramref name="other"/>; closing the split closes it.
+    /// </summary>
+    public void ShowBeside(PdfEngine other, string otherName)
+    {
+        if (_disposed)
+        {
+            other.Dispose();
+            return;
+        }
+        SetSplit(SplitMode.None);
+        _beside = other;
+        SetSplit(SplitMode.SideBySide);
+        _mainCaption = PaneCaption("Translated");
+        _secondCaption = PaneCaption("Original");
+        _secondCaption.ToolTip = otherName;
+        SplitHost.Children.Add(_mainCaption);
+        SecondPaneHost.Children.Add(_secondCaption);
+        ApplySplitLayout();
+    }
+
+    private static System.Windows.FrameworkElement PaneCaption(string text)
+    {
+        var label = new TextBlock { Text = text, FontWeight = FontWeights.SemiBold };
+        var box = new Border
+        {
+            Child = label,
+            Padding = new Thickness(8, 2, 8, 3),
+            CornerRadius = new CornerRadius(4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(8, 8, 0, 0),
+            IsHitTestVisible = false,
+        };
+        Panel.SetZIndex(box, 2);
+        box.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorQuarternaryBrush");
+        return box;
+    }
+
+    /// <summary>One pane moved: the other goes to the same place. Its own scroll event, a moment later, isn't followed back.</summary>
+    private void Follow(PageViewer from, PageViewer to, ScrollChangedEventArgs e)
+    {
+        if (_beside is null || !ReferenceEquals(e.OriginalSource, from) || (e.VerticalChange == 0 && e.HorizontalChange == 0) || ReferenceEquals(_moving, from)) return;
+        _moving = to;
+        var (page, x, y) = from.ViewCorner();
+        to.ShowCorner(page, x, y);
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            if (ReferenceEquals(_moving, to)) _moving = null;
+        });
+    }
+
+    private void FollowZoom(PageViewer from, PageViewer to)
+    {
+        if (ReferenceEquals(_moving, from)) return;
+        if (from.ZoomMode == to.ZoomMode && Math.Abs(from.Zoom - to.Zoom) < 0.001) return;
+        _moving = to;
+        if (from.ZoomMode == ZoomMode.Custom) to.SetZoom(from.Zoom);
+        else to.SetZoomMode(from.ZoomMode);
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            if (ReferenceEquals(_moving, to)) _moving = null;
+        });
     }
 
     /// <summary>Splits the view (or changes how), or closes the split with <see cref="SplitMode.None"/>.</summary>
@@ -76,7 +155,7 @@ public partial class DocumentTab
         if (opening) OpenSecondPane();
         Split = mode;
         ApplySplitLayout();
-        if (opening)
+        if (opening && _beside is null)
         {
             // The new pane starts where the main pane is, so it can be moved on from there.
             var page = Viewer.CurrentPage;
@@ -118,7 +197,12 @@ public partial class DocumentTab
         second.SetViewRotation(Viewer.ViewRotation);
         if (Viewer.ZoomMode == ZoomMode.Custom) second.SetZoom(Viewer.Zoom);
         else second.SetZoomMode(Viewer.ZoomMode);
-        second.SetEngine(Viewer.Engine ?? Session.Engine, _secondScheduler, keepPosition: false);
+        second.SetEngine(_beside ?? Viewer.Engine ?? Session.Engine, _secondScheduler, keepPosition: false);
+        second.ScrollChanged += (_, e) => Follow(second, Viewer, e);
+        second.ZoomChanged += (_, _) =>
+        {
+            if (_beside is not null) FollowZoom(second, Viewer);
+        };
 
         second.CurrentPageChanged += (_, _) =>
         {
@@ -169,6 +253,7 @@ public partial class DocumentTab
         _secondScheduler?.Dispose();
         _secondScheduler = null;
         _secondActive = false;
+        CloseBeside();
         UpdatePaneFrames();
         SyncThumbSelection();
         if (hadFocus) Viewer.Focus();
@@ -185,6 +270,8 @@ public partial class DocumentTab
 
         var split = Split != SplitMode.None && _second is not null;
         SecondPaneFrame.Visibility = PaneSplitter.Visibility = split ? Visibility.Visible : Visibility.Collapsed;
+        // The other document, when there is one, comes first (left or above).
+        var (firstFrame, lastFrame) = _beside is null ? (MainPaneFrame, SecondPaneFrame) : (SecondPaneFrame, MainPaneFrame);
         if (!split)
         {
             Place(MainPaneFrame, 0, 0, 3, 3);
@@ -193,9 +280,9 @@ public partial class DocumentTab
         }
         if (Split == SplitMode.TopAndBottom)
         {
-            Place(MainPaneFrame, 0, 0, 1, 3);
+            Place(firstFrame, 0, 0, 1, 3);
             Place(PaneSplitter, 1, 0, 1, 3);
-            Place(SecondPaneFrame, 2, 0, 1, 3);
+            Place(lastFrame, 2, 0, 1, 3);
             PaneSplitter.Height = 6;
             PaneSplitter.Width = double.NaN;
             PaneSplitter.ResizeDirection = GridResizeDirection.Rows;
@@ -203,15 +290,16 @@ public partial class DocumentTab
         }
         else
         {
-            Place(MainPaneFrame, 0, 0, 3, 1);
+            Place(firstFrame, 0, 0, 3, 1);
             Place(PaneSplitter, 0, 1, 3, 1);
-            Place(SecondPaneFrame, 0, 2, 3, 1);
+            Place(lastFrame, 0, 2, 3, 1);
             PaneSplitter.Width = 6;
             PaneSplitter.Height = double.NaN;
             PaneSplitter.ResizeDirection = GridResizeDirection.Columns;
             PaneSplitter.Cursor = Cursors.SizeWE;
         }
         UpdatePaneFrames();
+        if (_mainCaption is not null) Place(_mainCaption, Grid.GetRow(MainPaneFrame), Grid.GetColumn(MainPaneFrame), Grid.GetRowSpan(MainPaneFrame), Grid.GetColumnSpan(MainPaneFrame));
 
         static void Place(UIElement e, int row, int col, int rowSpan, int colSpan)
         {
@@ -258,6 +346,19 @@ public partial class DocumentTab
     {
         _secondScheduler?.Dispose();
         _secondScheduler = null;
+        CloseBeside();
+    }
+
+    /// <summary>Lets go of the other document. Off the UI thread: it waits for a page still rendering.</summary>
+    private void CloseBeside()
+    {
+        if (_mainCaption is not null) SplitHost.Children.Remove(_mainCaption);
+        if (_secondCaption is not null) SecondPaneHost.Children.Remove(_secondCaption);
+        _mainCaption = _secondCaption = null;
+        _moving = null;
+        if (_beside is not { } other) return;
+        _beside = null;
+        _ = Task.Run(other.Dispose);
     }
 
     internal string DevSplitState() =>

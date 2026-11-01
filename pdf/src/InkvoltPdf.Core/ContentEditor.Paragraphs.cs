@@ -166,11 +166,15 @@ public static partial class ContentEditor
     private static List<PStack> Stacks(List<PLine> lines)
     {
         var stacks = new List<PStack>();
+        // Lines come top to bottom, so a stack whose last line is far above this one takes no more: a crafted page's
+        // many thousand lines don't each try every earlier one.
+        var open = new List<PStack>();
         foreach (var line in lines.OrderBy(l => l.Baseline).ThenBy(l => l.Box.X))
         {
             PStack? best = null;
             var bestGap = double.MaxValue;
-            foreach (var s in stacks)
+            open.RemoveAll(s => line.Baseline - s.Lines[^1].Baseline > 6 * Math.Max(s.Lines[^1].Size, line.Size));
+            foreach (var s in open)
             {
                 if (Joins(s, line) is not { } gap || gap >= bestGap) continue;
                 best = s;
@@ -178,7 +182,9 @@ public static partial class ContentEditor
             }
             if (best is null)
             {
-                stacks.Add(new PStack(line));
+                var added = new PStack(line);
+                stacks.Add(added);
+                open.Add(added);
                 continue;
             }
             var (l, c, r) = Fits(best, line);
@@ -329,7 +335,9 @@ public static partial class ContentEditor
         return table;
     }
 
-    private static TextParagraph Paragraph(PageContent content, List<PLine> lines)
+    /// <param name="translating">For a translated copy (see <c>ContentEditor.Translate.cs</c>): every run of it goes and new text takes its place in
+    /// its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, and a hanging first line stays where it hangs.</param>
+    private static TextParagraph Paragraph(PageContent content, List<PLine> lines, bool translating = false)
     {
         var first = lines[0];
         var size = first.Size;
@@ -340,7 +348,7 @@ public static partial class ContentEditor
         var right = lines.Max(l => l.Box.Right);
         var lefts = rest.All(l => Math.Abs(l.Box.X - left) <= tol);
         var indent = n > 1 && lefts ? first.Box.X - left : 0;
-        if (indent < 0.5 * size) indent = 0;
+        if (indent < 0.5 * size && !(translating && indent < -0.5 * size)) indent = 0;
         var flushLeft = lefts && (indent > 0 || Math.Abs(first.Box.X - left) <= tol);
         var center = lines.Average(l => l.Box.CenterX);
         var centers = lines.All(l => Math.Abs(l.Box.CenterX - center) <= tol);
@@ -362,14 +370,14 @@ public static partial class ContentEditor
         // Its own look: the font most of it is in (a bold or italic word in another face of the family is a stretch
         // with a look of its own); else (an edit gave all of it another look) its first run's.
         var own = PlainRun(runs);
-        if (blocked is null && runs.Any(r => !SameLook(own, r)))
+        if (blocked is null && !translating && runs.Any(r => !SameLook(own, r)))
             blocked = "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only";
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = "part of it can't be read for editing";
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
             blocked = "part of it is inside a form XObject (a drawing the page reuses) and part outside, and a paragraph is rewritten in one piece of content only";
         // Rewrapping lays words out left to right, so right-to-left text would come out in the wrong order.
-        if (blocked is null && runs.Any(r => TrueTypeFont.CodePoints(r.Text).Any(c => Bidi.Classify(c) is Bidi.Cls.R or Bidi.Cls.AL)))
+        if (blocked is null && !translating && runs.Any(r => TrueTypeFont.CodePoints(r.Text).Any(c => Bidi.Classify(c) is Bidi.Cls.R or Bidi.Cls.AL)))
             blocked = "it is written right to left, and this version rewraps left-to-right text only";
 
         var text = new StringBuilder();
@@ -407,7 +415,10 @@ public static partial class ContentEditor
             // On a line: its middle inside the line's height, across from the line or right after its end (a mark after the last word).
             if (!lines.Any(l => cy > l.Box.Y && cy < l.Box.Bottom && r.Box.Right > l.Box.X && r.Box.X < l.Box.Right + 0.3 * l.Size)) continue;
             if (r.Text.Trim().Length > 0)
+            {
+                if (translating) continue;
                 blocked ??= "it has other text inside it (a raised mark, a symbol or words in another font), and this version rewrites a paragraph in one font only";
+            }
             else if (r.Info is not null && Math.Abs(r.Angle) < 0.5) spaces.Add(r);
         }
         // The line step as the paragraph's own: bigger text an edit gave part of it widened the steps around it.
@@ -416,7 +427,7 @@ public static partial class ContentEditor
 
         // What follows below: the nearest other text or picture across the paragraph's width.
         RectD? below = null;
-        foreach (var b in content.Runs.Where(r => !mine.Contains(r) && r.Text.Trim().Length > 0).Select(r => r.Box).Concat(content.Images.Select(i => i.Box)))
+        foreach (var b in translating ? Enumerable.Empty<RectD>() : content.Runs.Where(r => !mine.Contains(r) && r.Text.Trim().Length > 0).Select(r => r.Box).Concat(content.Images.Select(i => i.Box)))
         {
             if (b.Y < box.Bottom - 1 || b.Right <= box.X + 1 || b.X >= box.Right - 1) continue;
             if (below is null || b.Y < below.Value.Y) below = b;
@@ -426,7 +437,7 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = SpansOf(plain, at),
+            Spans = translating ? [] : SpansOf(plain, at),
             Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
@@ -453,14 +464,18 @@ public static partial class ContentEditor
     /// paragraph has one, else an installed font for another family, bold or italic; another size (a line with bigger
     /// text moves down as far as it needs); another color.
     /// </summary>
-    internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null)
+    /// <param name="fit">For a translated copy: the text's size against the paragraph's own; it always wraps, wherever it can (<see cref="FitLines"/>), in one font (<see cref="MixedText"/>). Null: as typed in the editor.</param>
+    internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null, double? fit = null)
     {
         var anchor = Anchor(runs);
         var plain = PlainRun(runs);
         var font = plain.Font!;
         var m = plain with { };
         m.WordSpacing = 0; // the lines are written with Tw 0 (justification goes into adjustments)
-        var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)));
+        var shrink = fit ?? 1;
+        m.Size *= shrink;
+        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink);
+        var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)), oneFace: fit is not null);
         if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
         double W(List<Part> parts) => parts.Count == 0 ? 0 : m.Width(parts) * m.Scale;
@@ -469,7 +484,8 @@ public static partial class ContentEditor
         var cur = new List<Part>();
         var spaceEnds = new List<int>(); // the index of each word space's last part in cur
         List<Part>? space = null;
-        for (var pos = 0; pos <= text.Length;)
+        if (fit is not null) lines = FitLines(p, enc, text, W);
+        else for (var pos = 0; pos <= text.Length;)
         {
             if (pos == text.Length || text[pos] == '\n')
             {
@@ -521,7 +537,7 @@ public static partial class ContentEditor
             var (parts, spaces, last) = lines[i];
             // A line with bigger text sits lower: the step to it grows with its biggest text, the step after it with its depth.
             var s = Math.Max(1, parts.Where(q => q.Code is not null || q.StandIn is not null).Select(q => q.Look?.Scale ?? 1).DefaultIfEmpty(1).Max());
-            baseline = i == 0 ? p.Box.Y + p.Ascent * s : baseline + p.LineStep * (Rise * scale + (1 - Rise) * s);
+            baseline = i == 0 ? p.Box.Y + p.Ascent * shrink * s : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
             scale = s;
             var w = W(parts);
             var x0 = p.Left + (i == 0 ? p.FirstIndent : 0);
@@ -548,7 +564,7 @@ public static partial class ContentEditor
             maxRight = Math.Max(maxRight, x + w);
             minLeft = Math.Min(minLeft, x);
         }
-        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + p.Descent * scale;
+        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + p.Descent * shrink * scale;
         var box = RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1));
         RectD? overlaps = p.Below is { } b && box.Bottom > b.Y + 0.5 && b.Right > box.X && b.X < box.Right ? b : null;
         var problem = enc.Colored && anchor.Info?.FillOp is null
@@ -631,7 +647,8 @@ public static partial class ContentEditor
         /// <summary>A look asks for another color.</summary>
         public bool Colored;
 
-        public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks)
+        /// <param name="oneFace">When the font lacks any character, the whole text, its spaces too, is drawn from one installed font, not a letter here and there: a translation shares few letters with the subset a page's font holds.</param>
+        public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks, bool oneFace = false)
         {
             _p = p;
             _font = font;
@@ -655,6 +672,7 @@ public static partial class ContentEditor
                 if (!lacking.TryGetValue(pageFont, out var list)) lacking[pageFont] = list = [];
                 if (!list.Contains(el)) list.Add(el);
             }
+            if (oneFace && lacking.Count > 0) lacking = new() { [font] = [.. Elements(0, text.Length).Select(e => e.Element).Where(e => e != "\n").Distinct()] };
             foreach (var (pageFont, els) in lacking)
             {
                 var standIns = _standIns[pageFont] = StandInFonts.For(pageFont, [.. els.SelectMany(TrueTypeFont.CodePoints).Distinct()]);

@@ -244,6 +244,7 @@ public static class Cmd
     public static readonly RoutedUICommand AiSummarize = Make("_Summarize with AI…", nameof(AiSummarize));
     public static readonly RoutedUICommand AiAsk = Make("_Ask AI about This Document", nameof(AiAsk));
     public static readonly RoutedUICommand AiExplain = Make("E_xplain Selection with AI", nameof(AiExplain));
+    public static readonly RoutedUICommand AiTranslate = Make("_Translate with AI…", nameof(AiTranslate));
     public static readonly RoutedUICommand AiSettings = Make("AI Assistant _Settings…", nameof(AiSettings));
 
     // Read Aloud (Ctrl+Shift+Y, as in Acrobat)

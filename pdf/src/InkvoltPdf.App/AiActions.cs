@@ -421,6 +421,29 @@ public static class AiActions
         return dlg.ShowModal() ? pages : null;
     }
 
+    /// <summary>Review › AI Assistant › Translate: into what, and which pages. Null when cancelled.</summary>
+    public static (string Language, string? Tag, int[] Pages)? AskTranslate(Window owner, DocumentTab tab)
+    {
+        var s = AppSettings.Current;
+        var dlg = new FormDialog(owner, "Translate with AI", "Next", 480);
+        dlg.AddNote("Makes a translated copy that opens beside this document and scrolls with it. This document isn't changed.");
+        var names = Translation.Languages.Select(l => l.Name).ToList();
+        var language = dlg.Add("Into", new ComboBox { IsEditable = true, ItemsSource = names, Text = s.AiTranslateLanguage });
+        AutomationProperties.SetName(language, "Translate into");
+        AutomationProperties.SetHelpText(language, "Pick a language, or type one the model knows");
+        var range = dlg.AddRange(tab, "Pages to translate", preferSelection: tab.SelectedPages.Length > 1);
+        if (tab.SelectedPages.Length <= 1) range.SelectAll();
+        dlg.AddNote("Next shows exactly what will be sent before anything is. A long document goes one paragraph at a time, and a local model can take a while: you can stop whenever you like and keep what's done.");
+        int[] pages = [];
+        dlg.Validate(() => language.Text.Trim().Length == 0 ? "Choose the language to translate into."
+            : range.TryGet(out pages, out var error) ? null : error);
+        if (!dlg.ShowModal()) return null;
+        var chosen = language.Text.Trim();
+        s.AiTranslateLanguage = chosen;
+        s.Save();
+        return (chosen, Translation.Languages.FirstOrDefault(l => l.Name.Equals(chosen, StringComparison.OrdinalIgnoreCase))?.Tag, pages);
+    }
+
     /// <summary>Speaks <paramref name="message"/> through <paramref name="target"/> (a polite live region).</summary>
     public static void Announce(FrameworkElement target, string message)
     {

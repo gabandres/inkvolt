@@ -592,6 +592,21 @@ public sealed partial class PageViewer : ScrollViewer
         ScrollToVerticalOffset(r.Y + a.Ypt * k - a.ViewY);
     }
 
+    /// <summary>Where the view's top-left corner is: a page and a place on it in points (for a document scrolling beside another).</summary>
+    internal (int Page, double X, double Y) ViewCorner()
+    {
+        var a = CaptureAnchor(new Point(0, 0));
+        return (a.Page, a.Xpt, a.Ypt);
+    }
+
+    /// <summary>Scrolls so the view's top-left corner is at that place (see <see cref="ViewCorner"/>).</summary>
+    internal void ShowCorner(int page, double x, double y)
+    {
+        if (_engine is null || page < 0 || page >= PageCount) return;
+        if (_layout == ViewLayout.SinglePage && page != _currentPage) GoToPage(page, record: false);
+        RestoreAnchor(new Anchor(page, x, y, 0, 0));
+    }
+
     // ───────────────────────────── Navigation ─────────────────────────────
 
     /// <summary>Scrolls to a page (optionally to a y position in points). Records history for Back/Forward.</summary>
