@@ -23,22 +23,27 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
   hostile PDF, an MSIX install, network drives, OneDrive placeholders. One run took 569 s to index, not explained; a two-word phrase
   takes 3-4 s to list 500 pages.
 
-**Under way (owner's go, 2026-10-31).** Print wave 2, the three items no hardware is needed for, one branch each, not merged, pushed to
-origin as backups (they may be unfinished: each commit message says):
-- 2.6 Fleet page: `worktree-agent-aa5ca6a254c1712da`
-- 2.4 Batch print: `worktree-agent-aafc822e7ecd8b955`
-- 2.3 Scan cleanup and Unicode OCR layer: `worktree-agent-a7bfaa97044299e39`
+**Print wave 2 on master, not released.** 2.6 Fleet page, 2.4 Batch print, 2.3 Scan cleanup and Unicode OCR layer. Each has its checks and
+limits in `print/ROADMAP.md`.
 
-Resume: finish each against `print/ROADMAP.md`, run `dotnet test Inkvolt.slnx`, merge to master. Expect small conflicts in the docs and
-`SupplyHistoryCsv.cs`, which 2.6 and 2.4 both touched. Run a review for hostile input before any release, since the last two reviews found
-18 bugs in code whose tests passed. Then 2.1, 2.2 and 2.5, whose code and simulators can be done away from hardware, each needing a
-real printer or scanner to finish.
+**Hold on any Print release** until both clear:
+- The Qualcomm driver crash on exit (`qcdx11arm64xum.dll`, after batch-drawing PDFs) is explained.
+- Batch print has printed on a real queue. Its steps have only been run in the demo and in tests.
 
-**Next (Windows).** Print waves 2-3, Report a problem, WIA PDF-only scanners,
-TWAIN and black-and-white in Scan, 3.1, 2.1 leftovers, UX still-short items.
+Open on 2.3: `es-faded` got worse with cleanup, 2.7 % to 3.0 % missed (accepted, the roadmap states it). Cyrillic and Japanese OCR weren't
+measured, since those languages aren't installed here. Decisions made on 2.6 and 2.4: Fix all only resumes and turns off Use Printer
+Offline; the fleet sorts as the tray does (low toner above offline); batch asks to confirm over 100 sheets and stops at 500 per command-line
+or folder run. Run a review for hostile input before a Print release: the last two reviews found 18 bugs in code whose tests passed.
+
+**Print 2.1, 2.2 and 2.5 are parked (owner, 2026-11-01).** They need a real printer or scanner to finish, and the owner has none while
+traveling. Work goes on with what can finish without hardware.
+
+**Next (Windows), no hardware needed.** PDF 3.1 Translate side by side, PDF 1.1's leftovers (saved pattern sets, scanned pages, the per-hit
+list, the removal report, the Pro split), Print 3.4 Job notifications, then Print's Report a problem button, 2.1 leftovers, UX still-short items.
+**Needs hardware, later.** Print 2.1, 2.2, 2.5, 3.1, 3.3, the hardware half of 3.2, WIA PDF-only scanners, TWAIN and black-and-white in Scan.
 
 **Tests.** Timing tests still fail now and then under load, a different one each full run (`ThreadClockTests`, `FindWorkerTests`,
-`HugeStringsAreRefused…`); each passes alone.
+`HugeStringsAreRefused…`); each passes alone. A run across PC sleep fails several more with times like `[7 h 41 m]`: rerun before believing them.
 
 **Small fixes queued, new.** Windows' recognizer can skip a whole line that is on the page (seen on a synthetic scan, with or
 without cleanup): `ScanText` could re-read bands with ink and no words, which would help Recognize Text too. A script step whose
