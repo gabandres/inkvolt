@@ -29,7 +29,7 @@ namespace InkvoltPrint.App;
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
-/// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
+/// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry.
@@ -292,13 +292,20 @@ internal static class DevSnapshot
                 "settings" => SettingsWindow.Create(dialogMain, trayController),
                 "help" => HelpDialog.Create(dialogMain),
                 "whatsnew" => WhatsNewDialog.Create(AppHelp.Notes()),
-                "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain)),
+                "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain), dialogMain.Selected),
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);
+            // --dialog report --record: the printer shown recorded (demo: a made-up printer, into a temp folder), the result in the dialog.
+            if (dialog is ReportProblemDialog report && args.Contains("--record"))
+            {
+                dialog.Owner = window;
+                dialog.Show();
+                await report.RecordAsync();
+            }
             if (dialog is not null)
             {
                 dialog.Owner = window;

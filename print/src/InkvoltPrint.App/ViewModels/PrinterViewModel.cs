@@ -466,6 +466,19 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>This printer's Windows queue as job alerts read it (Tray/TrayController); null when it has none. Throws when it can't be read.</summary>
     public Task<JobQueueState?> ReadJobQueueAsync() => IsScannerOnly ? Task.FromResult<JobQueueState?>(null) : _jobQueue.ReadAsync();
 
+    /// <summary>The address Report a problem can record this printer at; null: it has none (a scanner, a queue only Windows can read).</summary>
+    public string? RecordHost => IsScannerOnly ? null : Host ?? (WindowsQueue is { } q ? QueueKinds.SnmpAddress(q) : null);
+
+    /// <summary>Report a problem's recording of this printer: as <c>inkvoltprint record</c>, through this PC's environment (the demo's: made-up printers).</summary>
+    public Task<Core.Recording.ReportRecordingDone> RecordForReportAsync(CancellationToken ct)
+    {
+        var options = new Core.Recording.RecordOptions { Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri };
+        return Core.Recording.ReportRecording.RunAsync(RecordHost ?? throw new InvalidOperationException("This printer has no address to record."), _pc.RecordingsFolder, options, DateTime.Now, ct);
+    }
+
+    /// <summary>Another app may be opened for the user (the folder a recording went to); not on the made-up PC.</summary>
+    public bool OpensOtherApps => _pc.OpensOtherApps;
+
     /// <summary>The last of those reads, for a listener that comes later.</summary>
     public PrinterSnapshot? LastSnapshot { get; private set; }
 

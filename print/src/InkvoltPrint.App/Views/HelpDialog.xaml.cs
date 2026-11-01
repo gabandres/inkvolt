@@ -59,7 +59,7 @@ public partial class HelpDialog : Window
 
     private void WhatsNew_Click(object sender, RoutedEventArgs e) => WhatsNewDialog.Open(this, AppHelp.Notes());
 
-    private void Report_Click(object sender, RoutedEventArgs e) => ReportProblemDialog.Open(this, AppHelp.Report(_vm));
+    private void Report_Click(object sender, RoutedEventArgs e) => ReportProblemDialog.Open(this, AppHelp.Report(_vm), _vm.Selected);
 
     private void Pro_Click(object sender, RoutedEventArgs e)
     {

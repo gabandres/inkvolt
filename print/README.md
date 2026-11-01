@@ -116,6 +116,8 @@ dotnet publish src/InkvoltPrint.App -p:PublishProfile=win-arm64   # or win-x64
 # → publish/win-arm64/InkvoltPrint.exe
 ```
 
+`--dialog report --record` records the printer shown first (demo: a made-up printer, into a temp folder), and shows the result in the dialog.
+
 Job alerts' dev aids: `--demo --tray --simulate-jobs` (the made-up stuck jobs through the rules; with `--snapshot x.png --tray-shot alert`, the toasts as their XML says) and `--open-queue n` (as if a job's notification for the n-th printer was clicked).
 
 Dev aid: `InkvoltPrint.exe --snapshot out.png --tab Scan` renders the window to a PNG after connecting, then exits
@@ -171,7 +173,8 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   then copies, the version, Windows, a settings summary (printer models, not names or addresses) and the log's last 200 lines,
   scrubbed of IP addresses (IPv4-mapped IPv6 too; versions such as 1.0.7.0 kept), MAC addresses, host names (`name:port`,
   dotted names, HP's `NPIxxxxxx`), UUIDs, serial numbers (model numbers and firmware versions kept), file paths (names with
-  spaces masked whole, the extension kept) and the user's and PC's names
+  spaces masked whole, the extension kept) and the user's and PC's names. *Record this printer* there saves a recording of the printer shown (the same as
+  `inkvoltprint record`, roadmap 1.2: read only, scrubbed, no scanned pages) as a .zip under `Documents\Inkvolt Print recordings`, to read and attach by hand
   (`Core/Suite/Diagnostics`, shared with Inkvolt PDF; tested), and can open a new GitHub issue with the version filled in to paste
   them into. Nothing is sent by the app.
 - Window: light, dark or Windows' setting (sidebar › *Settings*), the title bar drawn to match with Mica behind it (as Inkvolt PDF);

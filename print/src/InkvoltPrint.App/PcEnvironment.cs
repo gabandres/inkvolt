@@ -127,6 +127,9 @@ public abstract class PcEnvironment
     /// <summary>Other apps are started (Inkvolt PDF, the mail app); false on the made-up PC, whose scans only say what would happen.</summary>
     public abstract bool OpensOtherApps { get; }
 
+    /// <summary>Where Help › Report a problem's recordings go: where the user can find one to attach (the demo's: a temp folder, out of the user's things).</summary>
+    public abstract string RecordingsFolder { get; }
+
     /// <summary>The user name sent with maintenance jobs.</summary>
     public abstract string UserName { get; }
 
@@ -190,6 +193,8 @@ public abstract class PcEnvironment
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
         public override Action<string>? Browser => Shell.Open;
         public override bool OpensOtherApps => true;
+        public override string RecordingsFolder =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents ? documents : AppState.DataDirectory, "Inkvolt Print recordings");
         public override string UserName => Environment.UserName;
         public override string? ImageCache => Path.Combine(AppState.DataDirectory, "images");
         public override bool ChecksHpSoftware => Features.HpCleanup;

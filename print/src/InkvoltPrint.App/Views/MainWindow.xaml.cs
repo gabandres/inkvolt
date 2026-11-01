@@ -250,7 +250,7 @@ public partial class MainWindow : Window
             case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;
             case ("app", "help"): ShowHelp(); break;
             case ("app", "whatsnew"): WhatsNewDialog.Open(this, AppHelp.Notes()); break;
-            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm)); break;
+            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm), vm.Selected); break;
             case ("app", "about"): AboutDialog.Open(this); break;
         }
     }

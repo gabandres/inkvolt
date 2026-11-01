@@ -70,6 +70,20 @@ public static class PrinterRecorder
     internal static readonly Oid[] SnmpSubtrees =
         [Oid.Parse("1.3.6.1.2.1.1"), Oid.Parse("1.3.6.1.2.1.25.3.2"), Oid.Parse("1.3.6.1.2.1.25.3.5"), Oid.Parse("1.3.6.1.2.1.43")];
 
+    /// <summary>
+    /// The file a reply at this path is kept in, or null to leave it out. A printer's discovery tree decides what gets asked for, so it
+    /// also decides this name: it stays a plain name inside the folder (a "C:" would make it drive-relative and leave the folder), is a kind of
+    /// file the fixtures are (nothing that runs when opened from the folder or the .zip), and isn't one of the recording's own.
+    /// </summary>
+    internal static string? KeptName(string path, bool ipp = false)
+    {
+        var name = ipp ? FixtureHandler.IppDocumentName(path) : FixtureHandler.DocumentName(path);
+        name = string.Concat(name.Select(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '_'));
+        var extension = Path.GetExtension(name).ToLowerInvariant();
+        if (extension is not (".xml" or ".json" or ".txt") || name.Length == extension.Length || name.Length > 200) return null;
+        return name is NotesFile or SnmpFile ? null : name;
+    }
+
     private const int MaxSnmpObjects = 4000;
     private static readonly TimeSpan SnmpWalkLimit = TimeSpan.FromSeconds(60);
 
@@ -286,13 +300,13 @@ public static class PrinterRecorder
             {
                 try
                 {
-                    if (IppCodec.Decode(bytes).Ok) (file, text) = (FixtureHandler.IppDocumentName(path), IppText.FromResponse(bytes));
+                    if (IppCodec.Decode(bytes).Ok && KeptName(path, ipp: true) is { } name) (file, text) = (name, IppText.FromResponse(bytes));
                 }
                 catch (FormatException) { }
             }
             else if (resp.StatusCode == HttpStatusCode.OK && request.Method == HttpMethod.Get && bytes.Length > 0 && uri.Query.Length == 0
                      && !type.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && path.Trim('/').Length > 0)
-                file = FixtureHandler.DocumentName(path);
+                file = KeptName(path);
             _exchanges.Enqueue(new Exchange(request.Method.Method, path, resp.StatusCode, null, ms, file, bytes, text));
             return resp;
         }

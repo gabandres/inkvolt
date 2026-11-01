@@ -91,6 +91,7 @@ internal static class Demo
         public override IPrinterPasswords Passwords { get; } = new MemoryPasswords();
         public override Action<string>? Browser => null;
         public override bool OpensOtherApps => false;
+        public override string RecordingsFolder => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Inkvolt Print demo recordings");
         public override string UserName => "demo";
         public override string? ImageCache => null;
         public override bool ChecksHpSoftware => false;
