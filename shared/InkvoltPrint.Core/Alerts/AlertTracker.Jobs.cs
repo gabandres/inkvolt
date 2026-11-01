@@ -94,7 +94,7 @@ public sealed partial class AlertTracker
             if (now - t.FailedSince >= Rules.ErrorHold)
             {
                 t.Due = AlertKind.JobFailed;
-                t.Reason = QueueJobText.Status(job.Status);
+                t.Reason = QueueJobText.Status(job.Status) is var said && said == "Error" ? "Windows reports an error with this job" : said;
             }
         }
 

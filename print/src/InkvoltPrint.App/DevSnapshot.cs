@@ -37,7 +37,8 @@ namespace InkvoltPrint.App;
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
 /// Without <c>--snapshot</c>, <c>--demo --tray --simulate-alerts</c> shows the real notifications after the printers connect (toasts in the
-/// packaged copy, one per printer; balloons from a build in bin\).
+/// packaged copy, one per printer; balloons from a build in bin\). <c>--simulate-jobs</c> turns job alerts on and reads the made-up queues
+/// through the same rules (<c>--tray-shot alert</c> then previews the toasts from their XML); <c>--open-queue n</c> does what clicking a job's notification for the n-th printer does.
 /// </summary>
 internal static class DevSnapshot
 {
@@ -242,6 +243,12 @@ internal static class DevSnapshot
             await trayController.SimulateJobsAsync();
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
+        // --open-queue n: as if a job's notification for the n-th printer was clicked.
+        if (int.TryParse(Value(args, "--open-queue"), out var queueOf) && trayController is not null && window.DataContext is ViewModels.MainViewModel queueMain && queueMain.Printers.ElementAtOrDefault(queueOf - 1) is { } queuePrinter)
+        {
+            trayController.HandleToast("queue:" + queuePrinter.Uuid);
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
         if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
@@ -298,6 +305,11 @@ internal static class DevSnapshot
                 dialog.Show();
                 // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
+                if (scrollToEnd)
+                {
+                    foreach (var sv in Descendants<ScrollViewer>(dialog)) sv.ScrollToEnd();
+                    await Task.Delay(TimeSpan.FromMilliseconds(500));
+                }
                 shot = dialog;
             }
         }

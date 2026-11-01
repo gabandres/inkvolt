@@ -41,7 +41,7 @@ public sealed class TrayController : IDisposable
     private bool _toastsTried;
     private CancellationTokenSource? _poll, _wake;
     private string? _noticeUuid, _savedShown;
-    private bool _hidden, _powerEvents, _alertsOn, _readingJobs;
+    private bool _hidden, _powerEvents, _alertsOn, _readingJobs, _noticeIsJob;
 
     public TrayController(Application app, MainViewModel vm, AppState state, PcEnvironment pc)
     {
@@ -112,7 +112,12 @@ public sealed class TrayController : IDisposable
                 _icon = new NotifyIcon();
                 _icon.Activated += () => ShowWindow();
                 _icon.MenuRequested += OpenMenu;
-                _icon.BalloonClicked += () => { if (_noticeUuid is { } uuid) OpenPrinter(uuid); else ShowWindow(); };
+                _icon.BalloonClicked += () =>
+                {
+                    if (_noticeUuid is not { } uuid) ShowWindow();
+                    else if (_noticeIsJob) OpenQueue(uuid);
+                    else OpenPrinter(uuid);
+                };
             }
             if (!_toastsTried)
             {
@@ -253,6 +258,7 @@ public sealed class TrayController : IDisposable
             LastNotices = notices;
             var (title, text) = NoticeText(notices);
             _noticeUuid = notices[0].Uuid;
+            _noticeIsJob = notices[0].JobKey is not null;
             // One toast per printer; a balloon for all of them where toasts aren't available (Windows shows one balloon at a time).
             var toasted = _toasts is not null && AlertToasts.PerPrinter(notices).All(_toasts.Show);
             if (!toasted) _icon.Notify(title, text, IconFor(notices.Max(n => n.Level)));
@@ -286,7 +292,7 @@ public sealed class TrayController : IDisposable
                 OpenPrinter(uuid);
                 break;
             case (ToastAction.OpenQueue, var uuid):
-                OpenPrinter(uuid); // the queue card is on its Overview
+                OpenQueue(uuid);
                 break;
             case (ToastAction.PauseAlerts, _):
                 Pause(AlertToasts.PauseFor);
@@ -426,6 +432,13 @@ public sealed class TrayController : IDisposable
             _vm.ShowPrinter(printer);
             printer.SelectedSection = PrinterViewModel.OverviewSection;
         }
+    }
+
+    /// <summary>A job's notification: the printer's Overview, scrolled to its print queue card.</summary>
+    public void OpenQueue(string uuid)
+    {
+        OpenPrinter(uuid);
+        if (_app.MainWindow is Views.MainWindow w) _ = w.ShowQueueCardAsync();
     }
 
     // ---------------------------------------------------------------- polling while hidden

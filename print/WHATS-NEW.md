@@ -13,6 +13,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Fleet: a new page, from the button at the top of the printer list, shows every printer at once with its state, ink or toner levels, page count, firmware and when it was last read, the ones in trouble first.
 - Fix it… now works on printers known only to Windows too (USB, shared from another PC): it finds a paused queue, Use Printer Offline and stuck jobs, and fixes them after asking. Resuming a queue and turning off Use Printer Offline now ask first on every printer, since waiting jobs start printing.
 - Inkvolt Pro (free for now): Export… on the Fleet page saves the list as a spreadsheet file or JSON, inkvoltprint status --all --json gives a script or a scheduled task the same list, and Fix all resumes paused queues and turns off Use Printer Offline everywhere, asking about each one.
+- Job notifications: turn on "Tell me when my own print job fails or gets stuck" in Settings, and your job's failure, or no progress for 5 minutes on a ready printer, tells you once, with the document's name and Open the queue. Off unless you turn it on. Other people's jobs never raise one.
 
 ## 1.1.0
 - Ink and toner history: Inkvolt Print keeps a reading a day on your PC and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).

@@ -386,6 +386,33 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 
 ### 3.4 Job notifications
 - **Leader.** The maker apps and the fleet tools tell you a job failed; Windows and macOS put a queue icon up.
+- **Now (built 2026-11-01, Windows).** Settings › Notification area and alerts has "Tell me when my own print job fails or gets
+  stuck", off by default. With it on, the tray reads each printer's Windows queue every minute, window open or not (`WindowsJobQueue`,
+  winspool: a local call; a queue that can't be read is skipped, never taken as empty), and `AlertTracker.ObserveJobs` decides.
+  **Failed:** the job has Error, Blocked or Needs attention for a minute, whatever the printer says; out of paper or offline alone is the
+  printer's state and its own alerts tell that. **Stuck:** your first job in the queue, nothing in the queue moving for 5 minutes, the queue
+  neither paused nor on Use Printer Offline, and the printer's own read, taken after the 5 minutes, saying it's ready, idle or asleep. Moving
+  means pages counted, a job starting, or a job leaving (someone else's too), so a job waiting its turn isn't stuck; a printer that says it's
+  printing isn't ready, so a long job on a driver that counts no pages isn't either. **Your own:** the job's owner is the Windows user, and if
+  it names a domain or a PC, this one; when in doubt it isn't yours. A toast for each job (Open the queue, Pause alerts), naming the
+  document and the printer, more than three at once from one printer sharing one; Open the queue scrolls to the queue card. Quiet hours,
+  a pause and alerts off work as for other alerts. Free, as the table says: no Pro check.
+- **Decisions.** One notification per job, ever: stuck, recovered and stuck again, or stuck then failed, tells once, and that survives a restart
+  and alerts being turned off and on. A job is its id plus the moment it was submitted, so an id the spooler uses again is a new job. Only
+  your first job is told stuck: those behind it wait for it, and get their own 5 minutes when it's gone. Jobs don't color the tray icon, which
+  shows printers. A failure on a paused queue or a printer that isn't ready is still told; only "stuck" asks that the printer be ready.
+  The name: controls, invisible and right-to-left override characters and broken pairs out, a path or address cut to the file's name, 48
+  characters at most, in quotes, so it can't pass for the app's own words. It's kept in memory only: `state.json` holds `Job|id|time`, the log the alert's kind.
+- **Checked.** `JobAlertTests` on a fake clock, on the demo queue's made-up jobs (`DemoFleet.CardJobs`) and the demo fixer's stuck job
+  (`DemoFleet.OfficeStuckJob`, on a Use Printer Offline queue and an unreachable printer: raises one). Seen: `--demo --tray --simulate-jobs
+  --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
+  `--demo --tray --simulate-jobs` showing the real balloons, with only `JobFailed` in the log. `WindowsJobQueue.Read` read this PC's
+  Microsoft Print to PDF queue (empty, not paused).
+- **Not checked.** **It has not been run against a real spooler failure:** no printer here, so no real job in Error, no real stuck job, no real
+  shared queue. So these are unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
+  given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a spooler-only
+  queue that keeps saying Printing with no page count (never told stuck, by the rule above); a job that fails and vanishes between two reads (never seen).
+  WinRT toasts: the XML is tested, the toast itself not run here, as for 1.4. A printer with two Windows queues: only the one the app finds is read. Mac: not started.
 - **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the
   printer is ready) is one notification per job, naming the document and the printer, with Open the queue; off by
   default. Test: `AlertTracker` rules on the demo queue's made-up jobs; the demo fixer's stuck job raises one. Mac:

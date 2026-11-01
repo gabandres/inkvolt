@@ -89,6 +89,31 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the folded sidebar over the page (sliding in), or closes it; unfolded, it always shows.</summary>
+    /// <summary>Open the queue (a job's notification): brings the print queue card into view, once it has read the queue and shows.</summary>
+    public async Task ShowQueueCardAsync()
+    {
+        for (var i = 0; i < 30; i++)
+        {
+            if (FindQueueCard(this) is { } card)
+            {
+                card.BringIntoView();
+                return;
+            }
+            await Task.Delay(100);
+        }
+    }
+
+    private static FrameworkElement? FindQueueCard(DependencyObject root)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is Border { DataContext: ViewModels.PrintJobsViewModel, IsVisible: true } card) return card;
+            if (FindQueueCard(child) is { } inner) return inner;
+        }
+        return null;
+    }
+
     public void ShowSidebar(bool open, bool focus = true)
     {
         var was = _sidebarOpen;

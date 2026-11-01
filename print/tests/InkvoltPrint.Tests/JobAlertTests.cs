@@ -270,7 +270,7 @@ public class JobAlertTests
     [InlineData("manuallyFeed", Severity.Warning)]
     [InlineData("manual-feed", Severity.Warning)]
     public void A_ready_code_with_a_problem_or_a_manual_feed_isnt_ready(string id, Severity severity) =>
-        Assert.Empty(Minutes(Tracker(), T0, 30, Queue(Job()), new PrinterStatus("ready", "Ready", severity, [new PrinterAlert(id, severity, "Text")])));
+        Assert.DoesNotContain(Minutes(Tracker(), T0, 30, Queue(Job()), new PrinterStatus("ready", "Ready", severity, [new PrinterAlert(id, severity, "Text")])), n => n.JobKey is not null);
 
     [Fact]
     public void A_low_toner_warning_doesnt_stop_a_printer_being_ready() =>
@@ -308,7 +308,7 @@ public class JobAlertTests
         for (var i = 0; i < 30; i++) Assert.Empty(never.ObserveJobs(Laser, PrinterName, Queue(Job()), Me, T0.AddMinutes(i)));
 
         var off = Tracker();
-        for (var i = 0; i < 30; i++) Assert.Empty(Read(off, T0.AddMinutes(i), Queue(Job()), reachable: false));
+        for (var i = 0; i < 30; i++) Assert.DoesNotContain(Read(off, T0.AddMinutes(i), Queue(Job()), reachable: false), n => n.JobKey is not null);
 
         var unusable = Tracker();
         for (var i = 0; i < 30; i++)
