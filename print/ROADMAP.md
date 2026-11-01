@@ -407,7 +407,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   (`DemoFleet.OfficeStuckJob`, on a Use Printer Offline queue and an unreachable printer: raises one). Seen: `--demo --tray --simulate-jobs
   --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
   `--demo --tray --simulate-jobs` showing the real balloons, with only `JobFailed` in the log. `WindowsJobQueue.Read` read this PC's
-  Microsoft Print to PDF queue (empty, not paused).
+  Microsoft Print to PDF queue (empty, not paused). In demo mode Open the queue shows the card's one made-up queue, not the fixer's, as the card always has.
 - **Not checked.** **It has not been run against a real spooler failure:** no printer here, so no real job in Error, no real stuck job, no real
   shared queue. So these are unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
   given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a spooler-only

@@ -20,7 +20,16 @@ public sealed record JobQueueState(bool Paused, bool WorkOffline, IReadOnlyList<
 /// </summary>
 public sealed record JobOwner(string? UserName, string? Domain, string? Machine)
 {
-    public static JobOwner Current => new(Environment.UserName, Environment.UserDomainName, Environment.MachineName);
+    /// <summary>Read once: asked for every printer every minute, and a domain name can take a lookup or refuse.</summary>
+    public static JobOwner Current { get; } = ReadCurrent();
+
+    private static JobOwner ReadCurrent()
+    {
+        string? domain = null;
+        try { domain = Environment.UserDomainName; }
+        catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException) { }
+        return new JobOwner(Environment.UserName, domain, Environment.MachineName);
+    }
 
     public bool Owns(QueueJob job)
     {

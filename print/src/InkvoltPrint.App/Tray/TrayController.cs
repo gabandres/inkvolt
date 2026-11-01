@@ -35,6 +35,7 @@ public sealed class TrayController : IDisposable
     private AlertTracker _tracker;
     private readonly DispatcherTimer _timer;
     private readonly HashSet<PrinterViewModel> _watched = [];
+    private readonly HashSet<PrinterViewModel> _jobReadFailing = [];
     private readonly Dictionary<string, (DateTimeOffset Due, int Failures, DateTimeOffset Checked)> _schedule = new(StringComparer.OrdinalIgnoreCase);
     private NotifyIcon? _icon;
     private ToastAlerts? _toasts;
@@ -168,6 +169,7 @@ public sealed class TrayController : IDisposable
         {
             p.Observed -= OnObserved;
             _watched.Remove(p);
+            _jobReadFailing.Remove(p);
             if (!_vm.Printers.Any(o => string.Equals(o.Uuid, p.Uuid, StringComparison.OrdinalIgnoreCase)))
             {
                 _tracker.Forget(p.Uuid);
@@ -228,10 +230,15 @@ public sealed class TrayController : IDisposable
             foreach (var p in _vm.Printers.ToList())
             {
                 Core.Alerts.JobQueueState? queue;
-                try { queue = await p.ReadJobQueueAsync(); }
+                try
+                {
+                    queue = await p.ReadJobQueueAsync();
+                    _jobReadFailing.Remove(p);
+                }
                 catch (Exception ex)
                 {
-                    Log.Write($"Job queue not read: {ex.Message}");
+                    // Once until it answers again: a shared printer whose PC is off would fill the log, a line a minute, and push out what a report needs.
+                    if (_jobReadFailing.Add(p)) Log.Write($"Job queue not read: {ex.Message}");
                     continue;
                 }
                 if (!JobsOn || !_vm.Printers.Contains(p)) continue; // turned off, or the printer removed, while reading
