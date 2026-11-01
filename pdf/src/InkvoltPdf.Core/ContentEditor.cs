@@ -931,6 +931,7 @@ public static partial class ContentEditor
         var items = new List<RunItem>();
         var hex = false;
         double adv = 0, gaps = 0, end = 0; // end: where the last glyph's ink ends (before its spacing)
+        double low = 0, high = 0; // how far its glyphs reach: right-to-left text written in logical order moves back as it goes
         var gapCount = 0;
         var fs = gs.Size;
         void Glyphs(CObj s)
@@ -942,6 +943,7 @@ public static partial class ContentEditor
                 {
                     items.Add(new RunItem(b, 0, ((char)b).ToString(), false));
                     end = adv + 0.5 * fs * gs.Th;
+                    (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                     adv += (0.5 * fs + gs.Tc) * gs.Th;
                 }
                 return;
@@ -950,6 +952,7 @@ public static partial class ContentEditor
             {
                 items.Add(new RunItem(g.Code, 0, g.Text, false));
                 end = adv + g.Width * fs * gs.Th;
+                (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                 adv += (g.Width * fs + gs.Tc + (!font.TwoByte && g.Code == 32 ? gs.Tw : 0)) * gs.Th;
             }
         }
@@ -979,7 +982,7 @@ public static partial class ContentEditor
         var trm = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(tm).Times(gs.Ctm);
         var asc = (font?.Ascent ?? 0.8) * fs;
         var desc = (font?.Descent ?? -0.2) * fs;
-        var box = BoxOf(page, trm, 0, desc, end, asc);
+        var box = BoxOf(page, trm, low, desc, Math.Max(end, high), asc);
         var (bx0, by0) = Project(page, trm, 0, 0);
         var (bx1, by1) = Project(page, trm, 1, 0);
         var (vx0, vy0) = Project(page, trm, 0, 1);

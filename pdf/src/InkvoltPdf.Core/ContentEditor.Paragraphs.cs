@@ -410,7 +410,7 @@ public static partial class ContentEditor
         var spaces = new List<TextRun>();
         foreach (var r in content.Runs)
         {
-            if (mine.Contains(r) || r.Box.Right <= box.X || r.Box.X >= box.Right || r.Box.Bottom <= box.Y || r.Box.Y >= box.Bottom) continue;
+            if (r.Box.Right <= box.X || r.Box.X >= box.Right || r.Box.Bottom <= box.Y || r.Box.Y >= box.Bottom || mine.Contains(r)) continue;
             var (cx, cy) = (r.Box.CenterX, r.Box.CenterY);
             // On a line: its middle inside the line's height, across from the line or right after its end (a mark after the last word).
             if (!lines.Any(l => cy > l.Box.Y && cy < l.Box.Bottom && r.Box.Right > l.Box.X && r.Box.X < l.Box.Right + 0.3 * l.Size)) continue;

@@ -51,12 +51,28 @@ public partial class DocumentTab
                 }
                 var read = new Progress<int>(done => reading.Report($"Reading the paragraphs… page {Math.Min(done + 1, pages.Length):N0} of {pages.Length:N0}", (double)done / Math.Max(1, pages.Length)));
                 var pieceTokens = Translation.PieceTokens(config.ContextTokens);
-                (plan, jobs, requests) = await Task.Run(() =>
+                var wrong = false;
+                while (true)
                 {
-                    var p = Translation.MakePlan(data, password, pages, read, run.Token);
-                    var j = Translation.Jobs(p, pieceTokens);
-                    return (p, j, Translation.Requests(j, language));
-                }, run.Token);
+                    try
+                    {
+                        var open = password;
+                        (plan, jobs, requests) = await Task.Run(() =>
+                        {
+                            var p = Translation.MakePlan(data, open, pages, read, run.Token);
+                            var j = Translation.Jobs(p, pieceTokens);
+                            return (p, j, Translation.Requests(j, language));
+                        }, run.Token);
+                        break;
+                    }
+                    catch (OwnerPasswordRequiredException ex)
+                    {
+                        // Opened for viewing only: a copy with other text needs the permissions password, as any edit does.
+                        if (PdfFiles.PromptOwnerPassword(owner, name, wrong || ex.WrongPassword && password is not null) is not { } typed) return;
+                        password = typed;
+                        wrong = true;
+                    }
+                }
             }
             if (_disposed) return;
             if (jobs.Count == 0)
@@ -145,10 +161,11 @@ public partial class DocumentTab
         {
             // Stopped before anything was sent, or while the copy was being written.
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or AiException or ObjectDisposedException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Called without awaiting by the menu: nothing may get out of here.
             Log.Write($"Translate failed: {ex.GetType().Name}"); // not the message: a server may echo text back
-            if (!_disposed) Prompt.Error(owner, "The translation couldn't be finished", ex is AiException or ContentEditException ? ex.Message : "This PDF's pages couldn't be read for translating. The document wasn't changed.");
+            if (!_disposed) Prompt.Error(owner, "The translation couldn't be finished", ex is AiException or ContentEditException or OpenPasswordUnknownException ? ex.Message : "This PDF's pages couldn't be read for translating. The document wasn't changed.");
         }
         finally
         {

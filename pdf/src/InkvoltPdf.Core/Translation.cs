@@ -155,11 +155,16 @@ public static class Translation
     /// <summary>A longer "paragraph" (a crafted page's single stretch of text) isn't sent or even cut into pieces.</summary>
     private const int MaxParagraphChars = 100_000;
 
+    private const int MaxRunsToLayOut = 5_000;
+
     /// <summary>Reads the pages' paragraphs. Pages that can't be read are noted; nothing is sent.</summary>
     /// <param name="progress">Pages read so far.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
+    /// <exception cref="OwnerPasswordRequiredException">The file was opened without its permissions password, which a copy that changes its text needs.</exception>
     public static TranslationPlan MakePlan(byte[] data, string? password, IReadOnlyList<int> pages, IProgress<int>? progress = null, CancellationToken cancel = default)
     {
+        // A file that needs its permissions password to be edited says so now, before anything is sent, not after hours of translating.
+        using (PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited")) { }
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
         PdfEngine? engine = null;
         try
@@ -247,6 +252,8 @@ public static class Translation
     private static (IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles) Surroundings(PdfEngine? engine, int page, PageContent content, CancellationToken cancel)
     {
         if (engine is null) return ([], []);
+        // A page this crowded isn't worth laying out (its time grows much faster than its text): no tables found, as on a map.
+        if (content.Runs.Count > MaxRunsToLayOut) return ([], []);
         try
         {
             var export = engine.GetExportPage(page, images: true, cancel, boxesOnly: true);

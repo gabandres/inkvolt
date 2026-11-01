@@ -59,6 +59,8 @@ public static partial class ContentEditor
             if (!groups.TryGetValue(cell, out var list)) groups[cell] = list = [];
             list.Add(r);
         }
+        // A paragraph looks through the page's runs for spaces drawn on their own: only those, or a crowded page takes its count squared.
+        var spacesOnly = new PageContent([.. content.Runs.Where(r => r.Text.Trim().Length == 0)], []);
         var slots = new List<TranslationSlot>();
         foreach (var (cell, runs) in groups)
         {
@@ -68,7 +70,7 @@ public static partial class ContentEditor
             {
                 cancel.ThrowIfCancellationRequested();
                 foreach (var part in SplitShort(stack))
-                    slots.Add(new TranslationSlot(Paragraph(content, part, translating: true), cell >= 0 ? cells[cell] : null));
+                    slots.Add(new TranslationSlot(Paragraph(spacesOnly, part, translating: true), cell >= 0 ? cells[cell] : null));
             }
         }
         // The same order however the page's runs were grouped.
@@ -133,31 +135,68 @@ public static partial class ContentEditor
 
     // ---- The room a paragraph has ----
 
+    /// <summary>What a page's new text must keep clear of, and how far its upright text reaches across.</summary>
+    private sealed class PageThings
+    {
+        public readonly List<(RectD Box, TextRun? Run)> Boxes = [];
+        public readonly double TextLeft = double.MaxValue, TextRight = double.MinValue;
+        /// <summary>A page too crowded to look around each paragraph on its lines: it stays as wide as it was.</summary>
+        public bool Crowded => Boxes.Count > 5_000;
+
+        public PageThings(PageContent content, IReadOnlyList<RectD> obstacles)
+        {
+            foreach (var r in content.Runs)
+            {
+                if (r.Text.Trim().Length == 0) continue;
+                TextLeft = Math.Min(TextLeft, r.Box.X);
+                TextRight = Math.Max(TextRight, r.Box.Right);
+                if (Math.Abs(r.Angle) < 0.5) Boxes.Add((r.Box, r));
+            }
+            foreach (var i in content.Images) Boxes.Add((i.Box, null));
+            foreach (var o in obstacles) Boxes.Add((o, null));
+            Boxes.Sort((a, b) => a.Box.Y.CompareTo(b.Box.Y));
+            if (TextLeft > TextRight) (TextLeft, TextRight) = (0, 0);
+        }
+
+        /// <summary>The first box that starts at or below <paramref name="y"/>.</summary>
+        public int FirstBelow(double y)
+        {
+            int lo = 0, hi = Boxes.Count;
+            while (lo < hi)
+            {
+                var mid = (lo + hi) / 2;
+                if (Boxes[mid].Box.Y < y) lo = mid + 1;
+                else hi = mid;
+            }
+            return lo;
+        }
+    }
+
     /// <summary>
     /// A paragraph as it will be written: the edges its lines stay between, its alignment as the page shows it (a single
     /// line can't tell, so its place on the page or in its cell does), and how far down it may go.
     /// </summary>
-    private static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageContent content, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight)
+    private static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight)
     {
         var p = slot.Paragraph;
         var framed = p with { };
         var mine = new HashSet<TextRun>(p.Runs, ReferenceEqualityComparer.Instance);
-        var others = content.Runs.Where(r => !mine.Contains(r) && r.Text.Trim().Length > 0 && Math.Abs(r.Angle) < 0.5).Select(r => r.Box)
-            .Concat(content.Images.Select(i => i.Box)).Concat(obstacles).ToList();
 
         // A panel the text sits in (a shaded box, a callout) holds it unless it is about the whole page.
         var panel = obstacles.Where(o => o.Width * o.Height < 0.8 * pageWidth * pageHeight && o.Contains(p.Box.CenterX, p.Box.CenterY) && o.Contains(p.Box.X + 0.5, p.Box.Y + 0.5) && o.Contains(p.Box.Right - 0.5, p.Box.Bottom - 0.5))
             .OrderBy(o => o.Width * o.Height).Select(o => (RectD?)o).FirstOrDefault();
         var holder = slot.Cell ?? panel;
 
-        if (p.Lines.Count == 1 || slot.Cell is not null)
+        if ((p.Lines.Count == 1 || slot.Cell is not null) && !page.Crowded)
         {
             // Across: to the next thing on its line, inside what holds it. Its text column on the page is what the page's other text reaches.
-            var reachLeft = holder?.X ?? Math.Min(p.Left, content.Runs.Where(r => r.Text.Trim().Length > 0).Select(r => r.Box.X).DefaultIfEmpty(p.Left).Min());
-            var reachRight = holder?.Right ?? Math.Max(p.Right, Math.Min(pageWidth - 18, content.Runs.Where(r => r.Text.Trim().Length > 0).Select(r => r.Box.Right).DefaultIfEmpty(p.Right).Max()));
-            foreach (var b in others)
+            var reachLeft = holder?.X ?? Math.Min(p.Left, page.TextLeft);
+            var reachRight = holder?.Right ?? Math.Max(p.Right, Math.Min(pageWidth - 18, page.TextRight));
+            foreach (var (b, run) in page.Boxes)
             {
-                if (b.Y >= p.Box.Bottom || b.Bottom <= p.Box.Y) continue; // not on its lines
+                if (b.Y >= p.Box.Bottom) break;
+                if (b.Bottom <= p.Box.Y) continue; // not on its lines
+                if (run is not null && mine.Contains(run)) continue;
                 if (b.Width > 0.8 * (reachRight - reachLeft) && b.X < p.Box.X && b.Right > p.Box.Right) continue; // behind it
                 if (b.X >= p.Box.Right - 1 && b.X < reachRight) reachRight = b.X - 0.5 * p.FontSize;
                 if (b.Right <= p.Box.X + 1 && b.Right > reachLeft) reachLeft = b.Right + 0.5 * p.FontSize;
@@ -200,10 +239,13 @@ public static partial class ContentEditor
 
         // Down: to the next thing below it across its width, and no lower than what holds it or the page's foot.
         var bottom = slot.Cell?.Bottom ?? panel?.Bottom ?? Math.Max(p.Box.Bottom, pageHeight - 36);
-        foreach (var b in others)
+        for (var i = page.FirstBelow(p.Box.Bottom - 1); i < page.Boxes.Count; i++)
         {
-            if (b.Y < p.Box.Bottom - 1 || b.Right <= framed.Left + 1 || b.X >= framed.Right - 1) continue;
-            if (b.Y - 0.1 * p.FontSize < bottom) bottom = b.Y - 0.1 * p.FontSize;
+            var (b, run) = page.Boxes[i];
+            if (b.Y - 0.1 * p.FontSize >= bottom) break; // sorted: nothing later comes nearer
+            if (b.Right <= framed.Left + 1 || b.X >= framed.Right - 1 || (run is not null && mine.Contains(run))) continue;
+            bottom = b.Y - 0.1 * p.FontSize;
+            break;
         }
         return (framed, Math.Max(bottom, p.Box.Bottom));
     }
@@ -494,6 +536,7 @@ public static partial class ContentEditor
         var fonts = new List<(TextFont Font, IReadOnlyList<int> Codes, string Text)>();
         var owners = new List<PdfDictionary>();
         var taken = new HashSet<(Target, int)>();
+        var things = new PageThings(content, obstacles);
 
         for (var i = 0; i < slots.Count; i++)
         {
@@ -511,7 +554,7 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, "its translation is far too long for any box"));
                 continue;
             }
-            var (framed, bottom) = Room(slot, content, obstacles, pageWidth, pageHeight);
+            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight);
             var (layout, fit, fits, dropped) = FitText(framed, bottom, text);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
