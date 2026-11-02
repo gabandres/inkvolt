@@ -251,6 +251,13 @@ public sealed class RedactionCorpusTests : IDisposable
         Assert.Contains("before exports", plan.Validate(false));
     }
 
+    /// <summary>Opt-in: INKVOLTPDF_REDACT_CORPUS names a folder to write the corpus into, for driving the real app over it.</summary>
+    [Fact]
+    public void WritesTheCorpusWhenAsked()
+    {
+        if (Environment.GetEnvironmentVariable("INKVOLTPDF_REDACT_CORPUS") is { Length: > 0 } folder) RedactionCorpus.Save(folder);
+    }
+
     // ───────────── an ordinary file ─────────────
 
     [Fact]

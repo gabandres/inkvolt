@@ -174,7 +174,7 @@ public static class BatchCommandLine
             error.WriteLine($"The preset protects files with a password: set {OpenPasswordVariable} and/or {PermissionsPasswordVariable} (presets never keep passwords).");
             return Wrong;
         }
-        host = new BatchHost { Recognize = host.Recognize };
+        host = new BatchHost { Recognize = host.Recognize, Recognizer = host.Recognizer };
         var gate = new Lock();
         void Line(TextWriter to, string text)
         {
