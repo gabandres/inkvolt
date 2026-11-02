@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.4.1
 - Fixed: a signature could still read as valid after a later change laid something over its page, through a field that only called itself a timestamp or a comment written straight into the page's list. Both now count as changes made after signing.
 - Accessibility Check no longer calls a file a pass when part of it couldn't be checked (a very long page, forms nested too deep, a huge number of annotations or tags): it says "Not fully checked" and lists what wasn't, in the pane, the report and Batch, where such a file counts as failed.
 
