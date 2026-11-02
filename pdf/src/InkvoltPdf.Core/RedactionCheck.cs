@@ -211,6 +211,10 @@ public static partial class RedactionCheck
         return [.. Clean(values)];
     }
 
+    /// <summary>A finding about what was just redacted still being in the file, rather than about the file as it came (a box that hides text elsewhere, a hidden layer).</summary>
+    public static bool IsLeftover(RedactionLeak kind) =>
+        kind is not (RedactionLeak.CoveredText or RedactionLeak.CoveredContent or RedactionLeak.UnappliedMark or RedactionLeak.GlyphSpacing or RedactionLeak.HiddenContent);
+
     /// <summary>Checks the document. Nothing is changed.</summary>
     /// <param name="progress">(steps done, steps): pages read, then pages drawn, then earlier versions.</param>
     /// <exception cref="PasswordRequiredException">The password is missing or wrong.</exception>
@@ -509,7 +513,8 @@ public static partial class RedactionCheck
                 _found.Add(text.Text[start..end]);
                 for (var i = start; i < end; i++) _reported[p].Add(i);
             }
-            return [.. Runs(text, hidden.Contains)];
+            // A lone character over paper is an OCR layer's box a little off its letter (they are spaced by guess), and tells nothing.
+            return [.. Runs(text, hidden.Contains).Where(r => r.End - r.Start >= 2)];
         }
 
         private static bool Visible(char c) => !char.IsWhiteSpace(c) && !char.IsControl(c)

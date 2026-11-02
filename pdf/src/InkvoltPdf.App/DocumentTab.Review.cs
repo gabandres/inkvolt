@@ -1366,7 +1366,8 @@ public partial class DocumentTab
             }
             prompt.Report("Looking through the rest of the file…", 1);
             check = await Task.Run(() => RedactionCheck.Run(data, password, checkOptions, null, prompt.Token), prompt.Token);
-            if (!check.IsClean) failure ??= $"Elsewhere in the file: {check.Summary}";
+            // Only what was removed being left fails it; what else the check finds in the file opens its own report next.
+            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= $"Elsewhere in the file: {check.Summary}";
             else if (check.Incomplete) failure ??= string.Join(" ", check.Notes);
         }
         catch (OperationCanceledException)
@@ -1641,7 +1642,8 @@ public partial class DocumentTab
             var read = ScanText.Recognize(engine, page, ocr, options, spelling, progress.Token);
             var words = read.Words.ToList();
             if (exclude is not null && exclude.TryGetValue(page, out var blacked))
-                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > 0.3 * w.Rect.Width * w.Rect.Height));
+                // A letter or two touching a black box is a recognizer reading the box's edge, not a word.
+                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > (w.Text.Trim().Length <= 2 ? 0 : 0.3 * w.Rect.Width * w.Rect.Height)));
             if (words.Count > 0) result[page] = words;
             if (read.Cleaned is { } image) cleaned[page] = image;
         }
