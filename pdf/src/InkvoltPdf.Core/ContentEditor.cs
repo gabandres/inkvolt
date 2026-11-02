@@ -811,7 +811,8 @@ public static partial class ContentEditor
                     gs.FillOp = FillOp(op, 4);
                     break;
                 case "sc" or "scn" when op.Operands.Count is 1 or 3 or 4 && op.Operands.All(o => o.Kind == CKind.Number):
-                    gs.Fill = op.Operands.Count switch
+                    // A spot color's or an indexed space's number isn't a shade of gray: 1 is full ink, not white.
+                    gs.Fill = !IsPlainColorSpace(resources, gs.FillSpace) ? 0 : op.Operands.Count switch
                     {
                         1 => Gray(op.N(0)),
                         3 => Rgb(op.N(0), op.N(1), op.N(2)),
@@ -935,6 +936,14 @@ public static partial class ContentEditor
     }
 
     private static int Gray(double g) => Rgb(g, g, g);
+
+    /// <summary>Whether a color space's numbers read as gray, RGB or CMYK: not Separation, DeviceN, Indexed, Lab or a pattern's.</summary>
+    private static bool IsPlainColorSpace(PdfDictionary? resources, string? name)
+    {
+        if (name is null || name.StartsWith("Device", StringComparison.Ordinal)) return true;
+        return PdfObj.Array(PdfObj.Dict(resources?.Elements["/ColorSpace"])?.Elements["/" + name]) is not { Elements.Count: > 0 } space
+               || PdfObj.Name(PdfObj.Resolve(space.Elements[0])) is not ("Separation" or "DeviceN" or "Indexed" or "Lab" or "Pattern");
+    }
 
     /// <summary>A color operator written again from its numbers (the last <paramref name="count"/> operands).</summary>
     private static string FillOp(COp op, int count) =>

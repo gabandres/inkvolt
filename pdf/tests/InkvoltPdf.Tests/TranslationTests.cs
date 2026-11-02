@@ -1209,6 +1209,33 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Text_in_a_spot_color_isnt_taken_for_white()
+    {
+        // "1 scn" in a Separation space is full ink. Read as white, a heading would be held to its old box as if it sat on a dark band.
+        var pdf = Page("/Spot cs 1 scn " + Lines(72, 700, 12, 14, "Hello") + "0 g " + Lines(72, 400, 12, 14, "The quick brown fox jumps over a lazy dog and goes on and on until the dog"), fontText: Letters);
+        using (var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            var res = PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!;
+            var tint = new PdfDictionary(doc);
+            tint.Elements["/FunctionType"] = new PdfInteger(2);
+            tint.Elements["/N"] = new PdfInteger(1);
+            tint.Elements["/Domain"] = PdfObj.Reals(doc, 0, 1);
+            tint.Elements["/C0"] = PdfObj.Reals(doc, 1, 1, 1);
+            tint.Elements["/C1"] = PdfObj.Reals(doc, 0, 0, 1);
+            doc.Internals.AddObject(tint);
+            var spaces = new PdfDictionary(doc);
+            spaces.Elements["/Spot"] = new PdfArray(doc, new PdfName("/Separation"), new PdfName("/Blue"), new PdfName("/DeviceRGB"), tint.Reference!);
+            res.Elements["/ColorSpace"] = spaces;
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : t);
+        Assert.Equal(0, r.Report.Shrunk);
+        Assert.Equal(12, ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX").FontSize, 1);
+    }
+
+    [Fact]
     public void A_heading_in_a_tight_clip_keeps_its_size()
     {
         var pdf = Page("q 72 694 400 16 re W n " + Lines(72, 700, 14, 16, "Hello World") + "Q", fontText: Letters);

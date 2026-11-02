@@ -99,7 +99,7 @@ public static partial class ContentEditor
                 var smaller = r.FontSize < prev.FontSize ? r : prev;
                 var gap = r.Box.X - cur.Box.Right;
                 // Sizes touching are one word (small capitals: a big D, then "IGITAL"), or go on after a subscript.
-                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.25 * bigger;
+                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.4 * bigger;
                 if (gap > 1.5 * bigger || sizes)
                 {
                     cur = new PLine(r);
@@ -170,7 +170,7 @@ public static partial class ContentEditor
     // ---- The room a paragraph has ----
 
     /// <summary>What a page's new text must keep clear of, and how far its upright text reaches across.</summary>
-    private sealed class PageThings
+    internal sealed class PageThings
     {
         public readonly List<(RectD Box, TextRun? Run)> Boxes = [];
         public readonly double TextLeft = double.MaxValue, TextRight = double.MinValue;
@@ -210,7 +210,7 @@ public static partial class ContentEditor
     /// A paragraph as it will be written: the edges its lines stay between, its alignment as the page shows it (a single
     /// line can't tell, so its place on the page or in its cell does), and how far down it may go.
     /// </summary>
-    private static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight)
+    internal static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight)
     {
         var p = slot.Paragraph;
         var framed = p with { };
@@ -308,7 +308,7 @@ public static partial class ContentEditor
     /// The new text laid out at the largest size that fits its room (steps of 5%); at the smallest allowed when none does.
     /// Characters no font here has are left out and named.
     /// </summary>
-    private static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text)
+    internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text)
     {
         var dropped = new List<string>();
         var smallest = SmallestFit(framed.FontSize);
