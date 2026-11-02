@@ -34,7 +34,7 @@ enum Converting {
     @discardableResult
     static func openConverted(_ url: URL) async -> PdfDocument? {
         let name = url.lastPathComponent
-        guard let app = OfficeFiles.appFor(url.path) else {
+        guard OfficeFiles.appFor(url.path) != nil else {
             let options = savedWebOptions()
             let paper = options.paper == .a4 ? "A4" : options.paper.rawValue.capitalized
             return await run(title: "Opening \(name)", text: "Opening the page…", pdfName: OfficeFiles.pdfName(url.path),

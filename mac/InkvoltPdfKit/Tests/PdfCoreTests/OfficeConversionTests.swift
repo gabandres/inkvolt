@@ -58,6 +58,17 @@ private final class FakeOffice {
         return kill(pid, 0) == 0
     }
 
+    /// The recorded process has ended, given a moment: a SIGKILL is sent at once but takes effect later, and launchd
+    /// reaps an orphan when it gets to it (a busy full run once saw a killed child still there).
+    func isGone(_ recordName: String, within seconds: TimeInterval = 3) -> Bool {
+        let until = Date().addingTimeInterval(seconds)
+        while isAlive(recordName) {
+            if Date() >= until { return false }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return true
+    }
+
     func message(timeout: TimeInterval = 20, cancel: CancelToken = CancelToken()) -> String? {
         do {
             _ = try converter.toPdf(document.path, timeout: timeout, cancel: cancel)
@@ -181,8 +192,8 @@ private final class FakeOffice {
         let message = try #require(fake.message(timeout: 1))
         #expect(message.contains("didn't finish within 1 seconds"))
         #expect(Date().timeIntervalSince(started) < 8)
-        #expect(!fake.isAlive("pid"))
-        #expect(!fake.isAlive("child"))
+        #expect(fake.isGone("pid"))
+        #expect(fake.isGone("child"))
         #expect(fake.tempIsEmpty)
     }
 
@@ -192,20 +203,25 @@ private final class FakeOffice {
         let message = try #require(fake.message(timeout: 1))
         #expect(message.contains("didn't finish"))
         #expect(Date().timeIntervalSince(started) < 10)
-        #expect(!fake.isAlive("pid"))
-        #expect(!fake.isAlive("child"))
+        #expect(fake.isGone("pid"))
+        #expect(fake.isGone("child"))
         #expect(fake.tempIsEmpty)
     }
 
     @Test func cancellingEndsTheConverter() throws {
         let fake = try FakeOffice(#"sleep 300 & printf '%s\n' "$!" > "$record/child"; wait"#)
         let cancel = CancelToken()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { cancel.cancel() }
+        // A thread of its own, as a Cancel button's: in a full run the other tests keep GCD's threads busy, and a
+        // cancel queued there came 25 s late.
+        Thread.detachNewThread {
+            Thread.sleep(forTimeInterval: 0.5)
+            cancel.cancel()
+        }
         let started = Date()
         #expect(throws: CancellationError.self) { _ = try fake.converter.toPdf(fake.document.path, timeout: 60, cancel: cancel) }
         #expect(Date().timeIntervalSince(started) < 8)
-        #expect(!fake.isAlive("pid"))
-        #expect(!fake.isAlive("child"))
+        #expect(fake.isGone("pid"))
+        #expect(fake.isGone("child"))
         #expect(fake.tempIsEmpty)
     }
 
@@ -223,7 +239,7 @@ private final class FakeOffice {
         let started = Date()
         #expect(fake.message() == nil)
         #expect(Date().timeIntervalSince(started) < 8)
-        #expect(!fake.isAlive("child"))
+        #expect(fake.isGone("child"))
         #expect(fake.tempIsEmpty)
     }
 

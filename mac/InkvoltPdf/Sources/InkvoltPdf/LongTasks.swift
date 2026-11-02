@@ -135,9 +135,18 @@ final class ProgressSheet: NSWindowController {
         cancelButton.isEnabled = false
     }
 
+    /// No window to hang the sheet on (none open, or one already showing a sheet): a panel of its own, in the middle of
+    /// the screen, above the app's windows.
+    func showAlone() {
+        guard let window else { return }
+        window.level = .modalPanel
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+    }
+
     func end() {
-        guard let window, let parent = window.sheetParent else { return }
-        parent.endSheet(window)
+        guard let window else { return }
+        if let parent = window.sheetParent { parent.endSheet(window) }
         window.orderOut(nil)
     }
 }

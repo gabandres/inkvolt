@@ -10,6 +10,8 @@ if BatchCommandLine.isCommand(cliArguments) {
 // AppKit opens any argument that names something on disk as a document: the self-test's `--snapshots <folder>` would stop
 // the run behind an error alert nobody can dismiss over SSH.
 if cliArguments.contains("--self-test") { UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"]) }
+// The first document controller made is the one AppKit keeps: ours converts Office files and saved web pages on Open.
+_ = DocumentController()
 let app = NSApplication.shared
 AppSettings.noteFirstRun() // before Sparkle writes its keys: a new install sees no What's New
 let updates = Updates() // Sparkle's updater, started here, before the app finishes launching

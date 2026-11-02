@@ -163,8 +163,10 @@ final class WebCapture: NSObject, WKNavigationDelegate, WKUIDelegate {
         if !printed { throw PdfEditError(WebCaptureRules.notPrinted) }
     }
 
-    @objc private func printDidRun(_ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) {
-        printing?.finish(.success(success))
+    /// AppKit calls this from the print operation's own thread (`_continueModalOperationToTheEnd`), not the main one: a
+    /// main-actor method here traps in Swift's executor check, so it hops to the main actor first.
+    @objc nonisolated private func printDidRun(_ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        Task { @MainActor in self.printing?.finish(.success(success)) }
     }
 
     /// Stops whatever the page still does; WebKit's processes for it end with the view.
@@ -246,7 +248,8 @@ final class WebCapture: NSObject, WKNavigationDelegate, WKUIDelegate {
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool { false }
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo) async -> String? { nil }
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo) async -> [URL]? { nil }
-    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision { .deny }
+    /// A page asking for the camera or microphone is refused without a question.
+    func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision { .deny }
 }
 
 /// One wait on WebKit, with a time limit and Cancel: the first of the three to happen ends it.

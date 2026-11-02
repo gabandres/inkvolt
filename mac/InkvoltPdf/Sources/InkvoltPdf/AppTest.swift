@@ -81,6 +81,7 @@ struct AppTest {
         about()
         await scan()
         await openFromAnotherApp()
+        await convertFiles()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         StartWindowController.testRecent = nil
@@ -354,6 +355,65 @@ struct AppTest {
         check(dense.count == 24 && dense[16] == 0x01 && dense[17] == 0x2C, "a scanned JPEG gets the scan's resolution in its JFIF header")
     }
 
+    // MARK: PDF from Office files and web pages (E12)
+
+    /// A saved web page and an Office file opened through the app's own document controller (as File › Open, the Dock or
+    /// Finder do): the page printed by WebKit with its scripts off, the Office file through a made-up LibreOffice that
+    /// writes a copy of the synthetic document, each a new unsaved document; then the menu items and document types.
+    private mutating func convertFiles() async {
+        let menu = NSApp.mainMenu?.item(withTitle: "File")?.submenu
+        let items = ["New PDF from Office File…", "New PDF from Web Page…"].filter { menu?.item(withTitle: $0) != nil }
+        let types = (Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]]) ?? []
+        let utis = Set(types.flatMap { ($0["LSItemContentTypes"] as? [String]) ?? [] })
+        let wanted = ["org.openxmlformats.wordprocessingml.document", "org.openxmlformats.spreadsheetml.sheet",
+                      "org.openxmlformats.presentationml.presentation", "public.html"]
+        check(items.count == 2 && wanted.allSatisfy(utis.contains),
+              "File has New PDF from Office File… and from Web Page…; Word, Excel, PowerPoint and web pages are document types")
+        check(NSDocumentController.shared is DocumentController, "the app's document controller is the one that converts")
+
+        // A saved web page: its text printed, its script never run.
+        let page = url("Saved page.html")
+        let html = "<!doctype html><html><head><title>Saved</title></head><body><h1>Inkvolt web capture check</h1>"
+            + "<p>Paragraph one of the saved page.</p><script>document.body.innerHTML += '<p>SCRIPT RAN</p>'</script></body></html>"
+        try? Data(html.utf8).write(to: page)
+        let before = Set(NSDocumentController.shared.documents.map(ObjectIdentifier.init))
+        NSDocumentController.shared.openDocument(withContentsOf: page, display: true) { _, _, _ in }
+        let made = await wait(60) { NSDocumentController.shared.documents.contains { !before.contains(ObjectIdentifier($0)) } }
+        let web = NSDocumentController.shared.documents.first { !before.contains(ObjectIdentifier($0)) } as? PdfDocument
+        let webText = Self.text(web)
+        check(made && webText.contains("Inkvolt web capture check") && webText.contains("Paragraph one") && !webText.contains("SCRIPT RAN")
+              && web?.fileURL == nil && (try? Data(contentsOf: page)) == Data(html.utf8),
+              "a saved web page opens as a new unsaved PDF with its text (\(web?.engine?.pageCount ?? 0) pages), its script not run, the page unchanged")
+        web?.close()
+
+        // An Office file: through LibreOffice when installed; here a made-up one, as the PdfCore tests use.
+        let bin = url("bin")
+        try? FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let soffice = bin.appendingPathComponent("soffice")
+        guard let synthetic = Report.syntheticPath else { return }
+        let script = "#!/bin/sh\nprev=\nfor a in \"$@\"; do [ \"$prev\" = \"--outdir\" ] && out=\"$a\"; prev=\"$a\"; input=\"$a\"; done\n"
+            + "cp '" + synthetic + #"' "$out/$(basename "$input" | sed 's/\.[^.]*$//').pdf""# + "\n"
+        try? Data(script.utf8).write(to: soffice)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: soffice.path)
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path)
+        defer { Converting.testInstalls = nil }
+        let report = url("Quarterly report.docx")
+        try? Data("PK\u{3}\u{4}a made-up document".utf8).write(to: report)
+        let opened = await Converting.openConverted(report)
+        let pages = opened?.engine?.pageCount ?? 0
+        check(opened != nil && opened?.fileURL == nil && pages == PdfEngineCount.of(URL(fileURLWithPath: synthetic))
+              && Converting.lastNotice.contains("LibreOffice") && opened?.displayName.hasPrefix("Quarterly report") == true,
+              "an Office file opens converted by LibreOffice as a new unsaved PDF named after it (\(pages) pages): \(Converting.lastNotice)")
+        opened?.close()
+
+        // Nothing installed: said in words, nothing opened.
+        Converting.testInstalls = OfficeInstalls()
+        let count = NSDocumentController.shared.documents.count
+        let none = await Converting.openConverted(report)
+        check(none == nil && NSDocumentController.shared.documents.count == count && (Converting.lastMessage?.text.contains("LibreOffice") ?? false),
+              "with no converter installed, an Office file opens nothing and the message names LibreOffice")
+    }
+
     // MARK: Open in Inkvolt PDF (from another app)
 
     /// Opens a copy through Launch Services with this app, as Inkvolt Print's "Open in Inkvolt PDF" does.
@@ -369,6 +429,16 @@ struct AppTest {
         let opened = await wait(15) { self.controller(self.document(at: file))?.window?.isVisible == true }
         check(opened, "a PDF handed over by another app (NSWorkspace, as Inkvolt Print does) opens in a window")
         document(at: file)?.close()
+    }
+}
+
+// MARK: PDF from Office files and web pages (E12)
+
+extension AppTest {
+    /// The text of every page of an open document.
+    fileprivate static func text(_ document: PdfDocument?) -> String {
+        guard let engine = document?.engine else { return "" }
+        return (0..<engine.pageCount).compactMap { try? engine.text($0).text }.joined(separator: "\n")
     }
 }
 

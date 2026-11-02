@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func newWindow(_ sender: Any?) { StartWindowController.show() }
     @objc func newFromImages(_ sender: Any?) { NewDocuments.chooseImages() }
     @objc func newFromClipboard(_ sender: Any?) { NewDocuments.fromClipboard() }
+    @objc func newFromOfficeFile(_ sender: Any?) { Converting.fromOfficeFile() }
+    @objc func newFromWebPage(_ sender: Any?) { Converting.fromWebPage() }
     @objc func combineFiles(_ sender: Any?) { _ = CombineWindowController.show() }
     @objc func compareFiles(_ sender: Any?) { CompareWindowController.pick() }
     @objc func scan(_ sender: Any?) { ScanWindowController.show() }
@@ -66,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A normal quit (after every document was saved or let go): the recovery copies go.
     func applicationWillTerminate(_ notification: Notification) {
         Self.isTerminating = true
+        Converting.stopAll()
         RecoveryCopies.shared.quit()
     }
 
@@ -143,6 +146,8 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
         menu.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
+        menu.addItem(item("New PDF from Office File…", #selector(AppDelegate.newFromOfficeFile(_:))))
+        menu.addItem(item("New PDF from Web Page…", #selector(AppDelegate.newFromWebPage(_:))))
         menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
         menu.addItem(item("Compare Files…", #selector(AppDelegate.compareFiles(_:))))
         menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))

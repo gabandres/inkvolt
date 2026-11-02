@@ -37,7 +37,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .protect: "Require a password to open, print or change it"
             case .ocr: "Make a scan searchable and its text copyable"
             case .organize: "Reorder, rotate, delete, insert or extract pages"
-            case .create: "From images, the clipboard or a scanner"
+            case .create: "From Office files, a web page, images, the clipboard or a scanner"
             case .batch: "The same actions on many files; presets and watched folders"
             }
         }
@@ -365,7 +365,9 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             BatchWindowController.show()
         case .create:
             let menu = NSMenu()
-            for (title, action) in [("From Images…", #selector(AppDelegate.newFromImages(_:))),
+            for (title, action) in [("From an Office File (Word, Excel, PowerPoint)…", #selector(AppDelegate.newFromOfficeFile(_:))),
+                                    ("From a Web Page…", #selector(AppDelegate.newFromWebPage(_:))),
+                                    ("From Images…", #selector(AppDelegate.newFromImages(_:))),
                                     ("From the Clipboard", #selector(AppDelegate.newFromClipboard(_:))),
                                     ("From a Scanner…", #selector(AppDelegate.scan(_:)))] {
                 menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: ""))

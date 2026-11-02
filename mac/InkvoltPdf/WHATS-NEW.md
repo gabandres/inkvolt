@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- New PDF from Office File… and from Web Page… (File menu, and the start page's Create a PDF card): Word, Excel and PowerPoint files become PDFs through LibreOffice when it's installed (free, from libreoffice.org); a web address or a saved page is printed to a PDF with your paper, margins and backgrounds. Office files and saved pages also open straight from Finder or File › Open. The result opens as a new PDF; the original isn't changed.
 
 ## 1.4.1
 - Fixed: a signature could still read as valid after a later change laid something over its page, through a field that only called itself a timestamp or a comment written straight into the page's list. Both now count as changes made after signing.
