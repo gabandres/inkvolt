@@ -434,6 +434,9 @@ public sealed class AppSettings
     public List<string> AiNoPreview { get; set; } = [];
     public List<string> AiCloudWarned { get; set; } = [];
 
+    /// <summary>The language last translated into.</summary>
+    public string AiTranslateLanguage { get; set; } = "English";
+
     /// <summary>Each drawing tool's last look, by tool name ("Pen", "Rectangle"…); see <c>DrawStyles</c>.</summary>
     public Dictionary<string, DrawStyleSetting> DrawStyles { get; set; } = [];
     /// <summary>Per-file view state, keyed by full path (most recent 300 kept).</summary>

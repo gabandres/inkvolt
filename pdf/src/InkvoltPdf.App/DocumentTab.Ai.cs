@@ -438,6 +438,7 @@ public partial class DocumentTab
     private void DisposeAi()
     {
         _aiCancel?.Cancel();
+        CancelTranslation();
         _aiText.Clear();
         _aiTextEngine = null;
     }

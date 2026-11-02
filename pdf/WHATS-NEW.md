@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Translate with AI (Review › AI Assistant): a translated copy opens in a new tab with the original beside it, and the two scroll together. It goes one paragraph at a time through your own AI, with no page limit, and you see what will be sent, and where, first. Nothing goes anywhere else.
+- Each paragraph stays in its box: its text wraps there, shrinks if it must, and gets a comment if it still doesn't fit. Tables go cell by cell, and pictures stay where they are.
+- A long translation shows how far it has come, and you can stop it and keep what's done. Your original file isn't changed.
 
 ## 1.5.0
 - Compare Files takes Word, Excel and PowerPoint files and scans as well as PDFs, on either side. Words on a scan are recognized on your PC first, and a difference that may be a misreading says so.

@@ -21,6 +21,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
   Declined, Failed.
+- **Translated copy** (`Core/Translation.cs`, `Core/ContentEditor.Translate.cs`): a new document in another language, made in
+  three stages: the **plan** (the pages' paragraphs, nothing sent), the **answers** (what the model said, each checked; a
+  stopped run keeps its answers) and **apply** (one pass over the pages, each paragraph written in its box at the largest
+  **fit**, its size against its own, that it has room for). A **flag** is what the reader should look at: most get a comment in the copy.
 - **Undo step**: one committed edit; its id (`UndoStepId`) stays with it through undo and redo, so a toast's Undo acts
   only on the edit it announced.
 - **Edit prompts** (`IEditPrompts`): the questions an edit transaction asks the user (signed file, open password,

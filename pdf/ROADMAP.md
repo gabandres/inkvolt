@@ -463,6 +463,55 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Leader.** Foxit: AI translate keeping layout, original and translation side by side, 25+ languages, in Foxit's cloud,
   credits per month ([Foxit](https://www.foxit.com/ai/pdf-translator/)). PDFelement: side by side or interleaved, 35-50
   languages, scans through OCR ([Wondershare](https://pdf.wondershare.com/online-pdf/ai-pdf-translator.html)).
+- **Now (Windows, 2026-11-01). A real model has not been run:** this PC has no Ollama or LM Studio and no server on the
+  usual ports, so every run below answered from a stand-in server. How good a real model's translations are, how long it
+  takes, and how it behaves in practice are unknown. Review › AI Assistant › Translate with AI: free, as the table says, so
+  no `Pro` check. `Translation.MakePlan` reads the pages, nothing sent: each page's paragraphs by 2.1's grouping
+  (`ContentEditor.Translate.cs`), table cells apart by Export to Word's analysis (`DocLayout`), repeats once, paragraphs
+  with no words not at all. The "what is sent, where" window shows every request. `TranslateAsync` sends them one at a
+  time (a paragraph too long for the model's context in pieces). `Apply` writes the copy from the original's bytes, each
+  page in one pass over a document kept open (reopening it per paragraph, as an edit does, would take the square of the
+  length). A paragraph wraps in its box and may use the white space below it; next it shrinks in steps of 5%, down to half
+  its size or 5 points; if it still doesn't fit it is written there and gets a comment. So does a paragraph left untranslated,
+  with why. When the page's font lacks a letter, the whole paragraph is drawn in the closest installed font (a subset
+  rarely holds a translation's letters; 2.1's letter-by-letter stand-ins would read like a ransom note), once per face in
+  the file. Chinese and Japanese wrap between characters, a word wider than its box breaks, right-to-left text is
+  shaped whole line by line against the right edge. The copy gets the language's `/Lang`, opens as an unsaved tab, and the
+  original goes in the split view's second pane on the left (`ShowBeside`), scrolling and zooming with it. Progress and
+  Cancel come from `ProgressPrompt`; stopping offers the part done as a copy.
+  Decisions: text the editor refuses (mixed fonts, right-to-left, a raised mark on its lines) is translated here, since all of it
+  is replaced: a bold word or a superscript inside a paragraph loses its look, and a raised mark joins the text sent. A
+  bullet of its own stays where it is. A line comes apart at a gap over 1.5 ems or where its size changes. A single line's
+  alignment comes from its place on the page or in its cell. White text stays in its box (past it, on a band we can't see,
+  it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
+  A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
+  A stopped run's unreached paragraphs get no comment each: the summary names their pages.
+  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named.
+  Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
+  its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
+  fitted. Thai has no spaces, so it wraps between any two characters. A file's size can grow as with any edit: PDFsharp
+  writes compressed objects out plainly (census-p60, 1.8 MB to 8 MB). Paragraphs with `/ActualText` stay and get a comment.
+  **Checked.** `TranslationTests` (106 with `TranslationSampleFile`), including the test below on 100 made-up pages through a real
+  socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
+  written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
+  server got nothing and the run stopped). Hostile replies through the real `AiClient`: endless answers stopped by length,
+  keep-alives forever by the deadline (three in a row stop the run), silence, several paragraphs for one (asked once more,
+  then left and flagged), control and direction-override characters, private-use characters, broken surrogates, markup,
+  an answer cut at the model's limit (asked in halves), a refused key, a busy server (retried), a body that can't be read.
+  Crafted PDFs: 30,000 runs on a page, 19,000 paragraphs on a page, a million characters in one operator, forms drawing
+  forms 60^8 times (cut short at 64 MB and named, and cancellable), coordinates that overflow to infinity (an endless loop
+  found in review), unreadable content, a font with nonsense widths. The real app driven with `--script` and looked at:
+  all 100 pages to a stand-in on a real socket, the Send window, progress with the UI answering, Cancel and keep
+  (376 paragraphs left, pages named), both panes scrolling to the same place from either side; the menu command and its
+  window with the Ollama preset and no network (`aifake translate`) on f1040. No model's answers looked at, only the stand-in's. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
+  export corpus files, first 30 pages of each, 99 pages and 2,524 paragraphs, each answer longer and marked: page counts
+  and pictures kept, no page's new text hidden (pixels changed), no page failed, read and written in seconds; 207 paragraphs
+  don't fit at the smallest size and 50 are left (`/ActualText` and unreadable characters).
+  **Not checked.** Any real model, local or cloud: quality, speed, or whether a real model's habits get past `CleanReply`
+  (a refusal in words, or an answer to the text in place of its translation, can't be told from a translation). A screen
+  reader on a copy: all a paragraph's text ends up in its first tagged piece. Acrobat and pdf.js on a copy. Long runs over
+  sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
+  real sleep). English UI only: the app has no Spanish strings.
 - **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by
   paragraph, with the usual window showing what is sent; a translated copy keeps each paragraph in its box (2.1's
   reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no

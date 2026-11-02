@@ -315,6 +315,7 @@
                                         <MenuItem Command="app:Cmd.AiSummarize" />
                                         <MenuItem Command="app:Cmd.AiAsk" />
                                         <MenuItem Command="app:Cmd.AiExplain" />
+                                        <MenuItem Command="app:Cmd.AiTranslate" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.AiSettings" />
                                     </MenuItem>

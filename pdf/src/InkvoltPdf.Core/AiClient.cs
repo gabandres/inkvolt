@@ -191,7 +191,7 @@ public sealed class AiClient : IDisposable
         if (!response.IsSuccessStatusCode)
         {
             var body = await ReadBody(response, cts, cancel, truncate: true);
-            throw new AiException(AiProtocol.DescribeError((int)response.StatusCode, AiProtocol.ErrorMessageOf(body), _model, _endpoint));
+            throw new AiException(AiProtocol.DescribeError((int)response.StatusCode, AiProtocol.ErrorMessageOf(body), _model, _endpoint)) { Status = (int)response.StatusCode };
         }
 
         var mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
@@ -267,7 +267,7 @@ public sealed class AiClient : IDisposable
             var to = response.Headers.Location is { } loc ? new Uri(_endpoint.BaseUrl, loc) : null;
             response.Dispose();
             throw new AiException($"{_endpoint.Host} redirects to {(to is null ? "another address" : to.GetLeftPart(UriPartial.Path))}. " +
-                                  "Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.");
+                                  "Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.") { Status = status };
         }
         return response;
     }

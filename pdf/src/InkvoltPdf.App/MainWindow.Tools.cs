@@ -55,6 +55,11 @@ public partial class MainWindow
             if (AiReady()) t.ShowAiPane();
         }, t => t.PageView.PageCount > 0);
         Bind(Cmd.AiExplain, t => _ = t.AiExplainSelection(), t => t.PageView.HasSelection && !t.IsAiBusy);
+        Bind(Cmd.AiTranslate, t =>
+        {
+            if (!AiReady()) return;
+            if (AiActions.AskTranslate(this, t) is { } job) _ = t.AiTranslate(job.Language, job.Tag, job.Pages);
+        }, t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsTranslating);
         BindAlways(Cmd.AiSettings, () =>
         {
             if (!AiActions.ShowSettings(this)) return;

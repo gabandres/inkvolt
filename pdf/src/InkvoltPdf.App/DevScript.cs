@@ -35,7 +35,7 @@ namespace InkvoltPdf.App;
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
+/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
@@ -1105,6 +1105,16 @@ internal static class DevScript
                 break;
             case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
             case "aistate": log.Add(tab!.DevAiState()); break;
+            // Translate: translate Language [pages] (the whole job; answer its windows with "later") · translatestate
+            case "translate":
+            {
+                var a = arg.Split(' ', 2);
+                var pages = a.Length > 1 && Core.PageRange.TryParse(a[1], v!.PageCount, out var some, out _) ? some : [.. Enumerable.Range(0, v!.PageCount)];
+                await tab!.AiTranslate(a[0], Core.Translation.Languages.FirstOrDefault(l => l.Name == a[0])?.Tag, pages);
+                log.Add($"translated: {DocumentTab.LastTranslationSummary?.Replace('\n', ' ')}");
+                break;
+            }
+            case "translatestate": log.Add(tab!.DevTranslateState()); break;
             case "dialogfill":
                 if (Application.Current.Windows.OfType<FormDialog>().LastOrDefault(w => w.IsVisible) is { } fd)
                 {
@@ -1800,6 +1810,14 @@ internal static class DevScript
                         { Headers = { ContentType = json } },
                 };
             var text = (mode.Length > 1 ? mode[1] : "An answer.").Replace("\\n", "\n"); // a typed \n is a line break
+            if (mode[0] == "translate")
+            {
+                // A stand-in translation: the user message's words, marked and a little longer; "translate 200" takes that many ms each.
+                using var sent = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var source = sent.RootElement.GetProperty("messages").EnumerateArray().Last().GetProperty("content").GetString()!;
+                text = $"[ES] {source} (traducido)";
+                if (mode.Length > 1 && int.TryParse(mode[1], out var slow)) await Task.Delay(slow, cancellationToken);
+            }
             var sb = new System.Text.StringBuilder();
             foreach (var word in System.Text.RegularExpressions.Regex.Split(text, @"(?<=\s)"))
             {

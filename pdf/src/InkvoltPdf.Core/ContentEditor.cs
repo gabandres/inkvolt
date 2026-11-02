@@ -151,6 +151,9 @@ public static partial class ContentEditor
 {
     private const int MaxDepth = 8;
 
+    /// <summary>The most form XObject content walked for one page, counting each drawing (and a little for each, however small).</summary>
+    private const long MaxFormBytes = 64L << 20;
+
     /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
     internal const string StandInKey = "InkFb";
 
@@ -679,6 +682,8 @@ public static partial class ContentEditor
         public Mat Ctm { get; init; } = Mat.Identity;
         public double Rise { get; init; }
         public double Advance { get; init; }
+        /// <summary>The rectangle text drawn where this operator is shows through (see <see cref="GState.Clip"/>); null when there is none known.</summary>
+        public RectD? Clip { get; init; }
         /// <summary>The operators that set the fill color in effect (to set it back after text of another color); null when that can't be told.</summary>
         public string? FillOp { get; init; }
         /// <summary>The form XObject the run is drawn in (null: the page's own content).</summary>
@@ -709,6 +714,9 @@ public static partial class ContentEditor
         public readonly Dictionary<PdfDictionary, int> FormUses = new(ReferenceEqualityComparer.Instance);
         /// <summary>Things inside form XObjects get negative ids (they aren't page operators).</summary>
         public int Nested;
+        /// <summary>How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.</summary>
+        public long FormBudget = MaxFormBytes;
+        public bool CutShort => FormBudget < 0;
         public PageContent Content => new(TextRuns, Images);
     }
 
@@ -721,6 +729,8 @@ public static partial class ContentEditor
         public string FontKey = "";
         public double Size = 1, Tc, Tw, Th = 1, Tl, Rise;
         public int Render;
+        /// <summary>The rectangles clipping what is drawn, together, in page space (null: none; other clip shapes aren't followed).</summary>
+        public RectD? Clip;
         public int Fill;
         public string? FillOp = "0 g", FillSpace = "DeviceGray";
         public GState Clone() => (GState)MemberwiseClone();
@@ -750,6 +760,10 @@ public static partial class ContentEditor
         var looks = new Stack<LookTag?>(); // and is one a look a paragraph edit gave its text?
         var actualText = 0;
         Mat tm = Mat.Identity, tlm = Mat.Identity;
+        // The path being built, for a clip: one rectangle is followed, any other shape isn't.
+        RectD? pathBox = null;
+        var pathParts = 0;
+        var clipping = false;
         for (var i = 0; i < ops.Count; i++)
         {
             if ((i & 1023) == 1023) cancel.ThrowIfCancellationRequested();
@@ -757,6 +771,22 @@ public static partial class ContentEditor
             var id = depth == 0 ? i : -++w.Nested;
             switch (op.Name)
             {
+                case "re" when op.Operands.Count >= 4:
+                    pathParts++;
+                    pathBox = BoxOf(page, gs.Ctm, op.N(0), op.N(1), op.N(0) + op.N(2), op.N(1) + op.N(3));
+                    break;
+                case "m" or "l" or "c" or "v" or "y":
+                    pathParts += 2;
+                    break;
+                case "W" or "W*":
+                    clipping = true;
+                    break;
+                case "n" or "f" or "F" or "f*" or "B" or "B*" or "b" or "b*" or "S" or "s":
+                    if (clipping && pathParts == 1 && pathBox is { } clip) gs.Clip = gs.Clip is { } was ? was.Intersect(clip) : clip;
+                    clipping = false;
+                    pathParts = 0;
+                    pathBox = null;
+                    break;
                 case "q":
                     if (stack.Count < 256) stack.Push(gs.Clone());
                     break;
@@ -867,6 +897,8 @@ public static partial class ContentEditor
                     if (sub == "/Image") AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
+                        cancel.ThrowIfCancellationRequested();
+                        if (w.FormBudget < 0) break;
                         var m = PdfObj.Array(xobj.Elements["/Matrix"]) is { Elements.Count: 6 } a
                             ? new Mat(PdfObj.Num(a, 0), PdfObj.Num(a, 1), PdfObj.Num(a, 2), PdfObj.Num(a, 3), PdfObj.Num(a, 4), PdfObj.Num(a, 5))
                             : Mat.Identity;
@@ -874,6 +906,13 @@ public static partial class ContentEditor
                         inner.Ctm = m.Times(gs.Ctm);
                         w.FormUses[xobj] = w.FormUses.GetValueOrDefault(xobj) + 1;
                         var bytes = PdfObj.StreamBytes(xobj);
+                        w.FormBudget -= bytes.Length + 1024;
+                        if (w.FormBudget < 0) break;
+                        if (PdfObj.Array(xobj.Elements["/BBox"]) is { Elements.Count: 4 } bbox)
+                        {
+                            var box = BoxOf(page, inner.Ctm, PdfObj.Num(bbox, 0), PdfObj.Num(bbox, 1), PdfObj.Num(bbox, 2), PdfObj.Num(bbox, 3));
+                            inner.Clip = inner.Clip is { } outerClip ? outerClip.Intersect(box) : box;
+                        }
                         var formOps = ContentLexer.Parse(bytes, cancel);
                         var place = new FormPlace(xobj, bytes, formOps, -1, PdfObj.Dict(xobj.Elements["/Resources"]) ?? resources, form, id, op.Operands[0].Name);
                         Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked, cancel, place);
@@ -931,6 +970,7 @@ public static partial class ContentEditor
         var items = new List<RunItem>();
         var hex = false;
         double adv = 0, gaps = 0, end = 0; // end: where the last glyph's ink ends (before its spacing)
+        double low = 0, high = 0; // how far its glyphs reach: right-to-left text written in logical order moves back as it goes
         var gapCount = 0;
         var fs = gs.Size;
         void Glyphs(CObj s)
@@ -942,6 +982,7 @@ public static partial class ContentEditor
                 {
                     items.Add(new RunItem(b, 0, ((char)b).ToString(), false));
                     end = adv + 0.5 * fs * gs.Th;
+                    (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                     adv += (0.5 * fs + gs.Tc) * gs.Th;
                 }
                 return;
@@ -950,6 +991,7 @@ public static partial class ContentEditor
             {
                 items.Add(new RunItem(g.Code, 0, g.Text, false));
                 end = adv + g.Width * fs * gs.Th;
+                (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                 adv += (g.Width * fs + gs.Tc + (!font.TwoByte && g.Code == 32 ? gs.Tw : 0)) * gs.Th;
             }
         }
@@ -979,7 +1021,7 @@ public static partial class ContentEditor
         var trm = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(tm).Times(gs.Ctm);
         var asc = (font?.Ascent ?? 0.8) * fs;
         var desc = (font?.Descent ?? -0.2) * fs;
-        var box = BoxOf(page, trm, 0, desc, end, asc);
+        var box = BoxOf(page, trm, low, desc, Math.Max(end, high), asc);
         var (bx0, by0) = Project(page, trm, 0, 0);
         var (bx1, by1) = Project(page, trm, 1, 0);
         var (vx0, vy0) = Project(page, trm, 0, 1);
@@ -1012,7 +1054,7 @@ public static partial class ContentEditor
             FontKey = gs.FontKey,
             Tag = tag,
         };
-        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form };
+        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form, Clip = gs.Clip };
         // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
         var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
         if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });
