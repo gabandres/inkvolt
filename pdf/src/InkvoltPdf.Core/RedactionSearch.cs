@@ -115,7 +115,8 @@ public static class RedactionSearch
                     {
                         // Boxes from a recognizer are rough: a little more room, so no edge of a figure stays.
                         var rects = (IReadOnlyList<RectD>)[.. hit.Rects.Select(r => r.Inflate(1.5))];
-                        if (!(taken.TryGetValue(hit.Pattern, out var same) && same.Touches(rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
+                        // The same value read twice lies on itself; one on the next line only touches the first.
+                        if (!(taken.TryGetValue(hit.Pattern, out var same) && same.LiesOn(hit.Rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
                     }
                 }
             }
@@ -178,6 +179,10 @@ public static class RedactionSearch
             var last = Math.Min((long)Math.Floor(r.Bottom / Band), first + 512);
             for (var b = first; b <= last; b++) yield return b;
         }
+
+        /// <summary>Most of one of the boxes is inside one of these.</summary>
+        public bool LiesOn(IReadOnlyList<RectD> rects) =>
+            rects.Any(r => Bands(r).Any(b => _bands.TryGetValue(b, out var list) && list.Any(k => k.Intersect(r) is { IsEmpty: false } i && i.Width * i.Height >= 0.5 * Math.Min(k.Width * k.Height, r.Width * r.Height))));
 
         public bool Touches(IReadOnlyList<RectD> rects) =>
             rects.Any(r => Bands(r).Any(b => _bands.TryGetValue(b, out var list) && list.Any(k => !k.Intersect(r).IsEmpty)));

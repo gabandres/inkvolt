@@ -329,6 +329,19 @@ public static class BatchPresets
     /// <exception cref="BatchPresetException">It isn't JSON, isn't a preset, comes from a newer version, or a setting is wrong.</exception>
     public static BatchPreset Read(string json, string? fallbackName = null)
     {
+        try
+        {
+            return ReadJson(json, fallbackName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // JSON text that holds half a surrogate pair ("\uD800") parses, and only fails when it is read.
+            throw new BatchPresetException("This preset holds text that can't be read.", ex);
+        }
+    }
+
+    private static BatchPreset ReadJson(string json, string? fallbackName)
+    {
         JsonDocument doc;
         try
         {

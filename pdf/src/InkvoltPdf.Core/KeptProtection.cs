@@ -87,6 +87,14 @@ public static class KeptProtection
         Tracked.AddOrUpdate(doc, new Original(method, permissions, owner, user, encryptMetadata));
     }
 
+    /// <summary>Says now, before any long work, what <see cref="Reapply"/> would say at the end: an open password it needs and doesn't have.</summary>
+    /// <exception cref="OpenPasswordUnknownException">AES-256 with an open password that isn't known.</exception>
+    internal static void Require(PdfDocument doc, string? openPassword, bool dropOpenPassword)
+    {
+        if (Tracked.TryGetValue(doc, out var o) && o.UserPassword is null && !dropOpenPassword && string.IsNullOrEmpty(openPassword))
+            throw new OpenPasswordUnknownException();
+    }
+
     /// <summary>The edit sets the protection itself (protect, unprotect) or makes a new document (extract): don't restore it.</summary>
     internal static void Forget(PdfDocument doc) => Tracked.Remove(doc);
 

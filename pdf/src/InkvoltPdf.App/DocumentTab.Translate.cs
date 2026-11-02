@@ -52,14 +52,16 @@ public partial class DocumentTab
                 var read = new Progress<int>(done => reading.Report($"Reading the paragraphs… page {Math.Min(done + 1, pages.Length):N0} of {pages.Length:N0}", (double)done / Math.Max(1, pages.Length)));
                 var pieceTokens = Translation.PieceTokens(config.ContextTokens);
                 var wrong = false;
+                var openPassword = Session.OpenPassword;
+                var dropOpenPassword = false;
                 while (true)
                 {
                     try
                     {
-                        var open = password;
+                        var (open, keep, drop) = (password, openPassword, dropOpenPassword);
                         (plan, jobs, requests) = await Task.Run(() =>
                         {
-                            var p = Translation.MakePlan(data, open, pages, read, run.Token);
+                            var p = Translation.MakePlan(data, open, pages, read, run.Token, keep, drop);
                             var j = Translation.Jobs(p, pieceTokens);
                             return (p, j, Translation.Requests(j, language));
                         }, run.Token);
@@ -71,6 +73,13 @@ public partial class DocumentTab
                         if (PdfFiles.PromptOwnerPassword(owner, name, wrong || ex.WrongPassword && password is not null) is not { } typed) return;
                         password = typed;
                         wrong = true;
+                    }
+                    catch (OpenPasswordUnknownException)
+                    {
+                        // AES-256 opened with its permissions password: the copy can't keep its protection without the open password.
+                        if (SecurityActions.PromptOpenPassword(owner, name, data) is not { } answer) return;
+                        if (answer.DropIt) dropOpenPassword = true;
+                        else openPassword = answer.Password;
                     }
                 }
             }
