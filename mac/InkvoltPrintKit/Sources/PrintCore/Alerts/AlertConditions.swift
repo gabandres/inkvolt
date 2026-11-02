@@ -1,10 +1,12 @@
 import Foundation
 
-/// What an alert is about. Supplies and waste boxes come from the supplies; the rest from the printer's status. The raw
-/// values are the remembered keys' first part, the same as the Windows app's.
+/// What an alert is about. Supplies and waste boxes come from the supplies; `firmwareChanged` from the firmware watch (news,
+/// not a problem: it never colors the menu bar icon); the rest from the printer's status. The raw values are the remembered
+/// keys' first part, the same as the Windows app's.
 public enum AlertKind: String, CaseIterable, Comparable, Sendable {
     case supplyLow = "SupplyLow", supplyEmpty = "SupplyEmpty", wasteAlmostFull = "WasteAlmostFull", wasteFull = "WasteFull"
     case paperJam = "PaperJam", paperOut = "PaperOut", coverOpen = "CoverOpen", error = "Error", offline = "Offline"
+    case firmwareChanged = "FirmwareChanged"
 
     public static func < (a: AlertKind, b: AlertKind) -> Bool { allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)! }
 }
@@ -24,13 +26,16 @@ public struct PrinterSnapshot: Sendable {
     public var reachable: Bool
     public var status: PrinterStatus?
     public var supplies: [Consumable]?
+    /// The printer's last firmware change while its notice shows (`FirmwareWatch.notice`): alerted once.
+    public var firmwareChange: FirmwareChange?
 
-    public init(uuid: String, name: String, reachable: Bool, status: PrinterStatus?, supplies: [Consumable]?) {
+    public init(uuid: String, name: String, reachable: Bool, status: PrinterStatus?, supplies: [Consumable]?, firmwareChange: FirmwareChange? = nil) {
         self.uuid = uuid
         self.name = name
         self.reachable = reachable
         self.status = status
         self.supplies = supplies
+        self.firmwareChange = firmwareChange
     }
 }
 
@@ -47,6 +52,7 @@ public struct AlertCondition: Equatable, Sendable {
         switch kind {
         case .supplyLow, .wasteAlmostFull: .warning
         case .offline: .offline
+        case .firmwareChanged: .ok
         default: .error
         }
     }
@@ -77,6 +83,10 @@ public enum AlertConditions {
         }
         if let status = snap.status { addStatus(&found, snap.name, status) }
         for s in snap.supplies ?? [] { addSupply(&found, snap.name, s, rules, isActive) }
+        if let fw = snap.firmwareChange {
+            found.append(AlertCondition(key: "\(AlertKind.firmwareChanged.rawValue)|\(fw.key)", kind: .firmwareChanged, title: "\(snap.name): firmware changed",
+                                        body: "\(fw.text) If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."))
+        }
         return found
     }
 

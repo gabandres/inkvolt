@@ -44,7 +44,7 @@ public struct AlertRules: Equatable, Sendable {
     public init() {}
 
     public func hold(for kind: AlertKind) -> TimeInterval {
-        AlertCondition.isSupply(kind) ? 0 : kind == .offline ? offlineHold : errorHold
+        AlertCondition.isSupply(kind) || kind == .firmwareChanged ? 0 : kind == .offline ? offlineHold : errorHold
     }
 }
 
@@ -172,7 +172,7 @@ public final class AlertTracker {
 
     /// Whether a snapshot shows this kind of problem at all (else what was known stands).
     private static func observable(_ kind: AlertKind, _ snap: PrinterSnapshot) -> Bool {
-        kind == .offline || (snap.reachable && (AlertCondition.isSupply(kind) ? snap.supplies != nil : snap.status != nil))
+        kind == .offline || (snap.reachable && (kind == .firmwareChanged || (AlertCondition.isSupply(kind) ? snap.supplies != nil : snap.status != nil)))
     }
 
     /// Alerts due and not shown yet: called after each check and on a timer (quiet hours ending).
@@ -247,7 +247,7 @@ public final class AlertTracker {
 
     /// A printer's worst ongoing problem in a few words ("Paper jam", "Offline"), or nil when there's none.
     public func problem(_ uuid: String) -> String? {
-        current(uuid).sorted {
+        current(uuid).filter { AlertCondition.level(of: $0.kind) > .ok }.sorted {
             let (a, b) = (AlertCondition.level(of: $0.kind), AlertCondition.level(of: $1.kind))
             return a != b ? a > b : $0.kind < $1.kind
         }.first.map { $0.kind == .offline ? "Offline" : $0.condition!.title }

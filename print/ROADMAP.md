@@ -197,7 +197,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   button's PUT equal byte for byte to the Firmware card's Off write, already off, read-only, a printer that keeps
   installing, the password step; all against captured documents in memory, no printer written to). **Pending on
   hardware:** a real update noticed, and the button on a printer set to install automatically (README, "Not done").
-  Mac: not started (the Settings tab has the LEDM firmware mode already).
+  Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: FirmwareWatch, the FirmwareChanged alert, CartridgeGuard,
+  FirmwareWatchTests on the PC); the record in the state file, the status card's notice and the Firmware card's button
+  wait for the Mac (the Settings tab has the LEDM firmware mode already).
 - **Beat it when:** every printer's firmware version is kept with the date first seen, and a change shows a notice
   ("Firmware changed from X to Y on date") on the status card and, with alerts on, as a notification; the HP card has
   one button, **Keep my cartridges working**, that sets automatic updates off, reads the setting back and says what it
