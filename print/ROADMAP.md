@@ -397,19 +397,22 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   stuck", off by default. With it on, the tray reads each printer's Windows queue every minute, window open or not (`WindowsJobQueue`,
   winspool: a local call; a queue that can't be read is skipped, never taken as empty), and `AlertTracker.ObserveJobs` decides.
   **Failed:** the job has Error, Blocked or Needs attention for a minute, whatever the printer says; out of paper or offline alone is the
-  printer's state and its own alerts tell that. **Stuck:** your first job in the queue, nothing in the queue moving for 5 minutes, the queue
-  neither paused nor on Use Printer Offline, and the printer's own read, taken after the 5 minutes, saying it's ready, idle or asleep. Moving
-  means pages counted, a job starting, or a job leaving (someone else's too), so a job waiting its turn isn't stuck; a printer that says it's
-  printing isn't ready, so a long job on a driver that counts no pages isn't either. **Your own:** the job's owner is the Windows user, and if
+  printer's state and its own alerts tell that. **Stuck:** your first job in the queue, nothing in the queue moving, the queue neither paused nor
+  on Use Printer Offline, and the printer's own read, taken after the wait: 5 minutes with it saying it's ready, idle or asleep, or 15 minutes with
+  it saying it's printing, worded "hasn't moved for 15 minutes and may be stuck". The times and the cap are in one place, `AlertRules`. Moving (`JobProgress`,
+  from JOB_INFO_2) means pages printed, pages or bytes spooled or the job's stage going past the furthest seen, someone restarting it, or a job
+  leaving (someone else's too), so a job waiting its turn isn't stuck, and flicker neither passes for progress nor hides a hung job. **Your own:** the job's owner is the Windows user, and if
   it names a domain or a PC, this one; when in doubt it isn't yours. A toast for each job (Open the queue, Pause alerts), naming the
   document and the printer, more than three at once from one printer sharing one; Open the queue scrolls to the queue card. Quiet hours,
   a pause and alerts off work as for other alerts. Free, as the table says: no Pro check.
-- **Decisions.** One notification per job, ever: stuck, recovered and stuck again, or stuck then failed, tells once, and that survives a restart
-  and alerts being turned off and on. A job is its id plus the moment it was submitted, so an id the spooler uses again is a new job. Only
-  your first job is told stuck: those behind it wait for it, and get their own 5 minutes when it's gone. Jobs don't color the tray icon, which
-  shows printers. A failure on a paused queue or a printer that isn't ready is still told; only "stuck" asks that the printer be ready.
+- **Decisions.** Stuck is told once per episode: told again only after real progress since the last alert, at most 3 times per job. Failed is told once
+  per job, also after it was told stuck; a stuck alert after a failure needs real progress too. An alert a pause swallowed ends the episode without using up the cap. All of it
+  survives a restart and alerts being turned off and on. A resubmitted job is a new job: a job is its id plus the moment it was submitted, so an id the spooler uses again
+  is new too. Only your first job is told stuck: those behind it wait for it, and get their own wait when it's gone. Jobs don't color the tray icon, which
+  shows printers. A failure on a paused queue or a printer that isn't ready is still told; only "stuck" asks that the printer be ready or printing.
+  **Accepted:** a slow big job on a driver that reports no pages and no growing size, with a printer saying Printing, or someone else's such job ahead of yours, can raise one false "may be stuck" after 15 minutes.
   The name: controls, invisible and right-to-left override characters and broken pairs out, a path or address cut to the file's name, 48
-  characters at most, in quotes, so it can't pass for the app's own words. It's kept in memory only: `state.json` holds `Job|id|time`, the log the alert's kind.
+  characters at most, in quotes, so it can't pass for the app's own words. It's kept in memory only: `state.json` holds `Job|id|time|failed told|stuck told|pages, size and stage when last told`, the log the alert's kind.
 - **Checked.** `JobAlertTests` on a fake clock, on the demo queue's made-up jobs (`DemoFleet.CardJobs`) and the demo fixer's stuck job
   (`DemoFleet.OfficeStuckJob`, on a Use Printer Offline queue and an unreachable printer: raises one). Seen: `--demo --tray --simulate-jobs
   --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
@@ -417,8 +420,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   Microsoft Print to PDF queue (empty, not paused). In demo mode Open the queue shows the card's one made-up queue, not the fixer's, as the card always has.
 - **Not checked.** **It has not been run against a real spooler failure:** no printer here, so no real job in Error, no real stuck job, no real
   shared queue. So these are unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
-  given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a spooler-only
-  queue that keeps saying Printing with no page count (never told stuck, by the rule above); a job that fails and vanishes between two reads (never seen).
+  given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a job that fails and vanishes between two reads (never seen).
   WinRT toasts: the XML is tested, the toast itself not run here, as for 1.4. A printer with two Windows queues: only the one the app finds is read. Mac: not started.
 - **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the
   printer is ready) is one notification per job, naming the document and the printer, with Open the queue; off by
