@@ -1835,7 +1835,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <summary>The page as saved: the scanner's JPEG, or the edited page encoded once per set of edits.</summary>
     public Task<byte[]> JpegAsync()
     {
-        var edits = Edits;
+        var edits = Edits.For(_size.Width, _size.Height); // too large to clean: saved as scanned, as the view says, and not decoded for nothing
         if (edits.IsEmpty) return Task.FromResult(Original);
         if (_jpeg is { } cached && cached.Edits == edits && !cached.Jpeg.IsFaulted && !cached.Jpeg.IsCanceled) return cached.Jpeg;
         var (original, dpi, cancel) = (Original, Dpi, _work.Token);

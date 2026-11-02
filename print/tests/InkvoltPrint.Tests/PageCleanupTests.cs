@@ -85,6 +85,24 @@ public class PageCleanupTests
     }
 
     [Fact]
+    public void A_strip_narrower_than_the_edge_it_measures_has_no_edge_rather_than_a_crash()
+    {
+        var pixels = new byte[1000 * 40];
+        Array.Fill(pixels, (byte)255);
+        Assert.Null(PaperEdge.Find(new GrayImage(1000, 40, pixels), 1200));
+        Assert.Null(PaperEdge.Find(new GrayImage(40, 1000, pixels), 1200));
+    }
+
+    [Fact]
+    public void A_page_too_large_to_clean_saves_as_scanned()
+    {
+        var clean = new PageEdits(Filters: PageFilters.Whiten | PageFilters.Descreen);
+        Assert.False(clean.For(4000, 3000).IsEmpty);
+        Assert.True(clean.For(20000, 20000).IsEmpty);
+        Assert.Equal(new PageEdits(1), (clean with { QuarterTurns = 1 }).For(20000, 20000));
+    }
+
+    [Fact]
     public void A_grey_sheet_on_a_white_lid_is_cropped_to_its_edge()
     {
         var scan = OnLid(SmallSheet(205), 600, 800, GlassW, GlassH, 120, 150, 245);

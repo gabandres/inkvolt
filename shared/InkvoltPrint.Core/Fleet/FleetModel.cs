@@ -40,6 +40,9 @@ public sealed record FleetFacts(string Id, string Name, FleetKind Kind)
 
     /// <summary>Its supplies, pages and firmware are from its last reading, not from now.</summary>
     public bool LastKnown { get; init; }
+
+    /// <summary>It answered, but its <see cref="Supplies"/> are the supply history's: what they said then isn't trouble now.</summary>
+    public bool OldSupplies { get; init; }
 }
 
 /// <summary>
@@ -91,9 +94,9 @@ public sealed record FleetPrinter(string Id, string Name, FleetKind Kind, FleetT
             Severity.Warning => FleetTrouble.Warning,
             _ => FleetTrouble.Ok,
         };
-        foreach (var s in f.Supplies)
+        foreach (var s in f.OldSupplies ? [] : f.Supplies)
         {
-            if (s.State is "out" or "full" or "missing") return FleetTrouble.Error;
+            if (s.State is "out" or "full" or "missing" || (!s.IsWaste && s.PercentRemaining <= 0)) return FleetTrouble.Error; // an empty supply, as the tray has it (AlertConditions)
             if (s.IsLow && trouble > FleetTrouble.Warning) trouble = FleetTrouble.Warning;
         }
         return trouble;

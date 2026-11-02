@@ -160,6 +160,7 @@ public sealed class ReportRecordingTests : IDisposable
     [InlineData("/a.ps1")]
     [InlineData("/recording.tsv")] // the notes are ours
     [InlineData("/snmp.txt")] // so is the walk
+    [InlineData("/SNMP.TXT")] // the same file on this disk
     [InlineData("/.xml")]
     public void A_printer_cant_put_a_file_that_runs_or_ours_in_a_recording(string path) => Assert.Null(PrinterRecorder.KeptName(path));
 

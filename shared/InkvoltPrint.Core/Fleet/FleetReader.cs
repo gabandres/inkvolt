@@ -132,6 +132,8 @@ public static class FleetReader
             Pages = reading.Usage?.TotalImpressions ?? known?.Pages,
             Firmware = conn.Probe.Firmware?.Display ?? p.Firmware,
             LastReading = now,
+            OldSupplies = reading.Supplies is null,
+            LastKnown = (reading.Supplies is null && known?.Supplies.Count > 0) || (reading.Usage is null && known?.Pages is not null),
         };
     }
 

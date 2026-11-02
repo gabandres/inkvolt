@@ -835,6 +835,36 @@ public class BatchPrintListTests
         var ex = await Assert.ThrowsAsync<BatchFileException>(() => BatchHeldFile.OpenAsync(link, default));
         Assert.Contains("link", ex.Message);
     }
+
+    [Fact]
+    public void A_list_of_broken_text_is_refused_in_words()
+    {
+        using var f = new BatchFolder();
+        var path = Path.Combine(f.Root, "bytes.inkvoltlist");
+        File.WriteAllBytes(path, [.. """{ "version": 1, "files": [{ "path": "a"""u8.ToArray(), 0xFF, 0xFE, .. """.pdf" }] }"""u8.ToArray()]);
+        Assert.Throws<BatchListException>(() => BatchPrintList.Load(path, false));
+    }
+
+    private static bool Junction(string link, string target)
+    {
+        using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", ["/c", "mklink", "/J", link, target])
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+        })!;
+        mklink.WaitForExit();
+        return mklink.ExitCode == 0 && Directory.Exists(link);
+    }
+
+    [Fact]
+    public void A_recursive_folder_doesnt_follow_a_junction_out_of_it_or_round_in_a_loop()
+    {
+        using var f = new BatchFolder();
+        var own = f.File(@"in\sub\own.pdf");
+        f.File(@"secret\payroll.pdf");
+        var folder = Path.Combine(f.Root, "in");
+        if (!Junction(Path.Combine(folder, "out"), Path.Combine(f.Root, "secret")) || !Junction(Path.Combine(folder, "sub", "loop"), folder)) return;
+        Assert.Equal([own], BatchPrintFiles.ListFolder(folder, recursive: true));
+    }
 }
 
 /// <summary>A folder printed as it fills.</summary>
@@ -1101,6 +1131,17 @@ public class BatchPrintFolderTests
         var entry = new BatchFolderEntry(new DateTime(2026, 10, 31), "a\tb.pdf", BatchPrintState.Sent, "x\ny", 1, null);
         Assert.Equal(5, entry.LogLine.Split('\t').Length);
         await Task.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData("=1+1.pdf", "'=1+1.pdf")]
+    [InlineData("@SUM(A1).pdf", "'@SUM(A1).pdf")]
+    [InlineData("plain, name.pdf", "plain, name.pdf")]
+    public void The_log_for_a_spreadsheet_cant_run_a_file_name_as_a_formula(string name, string logged)
+    {
+        var line = new BatchFolderEntry(new DateTime(2026, 11, 1), name, BatchPrintState.Sent, "=2+2", 1, null).LogLine.Split('\t');
+        Assert.Equal(logged, line[2]);
+        Assert.Equal("'=2+2", line[3]);
     }
 
     [Fact]
@@ -1395,5 +1436,38 @@ public class BatchPrintCommandLineTests : IDisposable
         Assert.Equal(3, await Run(["print", "--watch", _f.Root, "--printer", "Office laser", "--once", "--max-sheets", "4"]));
         Assert.Single(_queue.Sent);
         Assert.True(File.Exists(Path.Combine(_f.Root, "2.pdf")));
+    }
+
+    [Fact]
+    public async Task A_file_given_that_cant_be_printed_exits_2_with_nothing_sent()
+    {
+        var pdf = _f.File("a.pdf");
+        var notes = _f.File("notes.docx");
+        Assert.Equal(2, await Run(["print", pdf, notes, "--printer", "Office laser"]));
+        Assert.Empty(_queue.Sent);
+        Assert.Contains("notes.docx", _err.ToString());
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1, "files": [null] }""")]
+    [InlineData("""{ "version": 1, "files": [{ "path": "a.pdf" }, null] }""")]
+    public async Task A_list_with_an_empty_line_is_refused_not_a_crash(string json)
+    {
+        _f.File("a.pdf");
+        var list = _f.File("bad.inkvoltlist", json);
+        Assert.Equal(2, await Run(["print", "--list", list, "--printer", "Office laser"]));
+        Assert.Empty(_queue.Sent);
+    }
+
+    [Fact]
+    public async Task Stopping_a_watch_once_with_files_left_exits_3()
+    {
+        _f.File("a.pdf");
+        _f.File("b.pdf");
+        using var stop = new CancellationTokenSource();
+        var queue = new FakeQueue { AfterSent = _ => stop.Cancel() };
+        Assert.Equal(3, await Run(["print", "--watch", _f.Root, "--printer", "Office laser", "--once"], queue: queue, ct: stop.Token));
+        Assert.Single(queue.Sent);
+        Assert.True(File.Exists(Path.Combine(_f.Root, "b.pdf")));
     }
 }

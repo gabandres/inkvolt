@@ -228,7 +228,8 @@ public static class BatchPrintCommandLine
             {
                 var checks = request.Inputs!.Select(Path.GetFullPath).ToList();
                 if (checks.FirstOrDefault(p => !File.Exists(p) && !Directory.Exists(p)) is { } missing) throw new BatchListException($"There is no file or folder {BatchPrintText.Clean(missing)}.");
-                var files = BatchPrintFiles.Expand(checks, request.Recursive, out _);
+                var files = BatchPrintFiles.Expand(checks, request.Recursive, out var leftOut);
+                if (leftOut > 0) throw new BatchListException($"{BatchPrintText.Clean(checks.FirstOrDefault(p => !Directory.Exists(p) && !BatchPrintFiles.IsSupported(p)) ?? checks[0])} is neither a PDF, a picture nor a folder. Nothing was sent.");
                 if (files.Count > BatchPrintLimits.MaxFiles) throw new BatchListException($"That's {files.Count:N0} files: a batch takes at most {BatchPrintLimits.MaxFiles:N0}.");
                 entries = files.Select(f => new BatchListEntry(f, request.Settings!)).ToList();
             }
@@ -327,7 +328,8 @@ public static class BatchPrintCommandLine
             var summary = await BatchPrintFolder.RunAsync(folder, queue, documents, folderOptions, progress, cancel).ConfigureAwait(false);
             output.WriteLine($"{BatchPrintText.Count(summary.Sent, "file")} sent ({BatchPrintText.Sheets(summary.SheetsSent)}), {summary.Failed:N0} failed.");
             if (summary.StopReason is { } why) error.WriteLine($"Stopped: {why}");
-            var code = summary.StopReason is not null ? BatchPrintSummary.Stopped : summary.Failed > 0 ? BatchPrintSummary.SomeFailed : BatchPrintSummary.Done;
+            // Ctrl+C is how a plain watch ends; a run that was to finish the folder (--once) stopped before the end.
+            var code = summary.StopReason is not null || (request.Once && cancel.IsCancellationRequested) ? BatchPrintSummary.Stopped : summary.Failed > 0 ? BatchPrintSummary.SomeFailed : BatchPrintSummary.Done;
             if (request.Report is { } report && !WriteReport(report, results, error) && code == BatchPrintSummary.Done) code = BatchPrintSummary.SomeFailed;
             return code;
         }

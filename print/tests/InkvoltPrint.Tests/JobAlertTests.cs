@@ -901,6 +901,8 @@ public class JobAlertTests
     [InlineData("https://bank.example/statements/oct.pdf?token=abc123#page=2", "oct.pdf")]
     [InlineData("https://bank.example/", "bank.example")]
     [InlineData("Microsoft Word - Budget: draft/2.docx", "Microsoft Word - Budget: draft/2.docx")] // a title, not a path
+    [InlineData(@"Microsoft Word - C:\Users\gabri\Taxes\return.docx", "Microsoft Word - return.docx")] // a title holding a path
+    [InlineData(@"Notepad - \\server\share\Payroll\oct.txt", "Notepad - oct.txt")]
     [InlineData("Ñandú año 2026.pdf", "Ñandú año 2026.pdf")]
     [InlineData("報告書.pdf", "報告書.pdf")]
     public void What_a_notification_calls_a_document(string? name, string shown) => Assert.Equal(shown, AlertText.Document(name));

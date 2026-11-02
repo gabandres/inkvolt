@@ -120,6 +120,7 @@ public static class BatchPrintList
         var servers = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (line, n) in file.Files.Select((l, i) => (l, i + 1)))
         {
+            if (line is null) throw new BatchListException($"Line {n} of the list: it has no path, or too long a one.");
             if (CheckPath(line.Path, folder, out var server, out var why) is not { } full) throw new BatchListException($"Line {n} of the list: {why}");
             if (server is not null) servers.Add(server);
             var copies = line.Copies ?? file.Defaults?.Copies ?? 1;

@@ -396,6 +396,38 @@ public sealed class FleetReadTests : IDisposable
     }
 
     [Fact]
+    public async Task A_printer_that_answers_without_supplies_says_the_historys_are_last_known_and_old_trouble_isnt_now()
+    {
+        var store = new SupplyHistoryStore(null);
+        store.Record(DemoFleet.LaserUuid, [new Consumable("Black", "toner", "K", 0, "out", null, null, null, null, null)], 4242, new DateOnly(2026, 10, 29));
+        var network = Folder("m234dw", "hp-demo");
+        var pc = new Script
+        {
+            Store = store,
+            Printers = [new InkvoltPrinter(DemoFleet.LaserUuid, "Laser", null, FixtureHandler.DemoHost, null)],
+            Transport = _ => () => new HostRouter(new Dictionary<string, HttpMessageHandler>
+            {
+                [FixtureHandler.DemoHost] = new SuppliesFail(new FixtureHandler(network)),
+            }),
+        };
+
+        var printer = Assert.Single((await FleetReader.ReadAllAsync(pc, Now)).Printers);
+
+        Assert.Equal(0, Assert.Single(printer.Supplies).Level); // the history's, since this read gave none
+        Assert.True(printer.LastKnown);
+        Assert.NotEqual(FleetTrouble.Error, printer.Trouble); // the printer says it's ready now; that toner may have been changed since
+    }
+
+    /// <summary>A printer whose supplies documents answer with an error: the read has none this time.</summary>
+    private sealed class SuppliesFail(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            request.RequestUri!.AbsolutePath.Contains("consumable", StringComparison.OrdinalIgnoreCase) || request.RequestUri.AbsolutePath.Contains("suppl", StringComparison.OrdinalIgnoreCase)
+                ? Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError))
+                : base.SendAsync(request, ct);
+    }
+
+    [Fact]
     public async Task Reading_writes_nothing_to_the_supply_history()
     {
         var store = new SupplyHistoryStore(null);

@@ -207,7 +207,14 @@ public static class AlertText
     {
         var isAddress = text.Contains("://", StringComparison.Ordinal);
         var isPath = text.StartsWith(@"\\", StringComparison.Ordinal) || (text.Length > 2 && char.IsAsciiLetter(text[0]) && text[1] == ':' && text[2] is '\\' or '/');
-        if (!isAddress && !isPath) return text;
+        if (!isAddress && !isPath)
+        {
+            // "Microsoft Word - C:\Users\me\return.docx": the words stay, the folders don't.
+            var inside = text.IndexOf(@" \\", StringComparison.Ordinal);
+            for (var i = 1; inside < 0 && i + 3 < text.Length; i++)
+                if (text[i] == ' ' && char.IsAsciiLetter(text[i + 1]) && text[i + 2] == ':' && text[i + 3] is '\\' or '/') inside = i;
+            return inside < 0 ? text : text[..(inside + 1)] + LastPart(text[(inside + 1)..]);
+        }
         var end = isAddress ? text.IndexOfAny(['?', '#']) : -1;
         var path = (end >= 0 ? text[..end] : text).TrimEnd('/', '\\');
         var last = path[(path.LastIndexOfAny(['/', '\\']) + 1)..];

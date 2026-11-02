@@ -305,12 +305,26 @@ public static class BatchPrintFiles
     {
         var options = new EnumerationOptions
         {
-            RecurseSubdirectories = recursive,
             IgnoreInaccessible = true,
             AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.Temporary,
         };
-        return new DirectoryInfo(folder).EnumerateFiles("*", options)
-            .Where(f => IsSupported(f.Name) && !f.Name.StartsWith("~$", StringComparison.Ordinal) && !IsLink(f))
+        // Folder by folder, not RecurseSubdirectories: that goes through a junction, out of the folder or round in a loop.
+        var files = new List<FileInfo>();
+        var folders = new Stack<DirectoryInfo>([new DirectoryInfo(folder)]);
+        while (folders.TryPop(out var at))
+        {
+            try
+            {
+                files.AddRange(at.EnumerateFiles("*", options).Where(f => IsSupported(f.Name) && !f.Name.StartsWith("~$", StringComparison.Ordinal) && !IsLink(f)));
+                if (recursive)
+                    foreach (var below in at.EnumerateDirectories("*", options).Where(d => !IsLink(d))) folders.Push(below);
+            }
+            catch (IOException) when (at.FullName != new DirectoryInfo(folder).FullName)
+            {
+                // a folder below that went while looking: the rest still counts
+            }
+        }
+        return files
             .Select(f => (f.FullName, Relative: Path.GetRelativePath(folder, f.FullName)))
             .OrderBy(f => Path.GetDirectoryName(f.Relative) ?? "", NaturalOrder.Instance)
             .ThenBy(f => Path.GetFileName(f.Relative), NaturalOrder.Instance)

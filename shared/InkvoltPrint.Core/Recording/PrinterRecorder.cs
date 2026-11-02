@@ -81,8 +81,11 @@ public static class PrinterRecorder
         name = string.Concat(name.Select(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '_'));
         var extension = Path.GetExtension(name).ToLowerInvariant();
         if (extension is not (".xml" or ".json" or ".txt") || name.Length == extension.Length || name.Length > 200) return null;
-        return name is NotesFile or SnmpFile ? null : name;
+        return name.Equals(NotesFile, StringComparison.OrdinalIgnoreCase) || name.Equals(SnmpFile, StringComparison.OrdinalIgnoreCase) ? null : name;
     }
+
+    /// <summary>The most kept of one reply: a printer's documents are kilobytes, and one that never stops mustn't fill this PC's memory.</summary>
+    internal const int MaxReplyBytes = 32 << 20;
 
     private const int MaxSnmpObjects = 4000;
     private static readonly TimeSpan SnmpWalkLimit = TimeSpan.FromSeconds(60);
@@ -217,6 +220,8 @@ public static class PrinterRecorder
     {
         if (vb.Value is not { Tag: Ber.OctetString, Bytes: { Length: > 0 } bytes } || vb.Value.Text is not { } text) return vb;
         var printable = bytes.All(b => b is >= 0x20 or 0x00 or 0x0A or 0x0D or 0x09);
+        // A stray control byte makes it hex, which no scrubbing reads: what holds a name or a serial, or mostly reads as text, is text regardless. A MAC address stays bytes.
+        printable |= FixtureScrubber.HoldsText(vb.Name.ToString()) || (bytes.Length >= 8 && bytes.Count(b => b is >= 0x20 and < 0x7F) * 4 >= bytes.Length * 3);
         return printable ? vb with { Value = SnmpValue.String(text.ReplaceLineEndings("; ").Replace('\t', ' ')) } : vb;
     }
 
@@ -224,7 +229,7 @@ public static class PrinterRecorder
         IReadOnlyList<string> notKept)
     {
         var sb = new StringBuilder();
-        sb.Append(CultureInfo.InvariantCulture, $"# Inkvolt Print recording, {DateTime.UtcNow:yyyy-MM-dd}: {model ?? "unknown model"}; answered on {string.Join(", ", interfaces)}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"# Inkvolt Print recording, {DateTime.UtcNow:yyyy-MM-dd}: {(model is null ? "unknown model" : scrubber.Scrub("", model.ReplaceLineEndings(" ")))}; answered on {string.Join(", ", interfaces)}\n");
         sb.Append("# Scrubbed (stand-ins of the same shape): ")
             .Append(scrubber.Counts.Count == 0 ? "nothing found" : string.Join(", ", scrubber.Counts.Select(kv => $"{kv.Key} {kv.Value}"))).Append('\n');
         sb.Append("# Every request, in order: milliseconds, method, path, status, file it is kept in\n");
@@ -282,7 +287,13 @@ public static class PrinterRecorder
                     timer.ElapsedMilliseconds, null, null, null));
                 throw;
             }
-            var bytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            var bytes = await Bounded(resp.Content, ct).ConfigureAwait(false);
+            if (bytes is null)
+            {
+                _exchanges.Enqueue(new Exchange(request.Method.Method, path, null, "too long a reply", timer.ElapsedMilliseconds, null, null, null));
+                resp.Dispose();
+                throw new HttpRequestException($"{path}: too long a reply, not read to its end.");
+            }
             var ms = timer.ElapsedMilliseconds;
             var copy = new ByteArrayContent(bytes);
             foreach (var h in resp.Content.Headers) copy.Headers.TryAddWithoutValidation(h.Key, h.Value);
@@ -309,6 +320,21 @@ public static class PrinterRecorder
                 file = KeptName(path);
             _exchanges.Enqueue(new Exchange(request.Method.Method, path, resp.StatusCode, null, ms, file, bytes, text));
             return resp;
+        }
+
+        /// <summary>The whole reply, or null past <see cref="MaxReplyBytes"/>.</summary>
+        private static async Task<byte[]?> Bounded(HttpContent content, CancellationToken ct)
+        {
+            if (content.Headers.ContentLength > MaxReplyBytes) return null;
+            await using var reply = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var kept = new MemoryStream();
+            var chunk = new byte[1 << 16];
+            for (int n; (n = await reply.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0;)
+            {
+                if (kept.Length + n > MaxReplyBytes) return null;
+                kept.Write(chunk, 0, n);
+            }
+            return kept.ToArray();
         }
     }
 

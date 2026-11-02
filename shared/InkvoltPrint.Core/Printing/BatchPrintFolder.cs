@@ -36,8 +36,8 @@ public sealed record BatchFolderEntry(DateTime Time, string FileName, BatchPrint
     public string LogLine => string.Join('\t',
         Time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
         State.ToString().ToLowerInvariant(),
-        BatchPrintText.Clean(FileName),
-        BatchPrintText.Clean(Message),
+        CsvCell.NotFormula(BatchPrintText.Clean(FileName)),
+        CsvCell.NotFormula(BatchPrintText.Clean(Message)),
         SheetsSent.ToString(CultureInfo.InvariantCulture));
 }
 

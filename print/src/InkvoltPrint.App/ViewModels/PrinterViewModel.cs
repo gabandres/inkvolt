@@ -195,6 +195,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             LastReading = _lastReading,
             LastReadingDay = _lastReading is null ? known?.Day : null,
             LastKnown = !IsOnline && !waiting && (live.Count > 0 || known is not null || _pages is not null),
+            OldSupplies = live.Count == 0,
         };
     }
 

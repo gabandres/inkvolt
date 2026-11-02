@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.Core.Fleet;
@@ -12,7 +13,7 @@ namespace InkvoltPrint.Core.Fleet;
 /// version stays. The CSV's cells can't run as formulas (<see cref="CsvCell"/>); the JSON is plain ASCII, so no console code page
 /// spoils it, whatever the names are written in.
 /// </summary>
-public static class FleetExport
+public static partial class FleetExport
 {
     private const string Columns = "Printer,Model,Kind,State,Status,Problems,Supply,Color,Level %,Supply state,Pages printed,Firmware,Last reading";
 
@@ -110,7 +111,7 @@ public static class FleetExport
     /// <summary>The entry as it may leave the PC.</summary>
     internal static FleetPrinter Scrubbed(FleetPrinter p, Diagnostics.Identity who) => p with
     {
-        Name = Text(p.Name, who) ?? "Printer with no name",
+        Name = Text(p.Connection == SharedConnection ? SharedName().Replace(p.Name, "$1 on [pc]") : p.Name, who) ?? "Printer with no name",
         Model = Text(p.Model, who),
         Connection = Text(p.Connection, who),
         Status = Text(p.Status, who) ?? "Status not available",
@@ -123,6 +124,12 @@ public static class FleetExport
         }).ToList(),
         Firmware = FirmwareText(p.Firmware, who),
     };
+
+    private static readonly string SharedConnection = FleetReader.ConnectionWord(Queues.QueueConnection.Shared);
+
+    /// <summary>A shared queue's name as <see cref="Queues.QueueKinds.DisplayName"/> writes it: "Reception on FRONTDESK", the other PC's name last.</summary>
+    [GeneratedRegex(@"^(.+) on \S+$")]
+    private static partial Regex SharedName();
 
     private static string? Text(string? text, Diagnostics.Identity who) =>
         text is null ? null : FleetText.Clean(Diagnostics.Scrub(text, who), FleetPrinter.MaxText);

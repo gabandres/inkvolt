@@ -206,6 +206,9 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
 
     public PageEdits Turned(int quarters) => this with { QuarterTurns = (((QuarterTurns + quarters) % 4) + 4) % 4 };
 
+    /// <summary>These edits on a page of this size: past <see cref="PageCleanup.MaxPixels"/> no filter runs, so filters alone don't make it re-encoded (or even decoded).</summary>
+    public PageEdits For(int width, int height) => PageCleanup.TooLarge(width, height) ? this with { Filters = Filters & ~PageFilters.PixelFilters } : this;
+
     /// <summary>The crop as seen on the turned page (what the crop view shows).</summary>
     public CropBox ShownCrop => (Crop ?? CropBox.Full).Turn(QuarterTurns);
 

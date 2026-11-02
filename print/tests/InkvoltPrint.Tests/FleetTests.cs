@@ -47,6 +47,29 @@ public class FleetTests
     }
 
     [Fact]
+    public void A_supply_at_zero_is_an_error_as_on_the_tray_whatever_its_state_says()
+    {
+        Assert.Equal(FleetTrouble.Error, Printer("P", supplies: [Supply("Black", 0)]).Trouble);
+        Assert.Equal(FleetTrouble.Ok, Printer("P", supplies: [Supply("Waste", 0, "ok", null, "wasteToner")]).Trouble); // an empty waste box is fine
+    }
+
+    [Fact]
+    public void A_shared_queues_export_doesnt_name_the_pc_sharing_it()
+    {
+        var shared = FleetPrinter.Of(new FleetFacts("q", "Reception laser on FRONTDESK", FleetKind.Queue)
+        {
+            Reachable = true, Status = Status("Ready"), Connection = FleetReader.ConnectionWord(QueueConnection.Shared),
+        });
+        var usb = FleetPrinter.Of(new FleetFacts("u", "Printer on desk", FleetKind.Queue) { Reachable = true, Status = Status("Ready"), Connection = "USB" });
+
+        var csv = FleetExport.Csv([shared, usb], Now, Me);
+        Assert.DoesNotContain("FRONTDESK", csv);
+        Assert.Contains("Reception laser on [pc]", csv);
+        Assert.Contains("Printer on desk", csv);
+        Assert.DoesNotContain("FRONTDESK", FleetExport.Json([shared], [], Now, Me));
+    }
+
+    [Fact]
     public void A_printer_that_doesnt_answer_is_offline_whatever_its_last_supplies_said()
     {
         var p = Printer("P", reachable: false, status: Status("Can't reach the printer", Severity.Error), supplies: [Supply("Black", 0, "out")]);

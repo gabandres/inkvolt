@@ -87,7 +87,7 @@ public static class PaperEdge
     /// </summary>
     public static CropBox? Find(GrayImage img, double ppi, double deskew = 0)
     {
-        if (img.Width < 32 || img.Height < 32 || ppi < 20) return null;
+        if (img.Width < 32 || img.Height < 32 || ppi < 20 || Math.Min(img.Width, img.Height) < MinSide * ppi) return null; // no sheet this page could hold, nor a strip of it to measure
         foreach (var lid in LidLevels(img, ppi))
         {
             var pixels = deskew == 0 ? img.Pixels : PageRotate.Rotate(img.Pixels, img.Width, img.Height, img.Width, 1, -deskew, (byte)lid);
