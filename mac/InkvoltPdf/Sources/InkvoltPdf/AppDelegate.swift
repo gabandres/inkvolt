@@ -304,6 +304,7 @@ enum MainMenu {
         menu.addItem(item("Sign Digitally…", #selector(DocumentWindowController.signDigitally(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Recognize Text (OCR)…", #selector(DocumentWindowController.recognizeText(_:))))
+        menu.addItem(item("Review Suspect Words", #selector(DocumentWindowController.reviewSuspectWords(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Redact Selected Text", #selector(DocumentWindowController.redactSelectedText(_:))))
         menu.addItem(item("Redact Search Matches", #selector(DocumentWindowController.redactSearchMatches(_:))))

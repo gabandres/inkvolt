@@ -174,6 +174,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.signatures.onSign = { [weak self] field in self?.signDigitally(field: field) }
         verifySignatures(onOpen: true)
         wireAttachmentsAndLayers()
+        wireSuspectWords()
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
         editor.onChanged = { [weak self] in self?.commentsChanged() }
@@ -249,6 +250,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         if change == .reload { hideDiskBar() }
         verifySignatures(onOpen: change == .reload)
         refreshAttachmentsAndLayers()
+        refreshSuspectWords()
         updateSubtitle()
     }
 

@@ -2,9 +2,17 @@ import Foundation
 
 /// Text recognition of a page image (Vision's `VisionRecognizer` in the app; a fake in tests).
 public protocol TextRecognizer: Sendable {
+    /// The language it reads, as a BCP-47 tag ("en-US"); nil when it finds out for itself. Kept with the words for their
+    /// review (the text layer's first line).
+    var language: String? { get }
+
     /// The words on the image, in reading order, their boxes in the image's pixels (top-left origin).
     /// - Throws: `CancellationError` when `cancel` fires.
     func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord]
+}
+
+extension TextRecognizer {
+    public var language: String? { nil }
 }
 
 /// The recognizer Core is given (pdf/GLOSSARY.md "Recognizer"; .NET's `Func<PdfEngine, int, CancellationToken,
@@ -19,6 +27,9 @@ public struct RecognizeTextReport: Equatable, Sendable {
     public var pagesWithWords: Int
     /// Pages skipped because they already had text.
     public var hadText: Int
+    /// Suspect words among them, and pages replaced with their cleaned image (Recognize Text with cleaning, roadmap 2.2).
+    public var suspect: Int = 0
+    public var replaced: Int = 0
 }
 
 /// Recognize Text (OCR): pages rendered at 300 dpi and recognized, the words written as an invisible text layer (the
@@ -95,6 +106,44 @@ public enum PageOcr {
         if report.words == 0 { return (data, report) }
         try cancel.check()
         return (try TextLayer.addInvisibleText(data, password, words), report)
+    }
+
+    /// Recognize Text with roadmap 2.2's pipeline (the Windows app's `DocumentTab.RecognizeText` and `RecognizePages`):
+    /// each page through `ScanText` (cleaned, suspect words marked, its cleaned image kept when asked), the cleaned pages
+    /// written back (`ScanPage`), then the words as an invisible text layer with the recognizer's language. Pages that
+    /// already have text are skipped. The data comes back unchanged when nothing was recognized or replaced.
+    /// - Throws: `CancellationError` when `cancel` fires; the recognizer's errors.
+    public static func recognizeText(_ data: [UInt8], _ password: String?, pages: [Int]? = nil, recognizer: some TextRecognizer,
+                                     options: RecognizeOptions, spelling: (any Spelling)? = nil, cancel: CancelToken? = nil,
+                                     progress: ((Int, Int) -> Void)? = nil) throws -> ([UInt8], RecognizeTextReport) {
+        var words: [Int: [OcrWord]] = [:]
+        var cleaned: [Int: CleanedPageImage] = [:]
+        var hadText = 0
+        let engine = try PdfEngine.open(data, password: password)
+        let chosen = pages ?? Array(0..<engine.pageCount)
+        do {
+            defer { engine.close() }
+            for (i, page) in chosen.enumerated() {
+                try cancel.check()
+                progress?(i, chosen.count)
+                guard page >= 0 && page < engine.pageCount else { continue }
+                if try TextLayer.hasText(engine, page, cancel: cancel) {
+                    hadText += 1
+                    continue
+                }
+                let read = try ScanText.recognize(engine, page, recognizer, options, spelling: spelling, cancel: cancel)
+                if !read.words.isEmpty { words[page] = read.words }
+                if let image = read.cleaned { cleaned[page] = image }
+            }
+        }
+        progress?(chosen.count, chosen.count)
+        let all = words.values.flatMap { $0 }
+        let report = RecognizeTextReport(words: all.count, pagesWithWords: words.count, hadText: hadText,
+                                         suspect: all.filter { !$0.suspect.isEmpty }.count, replaced: cleaned.count)
+        try cancel.check()
+        var out = try ScanPage.writeBack(data, password, cleaned)
+        if report.words > 0 { out = try TextLayer.addInvisibleText(out, password, words, language: recognizer.language) }
+        return (out, report)
     }
 
     private static func overlap(_ a: RectD, _ b: RectD) -> Double {

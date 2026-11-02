@@ -248,18 +248,22 @@ void inkv_cookie_abort(inkv_cookie *c) {
 }
 void inkv_drop_cookie(inkv_cookie *c) { free(c); }
 
-int inkv_render_rgb(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
-                    inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
+static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, float scale, float x0, float y0, float x1, float y1,
+                      inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
     fz_device *dev = NULL;
+    fz_display_list *own = NULL;
     int aborted = 0;
     fz_var(pix);
     fz_var(dev);
+    fz_var(own);
     fz_var(aborted);
     *pixels = NULL;
     fz_try(ctx) {
-        fz_display_list *list = inkv_list(ctx, d, index);
+        // The page's own content only (no annotations): a list of its own, not the cached one.
+        fz_display_list *list = contents_only ? (own = fz_new_display_list_from_page_contents(ctx, inkv_page(ctx, d, index)))
+                                              : inkv_list(ctx, d, index);
         fz_matrix ctm = fz_scale(scale, scale);
         fz_rect area = fz_make_rect(x0, y0, x1, y1);
         fz_irect box = fz_round_rect(fz_transform_rect(area, ctm));
@@ -285,6 +289,7 @@ int inkv_render_rgb(void *vctx, inkv_doc *d, int index, float scale, float x0, f
     fz_always(ctx) {
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
+        fz_drop_display_list(ctx, own);
     }
     fz_catch(ctx) {
         if (cookie && cookie->cookie.abort) {
@@ -295,6 +300,16 @@ int inkv_render_rgb(void *vctx, inkv_doc *d, int index, float scale, float x0, f
         return 0;
     }
     return aborted ? 2 : 1;
+}
+
+int inkv_render_rgb(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
+                    inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
+    return render_rgb(vctx, d, index, 0, scale, x0, y0, x1, y1, cookie, pixels, width, height, err);
+}
+
+int inkv_render_rgb_contents(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
+                             inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
+    return render_rgb(vctx, d, index, 1, scale, x0, y0, x1, y1, cookie, pixels, width, height, err);
 }
 
 int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char *path, int jpeg, char *err) {

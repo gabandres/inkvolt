@@ -474,6 +474,20 @@ extension DocumentEditor {
         return (lastOutcome, box.value)
     }
 
+    /// Recognize Text with roadmap 2.2's pipeline (`PageOcr.recognizeText` with `options`): cleaned pages, suspect words,
+    /// the cleaned pages written back when asked (one undo step). Cancelling (`cancel`) commits nothing.
+    func recognizeText(pages: [Int], ocr: any TextRecognizer, options: RecognizeOptions, spelling: (any Spelling)?, cancel: CancelToken,
+                       progress: @escaping @Sendable (Int, Int) -> Void) async -> (outcome: EditOutcome?, report: RecognizeTextReport?) {
+        let box = EditBox<RecognizeTextReport>()
+        _ = await run("Recognize text") { data, pw in
+            let (out, report) = try PageOcr.recognizeText(data, pw, pages: pages, recognizer: ocr, options: options, spelling: spelling,
+                                                          cancel: cancel, progress: progress)
+            box.value = report
+            return out
+        }
+        return (lastOutcome, box.value)
+    }
+
     @discardableResult
     func replaceText(_ run: TextRun, _ text: String) async -> Bool {
         await self.run("Edit text") { data, pw in try ContentEditor.replaceText(data, pw, run, text) }

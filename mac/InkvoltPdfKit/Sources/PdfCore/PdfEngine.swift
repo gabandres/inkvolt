@@ -201,7 +201,8 @@ public final class PdfEngine: @unchecked Sendable {
     /// Renders a page (or a region of it, in page points) at `scale` pixels per point.
     /// - Throws: `CancellationError` when `cancel` fires (MuPDF stops mid-render); `PdfEngineError` when the image would
     ///   exceed `maxPixels`.
-    public func render(_ page: Int, scale: Double, region: RectD? = nil, cancel: CancelToken? = nil) throws -> RenderedImage {
+    /// - Parameter annotations: false draws the page's own content only (no comments or form fields).
+    public func render(_ page: Int, scale: Double, region: RectD? = nil, cancel: CancelToken? = nil, annotations: Bool = true) throws -> RenderedImage {
         try cancel.check()
         gate.lock()
         defer { gate.unlock() }
@@ -217,8 +218,9 @@ public final class PdfEngine: @unchecked Sendable {
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var pixels: UnsafeMutablePointer<UInt8>?
         var width: Int32 = 0, height: Int32 = 0
-        let result = inkv_render_rgb(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + r.x), Float(g.originY + r.y),
-                                     Float(g.originX + r.right), Float(g.originY + r.bottom), cookie, &pixels, &width, &height, &err)
+        let draw = annotations ? inkv_render_rgb : inkv_render_rgb_contents
+        let result = draw(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + r.x), Float(g.originY + r.y),
+                          Float(g.originX + r.right), Float(g.originY + r.bottom), cookie, &pixels, &width, &height, &err)
         defer { inkv_free(pixels) }
         if result == 2 { throw CancellationError() }
         guard result == 1, let pixels else { throw PdfEngineError(message: Self.message(err)) }
