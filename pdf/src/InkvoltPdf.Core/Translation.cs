@@ -431,6 +431,7 @@ public static class Translation
                 return (null, "the model's answer was cut off by its length limit");
             }
             var (clean, bad) = TranslationText.CleanReply(reply.Text, piece);
+            if (clean is not null && TranslationText.SlipsIntoAnotherScript(clean, piece, language)) (clean, bad) = (null, "its answer has words in another script");
             if (clean is not null) return (clean, null);
             problem = bad;
         }
@@ -634,6 +635,19 @@ public static partial class TranslationText
         var s = string.Join(' ', language.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         s = new string([.. s.Where(c => !char.IsControl(c))]);
         return s.Length <= 60 ? s : s[..60];
+    }
+
+    /// <summary>Languages written in Latin letters: a word in other letters in an answer in one of them, that the text didn't have, is a small model's slip.</summary>
+    private static readonly HashSet<string> LatinLanguages = new(StringComparer.OrdinalIgnoreCase)
+        { "English", "Spanish", "French", "German", "Italian", "Portuguese", "Dutch", "Polish", "Swedish", "Danish", "Norwegian", "Finnish", "Czech", "Romanian", "Hungarian", "Turkish", "Vietnamese", "Indonesian" };
+
+    /// <summary>Whether an answer in a Latin-letter language has letters from a script its source doesn't use ("sean要么 editoriales"). A language typed in isn't judged.</summary>
+    public static bool SlipsIntoAnotherScript(string answer, string source, string language)
+    {
+        if (!LatinLanguages.Contains(language.Trim())) return false;
+        static bool Other(Rune r) => Rune.IsLetter(r) && r.Value >= 0x370 && r.Value is not (>= 0x1E00 and <= 0x1EFF or >= 0x2C60 and <= 0x2C7F or >= 0xA720 and <= 0xA7FF);
+        var blocks = source.EnumerateRunes().Where(Other).Select(r => r.Value >> 8).ToHashSet();
+        return answer.EnumerateRunes().Any(r => Other(r) && !blocks.Contains(r.Value >> 8));
     }
 
     /// <summary>The longest answer accepted for a text: generous, since a few ideographs can become many letters.</summary>

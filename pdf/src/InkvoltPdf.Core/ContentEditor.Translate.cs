@@ -69,6 +69,7 @@ public static partial class ContentEditor
         {
             cancel.ThrowIfCancellationRequested();
             var lines = WithoutMarkers(WithMarksInLine(SplitAtColumns(LinesOf(runs))));
+            foreach (var line in lines) line.Main = line.Runs.MaxBy(r => r.Text.Trim().Length);
             foreach (var stack in Stacks(lines))
             {
                 cancel.ThrowIfCancellationRequested();
@@ -185,10 +186,10 @@ public static partial class ContentEditor
         {
             foreach (var r in content.Runs)
             {
-                if (r.Text.Trim().Length == 0) continue;
+                if (r.Text.Trim().Length == 0 || Math.Abs(r.Angle) >= 0.5) continue; // a margin's turned stamp isn't where the text column ends
                 TextLeft = Math.Min(TextLeft, r.Box.X);
                 TextRight = Math.Max(TextRight, r.Box.Right);
-                if (Math.Abs(r.Angle) < 0.5) Boxes.Add((r.Box, r));
+                Boxes.Add((r.Box, r));
             }
             foreach (var i in content.Images) Boxes.Add((i.Box, null));
             foreach (var o in obstacles) Boxes.Add((o, null));
@@ -537,13 +538,15 @@ public static partial class ContentEditor
     /// </summary>
     private static TextRun[] LineRuns(TextParagraph p, TextRun plain)
     {
+        // New text takes the color of the run it is written at: the color most of the paragraph is in, not a link's.
+        var color = p.Runs.Where(r => r.Info is not null).GroupBy(r => r.Color).Select(g => (g.Key, Length: g.Sum(r => r.Text.Trim().Length))).DefaultIfEmpty((plain.Color, 0)).MaxBy(c => c.Length).Item1;
         var chosen = new TextRun?[p.Lines.Count];
         foreach (var run in p.Runs)
         {
             var at = 0;
             for (var k = 1; k < p.Lines.Count; k++)
                 if (Math.Abs(run.Box.CenterY - p.Lines[k].CenterY) < Math.Abs(run.Box.CenterY - p.Lines[at].CenterY)) at = k;
-            if (run.Color == plain.Color && run.Info is not null && (chosen[at] is not { } had || DrawOrder(run) > DrawOrder(had))) chosen[at] = run;
+            if (run.Color == color && run.Info is not null && (chosen[at] is not { } had || DrawOrder(run) > DrawOrder(had))) chosen[at] = run;
         }
         var result = new TextRun[chosen.Length];
         var fallback = chosen.FirstOrDefault(r => r is not null) ?? Anchor(p.Runs);

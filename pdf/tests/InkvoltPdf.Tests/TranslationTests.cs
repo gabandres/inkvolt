@@ -357,6 +357,14 @@ public class TranslationReplyTests
     }
 
     [Theory]
+    [InlineData("pequeños en la publicación que sean要么 editoriales", "either editorial", "Spanish", true)]
+    [InlineData("Una función con α y β", "A function with α and β", "Spanish", false)] // the source has those letters
+    [InlineData("Ngày và giờ", "Date and time", "Vietnamese", false)]
+    [InlineData("日付と時刻", "Date and time", "Japanese", false)]
+    [InlineData("要么", "either", "Klingon", false)] // a language typed in isn't judged
+    public void A_word_in_another_script_is_a_slip(string answer, string source, string language, bool slip) => Assert.Equal(slip, TranslationText.SlipsIntoAnotherScript(answer, source, language));
+
+    [Theory]
     [InlineData("Hello there", true)]
     [InlineData("No.", true)]
     [InlineData("中", true)]
@@ -519,6 +527,15 @@ public class TranslationRunTests
         Assert.Equal([false, true], firm);
         Assert.Contains("several paragraphs", a.Failed["Hello."]);
         Assert.Empty(a.Done);
+    }
+
+    [Fact]
+    public async Task An_answer_that_slips_into_another_script_is_asked_for_again()
+    {
+        var n = 0;
+        var handler = new FakeAiHandler((_, _, _) => Task.FromResult(FakeAiHandler.Sse(Interlocked.Increment(ref n) == 1 ? "Que sean要么 editoriales." : "Que sean editoriales.")));
+        var a = await Run(handler, "That are editorial.");
+        Assert.Equal("Que sean editoriales.", a.Done["That are editorial."]);
     }
 
     [Fact]
@@ -1085,7 +1102,7 @@ public class TranslationCopyTests
     [Fact]
     public void Text_stays_inside_the_clip_of_its_last_line_when_its_first_line_has_none()
     {
-        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft, 2024!") + "q 72 660 300 26 re W n " + Lines(72, 686, 12, 14, "draft Hello World draft") + "Q", fontText: "Hello World draft, 2024!THEDOGQUICKBROWNFX");
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft, 2024!") + "q 72 660 300 40 re W n " + Lines(72, 686, 12, 14, "draft Hello World draft") + "Q", fontText: "Hello World draft, 2024!THEDOGQUICKBROWNFX");
         var words = string.Join(' ', Enumerable.Repeat("THE QUICK BROWN FOX", 4));
         var (_, r) = Translate(pdf, _ => words);
         Assert.True(r.Report.Shrunk == 1 && r.Report.DoNotFit == 0, $"{r.Report.Shrunk} shrunk, {r.Report.DoNotFit} don't fit");
@@ -1293,6 +1310,26 @@ public class TranslationCopyTests
         var (plan, r) = Translate(pdf, _ => "THE DOG");
         Assert.Equal("The quick brown fox jumps over a lazy dog and on until the lazy dog is done and the quick brown fox has gone", Assert.Single(plan.Texts).Text);
         Assert.Contains(ContentEditor.Read(r.Data!, null, 0).Runs, q => q.Text == "1");
+    }
+
+    [Fact]
+    public void A_link_at_the_start_of_a_line_doesnt_split_the_paragraph_or_color_it()
+    {
+        // Three lines, a blue link in the second starting it: one paragraph, in the black most of it is in.
+        var pdf = Page("0 g " + Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the") + "0 0 1 rg BT /FA 12 Tf 1 0 0 1 72 686 Tm (fox) Tj ET 0 g BT /FA 12 Tf 1 0 0 1 95 686 Tm (jumps over a lazy dog until the quick brown) Tj ET " + Lines(72, 672, 12, 14, "fox is done."), fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE QUICK BROWN FOX JUMPS OVER A LAZY DOG");
+        Assert.Single(plan.Texts);
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Contains("QUICK", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(runs);
+        Assert.All(runs, q => Assert.Equal(0, q.Color));
+    }
+
+    [Fact]
+    public void A_turned_stamp_in_the_margin_doesnt_make_a_full_line_look_centered()
+    {
+        var pdf = Page("q 0 1 -1 0 30 300 cm BT /FA 8 Tf 0 0 Td (Hello World draft stamp) Tj ET Q " + Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the lazy dog is done until the") + Lines(72, 400, 10, 12, "THE DOG"), fontText: Letters + "stamp");
+        var (_, r) = Translate(pdf, t => t.StartsWith("The", StringComparison.Ordinal) ? "THE QUICK BROWN FOX" : t);
+        Assert.Equal(72, ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX").Box.X, 0);
     }
 
     [Fact]

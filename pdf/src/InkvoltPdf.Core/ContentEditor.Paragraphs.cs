@@ -94,7 +94,10 @@ public static partial class ContentEditor
         /// <summary>Where each run's text starts in <see cref="Text"/>.</summary>
         public readonly List<int> Starts = [0];
         /// <summary>Its first run in its own look (not a stand-in or a look an edit gave it), else its first.</summary>
-        public TextRun Lead => Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs[0];
+        public TextRun Lead => Main ?? Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs[0];
+
+        /// <summary>For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.</summary>
+        public TextRun? Main;
         public double Size => Lead.FontSize;
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
