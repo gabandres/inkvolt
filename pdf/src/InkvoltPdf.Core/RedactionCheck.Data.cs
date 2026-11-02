@@ -759,7 +759,8 @@ public static partial class RedactionCheck
                 var buffer = new byte[81920];
                 for (int n; (n = z.Read(buffer)) > 0 && ms.Length < MaxStreamBytes;) ms.Write(buffer, 0, n);
                 if ((total += ms.Length) > 512L << 20) break;
-                sb.Append('\n').Append(Encoding.Latin1.GetString(ms.GetBuffer(), 0, (int)ms.Length));
+                sb.Append('\n');
+                AppendPrintable(sb, ms.GetBuffer().AsSpan(0, (int)ms.Length));
             }
             catch (Exception ex) when (ex is InvalidDataException or IOException)
             {
@@ -768,6 +769,31 @@ public static partial class RedactionCheck
             at = start + end;
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// What can be text in a stream's bytes: runs of three or more printable characters. A redacted page's picture inflates to
+    /// tens of megabytes of black and white, which no value can be in and which took the search past its time limit.
+    /// </summary>
+    private static void AppendPrintable(StringBuilder sb, ReadOnlySpan<byte> bytes)
+    {
+        static bool Printable(byte b) => b is >= 0x20 and <= 0x7E or 0x09 or 0x0A or 0x0D or >= 0xA0 and <= 0xFE;
+        for (var i = 0; i < bytes.Length;)
+        {
+            if (!Printable(bytes[i]))
+            {
+                i++;
+                continue;
+            }
+            var end = i;
+            while (end < bytes.Length && Printable(bytes[end])) end++;
+            if (end - i >= 3)
+            {
+                sb.Append(Encoding.Latin1.GetString(bytes[i..end]));
+                sb.Append('\n');
+            }
+            i = end;
+        }
     }
 
     [GeneratedRegex(@"[\p{L}\p{N}][\p{L}\p{N}@._'\-]*[\p{L}\p{N}]")]

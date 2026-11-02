@@ -547,6 +547,22 @@ public sealed class RedactionCorpusTests : IDisposable
     }
 
     [Fact]
+    public void AValueAmongPicturePixelsInAStreamIsStillInTheRawText()
+    {
+        using var packed = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+        {
+            z.Write(new byte[2_000_000]);
+            z.Write("hidden 123-45-6789 value"u8);
+            z.Write(Enumerable.Repeat((byte)0xFF, 2_000_000).ToArray());
+        }
+        byte[] file = [.. "1 0 obj\nstream\n"u8, .. packed.ToArray(), .. "endstream\n"u8];
+        var text = RedactionCheck.RawText(file, default);
+        Assert.Contains("hidden 123-45-6789 value", text);
+        Assert.True(text.Length < 1_000_000, $"{text.Length} characters kept");
+    }
+
+    [Fact]
     public void ManyValuesAreLookedForOrTheCheckSaysItCouldnt()
     {
         var pdf = Core2Pdf.Build(

@@ -132,12 +132,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   sets refused whole; masks; formula cells; the Pro gate. Attacks that turned up real bugs, all fixed with tests: quadratic
   overlap check on a page of hostile numbers; a page's regex time unbounded across calls; a hit dropped when its glyphs have
   no box; invisible and wide characters hiding a number; the check stopping with an error on many or long values (its regex
-  size limit) and treating a timeout as clean; a signed file exported unredacted when the plan had an export after Redact Patterns; a
+  size limit), treating a timeout as clean, and timing out on a redacted page's pixels; a signed file exported unredacted when the plan had an export after Redact Patterns; a
   dash in a CSV cell starting a formula.
 - **Not checked.** A person's eyes on a real scan, and a real scan at all: every scan here is synthetic. Windows' recognizer
   dropping a line didn't happen on these files, so reading a place again has only run against the stand-in. OCR languages
-  other than en-US. A screen reader on the list. The Free view of the report and the sets' buttons with `Pro.Enforced` on
-  were seen only through the Pro window and the Batch gate test.
+  other than en-US. A screen reader on the list. With `Pro.Enforced` on, the Free report and the Pro window were seen in
+  screenshots and Batch's gate is tested, but the sets' buttons and the regex box weren't pressed; nor, gate off, were
+  they driven by hand (sets were saved and loaded through dev steps).
 - **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
   a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
   so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
@@ -146,7 +147,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30).
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 waits for the Mac (on hold).
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
