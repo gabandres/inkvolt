@@ -36,9 +36,9 @@ public sealed class WindowsBatchDocuments : IBatchDocuments
                 {
                     throw new BatchPasswordException();
                 }
-                catch (PdfOpenException)
+                catch (PdfOpenException ex)
                 {
-                    throw new BatchFileException("Windows can't read this PDF: it may be damaged.");
+                    throw new BatchFileException(ex.IsUnsupportedLock ? ex.Message : "Windows can't read this PDF: it may be damaged.");
                 }
             }
             if (PhotoFiles.MissingCodec(path) is { } missing) throw new BatchFileException(missing);

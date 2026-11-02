@@ -21,7 +21,9 @@ public class BatchPrintEndToEndTests
         return Directory.GetFiles(Path.Combine(print, "src", "InkvoltPrint.App", "bin", config), "InkvoltPrint.exe", SearchOption.AllDirectories).Single();
     }
 
-    private static async Task<(int Code, string Out, string Err)> Run(string? password, params string[] args)
+    private static Task<(int Code, string Out, string Err)> Run(string? password, params string[] args) => Run(null, password, args);
+
+    private static async Task<(int Code, string Out, string Err)> Run(IReadOnlyDictionary<string, string>? environment, string? password, string[] args)
     {
         var start = new ProcessStartInfo(Exe())
         {
@@ -35,6 +37,7 @@ public class BatchPrintEndToEndTests
         foreach (var a in args) start.ArgumentList.Add(a);
         start.Environment.Remove(BatchPrintCommandLine.PasswordVariable);
         if (password is not null) start.Environment[BatchPrintCommandLine.PasswordVariable] = password;
+        foreach (var (key, value) in environment ?? new Dictionary<string, string>()) start.Environment[key] = value;
         using var process = Process.Start(start)!;
         var (output, error) = (process.StandardOutput.ReadToEndAsync(), process.StandardError.ReadToEndAsync());
         using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(4));
@@ -232,5 +235,111 @@ public class BatchPrintEndToEndTests
         var second = await Run(null, "print", "--watch", f.Root, "--printer", Printer, "--once", "--demo");
         Assert.Equal(BatchPrintSummary.Done, second.Code);
         Assert.Contains("0 files sent (0 sheets)", second.Out);
+    }
+
+    /// <summary>
+    /// Windows' PDF engine can't open AES-256 (Acrobat's usual protection) with any password, and that's neither a wrong password
+    /// nor damage: found on a real queue. The engine stops at the dictionary, so this file needs no real encryption.
+    /// </summary>
+    [Fact]
+    public async Task A_lock_windows_cant_open_says_so_and_isnt_called_damaged()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = new BatchFolder();
+        var locked = Path.Combine(f.Root, "aes256.pdf");
+        File.WriteAllBytes(locked, Aes256Locked());
+        var open = Path.Combine(f.Root, "open.pdf");
+        File.WriteAllBytes(open, BatchPrintSamples.Pdf(2, "Open"));
+
+        var (code, output, error) = await Run(Password, "print", locked, open, "--printer", Printer, "--demo");
+
+        Assert.True(code == BatchPrintSummary.SomeFailed, $"exit {code}\n{output}\n{error}");
+        Assert.Contains("password protection", error);
+        Assert.DoesNotContain("damaged", error);
+        Assert.Contains("1 sent (2 sheets), 1 skipped.", output);
+    }
+
+    private static byte[] Aes256Locked()
+    {
+        string Hex(int bytes) => new('A', bytes * 2);
+        var objects = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+            $"<< /Filter /Standard /V 5 /R 6 /Length 256 /P -44 /O <{Hex(48)}> /U <{Hex(48)}> /OE <{Hex(32)}> /UE <{Hex(32)}> /Perms <{Hex(16)}> /StmF /StdCF /StrF /StdCF /CF << /StdCF << /CFM /AESV3 /Length 32 >> >> >>",
+        };
+        var pdf = new System.Text.StringBuilder("%PDF-1.7\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(pdf.Length);
+            pdf.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xref = pdf.Length;
+        pdf.Append($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets) pdf.Append($"{offset:D10} 00000 n \n");
+        pdf.Append($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R /Encrypt 4 0 R /ID [<{Hex(16)}> <{Hex(16)}>] >>\nstartxref\n{xref}\n%%EOF\n");
+        return System.Text.Encoding.ASCII.GetBytes(pdf.ToString());
+    }
+
+    /// <summary>
+    /// With its output piped (<c>| Out-Default</c>, as the README says, or a script's) the app had no console, so Ctrl+C never reached it and it
+    /// went on printing behind the prompt: found on a real queue. Run from a PowerShell in a hidden console of its own, so the key reaches only these two.
+    /// </summary>
+    [Fact]
+    public async Task Ctrl_C_stops_a_run_whose_output_is_piped()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = new BatchFolder();
+        const string script = """
+            Add-Type -Namespace Inkvolt -Name Keys -MemberDefinition '[DllImport("kernel32")] public static extern bool GenerateConsoleCtrlEvent(uint e, uint g); [DllImport("kernel32")] public static extern bool SetConsoleCtrlHandler(IntPtr h, bool a);'
+            $i = New-Object Diagnostics.ProcessStartInfo $env:TEST_EXE
+            $i.Arguments = $env:TEST_ARGS
+            $i.UseShellExecute = $false
+            $i.RedirectStandardOutput = $true
+            $p = [Diagnostics.Process]::Start($i)
+            [void]$p.StandardOutput.ReadLine()
+            [void][Inkvolt.Keys]::SetConsoleCtrlHandler([IntPtr]::Zero, $true)
+            [void][Inkvolt.Keys]::GenerateConsoleCtrlEvent(0, 0)
+            if (-not $p.WaitForExit(30000)) { $p.Kill(); exit 99 }
+            exit $p.ExitCode
+            """;
+        var start = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-Command", script }) start.ArgumentList.Add(a);
+        start.Environment["TEST_EXE"] = Exe();
+        start.Environment["TEST_ARGS"] = $"print --watch \"{f.Root}\" --printer \"{Printer}\" --demo";
+        using var process = Process.Start(start)!;
+        var (output, error) = (process.StandardOutput.ReadToEndAsync(), process.StandardError.ReadToEndAsync());
+        using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        try
+        {
+            await process.WaitForExitAsync(limit.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
+        Assert.True(process.ExitCode is BatchPrintSummary.Done or BatchPrintSummary.Stopped, $"exit {process.ExitCode} (99: Ctrl+C didn't stop it)\n{await output}\n{await error}");
+    }
+
+    /// <summary>
+    /// A small gen 0 collects each file's PDF as the batch goes, which on a Snapdragon PC used to end the process with a driver fault in place of the
+    /// exit code (App.OnExit ends it first now). On other graphics hardware this can't fail for that reason.
+    /// </summary>
+    [Fact]
+    public async Task The_exit_code_survives_the_pdfs_being_collected_before_the_process_ends()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = new BatchFolder();
+        var path = Path.Combine(f.Root, "a.pdf");
+        File.WriteAllBytes(path, BatchPrintSamples.Pdf(3, "A"));
+        var tiny = new Dictionary<string, string> { ["DOTNET_GCgen0size"] = "0x40000" };
+        for (var i = 0; i < 8; i++)
+        {
+            var (code, output, error) = await Run(tiny, null, ["print", path, "--printer", Printer, "--demo", "--quiet"]);
+            Assert.True(code == BatchPrintSummary.Done, $"run {i}: exit {code}\n{output}\n{error}");
+        }
     }
 }
