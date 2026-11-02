@@ -1,8 +1,7 @@
 # Handoff, 2026-11-02 (newest first)
 
-**Released.** Inkvolt Print 1.2.0.0: published in the Store, GitHub release `print-v1.2.0.0`, website updated. Inkvolt PDF 1.6.0.0: submitted
-to the Store on 2026-11-02 (`msstore submission status 9MXDTSFJ9W28`), GitHub release `pdf-v1.6.0.0`. When the Store publishes it, change
-PDF's `softwareVersion` in `Z:\portfolio\public\products\inkvolt\index.html` to 1.6.0 and deploy. The privacy page already covers translating.
+**Released.** Inkvolt Print 1.2.0.0 and Inkvolt PDF 1.6.0.0: both published in the Store on 2026-11-02, GitHub releases `print-v1.2.0.0` and
+`pdf-v1.6.0.0`, website updated, and the privacy page covers translating.
 
 **Print's hold is cleared.** The exit crash is Windows.Data.Pdf and Qualcomm's driver, reproduced in a program with no Inkvolt code; `App.OnExit`
 now ends the process first (0 of 63 after). Batch print ran on real Windows queues on file ports with its output read back. No physical printer
