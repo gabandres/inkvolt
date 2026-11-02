@@ -503,9 +503,9 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Leader.** Foxit: AI translate keeping layout, original and translation side by side, 25+ languages, in Foxit's cloud,
   credits per month ([Foxit](https://www.foxit.com/ai/pdf-translator/)). PDFelement: side by side or interleaved, 35-50
   languages, scans through OCR ([Wondershare](https://pdf.wondershare.com/online-pdf/ai-pdf-translator.html)).
-- **Now (Windows, 2026-11-01). A real model has not been run:** this PC has no Ollama or LM Studio and no server on the
-  usual ports, so every run below answered from a stand-in server. How good a real model's translations are, how long it
-  takes, and how it behaves in practice are unknown. Review › AI Assistant › Translate with AI: free, as the table says, so
+- **Now (Windows, 2026-11-01; a real model from 2026-11-02).** The real model is Qwen3 4B (Q4) on llama.cpp's llama-server on
+  this PC's GPU, 8,192 tokens of context. Its results are under **Real model** below; the rest was checked with a stand-in
+  server. Review › AI Assistant › Translate with AI: free, as the table says, so
   no `Pro` check. `Translation.MakePlan` reads the pages, nothing sent: each page's paragraphs by 2.1's grouping
   (`ContentEditor.Translate.cs`), table cells apart by Export to Word's analysis (`DocLayout`), repeats once, paragraphs
   with no words not at all. The "what is sent, where" window shows every request. `TranslateAsync` sends them one at a
@@ -532,7 +532,39 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
   fitted. Thai has no spaces, so it wraps between any two characters. A file's size can grow as with any edit: PDFsharp
   writes compressed objects out plainly (census-p60, 1.8 MB to 8 MB). Paragraphs with `/ActualText` stay and get a comment.
-  **Checked.** `TranslationTests` (106 with `TranslationSampleFile`), including the test below on 100 made-up pages through a real
+  **The bug a real run found (2026-11-02).** The first real page (NIST p. 9) reported 14 paragraphs in Spanish, and all
+  the lines after each first line were specks. Text extraction read them, at the right size. That page paints a white band
+  under each line just before drawing it, and all the new lines were written where the first old line was, so the later
+  bands painted over them: the specks were descenders. All the tests passed because they read text, and the corpus only
+  asked whether a page's pixels had changed at all. Now a new line is written where the lowest old line it reaches was
+  drawn, and text doesn't grow under a rectangle filled later. `TranslationInk` renders each line of a copy and measures
+  its ink (height and how much of the line has any); the tests, the 100-page report (each of its lines now on a white band)
+  and the corpus use it.
+  **Other faults the real runs showed, fixed.** A font that named no glyph for a code passed as having it when `/ToUnicode`
+  and `/Widths` covered the code (pdfTeX's do), so accents came out blank ("funci n"): a readable program now decides. A
+  spot color's "1 scn" was read as white, holding headings to their old box and shrinking them. "NimbusRomNo9L" and
+  "Gotham-Book" got stand-ins of the wrong class. Small capitals fell apart at each change of size, and the model got "IGITAL".
+  A short line going on in lowercase split a sentence in ragged columns, and a note's small number split a note's first line
+  from the rest. Short labels one under the other were joined; figures beside a label moved into its text. A tight
+  clip shrank headings; text could grow past the clip of its last line. A link starting a line split its paragraph and turned
+  the text blue. A turned stamp in the margin made full lines look centered. A word in another script in a Latin-letter
+  answer (the model wrote "sean要么 editoriales") is asked for again, then left out and flagged. The shrink floor went by a
+  paragraph's first run, which may be a mark.
+  **Real model.** Spanish, through the app with screenshots read side by side, and `TranslationRealModelTests` (opt-in) for
+  what each paragraph got: NIST p. 9, 13 (a ruled table), 14, 20, 47 (a table); attn-v7 p. 3, 8 (a table); census-p60 p. 7 (three
+  columns), 12 (a figure's table), 31 and 33 (turned tables). A page of text took 17 to 48 seconds with this model and GPU. All lines
+  show, in their boxes, and figures and rules stay. No reasoning tags or preamble reached a copy; the model wrote none on these
+  pages, so that part of `CleanReply` wasn't exercised by it. What it gave back unchanged on NIST p. 9 is "NIST SP 800-63-3" and
+  "vi" (the 4 first seen included pieces of small capitals); on p. 47 and the census, "AAL1", "NO", "90th/10th" and the like.
+  How good it reads: for a 4B model, good. The meaning is carried and a reader can follow it, with care on technical terms.
+  Wording faults are the model's, not bugs: "Cuartil cuarto", "Las ingresos", "Errata" as "Errores", "GUIAS" without its
+  accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
+  **Still wrong.** A table row or a label with its figures drawn by one operator goes as one text, so its figures can leave
+  their columns (attn-v7's "Transformer (base model) 27.3 38.1"; the census's "income inequality 0.488 0.485"). Tables turned on
+  the page, like the census's appendix, stay in English (named in the summary). A link's underline and area stay where they
+  were while the text moves (NIST p. 14, 47). A bold word or a subscript in a paragraph loses its look ("dmodel"). White text on
+  a band stays in its old box, so a longer word shrinks though the band has room ("Propósito", NIST p. 14).
+  **Checked.** `TranslationTests`, including the test below on 100 made-up pages through a real
   socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
   written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
   server got nothing and the run stopped). Hostile replies through the real `AiClient`: endless answers stopped by length,
@@ -544,15 +576,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   found in review), unreadable content, a font with nonsense widths. The real app driven with `--script` and looked at:
   all 100 pages to a stand-in on a real socket, the Send window, progress with the UI answering, Cancel and keep
   (376 paragraphs left, pages named), both panes scrolling to the same place from either side; the menu command and its
-  window with the Ollama preset and no network (`aifake translate`) on f1040. No model's answers looked at, only the stand-in's. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
-  export corpus files, first 30 pages of each, 99 pages and 2,524 paragraphs, each answer longer and marked: page counts
-  and pictures kept, no page's new text hidden (pixels changed), no page failed, read and written in seconds; 207 paragraphs
-  don't fit at the smallest size and 50 are left (`/ActualText` and unreadable characters).
+  window with the Ollama preset and no network (`aifake translate`) on f1040. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
+  export corpus files, first 30 pages of each, 99 pages, each answer longer and marked: page counts and pictures kept, no
+  page failed, read and written in seconds. That stand-in lengthens every label, so its counts of what doesn't fit (about a
+  tenth of paragraphs) say little about a real translation; the ink check's few lines it still names are at the size floor or in a chart.
   The real app driven again on an AES-256 file opened with its permissions password: the open password asked before anything
   is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
-  **Not checked.** Any real model, local or cloud: quality, speed, or whether a real model's habits get past `CleanReply`
-  (a refusal in words, or an answer to the text in place of its translation, can't be told from a translation). A screen
-  reader on a copy: all a paragraph's text ends up in its first tagged piece. Acrobat and pdf.js on a copy. Long runs over
+  **Not checked.** Any other model, a cloud endpoint, or a language but Spanish with a real model; a model's refusal in words,
+  or an answer to the text in place of its translation, can't be told from a translation. A screen
+  reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat and pdf.js on a copy. Long runs over
   sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
   real sleep). English UI only: the app has no Spanish strings.
 - **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by

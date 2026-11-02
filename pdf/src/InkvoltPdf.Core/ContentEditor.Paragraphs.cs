@@ -94,7 +94,10 @@ public static partial class ContentEditor
         /// <summary>Where each run's text starts in <see cref="Text"/>.</summary>
         public readonly List<int> Starts = [0];
         /// <summary>Its first run in its own look (not a stand-in or a look an edit gave it), else its first.</summary>
-        public TextRun Lead => Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs[0];
+        public TextRun Lead => Main ?? Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs[0];
+
+        /// <summary>For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.</summary>
+        public TextRun? Main;
         public double Size => Lead.FontSize;
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
@@ -266,7 +269,8 @@ public static partial class ContentEditor
     }
 
     /// <summary>Splits a stack after each line that ended short: the next line's first word would have fit on it.</summary>
-    private static List<List<PLine>> SplitShort(PStack s)
+    /// <param name="translating">Ragged text in a narrow column often ends a line short mid-sentence: for a translator a line going on in lowercase, after no end of sentence, stays with the one above.</param>
+    private static List<List<PLine>> SplitShort(PStack s, bool translating = false)
     {
         var parts = new List<List<PLine>>();
         var cur = new List<PLine> { s.Lines[0] };
@@ -280,7 +284,7 @@ public static partial class ContentEditor
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
             var need = prev.Box.Width + WidthOf(line.Lead, " " + word, line);
-            if (need < room - 0.5 * prev.Size)
+            if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && Labels(prev.Text, line.Text)))
             {
                 parts.Add(cur);
                 cur = [];
@@ -289,6 +293,20 @@ public static partial class ContentEditor
         }
         parts.Add(cur);
         return parts;
+    }
+
+    /// <summary>A line starting in lowercase after one that ends in no sentence-ending punctuation.</summary>
+    private static bool GoesOn(string above, string below)
+    {
+        var (a, b) = (above.TrimEnd(), below.TrimStart());
+        return a.Length > 0 && b.Length > 0 && !".!?:;".Contains(a[^1]) && char.IsLower(b[0]);
+    }
+
+    /// <summary>Two short lines, the second starting in capitals, nothing carrying over: entries of a list or a table's labels, not a sentence wrapped.</summary>
+    private static bool Labels(string above, string below)
+    {
+        var (a, b) = (above.Trim(), below.Trim());
+        return a.Length is > 0 and <= 28 && b.Length is > 0 and <= 28 && char.IsUpper(b[0]) && !",-".Contains(a[^1]);
     }
 
     /// <summary>How wide text is in a run's font and spacing (points); estimated from the line's characters when the font can't tell.</summary>

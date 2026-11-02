@@ -154,6 +154,8 @@ public static partial class ContentEditor
     /// <summary>The most form XObject content walked for one page, counting each drawing (and a little for each, however small).</summary>
     private const long MaxFormBytes = 64L << 20;
 
+    private const int MaxFills = 5_000;
+
     /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
     internal const string StandInKey = "InkFb";
 
@@ -716,6 +718,8 @@ public static partial class ContentEditor
         public int Nested;
         /// <summary>How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.</summary>
         public long FormBudget = MaxFormBytes;
+        /// <summary>Rectangles the page's own content fills, and where in it: what text written before one would be painted over by.</summary>
+        public readonly List<(RectD Box, int Id)> Fills = [];
         public bool CutShort => FormBudget < 0;
         public PageContent Content => new(TextRuns, Images);
     }
@@ -785,6 +789,7 @@ public static partial class ContentEditor
                     break;
                 case "n" or "f" or "F" or "f*" or "B" or "B*" or "b" or "b*" or "S" or "s":
                     if (clipping && pathParts == 1 && pathBox is { } clip) gs.Clip = gs.Clip is { } was ? was.Intersect(clip) : clip;
+                    if (depth == 0 && op.Name is not ("n" or "S" or "s") && pathParts == 1 && pathBox is { } filled && w.Fills.Count < MaxFills) w.Fills.Add((filled, i));
                     clipping = false;
                     pathParts = 0;
                     pathBox = null;
@@ -811,7 +816,8 @@ public static partial class ContentEditor
                     gs.FillOp = FillOp(op, 4);
                     break;
                 case "sc" or "scn" when op.Operands.Count is 1 or 3 or 4 && op.Operands.All(o => o.Kind == CKind.Number):
-                    gs.Fill = op.Operands.Count switch
+                    // A spot color's or an indexed space's number isn't a shade of gray: 1 is full ink, not white.
+                    gs.Fill = !IsPlainColorSpace(resources, gs.FillSpace) ? 0 : op.Operands.Count switch
                     {
                         1 => Gray(op.N(0)),
                         3 => Rgb(op.N(0), op.N(1), op.N(2)),
@@ -935,6 +941,14 @@ public static partial class ContentEditor
     }
 
     private static int Gray(double g) => Rgb(g, g, g);
+
+    /// <summary>Whether a color space's numbers read as gray, RGB or CMYK: not Separation, DeviceN, Indexed, Lab or a pattern's.</summary>
+    private static bool IsPlainColorSpace(PdfDictionary? resources, string? name)
+    {
+        if (name is null || name.StartsWith("Device", StringComparison.Ordinal)) return true;
+        return PdfObj.Array(PdfObj.Dict(resources?.Elements["/ColorSpace"])?.Elements["/" + name]) is not { Elements.Count: > 0 } space
+               || PdfObj.Name(PdfObj.Resolve(space.Elements[0])) is not ("Separation" or "DeviceN" or "Indexed" or "Lab" or "Pattern");
+    }
 
     /// <summary>A color operator written again from its numbers (the last <paramref name="count"/> operands).</summary>
     private static string FillOp(COp op, int count) =>

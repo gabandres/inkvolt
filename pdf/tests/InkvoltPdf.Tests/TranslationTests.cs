@@ -43,14 +43,21 @@ internal static class TranslationPdf
             var next = line.Length == 0 ? word : line + " " + word;
             if (g.MeasureString(next, font).Width > width && line.Length > 0)
             {
-                g.DrawString(line, font, XBrushes.Black, new XPoint(x, y));
+                Line(g, line, font, x, y, width);
                 y += step;
                 line = word;
             }
             else line = next;
         }
-        g.DrawString(line, font, XBrushes.Black, new XPoint(x, y));
+        Line(g, line, font, x, y, width);
         return y + step;
+    }
+
+    /// <summary>A line on a white band of its own, painted just before it, as Word and Acrobat's own exports often do: text put anywhere earlier in the content is painted over.</summary>
+    private static void Line(XGraphics g, string text, XFont font, double x, double y, double width)
+    {
+        g.DrawRectangle(XBrushes.White, x - 1.5, y - font.Size * 0.95, width + 3, font.Size * 1.2);
+        g.DrawString(text, font, XBrushes.Black, new XPoint(x, y));
     }
 
     public static byte[] Report(int pages)
@@ -203,6 +210,63 @@ internal sealed class LocalModelServer : IDisposable
     }
 }
 
+/// <summary>
+/// What a reader gets from a page: the pixels. Text can be there for extraction, at the right size, and not show at all
+/// (a later white band paints over it, a clip cuts it), so each line is rendered and its ink measured.
+/// </summary>
+internal static class TranslationInk
+{
+    /// <summary>The page's lines with letters whose ink doesn't show as text of their size: "text: why". Empty when all read.</summary>
+    public static List<string> Problems(byte[] pdf, int page, string? password = null, double smallest = 4.9)
+    {
+        using var engine = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, password);
+        return Problems(engine, page, smallest);
+    }
+
+    public static List<string> Problems(PdfEngine engine, int page, double smallest = 4.9)
+    {
+        const double scale = 4;
+        var problems = new List<string>();
+        foreach (var line in engine.GetExportPage(page, images: false).Lines)
+        {
+            if (line.Sideways || line.Text.Count(char.IsLetter) < 3) continue;
+            var size = line.Spans.Max(s => s.Size);
+            var shown = System.Text.RegularExpressions.Regex.Replace(line.Text, @"\s+", " ");
+            if (shown.Length > 50) shown = shown[..50];
+            if (size < smallest) problems.Add($"\"{shown}\": drawn at {size:0.0} pt");
+            var img = engine.Render(page, scale, line.Box);
+            if (img.Width == 0 || img.Height == 0) continue;
+            // Ink: what differs from the most common color there (the paper).
+            var counts = new Dictionary<int, int>();
+            for (var i = 0; i + 2 < img.Pixels.Length; i += 3)
+            {
+                var c = img.Pixels[i] >> 4 | (img.Pixels[i + 1] >> 4) << 4 | (img.Pixels[i + 2] >> 4) << 8;
+                counts[c] = counts.GetValueOrDefault(c) + 1;
+            }
+            var paper = counts.MaxBy(k => k.Value).Key;
+            var (top, bottom, inkColumns) = (int.MaxValue, -1, new bool[img.Width]);
+            for (var y = 0; y < img.Height; y++)
+                for (var x = 0; x < img.Width; x++)
+                {
+                    var i = y * img.Stride + x * 3;
+                    var c = img.Pixels[i] >> 4 | (img.Pixels[i + 1] >> 4) << 4 | (img.Pixels[i + 2] >> 4) << 8;
+                    if (c == paper) continue;
+                    if (Math.Abs(img.Pixels[i] - (paper & 15) * 16) + Math.Abs(img.Pixels[i + 1] - (paper >> 4 & 15) * 16) + Math.Abs(img.Pixels[i + 2] - (paper >> 8 & 15) * 16) < 120) continue;
+                    top = Math.Min(top, y);
+                    bottom = Math.Max(bottom, y);
+                    inkColumns[x] = true;
+                }
+            var height = bottom < 0 ? 0 : (bottom - top + 1) / scale;
+            var across = inkColumns.Count(b => b) / (double)img.Width;
+            if (height < 0.45 * size || across < 0.3) problems.Add($"\"{shown}\": size {size:0.0} pt, but its ink is {height:0.0} pt high across {across:P0} of the line");
+        }
+        return problems;
+    }
+
+    /// <summary>Whitespace out, so a line break anywhere doesn't matter when comparing words in order.</summary>
+    public static string Solid(string s) => new([.. s.Where(c => !char.IsWhiteSpace(c))]);
+}
+
 public class TranslationSampleFile
 {
     /// <summary>The report as a file, to drive the real app with it: set INKVOLTPDF_TRANSLATE_SAMPLE to a path and run this test.</summary>
@@ -293,6 +357,14 @@ public class TranslationReplyTests
     }
 
     [Theory]
+    [InlineData("pequeños en la publicación que sean要么 editoriales", "either editorial", "Spanish", true)]
+    [InlineData("Una función con α y β", "A function with α and β", "Spanish", false)] // the source has those letters
+    [InlineData("Ngày và giờ", "Date and time", "Vietnamese", false)]
+    [InlineData("日付と時刻", "Date and time", "Japanese", false)]
+    [InlineData("要么", "either", "Klingon", false)] // a language typed in isn't judged
+    public void A_word_in_another_script_is_a_slip(string answer, string source, string language, bool slip) => Assert.Equal(slip, TranslationText.SlipsIntoAnotherScript(answer, source, language));
+
+    [Theory]
     [InlineData("Hello there", true)]
     [InlineData("No.", true)]
     [InlineData("中", true)]
@@ -356,7 +428,7 @@ public class TranslationReplyTests
 
 public class TranslationRunTests
 {
-    private static readonly TranslationSettings Quick = new() { RetryWaits = [TimeSpan.Zero, TimeSpan.Zero], ReplyDeadline = TimeSpan.FromSeconds(5) };
+    private static readonly TranslationSettings Quick = new() { RetryWaits = [TimeSpan.Zero, TimeSpan.Zero], ReplyDeadline = TimeSpan.FromSeconds(45) }; // long: only tests of the deadline shorten it, and a loaded PC can take seconds over an answer
 
     private static IReadOnlyList<TranslationJob> Jobs(params string[] texts) => [.. texts.Select((t, i) => new TranslationJob(t, i, [t]))];
 
@@ -455,6 +527,15 @@ public class TranslationRunTests
         Assert.Equal([false, true], firm);
         Assert.Contains("several paragraphs", a.Failed["Hello."]);
         Assert.Empty(a.Done);
+    }
+
+    [Fact]
+    public async Task An_answer_that_slips_into_another_script_is_asked_for_again()
+    {
+        var n = 0;
+        var handler = new FakeAiHandler((_, _, _) => Task.FromResult(FakeAiHandler.Sse(Interlocked.Increment(ref n) == 1 ? "Que sean要么 editoriales." : "Que sean editoriales.")));
+        var a = await Run(handler, "That are editorial.");
+        Assert.Equal("Que sean editoriales.", a.Done["That are editorial."]);
     }
 
     [Fact]
@@ -756,7 +837,7 @@ public class TranslationCopyTests
     [Fact]
     public void A_word_wider_than_its_box_is_broken_and_stays_inside()
     {
-        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft", "Hello World draft") + Lines(300, 700, 12, 14, "2024 draft!", "2024 draft!"), fontText: Letters);
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft", "draft World draft") + Lines(300, 700, 12, 14, "2024 draft!", "2024 draft!"), fontText: Letters);
         var word = string.Concat(Enumerable.Repeat("thequickbrownfox", 8));
         var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? word : t);
         var box = ContentEditor.Read(pdf, null, 0).Paragraphs.First(q => q.Text.StartsWith("Hello", StringComparison.Ordinal)).Box;
@@ -1019,6 +1100,16 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Text_stays_inside_the_clip_of_its_last_line_when_its_first_line_has_none()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft, 2024!") + "q 72 660 300 40 re W n " + Lines(72, 686, 12, 14, "draft Hello World draft") + "Q", fontText: "Hello World draft, 2024!THEDOGQUICKBROWNFX");
+        var words = string.Join(' ', Enumerable.Repeat("THE QUICK BROWN FOX", 4));
+        var (_, r) = Translate(pdf, _ => words);
+        Assert.True(r.Report.Shrunk == 1 && r.Report.DoNotFit == 0, $"{r.Report.Shrunk} shrunk, {r.Report.DoNotFit} don't fit");
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+    }
+
+    [Fact]
     public void Text_in_a_form_stays_inside_the_forms_box()
     {
         // The form's /BBox clips like any clip: here the form is the page's size, so a clip inside it does the same job as a small one would.
@@ -1072,6 +1163,190 @@ public class TranslationCopyTests
         var p = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text.StartsWith("The", StringComparison.Ordinal));
         Assert.True(p.Box.Bottom <= 792 - 680 + 1, $"{p.Box.Bottom}");
     }
+
+    /// <summary>A paragraph of four lines, each on a white band painted just before it, then what comes after it.</summary>
+    private static string BandedLines(string font = "/FA", params string[] lines)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < lines.Length; i++)
+            sb.Append($"1 g 70 {700 - i * 14 - 3} 480 14 re f 0 g BT {font} 12 Tf 1 0 0 1 72 {700 - i * 14} Tm ({lines[i]}) Tj ET ");
+        return sb.ToString();
+    }
+
+    private static readonly string[] FourLines =
+    [
+        "Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello",
+        "World draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello World",
+        "draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello World draft,",
+        "2024! Hello World draft.",
+    ];
+
+    [Fact]
+    public void Every_line_of_a_paragraph_shows_when_each_old_line_had_a_band_painted_under_it_in_the_stand_in_font()
+    {
+        var pdf = Page(BandedLines(lines: FourLines));
+        const string text = "Había una vez un ñandú que corría por el campo con mucha prisa, y detrás de él otro ñandú que no corría tanto, porque hacía calor en el campo y el señor del lugar los miraba desde lejos con mucha atención y sin decir una sola palabra.";
+        var (_, r) = Translate(pdf, _ => text);
+        Assert.NotEmpty(r.Report.Fonts);
+        Assert.Contains(TranslationInk.Solid(text), TranslationInk.Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+    }
+
+    [Fact]
+    public void Every_line_of_a_paragraph_shows_when_each_old_line_had_a_band_painted_under_it_in_the_pages_own_font()
+    {
+        var pdf = Page(BandedLines(lines: FourLines.Select(l => l.Replace("Hello World draft, 2024!", "The quick brown fox.", StringComparison.Ordinal).Replace("World draft, 2024!", "the lazy dog.", StringComparison.Ordinal).Replace("draft, 2024!", "a dog.", StringComparison.Ordinal).Replace("2024!", "The", StringComparison.Ordinal).Replace("Hello", "The", StringComparison.Ordinal).Replace("World", "dog", StringComparison.Ordinal).Replace("draft", "fox", StringComparison.Ordinal)).ToArray()), fontText: Letters);
+        var text = string.Join(' ', Enumerable.Repeat("The lazy dog jumps over a quick brown fox until the fox is done.", 4));
+        var (_, r) = Translate(pdf, _ => text);
+        Assert.Empty(r.Report.Fonts);
+        Assert.Contains(TranslationInk.Solid(text), TranslationInk.Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+    }
+
+    [Fact]
+    public void Every_line_shows_when_each_old_line_was_clipped_to_itself()
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < FourLines.Length; i++)
+            sb.Append($"q 70 {700 - i * 14 - 3} 480 14 re W n BT /FA 12 Tf 1 0 0 1 72 {700 - i * 14} Tm ({FourLines[i]}) Tj ET Q ");
+        var pdf = Page(sb.ToString());
+        const string text = "Había una vez un ñandú que corría por el campo con mucha prisa, y detrás de él otro ñandú que no corría tanto, porque hacía calor en el campo y el señor del lugar los miraba desde lejos.";
+        var (_, r) = Translate(pdf, _ => text);
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+    }
+
+    [Fact]
+    public void Small_capitals_drawn_a_letter_size_at_a_time_stay_one_text()
+    {
+        // No gap between the sizes: a word, as Word draws small capitals. Set apart they'd go to the model as "D" and "IGITAL".
+        var seed = ContentEditor.Read(Page("BT /FA 10 Tf 1 0 0 1 300 700 Tm (D) Tj ET", fontText: "DIGTAL"), null, 0);
+        var after = 300 + seed.Runs[0].Box.Width;
+        var pdf = Page($"BT /FA 10 Tf 1 0 0 1 300 700 Tm (D) Tj /FA 8 Tf 1 0 0 1 {after} 700 Tm (IGITAL) Tj ET", fontText: "DIGTAL");
+        Assert.Equal("DIGITAL", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text);
+    }
+
+    [Fact]
+    public void A_short_line_going_on_in_lowercase_stays_with_the_sentence()
+    {
+        // Ragged text in a narrow column: the first line ends short (the next word would fit), mid-sentence.
+        var pdf = Page(Lines(72, 700, 12, 14, "The quick brown", "fox jumps over a lazy dog", "until the dog is done.", "THE DOG"), fontText: Letters);
+        Assert.Contains(Translation.MakePlan(pdf, null, [0]).Texts, t => t.Text.StartsWith("The quick brown fox jumps over a lazy dog until", StringComparison.Ordinal));
+        // In the editor they stay apart, as they were.
+        Assert.Contains(ContentEditor.Read(pdf, null, 0).Paragraphs, q => q.Text == "The quick brown");
+    }
+
+    [Fact]
+    public void Text_in_a_spot_color_isnt_taken_for_white()
+    {
+        // "1 scn" in a Separation space is full ink. Read as white, a heading would be held to its old box as if it sat on a dark band.
+        var pdf = Page("/Spot cs 1 scn " + Lines(72, 700, 12, 14, "Hello") + "0 g " + Lines(72, 400, 12, 14, "The quick brown fox jumps over a lazy dog and goes on and on until the dog"), fontText: Letters);
+        using (var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            var res = PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!;
+            var tint = new PdfDictionary(doc);
+            tint.Elements["/FunctionType"] = new PdfInteger(2);
+            tint.Elements["/N"] = new PdfInteger(1);
+            tint.Elements["/Domain"] = PdfObj.Reals(doc, 0, 1);
+            tint.Elements["/C0"] = PdfObj.Reals(doc, 1, 1, 1);
+            tint.Elements["/C1"] = PdfObj.Reals(doc, 0, 0, 1);
+            doc.Internals.AddObject(tint);
+            var spaces = new PdfDictionary(doc);
+            spaces.Elements["/Spot"] = new PdfArray(doc, new PdfName("/Separation"), new PdfName("/Blue"), new PdfName("/DeviceRGB"), tint.Reference!);
+            res.Elements["/ColorSpace"] = spaces;
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : t);
+        Assert.Equal(0, r.Report.Shrunk);
+        Assert.Equal(12, ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX").FontSize, 1);
+    }
+
+    [Fact]
+    public void Figures_beside_a_label_stay_in_their_column()
+    {
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm (Hello World) Tj 1 0 0 1 137 700 Tm (2024) Tj 1 0 0 1 170 700 Tm (2024) Tj ET", fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Hello World"], plan.Texts.Select(t => t.Text));
+        var numbers = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text == "2024").Select(q => Math.Round(q.Box.X)).Order();
+        Assert.Equal([137.0, 170.0], numbers);
+    }
+
+    [Fact]
+    public void Short_labels_one_under_the_other_go_one_by_one()
+    {
+        // All about as wide, so no next word would fit on the line above: but they aren't one sentence.
+        var pdf = Page(Lines(72, 700, 10, 12, "Lazy dog", "Brown fox", "Quick dog", "Lazy fox"), fontText: Letters);
+        Assert.Equal(4, Translation.MakePlan(pdf, null, [0]).Texts.Count);
+    }
+
+    [Fact]
+    public void Text_shrinks_no_smaller_than_the_floor_when_its_first_run_is_a_bigger_initial()
+    {
+        // The paragraph is written at 8 points, the size most of it has: half of that would be under the 5-point floor.
+        var pdf = Page("BT /FA 12 Tf 1 0 0 1 72 700 Tm (T) Tj /FA 8 Tf 1 0 0 1 81 700 Tm (he quick brown fox jumps over a lazy dog) Tj ET " + Lines(72, 680, 12, 14, "THE DOG"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 40));
+        var (_, r) = Translate(pdf, t => t.StartsWith("T", StringComparison.Ordinal) && t != "THE DOG" ? words : "THE FOX");
+        Assert.DoesNotContain(TranslationInk.Problems(r.Data!, 0), q => q.Contains("drawn at", StringComparison.Ordinal));
+        Assert.Equal(1, r.Report.DoNotFit);
+    }
+
+    [Fact]
+    public void Text_doesnt_grow_under_a_band_painted_later_for_something_else()
+    {
+        // A short text on the left, and lower down, across the page, a white band painted for a line in the right column only.
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World") +
+                       "1 g 70 658 480 14 re f 0 g " + Lines(350, 661, 12, 14, "2024 draft!"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 5));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? words : "THE DOG");
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+        Assert.Contains(TranslationInk.Solid(words), TranslationInk.Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_notes_small_number_stays_and_its_first_line_stays_with_the_rest()
+    {
+        var pdf = Page("BT /FA 5 Tf 1 0 0 1 72 703 Tm (1) Tj /FA 8 Tf 1 0 0 1 76 700 Tm (The quick brown fox jumps over a lazy dog and on) Tj ET " + Lines(72, 690, 8, 10, "until the lazy dog is done and the quick brown fox has gone"), fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("The quick brown fox jumps over a lazy dog and on until the lazy dog is done and the quick brown fox has gone", Assert.Single(plan.Texts).Text);
+        Assert.Contains(ContentEditor.Read(r.Data!, null, 0).Runs, q => q.Text == "1");
+    }
+
+    [Fact]
+    public void A_link_at_the_start_of_a_line_doesnt_split_the_paragraph_or_color_it()
+    {
+        // Three lines, a blue link in the second starting it: one paragraph, in the black most of it is in.
+        var pdf = Page("0 g " + Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the") + "0 0 1 rg BT /FA 12 Tf 1 0 0 1 72 686 Tm (fox) Tj ET 0 g BT /FA 12 Tf 1 0 0 1 95 686 Tm (jumps over a lazy dog until the quick brown) Tj ET " + Lines(72, 672, 12, 14, "fox is done."), fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE QUICK BROWN FOX JUMPS OVER A LAZY DOG");
+        Assert.Single(plan.Texts);
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Contains("QUICK", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(runs);
+        Assert.All(runs, q => Assert.Equal(0, q.Color));
+    }
+
+    [Fact]
+    public void A_turned_stamp_in_the_margin_doesnt_make_a_full_line_look_centered()
+    {
+        var pdf = Page("q 0 1 -1 0 30 300 cm BT /FA 8 Tf 0 0 Td (Hello World draft stamp) Tj ET Q " + Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the lazy dog is done until the") + Lines(72, 400, 10, 12, "THE DOG"), fontText: Letters + "stamp");
+        var (_, r) = Translate(pdf, t => t.StartsWith("The", StringComparison.Ordinal) ? "THE QUICK BROWN FOX" : t);
+        Assert.Equal(72, ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX").Box.X, 0);
+    }
+
+    [Fact]
+    public void A_heading_in_a_tight_clip_keeps_its_size()
+    {
+        var pdf = Page("q 72 694 400 16 re W n " + Lines(72, 700, 14, 16, "Hello World") + "Q", fontText: Letters);
+        var (_, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(0, r.Report.Shrunk);
+    }
+
+    [Theory]
+    [InlineData("ABCDEF+NimbusRomNo9L-Regu", 4, "Serif")]
+    [InlineData("CMR10", 4, "Serif")]
+    [InlineData("Gotham-Book", 34, "Sans")] // "Book" in a name isn't a serif, nor a flag that says so on a font named Gotham
+    [InlineData("ABCDEF+NimbusSanL-Regu", 4, "Sans")]
+    [InlineData("CMTT10", 4, "Mono")]
+    public void A_stand_in_is_chosen_from_the_right_class(string name, int flags, string kind) => Assert.Equal(kind, StandInFonts.KindOf(name, flags).ToString());
 
     [Fact]
     public void A_word_hyphenated_at_a_line_end_goes_out_whole()
@@ -1340,6 +1615,8 @@ public class TranslationCopyTests
             foreach (var sentence in TranslationPdf.Sentences)
                 Assert.Contains(Plain(Marked + " Section"), plain, StringComparison.Ordinal);
             total += System.Text.RegularExpressions.Regex.Count(text, Marked);
+            // Not only there for extraction: every line shows, at a real height (each line of the fixture sits on a white band).
+            Assert.Empty(TranslationInk.Problems(engine, p));
             Assert.DoesNotContain("Chapter " + (p + 1) + ":", text.Replace(Marked + " Chapter", "", StringComparison.Ordinal), StringComparison.Ordinal);
             // No paragraph over another: the copy's paragraphs on this page, in their boxes, don't overlap the figure.
             var content = ContentEditor.Read(copy, null, p);
