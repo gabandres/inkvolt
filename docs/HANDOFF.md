@@ -1,3 +1,39 @@
+# Handoff, 2026-11-02 (newest first)
+
+**Released.** Inkvolt Print 1.2.0.0: published in the Store, GitHub release `print-v1.2.0.0`, website updated. Inkvolt PDF 1.6.0.0: submitted
+to the Store on 2026-11-02 (`msstore submission status 9MXDTSFJ9W28`), GitHub release `pdf-v1.6.0.0`. When the Store publishes it, change
+PDF's `softwareVersion` in `Z:\portfolio\public\products\inkvolt\index.html` to 1.6.0 and deploy. The privacy page already covers translating.
+
+**Print's hold is cleared.** The exit crash is Windows.Data.Pdf and Qualcomm's driver, reproduced in a program with no Inkvolt code; `App.OnExit`
+now ends the process first (0 of 63 after). Batch print ran on real Windows queues on file ports with its output read back. No physical printer
+has printed a page, and neither stuck-job rule has fired on a real spooler: a dead port goes straight to Error. First thing with a printer in reach.
+
+**A real model found what a stand-in couldn't.** Translate's first real run (Qwen3 4B on llama.cpp, `Z:\tools\llama.cpp\models`) showed only each
+paragraph's first line: a white band painted before each line covered the text, and extraction still read it. Fixed, and checked by eye on ten
+pages. Run a real model before trusting Translate again; llama-server on another port leaves the knowledge base's embedding server alone.
+Limits in `pdf/ROADMAP.md` 3.1 "Still wrong": rows drawn by one operator move their figures, turned tables stay in English, link underlines
+stay behind, inline bold goes.
+
+**Reviews.** Hostile-input reviews before these releases found about 18 bugs in Print and about 20 in PDF, all fixed, among them recordings following a
+printer's links to other computers, and Batch redaction passing values in hidden layers, earlier versions and attachments. Keep doing them.
+
+**Spanish.** Neither Windows app has a Spanish interface or language files; Translate translates documents, not the app. The Store's release notes
+are in both languages. Not started: it would be its own project.
+
+**Next (Windows), no hardware needed, in order.**
+1. OCR: re-read bands with ink and no words (`ScanText`). Helps Redact by Pattern on scans and Recognize Text.
+2. PDF 3.4: certifying with a choice of fields to lock (Pro in the table, not built); Batch's long-term action.
+3. Print 3.2: a community per printer and SNMPv3, against the made-up agent; a real printer with `public` off finishes it.
+4. Translate's "Still wrong" list, rows drawn by one operator first.
+5. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans).
+6. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the PC was loaded, recheck idle.
+7. UX still short (`docs/UX-REVIEW.md`): PDF group menus as flyouts, the bar at 150 % text, Print's palette for another printer, motion in the scan review.
+
+**Needs hardware, later.** Print 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, TWAIN and black-and-white in Scan, batch print on paper, a real jam for job alerts.
+
+**Tests.** 4,320, none failing except the usual timing tests under load: `ThreadClockTests`, `AccessibilityCheckStopsOn…`,
+`A_file_that_takes_all_the_memory…` and others. Each passes alone. `AccessibilityCheckStopsOn…` has failed in most full runs and could use a longer limit.
+
 # Handoff, 2026-10-31 (newest first)
 
 **Owner decision.** Windows only for now: the Mac isn't up, so nothing waits for it and parity is on hold (`pdf/ROADMAP.md`
