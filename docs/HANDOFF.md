@@ -11,6 +11,37 @@ Mac copy can be updated), `~/Repos/inkvolt/mac/InkvoltPrint/.env.local` (ASC key
 `~/.ssh/config` on the PC (or a new host name), and `mac.sh`'s `INKVOLT_MAC_HOST`. Other projects' files on the Air
 (Ignia, Callbook builds in `~/build-artifacts`) are outside this repo.
 
+**Mac work after the E-steps, easiest first (owner, 2026-11-02: take them in this order).** [PC] = PrintCore or other
+Foundation-only code that builds and tests on Windows (`mac/tools/swift-dev.ps1`), so it goes on after the Air is sold;
+[Mac] = needs a Mac (`mac/tools/mac.sh`). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md` or
+`print/ROADMAP.md`; port tests first, same names.
+1. Small fixes [Mac]: `main.swift:8` sets `Pro.store` after the command line runs (must be before, ahead of `Pro.Enforced`);
+   `PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s; one huge Flate stream is unbounded (both apps).
+2. Print 3.5 Open in Inkvolt PDF [Mac]: D7 part e added it to scan presets; check what's left and mark it done.
+3. Print 1.6 Pro key [PC core, Mac UI] (S): CryptoKit, the key in the app group container, one key for both apps.
+4. Print 1.3 Scanners that only give PDF [PC core, Mac UI] (S): PDFKit renders the pages.
+5. Print 1.5 Firmware watch and "keep my cartridges working" [PC core, Mac UI] (S).
+6. Print 1.1 Supply history, pages per cartridge, days left [PC core, Mac UI with Swift Charts] (S).
+7. Print 2.6 Fleet page, export, command line [PC core, Mac UI] (S): the same page and JSON from `--report`.
+8. Print 3.4 Job notifications [Mac] (S): stuck and error jobs from CUPS.
+9. PDF D7 leftovers [Mac] (S each): rotate view, dark pages, reading modes (single, two pages, cover), dragging thumbnails
+   to move pages, saved signatures between launches, Report a Problem, Insert from Scanner into the open document.
+10. PDF 1.1's 2026-11-01 additions to redaction by pattern [Mac] (S): see the roadmap's 1.1 "Effort" line.
+11. PDF 1.4 Comments and form data in and out [Mac] (S-M): CSV/JSON, comment summaries, Batch's exports, `--fill`.
+12. Print 2.4 Batch print [PC core, Mac UI] (S-M).
+13. Print 1.2 Record a printer [PC core, Mac command] (S-M): the same command in the `--report` runner.
+14. PDF 2.3 USB scanners in the PDF app [Mac] (M): File › Scan already uses ImageCaptureCore through InkvoltPrintKit;
+    what's left is Windows' feeder/OCR flow and the scanners Inkvolt Print remembers.
+15. PDF 3.4 Long-term validation (PAdES B-LT, B-LTA, Check Signatures Online) [Mac] (M): LtvTests.cs beyond the part ported.
+16. PDF 3.3 Compare with Office files, scans and formatting [Mac] (M): needs E12's conversion and E14's OCR.
+17. PDF 3.5 Indexed folder search [Mac] (M).
+18. Print 2.3 Scan cleanup and a Unicode OCR layer [Mac] (M): Core Image filters in `ScanImaging`, the layer in `ScanPdf`.
+19. Microsoft Office as E12's converter [Mac mini only] (M): see the backlog note below.
+20. PDF 3.1 Translate side by side [Mac] (M, after 2.1).
+21. PDF 2.1 Paragraph text editing [Mac] (L): the largest; the Mac has the line-level editor.
+Not ranked, they wait for hardware on Windows too: Print 2.1, 2.2, 2.5, 3.1, 3.2, 3.3. Only a person: look at the Mac UI
+nobody has seen (PLAN.md lists it per step), a real voice for Read Aloud, a real LibreOffice and web address for E12.
+
 **Backlog (owner, 2026-11-02): Microsoft Word, Excel and PowerPoint as E12's converter on the Mac** (Windows converts through
 Office first). About a day: AppleScript per app with a time limit, files staged in Office's group container
 (`~/Library/Group Containers/UBF8T346G9.Office/`) because Office for Mac is sandboxed, Word left as found, the
