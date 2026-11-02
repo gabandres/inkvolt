@@ -103,7 +103,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   the document; Batch's Redact Patterns action applies them over many files.
 - **Finished on Windows 2026-11-01.** Named sets saved on this PC (`RedactionPatternSets`, plain JSON, one regex a set:
   alternation covers more); scanned pages and pictures searched through OCR text (`RedactionSearch`); every hit listed
-  with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), then applied;
+  with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), areas marked by
+  hand before the search listed with them, said to go too, and untickable, then applied;
   the result read back, searched again, and what was removed looked for in the rest of the file (dates and ZIP codes only
   by pattern: a file's own time stamps hold the same digits), with what the patterns find in comments, fields, bookmarks,
   properties, XMP, attachments, tags and every other string the file holds; the report as a page and as CSV
@@ -116,7 +117,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   some ink or a picture, or when it has ink no word explains (a logo, text drawn as shapes). Each such page is flagged in
   the list, the report and Batch's notes, whatever was found on it. Ink where nothing was read is read again on its own at
   300 dpi, since Windows' recognizer can skip a whole line; what stays unread is outlined on the page and can be ticked to
-  black out unread. Without an OCR language a scan fails its file in Batch. A value OCR can't read on a page is the limit
+  black out unread. Without an OCR language a scan fails its file in Batch; a text page with a picture nothing could read
+  doesn't (a logo mustn't fail a batch), and the file's result, the batch's summary and the report all say to look by hand. A value OCR can't read on a page is the limit
   that remains: only a person looking at the page catches it, and the dialog, the report and this page say so.
 - **Other limits.** A page with a text layer that covers all its ink and pictures under half of it isn't read by OCR, so
   text whose visible glyphs differ from its text layer (a broken or hostile font map) can pass. A number or word broken at
@@ -524,7 +526,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
   A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
   A stopped run's unreached paragraphs get no comment each: the summary names their pages.
-  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named.
+  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named. Text
+  in a hidden layer is neither sent nor rewritten.
   Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
   its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
   fitted. Thai has no spaces, so it wraps between any two characters. A file's size can grow as with any edit: PDFsharp
@@ -545,6 +548,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   export corpus files, first 30 pages of each, 99 pages and 2,524 paragraphs, each answer longer and marked: page counts
   and pictures kept, no page's new text hidden (pixels changed), no page failed, read and written in seconds; 207 paragraphs
   don't fit at the smallest size and 50 are left (`/ActualText` and unreadable characters).
+  The real app driven again on an AES-256 file opened with its permissions password: the open password asked before anything
+  is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
   **Not checked.** Any real model, local or cloud: quality, speed, or whether a real model's habits get past `CleanReply`
   (a refusal in words, or an answer to the text in place of its translation, can't be told from a translation). A screen
   reader on a copy: all a paragraph's text ends up in its first tagged piece. Acrobat and pdf.js on a copy. Long runs over

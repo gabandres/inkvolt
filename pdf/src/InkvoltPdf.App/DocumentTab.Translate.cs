@@ -70,14 +70,18 @@ public partial class DocumentTab
                     catch (OwnerPasswordRequiredException ex)
                     {
                         // Opened for viewing only: a copy with other text needs the permissions password, as any edit does.
+                        reading.Pause();
                         if (PdfFiles.PromptOwnerPassword(owner, name, wrong || ex.WrongPassword && password is not null) is not { } typed) return;
+                        reading.Resume();
                         password = typed;
                         wrong = true;
                     }
                     catch (OpenPasswordUnknownException)
                     {
                         // AES-256 opened with its permissions password: the copy can't keep its protection without the open password.
+                        reading.Pause();
                         if (SecurityActions.PromptOpenPassword(owner, name, data) is not { } answer) return;
+                        reading.Resume();
                         if (answer.DropIt) dropOpenPassword = true;
                         else openPassword = answer.Password;
                     }
@@ -154,7 +158,9 @@ public partial class DocumentTab
                 Prompt.Info(owner, "Nothing was translated", Summary(result.Report, language, plan));
                 return;
             }
-            if (host is null || !host.OpenSession(DocumentSession.FromBytes(result.Data, Translation.CopyName(name, language), password)) || host.ActiveTab is not { } tab)
+            var copy = DocumentSession.FromBytes(result.Data, Translation.CopyName(name, language), password);
+            copy.UseOpenPassword(plan.DropOpenPassword ? null : plan.OpenPassword); // so an edit of the copy doesn't ask again
+            if (host is null || !host.OpenSession(copy) || host.ActiveTab is not { } tab)
             {
                 original?.Dispose();
                 return;
