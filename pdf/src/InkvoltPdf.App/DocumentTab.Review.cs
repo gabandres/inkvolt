@@ -1293,7 +1293,6 @@ public partial class DocumentTab
             return false;
         }
         if (RedactReviewDialog.Show(owner, this, found) is not { } review) return false;
-        LastPatternSearch = found;
         var name = Session.DisplayName;
         if (review.Accepted.Count == 0 && review.LookAreas.Count == 0)
         {
@@ -1322,9 +1321,7 @@ public partial class DocumentTab
         return true;
     }
 
-    /// <summary>The last search and report of Redact by Pattern (masked values only in the report), for the developer script.</summary>
-    internal RedactionSearchResult? LastPatternSearch { get; private set; }
-
+    /// <summary>The last report of Redact by Pattern (masked values only), for the developer script.</summary>
     internal RedactionFileReport? LastRedactionReport { get; private set; }
 
     /// <summary>

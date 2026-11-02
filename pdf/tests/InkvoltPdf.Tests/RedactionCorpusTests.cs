@@ -60,16 +60,6 @@ public sealed class RedactionCorpusTests : IDisposable
     }
 
     [Fact]
-    public void TheEncryptedCopyTooAndItStaysEncrypted()
-    {
-        var plain = RedactionCorpus.Make(out var reader);
-        var data = RedactionCorpus.Encrypted(plain);
-        Assert.Throws<PasswordRequiredException>(() => PdfEngine.Open(data, InputFileTypes.PDF, null));
-        var result = KeptProtection.Run(RedactionCorpus.Password, false, () => ApplyAndReadBack(data, RedactionCorpus.Password, reader, out _, out var left) is var r && left.Count == 0 ? r : throw new InvalidOperationException("left"));
-        Assert.Throws<PasswordRequiredException>(() => PdfEngine.Open(result, InputFileTypes.PDF, null));
-    }
-
-    [Fact]
     public async Task BatchFindsAllLeavesNoneReportsMaskedAndKeepsThePassword()
     {
         var plain = RedactionCorpus.Make(out var reader);

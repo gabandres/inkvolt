@@ -409,9 +409,10 @@ internal static class DevScript
             case "redact-patterns":
             {
                 // redact-patterns [phrase]: search, every hit marked, without the list (see redact-find for the whole way).
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 var found = await tab!.SearchPatterns(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] });
+                log.Add($"redact-patterns: {found?.Hits.Count ?? -1} matches, look at {found?.Looks.Count ?? 0} pages, {clock.ElapsedMilliseconds} ms");
                 if (found is not null) tab.PageView.AddRedactions(found.Hits.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
-                log.Add($"redact-patterns: {found?.Hits.Count ?? -1} matches, look at {found?.Looks.Count ?? 0} pages");
                 break;
             }
             // redact-find [phrase|set:name]: Redact by Pattern the whole way (use "later" for the list and report, which are modal) ·

@@ -232,15 +232,23 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   SHA-384/512 for EC P-384/P-521). The signature is appended as an incremental update, so earlier signatures stay valid,
   then saved as a new file (name-signed.pdf) and verified.
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
-  **Redact by Pattern…** (Review menu, command palette, the redaction bar) finds and marks US Social Security numbers
+  **Redact by Pattern…** (Review menu, command palette, the redaction bar) finds US Social Security numbers
   (not area 000, 666 or 9xx, group 00 or serial 0000), phone numbers (North American and international +CC), email
   addresses, payment card numbers (only those passing the Luhn check), dates (2026-10-27, 10/27/2026, 27.10.2026,
   October 27, 2026, 27 Oct 2026; impossible days left out), bank account numbers (IBAN, check digits verified), IP
   addresses and, when chosen, US ZIP codes; plus your own words and phrases (whole words, match case) and your own
   regular expression (checked as you type; one that runs too long stops the search with a message). All pages or a page
   range. A match may run onto the next line or be split by a hyphen at a line break; a card number isn't also counted as
-  a phone number. The toast counts the matches of each kind; click a mark with the redaction tool to keep that text,
-  then apply as usual.
+  a phone number. Scanned pages and pictures are searched through text recognition (Windows' OCR, on this PC). Every match is
+  listed with its page and the words around it, the page beside the list; tick or untick them one by one, or Accept All and
+  Skip All, then Redact. The result is read back and searched again, what was removed is looked for in the rest of the
+  file, and the **Redaction Report** says what happened: per file the page, pattern and masked value of each removal (a
+  masked value keeps at most the last two digits of a long number; your words and pattern are listed by kind), with
+  Save CSV. Choices can be saved as a named set on this PC (as plain text, words and all). Own pattern, saved sets, Batch's
+  action and the report's list and CSV are Inkvolt Pro; the built-in kinds, your words, the list and the read-back are free.
+  **A scanned page is never called clean.** Text recognition can misread words and miss whole lines, so a page read that way
+  is flagged for you to look at, whatever was found on it, and places with ink where nothing was read are outlined and can be
+  blacked out unread.
 - **Redaction check**: after Apply, Inkvolt PDF checks the result in the background for anything left of what was
   redacted (a toast says when nothing is; otherwise a report opens), and **Check Redaction…** (Review menu, command
   palette) checks any PDF, such as one redacted elsewhere. It finds text still under black boxes, highlights and other
@@ -526,7 +534,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Batch** (File › Batch…, command palette): the same actions for many files. Add PDFs and images (Add Files, Add
   Folder with or without subfolders, or drag them in; images become PDFs first, on pages the size of the image, Letter or
   A4), then a list of actions in order: Reduce File Size, Protect with Password, Remove Password Protection, Sanitize,
-  Redact Patterns (the choices of Redact by Pattern, applied at once; each row says how many matches of each kind),
+  Redact Patterns (the choices of Redact by Pattern or a saved set, applied at once; each row says how many matches of each
+  kind and which pages to look at by hand; each result is read back and searched again, and a match left, a scan with no OCR
+  language or what the patterns find outside the pages fails the file; a signed file left signed is skipped whole; "Redaction
+  report date time.csv" goes in the results folder, and Redaction Report… shows it),
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
   file; a file that fails any, or can't be checked in full, isn't saved and counts as failed, its notes saying what wasn't checked), Report What's in Each File ("name contents.html" and "name contents.json"
@@ -705,7 +716,9 @@ action's dialog), `batchstate`, `batchstep pdfa`; presets and watched folders: `
 `watchshot out.png`, `watchstate`; Inkvolt Pro: `prowindow [presets|watched|cli]` (Help › Inkvolt Pro, or as a locked feature opens it), `pro key|remove`,
 `proenforce on|off` (the gate, to see the locked views), `proshot out.png`, `prostate` (`tools/pro-key/test-vector.json` has a key). Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
 everything it removes). Redact by Pattern: `dialog RedactPatterns out.png`, `dialogok RedactPatterns text0=Acme{sp}Corp text1=CASE-\d{4}`
-(phrases, then the pattern; the kinds are `check0`…), `redact-patterns [phrase]` (the default kinds), `batchstep redactpatterns [phrase]`;
+(phrases, then the pattern; the kinds are `check0`…), `redact-patterns [phrase]` (the default kinds, marked without the list), `batchstep redactpatterns [phrase|set:name]`,
+`redact-find [phrase|set:name]` (the whole way; with `later`: `reviewstate`, `reviewselect i`, `reviewtoggle i`, `reviewall on|off`, `reviewpress`, `reviewcancel`, `reportclose`), `redactset name kind,kind phrase|regex`, `batchreport`
+(corpus to drive it over: `INKVOLTPDF_REDACT_CORPUS=folder dotnet test --filter WritesTheCorpusWhenAsked`);
 Redaction check: `apply-redactions` (the check follows: `dialogshot`, then `prompt Fix N things` or `closedialog`), `cmd CheckRedaction`,
 `redaction-check` (the findings, logged), `batchstep checkredaction` (samples: `redaction-check-sample.pdf`, the name on page 1 planted in every
 place the check looks, and `redaction-check-box.pdf`, a box over text, from `RedactionCheckTests`);

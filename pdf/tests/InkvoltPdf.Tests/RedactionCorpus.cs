@@ -68,6 +68,23 @@ internal static class RedactionCorpus
         var plain = Make(out _);
         File.WriteAllBytes(Path.Combine(folder, "redaction-corpus.pdf"), plain);
         File.WriteAllBytes(Path.Combine(folder, "redaction-corpus-locked.pdf"), Encrypted(plain));
+
+        // 100 pages of 300 numbers each, and 100 of ordinary words: a long list, and what the search costs on plain text.
+        string Lines(string line, int count) => string.Concat(Enumerable.Range(0, count).Select(i => $"BT /F1 7 Tf 20 {770 - i * 12} Td ({line}) Tj ET\n"));
+        byte[] Pages(string content)
+        {
+            var objects = new List<string>
+            {
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                $"<< /Type /Pages /Kids [{string.Join(' ', Enumerable.Range(0, 100).Select(i => $"{3 + i} 0 R"))}] /Count 100 >>",
+            };
+            for (var p = 0; p < 100; p++) objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 103 0 R /Resources << /Font << /F1 104 0 R >> >> >>");
+            objects.Add(Core2Pdf.Stream(content));
+            objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+            return Core2Pdf.Build(objects);
+        }
+        File.WriteAllBytes(Path.Combine(folder, "redaction-many.pdf"), Pages(Lines(string.Join(' ', Enumerable.Repeat("555-201-3434", 6)), 50)));
+        File.WriteAllBytes(Path.Combine(folder, "redaction-plain.pdf"), Pages(Lines("Ordinary words on an ordinary line of a long and ordinary document, no numbers at all", 60)));
     }
 
     public static byte[] Make(out PlantedReader reader)

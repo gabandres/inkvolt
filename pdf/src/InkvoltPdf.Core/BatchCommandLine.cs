@@ -254,6 +254,7 @@ public static class BatchCommandLine
             return Wrong;
         }
         line(output, summary.Text);
+        if (summary.RedactionReportPath is { } report) line(output, $"Redaction report: {report}");
         if (summary.Cancelled > 0 || cancel.IsCancellationRequested) return Stopped;
         return summary.Failed + summary.Skipped > 0 ? SomeFailed : Done;
     }

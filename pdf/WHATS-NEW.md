@@ -5,6 +5,11 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Redact by Pattern searches scanned pages too, through text recognition on your PC, and lists every match with its page and the words around it. Accept or skip them one by one or all, with the page beside the list, before anything is removed.
+- Text recognition can miss words and whole lines, so a page read that way is never called clean: it is flagged for you to look at, and places with ink where nothing was read are marked on it.
+- After redacting, the result is read back and searched again, and what was removed is looked for in the rest of the file. In Batch, a file with anything left fails and isn't saved.
+- Save your own pattern sets under a name on this PC, and run one over a folder with Batch's Redact Patterns; password files are asked for as usual.
+- A removal report, as a page and as CSV, lists per file the page, pattern and a masked value of each removal. It never holds the value itself.
 
 ## 1.5.0
 - Compare Files takes Word, Excel and PowerPoint files and scans as well as PDFs, on either side. Words on a scan are recognized on your PC first, and a difference that may be a misreading says so.
