@@ -26,9 +26,9 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
 **Print wave 2 on master, not released.** 2.6 Fleet page, 2.4 Batch print, 2.3 Scan cleanup and Unicode OCR layer. Each has its checks and
 limits in `print/ROADMAP.md`.
 
-**Hold on any Print release** until both clear:
-- The Qualcomm driver crash on exit (`qcdx11arm64xum.dll`, after batch-drawing PDFs) is explained.
-- Batch print has printed on a real queue. Its steps have only been run in the demo and in tests.
+**Hold on any Print release:** both items were worked on 2026-11-02 (`print/ROADMAP.md` 2.4 has the evidence); lifting the hold is the owner's call.
+- The Qualcomm driver crash on exit is explained: Windows' PDF engine frees its Direct3D device as its DLL unloads, and `qcdx11arm64xum.dll` faults; a program with no Inkvolt code does it. It replaced the command line's exit code. `App.OnExit` now ends the process first: 0 of 63 after, on the runs that crashed 15 of 15 and 8 of 8 before. The driver's fault remains for other programs.
+- Batch print has spooled on real queues on file ports, through the command line and the view model, each job's pages read back. **A physical printer still hasn't printed a page.**
 
 Open on 2.3: `es-faded` got worse with cleanup, 2.7 % to 3.0 % missed (accepted, the roadmap states it). Cyrillic and Japanese OCR weren't
 measured, since those languages aren't installed here. Decisions made on 2.6 and 2.4: Fix all only resumes and turns off Use Printer

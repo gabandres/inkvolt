@@ -24,6 +24,7 @@ public static class ConsoleOutput
                 Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), utf8) { AutoFlush = true });
                 Console.SetError(new StreamWriter(Console.OpenStandardError(), utf8) { AutoFlush = true });
             }
+            AttachConsole(AttachParentProcess); // a windowed app has no console of its own, so Ctrl+C wouldn't reach it, and "| Out-Default" would leave it printing
             return;
         }
         if (!AttachConsole(AttachParentProcess)) return; // started from Explorer or a task: nowhere to write, the exit code tells
