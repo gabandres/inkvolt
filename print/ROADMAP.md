@@ -218,7 +218,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   `print/tests`, 12): the vector against the built-in key, every changed character refused, a test pair's key passes and
   another pair's fails, the products, the gate, a key installed by one app's check found by the other's, a settings key
   moved into the file, a packaged copy's redirected file, the newest copy winning. Pending on hardware: the Store copies
-  of both apps sharing one key (README, "Not done"). Mac: not started.
+  of both apps sharing one key (README, "Not done"). Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: format, gate,
+  shared key file, 12 ProTests on the PC); PrintMac's CryptoKit verifier, the group container and Help › Inkvolt Pro… wait for the Mac.
 - **Beat it when:** `Pro` lives in `InkvoltPrint.Core/Suite` (both apps reference it); a key is a short text (name,
   issue date, ECDSA P-256 signature; Inkvolt PDF's format) pasted or opened from a file, checked against the public key in the app, stored per
   user and found by both apps; a wrong or altered key says which; no network call exists in the code path. Test: keys
