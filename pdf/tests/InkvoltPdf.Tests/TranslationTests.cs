@@ -1074,6 +1074,13 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_word_hyphenated_at_a_line_end_goes_out_whole()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the quick brown fox ju-", "mps over the lazy dog"), fontText: Letters + "-");
+        Assert.Contains("fox jumps over the lazy", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_signed_files_copy_is_appended_so_the_signed_version_stays_inside()
     {
         var pdf = SignedEditTests.Signed();

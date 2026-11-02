@@ -589,6 +589,18 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   without an answer, printing goes ahead.
 - **Printer Settings (Inkvolt Print)** (File menu, shown when Inkvolt Print is installed) opens Inkvolt Print. Inkvolt Print's "Open in
   Inkvolt PDF" hands a saved scan to Inkvolt PDF (a running Inkvolt PDF opens it in a tab).
+- **Translate with AI** (Review › AI Assistant, command palette; free, through the assistant below): a translated copy of
+  the pages you pick, in any language you name, opens as an unsaved tab with the original beside it, and the two scroll and
+  zoom together (close the split to read the copy alone). It goes paragraph by paragraph, table cell by table cell, after the
+  same window showing what is sent and where; repeated text goes once, and a page's numbers and symbols not at all. No limit on
+  pages or file size, a Cancel that keeps what's done, and your file is only read. Each paragraph stays in its box: it wraps,
+  uses the white space below it, then shrinks (to half its size or 5 points at most); one that still doesn't fit, or stays
+  untranslated, gets a comment saying why, and the summary lists the pages. When the page's font lacks a letter the
+  paragraph is drawn in the closest installed font, named in the summary. Scanned pages and turned text stay as they are and are named;
+  comments, form fields and bookmarks aren't translated. A model's answer is used only as plain text: reasoning, markup and
+  control characters come out, an answer in several paragraphs or far too long is asked for once more and then left out.
+  Code: `Core/Translation.cs`, `Core/ContentEditor.Translate.cs`, `App/DocumentTab.Translate.cs`. Dev steps: `translate`,
+  `translatestate`, `aifake translate`. Only a stand-in server has been used so far: see ROADMAP 3.1.
 - **AI assistant (bring your own, off by default)** (Review › AI Assistant, command palette; right-click selected text ›
   Explain with AI): Inkvolt PDF has no AI of its own. In Settings › AI assistant you can connect one you choose: Ollama
   or LM Studio running on this PC (presets), or any OpenAI-compatible endpoint (`/v1/chat/completions`), on your network

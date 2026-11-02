@@ -358,6 +358,17 @@ public static partial class ContentEditor
         if (n >= 3 && flushLeft && lines.Take(n - 1).All(l => Math.Abs(l.Box.Right - right) <= tol)) align = ParagraphAlign.Justified;
         else if (n >= 2 && !allLeft && centers) align = ParagraphAlign.Center;
         else if (n >= 2 && !allLeft && rights) align = ParagraphAlign.Right;
+        // A justified paragraph with a line or two that starts elsewhere (a formula, an inset) isn't right-aligned.
+        if (translating && align == ParagraphAlign.Right && n >= 3)
+        {
+            var lefts2 = rest.Select(l => l.Box.X).Order().ToList();
+            var usual = lefts2[lefts2.Count / 2];
+            if (lefts2.Count(x => Math.Abs(x - usual) <= tol) >= 0.7 * lefts2.Count)
+            {
+                align = ParagraphAlign.Justified;
+                left = usual;
+            }
+        }
         if (align is ParagraphAlign.Center or ParagraphAlign.Right)
         {
             indent = 0;
@@ -391,6 +402,7 @@ public static partial class ContentEditor
                 // A hyphen typed into the word ("respon-sible") stays as typed; the lines join without a space.
                 var hyphen = text.Length >= 2 && text[^1] == '-' && char.IsLetter(text[^2]) && t.Length > 0 && char.IsLower(t[0]);
                 if (!hyphen) text.Append(' ');
+                else if (translating) text.Length--; // for a translator the line break's hyphen would be part of the word
             }
             // A soft hyphen (U+00AD) ending a line was added by the line break: it goes, and the word joins the next line's.
             soft = l != lines[^1] && t.EndsWith('­');
