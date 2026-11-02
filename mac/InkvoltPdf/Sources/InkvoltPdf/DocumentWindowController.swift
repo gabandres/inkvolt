@@ -25,6 +25,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var aiSummaryAlert: (alert: NSAlert, field: NSTextField)?
     /// Prepare Form's bar, panel and fields.
     private(set) lazy var design = PrepareForm(controller: self)
+    /// Read Aloud and its bar (ReadAloud.swift).
+    private(set) lazy var readAloud = ReadAloud(controller: self)
     /// The Reading Order and Alt Text pane (ReadingOrder.swift).
     private(set) lazy var readingOrder = ReadingOrderPane(controller: self)
     /// The document's signatures as verified, and a signing in progress (DigitalSigning.swift).
@@ -106,11 +108,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, scrollView])
+        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, scrollView])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
         diskBar.isHidden = true
         noticeBar.isHidden = true
@@ -185,6 +187,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive, let path = pdf.fileURL?.path { AppSettings.remember(page: pages.currentPage, for: path) }
         progressSheet?.cancelClicked()
+        readAloud.stop()
         ai.cancel?.cancel()
         ai.pageTexts.clear()
         form.cancelEditor()
@@ -207,6 +210,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// An edit, undo, redo or reload replaced the engine: the pages, thumbnails, comments and find follow.
     private func contentChanged(_ change: ContentChange) {
         guard let engine = pdf.engine else { return }
+        // What was being read may be gone or moved: reading stops, as on Windows.
+        if readAloud.isActive { readAloud.stop() }
         editor.reload()
         form.reload()
         content.invalidate()
@@ -558,6 +563,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
             return true
+        case #selector(toggleReadAloud(_:)):
+            item.state = readAloud.isActive ? .on : .off
+            return engine.pageCount > 0
         case #selector(setMeasuringScale(_:)):
             return pdf.session != nil && engine.pageCount > 0
         case #selector(aiSummarize(_:)):

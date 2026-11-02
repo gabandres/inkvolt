@@ -83,6 +83,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         didSet { if selection != oldValue { needsDisplay = true } }
     }
 
+    /// Read Aloud: the sentence and word being read (page-text offsets), and the word's range in the spoken text.
+    struct SpeechMarks {
+        var page: Int
+        var sentence: (start: Int, end: Int)
+        var word: (start: Int, end: Int)
+        var wordInChunk: (start: Int, end: Int)
+    }
+
+    var speech: SpeechMarks? { didSet { needsDisplay = true } }
+
     /// Find matches per page, and the one shown.
     var matches: [Int: [(start: Int, end: Int)]] = [:] { didSet { needsDisplay = true } }
     var currentMatch: (page: Int, start: Int, end: Int)? { didSet { needsDisplay = true } }
@@ -343,8 +353,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     private func drawMarks(_ page: Int, _ r: NSRect) {
-        guard matches[page] != nil || selection?.pages.contains(page) == true,
+        guard matches[page] != nil || selection?.pages.contains(page) == true || speech?.page == page,
               let text = try? engine.text(page) else { return }
+        if let s = speech, s.page == page {
+            NSColor.systemBlue.withAlphaComponent(0.16).setFill()
+            for b in text.rects(s.sentence.start, s.sentence.end) { viewRect(b, r).fill(using: .multiply) }
+            NSColor.systemBlue.withAlphaComponent(0.38).setFill()
+            for b in text.rects(s.word.start, s.word.end) { viewRect(b, r).fill(using: .multiply) }
+        }
         for m in matches[page] ?? [] {
             let current = currentMatch.map { $0.page == page && $0.start == m.start && $0.end == m.end } ?? false
             (current ? NSColor.systemOrange.withAlphaComponent(0.55) : NSColor.systemYellow.withAlphaComponent(0.4)).setFill()
@@ -1579,6 +1595,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let start = index ?? (by > 0 ? -1 : list.count)
         let next = ((start + by) % list.count + list.count) % list.count
         select(list[next].id, reveal: true)
+    }
+
+    /// Keeps the word being read in view (Read Aloud), with some room around it.
+    func followSpeech() {
+        guard let s = speech, s.page < pageRects.count, let text = try? engine.text(s.page) else { return }
+        let boxes = text.rects(s.word.start, s.word.end)
+        guard let first = boxes.first else { return }
+        let box = boxes.dropFirst().reduce(viewRect(first, pageRects[s.page])) { $0.union(viewRect($1, pageRects[s.page])) }
+        if !visibleRect.contains(box) { scrollToVisible(box.insetBy(dx: -40, dy: -80)) }
     }
 
     /// Scrolls so `y` (this view's coordinates) is at the top of what is shown.
