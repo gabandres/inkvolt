@@ -1284,7 +1284,7 @@ public class TranslationCopyTests
     public void Text_shrinks_no_smaller_than_the_floor_when_its_first_run_is_a_bigger_initial()
     {
         // The paragraph is written at 8 points, the size most of it has: half of that would be under the 5-point floor.
-        var pdf = Page("BT /FA 12 Tf 1 0 0 1 72 700 Tm (T) Tj /FA 8 Tf 1 0 0 1 81 700 Tm (he quick brown fox jumps over a lazy dog) Tj ET " + Lines(72, 688, 8, 10, "THE DOG"), fontText: Letters);
+        var pdf = Page("BT /FA 12 Tf 1 0 0 1 72 700 Tm (T) Tj /FA 8 Tf 1 0 0 1 81 700 Tm (he quick brown fox jumps over a lazy dog) Tj ET " + Lines(72, 680, 12, 14, "THE DOG"), fontText: Letters);
         var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 40));
         var (_, r) = Translate(pdf, t => t.StartsWith("T", StringComparison.Ordinal) && t != "THE DOG" ? words : "THE FOX");
         Assert.DoesNotContain(TranslationInk.Problems(r.Data!, 0), q => q.Contains("drawn at", StringComparison.Ordinal));
