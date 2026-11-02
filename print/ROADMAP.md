@@ -418,8 +418,13 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
   `--demo --tray --simulate-jobs` showing the real balloons, with only `JobFailed` in the log. `WindowsJobQueue.Read` read this PC's
   Microsoft Print to PDF queue (empty, not paused). In demo mode Open the queue shows the card's one made-up queue, not the fixer's, as the card always has.
-- **Not checked.** **It has not been run against a real spooler failure:** no printer here, so no real job in Error, no real stuck job, no real
-  shared queue. So these are unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
+  **One real spooler run (2026-11-01):** a temporary queue (Microsoft Print To PDF driver, no elevation needed) on a TCP port at 192.0.2.1, a 23-byte job, read through `WindowsJobQueue` and the
+  rule. The real reads: None, then Printing | Retained about 30 s later, then Error | Printing | Retained at about 90 s and steady for the 10 minutes watched, with the queue's own status going to error (0x2); pages 0 of 1,
+  size 23 throughout, `pStatus` empty, `Time` a fixed number, so no moving signal there. Owner `gabri` and machine `\\THISPC` matched `JobOwner`. **It found a bug:** Retained counted as finished, so
+  that failed job raised nothing and the card would have said Printed; fixed, and the second run raised one `JobFailed` a minute after first seen, and no stuck alert for the job waiting behind it. Queue and port removed afterwards and confirmed gone.
+  **Beware repeating it:** this PC has Windows managing the default printer, so printing to the test queue and removing it moved the default to another queue; it was set back by hand. Set it back after any such run.
+- **Not checked.** One real failure was seen (above), on a dead TCP port only. No real printer here, so no real jam, no real shared queue, and neither stuck rule has fired from a real spooler: the
+  dead port went to Error, not to a long Printing or a long wait on a ready printer, so the 5 and 15 minute rules are tested on a fake clock only. Also unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
   given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a job that fails and vanishes between two reads (never seen).
   WinRT toasts: the XML is tested, the toast itself not run here, as for 1.4. A printer with two Windows queues: only the one the app finds is read. Mac: not started.
 - **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the

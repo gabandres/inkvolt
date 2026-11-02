@@ -296,7 +296,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   wasn't tested, nor dev builds), and its tasks weren't tried on a real taskbar. Print a copy uses Copy's printing path
   (untested on hardware). "Feeder if it has pages" relies on the scanner reporting `AdfState`; one that doesn't scans from
   the glass. Presets don't remember a printer: they run on the printer shown.
-- Job alerts have not been run against a real spooler failure: the rules are tested on made-up jobs (`JobAlertTests`), and what Windows reports for a
+- Job alerts have seen one real spooler failure, a temporary queue on a dead TCP port (roadmap 3.4); the rest is tested on made-up jobs (`JobAlertTests`), and what Windows reports for a
   real jam, a real stuck job or a real shared queue is unseen. An owner written as an e-mail address, or a PC given as an IP address, counts as
   someone else's, so such a job stays silent. A slow big job with no page counts on a printer saying Printing can raise one false "may be stuck". See roadmap 3.4.
 - Notification area and alerts: the toasts (one per printer, Open printer and Pause alerts buttons) were built on their
