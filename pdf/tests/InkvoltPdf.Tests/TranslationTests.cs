@@ -428,7 +428,7 @@ public class TranslationReplyTests
 
 public class TranslationRunTests
 {
-    private static readonly TranslationSettings Quick = new() { RetryWaits = [TimeSpan.Zero, TimeSpan.Zero], ReplyDeadline = TimeSpan.FromSeconds(5) };
+    private static readonly TranslationSettings Quick = new() { RetryWaits = [TimeSpan.Zero, TimeSpan.Zero], ReplyDeadline = TimeSpan.FromSeconds(45) }; // long: only tests of the deadline shorten it, and a loaded PC can take seconds over an answer
 
     private static IReadOnlyList<TranslationJob> Jobs(params string[] texts) => [.. texts.Select((t, i) => new TranslationJob(t, i, [t]))];
 
