@@ -1236,6 +1236,24 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Figures_beside_a_label_stay_in_their_column()
+    {
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm (Hello World) Tj 1 0 0 1 137 700 Tm (2024) Tj 1 0 0 1 170 700 Tm (2024) Tj ET", fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Hello World"], plan.Texts.Select(t => t.Text));
+        var numbers = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text == "2024").Select(q => Math.Round(q.Box.X)).Order();
+        Assert.Equal([137.0, 170.0], numbers);
+    }
+
+    [Fact]
+    public void Short_labels_one_under_the_other_go_one_by_one()
+    {
+        // All about as wide, so no next word would fit on the line above: but they aren't one sentence.
+        var pdf = Page(Lines(72, 700, 10, 12, "Lazy dog", "Brown fox", "Quick dog", "Lazy fox"), fontText: Letters);
+        Assert.Equal(4, Translation.MakePlan(pdf, null, [0]).Texts.Count);
+    }
+
+    [Fact]
     public void A_heading_in_a_tight_clip_keeps_its_size()
     {
         var pdf = Page("q 72 694 400 16 re W n " + Lines(72, 700, 14, 16, "Hello World") + "Q", fontText: Letters);

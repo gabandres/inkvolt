@@ -100,7 +100,9 @@ public static partial class ContentEditor
                 var gap = r.Box.X - cur.Box.Right;
                 // Sizes touching are one word (small capitals: a big D, then "IGITAL"), or go on after a subscript.
                 var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.4 * bigger;
-                if (gap > 1.5 * bigger || sizes)
+                // Figures after a gap are a column of their own, and stay where they are: nothing to translate, and a model would run them into the label.
+                var figures = gap > 0.6 * bigger && (!r.Text.Any(char.IsLetter) || !prev.Text.Any(char.IsLetter));
+                if (gap > 1.5 * bigger || sizes || figures)
                 {
                     cur = new PLine(r);
                     result.Add(cur);

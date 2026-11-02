@@ -281,7 +281,7 @@ public static partial class ContentEditor
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
             var need = prev.Box.Width + WidthOf(line.Lead, " " + word, line);
-            if (need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text)))
+            if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && Labels(prev.Text, line.Text)))
             {
                 parts.Add(cur);
                 cur = [];
@@ -297,6 +297,13 @@ public static partial class ContentEditor
     {
         var (a, b) = (above.TrimEnd(), below.TrimStart());
         return a.Length > 0 && b.Length > 0 && !".!?:;".Contains(a[^1]) && char.IsLower(b[0]);
+    }
+
+    /// <summary>Two short lines, the second starting in capitals, nothing carrying over: entries of a list or a table's labels, not a sentence wrapped.</summary>
+    private static bool Labels(string above, string below)
+    {
+        var (a, b) = (above.Trim(), below.Trim());
+        return a.Length is > 0 and <= 28 && b.Length is > 0 and <= 28 && char.IsUpper(b[0]) && !",-".Contains(a[^1]);
     }
 
     /// <summary>How wide text is in a run's font and spacing (points); estimated from the line's characters when the font can't tell.</summary>
