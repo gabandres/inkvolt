@@ -336,6 +336,19 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
     // ───────────── translate ─────────────
 
     [Fact]
+    public void Text_in_a_hidden_layer_isnt_sent_for_translating()
+    {
+        var pdf = Doc(
+            catalog: "/OCProperties << /OCGs [6 0 R] /D << /OFF [6 0 R] >> >>",
+            page: "/Properties << /L1 6 0 R >>",
+            content: "BT /F1 14 Tf 72 700 Td (An ordinary line of words) Tj ET /OC /L1 BDC BT /F1 14 Tf 72 600 Td (Secret plan nobody sees) Tj ET EMC",
+            more: ["<< /Type /OCG /Name (Secret) >>"]);
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        Assert.Contains(plan.Texts, t => t.Text.Contains("ordinary", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan.Texts, t => t.Text.Contains("Secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void A_signed_and_encrypted_file_still_gets_its_copy_after_the_translating()
     {
         var pdf = SignedEditTests.Encrypted(SignedEditTests.Signed());

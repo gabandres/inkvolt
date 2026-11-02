@@ -127,9 +127,10 @@ public static partial class RedactionCheck
         private bool _incomplete;
 
         /// <summary>
-        /// What the patterns find in what a file holds besides its pages: comments, form fields, bookmarks, properties and XMP,
-        /// attachments and tags. Only their strings (and attachments' and XMP's contents): the numbers of a content stream would
-        /// look like phone numbers. Dates and ZIP codes aren't looked for in properties: every file's dates and ids are there.
+        /// What the patterns find in what a file holds besides its pages: every object's strings (comments, form fields, bookmarks,
+        /// properties, tags, a link's action, ...), and the contents of attachments, XMP and XFA. Not content streams: their numbers
+        /// would look like phone numbers; only on a file with hidden layers, whose text no page holds, the text they show.
+        /// Dates and ZIP codes aren't looked for in properties: every file's dates and ids are there.
         /// </summary>
         private List<string> PatternValues(PdfDocument doc)
         {

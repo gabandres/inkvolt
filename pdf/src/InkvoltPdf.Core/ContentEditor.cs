@@ -759,6 +759,8 @@ public static partial class ContentEditor
         var marked = new Stack<bool>(); // marked-content sequences: does one carry /ActualText?
         var looks = new Stack<LookTag?>(); // and is one a look a paragraph edit gave its text?
         var actualText = 0;
+        var hiddenMarks = new Stack<bool>(); // marked-content sequences: is one a layer that is off?
+        var hiddenLayer = 0;
         Mat tm = Mat.Identity, tlm = Mat.Identity;
         // The path being built, for a clip: one rectangle is followed, any other shape isn't.
         RectD? pathBox = null;
@@ -837,6 +839,10 @@ public static partial class ContentEditor
                     {
                         marked.Push(has);
                         if (has) actualText++;
+                        var off = op.Name == "BDC" && op.Operands.Count >= 2 && op.Operands[0].Name == "OC" && props is { Kind: CKind.Name } layer
+                                  && IsHiddenLayer(page, PdfObj.Dict(PdfObj.Dict(resources?.Elements["/Properties"])?.Elements["/" + layer.Name]));
+                        hiddenMarks.Push(off);
+                        if (off) hiddenLayer++;
                         looks.Push(op.Name == "BDC" && op.Operands.Count >= 2 && op.Operands[0].Name == LookTagName && props is { Kind: CKind.Dict } ld
                             ? LookTag.Read(ld)
                             : looks.Count > 0 ? looks.Peek() : null);
@@ -845,6 +851,7 @@ public static partial class ContentEditor
                 }
                 case "EMC":
                     if (marked.Count > 0 && marked.Pop()) actualText--;
+                    if (hiddenMarks.Count > 0 && hiddenMarks.Pop()) hiddenLayer--;
                     if (looks.Count > 0) looks.Pop();
                     break;
                 case "Tf" when op.Operands.Count >= 2:
@@ -885,7 +892,7 @@ public static partial class ContentEditor
                     var arg = op.Operands.Count > 0 ? op.Operands[^1] : null;
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
                     tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
-                        blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
+                        blocked ?? (hiddenLayer > 0 ? HiddenLayerBlocked : null) ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
                         looks.Count > 0 ? looks.Peek() : null, form is null ? null : form with { Index = i });
                     break;
                 }
@@ -915,7 +922,8 @@ public static partial class ContentEditor
                         }
                         var formOps = ContentLexer.Parse(bytes, cancel);
                         var place = new FormPlace(xobj, bytes, formOps, -1, PdfObj.Dict(xobj.Elements["/Resources"]) ?? resources, form, id, op.Operands[0].Name);
-                        Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked, cancel, place);
+                        var inHidden = hiddenLayer > 0 || IsHiddenLayer(page, PdfObj.Dict(xobj.Elements["/OC"]));
+                        Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked ?? (inHidden ? HiddenLayerBlocked : null), cancel, place);
                     }
                     break;
                 }
@@ -936,6 +944,20 @@ public static partial class ContentEditor
     {
         static int C(double v) => (int)Math.Round(Math.Clamp(v, 0, 1) * 255);
         return C(r) << 16 | C(g) << 8 | C(b);
+    }
+
+    /// <summary>Why text in a layer that is off stays: nobody sees it, so it isn't edited, and it is never sent for translating.</summary>
+    internal const string HiddenLayerBlocked = "it is invisible text (in a hidden layer)";
+
+    /// <summary>A layer, or a set of layers, the document opens with off.</summary>
+    private static bool IsHiddenLayer(PdfPage page, PdfDictionary? oc)
+    {
+        if (oc is null || page.Owner is not { } doc) return false;
+        if (PdfObj.Array(PdfObj.Dict(PdfObj.Dict(doc.Internals.Catalog.Elements["/OCProperties"])?.Elements["/D"])?.Elements["/OFF"]) is not { } off) return false;
+        bool Off(PdfDictionary? group) => group is not null && off.Elements.Any(e => ReferenceEquals(PdfObj.Dict(e), group));
+        if (PdfObj.NameOf(oc, "/Type") != "/OCMD") return Off(oc);
+        if (PdfObj.Array(oc.Elements["/OCGs"]) is { Elements.Count: > 0 } groups) return groups.Elements.All(g => Off(PdfObj.Dict(g)));
+        return Off(PdfObj.Dict(oc.Elements["/OCGs"]));
     }
 
     private static void AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked)

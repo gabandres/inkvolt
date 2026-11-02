@@ -116,7 +116,7 @@ public sealed record RedactionCheckOptions
     /// <summary>What the person chose to keep: not looked for, though <see cref="Patterns"/> would find it.</summary>
     public IReadOnlyList<string> Kept { get; init; } = [];
 
-    /// <summary>Look only for the values: no covers, hidden content or earlier versions' other text (a batch's check of its own redaction).</summary>
+    /// <summary>Look only for the values and what <see cref="Patterns"/> read, earlier versions too: no covers, hidden comments or earlier versions' other text (a batch's check of its own redaction).</summary>
     public bool ValuesOnly { get; init; }
 }
 

@@ -256,7 +256,7 @@ public static class BatchCommandLine
         line(output, summary.Text);
         if (summary.RedactionReportPath is { } report) line(output, $"Redaction report: {report}");
         if (summary.Cancelled > 0 || cancel.IsCancellationRequested) return Stopped;
-        return summary.Failed + summary.Skipped > 0 ? SomeFailed : Done;
+        return summary.Failed + summary.Skipped > 0 || summary.RedactionReportProblem is not null ? SomeFailed : Done;
     }
 
     private static async Task<int> WatchAsync(CommandLineRequest request, BatchPreset preset, BatchHost host, TextWriter output, TextWriter error,

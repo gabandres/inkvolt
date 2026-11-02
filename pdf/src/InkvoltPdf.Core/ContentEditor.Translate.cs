@@ -50,7 +50,7 @@ public static partial class ContentEditor
         var groups = new Dictionary<int, List<TextRun>>();
         foreach (var r in content.Runs)
         {
-            if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0) continue;
+            if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0 || r.Blocked == HiddenLayerBlocked) continue;
             if (!double.IsFinite(r.FontSize) || !double.IsFinite(r.Box.X + r.Box.Y + r.Box.Width + r.Box.Height)) continue; // a crafted matrix
             var cell = -1;
             for (var i = 0; i < cells.Count; i++)
