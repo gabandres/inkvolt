@@ -92,9 +92,13 @@ public static class JobRules
                                       && long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out _);
     }
 
-    /// <summary>Leaving the queue anyway: being cancelled, or printed.</summary>
+    /// <summary>
+    /// Leaving the queue anyway: being cancelled, or printed. Retained alone says that too, but not with Printing or a problem: a real queue on
+    /// a dead TCP port read Printing | Retained from the start, then Error | Printing | Retained.
+    /// </summary>
     public static bool IsFinishing(JobStatus s) =>
-        (s & (JobStatus.Deleting | JobStatus.Deleted | JobStatus.Printed | JobStatus.Completed | JobStatus.Retained)) != 0;
+        (s & (JobStatus.Deleting | JobStatus.Deleted | JobStatus.Printed | JobStatus.Completed)) != 0
+        || (s.HasFlag(JobStatus.Retained) && (s & (JobStatus.Printing | JobStatus.Error | JobStatus.Blocked | JobStatus.UserIntervention)) == 0);
 
     /// <summary>
     /// The spooler says this job can't go on without someone: an error, blocked by the driver, or needing someone at the

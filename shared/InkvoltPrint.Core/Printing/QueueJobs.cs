@@ -46,8 +46,9 @@ public static class QueueJobText
         _ when s.HasFlag(JobStatus.Error) => "Error",
         _ when s.HasFlag(JobStatus.Blocked) => "Blocked",
         _ when s.HasFlag(JobStatus.Paused) => "Paused",
-        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) || s.HasFlag(JobStatus.Retained) => "Printed",
-        _ when s.HasFlag(JobStatus.Printing) => "Printing",
+        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) => "Printed",
+        _ when s.HasFlag(JobStatus.Printing) => "Printing", // before Retained: a real queue says Printing | Retained while it's still trying
+        _ when s.HasFlag(JobStatus.Retained) => "Printed",
         _ when s.HasFlag(JobStatus.Spooling) => "Preparing",
         _ => "Waiting",
     };

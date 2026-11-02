@@ -119,6 +119,10 @@ public class JobAlertTests
     [InlineData(JobStatus.Error | JobStatus.Offline, true)]
     [InlineData(JobStatus.Blocked, true)]
     [InlineData(JobStatus.UserIntervention, true)]
+    [InlineData(JobStatus.Error | JobStatus.Printing | JobStatus.Retained, true)] // what the real spooler read, on a queue with a dead TCP port
+    [InlineData(JobStatus.Error | JobStatus.Retained, true)]
+    [InlineData(JobStatus.Printing | JobStatus.Retained, false)]
+    [InlineData(JobStatus.Retained, false)]
     [InlineData(JobStatus.Error | JobStatus.Deleting, false)] // being cancelled
     [InlineData(JobStatus.Error | JobStatus.Deleted, false)]
     [InlineData(JobStatus.Error | JobStatus.Printed, false)]
@@ -300,9 +304,31 @@ public class JobAlertTests
     public void A_job_still_being_written_by_the_app_printing_it_is_not_stuck() =>
         Assert.Empty(Minutes(Tracker(), T0, 30, Queue(Job(status: JobStatus.Spooling, pages: 0))));
 
+    [Fact]
+    public void The_real_spoolers_sequence_on_a_dead_port_tells_one_failure()
+    {
+        // As read from a real queue on a TCP port nothing answers at: waiting, then Printing | Retained, then an error on the job and on the queue.
+        var t = Tracker();
+        var failed = new PrinterStatus("error", "Printer error", Severity.Error, [new PrinterAlert("error", Severity.Error, "Printer error")]);
+        Assert.Empty(Read(t, T0, Queue(Job(status: JobStatus.None, pages: 1))));
+        Assert.Empty(Read(t, T0.AddSeconds(30), Queue(Job(status: JobStatus.Printing | JobStatus.Retained, pages: 1))));
+        Assert.DoesNotContain(Read(t, T0.AddSeconds(90), Queue(Job(status: JobStatus.Error | JobStatus.Printing | JobStatus.Retained, pages: 1)), failed), n => n.JobKey is not null);
+        var told = Minutes(t, T0.AddSeconds(150), 30, Queue(Job(status: JobStatus.Error | JobStatus.Printing | JobStatus.Retained, pages: 1)), failed);
+        var n = Assert.Single(told, n => n.JobKey is not null);
+        Assert.Equal(AlertKind.JobFailed, n.Kind);
+    }
+
+    [Fact]
+    public void A_job_saying_printing_and_retained_is_still_a_job_that_should_move()
+    {
+        var t = Tracker();
+        Assert.Single(Minutes(t, T0, 6, Queue(Job(status: JobStatus.Printing | JobStatus.Retained))));
+    }
+
     [Theory]
     [InlineData(JobStatus.Printed)]
     [InlineData(JobStatus.Printed | JobStatus.Retained)]
+    [InlineData(JobStatus.Retained)]
     [InlineData(JobStatus.Completed)]
     [InlineData(JobStatus.Deleting)]
     public void A_job_on_its_way_out_is_not_stuck(JobStatus status) => Assert.Empty(Minutes(Tracker(), T0, 30, Queue(Job(status: status))));
