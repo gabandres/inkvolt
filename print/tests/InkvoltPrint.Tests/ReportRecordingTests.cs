@@ -165,6 +165,32 @@ public sealed class ReportRecordingTests : IDisposable
     public void A_printer_cant_put_a_file_that_runs_or_ours_in_a_recording(string path) => Assert.Null(PrinterRecorder.KeptName(path));
 
     [Theory]
+    [InlineData("http://192.0.2.200/secret.xml")]
+    [InlineData("//192.0.2.200/secret.xml")]
+    public async Task A_printer_cant_point_the_recorder_at_another_computer(string href)
+    {
+        var m234dw = FixtureDir("m234dw");
+        var tree = File.ReadAllText(Path.Combine(m234dw, "DevMgmt_DiscoveryTree.xml")).Replace("/DevMgmt/ProductStatusDyn.xml", href);
+        Assert.Contains(href, tree);
+        var printer = new FixtureHandler(name => name == "DevMgmt_DiscoveryTree.xml" ? Encoding.UTF8.GetBytes(tree)
+            : File.Exists(Path.Combine(m234dw, name)) ? File.ReadAllBytes(Path.Combine(m234dw, name)) : null);
+        var other = false;
+        var router = new HostRouter(new Dictionary<string, HttpMessageHandler>
+        {
+            [Host] = printer,
+            ["192.0.2.200"] = new FixtureHandler(name =>
+            {
+                other = true;
+                return Encoding.UTF8.GetBytes("<x>router admin page</x>");
+            }),
+        });
+        var done = await ReportRecording.RunAsync(Host, _parent, new RecordOptions { Transport = router, Who = Me }, Now);
+
+        Assert.False(other, "the recording asked another computer");
+        Assert.DoesNotContain(done.Result.Files, f => f.Contains("secret", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
     [InlineData("/run.bat", "run.bat")]
     [InlineData("/C:/Users/Public/evil.xml", "C:_Users_Public_evil.xml")]
     public async Task A_printer_pointing_the_recorder_at_a_strange_path_stays_in_the_folder_and_keeps_nothing_that_runs(string href, string served)

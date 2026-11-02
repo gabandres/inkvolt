@@ -93,7 +93,9 @@ public static class PrinterRecorder
     public static async Task<RecordResult> RecordAsync(string host, string folder, RecordOptions? options = null, CancellationToken ct = default)
     {
         options ??= new RecordOptions();
-        using var capture = new Capture(options.Transport ?? DeviceHttp.NetworkHandler(host), options.Scan);
+        var named = Uri.TryCreate($"http://{host}/", UriKind.Absolute, out var given) ? given.Host : host; // an address may come with its port
+        var printerHosts = new[] { named, options.EsclHint?.Host, options.IppHint?.Host }.OfType<string>().Select(h => h.Trim('[', ']')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        using var capture = new Capture(options.Transport ?? DeviceHttp.NetworkHandler(host), options.Scan, printerHosts);
         var snmp = options.Snmp is null ? null : new SnmpCapture(options.Snmp);
         var notKept = new List<string>();
         var scans = new List<(string Name, byte[] Jpeg)>();
@@ -257,7 +259,7 @@ public static class PrinterRecorder
     }
 
     /// <summary>Lets reads through and keeps each reply; refuses anything that would change the printer.</summary>
-    private sealed class Capture(HttpMessageHandler inner, bool scan) : DelegatingHandler(inner)
+    private sealed class Capture(HttpMessageHandler inner, bool scan, IReadOnlySet<string> printerHosts) : DelegatingHandler(inner)
     {
         private readonly ConcurrentQueue<Exchange> _exchanges = new();
 
@@ -274,6 +276,12 @@ public static class PrinterRecorder
                           && (request.Method == HttpMethod.Post || request.Method == HttpMethod.Delete || request.Method == HttpMethod.Get);
             if (request.Method != HttpMethod.Get && !getAttributes && !scanJob)
                 throw new InvalidOperationException($"A recording only reads: {request.Method} {path} not sent.");
+            // A printer's discovery tree decides what's asked for, and what's asked for ends up in a file the user attaches: nothing from another computer.
+            if (!printerHosts.Contains(uri.Host.Trim('[', ']')))
+            {
+                _exchanges.Enqueue(new Exchange(request.Method.Method, path, null, "another computer, not asked", 0, null, null, null));
+                throw new HttpRequestException($"{path}: on another computer, not asked.");
+            }
 
             var timer = Stopwatch.StartNew();
             HttpResponseMessage resp;

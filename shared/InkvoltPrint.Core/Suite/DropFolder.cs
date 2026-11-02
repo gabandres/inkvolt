@@ -93,6 +93,10 @@ public static class DropFolder
             {
                 Thread.Sleep(50);
             }
+            catch (UnauthorizedAccessException)
+            {
+                return; // read-only, or not ours to write: the log is a record, and what it records has happened
+            }
         }
     }
 

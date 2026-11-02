@@ -837,6 +837,19 @@ public class BatchPrintListTests
     }
 
     [Fact]
+    public void A_list_a_windows_tool_wrote_with_a_byte_order_mark_reads()
+    {
+        using var f = new BatchFolder();
+        const string json = """{ "version": 1, "files": [{ "path": "a.pdf", "copies": 2 }] }""";
+        foreach (var encoding in new Encoding[] { new UTF8Encoding(true), Encoding.Unicode, Encoding.BigEndianUnicode })
+        {
+            var path = Path.Combine(f.Root, "list.inkvoltlist");
+            File.WriteAllBytes(path, [.. encoding.GetPreamble(), .. encoding.GetBytes(json)]);
+            Assert.Equal(2, Assert.Single(BatchPrintList.Load(path, false)).Settings.Copies);
+        }
+    }
+
+    [Fact]
     public void A_list_of_broken_text_is_refused_in_words()
     {
         using var f = new BatchFolder();
@@ -1142,6 +1155,27 @@ public class BatchPrintFolderTests
         var line = new BatchFolderEntry(new DateTime(2026, 11, 1), name, BatchPrintState.Sent, "=2+2", 1, null).LogLine.Split('\t');
         Assert.Equal(logged, line[2]);
         Assert.Equal("'=2+2", line[3]);
+    }
+
+    [Fact]
+    public async Task A_log_that_cant_be_written_stops_nothing_and_loses_no_count()
+    {
+        using var f = new BatchFolder();
+        f.File("a.pdf");
+        f.File("b.pdf");
+        var log = f.File(BatchPrintFolder.LogName, "");
+        File.SetAttributes(log, FileAttributes.ReadOnly);
+        var queue = new FakeQueue();
+        try
+        {
+            var summary = await Run(f, queue, Fast with { Once = true });
+            Assert.Equal(2, summary.Sent);
+            Assert.Equal(2, queue.Sent.Count);
+        }
+        finally
+        {
+            File.SetAttributes(log, FileAttributes.Normal);
+        }
     }
 
     [Fact]

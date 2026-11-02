@@ -453,7 +453,8 @@ public sealed class FleetReadTests : IDisposable
         Assert.Equal(FleetCommand.Done, code);
         Assert.Empty(error);
         var printers = JsonDocument.Parse(output).RootElement.GetProperty("printers");
-        Assert.Equal(NineInOrder, printers.EnumerateArray().Select(p => p.GetProperty("name").GetString()));
+        // What leaves the PC doesn't name the other PC a queue is shared from.
+        Assert.Equal(NineInOrder.Select(n => n == "Front desk on demo-pc" ? "Front desk on [pc]" : n), printers.EnumerateArray().Select(p => p.GetProperty("name").GetString()));
     }
 
     [Fact]

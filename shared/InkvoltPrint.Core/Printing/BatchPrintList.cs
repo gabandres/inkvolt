@@ -105,7 +105,7 @@ public static class BatchPrintList
         ListFile file;
         try
         {
-            file = JsonSerializer.Deserialize<ListFile>(bytes, Json) ?? throw new BatchListException("This isn't a batch list: it's empty.");
+            file = JsonSerializer.Deserialize<ListFile>(WithoutByteOrderMark(bytes), Json) ?? throw new BatchListException("This isn't a batch list: it's empty.");
         }
         catch (JsonException)
         {
@@ -133,6 +133,15 @@ public static class BatchPrintList
         if (servers.Count > 0 && !allowNetwork) throw new BatchListNetworkException(servers.ToList());
         return entries;
     }
+
+    /// <summary>The list as plain UTF-8: Notepad and Windows PowerShell write a byte order mark, and PowerShell's &gt; writes UTF-16.</summary>
+    private static byte[] WithoutByteOrderMark(byte[] bytes) => bytes switch
+    {
+        [0xEF, 0xBB, 0xBF, ..] => bytes[3..],
+        [0xFF, 0xFE, ..] => Encoding.UTF8.GetBytes(Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2)),
+        [0xFE, 0xFF, ..] => Encoding.UTF8.GetBytes(Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2)),
+        _ => bytes,
+    };
 
     /// <summary>
     /// The list's lines as files: a folder's printable files in order with the line's settings. A line whose file isn't there stays,
