@@ -1292,19 +1292,20 @@ public partial class DocumentTab
             Notify("Nothing matching was found on the pages searched.");
             return false;
         }
-        if (RedactReviewDialog.Show(owner, this, found) is not { } review) return false;
+        var earlier = Viewer.Redactions.ToList();
+        if (RedactReviewDialog.Show(owner, this, found, earlier) is not { } review) return false;
         var name = Session.DisplayName;
-        if (review.Accepted.Count == 0 && review.LookAreas.Count == 0)
+        if (review.Accepted.Count == 0 && review.LookAreas.Count == 0 && review.EarlierApplied.Count == 0)
         {
             var nothing = new RedactionFileReport(name, [.. review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))], found.Looks, null);
             RedactionReportDialog.Show(owner, new RedactionReport([nothing]), Path.GetFileNameWithoutExtension(name));
             return false;
         }
 
-        var earlier = Viewer.Redactions.ToList();
         var marks = review.Accepted.SelectMany(m => RedactionSearch.Areas([m]).SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r)))).Concat(review.LookAreas).ToList();
         var before = Session.Data;
-        Viewer.AddRedactions(marks);
+        Viewer.ClearRedactions();
+        Viewer.AddRedactions(marks.Concat(review.EarlierApplied));
         if (!await ApplyRedactions(confirm: false, check: false))
         {
             Viewer.ClearRedactions();
@@ -1312,8 +1313,11 @@ public partial class DocumentTab
             return false;
         }
 
-        var areas = marks.Concat(earlier).GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
-        var (report, check, checkOptions) = await ReadBackPatterns(options, review, found, areas, before);
+        // What the person unticked stays a mark, not applied.
+        if (review.EarlierKept.Count > 0) Viewer.AddRedactions(review.EarlierKept);
+        var areas = marks.Concat(review.EarlierApplied).GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
+        var (read, check, checkOptions) = await ReadBackPatterns(options, review, found, areas, before);
+        var report = read with { MarkedAreas = review.EarlierApplied.Count };
         LastRedactionReport = report;
         RedactionReportDialog.Show(owner, new RedactionReport([report]), Path.GetFileNameWithoutExtension(name));
         // What is left outside the pages has a fix of its own, the check's.

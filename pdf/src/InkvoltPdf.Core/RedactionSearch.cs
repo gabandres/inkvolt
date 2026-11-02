@@ -34,6 +34,17 @@ public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOn
             _ => "Pictures or drawn text that couldn't be read: no OCR language.",
         }) + (Unread.Count switch { 0 => "", 1 => " Tick to black out the 1 place nothing was read.", _ => $" Tick to black out the {Unread.Count} places nothing was read." });
 
+    /// <summary>Why these pages need a person's eyes, as the end of a sentence: read badly, or not read at all. Never says a page is clean.</summary>
+    public static string Why(IEnumerable<RedactionLook> looks)
+    {
+        var list = looks.ToList();
+        var read = list.Any(l => l.Reason is RedactionLookReason.ScanReadByOcr or RedactionLookReason.PicturesReadByOcr);
+        var unread = list.Any(l => l.Reason is RedactionLookReason.ScanNotRead or RedactionLookReason.PicturesNotRead);
+        const string readBadly = "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines";
+        const string notRead = "scans and pictures with text in them couldn't be read, as Windows has no text recognition language";
+        return read && unread ? $"{readBadly}, and some {notRead}" : unread ? notRead : readBadly;
+    }
+
     /// <summary>What to tell the person. Never says a page is clean.</summary>
     public string Text
     {

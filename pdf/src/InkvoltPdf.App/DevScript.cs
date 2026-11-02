@@ -428,6 +428,7 @@ internal static class DevScript
                 break;
             }
             case "reviewselect": RedactReviewDialog.Open!.DevSelect(int.Parse(arg)); break;
+            case "reviewearlier": RedactReviewDialog.Open!.DevSelectEarlier(); break;
             case "reviewtoggle": RedactReviewDialog.Open!.DevToggle(int.Parse(arg)); break;
             case "reviewall": RedactReviewDialog.Open!.DevAll(arg == "on"); break;
             case "reviewstate": log.Add(RedactReviewDialog.Open?.DevState() ?? "review: none open"); break;
@@ -1099,6 +1100,14 @@ internal static class DevScript
             // File tools, bookmarks, Read Aloud: openpw pw|drop|cancel (answers the active tab's next open-password prompt) · security ·
             // bookmarks · bookmark add Title | child path Title | rename path Title | delete path | move path parent index |
             // dest path (paths are 0-based, dotted: 1.0) · readaloud (toggle) · readaloud-state · readaloud-skip 1|-1
+            // devfile src dst pages [open owner]: the first pages of a PDF as a file, protected (AES-256) when passwords are given
+            case "devfile":
+            {
+                var a = arg.Split('|');
+                var made = PageEditor.Extract(File.ReadAllBytes(a[0]), null, [.. Enumerable.Range(0, int.Parse(a[2]))]);
+                File.WriteAllBytes(a[1], a.Length > 4 ? PdfSecurity.Protect(made, null, a[3], a[4]) : made);
+                break;
+            }
             case "openpw": ScriptOpenPassword(tab!, arg == "cancel" ? null : arg == "drop" ? new OpenPasswordAnswer(null, true) : new OpenPasswordAnswer(arg, false)); break;
             case "security": log.Add($"security: {SecurityActions.Describe(tab!.Session)} password={(tab.Session.Password is null ? "none" : "set")} open={(tab.Session.OpenPassword is null ? "none" : "set")}"); break;
             case "bookmarks": log.Add($"bookmarks: {tab!.DevBookmarks()}"); break;

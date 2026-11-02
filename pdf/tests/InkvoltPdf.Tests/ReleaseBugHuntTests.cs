@@ -274,6 +274,34 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         Assert.Contains(summary.Items[0].Notes, n => n.Contains("Look by hand", StringComparison.Ordinal) && n.Contains("couldn't be read", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task A_file_with_a_picture_nothing_could_read_says_to_look_not_just_done()
+    {
+        var summary = await Redact(LightOnBand(0.2, new PlantedReader()));
+        Assert.Equal(BatchItemState.Done, summary.Items[0].State); // a logo mustn't fail a batch
+        Assert.Contains("look by hand at page 1", summary.Items[0].Message);
+        Assert.Contains("1 to look at by hand", summary.Text);
+        var report = summary.RedactionReport!;
+        Assert.False(report.HasFailures);
+        var rows = Csv.Read(File.ReadAllText(summary.RedactionReportPath!, Encoding.UTF8));
+        Assert.Contains(rows, r => r[2] == "Result for this file" && r[4].StartsWith("Look by hand", StringComparison.Ordinal));
+        Assert.Contains(rows, r => r[1] == "1" && r[4] == "Look by hand");
+        var why = RedactionLook.Why(report.Files[0].Looks);
+        Assert.Contains("couldn't be read", why);
+        Assert.DoesNotContain("read by text recognition", why);
+        Assert.DoesNotContain("clean", report.Headline + report.Files[0].Summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Areas_marked_earlier_are_counted_in_the_report()
+    {
+        var only = new RedactionReport([new RedactionFileReport("a.pdf", [], [], null) { MarkedAreas = 2 }]);
+        Assert.Contains("Read back", only.Headline);
+        Assert.Contains("2 other marked areas", only.Headline);
+        Assert.Contains("2 other marked areas", only.Files[0].Summary);
+        Assert.DoesNotContain("nothing found", only.Files[0].Summary);
+    }
+
     // ───────────── ink the search doesn't see ─────────────
 
     /// <summary>A page of text with a picture on it: a band of a shade with light words in it (a banner, a card).</summary>

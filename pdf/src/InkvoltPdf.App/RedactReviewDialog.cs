@@ -14,9 +14,11 @@ namespace InkvoltPdf.App;
 
 /// <summary>What the person chose in <see cref="RedactReviewDialog"/>.</summary>
 /// <param name="LookAreas">Places with ink nothing could read, chosen to be blacked out whatever they say.</param>
-internal sealed record RedactReview(List<RedactionMatch> Accepted, List<RedactionMatch> Skipped, List<RedactMark> LookAreas);
+/// <param name="EarlierApplied">Areas marked by hand before this search that go with the rest.</param>
+/// <param name="EarlierKept">Those the person unticked: they stay marks, not applied.</param>
+internal sealed record RedactReview(List<RedactionMatch> Accepted, List<RedactionMatch> Skipped, List<RedactMark> LookAreas, List<RedactMark> EarlierApplied, List<RedactMark> EarlierKept);
 
-/// <summary>A line of the list: a hit, or a page to look at by hand.</summary>
+/// <summary>A line of the list: a hit, a page to look at by hand, or an area marked by hand before this search.</summary>
 internal sealed class ReviewRow : INotifyPropertyChanged
 {
     private bool _accepted;
@@ -27,23 +29,26 @@ internal sealed class ReviewRow : INotifyPropertyChanged
 
     public RedactionLook? Look { get; init; }
 
-    public int Page => Hit?.Page ?? Look!.Page;
+    public RedactMark? Earlier { get; init; }
+
+    public int Page => Hit?.Page ?? Look?.Page ?? Earlier!.PageIndex;
 
     public string Where => $"Page {Page + 1}";
 
-    public string Kind => Hit is { } h ? RedactionPatterns.Name(h.Pattern) + (h.FromOcr ? " (read by OCR)" : "") : "Look at this page by hand";
+    public string Kind => Hit is { } h ? RedactionPatterns.Name(h.Pattern) + (h.FromOcr ? " (read by OCR)" : "") : Earlier is not null ? "An area you marked earlier" : "Look at this page by hand";
 
     public string Before => Hit is { } h ? (h.Before.Length > 28 ? "…" + h.Before[^28..] : h.Before) : "";
 
     public string Value => Hit is { } h ? RedactionPatterns.Displayable(h.Text) : "";
 
-    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Look!.Short;
+    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Earlier is not null ? "Goes with the rest. Untick to leave it as a mark." : Look!.Short;
 
-    public Visibility CheckVisibility => Hit is not null || Look!.Unread.Count > 0 ? Visibility.Visible : Visibility.Hidden;
+    public Visibility CheckVisibility => Hit is not null || Earlier is not null || Look!.Unread.Count > 0 ? Visibility.Visible : Visibility.Hidden;
 
     /// <summary>What the check box does, for a screen reader.</summary>
     public string Spoken => Hit is not null
         ? $"{Where}, {Kind}: {Before}{Value}{After}. Checked: it will be redacted."
+        : Earlier is not null ? $"{Where}, {Kind}. Checked: it will be redacted."
         : $"{Where}: {Look!.Text} Checked: the places where nothing was read will be blacked out.";
 
     public bool Accepted
@@ -78,7 +83,7 @@ internal sealed class RedactReviewDialog
     /// <summary>The list on the screen, for the developer script.</summary>
     internal static RedactReviewDialog? Open { get; private set; }
 
-    private RedactReviewDialog(Window owner, DocumentTab tab, RedactionSearchResult found)
+    private RedactReviewDialog(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
     {
         _tab = tab;
         // In page order, a page to look at just before its hits: a long scan's flags mustn't push every hit out of sight.
@@ -86,15 +91,16 @@ internal sealed class RedactReviewDialog
         [
             .. found.Looks.Select(l => new ReviewRow { Look = l })
                 .Concat(found.Hits.Select(h => new ReviewRow { Hit = h, Accepted = true }))
-                .OrderBy(r => r.Page).ThenBy(r => r.Look is null).ThenBy(r => r.Hit?.Rects[0].Y ?? 0).ThenBy(r => r.Hit?.Rects[0].X ?? 0),
+                .Concat(earlier.Select(m => new ReviewRow { Earlier = m, Accepted = true }))
+                .OrderBy(r => r.Page).ThenBy(r => r.Look is null).ThenBy(r => r.Hit?.Rects[0].Y ?? r.Earlier?.Rect.Y ?? 0).ThenBy(r => r.Hit?.Rects[0].X ?? r.Earlier?.Rect.X ?? 0),
         ];
         _dialog = new FormDialog(owner, "Check What Was Found", "Redact", 1000);
-        Build(found);
+        Build(found, earlier);
     }
 
-    public static RedactReview? Show(Window owner, DocumentTab tab, RedactionSearchResult found)
+    public static RedactReview? Show(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
     {
-        var review = new RedactReviewDialog(owner, tab, found);
+        var review = new RedactReviewDialog(owner, tab, found, earlier);
         Open = review;
         try
         {
@@ -103,7 +109,8 @@ internal sealed class RedactReviewDialog
             var (rows, marks) = (review._rows, new List<RedactMark>());
             foreach (var row in rows.Where(r => r.Look is not null && r.Accepted))
                 marks.AddRange(row.Look!.Unread.Select(a => new RedactMark(row.Page, a)));
-            return new RedactReview([.. rows.Where(r => r.Hit is not null && r.Accepted).Select(r => r.Hit!)], [.. rows.Where(r => r.Hit is not null && !r.Accepted).Select(r => r.Hit!)], marks);
+            return new RedactReview([.. rows.Where(r => r.Hit is not null && r.Accepted).Select(r => r.Hit!)], [.. rows.Where(r => r.Hit is not null && !r.Accepted).Select(r => r.Hit!)], marks,
+                [.. rows.Where(r => r.Earlier is not null && r.Accepted).Select(r => r.Earlier!)], [.. rows.Where(r => r.Earlier is not null && !r.Accepted).Select(r => r.Earlier!)]);
         }
         finally
         {
@@ -112,7 +119,7 @@ internal sealed class RedactReviewDialog
         }
     }
 
-    private void Build(RedactionSearchResult found)
+    private void Build(RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
     {
         var hits = found.Hits.Count;
         _dialog.AddNote((hits == 0 ? "Nothing matching was found. " : hits == 1 ? "1 match was found. Untick it to keep it. " : $"{hits:N0} matches were found. Untick any you want to keep. ") +
@@ -120,9 +127,16 @@ internal sealed class RedactReviewDialog
         if (found.Looks.Count > 0)
         {
             var warn = _dialog.AddNote($"Look at {RedactionReport.Pages(found.Looks.Select(l => l.Page))} yourself, whatever the list says: " +
-                                       "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines, so these pages can't be taken as clean. Each is flagged in the list.");
+                                       $"{RedactionLook.Why(found.Looks)}, so these pages can't be taken as clean. Each is flagged in the list.");
             warn.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
             AutomationProperties.SetLiveSetting(warn, AutomationLiveSetting.Polite);
+        }
+        if (earlier.Count > 0)
+        {
+            var also = _dialog.AddNote($"{(earlier.Count == 1 ? "1 area you marked earlier" : $"{earlier.Count:N0} areas you marked earlier")}, on {RedactionReport.Pages(earlier.Select(m => m.PageIndex))}, will go too. " +
+                                       $"{(earlier.Count == 1 ? "It is" : "They are")} in the list: select one to see it, untick to leave it as a mark, or Cancel to change nothing.");
+            also.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
+            AutomationProperties.SetLiveSetting(also, AutomationLiveSetting.Polite);
         }
 
         _list.ItemTemplate = (DataTemplate)XamlReader.Parse(
@@ -188,7 +202,7 @@ internal sealed class RedactReviewDialog
     {
         if (_settingAll) return;
         var hits = _rows.Count(r => r.Hit is not null && r.Accepted);
-        var areas = _rows.Where(r => r.Look is not null && r.Accepted).Sum(r => r.Look!.Unread.Count);
+        var areas = _rows.Where(r => r.Look is not null && r.Accepted).Sum(r => r.Look!.Unread.Count) + _rows.Count(r => r.Earlier is not null && r.Accepted);
         _dialog.SetOkText(hits + areas == 0 ? "Keep All" : areas == 0 ? (hits == 1 ? "Redact 1" : $"Redact {hits:N0}") : $"Redact {hits + areas:N0}");
     }
 
@@ -219,7 +233,7 @@ internal sealed class RedactReviewDialog
         _marks.Children.Clear();
         _marks.Width = image.Width;
         _marks.Height = image.Height;
-        var boxes = row.Hit?.Rects ?? row.Look!.Unread;
+        var boxes = row.Hit?.Rects ?? row.Look?.Unread ?? [row.Earlier!.Rect];
         foreach (var box in boxes)
         {
             var mark = new Rectangle { Width = Math.Max(2, box.Width * scale + 4), Height = Math.Max(2, box.Height * scale + 4), StrokeThickness = 2 };
@@ -243,6 +257,8 @@ internal sealed class RedactReviewDialog
 
     internal void DevSelect(int index) => _list.SelectedIndex = index;
 
+    internal void DevSelectEarlier() => _list.SelectedIndex = _rows.FindIndex(r => r.Earlier is not null);
+
     internal void DevToggle(int index)
     {
         _rows[index].Accepted = !_rows[index].Accepted;
@@ -252,7 +268,7 @@ internal sealed class RedactReviewDialog
     internal void DevAll(bool accepted) => SetAll(accepted);
 
     internal string DevState() =>
-        $"review: {_rows.Count(r => r.Hit is not null)} hits, {_rows.Count(r => r.Hit is not null && r.Accepted)} accepted, looks on {string.Join(',', _rows.Where(r => r.Look is not null).Select(r => r.Page + 1))}";
+        $"review: {_rows.Count(r => r.Hit is not null)} hits, {_rows.Count(r => r.Hit is not null && r.Accepted)} accepted, looks on {string.Join(',', _rows.Where(r => r.Look is not null).Select(r => r.Page + 1))}, earlier marks {_rows.Count(r => r.Earlier is not null && r.Accepted)} of {_rows.Count(r => r.Earlier is not null)}";
 
     internal void DevPress() => _dialog.DialogResult = true;
 

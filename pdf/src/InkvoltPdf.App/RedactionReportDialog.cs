@@ -40,7 +40,7 @@ internal static class RedactionReportDialog
         {
             var pages = report.Files.Where(f => f.Looks.Count > 0).Select(f => (many ? f.File + ": " : "") + RedactionReport.Pages(f.Looks.Select(l => l.Page)));
             var look = dlg.AddNote("This doesn't say those pages are clean. Look by hand at " + string.Join("; ", pages.Take(8)) +
-                                   ": they were read by text recognition (OCR), which can misread words and miss whole lines.");
+                                   ": " + RedactionLook.Why(report.Files.SelectMany(f => f.Looks)) + ".");
             look.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
         }
 

@@ -477,6 +477,9 @@ public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
     /// <summary>The removal report; null when the plan has no Redact Patterns.</summary>
     public RedactionReport? RedactionReport => Items.Any(i => i.Redaction is not null) ? new RedactionReport([.. Items.Select(i => i.Redaction).OfType<RedactionFileReport>()]) : null;
 
+    /// <summary>Files done, with pages the search couldn't vouch for.</summary>
+    public int ToLookAt => Items.Count(i => i.State == BatchItemState.Done && i.Redaction is { Looks.Count: > 0 });
+
     public int Done => Items.Count(i => i.State == BatchItemState.Done);
     public int Skipped => Items.Count(i => i.State == BatchItemState.Skipped);
     public int Failed => Items.Count(i => i.State == BatchItemState.Failed);
@@ -488,7 +491,7 @@ public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
         get
         {
             var parts = new List<string>();
-            if (Done > 0) parts.Add($"{Done} done");
+            if (Done > 0) parts.Add(ToLookAt > 0 ? $"{Done} done ({ToLookAt} to look at by hand)" : $"{Done} done");
             if (Skipped > 0) parts.Add($"{Skipped} skipped");
             if (Failed > 0) parts.Add($"{Failed} failed");
             if (Cancelled > 0) parts.Add($"{Cancelled} cancelled");
@@ -760,7 +763,8 @@ public static class BatchRunner
                 cancel.ThrowIfCancellationRequested();
                 if (plan.WritesPdf(file) && !keepSigned)
                     _outputs.Insert(0, names.Place(_folder, _baseName + ".pdf", temp => File.WriteAllBytes(temp, data)));
-                return Result(BatchItemState.Done, _outputs.Count == 0 ? "Done (nothing to save)" : "Done");
+                var finished = _outputs.Count == 0 ? "Done (nothing to save)" : "Done";
+                return Result(BatchItemState.Done, _redaction is { Looks.Count: > 0 } r ? $"{finished}: look by hand at {RedactionReport.Pages(r.Looks.Select(l => l.Page))}" : finished);
             }
             catch (OperationCanceledException)
             {
