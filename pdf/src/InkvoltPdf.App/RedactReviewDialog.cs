@@ -37,7 +37,7 @@ internal sealed class ReviewRow : INotifyPropertyChanged
 
     public string Value => Hit is { } h ? RedactionPatterns.Displayable(h.Text) : "";
 
-    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Look!.Text;
+    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Look!.Short;
 
     public Visibility CheckVisibility => Hit is not null || Look!.Unread.Count > 0 ? Visibility.Visible : Visibility.Hidden;
 
@@ -73,6 +73,7 @@ internal sealed class RedactReviewDialog
     private readonly TextBlock _pageLabel = new() { Margin = new Thickness(0, 0, 0, 4), FontWeight = FontWeights.SemiBold };
     private readonly DocumentTab _tab;
     private CancellationTokenSource? _render;
+    private bool _settingAll;
 
     /// <summary>The list on the screen, for the developer script.</summary>
     internal static RedactReviewDialog? Open { get; private set; }
@@ -80,10 +81,12 @@ internal sealed class RedactReviewDialog
     private RedactReviewDialog(Window owner, DocumentTab tab, RedactionSearchResult found)
     {
         _tab = tab;
+        // In page order, a page to look at just before its hits: a long scan's flags mustn't push every hit out of sight.
         _rows =
         [
-            .. found.Looks.OrderBy(l => l.Page).Select(l => new ReviewRow { Look = l }),
-            .. found.Hits.OrderBy(h => h.Page).ThenBy(h => h.Rects[0].Y).ThenBy(h => h.Rects[0].X).Select(h => new ReviewRow { Hit = h, Accepted = true }),
+            .. found.Looks.Select(l => new ReviewRow { Look = l })
+                .Concat(found.Hits.Select(h => new ReviewRow { Hit = h, Accepted = true }))
+                .OrderBy(r => r.Page).ThenBy(r => r.Look is null).ThenBy(r => r.Hit?.Rects[0].Y ?? 0).ThenBy(r => r.Hit?.Rects[0].X ?? 0),
         ];
         _dialog = new FormDialog(owner, "Check What Was Found", "Redact", 1000);
         Build(found);
@@ -116,8 +119,8 @@ internal sealed class RedactReviewDialog
                         "Nothing is removed until you press Redact. Pages with something to remove become images, and you can undo it until you save.");
         if (found.Looks.Count > 0)
         {
-            var warn = _dialog.AddNote($"{RedactionReport.Pages(found.Looks.Select(l => l.Page))} can't be taken as clean, whatever the list says: " +
-                                       "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines. Look at each of those pages yourself; they come first in the list.");
+            var warn = _dialog.AddNote($"Look at {RedactionReport.Pages(found.Looks.Select(l => l.Page))} yourself, whatever the list says: " +
+                                       "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines, so these pages can't be taken as clean. Each is flagged in the list.");
             warn.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
             AutomationProperties.SetLiveSetting(warn, AutomationLiveSetting.Polite);
         }
@@ -137,7 +140,11 @@ internal sealed class RedactReviewDialog
         VirtualizingPanel.SetIsVirtualizing(_list, true);
         VirtualizingPanel.SetVirtualizationMode(_list, VirtualizationMode.Recycling);
         AutomationProperties.SetName(_list, "What was found");
-        _list.SelectionChanged += (_, _) => ShowSelected();
+        _list.SelectionChanged += (_, _) =>
+        {
+            if (_list.SelectedItem is { } selected) _list.ScrollIntoView(selected);
+            ShowSelected();
+        };
         // Space ticks or unticks the line, wherever the focus is in it.
         _list.PreviewKeyDown += (_, e) =>
         {
@@ -170,11 +177,16 @@ internal sealed class RedactReviewDialog
 
     private void SetAll(bool accepted)
     {
+        // The count once, at the end: per row it would be quadratic on a list of a hundred thousand.
+        _settingAll = true;
         foreach (var row in _rows.Where(r => r.Hit is not null)) row.Accepted = accepted;
+        _settingAll = false;
+        UpdateOk();
     }
 
     private void UpdateOk()
     {
+        if (_settingAll) return;
         var hits = _rows.Count(r => r.Hit is not null && r.Accepted);
         var areas = _rows.Where(r => r.Look is not null && r.Accepted).Sum(r => r.Look!.Unread.Count);
         _dialog.SetOkText(hits + areas == 0 ? "Keep All" : areas == 0 ? (hits == 1 ? "Redact 1" : $"Redact {hits:N0}") : $"Redact {hits + areas:N0}");

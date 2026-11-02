@@ -76,9 +76,7 @@ internal static class RedactionReportDialog
             if (CommentFileActions.PickSave(dlg, "Save the report", "CSV (*.csv)|*.csv", suggestedName + " redaction report.csv", null) is not { } path) return;
             try
             {
-                var temp = path + ".tmp";
-                File.WriteAllBytes(temp, report.ToCsv());
-                File.Move(temp, path, overwrite: true);
+                File.WriteAllBytes(path, report.ToCsv());
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

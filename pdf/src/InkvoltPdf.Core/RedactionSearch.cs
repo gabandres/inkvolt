@@ -24,6 +24,16 @@ public enum RedactionLookReason
 /// <param name="Unread">Places with ink where no word was read at all, page space (a dropped line, a stamp, a signature, a logo).</param>
 public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOnlyList<RectD> Unread)
 {
+    /// <summary>One line for a list that has said the rest above it.</summary>
+    public string Short =>
+        (Reason switch
+        {
+            RedactionLookReason.ScanReadByOcr => "A scan, read by OCR.",
+            RedactionLookReason.PicturesReadByOcr => "Pictures or drawn text, read by OCR.",
+            RedactionLookReason.ScanNotRead => "A scan that couldn't be read: no OCR language.",
+            _ => "Pictures or drawn text that couldn't be read: no OCR language.",
+        }) + (Unread.Count switch { 0 => "", 1 => " Tick to black out the 1 place nothing was read.", _ => $" Tick to black out the {Unread.Count} places nothing was read." });
+
     /// <summary>What to tell the person. Never says a page is clean.</summary>
     public string Text
     {
@@ -100,11 +110,12 @@ public static class RedactionSearch
                 if (look is not null) looks.Add(look);
                 if (read.Count > 0)
                 {
+                    var taken = own.GroupBy(o => o.Pattern).ToDictionary(g => g.Key, g => new RectIndex(g.SelectMany(o => o.Rects)));
                     foreach (var hit in RedactionPatterns.FindOnPage(OcrPageText(read), p, options, custom, lenient: true))
                     {
                         // Boxes from a recognizer are rough: a little more room, so no edge of a figure stays.
                         var rects = (IReadOnlyList<RectD>)[.. hit.Rects.Select(r => r.Inflate(1.5))];
-                        if (!own.Any(o => o.Pattern == hit.Pattern && Touch(o.Rects, rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
+                        if (!(taken.TryGetValue(hit.Pattern, out var same) && same.Touches(rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
                     }
                 }
             }
@@ -125,8 +136,8 @@ public static class RedactionSearch
     {
         using var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
         var found = Find(engine, options, ocr, progress, cancel, redactedPages);
-        var keptByPage = kept.ToLookup(k => k.Page);
-        return [.. found.Hits.Where(h => !keptByPage[h.Page].Any(k => Touch(k.Rects, h.Rects)))];
+        var keptByPage = kept.GroupBy(k => k.Page).ToDictionary(g => g.Key, g => new RectIndex(g.SelectMany(k => k.Rects)));
+        return [.. found.Hits.Where(h => !(keptByPage.TryGetValue(h.Page, out var keptHere) && keptHere.Touches(h.Rects)))];
     }
 
     /// <summary>The areas to black out per page: each match's boxes, grown by half a point so no edge of a glyph survives.</summary>
@@ -147,8 +158,30 @@ public static class RedactionSearch
 
     private const int MaxValueLength = 200;
 
-    private static bool Touch(IReadOnlyList<RectD> a, IReadOnlyList<RectD> b) =>
-        a.Any(x => b.Any(y => !x.Intersect(y).IsEmpty));
+    /// <summary>Boxes filed by height on the page: a page of hostile text can hold a hundred thousand of them.</summary>
+    private sealed class RectIndex
+    {
+        private const double Band = 16;
+        private readonly Dictionary<long, List<RectD>> _bands = [];
+
+        public RectIndex(IEnumerable<RectD> rects)
+        {
+            foreach (var r in rects)
+                foreach (var band in Bands(r))
+                    (_bands.TryGetValue(band, out var list) ? list : _bands[band] = []).Add(r);
+        }
+
+        // A box taller than the page is odd enough to file by its first bands only; it stays findable from them.
+        private static IEnumerable<long> Bands(RectD r)
+        {
+            var first = (long)Math.Floor(r.Y / Band);
+            var last = Math.Min((long)Math.Floor(r.Bottom / Band), first + 512);
+            for (var b = first; b <= last; b++) yield return b;
+        }
+
+        public bool Touches(IReadOnlyList<RectD> rects) =>
+            rects.Any(r => Bands(r).Any(b => _bands.TryGetValue(b, out var list) && list.Any(k => !k.Intersect(r).IsEmpty)));
+    }
 
     // ───────────────────────────── the page's ink ─────────────────────────────
 
@@ -156,25 +189,36 @@ public static class RedactionSearch
     private static (IReadOnlyList<OcrWord> Words, RedactionLook? Look) ReadInk(PdfEngine engine, int page, PageText text, ITextRecognizer? ocr, CancellationToken cancel)
     {
         var ink = InkMap.Of(engine, page, cancel);
-        if (ink.IsBlank) return ([], null);
+        var g = engine.GetPage(page);
+        var pictures = engine.PictureArea(page, cancel);
+        // No ink and no picture: a blank page. A picture with no ink to see may be a very faint scan, so it isn't let through.
+        if (ink.IsBlank && pictures <= 0) return ([], null);
         var known = KnownBoxes(text);
         var unread = ink.Unread(known);
         var hasText = text.Text.Any(c => !char.IsWhiteSpace(c));
-        var g = engine.GetPage(page);
-        var scan = !hasText || engine.PictureArea(page, cancel) >= ScanShare * (g.Width * g.Height);
+        var scan = !hasText || pictures >= ScanShare * (g.Width * g.Height);
         if (!scan && unread.Count == 0) return ([], null);
-        if (ocr is null) return ([], new RedactionLook(page, scan ? RedactionLookReason.ScanNotRead : RedactionLookReason.PicturesNotRead, unread));
+        var notRead = new RedactionLook(page, scan ? RedactionLookReason.ScanNotRead : RedactionLookReason.PicturesNotRead, unread);
+        if (ocr is null) return ([], notRead);
 
-        var read = ScanText.Recognize(engine, page, ocr, new RecognizeOptions(CheckWords: false), null, cancel);
-        var words = read.Words.ToList();
-        unread = ink.Unread([.. known, .. words.Select(Box)]);
-        if (unread.Count > 0 && read.QuarterTurns == 0 && Math.Abs(read.Skew) <= 3)
+        try
         {
-            words.AddRange(Reread(engine, page, ocr, unread, words, cancel));
+            var read = ScanText.Recognize(engine, page, ocr, new RecognizeOptions(CheckWords: false), null, cancel);
+            var words = read.Words.ToList();
             unread = ink.Unread([.. known, .. words.Select(Box)]);
+            if (unread.Count > 0 && read.QuarterTurns == 0 && Math.Abs(read.Skew) <= 3)
+            {
+                words.AddRange(Reread(engine, page, ocr, unread, words, cancel));
+                unread = ink.Unread([.. known, .. words.Select(Box)]);
+            }
+            var reason = scan ? RedactionLookReason.ScanReadByOcr : RedactionLookReason.PicturesReadByOcr;
+            return (words, new RedactionLook(page, reason, unread));
         }
-        var reason = scan ? RedactionLookReason.ScanReadByOcr : RedactionLookReason.PicturesReadByOcr;
-        return (words, new RedactionLook(page, reason, unread));
+        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+        {
+            // The recognizer gave up on this page (a page too large for it, an engine error): as good as not having one here.
+            return ([], notRead);
+        }
     }
 
     private static List<RectD> KnownBoxes(PageText text)
@@ -198,7 +242,7 @@ public static class RedactionSearch
         var scale = RereadDpi / 72;
         var g = engine.GetPage(page);
         var found = new List<OcrWord>();
-        foreach (var place in places.Where(p => p.Height <= 96).OrderByDescending(p => p.Width).Take(MaxRereads))
+        foreach (var place in places.Where(p => p.Height <= 96 && p.Width <= 2000).OrderByDescending(p => p.Width).Take(MaxRereads))
         {
             cancel.ThrowIfCancellationRequested();
             var region = place.Inflate(3).Intersect(new RectD(0, 0, g.Width, g.Height));
@@ -311,7 +355,7 @@ internal sealed class InkMap
                 var half = (x1 - tx) * (y1 - ty) / 2;
                 var (paper, seen) = (0, 0);
                 for (; paper < 255 && (seen += histogram[paper]) < half; paper++) { }
-                var limit = Math.Max(90, paper - 60);
+                var limit = Math.Max(90, paper - 40);
                 for (var y = ty; y < y1; y++)
                     for (var x = tx; x < x1; x++)
                         dark[y * w + x] = gray[y * w + x] < limit;

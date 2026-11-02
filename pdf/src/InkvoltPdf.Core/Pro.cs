@@ -111,7 +111,7 @@ public static class Pro
     /// <summary>What a person is told when a feature isn't unlocked.</summary>
     public static string Locked(ProFeature feature) => feature switch
     {
-        ProFeature.PatternRedaction => "Saved pattern sets, your own regular expression, pattern redaction in Batch and the removal report are part of Inkvolt Pro.",
+        ProFeature.PatternRedaction => "Pattern sets, regex, Batch and the report are part of Inkvolt Pro.",
         ProFeature.BatchPresets => "Saved batch presets are part of Inkvolt Pro.",
         ProFeature.WatchedFolders => "Watched folders are part of Inkvolt Pro.",
         ProFeature.AutoTagging => "Make Accessible is part of Inkvolt Pro.",

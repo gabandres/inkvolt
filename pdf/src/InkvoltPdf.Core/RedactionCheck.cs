@@ -369,12 +369,15 @@ public static partial class RedactionCheck
             }
 
             var kept = new HashSet<string>(Clean(options.Kept), StringComparer.OrdinalIgnoreCase);
-            var all = Clean(options.Values.Concat(_found).Concat(PatternValues(doc))).Where(v => !kept.Contains(v)).ToList();
+            // What the patterns found outside the pages goes first: those are leftovers for certain, not just possible ones.
+            var outside = Clean(PatternValues(doc)).Where(v => !kept.Contains(v)).ToList();
+            var all = Clean(outside.Concat(options.Values).Concat(_found)).Where(v => !kept.Contains(v)).ToList();
             var values = all.Take(MaxValues).ToList();
             if (all.Count > values.Count)
             {
-                _incomplete = true;
-                _notes.Add($"Only the first {MaxValues:N0} of {all.Count:N0} redacted values were looked for in the rest of the file.");
+                // With the patterns run over the rest of the file, whatever they can read there has been looked for anyway.
+                _incomplete |= options.Patterns is null || outside.Count > MaxValues;
+                _notes.Add($"Only the first {MaxValues:N0} of {all.Count:N0} redacted values were looked for as written in the rest of the file.");
             }
             var matcher = new ValueMatcher(values);
             if (!matcher.IsEmpty)

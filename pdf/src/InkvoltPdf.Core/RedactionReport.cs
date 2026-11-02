@@ -121,7 +121,7 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
         foreach (var file in Files)
         {
             var name = Cell(file.File);
-            rows.Add([name, "", "Result for this file", "", Cell(file.Failure is null ? "Checked: " + file.Summary : "Failed: " + file.Summary)]);
+            rows.Add([name, "", "Result for this file", "", Cell(file.Failure is null ? "Finished: " + file.Summary : "Failed: " + file.Summary)]);
             foreach (var r in file.Removals) rows.Add([name, Number(r.Page), r.PatternName, Cell(r.Masked), r.OutcomeText]);
             foreach (var look in file.Looks) rows.Add([name, Number(look.Page), Cell(look.Text), "", "Look by hand"]);
         }

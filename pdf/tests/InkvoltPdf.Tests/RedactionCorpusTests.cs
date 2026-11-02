@@ -190,6 +190,68 @@ public sealed class RedactionCorpusTests : IDisposable
         Assert.Equal([0], found.UnreadScans);
     }
 
+    private sealed class BrokenReader : InkvoltPrint.Core.Imaging.ITextRecognizer
+    {
+        public string Language => "en-US";
+
+        public string LanguageName => "English";
+
+        public IReadOnlyList<InkvoltPrint.Core.Imaging.RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default) =>
+            throw new System.Runtime.InteropServices.COMException("the engine gave up");
+    }
+
+    [Fact]
+    public void ARecognizerThatFailsLeavesTheScanNotReadNotClean()
+    {
+        var scan = OneScan(new PlantedReader(), out _);
+        using var engine = PdfEngine.Open(scan, InputFileTypes.PDF, null);
+        var found = RedactionSearch.Find(engine, new RedactionPatternOptions(), new BrokenReader());
+        Assert.Equal([0], found.UnreadScans);
+    }
+
+    [Fact]
+    public void AVeryFaintScanIsntTakenForABlankPage()
+    {
+        var w = 200;
+        var h = 260;
+        var faint = Enumerable.Repeat((byte)240, w * h).ToArray();
+        using var engine = PdfEngine.Open(RedactionCorpus.ImagePdf(faint, w, h, 612, 792), InputFileTypes.PDF, null);
+        Assert.Equal([0], RedactionSearch.Find(engine, new RedactionPatternOptions()).UnreadScans);
+    }
+
+    [Fact]
+    public void ABlankPageNeedsNoLook()
+    {
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        ]);
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        Assert.Empty(RedactionSearch.Find(engine, new RedactionPatternOptions()).Looks);
+    }
+
+    [Fact]
+    public void KeepingAHundredThousandHitsDoesntStallTheReadBack()
+    {
+        var lines = Enumerable.Range(0, 200).Select(l => string.Join(' ', Enumerable.Repeat("555-201-3434", 40)));
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 6000 4000] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            Core2Pdf.Stream(string.Concat(lines.Select((l, i) => $"BT /F1 9 Tf 10 {3900 - i * 12} Td ({l}) Tj ET\n"))),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        ]);
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        var clock = Stopwatch.StartNew();
+        var hits = RedactionSearch.Find(engine, new RedactionPatternOptions()).Hits;
+        Assert.Equal(8000, hits.Count);
+        Assert.Empty(RedactionSearch.ReadBack(pdf, null, new RedactionPatternOptions(), null, new HashSet<int>(), hits));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(60), $"took {clock.Elapsed}");
+    }
+
     [Fact]
     public async Task BatchFailsAFileWithAScanItCantRead()
     {

@@ -891,7 +891,9 @@ public static class BatchRunner
             }, cancel).ConfigureAwait(false);
             var hits = found.Hits;
             var rows = hits.Select(h => RedactionReport.Row(h, RedactionOutcome.NotSaved)).ToList();
-            _redaction = Merge(new RedactionFileReport(file.NamedAs, rows, found.Looks, null));
+            // The file by its name within the batch: where it lives on this PC is no business of a report that gets passed on.
+            var reportName = Path.Combine(file.RelativeFolder, Path.GetFileName(file.NamedAs));
+            _redaction = Merge(new RedactionFileReport(reportName, rows, found.Looks, null));
 
             if (found.UnreadScans.Any())
                 throw new RedactionCheckFailedException($"Can't be searched: {RedactionReport.Pages(found.UnreadScans)} {(found.UnreadScans.Count() == 1 ? "is a scan" : "are scans")} and Windows has no text recognition language. Nothing was saved.");
@@ -908,7 +910,7 @@ public static class BatchRunner
                 var remaining = await Task.Run(() => RedactionSearch.ReadBack(result, _password, options, ocr, areas.Keys.ToHashSet(), [], Pages("Reading the result back"), cancel), cancel).ConfigureAwait(false);
                 if (remaining.Count > 0)
                 {
-                    _redaction = Merge(new RedactionFileReport(file.NamedAs, [.. remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere))], [], null));
+                    _redaction = Merge(new RedactionFileReport(reportName, [.. remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere))], [], null));
                     throw new RedactionCheckFailedException($"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Nothing was saved.");
                 }
                 _notes.Add($"Redacted {hits.Count} {(hits.Count == 1 ? "match" : "matches")} on {areas.Count} {(areas.Count == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(hits)})");
@@ -925,6 +927,7 @@ public static class BatchRunner
                 throw new RedactionCheckFailedException($"Redaction check: {check.Summary} Nothing was saved. Sanitize can remove most of these: add it before Redact Patterns.");
             }
             if (check.Incomplete) throw new RedactionCheckFailedException($"Redaction check: {string.Join(" ", check.Notes)} Nothing was saved.");
+            _notes.AddRange(check.Notes);
 
             if (found.Looks.Count > 0)
                 _notes.Add($"Look by hand at {RedactionReport.Pages(found.Looks.Select(l => l.Page))}: read by text recognition, which can miss text");
@@ -962,6 +965,7 @@ public static class BatchRunner
                 Areas = _redactedAreas.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<RectD>)kv.Value),
                 Original = _beforeRedaction,
             }, new Progress<(int Done, int Total)>(p => Report("Checking redaction…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+            if (report.Incomplete) _notes.AddRange(report.Notes);
             if (report.IsClean) return;
             foreach (var f in report.Findings.Take(10)) _notes.Add($"{f.Where}: {RedactionCheck.Name(f.Kind)}");
             if (report.Findings.Count > 10) _notes.Add($"… and {report.Findings.Count - 10} more");
