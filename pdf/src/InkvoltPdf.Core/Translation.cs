@@ -23,6 +23,10 @@ public sealed class TranslationPlan
 {
     public required byte[] Data { get; init; }
     public string? Password { get; init; }
+
+    /// <summary>The open password the copy keeps (AES-256 can't be saved without it); with <see cref="DropOpenPassword"/> it opens without one.</summary>
+    public string? OpenPassword { get; init; }
+    public bool DropOpenPassword { get; init; }
     public required IReadOnlyList<TranslationPagePlan> Pages { get; init; }
 
     /// <summary>Each distinct paragraph text with words in it, in page order.</summary>
@@ -163,10 +167,14 @@ public static class Translation
     /// <param name="progress">Pages read so far.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
     /// <exception cref="OwnerPasswordRequiredException">The file was opened without its permissions password, which a copy that changes its text needs.</exception>
-    public static TranslationPlan MakePlan(byte[] data, string? password, IReadOnlyList<int> pages, IProgress<int>? progress = null, CancellationToken cancel = default)
+    /// <exception cref="OpenPasswordUnknownException">AES-256 opened with its permissions password: the copy needs the open password too (or <paramref name="dropOpenPassword"/>).</exception>
+    public static TranslationPlan MakePlan(byte[] data, string? password, IReadOnlyList<int> pages, IProgress<int>? progress = null, CancellationToken cancel = default,
+        string? openPassword = null, bool dropOpenPassword = false)
     {
-        // Opened as for the edit: a file that needs its permissions password for that says so now, before anything is sent, not after hours of translating.
+        // Opened as for the edit: a file that needs a password for that says so now, before anything is sent, not after hours of translating.
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (string.IsNullOrEmpty(openPassword) && !string.IsNullOrEmpty(password) && PdfSecurity.IsOpenPassword(data, password)) openPassword = password;
+        KeptProtection.Require(doc, openPassword, dropOpenPassword);
         PdfEngine? engine = null;
         try
         {
@@ -236,6 +244,8 @@ public static class Translation
             {
                 Data = data,
                 Password = password,
+                OpenPassword = openPassword,
+                DropOpenPassword = dropOpenPassword,
                 Pages = plans,
                 Texts = texts,
                 ParagraphCount = paragraphs,
@@ -573,7 +583,9 @@ public static class Translation
         if (languageTag is { Length: > 0 }) doc.Internals.Catalog.Elements["/Lang"] = PdfObj.MakeString(languageTag);
         else doc.Internals.Catalog.Elements.Remove("/Lang"); // it isn't the original's language any more
 
-        return new TranslationResult(PdfObj.Save(doc), report);
+        // A copy: when a signed original can't be appended to (it is encrypted, say) the copy is rewritten and its signature stops
+        // verifying, which is the truth about it. Refusing here would throw away a translation that may have taken hours.
+        return new TranslationResult(KeptProtection.Run(plan.OpenPassword, plan.DropOpenPassword, () => SignedEdits.Run(() => PdfObj.Save(doc), allowRewrite: true).Data), report);
     }
 
     /// <summary>The copy's name: "report (Spanish).pdf", with what a file name can't hold taken out of the language as typed.</summary>

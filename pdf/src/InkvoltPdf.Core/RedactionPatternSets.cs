@@ -178,7 +178,8 @@ public static class RedactionPatternSets
         {
             throw new RedactionPatternSetException($"The saved set {fileName} can't be used: it isn't valid JSON.", ex);
         }
-        using (doc)
+        using var opened = doc;
+        try
         {
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) throw Bad("it isn't a set.");
@@ -202,7 +203,7 @@ public static class RedactionPatternSets
             }
 
             if (Text("format", true) != Format) throw Bad("it isn't a set of redaction patterns.");
-            if (!root.TryGetProperty("version", out var version) || !version.TryGetInt32(out var v) || v < 1) throw Bad("its version is missing.");
+            if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1) throw Bad("its version is missing.");
             if (v > Version) throw Bad("it comes from a newer version of Inkvolt PDF.");
 
             var name = CleanName(Text("name", true));
@@ -226,6 +227,11 @@ public static class RedactionPatternSets
             if (RedactionPatterns.Validate(options) is { } problem) throw Bad(problem);
             if (options.IsEmpty) throw Bad("it has nothing to look for.");
             return new RedactionPatternSet(name, options);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // JSON text that holds half a surrogate pair ("\uD800") parses, and only fails when it is read.
+            throw new RedactionPatternSetException($"The saved set {fileName} can't be used: it holds text that can't be read.", ex);
         }
     }
 }

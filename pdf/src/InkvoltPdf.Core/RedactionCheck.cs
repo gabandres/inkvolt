@@ -116,7 +116,7 @@ public sealed record RedactionCheckOptions
     /// <summary>What the person chose to keep: not looked for, though <see cref="Patterns"/> would find it.</summary>
     public IReadOnlyList<string> Kept { get; init; } = [];
 
-    /// <summary>Look only for the values: no covers, hidden content or earlier versions' other text (a batch's check of its own redaction).</summary>
+    /// <summary>Look only for the values and what <see cref="Patterns"/> read, earlier versions too: no covers, hidden comments or earlier versions' other text (a batch's check of its own redaction).</summary>
     public bool ValuesOnly { get; init; }
 }
 
@@ -390,6 +390,10 @@ public static partial class RedactionCheck
                 var inFile = Objects(doc, matcher);
                 EarlierVersions(engine, matcher, inFile, revisions);
                 RawBytes(doc, matcher, inFile);
+                // What the patterns read but the search for it as written didn't place (an attached PDF's kerned text) is still there.
+                for (var v = 0; v < values.Count; v++)
+                    if (!_hit.Contains(v) && outside.Contains(values[v], StringComparer.OrdinalIgnoreCase))
+                        Add(new RedactionFinding(RedactionLeak.FileData, "Another part of the file", values[v]));
             }
             else EarlierVersions(engine, null, [], revisions);
             if (matcher.TooLarge)

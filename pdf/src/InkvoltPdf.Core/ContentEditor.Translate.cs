@@ -50,7 +50,7 @@ public static partial class ContentEditor
         var groups = new Dictionary<int, List<TextRun>>();
         foreach (var r in content.Runs)
         {
-            if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0) continue;
+            if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0 || r.Blocked == HiddenLayerBlocked) continue;
             if (!double.IsFinite(r.FontSize) || !double.IsFinite(r.Box.X + r.Box.Y + r.Box.Width + r.Box.Height)) continue; // a crafted matrix
             var cell = -1;
             for (var i = 0; i < cells.Count; i++)
@@ -365,6 +365,8 @@ public static partial class ContentEditor
         if (missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, missing, null), []);
 
         double W(string line) => TextShaper.Measure(line, primary) * m.Size * m.HScale * m.Scale;
+        // A word with no spaces can be the whole answer: longer than any line, it isn't measured whole for every line it breaks into.
+        const int longest = 1024;
         var lines = new List<string>();
         var cur = "";
         var avail = p.Right - p.Left;
@@ -378,10 +380,10 @@ public static partial class ContentEditor
             }
             if (cur.Length > 0) lines.Add(cur);
             cur = word;
-            while (W(cur) > avail + 0.01 && cur.Length > 1)
+            while (cur.Length > 1 && (cur.Length > longest || W(cur) > avail + 0.01))
             {
                 // A word wider than the line is broken: as much of it as fits.
-                var els = System.Globalization.StringInfo.ParseCombiningCharacters(cur);
+                var els = System.Globalization.StringInfo.ParseCombiningCharacters(cur.Length > longest ? cur[..longest] : cur);
                 var n = els.Length - 1;
                 while (n > 1 && W(cur[..els[n]]) > avail + 0.01) n = n * 3 / 4;
                 if (n < 1 || els[n] == 0) break;

@@ -34,6 +34,17 @@ public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOn
             _ => "Pictures or drawn text that couldn't be read: no OCR language.",
         }) + (Unread.Count switch { 0 => "", 1 => " Tick to black out the 1 place nothing was read.", _ => $" Tick to black out the {Unread.Count} places nothing was read." });
 
+    /// <summary>Why these pages need a person's eyes, as the end of a sentence: read badly, or not read at all. Never says a page is clean.</summary>
+    public static string Why(IEnumerable<RedactionLook> looks)
+    {
+        var list = looks.ToList();
+        var read = list.Any(l => l.Reason is RedactionLookReason.ScanReadByOcr or RedactionLookReason.PicturesReadByOcr);
+        var unread = list.Any(l => l.Reason is RedactionLookReason.ScanNotRead or RedactionLookReason.PicturesNotRead);
+        const string readBadly = "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines";
+        const string notRead = "scans and pictures with text in them couldn't be read, as Windows has no text recognition language";
+        return read && unread ? $"{readBadly}, and some {notRead}" : unread ? notRead : readBadly;
+    }
+
     /// <summary>What to tell the person. Never says a page is clean.</summary>
     public string Text
     {
@@ -115,7 +126,8 @@ public static class RedactionSearch
                     {
                         // Boxes from a recognizer are rough: a little more room, so no edge of a figure stays.
                         var rects = (IReadOnlyList<RectD>)[.. hit.Rects.Select(r => r.Inflate(1.5))];
-                        if (!(taken.TryGetValue(hit.Pattern, out var same) && same.Touches(rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
+                        // The same value read twice lies on itself; one on the next line only touches the first.
+                        if (!(taken.TryGetValue(hit.Pattern, out var same) && same.LiesOn(hit.Rects))) hits.Add(hit with { Rects = rects, FromOcr = true });
                     }
                 }
             }
@@ -156,6 +168,13 @@ public static class RedactionSearch
         return values;
     }
 
+    /// <summary>
+    /// What was removed, to look for in the rest of the file: not dates and ZIP codes, whose digits a file's own time stamps and
+    /// ids can hold. What the patterns read outside the pages (<see cref="RedactionCheckOptions.Patterns"/>) covers those.
+    /// </summary>
+    public static List<string> SoughtValues(IEnumerable<RedactionMatch> matches) =>
+        Values(matches.Where(m => m.Pattern is not (RedactionPattern.Date or RedactionPattern.ZipCode)));
+
     private const int MaxValueLength = 200;
 
     /// <summary>Boxes filed by height on the page: a page of hostile text can hold a hundred thousand of them.</summary>
@@ -179,6 +198,10 @@ public static class RedactionSearch
             for (var b = first; b <= last; b++) yield return b;
         }
 
+        /// <summary>Most of one of the boxes is inside one of these.</summary>
+        public bool LiesOn(IReadOnlyList<RectD> rects) =>
+            rects.Any(r => Bands(r).Any(b => _bands.TryGetValue(b, out var list) && list.Any(k => k.Intersect(r) is { IsEmpty: false } i && i.Width * i.Height >= 0.5 * Math.Min(k.Width * k.Height, r.Width * r.Height))));
+
         public bool Touches(IReadOnlyList<RectD> rects) =>
             rects.Any(r => Bands(r).Any(b => _bands.TryGetValue(b, out var list) && list.Any(k => !k.Intersect(r).IsEmpty)));
     }
@@ -188,9 +211,10 @@ public static class RedactionSearch
     /// <summary>What recognition reads on a page whose ink its text doesn't explain, and what to tell the person about the page.</summary>
     private static (IReadOnlyList<OcrWord> Words, RedactionLook? Look) ReadInk(PdfEngine engine, int page, PageText text, ITextRecognizer? ocr, CancellationToken cancel)
     {
-        var ink = InkMap.Of(engine, page, cancel);
+        var boxes = engine.PictureBoxes(page, cancel);
+        var ink = InkMap.Of(engine, page, boxes, cancel);
         var g = engine.GetPage(page);
-        var pictures = engine.PictureArea(page, cancel);
+        var pictures = boxes.Sum(b => b.Width * b.Height);
         // No ink and no picture: a blank page. A picture with no ink to see may be a very faint scan, so it isn't let through.
         if (ink.IsBlank && pictures <= 0) return ([], null);
         var known = KnownBoxes(text);
@@ -328,17 +352,18 @@ internal sealed class InkMap
 
     public bool IsBlank { get; }
 
-    public static InkMap Of(PdfEngine engine, int page, CancellationToken cancel)
+    /// <param name="pictures">The page's pictures: in them, what is lighter than around it is ink too (words on a colored band).</param>
+    public static InkMap Of(PdfEngine engine, int page, IReadOnlyList<RectD> pictures, CancellationToken cancel)
     {
         var g = engine.GetPage(page);
         var scale = Math.Min(Scale, Math.Sqrt(MaxPixels / Math.Max(1, g.Width * g.Height)));
         var image = engine.Render(page, scale, null, cancel);
         var gray = ScanCleanup.ToGray(image.Pixels, image.Width, image.Height);
-        return new InkMap(image.Width, image.Height, scale, Threshold(gray, image.Width, image.Height));
+        return new InkMap(image.Width, image.Height, scale, Threshold(gray, image.Width, image.Height, InPictures(pictures, image.Width, image.Height, scale)));
     }
 
     /// <summary>Dark against the paper around it, tile by tile, so a shaded scan isn't all ink; black is ink wherever it is.</summary>
-    private static bool[] Threshold(byte[] gray, int w, int h)
+    private static bool[] Threshold(byte[] gray, int w, int h, bool[]? inPicture)
     {
         const int tile = 64;
         var dark = new bool[w * h];
@@ -358,10 +383,28 @@ internal sealed class InkMap
                 var limit = Math.Max(90, paper - 40);
                 for (var y = ty; y < y1; y++)
                     for (var x = tx; x < x1; x++)
-                        dark[y * w + x] = gray[y * w + x] < limit;
+                    {
+                        // In a picture, what is lighter than around it is ink; on a dark ground it is the only ink there is.
+                        var light = inPicture?[y * w + x] == true;
+                        dark[y * w + x] = light && gray[y * w + x] > paper + 40 || (gray[y * w + x] < limit && !(light && paper < limit));
+                    }
             }
         }
         return dark;
+    }
+
+    private static bool[]? InPictures(IReadOnlyList<RectD> pictures, int w, int h, double scale)
+    {
+        if (pictures.Count == 0) return null;
+        var mask = new bool[w * h];
+        foreach (var box in pictures)
+        {
+            var (x0, x1) = (Math.Clamp((int)Math.Ceiling(box.X * scale), 0, w), Math.Clamp((int)Math.Floor(box.Right * scale), 0, w));
+            var (y0, y1) = (Math.Clamp((int)Math.Ceiling(box.Y * scale), 0, h), Math.Clamp((int)Math.Floor(box.Bottom * scale), 0, h));
+            if (x1 <= x0) continue;
+            for (var y = y0; y < y1; y++) Array.Fill(mask, true, y * w + x0, x1 - x0);
+        }
+        return mask;
     }
 
     /// <summary>The places with ink outside <paramref name="known"/> (boxes in page points), largest first, at most 64.</summary>
@@ -490,8 +533,8 @@ internal sealed class InkMap
 
 public sealed partial class PdfEngine
 {
-    /// <summary>How much of a page its pictures cover (points squared), overlaps counted once for each picture.</summary>
-    internal double PictureArea(int page, CancellationToken cancel = default)
+    /// <summary>Where a page's pictures are, in page points (cut to the page).</summary>
+    internal List<RectD> PictureBoxes(int page, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
         EnterText(cancel);
@@ -501,15 +544,15 @@ public sealed partial class PdfEngine
             var g = _pages[page];
             using var st = TextDoc(page).GetStructuredTextPage(page, includeAnnotations: true, StructuredTextFlags.PreserveImages);
             var whole = new RectD(0, 0, g.Width, g.Height);
-            var area = 0.0;
+            var boxes = new List<RectD>();
             foreach (var block in st)
             {
                 if (block is not MuPDFImageStructuredTextBlock image) continue;
                 var r = image.BoundingBox;
                 var box = RectD.FromEdges(r.X0 - g.OriginX, r.Y0 - g.OriginY, r.X1 - g.OriginX, r.Y1 - g.OriginY).Intersect(whole);
-                if (!box.IsEmpty) area += box.Width * box.Height;
+                if (!box.IsEmpty) boxes.Add(box);
             }
-            return area;
+            return boxes;
         }
         finally
         {

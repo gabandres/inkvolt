@@ -31,6 +31,9 @@ public sealed record RedactionRemoval(int Page, RedactionPattern Pattern, string
 /// <param name="Failure">Why the file failed (no value in it), or null.</param>
 public sealed record RedactionFileReport(string File, IReadOnlyList<RedactionRemoval> Removals, IReadOnlyList<RedactionLook> Looks, string? Failure)
 {
+    /// <summary>Areas the person had marked by hand before this search, redacted along with its matches (no pattern, no value to mask).</summary>
+    public int MarkedAreas { get; init; }
+
     /// <summary>"Removed 4; 1 kept; look at pages 3 and 5 by hand."</summary>
     public string Summary
     {
@@ -42,7 +45,8 @@ public sealed record RedactionFileReport(string File, IReadOnlyList<RedactionRem
             if (Count(RedactionOutcome.Removed) is > 0 and var removed) parts.Add($"{removed:N0} removed");
             if (Count(RedactionOutcome.Kept) is > 0 and var kept) parts.Add($"{kept:N0} kept");
             if (Count(RedactionOutcome.NotSaved) is > 0 and var unsaved) parts.Add($"{unsaved:N0} found, not saved");
-            if (Removals.Count == 0 && Failure is null) parts.Add("nothing found");
+            if (MarkedAreas > 0) parts.Add(RedactionReport.MarkedText(MarkedAreas));
+            if (Removals.Count == 0 && Failure is null && MarkedAreas == 0) parts.Add("nothing found");
             if (Looks.Count > 0) parts.Add($"look by hand at {RedactionReport.Pages(Looks.Select(l => l.Page))}");
             return string.Join("; ", parts);
         }
@@ -70,6 +74,21 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
     public bool HasLooks => Files.Any(f => f.Looks.Count > 0);
 
     public int Count(RedactionOutcome outcome) => Files.Sum(f => f.Removals.Count(r => r.Outcome == outcome));
+
+    /// <summary>What the report's page says first when no file failed. Nothing removed: nothing was read back either.</summary>
+    public string Headline
+    {
+        get
+        {
+            var (removed, kept, marked) = (Count(RedactionOutcome.Removed), Count(RedactionOutcome.Kept), Files.Sum(f => f.MarkedAreas));
+            var keptText = (kept > 0 ? $", {kept:N0} kept as you chose" : "") + (marked > 0 ? $", {MarkedText(marked)}" : "");
+            return removed + marked == 0
+                ? $"Nothing was removed{keptText}."
+                : $"Read back and searched again: none of what was removed is left in the text of the {(Files.Count > 1 ? "files" : "file")}. {removed:N0} removed{keptText}.";
+        }
+    }
+
+    internal static string MarkedText(int areas) => areas == 1 ? "1 other marked area removed" : $"{areas:N0} other marked areas removed";
 
     /// <summary>What is left of a value in a report.</summary>
     public static string Mask(RedactionPattern pattern, string value)
@@ -121,7 +140,7 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
         foreach (var file in Files)
         {
             var name = Cell(file.File);
-            rows.Add([name, "", "Result for this file", "", Cell(file.Failure is null ? "Finished: " + file.Summary : "Failed: " + file.Summary)]);
+            rows.Add([name, "", "Result for this file", "", Cell((file.Failure is not null ? "Failed: " : file.Looks.Count > 0 ? "Look by hand: " : "Finished: ") + file.Summary)]);
             foreach (var r in file.Removals) rows.Add([name, Number(r.Page), r.PatternName, Cell(r.Masked), r.OutcomeText]);
             foreach (var look in file.Looks) rows.Add([name, Number(look.Page), Cell(look.Text), "", "Look by hand"]);
         }
