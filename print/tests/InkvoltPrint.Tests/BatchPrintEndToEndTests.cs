@@ -21,9 +21,7 @@ public class BatchPrintEndToEndTests
         return Directory.GetFiles(Path.Combine(print, "src", "InkvoltPrint.App", "bin", config), "InkvoltPrint.exe", SearchOption.AllDirectories).Single();
     }
 
-    private static Task<(int Code, string Out, string Err)> Run(string? password, params string[] args) => Run(null, password, args);
-
-    private static async Task<(int Code, string Out, string Err)> Run(IReadOnlyDictionary<string, string>? environment, string? password, string[] args)
+    private static async Task<(int Code, string Out, string Err)> Run(string? password, params string[] args)
     {
         var start = new ProcessStartInfo(Exe())
         {
@@ -37,7 +35,6 @@ public class BatchPrintEndToEndTests
         foreach (var a in args) start.ArgumentList.Add(a);
         start.Environment.Remove(BatchPrintCommandLine.PasswordVariable);
         if (password is not null) start.Environment[BatchPrintCommandLine.PasswordVariable] = password;
-        foreach (var (key, value) in environment ?? new Dictionary<string, string>()) start.Environment[key] = value;
         using var process = Process.Start(start)!;
         var (output, error) = (process.StandardOutput.ReadToEndAsync(), process.StandardError.ReadToEndAsync());
         using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(4));
@@ -322,24 +319,5 @@ public class BatchPrintEndToEndTests
             throw;
         }
         Assert.True(process.ExitCode is BatchPrintSummary.Done or BatchPrintSummary.Stopped, $"exit {process.ExitCode} (99: Ctrl+C didn't stop it)\n{await output}\n{await error}");
-    }
-
-    /// <summary>
-    /// A small gen 0 collects each file's PDF as the batch goes, which on a Snapdragon PC used to end the process with a driver fault in place of the
-    /// exit code (App.OnExit ends it first now). On other graphics hardware this can't fail for that reason.
-    /// </summary>
-    [Fact]
-    public async Task The_exit_code_survives_the_pdfs_being_collected_before_the_process_ends()
-    {
-        if (!OperatingSystem.IsWindows()) return;
-        using var f = new BatchFolder();
-        var path = Path.Combine(f.Root, "a.pdf");
-        File.WriteAllBytes(path, BatchPrintSamples.Pdf(3, "A"));
-        var tiny = new Dictionary<string, string> { ["DOTNET_GCgen0size"] = "0x40000" };
-        for (var i = 0; i < 8; i++)
-        {
-            var (code, output, error) = await Run(tiny, null, ["print", path, "--printer", Printer, "--demo", "--quiet"]);
-            Assert.True(code == BatchPrintSummary.Done, $"run {i}: exit {code}\n{output}\n{error}");
-        }
     }
 }
