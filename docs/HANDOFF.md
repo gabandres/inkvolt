@@ -1,5 +1,23 @@
 # Handoff, 2026-11-02 (newest first)
 
+**The M1 Air is being sold (owner, 2026-11-02); an M6 Mac mini (24 GB, 512 GB) replaces it.** Sell only after the mini runs
+builds and releases. **Backed up to OneDrive (2026-11-02, hashes checked):** `Work/Bermudez Systems LLC/Inkvolt/Keys/Mac signing and
+App Store Connect/` (both keychains, env.local, the ASC .p8, the GitHub SSH key, a README with the restore steps); the Sparkle key
+was already in `Keys/Mac Sparkle update key/` (matches the Air's). What they are, for reference: `~/Library/Keychains/inkvolt-devid.keychain-db` (Developer ID Application:
+export its identity as a .p12, or make a new one with `devid-cert.sh`) and `inkvolt-dev.keychain-db` (`dev-cert.sh` can make
+another), `~/.inkvolt-sparkle/ed25519.key` (also on OneDrive: check the copy matches before wiping; without it no installed
+Mac copy can be updated), `~/Repos/inkvolt/mac/InkvoltPrint/.env.local` (ASC key, keychain password), the SSH keys
+`~/.ssh/id_ed25519_github_*`; then on the mini: Xcode, `sh mac/Vendor/mupdf/build.sh`, the `ignia-mac` entry in
+`~/.ssh/config` on the PC (or a new host name), and `mac.sh`'s `INKVOLT_MAC_HOST`. Other projects' files on the Air
+(Ignia, Callbook builds in `~/build-artifacts`) are outside this repo.
+
+**Backlog (owner, 2026-11-02): Microsoft Word, Excel and PowerPoint as E12's converter on the Mac** (Windows converts through
+Office first). About a day: AppleScript per app with a time limit, files staged in Office's group container
+(`~/Library/Group Containers/UBF8T346G9.Office/`) because Office for Mac is sandboxed, Word left as found, the
+`com.apple.security.automation.apple-events` entitlement and `NSAppleEventsUsageDescription` (release.sh's preflight
+expects no entitlements today). Needs Microsoft 365 signed in on the Mac and a person to allow the Automation prompt; do it
+on the mini.
+
 **Mac is back (2026-11-02), rebuilt: macOS 27.2, Xcode 27.1, Swift 6.4.** MuPDF rebuilt on it. Work from the PC goes through
 `bash mac/tools/mac.sh` (`mac/CLAUDE.md`). Fixed on the Mac, not released: the signature hole below (1.4.0 ships it) and
 Accessibility Check's "Not fully checked"; both in `mac/InkvoltPdf/WHATS-NEW.md`'s Next. Mac parity list, in order: the
