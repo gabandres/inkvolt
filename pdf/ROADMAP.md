@@ -561,9 +561,9 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
   **Still wrong.** A table row or a label with its figures drawn by one operator goes as one text, so its figures can leave
   their columns (attn-v7's "Transformer (base model) 27.3 38.1"; the census's "income inequality 0.488 0.485"). Tables turned on
-  the page, like the census's appendix, stay in English (named in the summary). A paragraph broken by a line in another font
-  is two texts, so its sentence goes in two pieces. A link's underline and area stay where they were while the text moves
-  (NIST p. 47). A bold word or a subscript in a paragraph loses its look ("dmodel").
+  the page, like the census's appendix, stay in English (named in the summary). A link's underline and area stay where they
+  were while the text moves (NIST p. 14, 47). A bold word or a subscript in a paragraph loses its look ("dmodel"). White text on
+  a band stays in its old box, so a longer word shrinks though the band has room ("Propósito", NIST p. 14).
   **Checked.** `TranslationTests`, including the test below on 100 made-up pages through a real
   socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
   written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
