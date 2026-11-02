@@ -301,6 +301,24 @@
 
                     <!-- Digital signatures -->
                     <ScrollViewer x:Name="SignaturesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                        <!-- Long-term validation. Both go online only after a window that lists what is contacted (LtvDialogs) -->
+                        <WrapPanel Margin="10,0,10,6">
+                            <Button x:Name="SigAddVerification" Command="app:Cmd.AddVerification" Content="Add verification&#x2026;" Margin="0,0,8,4"
+                                    ToolTip="Store in the file what it takes to check its signatures years from now; you see what is contacted first"
+                                    AutomationProperties.Name="Add Verification Information"
+                                    AutomationProperties.HelpText="Stores revocation data for the signatures in the file. A window lists what is contacted before anything goes online." />
+                            <Button x:Name="SigCheckOnline" Command="app:Cmd.CheckSignaturesOnline" Content="Check online&#x2026;" Margin="0,0,0,4"
+                                    ToolTip="Ask whether the certificates have been revoked; the file stays as it is, and you see what is contacted first"
+                                    AutomationProperties.Name="Check signatures online"
+                                    AutomationProperties.HelpText="Asks whether the certificates have been revoked, without changing the file. A window lists what is contacted before anything goes online." />
+                        </WrapPanel>
+                        <TextBlock x:Name="SigLtvOutcome" Visibility="Collapsed" TextWrapping="Wrap" FontSize="12" Margin="10,0,10,4"
+                                   AutomationProperties.Name="What long-term validation did" AutomationProperties.LiveSetting="Polite" />
+                        <Expander x:Name="SigLtvDetails" Visibility="Collapsed" Header="What was asked" Margin="10,0,10,8" AutomationProperties.Name="What was asked">
+                            <TextBox x:Name="SigLtvDetailsText" IsReadOnly="True" TextWrapping="Wrap" FontSize="12" BorderThickness="0" Background="Transparent" Padding="0" MinHeight="0"
+                                     AutomationProperties.Name="Each certificate, and what was asked" />
+                        </Expander>
                         <ItemsControl x:Name="SignatureList" Margin="10,0,10,8" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type app:SignatureItem}">
@@ -328,6 +346,7 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,6" />
+                                                <TextBlock Text="{Binding LongTerm}" Visibility="{Binding LongTermVisibility}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,6" />
                                                 <TextBox Text="{Binding Details, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" FontSize="12" BorderThickness="0"
                                                          Background="Transparent" Padding="0" MinHeight="0" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                          AutomationProperties.Name="Signature details" />
@@ -341,6 +360,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
                     </ScrollViewer>
 
                     <!-- Accessibility check (PDF/UA-1, Matterhorn): what fails, each item jumps to its place; the person's checklist -->

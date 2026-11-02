@@ -171,7 +171,8 @@ public sealed class PrinterConnection : IDisposable
         var cdm = Try(async () => (await ledm.ConfigureAwait(false)).TryCdm ? await CdmClient.ProbeAsync(http, ct).ConfigureAwait(false) : null);
         var escl = Try<(ScannerCapabilities?, Uri?)>(async () =>
         {
-            foreach (var root in new[] { http.Http("/eSCL/"), esclHint }.OfType<Uri>().Distinct())
+            // The hint may be from before the printer moved: its port and path, on the address in use.
+            foreach (var root in new[] { http.Http("/eSCL/"), esclHint is null ? null : http.OnThisPrinter(esclHint) }.OfType<Uri>().Distinct())
             {
                 var caps = await Try(() => new EsclClient(http, root).GetCapabilitiesAsync(ct)).ConfigureAwait(false);
                 if (caps is not null) return (caps, root);

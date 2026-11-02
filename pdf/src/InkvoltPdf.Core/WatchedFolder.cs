@@ -1,4 +1,5 @@
 using System.Globalization;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPdf.Core;
 
@@ -57,9 +58,9 @@ public sealed class FolderWatchedException(string folder)
 /// </summary>
 public static class WatchedFolder
 {
-    public const string DoneFolder = "done", FailedFolder = "failed", WorkingFolder = "working", ResultsFolder = "results";
+    public const string DoneFolder = DropFolder.DoneFolder, FailedFolder = DropFolder.FailedFolder, WorkingFolder = DropFolder.WorkingFolder, ResultsFolder = "results";
     public const string LogName = "inkvolt-watch.log";
-    private const string LockName = ".inkvolt-watch.lock";
+    private const string LockName = DropFolder.LockName;
 
     /// <summary>The results folder a watched folder uses when its preset names none.</summary>
     public static string DefaultOutput(string folder) => Path.Combine(folder, ResultsFolder);
@@ -89,10 +90,10 @@ public static class WatchedFolder
         folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         if (Validate(folder, plan.OutputFolder) is { } folderError) throw new ArgumentException(folderError, nameof(folder));
         plan = plan with { Passwords = PasswordPolicy.Skip, KeepSubfolders = false };
-        host = new BatchHost { Recognize = host.Recognize }; // no prompts: nobody may be there to answer
+        host = new BatchHost { Recognize = host.Recognize, Recognizer = host.Recognizer }; // no prompts: nobody may be there to answer
         if (plan.Validate(host.Recognize is not null) is { } planError) throw new ArgumentException(planError, nameof(plan));
 
-        using var held = Lock(folder);
+        using var held = DropFolder.Lock(folder, LockName) ?? throw new FolderWatchedException(folder);
         var working = Directory.CreateDirectory(Path.Combine(folder, WorkingFolder)).FullName;
         Directory.CreateDirectory(Path.Combine(folder, DoneFolder));
         Directory.CreateDirectory(Path.Combine(folder, FailedFolder));
@@ -107,45 +108,20 @@ public static class WatchedFolder
             progress?.Report(new WatchProgress(0, entry));
         }
 
-        // Each file's size and time when last looked at, since when they have been so, and when it was first seen.
-        var seen = new Dictionary<string, (long Size, DateTime Written, DateTime Since, DateTime First)>(StringComparer.OrdinalIgnoreCase);
+        var look = new DropFolderLook(options.QuietPeriod);
         while (!cancel.IsCancellationRequested)
         {
             var now = DateTime.UtcNow;
-            var ready = new List<string>();
-            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var file in Candidates(folder))
-            {
-                present.Add(file.FullName);
-                long size;
-                DateTime written;
-                try
-                {
-                    file.Refresh();
-                    if (!file.Exists) continue;
-                    (size, written) = (file.Length, file.LastWriteTimeUtc);
-                }
-                catch (IOException)
-                {
-                    continue;
-                }
-                if (!seen.TryGetValue(file.FullName, out var last))
-                    seen[file.FullName] = (size, written, now, now);
-                else if (last.Size != size || last.Written != written)
-                    seen[file.FullName] = (size, written, now, last.First);
-                else if (now - last.Since >= options.QuietPeriod)
-                    ready.Add(file.FullName);
-            }
-            foreach (var gone in seen.Keys.Where(k => !present.Contains(k)).ToList()) seen.Remove(gone);
+            var ready = look.Ready(DropFolder.Candidates(folder, BatchFiles.IsSupported), now);
 
             var claimed = new List<(string Name, string Path)>();
             foreach (var path in ready)
             {
                 if (claimed.Count >= Math.Max(1, options.MaxPerRun)) break;
-                if (Claim(path, working) is { } moved)
+                if (DropFolder.Claim(path, working) is { } moved)
                 {
                     claimed.Add((Path.GetFileName(path), moved));
-                    seen.Remove(path);
+                    look.Forget(path);
                 }
             }
 
@@ -157,7 +133,7 @@ public static class WatchedFolder
                 continue; // look again at once: more may be waiting
             }
             // Once: stop when every file there has had its chance to settle (one still growing or held waits for the next run).
-            if (options.Once && seen.Values.All(v => now - v.First >= options.QuietPeriod + options.PollInterval)) break;
+            if (options.Once && look.AllSeenFor(options.QuietPeriod + options.PollInterval, now)) break;
             try
             {
                 await Task.Delay(options.PollInterval, cancel).ConfigureAwait(false);
@@ -168,46 +144,6 @@ public static class WatchedFolder
             }
         }
         return new WatchSummary(done, failed);
-    }
-
-    /// <summary>The PDFs and images at the top of the folder (not hidden, not temporary, not Office's "~$" owner files).</summary>
-    private static IEnumerable<FileInfo> Candidates(string folder)
-    {
-        IEnumerable<FileInfo> files;
-        try
-        {
-            files = new DirectoryInfo(folder).EnumerateFiles("*", new EnumerationOptions
-            {
-                IgnoreInaccessible = true,
-                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint | FileAttributes.Temporary,
-            }).ToList();
-        }
-        catch (IOException)
-        {
-            yield break; // the folder is away for a moment (a network drop): look again next time
-        }
-        foreach (var f in files)
-            if (BatchFiles.IsSupported(f.Name) && !f.Name.StartsWith('.') && !f.Name.StartsWith("~$", StringComparison.Ordinal))
-                yield return f;
-    }
-
-    /// <summary>
-    /// Takes a complete file: open it alone (fails while anyone writes it or holds it), then move it into "working".
-    /// Null: not now (still held, or gone).
-    /// </summary>
-    private static string? Claim(string path, string working)
-    {
-        try
-        {
-            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None)) { }
-            var target = Free(working, Path.GetFileName(path));
-            File.Move(path, target);
-            return target;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
     }
 
     private static async Task<(int Done, int Failed)> RunClaimedAsync(string folder, List<(string Name, string Path)> claimed, BatchPlan plan, BatchHost host,
@@ -250,78 +186,10 @@ public static class WatchedFolder
     private static WatchEntry Finish(string folder, string path, string name, BatchItemState state, string message, IReadOnlyList<string> outputs, bool back = false)
     {
         var target = back ? folder : Path.Combine(folder, state == BatchItemState.Done ? DoneFolder : FailedFolder);
-        string? moved = null;
-        for (var attempt = 0; attempt < 20 && moved is null; attempt++)
-        {
-            try
-            {
-                var to = Free(target, name);
-                File.Move(path, to);
-                moved = to;
-            }
-            catch (FileNotFoundException)
-            {
-                break;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Thread.Sleep(100); // briefly held (a virus scanner reading it): try again
-            }
-        }
+        var moved = DropFolder.MoveTo(path, target, name);
         if (moved is null && File.Exists(path)) message += $" (the original stays in {WorkingFolder}: it couldn't be moved)";
         var entry = new WatchEntry(DateTime.Now, name, state, message, outputs, moved);
-        AppendLog(folder, entry.LogLine);
+        DropFolder.AppendLog(Path.Combine(folder, LogName), entry.LogLine);
         return entry;
-    }
-
-    private static void AppendLog(string folder, string line)
-    {
-        var path = Path.Combine(folder, LogName);
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            try
-            {
-                using var log = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
-                using var writer = new StreamWriter(log);
-                writer.Write(line + Environment.NewLine);
-                return;
-            }
-            catch (IOException)
-            {
-                Thread.Sleep(50); // someone has it open to write: wait a moment
-            }
-        }
-    }
-
-    /// <summary>A path for <paramref name="name"/> in <paramref name="folder"/> that isn't taken ("report (2).pdf").</summary>
-    private static string Free(string folder, string name)
-    {
-        var stem = Path.GetFileNameWithoutExtension(name);
-        var ext = Path.GetExtension(name);
-        for (var n = 1; ; n++)
-        {
-            var path = Path.Combine(folder, n == 1 ? name : $"{stem} ({n}){ext}");
-            if (!File.Exists(path)) return path;
-        }
-    }
-
-    /// <summary>Holds the folder's lock file for the watch (deleted when closed; the system lets go of it if the process dies).</summary>
-    private static FileStream Lock(string folder)
-    {
-        var path = Path.Combine(folder, LockName);
-        try
-        {
-            var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
-            try
-            {
-                File.SetAttributes(path, FileAttributes.Hidden);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            return stream;
-        }
-        catch (IOException ex) when (ex is not FileNotFoundException and not DirectoryNotFoundException)
-        {
-            throw new FolderWatchedException(folder);
-        }
     }
 }

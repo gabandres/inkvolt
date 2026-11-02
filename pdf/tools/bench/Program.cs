@@ -15,6 +15,33 @@ if (args is ["find-worker-fault", var how, var badPage, .. var workerArgs] && Fi
     return FindWorkers.Run(workerArgs);
 }
 
+if (IndexWorkers.IsCommand(args)) return IndexWorkers.Run(args);
+// A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "eat" takes memory without end.
+if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerArgs] && IndexWorkers.IsCommand(indexWorkerArgs))
+{
+    IndexWorkers.TestFileFault = path =>
+    {
+        if (!path.EndsWith(badFile, StringComparison.OrdinalIgnoreCase)) return;
+        if (fileHow == "die") System.Diagnostics.Process.GetCurrentProcess().Kill();
+        while (fileHow == "spin") { }
+        if (fileHow == "eat")
+        {
+            // Memory until the job's limit stops it, up to three times that limit (past there the limit isn't working, and this hangs).
+            var kept = new List<byte[]>();
+            for (var i = 0; i < 96; i++)
+            {
+                var block = new byte[64 * 1048576];
+                Array.Fill(block, (byte)1);
+                kept.Add(block);
+            }
+        }
+        Thread.Sleep(Timeout.Infinite);
+    };
+    return IndexWorkers.Run(indexWorkerArgs);
+}
+// A test: commits to an index for ever, until it is killed (FolderIndexerTests).
+if (args is ["index-writer", var indexBase]) return InkvoltPdf.Bench.FolderIndexBench.WriteForever(indexBase);
+
 // The report reads the same on any PC.
 System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
@@ -28,6 +55,8 @@ System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureIn
 // report [--out dir] [--md path] [--note text]…
 //                                             Write RESULTS.md (default: this tool's folder) from dir\results.json.
 // one <file.pdf> <word>                       Measure one file in this process and print the JSON (what run spawns).
+// index-make <dir> <files>                    Make the folder index corpus: that many PDFs, about 8 pages each (FolderIndexBench).
+// index-run <dir>                             Index that folder, search it, change a file: the numbers of roadmap 3.5.
 // find-crash <file.pdf> <word>                A test: starts a search with workers, prints their ids, kills itself mid-search.
 // find-worker-fault throw|die <page> <switch> <pipe>  A test: a Find worker that can't read that page, or dies on it.
 // png <file.pdf> <page> <out.png>             Render a page at 72 dpi, to look at a corpus file.
@@ -83,6 +112,11 @@ switch (rest)
         Measures.UseWorkers();
         Console.WriteLine(Harness.ToJson(Measures.Run(file, word)));
         return 0;
+    case ["index-make", var indexDir, var indexFiles]:
+        InkvoltPdf.Bench.FolderIndexBench.Make(indexDir, int.Parse(indexFiles), Console.WriteLine);
+        return 0;
+    case ["index-run", var indexDir]:
+        return InkvoltPdf.Bench.FolderIndexBench.Run(indexDir, Console.WriteLine);
     case ["find-crash", var file, var word]:
         Measures.CrashDuringFind(file, word);
         return 0;

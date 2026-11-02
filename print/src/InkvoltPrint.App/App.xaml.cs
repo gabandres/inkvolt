@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -41,6 +42,20 @@ public partial class App : Application
         if (e.Args.Contains(ShellIntegration.UnregisterArgument))
         {
             Shutdown(ShellIntegration.Unregister());
+            return;
+        }
+        // inkvoltprint print …: no window, no single-instance handoff, exits with its code. Touches no settings.
+        if (Core.Printing.BatchPrintCommandLine.IsCommand(e.Args))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = RunCommandLineAsync(e.Args);
+            return;
+        }
+        // status --all (Inkvolt Pro): a list on standard output, no window, no single-instance hand-off, no state written.
+        if (Core.Fleet.FleetCommand.IsFor(e.Args))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = RunStatusAsync(e.Args);
             return;
         }
         // The Store package started by its startup task behaves as --background; one started by a toast clicked after it
@@ -186,6 +201,8 @@ public partial class App : Application
                 twoSided: args.Contains("--two-sided"));
         if (args.Contains("--simulate-alerts") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
+        if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))
+            _ = DevSnapshot.SimulateJobsAsync(Tray);
         if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
                 scans: !args.Contains("--scan") ? 0 : int.TryParse(args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
@@ -201,6 +218,44 @@ public partial class App : Application
                 tray: args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: args.Contains("--simulate-alerts"),
                 args: args);
         _started = true;
+    }
+
+    private async Task RunCommandLineAsync(string[] args)
+    {
+        InkvoltPrint.Windows.Suite.ConsoleOutput.Use(utf8Pipes: true);
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true; // stop the work, then exit with its code
+            cts.Cancel();
+        };
+        var demo = args.Contains("--demo", StringComparer.OrdinalIgnoreCase);
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        Core.Pro.Store = demo ? new Core.Suite.MemoryProStore() : new InkvoltPrint.Windows.Fleet.WindowsFleetPc(local).ProStore(local); // read only: this writes no state
+        Log.Write("Command line: print");
+        int code;
+        try
+        {
+            code = await Core.Printing.BatchPrintCommandLine.RunAsync(args.Where(a => !a.Equals("--demo", StringComparison.OrdinalIgnoreCase)).ToList(), Console.Out, Console.Error,
+                demo ? new Demo.BatchHost() : new Printing.BatchPrintHost(), cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Command line failed: {ex}");
+            Console.Error.WriteLine($"Inkvolt Print stopped: {ex.Message}");
+            code = Core.Printing.BatchPrintSummary.Wrong;
+        }
+        Console.Out.Flush();
+        Console.Error.Flush();
+        Log.Write($"Command line done: exit code {code}");
+        Shutdown(code);
+    }
+
+    /// <summary>A hung printer's read may still be running when the list is done: the process ends here regardless.</summary>
+    private static async Task RunStatusAsync(string[] args)
+    {
+        var code = await Task.Run(() => StatusCommand.RunAsync(args));
+        Environment.Exit(code);
     }
 
     private static string? PresetArg(string[] args) =>
@@ -292,5 +347,21 @@ public partial class App : Application
         _vm?.Dispose();
         _instance?.Dispose();
         base.OnExit(e);
+        EndWithoutDllTeardown(e.ApplicationExitCode);
     }
+
+    /// <summary>
+    /// Everything is saved and closed; the process ends here, before Windows unloads the DLLs. Windows.Data.Pdf frees its Direct3D
+    /// device as it unloads, once the PDFs it drew are collected, and on Qualcomm's driver (seen on qcdx11arm64xum.dll 31.0.133.1) that
+    /// crashes with an access violation or a fail-fast in a program with no Inkvolt code. That crash would replace the command line's
+    /// exit code, which a script may read as "not printed". Roadmap 2.4 has the evidence.
+    /// </summary>
+    private static void EndWithoutDllTeardown(int exitCode) => TerminateProcess(GetCurrentProcess(), unchecked((uint)exitCode));
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TerminateProcess(IntPtr process, uint exitCode);
 }

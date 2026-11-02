@@ -5,6 +5,9 @@ namespace InkvoltPdf.Core;
 /// <summary>The features Inkvolt Pro unlocks (ROADMAP.md, "Free and Pro").</summary>
 public enum ProFeature
 {
+    /// <summary>Redaction by pattern beyond the built-in kinds on the open document: saved sets, your own regular expression, the Batch action, the removal report.</summary>
+    PatternRedaction,
+
     /// <summary>Saving, importing and exporting batch presets (Batch itself stays free).</summary>
     BatchPresets,
 
@@ -22,6 +25,13 @@ public enum ProFeature
 
     /// <summary>Save as PDF/A-2a (tagged, PDF/UA identifier kept), in the app and in Batch.</summary>
     AccessibleOutput,
+
+    /// <summary>Adding long-term validation data and document timestamps, when signing and to signed files (verifying stays free).</summary>
+    LongTermValidation,
+    /// <summary>Comparing Office files and scans, recognized first, and listing formatting changes (comparing two PDFs, moves, the overlay and the annotated copy stay free).</summary>
+    CompareOfficeAndScans,
+    /// <summary>Indexing folders and searching them (Find and the Search pane on open documents stay free).</summary>
+    FolderSearch,
 }
 
 /// <summary>
@@ -71,33 +81,45 @@ public static class Pro
     /// <summary>The feature's name as the window shows it.</summary>
     public static string Title(ProFeature feature) => feature switch
     {
+        ProFeature.PatternRedaction => "Pattern redaction",
         ProFeature.BatchPresets => "Batch presets",
         ProFeature.WatchedFolders => "Watched folders",
         ProFeature.AutoTagging => "Make Accessible",
         ProFeature.ReadingOrder => "Reading order",
         ProFeature.AccessibleOutput => "Accessible PDF/A-2a",
+        ProFeature.LongTermValidation => "Long-term validation",
+        ProFeature.FolderSearch => "Folder search",
+        ProFeature.CompareOfficeAndScans => "Compare Office files and scans",
         _ => "Command line",
     };
 
     /// <summary>What the feature does, for a person who hasn't unlocked it.</summary>
     public static string Describe(ProFeature feature) => feature switch
     {
+        ProFeature.PatternRedaction => "Save your own sets of patterns and phrases on this PC, search with your own regular expression, redact a set over a whole folder in Batch, and get a report per file of each removal's page, pattern and masked value.",
         ProFeature.BatchPresets => "Save the list of Batch actions with their settings under a name and pick it next time; export a preset to share it or for the command line, import one from someone else.",
         ProFeature.WatchedFolders => "Drop PDFs or images into a folder and Inkvolt PDF runs a preset on each one once it has finished copying, moves the original to \"done\" or \"failed\" and logs a line for it.",
         ProFeature.AutoTagging => "Tag a PDF for screen readers on this PC, nothing sent anywhere: headings, paragraphs, lists, tables and pictures read from the pages, running headers and page numbers set aside, the title and language set; in Batch over many files too.",
         ProFeature.ReadingOrder => "See the order a screen reader follows as numbered boxes on the page, move pieces up, down or to another page, change what a piece is, and write the tags again.",
         ProFeature.AccessibleOutput => "Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too.",
+        ProFeature.LongTermValidation => "Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.",
+        ProFeature.CompareOfficeAndScans => "Compare a Word, Excel or PowerPoint file or a scan with a PDF, the scan's words recognized on this PC, and see font, size, bold, italic and color changes listed apart from wording.",
+        ProFeature.FolderSearch => "Index whole folders on this PC, nothing sent anywhere, and find a word across thousands of PDFs in under a second, with the text around each hit; a result opens at the hit, and the index keeps up as files change.",
         _ => "inkvoltpdf --batch runs a preset on files or folders without a window; inkvoltpdf --watch watches a folder from a terminal or a scheduled task.",
     };
 
     /// <summary>What a person is told when a feature isn't unlocked.</summary>
     public static string Locked(ProFeature feature) => feature switch
     {
+        ProFeature.PatternRedaction => "Pattern sets, regex, Batch and the report are part of Inkvolt Pro.",
         ProFeature.BatchPresets => "Saved batch presets are part of Inkvolt Pro.",
         ProFeature.WatchedFolders => "Watched folders are part of Inkvolt Pro.",
         ProFeature.AutoTagging => "Make Accessible is part of Inkvolt Pro.",
         ProFeature.ReadingOrder => "Fixing the reading order is part of Inkvolt Pro.",
         ProFeature.AccessibleOutput => "Saving accessible PDF/A-2a files is part of Inkvolt Pro.",
+        ProFeature.LongTermValidation => "Adding long-term validation data is part of Inkvolt Pro.",
+        ProFeature.FolderSearch => "Searching folders is part of Inkvolt Pro.",
+        ProFeature.CompareOfficeAndScans => "Comparing Office files, scans and formatting is part of Inkvolt Pro.",
         _ => "The command line is part of Inkvolt Pro.",
     };
 

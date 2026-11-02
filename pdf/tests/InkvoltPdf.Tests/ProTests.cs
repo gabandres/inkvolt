@@ -265,6 +265,10 @@ public sealed class ProTests : IDisposable
         Assert.Equal("Fixing the reading order is part of Inkvolt Pro.", Pro.Locked(ProFeature.ReadingOrder));
         Assert.Equal("Saving accessible PDF/A-2a files is part of Inkvolt Pro.", Pro.Locked(ProFeature.AccessibleOutput));
         Assert.Equal("Make Accessible", Pro.Title(ProFeature.AutoTagging));
+        Assert.Equal("Searching folders is part of Inkvolt Pro.", Pro.Locked(ProFeature.FolderSearch));
+        Assert.Equal("Comparing Office files, scans and formatting is part of Inkvolt Pro.", Pro.Locked(ProFeature.CompareOfficeAndScans));
+        Assert.Equal("Folder search", Pro.Title(ProFeature.FolderSearch));
+        Assert.Contains("on this PC", Pro.Describe(ProFeature.FolderSearch));
         Assert.Contains("on this PC", Pro.Describe(ProFeature.AutoTagging));
 
         Assert.Equal(ProFeature.AutoTagging, new MakeAccessibleStep().Feature);

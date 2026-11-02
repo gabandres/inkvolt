@@ -149,14 +149,14 @@ public sealed class RecordingTests : IDisposable
     private const string Serial = "CNB7K2M9QZ", Uuid = "9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f", Mac = "a0:b1:c2:d3:e4:f5";
 
     /// <summary>What a real printer's replies carry about it, its network and its people: none may survive a recording.</summary>
-    private static readonly string[] Planted =
+    internal static readonly string[] Planted =
     [
         Serial, Uuid, Mac, "A0B1C2D3E4F5", "A0-B1-C2-D3-E4-F5", PlantedHost, "10.20.30.41", "fe80::1c2b:3a4d:5e6f:7a8b", "2a02:810d:4b3f:1200",
         "NPI7A1B2C", "jdoe-printer", "corp.lan", "HPF0A1B2", "A1B2C3", "jane", "contoso", "jdoe", "JDOE-LAPTOP", "Tax return",
         "Second floor", "Garcia family", "12345678-1234-4abc-8def-123456789abc", "CNB0A00000", "VNB3R12345",
     ];
 
-    private static string Plant(string name, string text) => name switch
+    internal static string Plant(string name, string text) => name switch
     {
         "DevMgmt_ProductConfigDyn.xml" => text.Replace("12345678-1234-4abc-8def-123456789abc", Uuid).Replace("CNB0A00000", Serial)
             .Replace("<dd:DeviceLocation ></dd:DeviceLocation>", "<dd:DeviceLocation>Jane's office, second floor</dd:DeviceLocation>"),
@@ -172,7 +172,7 @@ public sealed class RecordingTests : IDisposable
         _ => text,
     };
 
-    private const string PlantedIpp = $"""
+    internal const string PlantedIpp = $"""
         printer-uri-supported uri ipp://{PlantedHost}:631/ipp/print
         printer-uri-supported uri ipps://[fe80::1c2b:3a4d:5e6f:7a8b]:631/ipp/print
         printer-uri-supported uri ipps://jdoe-printer.corp.lan:631/ipp/print
@@ -191,7 +191,7 @@ public sealed class RecordingTests : IDisposable
         operations-supported enum 11
         """;
 
-    private static string PlantedWalk()
+    internal static string PlantedWalk()
     {
         var walk = File.ReadAllText(Path.Combine(FixtureDir("snmp-demo"), "workgroup-laser.txt"));
         var keep = SnmpAgent.ParseWalk(walk).Where(o => !o.Name.ToString().StartsWith("1.3.6.1.2.1.1.", StringComparison.Ordinal)
@@ -250,6 +250,83 @@ public sealed class RecordingTests : IDisposable
         var s = new FixtureScrubber("192.0.2.10", who: Me);
         const string text = "Firmware 20230913 version 1.2.3.4, mask 255.255.255.0, at 192.0.2.10 and 198.51.100.7, HP LaserJet MFP M234dw, W1340A";
         Assert.Equal(text, s.Scrub("x.txt", text));
+    }
+
+    private static string Hex(string text) => "01" + Convert.ToHexString(System.Text.Encoding.ASCII.GetBytes(text));
+
+    [Fact]
+    public async Task What_a_printer_says_over_snmp_doesnt_survive_in_its_model_line_a_hex_string_or_its_printer_name()
+    {
+        var walk = File.ReadAllText(Path.Combine(FixtureDir("snmp-demo"), "workgroup-laser.txt"));
+        var keep = SnmpAgent.ParseWalk(walk).Where(o => !o.Name.ToString().StartsWith("1.3.6.1.2.1.1.", StringComparison.Ordinal)
+                                                          && !o.Name.ToString().StartsWith("1.3.6.1.2.1.25.3.2.1.3.", StringComparison.Ordinal)
+                                                          && !o.Name.ToString().StartsWith("1.3.6.1.2.1.43.5.1.1.16.", StringComparison.Ordinal)
+                                                          && !o.Name.ToString().StartsWith("1.3.6.1.2.1.43.5.1.1.17.", StringComparison.Ordinal)
+                                                          && !o.Name.ToString().StartsWith("1.3.6.1.2.1.43.5.1.1.20.", StringComparison.Ordinal));
+        var planted = SnmpAgent.FormatWalk(keep) + $"""
+            .1.3.6.1.2.1.1.1.0 = STRING: "HP Laser, SN:CNB7K12345, at 10.20.30.41"
+            .1.3.6.1.2.1.1.5.0 = Hex-STRING: {Hex("Garcia-office")}
+            .1.3.6.1.2.1.1.6.0 = Hex-STRING: {Hex("Janes-room")}
+            .1.3.6.1.2.1.25.3.2.1.3.1 = STRING: "HP Laser, SN:CNB7K12345, at 10.20.30.41"
+            .1.3.6.1.2.1.43.5.1.1.16.1 = STRING: "Garcia family printer"
+            .1.3.6.1.2.1.43.5.1.1.17.1 = Hex-STRING: {Hex("CNB7K12345")}
+            .1.3.6.1.2.1.43.5.1.1.20.1 = Hex-STRING: {Hex("Jane")}
+
+            """;
+        const string host = "10.20.30.41";
+
+        await PrinterRecorder.RecordAsync(host, _dir, new RecordOptions { Transport = At(host, new FixtureHandler(_ => null)), Snmp = Agent(planted), Who = Me });
+
+        foreach (var file in Directory.GetFiles(_dir))
+        {
+            var text = File.ReadAllText(file);
+            foreach (var left in new[] { "CNB7K12345", "10.20.30.41", "Garcia", Hex("Garcia-office")[2..], Hex("Janes-room")[2..], Hex("CNB7K12345")[2..], Hex("Jane")[2..] })
+                Assert.False(text.Contains(left, StringComparison.OrdinalIgnoreCase), $"{left} left in {Path.GetFileName(file)}");
+        }
+    }
+
+    /// <summary>A reply that goes on and on: counts what was read of it, and ends only so the test does.</summary>
+    private sealed class EndlessReply : HttpMessageHandler
+    {
+        private readonly System.Collections.Concurrent.ConcurrentBag<Zeros> _replies = [];
+
+        public long Read => _replies.Max(z => z.At);
+
+        private sealed class Zeros : Stream
+        {
+            public long At;
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => At; set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                var n = (int)Math.Min(count, (300L << 20) - At);
+                Array.Clear(buffer, offset, n);
+                At += n;
+                return n;
+            }
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var reply = new Zeros();
+            _replies.Add(reply);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(reply) });
+        }
+    }
+
+    [Fact]
+    public async Task A_printer_that_never_stops_answering_doesnt_fill_this_pcs_memory()
+    {
+        var printer = new EndlessReply();
+        await Assert.ThrowsAnyAsync<Exception>(() => PrinterRecorder.RecordAsync("192.0.2.77", _dir, new RecordOptions { Transport = printer, Who = Me }));
+        Assert.True(printer.Read <= DeviceHttp.MaxReplyBytes + (1 << 20), $"read {printer.Read:N0} bytes");
     }
 
     [Fact]

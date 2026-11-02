@@ -3,8 +3,9 @@ using InkvoltPrint.Core.Model;
 namespace InkvoltPrint.Core.Alerts;
 
 /// <summary>What an alert is about. Supplies and waste boxes come from the supplies; <see cref="FirmwareChanged"/> from the firmware
-/// watch (news, not a problem: it never colors the tray icon); the rest from the printer's status.</summary>
-public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged }
+/// watch (news, not a problem: it never colors the tray icon); <see cref="JobFailed"/> and <see cref="JobStuck"/> from the printer's Windows queue;
+/// the rest from the printer's status.</summary>
+public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged, JobFailed, JobStuck }
 
 /// <summary>The tray icon's state, in rank order: an error outranks a low supply, which outranks a printer that's off.</summary>
 public enum AlertLevel { Ok, Offline, Warning, Error }
@@ -29,7 +30,7 @@ public sealed record AlertCondition(string Key, AlertKind Kind, string Title, st
 
     public static AlertLevel LevelOf(AlertKind kind) => kind switch
     {
-        AlertKind.SupplyLow or AlertKind.WasteAlmostFull => AlertLevel.Warning,
+        AlertKind.SupplyLow or AlertKind.WasteAlmostFull or AlertKind.JobStuck => AlertLevel.Warning,
         AlertKind.Offline => AlertLevel.Offline,
         AlertKind.FirmwareChanged => AlertLevel.Ok,
         _ => AlertLevel.Error,

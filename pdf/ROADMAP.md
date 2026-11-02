@@ -18,7 +18,10 @@ week), M (2-4 weeks), L (more than a month).
 platforms. Second engines and other additions with no known demand wait for it: Tesseract in 2.2 stays to do until
 reviews or issues ask for missing languages.
 
-**Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
+**Mac on hold (owner, 2026-10-31).** The Mac isn't up and running, so work goes on on Windows alone, even where that leaves
+the Mac behind. An item below that is done on Windows counts as done for now; its Mac half waits until the Mac is back.
+
+**Platforms.** Full parity (decided 2026-10-27, on hold, see above): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
 follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
 Windows": 1.0, then steps E1-E13), new items queue behind those steps on the Mac. One Pro key works on both.
@@ -64,13 +67,13 @@ there are business users.
 | 2.5 What's in this PDF | All of it (the privacy promise) | |
 | 3.1 Translate side by side | All of it (it uses the user's own AI) | |
 | 3.2 Export to PowerPoint and HTML | All of it | |
-| 3.3 Compare Office files, scans, formatting | Comparing two PDFs (today) | Office files and scans against a PDF, formatting changes, the change report |
+| 3.3 Compare Office files, scans, formatting | Comparing two PDFs, moves, the overlay and lining up scans, the annotated copy (it was free already, so it stays free) | Office files and scans against a PDF, formatting changes |
 | 3.4 Long-term validation for signatures | Verifying | Adding LTV data, certifying with field locks |
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
 
 **Built (2026-10-30), gate off.** Decided with the owner: **$19**, one time. `Pro.Allows(feature)` in Core (`Pro.cs`) is
-the one check every Pro feature asks (presets, watched folders, the command line); behind it the licence is real: a key
+the one check every Pro feature asks (presets, watched folders, the command line, pattern redaction beyond the built-in kinds); behind it the licence is real: a key
 `INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
 signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
 the public key in the suite's shared library (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProCheck`, `ProKeyFile`, moved there
@@ -97,9 +100,48 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Now.** Areas, selected text, every match of a search; pages become images at 300 dpi with OCR text put back.
   Redact by Pattern (`RedactionPatterns`): SSN, phone, email, card (Luhn), date, IBAN (mod 97), IP and ZIP patterns,
   phrases and a regex (with a timeout), across line breaks and hyphens, on all pages or a range, marked for review in
-  the document; Batch's Redact Patterns action applies them over many files. Still to do: saved named pattern sets,
-  scanned pages through OCR text, a per-hit list with context, the removal report, the Pro split (the read-back check
-  is 1.5's check after Apply).
+  the document; Batch's Redact Patterns action applies them over many files.
+- **Finished on Windows 2026-11-01.** Named sets saved on this PC (`RedactionPatternSets`, plain JSON, one regex a set:
+  alternation covers more); scanned pages and pictures searched through OCR text (`RedactionSearch`); every hit listed
+  with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), areas marked by
+  hand before the search listed with them, said to go too, and untickable, then applied;
+  the result read back, searched again, and what was removed looked for in the rest of the file (dates and ZIP codes only
+  by pattern: a file's own time stamps hold the same digits), with what the patterns find in comments, fields, bookmarks,
+  properties, XMP, attachments, tags and every other string the file holds; the report as a page and as CSV
+  (`RedactionReport`, `RedactionReportDialog`); Batch runs a set over a folder, asks for passwords as before, and fails a file
+  with a hit left, with a scan nothing could read, or with a part that couldn't be searched; the Pro split through
+  `ProFeature.PatternRedaction` (sets, regex, the Batch action, the report's rows and CSV; the built-in kinds, phrases, the
+  list, the read-back and the pages to look at stay free).
+- **What the app promises about scans.** Nothing: a page read by OCR is never called clean. A page counts as read by OCR
+  when its pictures cover half of it (even under a text layer, which can be poor or planted), when it has no text and
+  some ink or a picture, or when it has ink no word explains (a logo, text drawn as shapes). Each such page is flagged in
+  the list, the report and Batch's notes, whatever was found on it. Ink where nothing was read is read again on its own at
+  300 dpi, since Windows' recognizer can skip a whole line; what stays unread is outlined on the page and can be ticked to
+  black out unread. Without an OCR language a scan fails its file in Batch; a text page with a picture nothing could read
+  doesn't (a logo mustn't fail a batch), and the file's result, the batch's summary and the report all say to look by hand. A value OCR can't read on a page is the limit
+  that remains: only a person looking at the page catches it, and the dialog, the report and this page say so.
+- **Other limits.** A page with a text layer that covers all its ink and pictures under half of it isn't read by OCR, so
+  text whose visible glyphs differ from its text layer (a broken or hostile font map) can pass. A number or word broken at
+  a line end with no hyphen or space ("123456" / "789") reads as two. Phrases on OCR text must be read exactly right; digits
+  are read kindly (l for 1, O for 0, spaces round dashes; no check digit on OCR pages). A hit on OCR text blacks out the
+  whole word it is in. More than 100,000 hits stop the search rather than list part of them. One page has 10 seconds, each
+  regex call 1 second: past that the search stops with an error and nothing is changed.
+- **Checked.** `RedactionCorpusTests`: the generated corpus (line-broken, hyphenated, split runs, /Rotate 90, scans upright,
+  under /Rotate and on their side, a picture on a text page, a scan under a poor text layer, the encrypted copy through
+  Batch) finds 21 of 21 with a stand-in recognizer that reads only what still shows, and leaves 0. The real app with Windows'
+  recognizer (`--script`, en-US, Debug build): 21 of 21 on the same file and 0 left, in Redact by Pattern on the plain copy
+  and in Batch with a saved set on the plain and encrypted copies; the list and the report looked at in screenshots; 100
+  plain pages searched in 5.6 s with no false flags; a list of 30,000 hits opens and Accept All / Skip All answer. `RedactionSetsAndReportTests`: tampered, oversized and malformed
+  sets refused whole; masks; formula cells; the Pro gate. Attacks that turned up real bugs, all fixed with tests: quadratic
+  overlap check on a page of hostile numbers; a page's regex time unbounded across calls; a hit dropped when its glyphs have
+  no box; invisible and wide characters hiding a number; the check stopping with an error on many or long values (its regex
+  size limit), treating a timeout as clean, and timing out on a redacted page's pixels; a signed file exported unredacted when the plan had an export after Redact Patterns; a
+  dash in a CSV cell starting a formula.
+- **Not checked.** A person's eyes on a real scan, and a real scan at all: every scan here is synthetic. Windows' recognizer
+  dropping a line didn't happen on these files, so reading a place again has only run against the stand-in. OCR languages
+  other than en-US. A screen reader on the list. With `Pro.Enforced` on, the Free report and the Pro window were seen in
+  screenshots and Batch's gate is tested, but the sets' buttons and the regex box weren't pressed; nor, gate off, were
+  they driven by hand (sets were saved and loaded through dev steps).
 - **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
   a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
   so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
@@ -108,7 +150,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30).
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 waits for the Mac (on hold).
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
@@ -214,7 +256,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   keep it (page text, hidden or off-page content, comments and appearances, fields and XFA, bookmarks, Info and XMP,
   attachments, tags, scripts, unused objects, each earlier incremental version, raw bytes decompressed) and text an
   earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
-  picture. Fix redacts, sanitizes and rewrites. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
+  picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
+  a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
   busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
   do: glyph-spacing inference around pixel redactions.
@@ -460,6 +503,90 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Leader.** Foxit: AI translate keeping layout, original and translation side by side, 25+ languages, in Foxit's cloud,
   credits per month ([Foxit](https://www.foxit.com/ai/pdf-translator/)). PDFelement: side by side or interleaved, 35-50
   languages, scans through OCR ([Wondershare](https://pdf.wondershare.com/online-pdf/ai-pdf-translator.html)).
+- **Now (Windows, 2026-11-01; a real model from 2026-11-02).** The real model is Qwen3 4B (Q4) on llama.cpp's llama-server on
+  this PC's GPU, 8,192 tokens of context. Its results are under **Real model** below; the rest was checked with a stand-in
+  server. Review › AI Assistant › Translate with AI: free, as the table says, so
+  no `Pro` check. `Translation.MakePlan` reads the pages, nothing sent: each page's paragraphs by 2.1's grouping
+  (`ContentEditor.Translate.cs`), table cells apart by Export to Word's analysis (`DocLayout`), repeats once, paragraphs
+  with no words not at all. The "what is sent, where" window shows every request. `TranslateAsync` sends them one at a
+  time (a paragraph too long for the model's context in pieces). `Apply` writes the copy from the original's bytes, each
+  page in one pass over a document kept open (reopening it per paragraph, as an edit does, would take the square of the
+  length). A paragraph wraps in its box and may use the white space below it; next it shrinks in steps of 5%, down to half
+  its size or 5 points; if it still doesn't fit it is written there and gets a comment. So does a paragraph left untranslated,
+  with why. When the page's font lacks a letter, the whole paragraph is drawn in the closest installed font (a subset
+  rarely holds a translation's letters; 2.1's letter-by-letter stand-ins would read like a ransom note), once per face in
+  the file. Chinese and Japanese wrap between characters, a word wider than its box breaks, right-to-left text is
+  shaped whole line by line against the right edge. The copy gets the language's `/Lang`, opens as an unsaved tab, and the
+  original goes in the split view's second pane on the left (`ShowBeside`), scrolling and zooming with it. Progress and
+  Cancel come from `ProgressPrompt`; stopping offers the part done as a copy.
+  Decisions: text the editor refuses (mixed fonts, right-to-left, a raised mark on its lines) is translated here, since all of it
+  is replaced: a bold word or a superscript inside a paragraph loses its look, and a raised mark joins the text sent. A
+  bullet of its own stays where it is. A line comes apart at a gap over 1.5 ems or where its size changes. A single line's
+  alignment comes from its place on the page or in its cell. White text stays in its box (past it, on a band we can't see,
+  it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
+  A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
+  A stopped run's unreached paragraphs get no comment each: the summary names their pages.
+  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named. Text
+  in a hidden layer is neither sent nor rewritten.
+  Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
+  its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
+  fitted. Thai has no spaces, so it wraps between any two characters. A file's size can grow as with any edit: PDFsharp
+  writes compressed objects out plainly (census-p60, 1.8 MB to 8 MB). Paragraphs with `/ActualText` stay and get a comment.
+  **The bug a real run found (2026-11-02).** The first real page (NIST p. 9) reported 14 paragraphs in Spanish, and all
+  the lines after each first line were specks. Text extraction read them, at the right size. That page paints a white band
+  under each line just before drawing it, and all the new lines were written where the first old line was, so the later
+  bands painted over them: the specks were descenders. All the tests passed because they read text, and the corpus only
+  asked whether a page's pixels had changed at all. Now a new line is written where the lowest old line it reaches was
+  drawn, and text doesn't grow under a rectangle filled later. `TranslationInk` renders each line of a copy and measures
+  its ink (height and how much of the line has any); the tests, the 100-page report (each of its lines now on a white band)
+  and the corpus use it.
+  **Other faults the real runs showed, fixed.** A font that named no glyph for a code passed as having it when `/ToUnicode`
+  and `/Widths` covered the code (pdfTeX's do), so accents came out blank ("funci n"): a readable program now decides. A
+  spot color's "1 scn" was read as white, holding headings to their old box and shrinking them. "NimbusRomNo9L" and
+  "Gotham-Book" got stand-ins of the wrong class. Small capitals fell apart at each change of size, and the model got "IGITAL".
+  A short line going on in lowercase split a sentence in ragged columns, and a note's small number split a note's first line
+  from the rest. Short labels one under the other were joined; figures beside a label moved into its text. A tight
+  clip shrank headings; text could grow past the clip of its last line. A link starting a line split its paragraph and turned
+  the text blue. A turned stamp in the margin made full lines look centered. A word in another script in a Latin-letter
+  answer (the model wrote "sean要么 editoriales") is asked for again, then left out and flagged. The shrink floor went by a
+  paragraph's first run, which may be a mark.
+  **Real model.** Spanish, through the app with screenshots read side by side, and `TranslationRealModelTests` (opt-in) for
+  what each paragraph got: NIST p. 9, 13 (a ruled table), 14, 20, 47 (a table); attn-v7 p. 3, 8 (a table); census-p60 p. 7 (three
+  columns), 12 (a figure's table), 31 and 33 (turned tables). A page of text took 17 to 48 seconds with this model and GPU. All lines
+  show, in their boxes, and figures and rules stay. No reasoning tags or preamble reached a copy; the model wrote none on these
+  pages, so that part of `CleanReply` wasn't exercised by it. What it gave back unchanged on NIST p. 9 is "NIST SP 800-63-3" and
+  "vi" (the 4 first seen included pieces of small capitals); on p. 47 and the census, "AAL1", "NO", "90th/10th" and the like.
+  How good it reads: for a 4B model, good. The meaning is carried and a reader can follow it, with care on technical terms.
+  Wording faults are the model's, not bugs: "Cuartil cuarto", "Las ingresos", "Errata" as "Errores", "GUIAS" without its
+  accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
+  **Still wrong.** A table row or a label with its figures drawn by one operator goes as one text, so its figures can leave
+  their columns (attn-v7's "Transformer (base model) 27.3 38.1"; the census's "income inequality 0.488 0.485"). Tables turned on
+  the page, like the census's appendix, stay in English (named in the summary). A link's underline and area stay where they
+  were while the text moves (NIST p. 14, 47). A bold word or a subscript in a paragraph loses its look ("dmodel"). White text on
+  a band stays in its old box, so a longer word shrinks though the band has room ("Propósito", NIST p. 14).
+  **Checked.** `TranslationTests`, including the test below on 100 made-up pages through a real
+  socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
+  written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
+  server got nothing and the run stopped). Hostile replies through the real `AiClient`: endless answers stopped by length,
+  keep-alives forever by the deadline (three in a row stop the run), silence, several paragraphs for one (asked once more,
+  then left and flagged), control and direction-override characters, private-use characters, broken surrogates, markup,
+  an answer cut at the model's limit (asked in halves), a refused key, a busy server (retried), a body that can't be read.
+  Crafted PDFs: 30,000 runs on a page, 19,000 paragraphs on a page, a million characters in one operator, forms drawing
+  forms 60^8 times (cut short at 64 MB and named, and cancellable), coordinates that overflow to infinity (an endless loop
+  found in review), unreadable content, a font with nonsense widths. The real app driven with `--script` and looked at:
+  all 100 pages to a stand-in on a real socket, the Send window, progress with the UI answering, Cancel and keep
+  (376 paragraphs left, pages named), both panes scrolling to the same place from either side; the menu command and its
+  window with the Ollama preset and no network (`aifake translate`) on f1040. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
+  export corpus files, first 30 pages of each, 99 pages, each answer longer and marked: page counts and pictures kept, no
+  page failed, read and written in seconds. That stand-in lengthens every label, so its counts of what doesn't fit (about a
+  tenth of paragraphs) say little about a real translation; the ink check's few lines it still names are at the size floor or in a chart.
+  The real app driven again on an AES-256 file opened with its permissions password: the open password asked before anything
+  is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
+  **Not checked.** Any other model, a cloud endpoint, or a language but Spanish with a real model; a model's refusal in words,
+  or an answer to the text in place of its translation, can't be told from a translation. A screen
+  reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat and pdf.js on a copy. Long runs over
+  sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
+  real sleep). English UI only: the app has no Spanish strings.
 - **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by
   paragraph, with the usual window showing what is sent; a translated copy keeps each paragraph in its box (2.1's
   reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no
@@ -503,7 +630,21 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
   contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
 - **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
-  formatting are still to do on both).
+  formatting are still to do there).
+- **Now.** Windows done 2026-10-31. Either side can be an Office file (Word, Excel, PowerPoint through the installed Office,
+  with the same checks as opening one), a picture of a page or a PDF. A page whose pictures cover 70% of it is a scan; one with
+  no text is recognized first (Windows' OCR, skippable), and its text gets no formatting changes. Font, size, bold, italic and color
+  changes are listed apart from wording, moved passages as moves with the edits inside them as their own changes, running
+  headers and footers left out, each kind with a box to hide it (`CompareLooks`, `CompareMoves`, `CompareScan`). Scans are lined up
+  for shift and skew before the overlay (`CompareAlign`, from each page's lines and where the ink falls; used only when the ink
+  agrees better). What looks different besides the words is listed and in the annotated copy, with moves and formatting.
+  **Checked:** `CompareContractTests`: a contract and its edited .docx with the 30 planted changes (8 changed, 5 inserted, 5
+  removed, 4 moves, 8 formatting) made into PDFs by Word 16 list all 30, none extra; the PDFs are in the tests' `Data`, so CI runs it
+  (`INKVOLTPDF_WORD` makes them again). The app compared the two .docx files through Word and listed the same 30. The edited
+  PDF against a synthetic scan of itself (200 dpi, turned 1.3°, shifted) found 1.3° and the shift to a tenth of a point.
+  **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
+  marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`. A scan
+  isn't lined up when scanned at another size or a quarter turn off.
 
 ### 3.4 Long-term validation for signatures
 - **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped
@@ -512,7 +653,29 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (PAdES B-LT, B-LTA); Add Verification Information works on any signed file; DocMDP and FieldMDP are enforced when
   verifying. Test: Acrobat shows "LTV enabled" and the EU DSS validator reports B-LTA for our signed files.
 - **Effort** M. Windows; Mac with signatures (verifying and signing came with E2, 2026-10-30, DocMDP and FieldMDP enforced
-  as on Windows; the long-term data is still to do on both).
+  as on Windows; the long-term data is still to do there).
+- **Now.** Windows done 2026-10-31. Sign Digitally can store OCSP answers or CRLs for the whole chain and its timestamp's (/DSS, /VRI)
+  and add a document timestamp (B-LT, B-LTA). Add Verification Information does it to any signed file as incremental updates, the earlier
+  bytes as they were and each signature re-verified before the result is handed back; a signature with no timestamp takes two document
+  timestamps, one for its time and one over the data, which is what EU DSS asks. Signatures followed only by such data still read as valid.
+  Pro: adding the data (`ProFeature.LongTermValidation`); free: verifying, the level shown, and Check Signatures Online, which asks without
+  changing the file. Going online happens only through `LtvClient`, after a window listing every address and what it gets: https for the
+  timestamp server in the field, Sectigo's free one unless the person enters another (the http DigiCert default is gone; the real Sectigo answered and its timestamp verified, `INKVOLTPDF_REAL_TSA`), the certificates' own OCSP, CRL and issuer URLs as they name them,
+  nothing private, loopback or link-local by name, by DNS answer (checked on the connection made) or by redirect, no proxy, 15 s and a
+  size limit per request. **Opening a signed file used to go online by itself** (revocation, and Windows fetching missing issuers from what
+  a file's certificates name, a way for a file to probe the local network): it no longer does, and signing no longer does either.
+  DocMDP and FieldMDP were enforced as said; added: every FieldMDP reference counts, a locked field's appearance, other properties or a new
+  field of its name count as changes. A hostile /DSS (wrong shapes, loops, zip bombs, thousands of entries, forged answers) reads as no data.
+  **Checked:** `LtvTests` against a generated CA with a local OCSP responder, CRLs, issuer certificates and RFC 3161 server, none of it needing
+  the internet. EU DSS 6.5.1 run locally and offline (`tools/pades-check`, opt-in `INKVOLTPDF_PADES_CHECK`) reports PAdES-BASELINE-LTA, TOTAL_PASSED,
+  for B-LTA signing, Add Verification Information on a B-B file and on a no-changes certification, CRLs only, and a delegated responder;
+  PAdES-BASELINE-LT, TOTAL_PASSED, for B-LT; and -B and -T for the plain ones. The real app, driven with `--script` against the local authority,
+  added, checked and signed, its files reading B-LTA (`The_real_app_adds_checks_and_signs`). No file went to an online validator.
+  **Not checked:** Acrobat's "LTV enabled" (Acrobat isn't on this PC; `tools/pades-check` says how, by hand). Real certificate authorities and
+  timestamp servers: every run was against the generated one, so a real CA's OCSP answers older than a fresh timestamp (issued ahead by a CDN) are
+  handled only as far as "still in force at that time" in our own check; EU DSS may ask for a later one. Smart cards.
+  **Still to do:** the Mac. Certifying with a choice of fields to lock (Pro in the table above) isn't built; a signature field's own /Lock is
+  honored. Encrypted files are refused, since `Incremental` can't append to them. Batch has no long-term action.
 
 ### 3.5 Indexed folder search
 - **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search
@@ -521,6 +684,20 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   change, OCR text included; results with context, opened at the hit; accents and case ignored as Find does. Test:
   10,000 PDFs indexed once, a word query answered in under 1 s, a changed file found again within a minute.
 - **Effort** M. Windows; Mac after 1.0 (Spotlight covers part of it there).
+- **Now.** Windows done 2026-10-31: Edit › Search Folders… (Ctrl+Alt+Shift+F, the command palette), Pro (`ProFeature.FolderSearch`; the gate stays off). No new
+  dependency: a small inverted index of our own, one file per folder in the data folder's `FolderIndex` (`FolderIndex`): terms to pages, each page's text compressed, written
+  only at the end, a commit at a time, flushed before its footer, so a crash leaves the last commit; compaction writes a new file. Terms fold what Find's own comparer reads alike,
+  asked of the comparer (`IndexTerms`), and a word is found inside longer ones; the index only proposes pages, Find runs on the kept text and has the last word, so no search opens a PDF.
+  Only **index workers** parse PDFs (`IndexWorkers`, the find workers' pattern, below normal priority, 2 GB each); `FolderIndexer` keeps it current by the system's change notices and a look every 30 s.
+  OCR text layers are indexed; no OCR runs, and a scan with no text is counted and said. Damaged, password-protected, over 512 MB or 50,000 pages, over 2 minutes of processor time, or crashing a worker twice:
+  skipped, counted, listed, read again when it changes or with Rebuild.
+  **Checked** (`tools/bench`, `index-make`, `index-run`; Surface Laptop 7, Snapdragon X, on battery, other work running; Release): 10,000 PDFs and 6 bad ones (72,797 pages, 149 MB, 200,400 terms) indexed from nothing in 158 s
+  (146-158 s in three runs; **not explained:** a fourth took 569 s and a fifth was stopped when it slowed to a few files a second, with workers idle and processors free, single pages taking 0.5-2 s by the clock; Windows holding back low-priority work on battery is the guess, unproved), a 154 MB index file, the app at most 179 MB. Word queries to the last result listed: 3-114 ms, the worst
+  a one-letter query at 219 ms; the first query after opening 84 ms (target 1 s, met). A changed file found again in 3.4 s, three times out of three (target a minute, met); opening the index 27 ms. The Release app on that corpus: indexed with the window answering in at most
+  35 ms, paused and resumed, a result opened at its hit, a new file found. Tests: every byte offset of a commit cut (`FolderIndexTests`), a writer killed 8 times mid-commit (`FolderIndexerTests`), workers dying, hanging, spinning and running out of memory
+  on a file, a folder going away. **Missed, not part of the target:** a phrase of two words common but rarely side by side took 3.2-4.1 s to list 500 pages (first result 14-20 ms; every page has to be read).
+  **Not checked:** real-world PDFs at this scale (the corpus is generated), a real hostile PDF (a worker's death is simulated), an MSIX install (`smoke-msix.ps1` has a step, not run), a network drive, a disk filling up. **Cloud drives:** real Cloud Files placeholders are tested on a sync root the test makes, on this PC, with no provider running (read when on the PC, counted and left alone when only in the cloud, a sub-folder included). Of OneDrive itself only one folder on one PC was measured, its 7 PDFs listed, all on the PC already: a file only in OneDrive's cloud has not been seen staying there, nor Dropbox or Google Drive at all.
+  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes). The Mac's half waits (see Mac on hold).
 
 ### 3.6 Speed on huge files (differentiator)
 - **The gap.** Acrobat users report freezes on 200-500 page files and on large drawings, and Adobe staff suggest

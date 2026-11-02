@@ -3,7 +3,8 @@ import Foundation
 /// A TrueType font program cut down to the glyphs a document draws, for embedding (the Windows app's
 /// `HbSubset.SubsetUnicodes`, which uses HarfBuzz's subsetter). Glyph numbers stay as they are: the glyphs not asked for
 /// (nor used by a composite glyph that is) are emptied, `loca` and `glyf` are written anew, and the `cmap` maps only
-/// the code points asked for (Windows (3,1), format 4). The tables a PDF viewer reads are kept (`head`, `hhea`, `maxp`,
+/// the code points asked for (Windows (3,1), format 4; with `symbolic`, (3,0), the codes asked for at 0xF000 + code, where a
+/// symbolic font's codes are looked up: ISO 32000-1, 9.6.6.4). The tables a PDF viewer reads are kept (`head`, `hhea`, `maxp`,
 /// `hmtx`, `name`, `OS/2`, the hinting in `cvt `, `fpgm`, `prep`, `gasp`); `post` keeps its header without glyph names
 /// (format 3); layout tables (GSUB, GPOS, kern, morx...) and the rest are dropped. MuPDF's own
 /// `fz_subset_ttf_for_gids` renumbers glyphs but maps code points beyond the font's glyph count to the old numbers
@@ -11,9 +12,25 @@ import Foundation
 enum TrueTypeSubset {
     private static let kept: Set<String> = ["head", "hhea", "maxp", "hmtx", "name", "OS/2", "cvt ", "fpgm", "prep", "gasp"]
 
+    /// Whether the font's OS/2 embedding bits allow embedding a subset of it in a document (fsType: 0 installable, 4
+    /// preview and print, 8 editable; several bits, as in macOS's ZapfDingbats (14), mean the least restrictive; 0x100
+    /// forbids subsets, 0x200 outlines). Not when it has no such table.
+    static func allowsEmbedding(_ font: [UInt8]) -> Bool {
+        guard font.count >= 12 else { return false }
+        for i in 0..<u16(font, 4) where 12 + 16 * (i + 1) <= font.count {
+            let r = 12 + 16 * i
+            guard String(decoding: font[r..<r + 4], as: UTF8.self) == "OS/2" else { continue }
+            let at = u32(font, r + 8)
+            guard at + 10 <= font.count else { return false }
+            let bits = u16(font, at + 8)
+            return bits & 0x300 == 0 && (bits & 0xF == 0 || bits & 0xC != 0)
+        }
+        return false
+    }
+
     /// The subset program for `glyphs` (code point, glyph number) in `font` (a TrueType file, not a collection); nil when
     /// the file isn't one this can read (CFF outlines, a collection, damaged tables).
-    static func subset(_ font: [UInt8], _ glyphs: [(codePoint: UInt32, glyph: Int)]) -> [UInt8]? {
+    static func subset(_ font: [UInt8], _ glyphs: [(codePoint: UInt32, glyph: Int)], symbolic: Bool = false) -> [UInt8]? {
         guard font.count >= 12, u32(font, 0) == 0x0001_0000 || u32(font, 0) == 0x7472_7565 else { return nil } // 1.0 or 'true'
         var tables: [String: [UInt8]] = [:]
         let numTables = u16(font, 4)
@@ -63,7 +80,7 @@ enum TrueTypeSubset {
         out["head"] = head
         out["glyf"] = newGlyf
         out["loca"] = newLoca
-        out["cmap"] = cmap(glyphs.filter { $0.glyph > 0 && $0.glyph < numGlyphs && $0.codePoint <= 0xFFFF })
+        out["cmap"] = cmap(glyphs.filter { $0.glyph > 0 && $0.glyph < numGlyphs && $0.codePoint <= 0xFFFF }, encoding: symbolic ? 0 : 1)
         if let post = tables["post"], post.count >= 32 {
             var p = Array(post[0..<32])
             put32(&p, 0, 0x0003_0000)
@@ -91,9 +108,9 @@ enum TrueTypeSubset {
         return out
     }
 
-    /// A cmap with one Windows Unicode BMP subtable (3,1), format 4: a segment per run of code points whose glyphs
-    /// follow on, then the closing 0xFFFF segment.
-    private static func cmap(_ glyphs: [(codePoint: UInt32, glyph: Int)]) -> [UInt8] {
+    /// A cmap with one Windows subtable (3,`encoding`), format 4: a segment per run of code points whose glyphs follow on,
+    /// then the closing 0xFFFF segment.
+    private static func cmap(_ glyphs: [(codePoint: UInt32, glyph: Int)], encoding: Int) -> [UInt8] {
         var map: [Int: Int] = [:]
         for (cp, g) in glyphs { map[Int(cp)] = g }
         var segments: [(start: Int, end: Int, delta: Int)] = []
@@ -127,7 +144,7 @@ enum TrueTypeSubset {
         append16(&t, 0) // version
         append16(&t, 1) // one subtable
         append16(&t, 3)
-        append16(&t, 1)
+        append16(&t, encoding)
         append32(&t, 12)
         return t + sub
     }

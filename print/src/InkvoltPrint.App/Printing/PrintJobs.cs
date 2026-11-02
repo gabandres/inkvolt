@@ -16,6 +16,40 @@ public interface IPrintJobs
     void QueueChanged() { }
 }
 
+/// <summary>A printer's queue for job alerts (Core.Alerts.AlertTracker.ObserveJobs): read every minute, also while the window is closed.</summary>
+public interface IJobQueueReader
+{
+    /// <summary>The queue now, or null when the printer has none. Throws when it couldn't be read, which says nothing about its jobs.</summary>
+    Task<Core.Alerts.JobQueueState?> ReadAsync();
+}
+
+/// <summary>
+/// Reads through winspool (it has the PC a job came from, which System.Printing doesn't say) on the thread pool with a time limit:
+/// a queue shared from a PC that's off holds the call until RPC gives up. "No queue" is kept for a while: looking for
+/// one is a PnP query plus every queue's port, too much for each minute.
+/// </summary>
+public sealed class WindowsJobQueueReader(Func<Task<string?>> findQueue) : IJobQueueReader
+{
+    private static readonly TimeSpan NoQueueRecheck = TimeSpan.FromMinutes(5);
+    private readonly Core.Queues.TimedCalls<string, Core.Alerts.JobQueueState?> _calls = new(TimeSpan.FromSeconds(10));
+    private string? _name;
+    private DateTime _lookedAt = DateTime.MinValue;
+
+    public async Task<Core.Alerts.JobQueueState?> ReadAsync()
+    {
+        if (_name is null && DateTime.UtcNow - _lookedAt >= NoQueueRecheck)
+        {
+            _lookedAt = DateTime.UtcNow;
+            _name = await findQueue();
+        }
+        if (_name is not { } name) return null;
+        var (answered, queue) = await _calls.RunAsync(name, () => InkvoltPrint.Windows.Offline.WindowsJobQueue.Read(name));
+        if (!answered) throw new TimeoutException("The queue didn't answer in time.");
+        if (queue is null) (_name, _lookedAt) = (null, DateTime.MinValue); // gone from Windows, or renamed: look it up again next time
+        return queue;
+    }
+}
+
 public sealed class PrintJobCancelException(string message, bool accessDenied) : Exception(message)
 {
     public bool AccessDenied { get; } = accessDenied;

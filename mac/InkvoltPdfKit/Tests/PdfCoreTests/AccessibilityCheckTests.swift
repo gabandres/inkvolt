@@ -33,6 +33,8 @@ struct A11yDoc {
     var annots = ""
     var font = A11yDoc.type3Font
     var more: [String] = []
+    /// Which of `more` are more pages, after the first.
+    var morePages: [Int] = []
 
     /// A stream object, a byte per character.
     static func stream(_ content: String, _ dict: String = "") -> String {
@@ -61,7 +63,7 @@ struct A11yDoc {
         let annotList = annots.isEmpty ? "" : "/Annots [\(annots)]"
         let objects: [String] = [
             "<< /Type /Catalog /Pages 2 0 R \(tagged ? "/StructTreeRoot 5 0 R" : "") \(catalog) >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Pages /Kids [3 0 R \(morePages.map { "\(moreAt($0)) 0 R " }.joined())] /Count \(1 + morePages.count) >>",
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /StructParents 0 /Resources << /Font << /F1 8 0 R \(fonts) >> \(resources) >> \(annotList) \(page) >>",
             Self.stream(content),
             "<< /Type /StructTreeRoot /K 6 0 R /ParentTree << /Nums [\(parentTree)] >> \(rootExtra) >>",
@@ -740,5 +742,123 @@ final class AccessibilityBatchTests {
         let steps = try BatchPresets.read(json).steps
         #expect(steps.count == 1)
         if case .checkAccessibility = steps[0] {} else { Issue.record("read back as \(steps[0])") }
+    }
+}
+
+// ───────────────────────────── a file checked in part ─────────────────────────────
+// Ported from AccessibilityCheckTests.cs (Windows' AccessibilityOutcome, 2026-10-30). Left out:
+// AFileWhoseXfaTookTooLongToReadDoesntPass: the Mac reads an XFA form in one pass with no time limit, so it has no such
+// note.
+
+extension AccessibilityCheckTests {
+    /// Passes as it is, but its second page's content isn't tagged: only a check that gets there can tell.
+    private static func untaggedSecondPage() -> A11yDoc {
+        var doc = A11yDoc()
+        doc.more = [
+            A11yDoc.stream("BT /F1 12 Tf 72 700 Td (AB) Tj ET"),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 11 0 R /Resources << /Font << /F1 8 0 R >> >> >>",
+        ]
+        doc.morePages = [1]
+        return doc
+    }
+
+    private static let notFully = "Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass."
+
+    private static func readsAsPartlyChecked(_ report: AccessibilityReport) {
+        #expect(!report.passed)
+        #expect(report.failures.isEmpty)
+        #expect(report.outcome == .notFullyChecked)
+        #expect(report.summary == notFully)
+        #expect(report.paneSummary.hasPrefix(notFully + " Not checked: "))
+        #expect(report.failuresTabTitle == "Fails (none found so far)")
+        #expect(!report.paneSummary.contains("Passes"))
+        #expect(!report.nothingFailsText.contains("Nothing fails the machine checks"))
+        let html = AccessibilityReportHtml.write(report, "a.pdf", checkedAt: Date())
+        #expect(html.contains("<strong>Not fully checked.</strong> " + InventoryReportFiles.encode(notFully)))
+        #expect(html.contains("id=\"notes\""))
+        #expect(!html.contains("Passes"))
+    }
+
+    @Test func AFileWhoseLastPagesWerentCheckedDoesntPass() throws {
+        let data = Self.untaggedSecondPage().build()
+        #expect(try AccessibilityCheck.run(data, nil).failedConditions.contains("01-005")) // what the limit hides
+        let report = try AccessibilityCheck.run(data, nil, maxDocumentOperators: 5)
+        #expect(report.notes.contains { $0.contains("weren't checked") })
+        Self.readsAsPartlyChecked(report)
+    }
+
+    @Test func APageTooLongToReadToTheEndDoesntPass() throws {
+        var doc = A11yDoc()
+        doc.content = String(repeating: "q Q ", count: 1_100_000) + "BT /F1 12 Tf 72 700 Td (AB) Tj ET"
+        Self.readsAsPartlyChecked(try doc.check())
+    }
+
+    @Test func AnAppearanceTooLongToReadIsSaidNotToBeChecked() throws {
+        var doc = A11yDoc()
+        doc.annots = "11 0 R"
+        doc.more = [
+            "<< /Type /Annot /Subtype /Stamp /Rect [0 0 10 10] /Contents (A stamp) /AP << /N 12 0 R >> >>",
+            A11yDoc.stream(String(repeating: "q Q ", count: 1_100_000), "/Type /XObject /Subtype /Form /BBox [0 0 10 10]"),
+        ]
+        let report = try doc.check()
+        #expect(report.notes.contains { $0.contains("appearance") && $0.contains("very long") }, "\(report.notes)")
+        #expect(!report.passed)
+    }
+
+    @Test func FormsNestedPastTheLimitAreSaidNotToBeChecked() throws {
+        // Forms inside each other, deeper than the check goes, the untagged drawing in the last: the report must say it stopped.
+        let forms = 14
+        var doc = A11yDoc()
+        doc.more = (0..<forms).map { i in
+            i + 1 < forms
+                ? A11yDoc.stream("/X Do", "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /XObject << /X \(12 + i) 0 R >> >>")
+                : A11yDoc.stream("0 0 100 100 re f", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]")
+        }
+        doc.resources = "/XObject << /X 11 0 R >>"
+        doc.content = "/P << /MCID 0 >> BDC /X Do BT /F1 12 Tf 72 700 Td (AB) Tj ET EMC"
+        let report = try doc.check()
+        #expect(report.notes.contains { $0.contains("nested") }, "\(report.notes)")
+        #expect(!report.passed)
+    }
+
+    @Test func AFileThatFailsAndWasCheckedInPartSaysBoth() throws {
+        var doc = Self.untaggedSecondPage()
+        doc.content = "BT /F1 12 Tf 72 700 Td (AB) Tj ET"
+        // Adapted: Windows' limit of 1 counts only between pages; the Mac's walk also stops within a page once the
+        // document's count passes it, so the limit lets page 1 reach its untagged Tj (the fifth operator) first.
+        let report = try AccessibilityCheck.run(doc.build(), nil, maxDocumentOperators: 4)
+        #expect(report.outcome == .fails)
+        #expect(!report.notes.isEmpty)
+        #expect(report.summary.hasSuffix("Part of the file wasn't checked."))
+        #expect(AccessibilityReportHtml.write(report, "a.pdf", checkedAt: Date()).contains("<strong>Fails.</strong>"))
+    }
+
+    @Test func AFileCheckedInFullKeepsItsWords() throws {
+        let report = try A11yDoc().check()
+        #expect(report.outcome == .passes)
+        #expect(report.paneSummary.hasPrefix("Passes the machine checks of PDF/UA-1. Passes every machine check"))
+        #expect(report.failuresTabTitle == "Fails (none)")
+        #expect(report.nothingFailsText.contains("Nothing fails the machine checks"))
+        #expect(AccessibilityReportHtml.write(report, "a.pdf", checkedAt: Date()).contains("Passes the machine checks."))
+    }
+}
+
+extension AccessibilityBatchTests {
+    @Test func AFileCheckedOnlyInPartIsNotCountedAsPassed() async throws {
+        let partly = path("partly.pdf")
+        var doc = A11yDoc()
+        doc.content = String(repeating: "q Q ", count: 1_100_000) + "BT /F1 12 Tf 72 700 Td (AB) Tj ET"
+        try Data(doc.build()).write(to: URL(fileURLWithPath: partly))
+        let plan = BatchPlan(steps: [.checkAccessibility], outputFolder: path("out"))
+
+        let summary = try await BatchRunner.run([BatchFile(partly)], plan, BatchHost(), progress: nil, cancel: CancelToken())
+
+        try #require(summary.items.count == 1)
+        let item = summary.items[0]
+        #expect(item.state == .failed)
+        #expect(item.message.hasPrefix("Accessibility check: Not fully checked: "), "\(item.message)")
+        #expect(item.notes.contains { $0.hasPrefix("Not checked: Page 1") })
+        try #require(item.outputs.count == 1)
+        #expect(try String(contentsOfFile: item.outputs[0], encoding: .utf8).contains("Not fully checked."))
     }
 }

@@ -15,6 +15,9 @@ public class PrintQueueTests
     [InlineData(JobStatus.Printing | JobStatus.Deleting, "Cancelling")]
     [InlineData(JobStatus.Printed | JobStatus.Retained, "Printed")]
     [InlineData(JobStatus.Error, "Error")]
+    [InlineData(JobStatus.Retained, "Printed")]
+    [InlineData(JobStatus.Printing | JobStatus.Retained, "Printing")] // as a real queue on a dead TCP port reads
+    [InlineData(JobStatus.Error | JobStatus.Printing | JobStatus.Retained, "Error")]
     public void Status_words_pick_the_most_important_bit(JobStatus status, string expected) =>
         Assert.Equal(expected, QueueJobText.Status(status));
 

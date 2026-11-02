@@ -35,6 +35,18 @@ public sealed record AlertRules
     /// <summary>A longer gap between two checks (the PC slept) starts the holds again.</summary>
     public TimeSpan MaxGap { get; init; } = TimeSpan.FromHours(2);
 
+    /// <summary>Tell about your own print jobs failing or getting stuck (<see cref="AlertTracker.ObserveJobs"/>). Off by default.</summary>
+    public bool Jobs { get; init; }
+
+    /// <summary>Nothing in the queue moves this long, with the printer ready: your job is stuck.</summary>
+    public TimeSpan JobStuckAfter { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Nothing in the queue moves this long, with the printer saying it's printing: your job may be stuck.</summary>
+    public TimeSpan JobHungAfter { get; init; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>A job is told stuck at most this many times, each after real progress since the last (a flapping job can't spam).</summary>
+    public int JobMaxStuckAlerts { get; init; } = 3;
+
     public TimeSpan HoldFor(AlertKind kind) =>
         AlertCondition.IsSupply(kind) || kind == AlertKind.FirmwareChanged ? TimeSpan.Zero : kind == AlertKind.Offline ? OfflineHold : ErrorHold;
 }
@@ -43,6 +55,9 @@ public sealed record AlertRules
 public sealed record AlertNotice(string Uuid, string PrinterName, AlertKind Kind, string Title, string Body)
 {
     public AlertLevel Level => AlertCondition.LevelOf(Kind);
+
+    /// <summary>The print job this is about (<see cref="JobRules.Key"/>): it gets a toast of its own, with Open the queue. Null: the printer's problem.</summary>
+    public string? JobKey { get; init; }
 }
 
 /// <summary>
@@ -54,7 +69,7 @@ public sealed record AlertNotice(string Uuid, string PrinterName, AlertKind Kind
 /// shown are remembered across restarts (<see cref="Shown"/>), so starting with Windows doesn't repeat yesterday's low toner.
 /// Pure: the caller supplies the time.
 /// </summary>
-public sealed class AlertTracker
+public sealed partial class AlertTracker
 {
     private sealed class Track(AlertKind kind)
     {
@@ -72,6 +87,8 @@ public sealed class AlertTracker
         public string Name = "";
         public DateTimeOffset? LastObserved;
         public readonly Dictionary<string, Track> Tracks = new(StringComparer.Ordinal);
+        public readonly JobQueueTrack Queue = new();
+        public PrinterWork? Work;
     }
 
     private readonly Dictionary<string, Printer> _printers = new(StringComparer.OrdinalIgnoreCase);
@@ -82,7 +99,8 @@ public sealed class AlertTracker
         Rules = rules;
         foreach (var (uuid, keys) in shown ?? new Dictionary<string, IReadOnlyList<string>>())
             foreach (var key in keys ?? [])
-                if (key is not null && AlertCondition.KindOf(key) is { } kind)
+                if (key is not null && key.StartsWith(JobRules.KeyPrefix, StringComparison.Ordinal)) RememberJob(uuid, key);
+                else if (key is not null && AlertCondition.KindOf(key) is { } kind)
                     PrinterOf(uuid).Tracks[key] = new Track(kind) { Notified = true, Confirmed = true };
     }
 
@@ -105,6 +123,7 @@ public sealed class AlertTracker
         if (printer.LastObserved is { } last && now - last > Rules.MaxGap)
             foreach (var t in printer.Tracks.Values.Where(t => !t.Confirmed)) t.Seen = false; // its hold starts again below
         printer.LastObserved = now;
+        NotePrinterRead(printer, snap);
 
         var found = AlertConditions.Find(snap, Rules, key => printer.Tracks.TryGetValue(key, out var t) && t.Present && t.Confirmed);
         foreach (var c in found)
@@ -141,7 +160,8 @@ public sealed class AlertTracker
     public IReadOnlyList<AlertNotice> Release(DateTimeOffset now)
     {
         var due = _printers.SelectMany(p => p.Value.Tracks.Values.Where(t => t.Due).Select(t => (Uuid: p.Key, p.Value.Name, Track: t))).ToList();
-        if (due.Count == 0) return [];
+        var jobsDue = JobsDue().ToList();
+        if (due.Count == 0 && jobsDue.Count == 0) return [];
         var silent = !Rules.Enabled || PausedUntil > now;
         if (!silent && Rules.Quiet is { } quiet && quiet.Contains(TimeOnly.FromDateTime(now.DateTime))) return []; // held till morning
         var notices = new List<AlertNotice>();
@@ -151,6 +171,8 @@ public sealed class AlertTracker
             if (silent || (t.Kind == AlertKind.Offline && !Rules.Offline) || Outranked(uuid, t)) continue;
             notices.Add(new AlertNotice(uuid, name, t.Kind, t.Condition!.Title, t.Condition.Body));
         }
+        foreach (var (uuid, job) in jobsDue)
+            if (TellJob(uuid, job, shown: !silent && Rules.Jobs) is { } notice) notices.Add(notice);
         return notices;
     }
 
@@ -169,15 +191,19 @@ public sealed class AlertTracker
     /// <summary><see cref="NextCheck"/> for one printer.</summary>
     public DateTimeOffset? PendingUntil(string uuid) =>
         _printers.TryGetValue(uuid, out var p)
-            ? p.Tracks.Values.Where(t => t.Present && !t.Confirmed).Select(t => (DateTimeOffset?)(t.FirstSeen + Rules.HoldFor(t.Kind))).Min()
+            ? p.Tracks.Values.Where(t => t.Present && !t.Confirmed).Select(t => (DateTimeOffset?)(t.FirstSeen + Rules.HoldFor(t.Kind)))
+                .Append(Rules.Jobs ? p.Queue.StuckAt : null).Min()
             : null;
 
     /// <summary>Problems still within their hold time start it again (the PC woke up: the time it slept doesn't count).</summary>
     public void ResetPending()
     {
         foreach (var p in _printers.Values)
+        {
             foreach (var (key, t) in p.Tracks.ToList())
                 if (!t.Confirmed) p.Tracks.Remove(key);
+            RestartJobClocks(p.Queue);
+        }
     }
 
     /// <summary>A printer was removed.</summary>
@@ -199,7 +225,8 @@ public sealed class AlertTracker
 
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>
     public Dictionary<string, IReadOnlyList<string>> Shown() =>
-        _printers.Select(p => (p.Key, Keys: p.Value.Tracks.Where(t => t.Value.Notified).Select(t => t.Key).Order(StringComparer.Ordinal).ToList()))
+        _printers.Select(p => (p.Key, Keys: p.Value.Tracks.Where(t => t.Value.Notified).Select(t => t.Key)
+                .Concat(p.Value.Queue.Jobs.Values.Where(t => t.Remembered).Take(MaxRememberedJobs).Select(t => t.Line())).Order(StringComparer.Ordinal).ToList()))
             .Where(p => p.Keys.Count > 0)
             .ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Keys, StringComparer.OrdinalIgnoreCase);
 }

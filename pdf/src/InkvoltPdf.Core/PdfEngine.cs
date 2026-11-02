@@ -613,6 +613,77 @@ public sealed partial class PdfEngine : IDisposable
         return new PageText(lines, directions);
     }
 
+    /// <summary>Pictures covering this much of a page (with or without text over them) make it a scan.</summary>
+    private const double ScanPictureShare = 0.7;
+
+    /// <summary>
+    /// What Compare reads from a page: its text, as <see cref="GetText"/> reads it, how each character is set, and whether
+    /// the page is a picture of a page. Not cached.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    public ComparePage GetComparePage(int page, CancellationToken cancel = default)
+    {
+        cancel.ThrowIfCancellationRequested();
+        EnterText(cancel);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var g = _pages[page];
+            var lines = new List<List<(string, RectD)>>();
+            var directions = new List<(double, double)>();
+            var runs = new List<(int, WordLook)>();
+            var fonts = new Dictionary<string, (string Family, bool Bold, bool Italic)>(StringComparer.Ordinal);
+            (string Font, double Size, uint Color)? last = null;
+            var units = 0;
+            var pictures = 0.0;
+            using var st = TextDoc(page).GetStructuredTextPage(page, includeAnnotations: false, StructuredTextFlags.PreserveImages);
+            foreach (var block in st)
+            {
+                if (block is MuPDFImageStructuredTextBlock image)
+                {
+                    var b = image.BoundingBox;
+                    pictures += RectD.FromEdges(b.X0 - g.OriginX, b.Y0 - g.OriginY, b.X1 - g.OriginX, b.Y1 - g.OriginY).Intersect(new RectD(0, 0, g.Width, g.Height)) is { IsEmpty: false } on ? on.Width * on.Height : 0;
+                    continue;
+                }
+                if (block is not MuPDFTextStructuredTextBlock tb) continue;
+                foreach (var line in tb)
+                {
+                    var chars = new List<(string, RectD)>();
+                    foreach (var ch in line)
+                    {
+                        if (chars.Count == 0 && lines.Count > 0) units++; // the line break PageText puts between lines
+                        var q = ch.BoundingQuad;
+                        var l = Math.Min(Math.Min(q.UpperLeft.X, q.LowerLeft.X), Math.Min(q.UpperRight.X, q.LowerRight.X));
+                        var r = Math.Max(Math.Max(q.UpperLeft.X, q.LowerLeft.X), Math.Max(q.UpperRight.X, q.LowerRight.X));
+                        var t = Math.Min(Math.Min(q.UpperLeft.Y, q.LowerLeft.Y), Math.Min(q.UpperRight.Y, q.LowerRight.Y));
+                        var bottom = Math.Max(Math.Max(q.UpperLeft.Y, q.LowerLeft.Y), Math.Max(q.UpperRight.Y, q.LowerRight.Y));
+                        chars.Add((ch.Character, RectD.FromEdges(l - g.OriginX, t - g.OriginY, r - g.OriginX, bottom - g.OriginY)));
+
+                        var font = ch.Font;
+                        var name = font?.Name ?? "";
+                        var color = ch.Color & 0xFFFFFF;
+                        if (last is not { } seen || seen.Font != name || Math.Abs(seen.Size - ch.Size) > 0.001 || seen.Color != color)
+                        {
+                            if (!fonts.TryGetValue(name, out var f))
+                                fonts[name] = f = (FontNames.Family(name), (font?.IsBold ?? false) || FontNames.LooksBold(name), (font?.IsItalic ?? false) || FontNames.LooksItalic(name));
+                            runs.Add((units, new WordLook(f.Family, ch.Size, f.Bold, f.Italic, color)));
+                            last = (name, ch.Size, color);
+                        }
+                        units += ch.Character.Length;
+                    }
+                    if (chars.Count == 0) continue;
+                    lines.Add(chars);
+                    directions.Add((line.Direction.X, line.Direction.Y));
+                }
+            }
+            return new ComparePage(new PageText(lines, directions), new PageLooks(runs), pictures >= g.Width * g.Height * ScanPictureShare);
+        }
+        finally
+        {
+            _textGate.Exit();
+        }
+    }
+
     /// <summary>Page text remembered as strings, in UTF-16 units across all pages (about 128 MB): beyond it, pages are read again.</summary>
     private const long MaxRememberedChars = 64_000_000;
 

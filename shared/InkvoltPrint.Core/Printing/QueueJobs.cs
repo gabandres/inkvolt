@@ -24,7 +24,14 @@ public enum JobStatus
 }
 
 /// <summary>One job in a printer's Windows queue, as the spooler reports it. <see cref="Pages"/> is 0 while it's still spooling.</summary>
-public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, JobStatus Status, DateTime Submitted, string Owner);
+public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, JobStatus Status, DateTime Submitted, string Owner)
+{
+    /// <summary>The PC it was printed from, where the reader gets it; null: not known.</summary>
+    public string? Machine { get; init; }
+
+    /// <summary>The job's size in bytes as spooled so far, where the reader gets it (JOB_INFO_2); 0: not known. It grows while the job is written.</summary>
+    public long Bytes { get; init; }
+}
 
 /// <summary>What the print queue card shows for a job: plain words for the spooler's status bits, pages, time, owner.</summary>
 public static class QueueJobText
@@ -39,8 +46,9 @@ public static class QueueJobText
         _ when s.HasFlag(JobStatus.Error) => "Error",
         _ when s.HasFlag(JobStatus.Blocked) => "Blocked",
         _ when s.HasFlag(JobStatus.Paused) => "Paused",
-        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) || s.HasFlag(JobStatus.Retained) => "Printed",
-        _ when s.HasFlag(JobStatus.Printing) => "Printing",
+        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) => "Printed",
+        _ when s.HasFlag(JobStatus.Printing) => "Printing", // before Retained: a real queue says Printing | Retained while it's still trying
+        _ when s.HasFlag(JobStatus.Retained) => "Printed",
         _ when s.HasFlag(JobStatus.Spooling) => "Preparing",
         _ => "Waiting",
     };

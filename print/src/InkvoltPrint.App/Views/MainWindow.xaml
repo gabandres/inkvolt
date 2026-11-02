@@ -246,6 +246,10 @@
                                             AutomationProperties.HelpText="Accept the device that now answers at this address as this printer, after a repair or reset gave it a new ID"
                                             Visibility="{Binding IsElsewhere, Converter={StaticResource VisibleWhen}}" />
                                 </StackPanel>
+                                <!-- A queue printer that answers but is paused or in trouble: Windows' side may be what's wrong -->
+                                <Button Content="Fix it…" Command="{Binding OpenFixerCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        AutomationProperties.Name="Fix printing problems"
+                                        Visibility="{Binding ShowQueueFix, Converter={StaticResource VisibleWhen}}" />
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -624,7 +628,7 @@
                             </StackPanel>
                         </Button>
                         <Button Content="Cancel" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhen}}" />
+                                Visibility="{Binding CanCancelWork, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
                     <!-- Room on the right for the scrollbar, so it never covers the captions -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Padding="0,0,12,0">
@@ -648,6 +652,11 @@
                                 <TextBlock Text="Find and copy text in saved PDFs" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
+                        <StackPanel Margin="0,8,0,4" Visibility="{Binding HasOcrLanguageChoice, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="Text language" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding OcrLanguages}" SelectedItem="{Binding OcrLanguage}" HorizontalAlignment="Stretch" IsEnabled="{Binding UseOcr}"
+                                      AutomationProperties.Name="Text language" AutomationProperties.HelpText="The language text recognition reads" />
+                        </StackPanel>
                         <CheckBox AutomationProperties.Name="Skip blank pages" AutomationProperties.HelpText="Left out when saving" IsChecked="{Binding SkipBlank}" Margin="0,4,0,0">
                             <StackPanel>
                                 <TextBlock Text="Skip blank pages" />
@@ -664,6 +673,32 @@
                             <StackPanel>
                                 <TextBlock Text="Several photos on the glass" />
                                 <TextBlock Text="Each saved by itself, cut out straight" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <!-- Clean up: every page of the scan; each can be changed on a page in the review, and Undo puts it back -->
+                        <TextBlock Text="Clean up" Margin="0,12,0,0" />
+                        <CheckBox AutomationProperties.Name="Crop to the paper" AutomationProperties.HelpText="Takes off the lid around a sheet; a page it can't be sure of stays whole" IsChecked="{Binding CropToPaper}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Crop to the paper" />
+                                <TextBlock Text="Takes off the lid around a sheet" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox AutomationProperties.Name="Whiten the background" AutomationProperties.HelpText="Evens grey or yellowed paper out to white and removes specks" IsChecked="{Binding WhitenPages}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Whiten the background" />
+                                <TextBlock Text="And removes specks" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox AutomationProperties.Name="Descreen printed pictures" AutomationProperties.HelpText="Takes the dots out of pictures from magazines and newspapers" IsChecked="{Binding DescreenPages}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Descreen printed pictures" />
+                                <TextBlock Text="Takes the dots out of magazine pictures" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox AutomationProperties.Name="Restore faded colors" AutomationProperties.HelpText="Brings back the blacks and colors of a faded print" IsChecked="{Binding RestoreColors}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Restore faded colors" />
+                                <TextBlock Text="Brings back a faded print's blacks and colors" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
                             </StackPanel>
                         </CheckBox>
                         <!-- Batch scanning: one feeder run, several files -->
@@ -750,7 +785,15 @@
 
         <!-- ===================== Print ===================== -->
         <DataTemplate DataType="{x:Type vm:PrintViewModel}">
-            <Grid Margin="0,0,16,16">
+            <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,16,12">
+                <RadioButton Content="One PDF" GroupName="printmode" IsChecked="{Binding ShowBatch, Converter={StaticResource Not}}" MinWidth="0" Margin="0,0,20,0" />
+                <RadioButton Content="Batch" GroupName="printmode" IsChecked="{Binding ShowBatch}" MinWidth="0"
+                             ToolTip="Many PDFs and pictures, or a folder: see the sheets before anything prints" />
+            </StackPanel>
+            <Grid>
+            <views:BatchPrintView DataContext="{Binding Batch}" Visibility="{Binding DataContext.ShowBatch, RelativeSource={RelativeSource AncestorType=DockPanel}, Converter={StaticResource VisibleWhen}}" />
+            <Grid Margin="0,0,16,16" Visibility="{Binding ShowBatch, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="300" />
                     <ColumnDefinition Width="*" />
@@ -891,6 +934,8 @@
                     </Grid>
                 </Border>
             </Grid>
+            </Grid>
+            </DockPanel>
         </DataTemplate>
 
         <!-- ===================== Copy ===================== -->
@@ -1503,6 +1548,14 @@
                 <Image local:AppIcon.Size="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
                 <TextBlock x:Name="AppName" Text="Inkvolt Print" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
+            <!-- Every printer at once (roadmap 2.6) -->
+            <Button x:Name="FleetButton" DockPanel.Dock="Top" Click="Fleet_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8" Margin="0,0,0,12"
+                    AutomationProperties.Name="Fleet: every printer at once" ToolTip="Every printer's state, supplies, pages and firmware, most trouble first">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A9;" Margin="0,0,10,0" />
+                    <TextBlock Text="Fleet" />
+                </StackPanel>
+            </Button>
             <TextBlock DockPanel.Dock="Top" Text="Printers" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
             <!-- Add a printer that discovery can't see -->
@@ -1614,8 +1667,11 @@
                 </DockPanel>
             </Border>
             <Grid>
+                <!-- The Fleet page takes the printer's place -->
+                <views:FleetView x:Name="FleetPage" DataContext="{Binding Fleet}" Margin="32,24,16,0"
+                                 Visibility="{Binding DataContext.IsFleetShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            Visibility="{Binding ShowNoPrinterHint, Converter={StaticResource VisibleWhen}}">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="56" HorizontalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="Your printers will show up here" FontSize="16" Margin="0,12,0,0" HorizontalAlignment="Center" />
@@ -1623,7 +1679,7 @@
 
                 <!-- Hidden without a printer: a template applied to no printer would show its buttons, tabs and setup banner -->
                 <ContentControl x:Name="PrinterPane" Content="{Binding Selected}" Margin="32,24,16,0" Focusable="False"
-                                Visibility="{Binding Selected, Converter={StaticResource VisibleWhen}}">
+                                Visibility="{Binding ShowPrinterPane, Converter={StaticResource VisibleWhen}}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate DataType="{x:Type vm:PrinterViewModel}">
                             <DockPanel>

@@ -18,6 +18,38 @@ public struct AiMessage: Sendable, Equatable {
     public static func assistant(_ content: String) -> AiMessage { AiMessage(role: "assistant", content: content) }
 }
 
+/// JSONSerialization recurses without a limit: a few kilobytes of {"a":{"a":... from a server or a preset file would run the
+/// thread out of stack and stop the app. So it reads only what nests within the depth Windows' System.Text.Json allows by
+/// default; no answer or preset nests anywhere near it.
+enum JsonNesting {
+    static let limit = 64
+
+    static func isSafe(_ json: Data) -> Bool {
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for b in json {
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if b == 0x5C {
+                    escaped = true
+                } else if b == 0x22 {
+                    inString = false
+                }
+            } else if b == 0x22 {
+                inString = true
+            } else if b == 0x5B || b == 0x7B {
+                depth += 1
+                if depth > limit { return false }
+            } else if b == 0x5D || b == 0x7D {
+                depth -= 1
+            }
+        }
+        return true
+    }
+}
+
 /// A failure talking to the AI endpoint, with a message meant for the user.
 public struct AiError: Error, Sendable, Equatable {
     public let message: String
@@ -73,9 +105,11 @@ public enum AiProtocol {
         return out + "\""
     }
 
-    /// Any JSON value, or nil when it isn't JSON.
+    /// Any JSON value, or nil when it isn't JSON, or nests too deep (`JsonNesting`).
     static func parse(_ text: String) -> Any? {
-        try? JSONSerialization.jsonObject(with: Data(text.utf8), options: [.fragmentsAllowed])
+        let data = Data(text.utf8)
+        guard JsonNesting.isSafe(data) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
     }
 
     /// The whole number a JSON value holds, as .NET's `TryGetInt32` reads it: a true integer within Int32, not a
@@ -205,6 +239,11 @@ public enum AiProtocol {
 public final class AiStreamParser {
     private var data = ""
     private var dataLength = 0
+    private var dataLines = 0
+
+    /// Data lines of one event each tried as JSON as it arrives (servers without blank lines send a value per line). Past
+    /// them the event is read at the blank line that ends it: reading it all again at each of a million lines takes hours.
+    static let maxTriedDataLines = 64
 
     /// Most characters held for one event while its data lines are joined.
     public static let maxEventChars = 4 << 20
@@ -236,6 +275,7 @@ public final class AiStreamParser {
         if AiText.trim(payload) == "[DONE]" {
             data = ""
             dataLength = 0
+            dataLines = 0
             done = true
             return ""
         }
@@ -243,6 +283,7 @@ public final class AiStreamParser {
         if dataLength + length > Self.maxEventChars {
             data = ""
             dataLength = 0
+            dataLines = 0
             throw AiError("The endpoint sent a streamed chunk too large to be part of an answer.")
         }
         if !data.isEmpty {
@@ -251,7 +292,8 @@ public final class AiStreamParser {
         }
         data += payload
         dataLength += length
-        return try flush(strict: false)
+        dataLines += 1
+        return dataLines <= Self.maxTriedDataLines ? try flush(strict: false) : ""
     }
 
     /// Call at the end of the stream: reads what is left.
@@ -263,10 +305,12 @@ public final class AiStreamParser {
             if !strict { return "" } // more data lines may follow
             data = ""
             dataLength = 0
+            dataLines = 0
             throw AiError("The endpoint sent an answer Inkvolt PDF can't read (not OpenAI-compatible streaming).")
         }
         data = ""
         dataLength = 0
+        dataLines = 0
         sawData = true
         return try chunk(value)
     }

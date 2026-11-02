@@ -32,6 +32,10 @@
                     </StackPanel>
                     <CheckBox IsChecked="{Binding OfflineAlerts}" Margin="0,12,0,0"
                               Content="Tell me when a printer stops answering for 15 minutes" />
+                    <CheckBox IsChecked="{Binding JobAlerts}" Margin="0,12,0,0"
+                              Content="Tell me when my own print job fails or gets stuck" />
+                    <TextBlock Style="{StaticResource Caption}" Margin="28,4,0,0"
+                               Text="{Binding JobAlertsNote}" />
                     <CheckBox IsChecked="{Binding QuietHours}" Margin="0,12,0,0" Content="Quiet hours" />
                     <StackPanel Orientation="Horizontal" Margin="28,6,0,0" IsEnabled="{Binding QuietHours}">
                         <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,10,0" />

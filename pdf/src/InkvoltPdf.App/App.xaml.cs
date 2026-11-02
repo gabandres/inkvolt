@@ -75,7 +75,12 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
-        if (_instance.IsOwner) FolderWatches.StartSaved(); // a fallback copy would only find the folders locked
+        if (_instance.IsOwner)
+        {
+            // A fallback copy would only find the folders locked.
+            FolderWatches.StartSaved();
+            FolderSearches.StartSaved();
+        }
         _ = OpenStartupFilesAsync(window, args);
     }
 
@@ -238,6 +243,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         FolderWatches.StopAll();
+        FolderSearches.StopAll();
         _instance?.Dispose();
         base.OnExit(e);
     }

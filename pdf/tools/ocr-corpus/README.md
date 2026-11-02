@@ -53,3 +53,22 @@ them), in the order recognized. Three readings per file, all with Windows' recog
 
 The cleanup's settings came from trying variants on this corpus: whitening at 86% of the paper level cost thin serifs
 (the light file got worse, 1.8% → 2.5%); 92% with the median and despeckling was lower on every file.
+
+## Inkvolt Print's scan cleanup (`CleanupCorpus.cs`)
+
+```powershell
+dotnet run --project pdf/tools/ocr-corpus -c Release -- cleanup              # measure every file, write RESULTS-cleanup.md
+dotnet run --project pdf/tools/ocr-corpus -c Release -- cleanup --only en-grey
+dotnet run --project pdf/tools/ocr-corpus -c Release -- layer                # JPEG, recognizer, Inkvolt Print's PDF, search: every word read found again
+```
+
+Roadmap 2.3 of Inkvolt Print (`print/ROADMAP.md`). Pages are made up from the same seed each time, in four kinds of damage: skewed
+on a lid lighter than the sheet, dark grey paper shaded to one side, printed on a 65-line 45° screen, a color print gone pale and
+yellow. **Today** is what the Scan tab reads today (straightened); **cleaned** adds the crop and filters a preset would have on
+(`PaperEdge`, `PageCleanup`). Pixels go to the recognizer directly in both, with no JPEG between. Run it after changing
+`PageCleanup.cs`, and commit RESULTS-cleanup.md. It exits 1 when a measured file isn't lower. Files in a language that isn't
+installed are reported as not run; the Russian and Japanese ones are typeset with this PC's fonts through Fill & Sign's text. Japanese
+is compared letter by letter, as its words run together. `CleanupCorpusTests` (pdf/tests) checks the generator and that each filter fires.
+
+What it found while building: a blur sized from a row's period killed type on a tint (94.8 %), since a 45° screen repeats less often
+along a row than its dots lie apart; a white point below 90 % cost serifs; dust outside the sheet stopped the crop.

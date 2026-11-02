@@ -1734,6 +1734,8 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolCross, t => ToggleTool(t, ViewerTool.AddCross), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.AddSignature, t => ShowSignatureMenu(t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.Sign, t => _ = SignDigitallyAsync(t, null), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !_signing);
+        Bind(Cmd.AddVerification, t => _ = AddVerificationAsync(t), t => t.Session.IsPdf && t.IsSigned && !_signing);
+        Bind(Cmd.CheckSignaturesOnline, t => _ = CheckSignaturesOnlineAsync(t), t => t.Session.IsPdf && t.IsSigned && !_signing);
         Bind(Cmd.HighlightFields, t => t.PageView.HighlightFields = !t.PageView.HighlightFields, t => t.PageView.HasFormFields);
 
         Bind(Cmd.ZoomIn, t => t.ActiveView.ZoomStep(1), t => !t.IsOrganizing);

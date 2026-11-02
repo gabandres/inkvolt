@@ -30,10 +30,12 @@ public struct PdfAResult: Sendable {
 /// than page navigation), additional actions, XFA, multimedia or embedded files; whose annotations print and have a normal
 /// appearance only (hidden ones and ones without an appearance are removed; form fields get appearances first); whose
 /// images don't interpolate or carry alternates or OPI; with LZW streams re-encoded with Flate, transfer and halftone
-/// functions dropped, optional-content configurations named; and whose fonts are all embedded: the standard Helvetica,
-/// Times and Courier faces (also named Arial, Times New Roman, Courier New) are embedded from the metric-compatible
-/// fonts macOS ships, the same Arial, Times New Roman and Courier New as Windows' (a subset, `TrueTypeSubset`, WinAnsi
-/// with differences), CIDSet and CharSet removed. What can't be fixed without changing the look refuses the conversion
+/// functions dropped, optional-content configurations named, names over 127 bytes shortened (`LongNames`); with XMP only
+/// in the catalog (other packets, a picture's from Photoshop, hold properties outside PDF/A's schemas); and whose fonts are
+/// all embedded: the standard Helvetica, Times and Courier faces (also named Arial, Times New Roman, Courier New) are
+/// embedded from the metric-compatible fonts macOS ships, the same Arial, Times New Roman and Courier New as Windows' (a
+/// subset, `TrueTypeSubset`, WinAnsi with differences), ZapfDingbats from macOS's own ZapfDingbats.ttf (a symbolic subset,
+/// as its symbols have no names a validator accepts; Windows uses Segoe UI Symbol), CIDSet and CharSet removed. What can't be fixed without changing the look refuses the conversion
 /// (`PdfAError`): other fonts that aren't embedded, CMYK color without a profile (the output intent is RGB), PostScript
 /// or external content, digital signatures (a rewrite would break them), widgets without appearances. `validate`
 /// checks the rules handled here; it is not a full validator.
@@ -69,13 +71,37 @@ public enum PdfA {
         if SignedEdits.looksSigned(data) && Signatures.verify(data, password).contains(where: { $0.status != .unsigned }) {
             throw PdfAError(["It is digitally signed: a PDF/A copy is a rewrite, which would break the signatures. (Sanitize can remove them first.)"])
         }
+        // First, while the file's own text has them: every rewrite below goes through MuPDF, which cuts them as it reads.
+        let longNames: Int
+        (data, longNames) = try LongNames.shorten(data, password)
+
+        // No field is signed, yet a /ByteRange can still make the file look so: usage rights, whose signature no person
+        // made, or what an earlier revision left behind. A rewrite breaks nothing of anybody's, so it is allowed below.
         if try PdfSecurity.readSecurity(data, password).isEncrypted {
-            data = try PdfSecurity.unprotect(data, password)
+            let protected = data
+            data = try SignedEdits.run({ try PdfSecurity.unprotect(protected, password) }, allowRewrite: true).0
             changes.append("password protection removed (PDF/A files can't be encrypted)")
         }
 
+        if SignedEdits.looksSigned(data) {
+            let perms = try PdfEdit.open(data, nil, failure: "This PDF can't be converted").catalog.dict("Perms")
+            if perms?.has("DocMDP") == true {
+                throw PdfAError(["It is certified: a PDF/A copy is a rewrite, which would break the certification. (Sanitize can remove it first.)"])
+            }
+            if perms?.has("UR3") == true || perms?.has("UR") == true {
+                changes.append("Reader usage rights removed (the form maker's seal, not a person's signature; a rewritten copy would void it)")
+            }
+        }
+
         // Scripts, actions that run things, multimedia, XFA and attached files: what Sanitize removes.
-        let sanitized = try Sanitizer.sanitize(data, nil, [.activeContent, .embeddedFiles])
+        var cleaned: SanitizeResult?
+        let unsanitized = data
+        _ = try SignedEdits.run({
+            let made = try Sanitizer.sanitize(unsanitized, nil, [.activeContent, .embeddedFiles])
+            cleaned = made
+            return made.data
+        }, allowRewrite: true)
+        guard let sanitized = cleaned else { throw PdfAError(["It couldn't be cleaned of scripts and attached files."]) }
         if sanitized.removed[.activeContent] > 0 {
             changes.append("\(count(sanitized.removed[.activeContent], "script or active item", "scripts and active items")) removed")
         }
@@ -100,6 +126,7 @@ public enum PdfA {
             if fonts > 0 { changes.append("\(count(fonts, "font", "fonts")) given the Unicode values of their characters") }
         }
         let pass = try Pass(doc, changes)
+        pass.longNames = longNames
         try pass.run()
         if !pass.blockers.isEmpty { throw PdfAError(unique(pass.blockers)) }
         changes = pass.changes
@@ -153,13 +180,13 @@ public enum PdfA {
             + "\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF."
     }
 
-    /// Embeds the standard Helvetica, Times and Courier faces the document draws with but doesn't embed, as the PDF/A copy
-    /// does (the Mac's metric-compatible fonts); other fonts are left as they are. How many were embedded.
+    /// Embeds the standard Helvetica, Times, Courier and ZapfDingbats faces the document draws with but doesn't embed, as the
+    /// PDF/A copy does (the Mac's metric-compatible fonts, its ZapfDingbats); other fonts are left as they are. How many were embedded.
     @discardableResult
     static func embedStandardFonts(_ doc: MuDoc) throws -> Int {
         let pass = try Pass(doc, [])
         pass.fonts()
-        return pass.embedded
+        return pass.embedded + pass.dingbats
     }
 
     /// The first letter capitalized, unless the word is one like "sRGB" (Windows writes "SRGB").

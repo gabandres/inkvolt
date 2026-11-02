@@ -23,7 +23,7 @@ public partial class MainViewModel
         _state.Save();
         if (_discovery is not null) Merge(_discovery.Snapshot());
         var vm = Printers.FirstOrDefault(p => p.IsKnownAs(d.Uuid));
-        if (vm is not null) Selected = vm;
+        if (vm is not null) ShowPrinter(vm);
         return vm;
     }
 
@@ -66,7 +66,7 @@ public partial class MainViewModel
         }
         else vm.SnmpDevice ??= snmpOnly;
         Remember(vm);
-        Selected = vm;
+        ShowPrinter(vm);
         Reconcile(queues: true);
         return vm;
     }

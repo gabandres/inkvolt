@@ -69,9 +69,10 @@ public static class PhotoFiles
 
     /// <summary>
     /// The pictures in a file: one, or one per TIFF page. Throws <see cref="NotSupportedException"/> (no codec),
-    /// <see cref="IOException"/> or <see cref="FileFormatException"/> for files it can't read.
+    /// <see cref="IOException"/> or <see cref="FileFormatException"/> for files it can't read, and
+    /// <see cref="InvalidDataException"/> for one of more than <paramref name="maxPages"/> pages (checked before the pages are read).
     /// </summary>
-    public static IReadOnlyList<PhotoSource> Read(string path)
+    public static IReadOnlyList<PhotoSource> Read(string path, int maxPages = int.MaxValue)
     {
         using var stream = File.OpenRead(path);
         var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation | BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
@@ -79,6 +80,7 @@ public static class PhotoFiles
         var isJpeg = decoder is JpegBitmapDecoder;
         // GIF frames are an animation: its first frame is the picture. TIFF pages are pictures of their own.
         var frames = decoder is TiffBitmapDecoder ? decoder.Frames.Count : 1;
+        if (frames > maxPages) throw new InvalidDataException($"The picture has {frames:N0} pages: a batch takes at most {maxPages:N0} per file.");
         var list = new List<PhotoSource>(frames);
         for (var i = 0; i < frames; i++)
         {
@@ -124,7 +126,8 @@ public static class PhotoFiles
         }
         using (var stream = File.OpenRead(photo.Path))
         {
-            var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[photo.Frame];
+            // Not cached: a long TIFF's other pages aren't decoded for this one.
+            var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.None).Frames[photo.Frame];
             BitmapSource result = frame;
             if (width > 0) result = new TransformedBitmap(frame, new ScaleTransform(width / (double)photo.PixelWidth, width / (double)photo.PixelWidth));
             var copy = new WriteableBitmap(result);
@@ -138,7 +141,13 @@ public static class PhotoFiles
     /// paper) and stored as JPEG, which the XPS writer keeps as JPEG (<see cref="PrintImages"/>), so the job
     /// stays a few MB a page. Runs on the spooling thread.
     /// </summary>
-    public static BitmapSource ForPrint(PhotoSource photo, int width, PrintImages images)
+    public static BitmapSource ForPrint(PhotoSource photo, int width, PrintImages images) => images.Jpeg(ForPrintJpeg(photo, width));
+
+    /// <summary>
+    /// The picture's JPEG for a print job, as <see cref="ForPrint"/>. <paramref name="upright"/> also applies its EXIF orientation
+    /// (batch print has no turns of its own; Photos draws each sheet with them).
+    /// </summary>
+    public static byte[] ForPrintJpeg(PhotoSource photo, int width, bool upright = false)
     {
         BitmapSource bitmap = Decode(photo, width);
         if (photo.IsJpeg) bitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr24, null, 0); // CMYK and grey JPEGs too
@@ -155,11 +164,18 @@ public static class PhotoFiles
             flat.Render(visual);
             bitmap = flat;
         }
+        if (upright && Core.Photos.ExifOrientation.Transform(photo.Orientation) is var (turns, mirror) && (turns != 0 || mirror))
+        {
+            var turn = new TransformGroup();
+            if (mirror) turn.Children.Add(new ScaleTransform(-1, 1));
+            if (turns != 0) turn.Children.Add(new RotateTransform(turns * 90));
+            bitmap = new TransformedBitmap(bitmap, turn);
+        }
         var encoder = new JpegBitmapEncoder { QualityLevel = 92 };
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var bytes = new MemoryStream();
         encoder.Save(bytes);
-        return images.Jpeg(bytes.ToArray());
+        return bytes.ToArray();
     }
 
     // ---- Is there a WIC decoder for this container format? (IWICImagingFactory::CreateDecoder; Store codecs included) ----

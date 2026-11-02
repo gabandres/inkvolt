@@ -357,6 +357,13 @@ public sealed class PageText
     public static bool Matches(string pageText, string query, bool matchCase, bool wholeWord, bool ignoreAccents = false) =>
         pageText.Length > 0 && Find(SearchView.For(pageText), query, matchCase, wholeWord, ignoreAccents).Count > 0;
 
+    /// <summary><see cref="Find"/> on a page's <see cref="Text"/> alone (no boxes needed): the hits, as ranges of that text.</summary>
+    public static List<(int Start, int End)> FindIn(string pageText, string query, bool matchCase, bool wholeWord, bool ignoreAccents = false) =>
+        pageText.Length == 0 ? [] : Find(SearchView.For(pageText), query, matchCase, wholeWord, ignoreAccents);
+
+    /// <summary>The text as search reads it: words hyphenated across a line break whole again, soft hyphens gone.</summary>
+    public static string SearchTextOf(string pageText) => pageText.Length == 0 ? pageText : SearchView.For(pageText).Text;
+
     private static List<(int Start, int End)> Find(SearchView view, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
     {
         var hits = new List<(int, int)>();
@@ -437,12 +444,15 @@ public sealed class PageText
     }
 
     /// <summary>Short excerpt around a match for the search results list.</summary>
-    public string Excerpt(int start, int end, int context = 40)
+    public string Excerpt(int start, int end, int context = 40) => ExcerptOf(Text, start, end, context);
+
+    /// <summary><see cref="Excerpt"/> of a page's text kept as a string.</summary>
+    public static string ExcerptOf(string text, int start, int end, int context = 40)
     {
         var s = Math.Max(0, start - context);
-        var e = Math.Min(Text.Length, end + context);
-        var text = (s > 0 ? "…" : "") + Text[s..e] + (e < Text.Length ? "…" : "");
-        return text.Replace('\n', ' ');
+        var e = Math.Min(text.Length, end + context);
+        var excerpt = (s > 0 ? "…" : "") + text[s..e] + (e < text.Length ? "…" : "");
+        return excerpt.Replace('\n', ' ');
     }
 
     private (int, int) Order(int a, int b)

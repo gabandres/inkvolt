@@ -157,6 +157,86 @@ public class SignatureChangeTests
         Assert.Contains("locked field", s.Detail);
     }
 
+    /// <summary>A form signed in "Witness", with "Name" given an appearance stream of its own and locked by the signature.</summary>
+    private static (byte[] Pdf, int Field, int Appearance) SignedWithLockedAppearance(string lockEntry, string catalogExtra = "")
+    {
+        using var cert = SigningTests.RsaCert();
+        var form = Core2Pdf.Build(
+        [
+            $"<< /Type /Catalog /Pages 2 0 R{catalogExtra} /AcroForm << /Fields [4 0 R 5 0 R 9 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 7 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R 5 0 R 9 0 R] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Ada) /Rect [72 500 300 530] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) /AP << /N 8 0 R >> >>",
+            $"<< /Type /Annot /Subtype /Widget /FT /Sig /T (Witness) /Rect [72 400 272 450] /P 3 0 R /F 4{lockEntry} >>",
+            Core2Pdf.Stream("BT /F1 24 Tf 72 720 Td (Form) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 228 30] /Length 5 >>\nstream\n0 0 m\nendstream",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Free) /Rect [72 300 300 330] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>",
+        ]);
+        return (Signing.Sign(form, null, new SignRequest { Certificate = cert, FieldName = "Witness" }), 4, 8);
+    }
+
+    private const string LockName = " /Lock << /Type /SigFieldLock /Action /Include /Fields [(Name)] >>";
+
+    [Fact]
+    public void SwappingALockedFieldsAppearanceIsCaughtWithoutTouchingItsValue()
+    {
+        // What the reader sees changes while /V stays as signed: an appearance stream redefined under its old number.
+        var (signed, _, appearance) = SignedWithLockedAppearance(LockName);
+        var swapped = Append(signed, new Dictionary<int, string> { [appearance] = "<< /Type /XObject /Subtype /Form /BBox [0 0 228 30] /Length 22 >>\nstream\nBT (Pay Eve) Tj ET    \nendstream" });
+        var s = Signatures.Verify(swapped).Single(x => x.FieldName == "Witness");
+        Assert.Equal(SignatureStatus.DisallowedChanges, s.Status);
+        Assert.Contains("locked field", s.Detail);
+    }
+
+    [Fact]
+    public void AStoreThatPointsAtALockedAppearanceDoesntFreeIt()
+    {
+        // Prepared before signing: a /DSS naming the field's appearance stream, as if it were validation data.
+        var (signed, _, appearance) = SignedWithLockedAppearance(LockName, " /DSS << /Certs [8 0 R] >>");
+        var swapped = Append(signed, new Dictionary<int, string> { [appearance] = "<< /Type /XObject /Subtype /Form /BBox [0 0 228 30] /Length 22 >>\nstream\nBT (Pay Eve) Tj ET    \nendstream" });
+        var s = Signatures.Verify(swapped).Single(x => x.FieldName == "Witness");
+        Assert.Equal(SignatureStatus.DisallowedChanges, s.Status);
+    }
+
+    [Fact]
+    public void AnyChangeToALockedFieldsDictionaryIsCaught()
+    {
+        var (signed, field, _) = SignedWithLockedAppearance(LockName);
+        var body = Body(signed, field);
+        var changed = Append(signed, new Dictionary<int, string> { [field] = body.Replace("/Rect", "/MK << /BC [1 0 0] >> /Rect") });
+        var s = Signatures.Verify(changed).Single(x => x.FieldName == "Witness");
+        Assert.Equal(SignatureStatus.DisallowedChanges, s.Status);
+        Assert.Contains("locked field", s.Detail);
+    }
+
+    [Fact]
+    public void FieldsOutsideTheLockStayFillable()
+    {
+        var (signed, _, _) = SignedWithLockedAppearance(LockName);
+        var filled = FormEditor.SetValues(signed, null, new Dictionary<string, string> { ["Free"] = "Open" });
+        Assert.Equal(SignatureStatus.ModifiedAfterSigning, Signatures.Verify(filled).Single(x => x.FieldName == "Witness").Status);
+    }
+
+    [Fact]
+    public void ANewFieldUnderALockedFieldsNameIsCaught()
+    {
+        var (signed, _, _) = SignedWithLockedAppearance(LockName);
+        var text = Encoding.Latin1.GetString(signed);
+        var fieldsAt = Regex.Match(text, @"/Fields\s*\[[^\]]*\]");
+        var acro = Regex.Matches(text, @"/Root (\d+) 0 R").Last().Groups[1].Value;
+        var catalog = Body(signed, int.Parse(acro));
+        var shadow = Append(signed, new Dictionary<int, string>
+        {
+            [int.Parse(acro)] = Regex.Replace(catalog, @"/Fields\s*\[", "/Fields [40 0 R "),
+            [3] = Regex.Replace(Body(signed, 3), @"/Annots\s*\[", "/Annots [40 0 R "),
+            [40] = "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Eve) /Rect [72 500 300 530] /P 3 0 R /F 4 >>",
+        });
+        var s = Signatures.Verify(shadow).Single(x => x.FieldName == "Witness");
+        Assert.Equal(SignatureStatus.DisallowedChanges, s.Status);
+        Assert.Contains("locked field", s.Detail);
+    }
+
     [Fact]
     public void ACertificateForWebsitesCantSignDocuments()
     {

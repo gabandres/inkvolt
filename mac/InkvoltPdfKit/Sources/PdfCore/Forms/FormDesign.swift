@@ -549,7 +549,7 @@ public enum FormDesign {
             for i in 0..<annots.count {
                 guard let a = annots[i], a.isDict else { continue }
                 let id = Annotations.idOf(doc, a, pageIndex, i)
-                guard ids.contains(id) else { continue }
+                guard ids.contains(id), byId[id] == nil else { continue } // another with the same /NM stays where it is
                 slots.append(i)
                 byId[id] = a
                 if (a.text("NM") ?? "").isEmpty {

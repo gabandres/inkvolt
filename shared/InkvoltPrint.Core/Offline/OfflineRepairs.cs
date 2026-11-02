@@ -54,6 +54,18 @@ public sealed record Repair(RepairKind Kind, string Title, string Detail)
     /// <summary>Another way to fix the same thing (pointing a port at the network name instead of the address).</summary>
     public bool IsAlternative { get; init; }
 
+    /// <summary>
+    /// A printer shared from another PC: that PC decides who may change it, so an administrator of this one gets no further and
+    /// no permission prompt is shown for it.
+    /// </summary>
+    public bool OnAnotherPc { get; init; }
+
+    /// <summary>
+    /// What Fix all may do (each confirmed): it loses nothing, moves no job elsewhere and interrupts no other printer. Cancelling
+    /// jobs, printing them again, ports, setting up again and the spooler stay on each printer's own fixer.
+    /// </summary>
+    public bool IsSafe => Kind is RepairKind.ResumeQueue or RepairKind.ClearWorkOffline && !ManualOnly;
+
     public IReadOnlyList<string> ManualSteps { get; init; } = [];
 }
 
@@ -171,6 +183,10 @@ public static class RepairRunner
                 repair = repair with { JobIds = denied };
             }
         }
+        if (repair.OnAnotherPc)
+            return new(RepairOutcomeKind.Manual,
+                "Windows refused: the PC sharing this printer decides who may change it. Do it there, or ask whoever looks after it:",
+                repair.ManualSteps);
         if (!canElevate)
             return new(RepairOutcomeKind.Manual,
                 "Windows needs an administrator for this, and the Microsoft Store version of Inkvolt Print doesn't ask for that. Do it in Windows:",

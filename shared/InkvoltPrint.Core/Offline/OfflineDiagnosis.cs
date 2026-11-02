@@ -34,13 +34,34 @@ public sealed record OfflineReport(
 
     public bool Answers => Reach?.Answers == true;
 
+    /// <summary>A queue printer's queue wasn't among Windows' printers: it was removed or renamed (not merely unreadable).</summary>
+    public bool QueueGone { get; init; }
+
+    /// <summary>A queue printer's queue couldn't be read this time.</summary>
+    public bool QueueUnread { get; init; }
+
     public string Headline => Spooler == SpoolerState.Stopped ? "The Print Spooler service isn't running"
         : Repairs.Count(r => !r.IsAlternative) is var n and > 0 ? $"Found {(n == 1 ? "one thing" : $"{n} things")} to fix"
+        : Device.QueueOnly ? QueueHeadline
         : !Answers ? "The printer isn't answering"
         : Queues.Count == 0 ? "The printer answers, but Windows has no printer for it"
         : "No problems found";
 
+    private string QueueHeadline => QueueGone ? "Windows no longer has this printer"
+        : QueueUnread ? "Windows didn't say how this printer is"
+        : Queues.Any(m => m.Queue.ReportsOffline) ? "Windows shows this printer offline"
+        : Queues.Any(m => m.Queue.ReportsError) ? "Windows shows an error on this printer"
+        : "No problems found";
+
+    private string QueueAdvice => Repairs.Count > 0 ? "Fix each one below, then check again."
+        : QueueGone ? "It was probably removed or renamed in Settings › Printers & scanners. Inkvolt Print lists what Windows has."
+        : QueueUnread ? "Check again in a moment. If this printer is shared from another PC, check that the PC is on."
+        : Queues.Any(m => m.Queue.ReportsOffline || m.Queue.ReportsError)
+            ? "Check that it's turned on and connected: its USB cable, or the PC sharing it. Inkvolt Print can't reach this printer itself, only what Windows reports."
+            : "Windows' printer is ready, not paused and with no stuck jobs. If a job still won't print, turn the printer off and on, then try again.";
+
     public string Advice => Spooler == SpoolerState.Stopped ? "Nothing on this PC can print until Windows' printing service runs again."
+        : Device.QueueOnly ? QueueAdvice
         : Repairs.Count > 0 && Answers ? "Fix each one below, then check again."
         : Repairs.Count > 0 ? "Fix what's listed below. The printer itself isn't answering yet: check that it's on and connected to the same network as this PC."
         : !Answers ? "Check that it's switched on and awake, and connected to the same Wi-Fi or network as this PC (its control panel or a " +
@@ -62,9 +83,18 @@ public static class OfflineDiagnosis
     /// <summary>A job still "cancelling" after this long is stuck in the spooler; only restarting the spooler clears it.</summary>
     public static readonly TimeSpan StuckDeleting = TimeSpan.FromMinutes(2);
 
+    /// <summary>How long a queue printer's fixer waits for Windows to say how the queue is: a print server that's off makes it wait far longer.</summary>
+    public static readonly TimeSpan QueueReadLimit = TimeSpan.FromSeconds(10);
+
+    /// <summary>The steps a printer's diagnosis has, in order: a queue printer has no network steps.</summary>
+    public static IReadOnlyList<CheckKind> StepsFor(OfflineDevice device) =>
+        device.QueueOnly ? [CheckKind.Spooler, CheckKind.Queues, CheckKind.QueueState] : Enum.GetValues<CheckKind>();
+
     public static async Task<OfflineReport> RunAsync(OfflineDevice device, IOfflineProbes probes, IProgress<CheckResult>? progress = null,
-        DateTime? now = null, CancellationToken ct = default)
+        DateTime? now = null, CancellationToken ct = default, TimeSpan? queueReadLimit = null)
     {
+        if (device.QueueOnly) return await RunQueueAsync(device, probes, progress, now ?? DateTime.Now, queueReadLimit ?? QueueReadLimit, ct).ConfigureAwait(false);
+
         var checks = new Dictionary<CheckKind, CheckResult>();
         void Report(CheckResult r)
         {
@@ -137,6 +167,69 @@ public static class OfflineDiagnosis
         var repairs = Plan(device, spooler, found, reach, matched, now ?? DateTime.Now, caution.Length > 0 ? caution : null);
         var ordered = Enum.GetValues<CheckKind>().Select(k => checks.GetValueOrDefault(k) ?? CheckResult.Waiting(k)).ToList();
         return new OfflineReport(device, spooler, found, reach, ordered, matched, repairs) { OldAddressAnswers = oldAnswers };
+    }
+
+    /// <summary>
+    /// A printer known only by its Windows queue: the Print Spooler service, then that queue by its exact name (never another
+    /// queue of the same model), then whether it's paused, set to "Use Printer Offline" or holds stuck jobs. Windows' answers are
+    /// waited for only so long: a queue that doesn't answer reads as unknown, not as gone.
+    /// </summary>
+    private static async Task<OfflineReport> RunQueueAsync(OfflineDevice device, IOfflineProbes probes, IProgress<CheckResult>? progress, DateTime now,
+        TimeSpan limit, CancellationToken ct)
+    {
+        var queueName = device.StoredQueueName ?? throw new ArgumentException("A queue printer has a queue name.", nameof(device));
+        var checks = new Dictionary<CheckKind, CheckResult>();
+        void Report(CheckResult r)
+        {
+            checks[r.Kind] = r;
+            progress?.Report(r);
+        }
+        void Start(CheckKind kind) => Report(new(kind, CheckState.Running, CheckResult.TitleOf(kind)));
+
+        Start(CheckKind.Spooler);
+        var spooler = await Probe(() => probes.SpoolerAsync(ct).WaitAsync(limit, ct), SpoolerState.Unknown, ct).ConfigureAwait(false);
+        Report(SpoolerCheck(spooler));
+
+        IReadOnlyList<MatchedQueue> matched = [];
+        bool gone = false, unread = false;
+        if (spooler == SpoolerState.Stopped)
+        {
+            const string why = "Needs the Print Spooler service.";
+            Report(new(CheckKind.Queues, CheckState.Skipped, CheckResult.TitleOf(CheckKind.Queues), why));
+            Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState), why));
+        }
+        else
+        {
+            Start(CheckKind.Queues);
+            QueueFacts? queue = null;
+            string? error = null;
+            try { queue = await probes.QueueAsync(queueName, ct).WaitAsync(limit, ct).ConfigureAwait(false); }
+            catch (TimeoutException) { error = "Windows didn't answer in time."; }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { error = ex.Message; }
+            if (error is not null)
+            {
+                unread = true;
+                Report(new(CheckKind.Queues, CheckState.Warning, CheckResult.TitleOf(CheckKind.Queues), $"Couldn't read “{queueName}”: {error}"));
+                Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState)));
+            }
+            else if (queue is null)
+            {
+                gone = true;
+                Report(new(CheckKind.Queues, CheckState.Failed, CheckResult.TitleOf(CheckKind.Queues), $"Windows no longer has a printer called “{queueName}”."));
+                Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState)));
+            }
+            else
+            {
+                matched = [new MatchedQueue(queue, MatchReason.Stored, PortIsStale: false)];
+                Report(QueuesCheck(matched));
+                Start(CheckKind.QueueState);
+                Report(QueueStateCheck(matched, now));
+            }
+        }
+
+        var repairs = Plan(device, spooler, null, null, matched, now);
+        var ordered = StepsFor(device).Select(k => checks.GetValueOrDefault(k) ?? CheckResult.Waiting(k)).ToList();
+        return new OfflineReport(device, spooler, null, null, ordered, matched, repairs) { QueueGone = gone, QueueUnread = unread };
     }
 
     internal static string Caution(OfflineReport r) => Caution(r.Device, r.Found, r.OldAddressAnswers);
@@ -271,6 +364,28 @@ public static class OfflineDiagnosis
         return result;
     }
 
+    /// <summary>
+    /// The queues known to print to this printer, asking nothing of the network: <see cref="MatchAsync"/> without its match by
+    /// name, which only a look at the address could settle. For repairs made without looking at each printer in turn (Fix all).
+    /// </summary>
+    public static IReadOnlyList<MatchedQueue> OwnQueues(OfflineDevice device, IReadOnlyList<QueueFacts> queues)
+    {
+        var uuid = NormalizeUuid(device.Uuid);
+        var hosts = new HashSet<string>(device.PreviousHosts, StringComparer.OrdinalIgnoreCase);
+        if (device.Host is { Length: > 0 } now) hosts.Add(now);
+        var result = new List<MatchedQueue>();
+        foreach (var q in queues)
+        {
+            MatchReason? reason =
+                uuid is not null && NormalizeUuid(q.ContainerId) == uuid ? MatchReason.Container
+                : device.StoredQueueName is { } stored && string.Equals(stored, q.Name, StringComparison.OrdinalIgnoreCase) ? MatchReason.Stored
+                : PortHost(q.Port) is { } host && hosts.Contains(host) ? MatchReason.Address
+                : null;
+            if (reason is { } r) result.Add(new MatchedQueue(q, r, PortIsStale: false));
+        }
+        return result;
+    }
+
     /// <summary>The port's fixed address points somewhere other than where the printer is now.</summary>
     internal static bool IsStale(QueuePort port, string? address, string? hostName)
     {
@@ -321,10 +436,14 @@ public static class OfflineDiagnosis
         {
             var q = m.Queue;
             var name = q.Name;
+            var onAnotherPc = name.StartsWith(@"\\", StringComparison.Ordinal);
             if (q.Paused)
                 list.Add(new Repair(RepairKind.ResumeQueue, $"Resume “{name}”", "Printing is paused in Windows, so jobs wait in the queue.")
                 {
                     Queue = name,
+                    OnAnotherPc = onAnotherPc,
+                    Question = $"Resume “{name}”? Jobs waiting in its queue start printing.",
+                    Confirm = "Resume",
                     ManualSteps = ManualSteps.For(RepairKind.ResumeQueue, name),
                 });
             if (q.WorkOffline)
@@ -332,6 +451,9 @@ public static class OfflineDiagnosis
                     "Windows was told to keep jobs for this printer instead of sending them.")
                 {
                     Queue = name,
+                    OnAnotherPc = onAnotherPc,
+                    Question = $"Turn off “Use Printer Offline” for “{name}”? Jobs Windows is holding for it go to the printer.",
+                    Confirm = "Turn it off",
                     ManualSteps = ManualSteps.For(RepairKind.ClearWorkOffline, name),
                 });
 
@@ -370,19 +492,21 @@ public static class OfflineDiagnosis
                     stuck.Count == 1 ? $"{Capital(what)} is stuck and holds up everything after it." : $"{Capital(what)} are stuck and hold up everything after them.")
                 {
                     Queue = name,
+                    OnAnotherPc = onAnotherPc,
                     JobIds = ids,
-                    Question = $"Cancel {what}? {(stuck.Count == 1 ? "It" : "They")} won't print.",
+                    Question = $"Cancel {what} in “{name}”? {(stuck.Count == 1 ? "It" : "They")} won't print.",
                     Confirm = stuck.Count == 1 ? "Cancel job" : "Cancel jobs",
                     ManualSteps = ManualSteps.For(RepairKind.CancelStuckJobs, name),
                 });
-                if (answers || target is not null)
+                if (answers || target is not null || device.QueueOnly) // a queue printer has nothing else to go by
                     list.Add(new Repair(RepairKind.RestartStuckJobs, stuck.Count == 1 ? "Or print it again from the start" : "Or print them again from the start",
                         "Sends the stuck job to the printer again from its first page.")
                     {
                         Queue = name,
+                        OnAnotherPc = onAnotherPc,
                         JobIds = ids,
                         IsAlternative = true,
-                        Question = $"Print {what} again from the first page?",
+                        Question = $"Print {what} in “{name}” again from the first page?",
                         Confirm = "Print again",
                         ManualSteps = ManualSteps.For(RepairKind.RestartStuckJobs, name),
                     });

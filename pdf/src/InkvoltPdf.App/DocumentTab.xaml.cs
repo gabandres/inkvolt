@@ -1263,6 +1263,20 @@ public partial class DocumentTab : UserControl, IDisposable
         FindBox.SelectAll();
     }
 
+    /// <summary>Goes to <paramref name="page"/> (of a file changed since it was indexed: the nearest there is) and shows what was searched for there, in the find bar.</summary>
+    public void ShowFoundAt(int page, string query, bool matchCase, bool wholeWords, bool ignoreAccents)
+    {
+        SetOrganizing(false);
+        if (Viewer.PageCount > 0) Viewer.GoToPage(Math.Clamp(page, 0, Viewer.PageCount - 1));
+        FindBar.Visibility = Visibility.Visible;
+        FindBox.Text = query;
+        FindMatchCase.IsChecked = matchCase;
+        FindWholeWords.IsChecked = wholeWords;
+        FindIgnoreAccents.IsChecked = ignoreAccents;
+        _activeHit = -1; // from this page, even if the same search has been shown here before
+        FindNext(false);
+    }
+
     public void ShowSearchPane()
     {
         ShowPane(NavPaneKind.Search);
@@ -1522,7 +1536,8 @@ public partial class DocumentTab : UserControl, IDisposable
                 else LayerTree.Focus();
                 break;
             case NavPaneKind.Signatures:
-                if (FirstFocusable(SignatureList) is { } sig) sig.Focus();
+                if (SigAddVerification.IsEnabled) SigAddVerification.Focus();
+                else if (FirstFocusable(SignatureList) is { } sig) sig.Focus();
                 else PagesRail.Focus();
                 break;
             default:

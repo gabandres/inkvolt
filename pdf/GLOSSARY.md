@@ -9,10 +9,22 @@ locality) are used in their usual sense: the interface is everything a caller mu
   `--find-worker <pipe name>`, reading pages' text for one long search and sending each page's text and hits back over
   a private pipe. It writes nothing and shows nothing, and ends with the search or the app. A worker that fails loses
   nothing: this process's threads read its pages.
+- **Folder index** (`Core/FolderIndex.cs`, `FolderIndex.Search.cs`): one folder's search index in one local file in the data folder's `FolderIndex`:
+  the words of its PDFs' pages (**terms**, `Core/IndexTerms.cs`: folded so whatever Find reads alike is one term) leading to
+  the pages they are on, each page's text compressed, and each file's size, time and state. Written only at its end, a
+  **commit** at a time; **compacting** writes what is live to a new file. A search narrows by terms, then runs Find on the kept text.
+- **Index worker** (`Core/IndexWorkers.cs`): the app started again with `--index-worker <pipe name>`, the only thing that
+  parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
+- **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index
+  current: lists the folder (**a look**), has workers read what is new or changed, commits, waits for a change notice or the next look.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
   Declined, Failed.
+- **Translated copy** (`Core/Translation.cs`, `Core/ContentEditor.Translate.cs`): a new document in another language, made in
+  three stages: the **plan** (the pages' paragraphs, nothing sent), the **answers** (what the model said, each checked; a
+  stopped run keeps its answers) and **apply** (one pass over the pages, each paragraph written in its box at the largest
+  **fit**, its size against its own, that it has room for). A **flag** is what the reader should look at: most get a comment in the copy.
 - **Undo step**: one committed edit; its id (`UndoStepId`) stays with it through undo and redo, so a toast's Undo acts
   only on the edit it announced.
 - **Edit prompts** (`IEditPrompts`): the questions an edit transaction asks the user (signed file, open password,
@@ -22,6 +34,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
   permissions, through an edit.
 - **Signed edit** (`Core/SignedEdits.cs`): an edit of a signed document is appended after the signed bytes when it can
   be; otherwise it needs the user's consent to rewrite the file.
+- **Long-term data** (`Core/Ltv.cs`, `Core/Dss.cs`): the certificates, OCSP answers and CRLs a signature will need when it is
+  checked years from now, stored in the file's /DSS as an incremental update. `LtvClient` is the one way online for it, and what it
+  will contact is listed first (`LtvPlan`). `RevocationPool` holds such data while a check judges it, as hostile until its signature
+  checks out; `LongTermCheck` says what a signature's level is from what the file holds, and goes nowhere.
 - **Simple shape** (`ExportShape`, `Core/ExportShapes.cs`): a line, rectangle or ellipse a page draws, which becomes a shape on
   a PowerPoint slide. MuPDF reports only a path's bounds, so what the rendered page shows decides; any other path stays a
   picture.

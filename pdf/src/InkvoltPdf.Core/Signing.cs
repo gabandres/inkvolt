@@ -44,6 +44,13 @@ public sealed record SignatureLook
 /// <summary>One digital signature to apply.</summary>
 public sealed class SignRequest
 {
+    /// <summary>
+    /// How far beyond the signature to go: B-LT and B-LTA need <see cref="Timestamp"/> and <see cref="LongTermClient"/>,
+    /// since they ask the certificates' authorities and a timestamp server.
+    /// </summary>
+    public LongTermLevel LongTerm { get; init; }
+    /// <summary>The way online for <see cref="LongTerm"/>. Null means not going there.</summary>
+    public LtvClient? LongTermClient { get; init; }
     /// <summary>The signing certificate with its private key (software, smart card or Windows Hello: the OS asks for a PIN).</summary>
     public required X509Certificate2 Certificate { get; init; }
     /// <summary>An existing empty signature field to sign; null → a new field.</summary>
@@ -74,8 +81,9 @@ public sealed class SigningException(string message, Exception? inner = null) : 
 /// Applies digital signatures (PAdES / PKCS#7 detached CMS) to PDFs. The signature is always appended as an incremental
 /// update (see <see cref="Incremental"/>), so the original bytes, and any earlier signature, stay intact; /Contents is
 /// reserved as a zero-filled hex string, the /ByteRange around it is patched in and hashed, and the CMS is written into
-/// the gap. A signature field's /Lock is honored (FieldMDP reference, locked fields made read-only). Not supported:
-/// encrypted documents, LTV (DSS/VRI, embedded revocation data).
+/// the gap. A signature field's /Lock is honored (FieldMDP reference, locked fields made read-only). With a long-term
+/// level, the validation data and a document timestamp follow in further updates (<see cref="Ltv"/>). Not supported:
+/// encrypted documents.
 /// </summary>
 public static class Signing
 {
@@ -93,6 +101,8 @@ public static class Signing
             throw new SigningException("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign.");
         var cert = req.Certificate;
         if (!cert.HasPrivateKey) throw new SigningException("This digital ID has no private key, so it can't sign.");
+        if (req.LongTerm != LongTermLevel.None && (req.Timestamp is null || req.LongTermClient is null))
+            throw new SigningException("Long-term validation needs a timestamp server.");
         var hash = DigestFor(cert);
 
         var existing = Signatures.Verify(data, password);
@@ -121,7 +131,9 @@ public static class Signing
             if (hex.Length <= gapEnd - gapStart - 2)
             {
                 Encoding.ASCII.GetBytes(hex).CopyTo(pdf, gapStart + 1);
-                return pdf;
+                if (req.LongTerm == LongTermLevel.None) return pdf;
+                var extended = await Ltv.ExtendAsync(pdf, password, req.LongTermClient!, req.LongTerm == LongTermLevel.Lta ? req.Timestamp : null, strict: true, cancel).ConfigureAwait(false);
+                return extended.Pdf;
             }
             reserve = der.Length + 8192;
         }
@@ -287,6 +299,109 @@ public static class Signing
         }
     }
 
+    /// <summary>The document opened so that <see cref="Incremental.TrySave"/> appends to it; null when its structure doesn't allow that.</summary>
+    internal static PdfDocument? OpenForAppend(byte[] data, string? password) => OpenTracked(data, password);
+
+    /// <summary>
+    /// Adds a document timestamp (PAdES B-LTA, ETSI.RFC3161): an invisible signature field holding an RFC 3161 token over
+    /// the file as it stands, as an incremental update. A timestamp may follow any signature, even a no-changes certification.
+    /// </summary>
+    /// <param name="timestamp">The exchange with the server: gets a DER request holding a hash of the file, returns the DER reply.</param>
+    public static async Task<byte[]> AddDocumentTimestampAsync(byte[] data, string? password, Func<byte[], CancellationToken, Task<byte[]>> timestamp, CancellationToken cancel = default)
+    {
+        if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0) throw new SigningException("Encrypted (password-protected) PDFs can't take a document timestamp. Nothing was changed.");
+        // A token with its chain is a few KB. The hash covers the reserved space, so a second try means asking the server again; twice is the limit.
+        var reserve = 16384;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            cancel.ThrowIfCancellationRequested();
+            var (pdf, gapStart, gapEnd) = PrepareTimestamp(data, password, reserve);
+            using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            sha.AppendData(pdf, 0, gapStart);
+            sha.AppendData(pdf, gapEnd, pdf.Length - gapEnd);
+            var nonce = RandomNumberGenerator.GetBytes(8);
+            nonce[0] = (byte)((nonce[0] & 0x7F) | 0x01);
+            var request = Rfc3161TimestampRequest.CreateFromHash(sha.GetHashAndReset(), HashAlgorithmName.SHA256, nonce: nonce, requestSignerCertificates: true);
+            byte[] reply;
+            try
+            {
+                reply = await timestamp(request.Encode(), cancel).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+            {
+                throw new SigningException($"The timestamp server couldn't be reached: {ex.Message} Nothing was changed.", ex);
+            }
+            byte[] der;
+            try
+            {
+                der = request.ProcessResponse(reply, out _).AsSignedCms().Encode();
+            }
+            catch (CryptographicException ex)
+            {
+                throw new SigningException($"The timestamp server's reply isn't usable: {ex.Message} Nothing was changed.", ex);
+            }
+            var hex = Convert.ToHexString(der);
+            if (hex.Length <= gapEnd - gapStart - 2)
+            {
+                Encoding.ASCII.GetBytes(hex).CopyTo(pdf, gapStart + 1);
+                return pdf;
+            }
+            reserve = der.Length + 8192;
+        }
+        throw new SigningException("The timestamp doesn't fit the space reserved for it. Nothing was changed.");
+    }
+
+    private static (byte[] Pdf, int GapStart, int GapEnd) PrepareTimestamp(byte[] data, string? password, int reserve)
+    {
+        using var doc = OpenTracked(data, password) ?? throw new SigningException("This document's file structure can't be extended, so a document timestamp would break its signatures. Nothing was changed.");
+        var catalog = doc.Internals.Catalog;
+        var acro = PdfObj.Dict(catalog.Elements["/AcroForm"]);
+        if (acro is null)
+        {
+            acro = new PdfDictionary(doc);
+            catalog.Elements["/AcroForm"] = acro;
+        }
+        if (PdfObj.Array(acro.Elements["/Fields"]) is not { } fields)
+        {
+            fields = new PdfArray(doc);
+            acro.Elements["/Fields"] = fields;
+        }
+        acro.Elements["/SigFlags"] = new PdfInteger(3);
+        var page = doc.Pages[0];
+        var widget = new PdfDictionary(doc);
+        widget.Elements["/Type"] = new PdfName("/Annot");
+        widget.Elements["/Subtype"] = new PdfName("/Widget");
+        widget.Elements["/FT"] = new PdfName("/Sig");
+        widget.Elements["/T"] = PdfObj.MakeString(NewFieldName(doc, acro, "Timestamp"));
+        widget.Elements["/F"] = new PdfInteger(132); // print + locked
+        widget.Elements["/P"] = page.Reference!;
+        widget.Elements["/Rect"] = new PdfArray(doc, new PdfInteger(0), new PdfInteger(0), new PdfInteger(0), new PdfInteger(0));
+        widget.Elements["/AP"] = new PdfDictionary(doc) { Elements = { ["/N"] = PdfObj.FormXObject(doc, [], 0, 0, 0, 0, null).Reference! } };
+        doc.Internals.AddObject(widget);
+        PdfObj.Annots(doc, page).Elements.Add(widget.Reference!);
+        fields.Elements.Add(widget.Reference!);
+
+        var sig = new PdfDictionary(doc);
+        sig.Elements["/Type"] = new PdfName("/DocTimeStamp");
+        sig.Elements["/Filter"] = new PdfName("/Adobe.PPKLite");
+        sig.Elements["/SubFilter"] = new PdfName("/ETSI.RFC3161");
+        sig.Elements["/ByteRange"] = new PdfLiteral(RangePlaceholder);
+        sig.Elements["/Contents"] = new PdfLiteral($"<{new string('0', reserve * 2)}>");
+        doc.Internals.AddObject(sig);
+        widget.Elements["/V"] = sig.Reference!;
+
+        var pdf = Incremental.TrySave(doc, null) ?? throw new SigningException("A document timestamp can't be appended to this PDF. Nothing was changed.");
+        var from = data.Length;
+        var gapStart = LastIndexOf(pdf, Encoding.ASCII.GetBytes($"<{new string('0', reserve * 2)}>"), from);
+        var rangeAt = LastIndexOf(pdf, Encoding.ASCII.GetBytes(RangePlaceholder), from);
+        if (gapStart < 0 || rangeAt < 0) throw new SigningException("The timestamp's placeholder wasn't written. Nothing was changed.");
+        var gapEnd = gapStart + reserve * 2 + 2;
+        var range = $"[0 {gapStart} {gapEnd} {pdf.Length - gapEnd}";
+        range = range.PadRight(RangePlaceholder.Length - 1) + "]";
+        Encoding.ASCII.GetBytes(range).CopyTo(pdf, rangeAt);
+        return (pdf, gapStart, gapEnd);
+    }
+
     private static PdfDocument? OpenTracked(byte[] data, string? password)
     {
         PdfDocument doc;
@@ -337,13 +452,13 @@ public static class Signing
         }
     }
 
-    private static string NewFieldName(PdfDocument doc, PdfDictionary acro)
+    private static string NewFieldName(PdfDocument doc, PdfDictionary acro, string stem = "Signature")
     {
         var all = new List<FormEditor.Field>();
         FormEditor.Collect(doc, acro, all);
         var names = all.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
         for (var n = 1; ; n++)
-            if (!names.Contains($"Signature{n}")) return $"Signature{n}";
+            if (!names.Contains($"{stem}{n}")) return $"{stem}{n}";
     }
 
     private static int LastIndexOf(byte[] data, byte[] needle, int from)
@@ -428,37 +543,23 @@ public static class Signing
     private static async Task<byte[]> BuildCms(byte[] signed, X509Certificate2 cert, HashAlgorithmName hash, SignRequest req, CancellationToken cancel)
     {
         var cms = new SignedCms(new ContentInfo(signed), detached: true);
-        CmsSigner Signer(X509IncludeOption include)
-        {
-            var s = new CmsSigner(SubjectIdentifierType.IssuerAndSerialNumber, cert) { DigestAlgorithm = OidOf(hash), IncludeOption = include };
-            s.SignedAttributes.Add(new AsnEncodedData(SigningCertificateV2Oid, SigningCertificateV2(cert, hash)));
-            if (req.Format == SignatureFormat.Pkcs7) s.SignedAttributes.Add(new Pkcs9SigningTime((req.Time ?? DateTimeOffset.Now).UtcDateTime));
-            return s;
-        }
+        // The chain is gathered here with no network (the signer's own stores only): .NET's whole-chain option would fetch a
+        // missing issuer from the address the certificate names, and signing itself has no reason to go online.
+        var signer = new CmsSigner(SubjectIdentifierType.IssuerAndSerialNumber, cert) { DigestAlgorithm = OidOf(hash), IncludeOption = X509IncludeOption.EndCertOnly };
+        signer.SignedAttributes.Add(new AsnEncodedData(SigningCertificateV2Oid, SigningCertificateV2(cert, hash)));
+        if (req.Format == SignatureFormat.Pkcs7) signer.SignedAttributes.Add(new Pkcs9SigningTime((req.Time ?? DateTimeOffset.Now).UtcDateTime));
+        foreach (var c in RevocationPool.BuildChain(cert, []).Skip(1)) signer.Certificates.Add(c);
         try
         {
-            cms.ComputeSignature(Signer(X509IncludeOption.WholeChain), silent: false);
+            cms.ComputeSignature(signer, silent: false);
         }
         catch (CryptographicException ex) when (IsCancellation(ex))
         {
             throw new OperationCanceledException("Signing was cancelled.", ex);
         }
-        catch (CryptographicException)
+        catch (CryptographicException ex)
         {
-            // The chain can't be gathered (e.g. a missing intermediate): sign with the end certificate alone.
-            try
-            {
-                cms = new SignedCms(new ContentInfo(signed), detached: true);
-                cms.ComputeSignature(Signer(X509IncludeOption.EndCertOnly), silent: false);
-            }
-            catch (CryptographicException ex) when (IsCancellation(ex))
-            {
-                throw new OperationCanceledException("Signing was cancelled.", ex);
-            }
-            catch (CryptographicException ex)
-            {
-                throw new SigningException($"The digital ID couldn't sign: {ex.Message}", ex);
-            }
+            throw new SigningException($"The digital ID couldn't sign: {ex.Message}", ex);
         }
 
         if (req.Timestamp is { } tsa)

@@ -189,6 +189,12 @@ inkv_obj *inkv_obj_add(void *ctx, inkv_doc *doc, inkv_obj *obj, char *err);
 /// A reference to object `num` (for walking every object).
 inkv_obj *inkv_obj_ref(void *ctx, inkv_doc *doc, int num, char *err);
 int inkv_obj_xref_len(void *ctx, inkv_doc *doc);
+/// Where the cross-reference table says object `num` is now: 1 in the file at `offset`; 2 in the object stream numbered
+/// `offset`; 0 anywhere else (free, or written by an edit).
+int inkv_obj_location(void *ctx, inkv_doc *doc, int num, int64_t *offset);
+/// Replaces object `num`'s value with the one parsed from PDF syntax in `text` (a stream keeps its data). `encrypted`: the
+/// text's strings are as an encrypted file stores them (not in an object stream), to be decrypted. 0 on failure.
+int inkv_obj_replace(void *ctx, inkv_doc *doc, int num, const uint8_t *text, size_t length, int encrypted, char *err);
 /// A stream's data, decoded, or with `raw` as the file stores it (still encoded); malloc'ed. NULL on failure.
 uint8_t *inkv_obj_stream(void *ctx, inkv_doc *doc, inkv_obj *obj, int raw, size_t *length, char *err);
 /// A new stream object (returns its reference): `dict`'s entries (may be NULL) and the bytes, deflated when `deflate`

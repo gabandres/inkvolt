@@ -147,10 +147,7 @@ public static class FindWorkers
         {
             using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.CurrentUserOnly);
             pipe.Connect(connectMs);
-            // No "stopped working" box for a page that crashes MuPDF: the parent reads it in its place.
-            SetErrorMode(SemFailCriticalErrors | SemNoGpFaultErrorBox);
-            GCSettings.LatencyMode = GCLatencyMode.Batch;
-            WatchParent(pipe);
+            BecomeWorker(pipe);
             Serve(pipe);
             return 0;
         }
@@ -333,18 +330,52 @@ public static class FindWorkers
     /// <summary>Ends every worker with this process, even if it crashes: they all belong to a job that dies with its handle.</summary>
     internal static class Job
     {
-        private static readonly Lazy<IntPtr> Handle = new(Create);
+        private static readonly Lazy<IntPtr> Handle = new(() => Create(0));
+        private static readonly Lazy<IntPtr> Limited = new(() => Create(LimitedBytes));
+
+        /// <summary>What a process reading untrusted files for the index may hold: over this it fails, the app doesn't.</summary>
+        private const long LimitedBytes = 2048L * 1048576;
 
         /// <summary>False if it couldn't be done (the worker's parent watch still ends it).</summary>
         public static bool Add(Process process) => Handle.Value != IntPtr.Zero && AssignProcessToJobObject(Handle.Value, process.Handle);
 
-        private static IntPtr Create()
+        /// <summary><see cref="Add"/>, with a limit to the process's memory: a file built to make a reader take it all stops at that.</summary>
+        public static bool AddLimited(Process process) => Limited.Value != IntPtr.Zero && AssignProcessToJobObject(Limited.Value, process.Handle);
+
+        private static IntPtr Create(long processBytes)
         {
             var job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero) return job;
-            var limits = new ExtendedLimits { Basic = new BasicLimits { LimitFlags = JobKillOnClose } };
+            var limits = new ExtendedLimits { Basic = new BasicLimits { LimitFlags = JobKillOnClose | (processBytes > 0 ? JobLimitProcessMemory : 0) }, ProcessMemoryLimit = (nuint)processBytes };
             return SetInformationJobObject(job, JobExtendedLimitInformation, ref limits, (uint)Marshal.SizeOf<ExtendedLimits>()) ? job : IntPtr.Zero;
         }
+    }
+
+    /// <summary>A pipe only this user's processes may open, and only this one instance under this name.</summary>
+    internal static NamedPipeServerStream NewPipe(string name) =>
+        new(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | PipeOptions.FirstPipeInstance, 1 << 16, 1 << 18);
+
+    /// <summary>Waits for <paramref name="process"/> to open <paramref name="pipe"/>, and makes sure it is the one that did.</summary>
+    internal static void AwaitConnection(NamedPipeServerStream pipe, Process process, int connectMs, CancellationToken ended)
+    {
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(ended);
+        waiting.CancelAfter(connectMs);
+        var connect = pipe.WaitForConnectionAsync(waiting.Token);
+        _ = connect.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted); // observed, should it fail after the wait
+        Task.WhenAny(connect, process.WaitForExitAsync(waiting.Token)).GetAwaiter().GetResult();
+        if (!connect.IsCompletedSuccessfully) throw new InvalidOperationException("The worker didn't connect.");
+        // Whoever got in must be the process just started.
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var client)) throw new Win32Exception();
+        if (client != process.Id) throw new InvalidOperationException("Another process answered the pipe.");
+    }
+
+    /// <summary>What every worker does once it has its pipe: no box for a crash, batch-friendly memory, and it ends with the parent.</summary>
+    internal static void BecomeWorker(NamedPipeClientStream pipe)
+    {
+        // No "stopped working" box for a page that crashes MuPDF: the parent reads it in its place.
+        SetErrorMode(SemFailCriticalErrors | SemNoGpFaultErrorBox);
+        GCSettings.LatencyMode = GCLatencyMode.Batch;
+        WatchParent(pipe);
     }
 
     internal static void WriteInt(Stream s, int value)
@@ -390,7 +421,7 @@ public static class FindWorkers
     }
 
     private const uint SemFailCriticalErrors = 1, SemNoGpFaultErrorBox = 2;
-    private const uint JobKillOnClose = 0x2000;
+    private const uint JobKillOnClose = 0x2000, JobLimitProcessMemory = 0x100;
     private const int JobExtendedLimitInformation = 9;
     private const uint CreateNoWindow = 0x08000000, CreateSuspended = 4;
 

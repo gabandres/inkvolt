@@ -61,7 +61,7 @@ enum SignatureChanges {
             let level = entries?.certificationLevel ?? approval
             var locked: (String) -> Bool = { _ in false }
             if let v, let field { locked = lockOf(v, field.dict) }
-            let comparison = Comparison(before, after, level, locked, before.trailer.has("Info"), after.trailer.has("Info"))
+            let comparison = Comparison(data, before, after, level, locked, before.trailer.has("Info"), after.trailer.has("Info"))
             let problems = try comparison.run()
             if problems.isEmpty { return Analysis(permitted: true, problem: nil, signed: entries) }
             var distinct: [String] = []
@@ -103,6 +103,7 @@ enum SignatureChanges {
                                                                "PageMode", "PageLayout", "Names", "Dests"]
         private static let namesKeys: Set<String> = ["EmbeddedFiles", "Dests"]
 
+        private let data: [UInt8]
         private let a: MuDoc, b: MuDoc
         private let level: Int
         private let locked: (String) -> Bool
@@ -110,7 +111,8 @@ enum SignatureChanges {
         private var problems: [String] = []
         private var hashes: [ObjectIdentifier: [UInt: [UInt8]]] = [:]
 
-        init(_ a: MuDoc, _ b: MuDoc, _ level: Int, _ locked: @escaping (String) -> Bool, _ infoA: Bool, _ infoB: Bool) {
+        init(_ data: [UInt8], _ a: MuDoc, _ b: MuDoc, _ level: Int, _ locked: @escaping (String) -> Bool, _ infoA: Bool, _ infoB: Bool) {
+            self.data = data
             self.a = a
             self.b = b
             self.level = level
@@ -126,6 +128,9 @@ enum SignatureChanges {
             /// Objects page content draws with → the first page using them.
             var content: [Int: Int] = [:]
             var annots: [Int: (dict: PObj, widget: Bool)] = [:]
+            /// Annotations written inside a page's list rather than referred to: no object number to know them by, so
+            /// they go by what they say.
+            var directAnnots: [(dict: PObj, widget: Bool)] = []
             var arrays = Set<Int>()
             var fieldOf: [Int: FormField] = [:]
             var fieldNodes = Set<Int>()
@@ -148,7 +153,28 @@ enum SignatureChanges {
             for (n, an) in ra.annots.sorted(by: { $0.key < $1.key }) where rb.annots[n] == nil {
                 if an.widget { problem("form fields removed") } else if level < 3 { problem("comments removed") }
             }
+            compareDirectAnnots(ra, rb)
             return problems
+        }
+
+        /// An annotation written inside a page's list draws on the page like any other, and is judged like any other.
+        private func compareDirectAnnots(_ ra: Roles, _ rb: Roles) {
+            var had = ra.directAnnots.map { ser($0.dict, top: true) }
+            for annot in rb.directAnnots {
+                if let i = had.firstIndex(of: ser(annot.dict, top: true)) {
+                    had.remove(at: i)
+                    continue
+                }
+                if annot.widget ? level < SignatureChanges.approval : level < 3 { problem(annot.widget ? "form fields added" : "comments added") }
+            }
+            var has = rb.directAnnots.map { ser($0.dict, top: true) }
+            for annot in ra.directAnnots {
+                if let i = has.firstIndex(of: ser(annot.dict, top: true)) {
+                    has.remove(at: i)
+                    continue
+                }
+                if annot.widget { problem("form fields removed") } else if level < 3 { problem("comments removed") }
+            }
         }
 
         private func problem(_ what: String) { problems.append(what) }
@@ -196,11 +222,23 @@ enum SignatureChanges {
 
         private func addedField(_ f: FormField?) {
             if f?.type == "Sig" {
-                // A document timestamp (PAdES-LTA) may follow any signature, even a no-changes certification.
-                if let f, let v = FormEditor.inherited(f.dict, "V"), v.isDict, v.name("SubFilter") == "ETSI.RFC3161" { return }
+                // A document timestamp (PAdES-LTA) may follow any signature, even a no-changes certification: one that draws
+                // nothing and is one, not any field that says so, which could lay anything over the page.
+                if let f, let v = FormEditor.inherited(f.dict, "V"), v.isDict, v.name("SubFilter") == "ETSI.RFC3161",
+                   Comparison.drawsNothing(f), Signatures.holdsTimestamp(data, v) { return }
                 if level < 3 { problem("signature fields added") }
             } else if level < SignatureChanges.approval {
                 problem("form fields added")
+            }
+        }
+
+        /// Each of the field's widgets is hidden or has a box of no size, as an invisible signature's has.
+        private static func drawsNothing(_ f: FormField) -> Bool {
+            (f.widgets + [f.dict]).allSatisfy { w in
+                let hidden = 2
+                if (w.int("F") ?? 0) & hidden != 0 || w["Rect"] == nil { return true }
+                guard let r = w.array("Rect"), r.count == 4 else { return false }
+                return r.num(0) == r.num(2) || r.num(1) == r.num(3)
             }
         }
 
@@ -338,8 +376,12 @@ enum SignatureChanges {
                 for n in seen where r.content[n] == nil { r.content[n] = p }
 
                 if let ar = page["Annots"], ar.isRef { r.arrays.insert(ar.num) }
-                for item in page.array("Annots")?.elements ?? [] where item.isRef && item.isDict {
+                for item in page.array("Annots")?.elements ?? [] where item.isDict {
                     let widget = item.name("Subtype") == "Widget"
+                    if !item.isRef {
+                        r.directAnnots.append((item, widget))
+                        continue
+                    }
                     if r.annots[item.num] == nil { r.annots[item.num] = (item, widget) }
                     if widget { Comparison.walk([item], &r.widgets, stop) } else { Comparison.walk([item], &r.comments, stop) }
                 }

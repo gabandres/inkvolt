@@ -41,7 +41,26 @@ public sealed class PdfSource
         }
         catch (Exception ex) when (ex is not PdfOpenException and not OperationCanceledException)
         {
-            throw new PdfOpenException($"Could not open the PDF: {ex.Message}", isPasswordProtected: false);
+            throw Failed(ex);
+        }
+    }
+
+    /// <summary>A PDF read through an open file (batch print holds the file so it can't change while it prints). The stream stays the caller's, open as long as this is used.</summary>
+    /// <exception cref="PdfOpenException">Not a PDF, damaged, or password protected.</exception>
+    public static async Task<PdfSource> OpenAsync(Stream file, string path, string? password)
+    {
+        try
+        {
+            var stream = file.AsRandomAccessStream();
+            return new PdfSource(password is null ? await PdfDocument.LoadFromStreamAsync(stream) : await PdfDocument.LoadFromStreamAsync(stream, password), path);
+        }
+        catch (Exception ex) when (ex.HResult == unchecked((int)0x8007052B)) // ERROR_WRONG_PASSWORD
+        {
+            throw new PdfOpenException("This PDF is password protected.", isPasswordProtected: true);
+        }
+        catch (Exception ex) when (ex is not PdfOpenException and not OperationCanceledException)
+        {
+            throw Failed(ex);
         }
     }
 
@@ -60,6 +79,17 @@ public sealed class PdfSource
         {
             throw new PdfOpenException($"Could not open the PDF: {ex.Message}", isPasswordProtected: ex.HResult == unchecked((int)0x8007052B));
         }
+    }
+
+    /// <summary>
+    /// What Windows' PDF engine says about a file it can't open. It can't open AES-256 protection (Acrobat's usual one) whatever the password:
+    /// 0x80048040, and 0x80048042 for a security handler it doesn't know. Neither is a wrong password or damage. These errors' messages are empty.
+    /// </summary>
+    private static PdfOpenException Failed(Exception ex)
+    {
+        if (ex.HResult is unchecked((int)0x80048040) or unchecked((int)0x80048042))
+            return new PdfOpenException("Windows can't open this kind of password protection. Save the PDF without it, or with an older kind, then try again.", isPasswordProtected: false, isUnsupportedLock: true);
+        return new PdfOpenException(string.IsNullOrWhiteSpace(ex.Message) ? "Could not open the PDF: it may be damaged." : $"Could not open the PDF: {ex.Message}", isPasswordProtected: false);
     }
 
     /// <summary>Page size in inches (PDF pages report size in 1/96 in).</summary>
@@ -98,9 +128,12 @@ public sealed class PdfSource
     }
 }
 
-public sealed class PdfOpenException(string message, bool isPasswordProtected) : Exception(message)
+public sealed class PdfOpenException(string message, bool isPasswordProtected, bool isUnsupportedLock = false) : Exception(message)
 {
     public bool IsPasswordProtected { get; } = isPasswordProtected;
+
+    /// <summary>Locked in a way Windows' PDF engine can't open, whatever the password: asking for one is no use.</summary>
+    public bool IsUnsupportedLock { get; } = isUnsupportedLock;
 }
 
 /// <summary>

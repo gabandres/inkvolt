@@ -84,6 +84,10 @@ public static class QueuePrinter
         PageSizing sizing = PageSizing.ActualSize) =>
         SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, sizing, images));
 
+    /// <summary>A batch's file: pages already drawn, on the ticket <paramref name="makeTicket"/> validated.</summary>
+    internal static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, string jobName, PageSizing sizing, Func<PrintQueue, PrintTicket> makeTicket) =>
+        SpoolAsync(queueName, jobName, makeTicket, (_, _, paper, images) => new RenderedPaginator(pages, paper, sizing, images));
+
     /// <summary>ID card copy: front on the top half of one sheet, back on the bottom half, actual size (<see cref="CopyLayout.IdCard"/>).</summary>
     public static Task PrintIdCardAsync(string queueName, RenderedPage front, RenderedPage back, int copies, string jobName) =>
         SpoolAsync(queueName, copies, twoSided: false, jobName, (paper, images) => new IdCardPaginator(front, back, paper, images));

@@ -12,8 +12,13 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac
   (`sh mac/Vendor/mupdf/build.sh` once, then `swift test --package-path mac/InkvoltPdfKit`) and in CI's `pdf` job; every
   MuPDF call goes through `MuPDFShim`'s fz_try, never straight from Swift.
-- **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the clone is `~/Repos/inkvolt` (pull, or copy changed files
-  over with LF endings for text only: a CRLF entitlements file fails `codesign`, and converting a PNG breaks it).
+- **From the PC, one call per step: `bash mac/tools/mac.sh`** (Git Bash; its header lists the commands). `sync` sends the
+  PC's working tree, uncommitted files included, as a git commit object pushed straight to the Mac (no GitHub, no
+  copying, LF as git stores it) into the worktree `~/Repos/inkvolt-pc`; `pdf-test [filter]`, `print-test`, `pdf-app`,
+  `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'` and `log <name>`. Only one session at a time
+  uses `inkvolt-pc`. SSH multiplexing doesn't work from Git Bash, and isn't needed: a connection takes 0.3 s.
+- **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
+  XCFramework lives in its `mac/InkvoltPdfKit/Frameworks`, which `inkvolt-pc` links to).
   `sh mac/InkvoltPrint/build.sh` installs `/Applications/Inkvolt Print.app` (process `Inkvolt Print`); `open -n` it with
   `--report <name> [--wait s] [--stay] [--demo]` and read the report from its container (README). Start automatic work
   from the app delegate, never a view (a locked screen shows no window). `screencapture` doesn't work over SSH: ask the

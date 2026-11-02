@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using InkvoltPdf.App.Viewer;
@@ -9,8 +8,6 @@ namespace InkvoltPdf.App;
 /// <summary>Digital signing (placing the box, applying the signature) and handwritten signature stamps (Fill &amp; Sign).</summary>
 public partial class DocumentTab
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
-
     private TaskCompletionSource<SignaturePlacement?>? _sigBoxWait;
     private StampImage? _pendingSigImage;
     private string _pendingSigLabel = "Signature";
@@ -110,15 +107,43 @@ public partial class DocumentTab
         return outcome;
     }
 
-    /// <summary>The RFC 3161 exchange with a timestamp server: posts the request (a hash only), returns the reply.</summary>
-    public static Func<byte[], CancellationToken, Task<byte[]>> TimestampClient(string url) => async (request, cancel) =>
+    /// <summary>Add Verification Information on the document (off the UI thread). The result, when it ran.</summary>
+    public async Task<(EditOutcome Outcome, LtvResult? Result)> AddVerificationAsync(LtvClient client, string? timestampUrl)
     {
-        using var content = new ByteArrayContent(request);
-        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/timestamp-query");
-        using var response = await Http.PostAsync(url, content, cancel).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsByteArrayAsync(cancel).ConfigureAwait(false);
-    };
+        LtvResult? result = null;
+        var outcome = await TryEdit("Add Verification Information", (d, pw) =>
+        {
+            result = Ltv.AddVerificationAsync(d, pw, client, timestampUrl is null ? null : client.TimestampSender(timestampUrl)).GetAwaiter().GetResult();
+            return result.Pdf;
+        }, quiet: true, contentOnly: true);
+        if (outcome == EditOutcome.Done) _sigBarDismissed = false;
+        return (outcome, result);
+    }
+
+    /// <summary>Revocation data the person asked for online: counts for this tab's view until the document changes hands. Not written anywhere.</summary>
+    private RevocationSnapshot? _onlineRevocation;
+
+    /// <summary>Shows what Check Signatures Online found, the file as it was.</summary>
+    public void ShowOnlineCheck(LtvOnlineResult result)
+    {
+        _onlineRevocation = result.Snapshot;
+        ShowLongTermOutcome(result.Problem is { } p ? $"Checked online, but not everything could be asked. {p} The file wasn't changed." : "Checked online. The file wasn't changed.",
+            LtvDialogs.Describe(result.Certificates, result.Contacts));
+        _ = LoadReviewAsync();
+    }
+
+    /// <summary>Puts what long-term validation did at the top of the Signatures pane.</summary>
+    public void ShowLongTermOutcome(string text, string details)
+    {
+        SigLtvOutcome.Text = text;
+        SigLtvOutcome.Visibility = Visibility.Visible;
+        SigLtvDetailsText.Text = details;
+        SigLtvDetails.IsExpanded = false;
+        SigLtvDetails.Visibility = Visibility.Visible;
+        ShowPane(NavPaneKind.Signatures);
+    }
+
+    internal string DevLongTermOutcome => SigLtvOutcome.Visibility == Visibility.Visible ? $"{SigLtvOutcome.Text}\n{SigLtvDetailsText.Text}" : "";
 
     // ───────────────────────────── Handwritten signatures ─────────────────────────────
 

@@ -118,6 +118,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
 
+    /// <summary>The Fleet page: every printer at once (roadmap 2.6). Made when first shown.</summary>
+    public FleetViewModel Fleet => _fleet ??= new FleetViewModel(this, _pc);
+
+    private FleetViewModel? _fleet;
+
+    /// <summary>The main pane shows the Fleet page instead of the selected printer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint))]
+    public partial bool IsFleetShown { get; set; }
+
+    public bool ShowPrinterPane => Selected is not null && !IsFleetShown;
+    public bool ShowNoPrinterHint => Selected is null && !IsFleetShown;
+
+    partial void OnIsFleetShownChanged(bool value)
+    {
+        if (value) Fleet.Show();
+        else _fleet?.Hide();
+        // The queue card refreshes only while its printer is on screen.
+        if (Selected is { } shown) shown.IsShown = !value;
+    }
+
+    /// <summary>A printer's page, from wherever: the selection may not change, and the Fleet page gives way all the same.</summary>
+    public void ShowPrinter(PrinterViewModel printer)
+    {
+        Selected = printer;
+        IsFleetShown = false;
+    }
+
     /// <summary>Remembered printers and preferences (the tray's settings live there too).</summary>
     public AppState State => _state;
 
@@ -129,6 +157,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task RunPresetAtAsync(string? number)
     {
         if (!int.TryParse(number, out var n) || n < 1 || n > Presets.Items.Count || Selected is not { Scan: not null } printer) return;
+        IsFleetShown = false; // the scan shows on the printer's page
         await printer.RunPresetAsync(Presets.Items[n - 1]);
     }
 
@@ -149,10 +178,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Prompt.Tell($"No scanner is connected yet, so \"{preset.Name}\" didn't scan. Try again when the printer shows up.");
             return;
         }
+        IsFleetShown = false; // the scan shows on the printer's page
         await printer.RunPresetAsync(preset);
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint))]
     public partial PrinterViewModel? Selected { get; set; }
 
     /// <summary>
@@ -357,7 +388,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedChanged(PrinterViewModel? oldValue, PrinterViewModel? newValue)
     {
         if (oldValue is not null) oldValue.IsShown = false;
-        if (newValue is not null) newValue.IsShown = true;
+        if (newValue is not null) newValue.IsShown = !IsFleetShown;
     }
 
     private void Merge(IReadOnlyList<DiscoveredPrinter> found)
@@ -573,6 +604,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private PrinterViewModel? Printer()
     {
         if (Selected is { CanPrint: false } && Printers.FirstOrDefault(p => p.CanPrint) is { } printer) Selected = printer;
+        if (Selected is { CanPrint: true }) IsFleetShown = false; // what's handed in shows on the printer's page
         return Selected is { CanPrint: true } p ? p : null;
     }
 
@@ -595,6 +627,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _fleet?.Hide();
         _queueWatch.Cancel();
         _queueWatch.Dispose();
         _relist.Dispose();

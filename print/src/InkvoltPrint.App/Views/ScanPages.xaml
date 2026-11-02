@@ -16,6 +16,7 @@
                       Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
             <MenuItem Header="Photos…" Command="{Binding PlacementTarget.Tag.EditPhotosCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
                       Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}}" />
+            <MenuItem Header="Clean up…" Command="{Binding PlacementTarget.Tag.CleanUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <Separator />
             <MenuItem Header="Move earlier" InputGestureText="Alt+Shift+Left"
                       Command="{Binding PlacementTarget.Tag.MovePageEarlierCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
@@ -141,6 +142,10 @@
                                     Visibility="{Binding IsSeparator, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" />
                             </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Clean up: crop to the paper, whiten, descreen, restore colors" AutomationProperties.Name="Clean up page"
+                                    Command="{Binding DataContext.CleanUpCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE771;" />
+                            </Button>
                             <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="{Binding CropText}" AutomationProperties.Name="{Binding CropText}"
                                     Command="{Binding DataContext.CropCommand, ElementName=PagesList}" CommandParameter="{Binding}" Margin="6,0,0,0">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" />
@@ -157,12 +162,11 @@
                                     </TextBlock.RenderTransform>
                                 </TextBlock>
                             </Button>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Number, StringFormat='Page {0}'}" Style="{StaticResource Caption}" TextWrapping="NoWrap" />
-                                <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding Note}" Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
-                            </StackPanel>
+                            <TextBlock Text="{Binding Number, StringFormat='Page {0}'}" Style="{StaticResource Caption}" TextWrapping="NoWrap" VerticalAlignment="Center" />
                         </DockPanel>
+                        <!-- Under the buttons: the clean up's list of what was done needs the width -->
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="2,2,2,0"
+                                   ToolTip="{Binding Note}" Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
@@ -221,6 +225,44 @@
                 <views:CropView x:Name="Cropper" Source="{Binding CropImage}" Box="{Binding CropBox}"
                                 AutomationProperties.Name="Crop box"
                                 AutomationProperties.HelpText="Arrow keys move the box; Shift+arrow keys resize it." />
+            </Grid>
+        </DockPanel>
+
+        <!-- Clean up: one page, large, with the filters to turn on and off -->
+        <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                   Visibility="{Binding IsCleaning, Converter={StaticResource VisibleWhen}}">
+            <views:HeaderPanel DockPanel.Dock="Top" Margin="20,14,14,10" Gap="10">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CleanTitle}" FontSize="14" FontWeight="SemiBold" />
+                    <WrapPanel Margin="0,8,0,0">
+                        <CheckBox x:Name="FirstCleanChoice" Content="Crop to the paper" IsChecked="{Binding CleanCrop}" Margin="0,0,16,4" AutomationProperties.Name="Crop to the paper"
+                                  ToolTip="Takes off the lid around the sheet; a page it can't be sure of stays whole"
+                                  Visibility="{Binding CleansWholePage, Converter={StaticResource VisibleWhen}}" />
+                        <CheckBox Content="Whiten the background" IsChecked="{Binding CleanWhiten}" Margin="0,0,16,4" AutomationProperties.Name="Whiten the background"
+                                  ToolTip="Evens grey or yellowed paper out to white and removes specks; faint writing stays"
+                                  Visibility="{Binding CleansWholePage, Converter={StaticResource VisibleWhen}}" />
+                        <CheckBox Content="Descreen printed pictures" IsChecked="{Binding CleanDescreen}" Margin="0,0,16,4" AutomationProperties.Name="Descreen printed pictures"
+                                  ToolTip="Takes the dots out of pictures from magazines and newspapers" />
+                        <CheckBox Content="Restore faded colors" IsChecked="{Binding CleanRestore}" Margin="0,0,16,4" AutomationProperties.Name="Restore faded colors"
+                                  ToolTip="Brings back the blacks and colors of a faded print" />
+                        <ToggleButton Content="Show as scanned" IsChecked="{Binding ShowOriginal}" AutomationProperties.Name="Show as scanned"
+                                      ToolTip="Shows the page without the filters, to compare" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding CleanStatus}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="All pages" Command="{Binding ApplyCleanToAllCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
+                            ToolTip="Gives every page these choices" AutomationProperties.Name="Apply to all pages" />
+                    <Button Content="Cancel" Command="{Binding CancelCleanCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="Done" Command="{Binding ApplyCleanCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+            </views:HeaderPanel>
+            <Grid Margin="20,0,20,20">
+                <TextBlock Text="Loading the page…" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding CleanImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="White" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                    <Image Source="{Binding CleanImage}" Stretch="Uniform" AutomationProperties.Name="The page as it will be saved" />
+                </Border>
             </Grid>
         </DockPanel>
     </Grid>

@@ -18,7 +18,8 @@ public partial class HelpDialog : Window
         ("Shift+F10", "The menu of the printer or page in focus"),
         ("Alt+Shift+arrows", "Scan review: move the page earlier or later"),
         ("S", "Scan review: start a new file at this page"),
-        ("Delete", "Scan review, Photos: delete or remove the one in focus"),
+        ("Delete", "Scan review, Photos, Batch: delete or remove the one in focus"),
+        ("Alt+Up, Alt+Down", "Batch: move the file in focus up or down the list"),
         ("Ctrl+Z", "Scan review: undo the last change to the pages (a deleted page comes back)"),
         ("Ctrl+R, Ctrl+L", "Scan review, Photos: turn right or left"),
         ("Ctrl+S", "Scan review: save as PDF"),
@@ -58,7 +59,7 @@ public partial class HelpDialog : Window
 
     private void WhatsNew_Click(object sender, RoutedEventArgs e) => WhatsNewDialog.Open(this, AppHelp.Notes());
 
-    private void Report_Click(object sender, RoutedEventArgs e) => ReportProblemDialog.Open(this, AppHelp.Report(_vm));
+    private void Report_Click(object sender, RoutedEventArgs e) => ReportProblemDialog.Open(this, AppHelp.Report(_vm), _vm.Selected);
 
     private void Pro_Click(object sender, RoutedEventArgs e)
     {

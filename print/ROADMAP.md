@@ -112,8 +112,15 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   laser and the SNMP-only laser recorded through the fixture transport and served again read the same, interfaces, model,
   firmware, scanner, IPP attributes and reading; a recording sends only GETs and Get-Printer-Attributes; identifiers planted in
   LEDM, eSCL, IPP and SNMP replies, as Report a problem's tests use them, none left in any file, and the recording still one
-  printer; versions, masks, models kept; `IppText` and the walk read back what they write). **Pending on hardware:** the five
-  recordings the item asks for, and the Help › Report a problem path (the command only for now). Mac: not started.
+  printer; versions, masks, models kept; `IppText` and the walk read back what they write). **Report a problem (built 2026-11-01):** the dialog
+  has Record this printer, for the printer shown: `Core/Recording/ReportRecording` runs the same `PrinterRecorder`, so the same scrubbing and the same
+  read-only rules, never scanned pages, into a new folder named by the clock (`Documents\Inkvolt Print recordings`) plus a .zip of it to attach; the details
+  to copy get one scrubbed line (model, interfaces, the file's name); a failure's message is scrubbed; closing the window stops it and a failed or
+  stopped recording leaves nothing. Fixed on the way, for the command too: a reply is kept only under a plain name of a fixture's kind (`PrinterRecorder.KeptName`),
+  since a printer's discovery tree decides what gets asked for and "/C:/x" would have left the folder, and "/run.bat" would have put a script in it. Tests: `ReportRecordingTests`
+  (the planted identifiers absent from every file, the .zip and the copied line; the demo printer; no scanning; nothing left after a failure or a cancel). Seen with
+  `--demo --dialog report --record`: the zip made from the made-up printer, and on the demo office laser "Nothing answered at [ip]". **Not checked:** on a real printer; Show the file
+  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac: not started.
 - **Beat it when:** the repo holds fixtures from at least one Canon, one Epson, one Brother, one SNMP-only laser and
   one CDM-only HP, each with the status, supplies, alerts and scan tests the demo fixtures have, and the README's "to
   try on hardware" lists shrink to what no fixture can show (a jam, a feeder's duplex order). Test: recording the
@@ -254,8 +261,34 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   Canon's Auto scan "detects the item type" ([Canon](https://ij.manual.canon/ij/webmanual/ScanUtility/W/G3010%20series/1.1/EN/SU/su-105.html));
   VueScan restores faded colors and removes dust ([Hamrick](https://www.hamrick.com/)); NAPS2 deskews, crops, adjusts
   brightness and contrast, OCR in over 100 languages ([NAPS2](https://www.naps2.com/)).
-- **Now.** Straighten, skip blank pages, crop by hand, OCR through Windows' recognizer (Vision on the Mac) into a
-  WinAnsi text layer where "non-Latin scripts degrade to `?`" (README).
+- **Now (built 2026-10-31, Windows).** Per scan (Scan settings › Clean up) and per preset (`ScanPreset.Cleanup`, all off
+  by default, free as the table says), and per page in the review's Clean up view (`--clean n`: the page large, Show as
+  scanned to compare, All pages, Done is one step of Undo, as is a whole scan's clean up; the page's note names what was
+  done; a page's filters are in its `PageEdits`, kept by crash recovery): **Crop to the paper** (`PaperEdge`, the lid's level
+  along the scan's edges, in the straightened page, into the same `Crop` as a hand crop: it only ever removes lid, refused
+  when anything but dust lies outside a solid rectangle, faint marks and a line of tiny letters included), **Whiten the
+  background** (`PageBackground`, its own white point from the scan's noise; faint thin strokes kept; pictures and dark pages
+  left), **Descreen printed pictures** (`Descreen`, blocks that repeat at a short period across and down; other pixels byte for
+  byte), **Restore faded colors** (`FadedColors`; a scan of photos gets this and Descreen, per photo). Filters run off the UI
+  thread on a copy; a preview cancels when a newer choice comes, a save has Cancel, a page over 300 million pixels is left as
+  scanned and says so. `ScanCleanup` (Recognize Text, Compare) only gained cancel tokens: the ocr-corpus's rates are the
+  same to the digit as its committed RESULTS.md, so that file wasn't rewritten. The OCR layer is a CID font with /ToUnicode (`OcrFont`, `OcrText`): one
+  embedded glyph that paints nothing, one code per letter with its marks, surrogate pairs in one code, composed, broken
+  characters out, right-to-left words in visual order; a Text language choice per scan and preset when more than one OCR
+  language is installed. **Measured** (`ocr-corpus cleanup`, [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md),
+  today → cleaned, this PC's en-US and es-MX): skewed on a lid 5.9 → 5.7 %, grey 20.2 → 19.7 and 20.6 → 18.8, halftoned
+  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.4 and **2.7 → 3.0 (not lower, two words)**, so the roadmap's "every file" isn't met
+  on that one. Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
+  Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
+  layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`; `ocr-corpus layer` goes the whole way with
+  Latin text (a cleaned page's JPEG, Windows' recognizer, this writer, every word read found again by MuPDF). veraPDF's PDF/A-2b font rules (6.2.11) pass; the
+  file isn't PDF/A otherwise. **Not checked:** Acrobat isn't installed here; Cyrillic and Japanese error rates couldn't run
+  (no such OCR languages installed, none added: their words were planted, and their corpus files wait in the tool), so what Windows' recognizer gives
+  for those scripts' word boxes is unseen; no scanner was used, only synthetic pages and the demo; Undo in the review was
+  checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
+  shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
+  space); MuPDF finds a word mixing right-to-left letters and digits only in parts; Inkvolt PDF's Scan dialog ignores a
+  preset's clean up. Mac: not started, on hold since 2026-10-31.
 - **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
   whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
   review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found
@@ -268,7 +301,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Leader.** Print Conductor: drag-and-drop lists, folders and archives, per-document two-sided and tray, "Single
   print job mode", a print estimation report before printing and a results report after, a command line with saved
   settings and lists ([Print Conductor](https://www.print-conductor.com/features)), $149 a user.
-- **Now.** One PDF at a time (drag-and-drop, Open with), pictures through the Photos tab.
+- **Now (built 2026-10-31, Windows; the Mac is on hold since that day).** **Print › Batch** (`ViewModels/BatchPrintViewModel`, `Views/BatchPrintView`; the palette; a folder or several PDFs dropped on the window) takes PDFs and pictures or a folder, in Explorer's name order; each file has its copies, pages, side and paper, and shows its pages and sheets, the batch its sheets in all. It sends them in order, a job per file, through `IBatchQueue`: `WindowsBatchQueue` on the XPS path of Print a PDF, `DemoBatchQueue` in demo mode, and the seam 2.1 will implement. Each result is listed, and a stopped batch says where ("Stopped at file 7 of 50 (report.pdf): Paper jam. 6 sent, 44 not sent."). Pro, through `Pro.Allows(ProFeature.BatchPrintAutomation)`: saved lists (`BatchPrintList`), a folder printed as it fills (`BatchPrintFolder`, on `Suite/DropFolder`, now shared with Inkvolt PDF's watched folder, one lock file for both), `inkvoltprint print --list file --printer name` in the app itself (`BatchPrintCommandLine`; exit codes 0, 1, 2, 3 as Inkvolt PDF's), results as CSV (`BatchPrintCsv`). Range and paper per file are free, as this item's first sentence asks. **Checked:** `BatchPrintTests` with a fake engine and queue on real temporary files: a file that changes or vanishes between estimate and print, held against writing while it prints; a half-written, growing or cut-off file in a folder not printed early, nothing printed twice after a restart, a crash's leftover going to `failed`; a wrong password stopping at three tries; list paths (devices, streams, web addresses, leaving the folder, another computer); formula cells; a wrong range, paper or side never changed quietly; a driver's ticket that doesn't keep what was asked; a job over its estimate stopping the batch; hangs in the engine and the spooler; Stop; resuming sending nothing twice. `BatchPrintEndToEndTests` runs the built app's command line on real files through Windows' real PDF engine and WIC with every page drawn: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF with its password) reach the demo queue in order with the estimated sheets; no password, a wrong one, damaged and disguised files, a picture claiming 40,000 × 40,000 pixels. By hand with the dev aid: snapshots (wide, 1024 × 700, stopped), the accessibility audit (no findings), and in the window resuming after a jam, Stop and a saved list reopened. On this PC, read only: an unknown printer, Print to PDF refused, a dry run against a real queue. **On real Windows queues (2026-11-02, no printer involved):** three temporary queues on local file ports, with no elevation, removed afterwards: the inbox Microsoft Print To PDF, HP LaserJet Mono PCLmS Class and Microsoft PWG Raster Class drivers. `WindowsBatchQueue.SendAsync` spooled through the command line (the class drivers; Print To PDF is refused there, exit 2) and through `BatchPrintViewModel` (all but PWG, by a temporary dev aid that wasn't committed). Each job was held, let through alone and its file read: every test page carries a mark, decoded from the rendered output. Against a same-page render of the source the mean grey difference is 0.17 to 0.24 of 255, against the wrong page 1.56. Right on all of these: a mixed folder (PDFs, JPEG, PNG, a landscape PDF turned to fit) in name order, a job per file with the file's name; copies, collated (`1,3,1,3,1,3`); ranges; A4 on a Letter default (PCLm's ticket says `iso_a4_210x297mm`, the page is 8.27 × 11.69 in); two-sided (`two-sided-long-edge`, backs in place, blank back after an odd last page, sheets as estimated) once the test queue's `Config:DuplexUnit` was on; a list with its own settings per file, its CSV; 30 PDFs, 120 pages, 0 of 30 wrong; a name in Spanish and Japanese; RC4 and AES-128 locks with the password; `--watch --once` moving the sent files to `done`. Refused with nothing sent: no password or a wrong one, a corrupt, empty or disguised file (the rest of the batch prints, exit 1), a paper or range the file or queue hasn't got, two-sided on the PWG queue, and two-sided where the driver lists it but its validated ticket drops it (the class driver with no duplex unit: "wouldn't print this two-sided", exit 1). Exit codes seen: 0, 1, 2 (no such queue, Print to PDF, `--max-sheets`, nothing to print), 3 (Ctrl+C after the first file: 1 job in the queue, 4 not sent; a queue set offline: none). Stop in the view model after two files: 2 jobs, then Print again sent the other two and nothing twice. A paused queue isn't a problem to the batch: it takes the jobs. **Bugs this found, fixed:** with its output piped the app had no console, so Ctrl+C never reached it and it printed on behind the prompt (`Ctrl_C_stops_a_run_whose_output_is_piped`); an AES-256 PDF, Acrobat's usual lock, which Windows' engine can't open with any password (0x80048040), said "may be damaged", and Print a PDF's message was empty (`A_lock_windows_cant_open_says_so_and_isnt_called_damaged`). **As they are, not bugs:** `--pages 3,1` prints 1 then 3, since `PageRange` sorts, as its summary says. Printing to a queue moves Windows' managed default printer to it, as any app's job does: the app doesn't touch it. **The Qualcomm crash, explained:** 21 access violations in the log on 2026-10-31, all `qcdx11arm64xum.dll` 31.0.133.1 at +0x1614e8. Stack from a small debugger (no dumps were kept by Windows): the main thread, every other thread gone, `LdrShutdownProcess`, `Windows.Data.Pdf.dll`'s C runtime exit table, `d3d11.dll`, the driver; no Inkvolt frame. A static in Windows' PDF engine holds a Direct3D device; once its documents are collected, that static is the last holder, so the device is destroyed while the DLLs unload, and that faults (sometimes as a fail-fast, 0xC0000409, from the same stack; on the command line, that one only). It's not WPF's GPU rendering (it is off), a bitmap or window, or MuPDF (Print doesn't use it): a 40-line WPF program with no Inkvolt code crashes 10 of 10 when its `PdfDocument` is dropped and collected, 0 of 5 when the program keeps it. The trigger in the app is a garbage collection after a batch; the snapshot's large bitmap very likely caused one (inferred: not measured on its own), hence "some runs": 7 of 16 with the sample batch, 15 of 15 with one PDF, none with no snapshot and no collection (0 of 8). Normal close of the window after a batch with a forced collection: 8 of 8. So it reaches users who print PDFs and close the app later. **Harm:** after everything had saved and closed; no WerFault window on this PC (watched on one crash, Windows' error settings at their defaults); the process stays about 6 s for the report, and a crash goes into Windows' log and reports. On the command line it replaced the exit code (3 of 25 with a forced collection, 0 of 8 on 30 PDFs without), which a script may read as not printed and send again. **Fix:** `App.OnExit` ends the process (`TerminateProcess`, with the exit code) once all is saved, before DLLs unload. After: 0 of 15 (one PDF), 0 of 15 (sample batch), 0 of 8 (close with collection), 0 of 25 (command line). It avoids the fault, it doesn't cure the driver. No automated test catches this one: it needs Qualcomm's driver, and a test with a small GC budget didn't fail without the fix. To check by hand on a Snapdragon PC: `InkvoltPrint.exe --demo --batch --batch-run --snapshot out.png` several times, and the exit code. **Not checked** (README, "Not done"): **a physical printer still hasn't printed a page**: no paper, no real device's answers, no jam; drivers here wrote files only, and the IPP class driver this PC's real printers use wasn't among them. Inkvolt Print's Print a PDF and other jobs weren't spooled in this run. Two-sided needs the driver saying it has the unit, as it was set on the test queue. A damaged PDF in `--watch --once` stays in the folder and isn't reported, with exit 0, as a file possibly still being written (10 minutes to `failed`): a call to make. A native crash in Windows' PDF engine isn't contained (no worker process in Print, only timeouts). The file dialogs, drag-and-drop and watching a folder from the window; the over-100-sheets and network questions; a screen reader; HEIC and WebP; the Store alias. Mac: not started.
 - **Beat it when:** Print › Batch takes PDFs and pictures (a folder too), shows the sheet estimate per file and in
   all, per-file copies, range, two-sided and paper, sends them in order through the Windows queue (or 2.1) and lists
   each result; a stopped batch says where. Pro: saved lists, a dropped folder printed as it fills, `inkvoltprint print
@@ -293,8 +326,32 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   out of paper, paper jams, missing trays, low toner" ([Vasion](https://docs.vasion.com/v/Print/SNMP/Alerts.htm));
   Printix "monitors printers" from its cloud ([Printix](https://printix.net/features-printix)). A small office has
   one person who walks over.
-- **Now.** Every printer is read, alerted on and listed, one at a time; the offline fixer works on network printers
-  only (the queue printers' fixer is in the backlog).
+- **Now (built 2026-10-31, Windows).** The sidebar's **Fleet** button (also the palette) shows `Views/FleetView`: every entry of the
+  printer list, most trouble first (`Core/Fleet/FleetOrder`: error, warning, can't be reached, not known yet, fine, as the tray ranks
+  them, then by name), each with its state and problems, each supply's level, page count, firmware and last reading. It reads no
+  printer: each printer's own loop keeps its view model current and the page looks at them every 2 s, so a printer that hangs holds
+  up only that loop; for one that hasn't answered, the supply history gives its last levels, day and count, marked last known. Every
+  string a printer writes is cleaned and bounded once (`FleetText`, `FleetPrinter.Of`: no control or invisible characters, no bidi
+  overrides, no half surrogates, 240 characters, 16 supplies and problems). The offline fixer runs on queue printers
+  (`OfflineDiagnosis`, `OfflineDevice.ForQueue`): spooler, that queue by its exact name, its state; no network step or port repair;
+  a read that doesn't answer in 10 s says so instead of calling the queue gone; a printer shared from another PC gets steps, never a
+  UAC prompt. Resume and Use Printer Offline now ask first on every printer's fixer. Pro, through `Pro.Allows`: **Export…** (CSV, a row
+  per supply, formula-safe cells in `Suite/CsvCell`, which the supply history export now uses too; or JSON), `inkvoltprint status --all
+  [--json] [--out file]` in the app itself, since the developer CLI isn't packaged (`Core/Fleet/FleetCommand`, `FleetReader`: read only, a
+  printer gets 30 s, eight at a time, exit codes as Inkvolt PDF's), and **Fix all** (`FleetFixAll`: resume and Use Printer Offline over
+  every queue known to be a printer's, each confirmed by name, the queue read again after the yes). Exports go through
+  `Diagnostics.Scrub` and hold no address, serial number or UUID field (`print/schemas/fleet-status.schema.json`). Tests: `QueueFixerTests`
+  (the diagnosis order, no network step, no other queue, gone against unreadable, a hung read, the shared printer),
+  `FleetTests` and `FleetReadTests` (the demo PC's nine entries in order, read through the real readers over the fixtures; the JSON against the
+  schema with a small checker, as no package is added; what the scrubber's test plants in LEDM, IPP and SNMP replies out of the JSON and CSV;
+  formula starts including fullwidth and hidden ones; hung, throwing and vanishing printers; another device at the address; Fix all's
+  questions, a queue renamed or fixed while one was open, refusals, the gate). Seen: `--demo --fleet --snapshot` (light, dark, 900 wide, Text size 150%),
+  `--fleet fix`, `--printer 6 --fix`, `--a11y-audit` (no findings); `--demo status --all --json` and `--pro-enforce` (exit 2, nothing on standard
+  output); `status --all` on the development PC, whose one printer was away, in 7 s with `state.json` unchanged. **Not checked:** any real
+  printer or real queue repair (paused, Use Printer Offline, a printer shared from a PC that's off, access denied); the Pro window opening
+  from the page with the gate on; the Save dialog (the snapshot aid writes the file directly); Excel opening the CSV; a screen reader, and Tab
+  through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: on
+  hold (owner, 2026-10-31).
 - **Beat it when:** a Fleet page lists every printer's state, each supply's level, page count, firmware and the last
   reading's time, sorted by trouble; the offline fixer runs on queue printers too (paused, Use Printer Offline, stuck
   jobs, without the network steps). Pro: Export CSV, `inkvoltprint status --all --json` for a script or a scheduled
@@ -336,6 +393,40 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 
 ### 3.4 Job notifications
 - **Leader.** The maker apps and the fleet tools tell you a job failed; Windows and macOS put a queue icon up.
+- **Now (built 2026-11-01, Windows).** Settings › Notification area and alerts has "Tell me when my own print job fails or gets
+  stuck", off by default. With it on, the tray reads each printer's Windows queue every minute, window open or not (`WindowsJobQueue`,
+  winspool: a local call; a queue that can't be read is skipped, never taken as empty), and `AlertTracker.ObserveJobs` decides.
+  **Failed:** the job has Error, Blocked or Needs attention for a minute, whatever the printer says; out of paper or offline alone is the
+  printer's state and its own alerts tell that. **Stuck:** your first job in the queue, nothing in the queue moving, the queue neither paused nor
+  on Use Printer Offline, and the printer's own read, taken after the wait: 5 minutes with it saying it's ready, idle or asleep, or 15 minutes with
+  it saying it's printing, worded "hasn't moved for 15 minutes and may be stuck". The times and the cap are in one place, `AlertRules`. Moving (`JobProgress`,
+  from JOB_INFO_2) means pages printed, pages or bytes spooled or the job's stage going past the furthest seen, someone restarting it, or a job
+  leaving (someone else's too), so a job waiting its turn isn't stuck, and flicker neither passes for progress nor hides a hung job. **Your own:** the job's owner is the Windows user, and if
+  it names a domain or a PC, this one; when in doubt it isn't yours. A toast for each job (Open the queue, Pause alerts), naming the
+  document and the printer, more than three at once from one printer sharing one; Open the queue scrolls to the queue card. Quiet hours,
+  a pause and alerts off work as for other alerts. Free, as the table says: no Pro check.
+- **Decisions.** Stuck is told once per episode: told again only after real progress since the last alert, at most 3 times per job. Failed is told once
+  per job, also after it was told stuck; a stuck alert after a failure needs real progress too. An alert a pause swallowed ends the episode without using up the cap. All of it
+  survives a restart and alerts being turned off and on. A resubmitted job is a new job: a job is its id plus the moment it was submitted, so an id the spooler uses again
+  is new too. Only your first job is told stuck: those behind it wait for it, and get their own wait when it's gone. Jobs don't color the tray icon, which
+  shows printers. A failure on a paused queue or a printer that isn't ready is still told; only "stuck" asks that the printer be ready or printing.
+  **Accepted:** a slow big job on a driver that reports no pages and no growing size, with a printer saying Printing, or someone else's such job ahead of yours, can raise one false "may be stuck" after 15 minutes.
+  The name: controls, invisible and right-to-left override characters and broken pairs out, a path or address cut to the file's name, 48
+  characters at most, in quotes, so it can't pass for the app's own words. It's kept in memory only: `state.json` holds `Job|id|time|failed told|stuck told|pages, size and stage when last told`, the log the alert's kind.
+- **Checked.** `JobAlertTests` on a fake clock, on the demo queue's made-up jobs (`DemoFleet.CardJobs`) and the demo fixer's stuck job
+  (`DemoFleet.OfficeStuckJob`, on a Use Printer Offline queue and an unreachable printer: raises one). Seen: `--demo --tray --simulate-jobs
+  --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
+  `--demo --tray --simulate-jobs` showing the real balloons, with only `JobFailed` in the log. `WindowsJobQueue.Read` read this PC's
+  Microsoft Print to PDF queue (empty, not paused). In demo mode Open the queue shows the card's one made-up queue, not the fixer's, as the card always has.
+  **One real spooler run (2026-11-01):** a temporary queue (Microsoft Print To PDF driver, no elevation needed) on a TCP port at 192.0.2.1, a 23-byte job, read through `WindowsJobQueue` and the
+  rule. The real reads: None, then Printing | Retained about 30 s later, then Error | Printing | Retained at about 90 s and steady for the 10 minutes watched, with the queue's own status going to error (0x2); pages 0 of 1,
+  size 23 throughout, `pStatus` empty, `Time` a fixed number, so no moving signal there. Owner `gabri` and machine `\\THISPC` matched `JobOwner`. **It found a bug:** Retained counted as finished, so
+  that failed job raised nothing and the card would have said Printed; fixed, and the second run raised one `JobFailed` a minute after first seen, and no stuck alert for the job waiting behind it. Queue and port removed afterwards and confirmed gone.
+  **Beware repeating it:** this PC has Windows managing the default printer, so printing to the test queue and removing it moved the default to another queue; it was set back by hand. Set it back after any such run.
+- **Not checked.** One real failure was seen (above), on a dead TCP port only. No real printer here, so no real jam, no real shared queue, and neither stuck rule has fired from a real spooler: the
+  dead port went to Error, not to a long Printing or a long wait on a ready printer, so the 5 and 15 minute rules are tested on a fake clock only. Also unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
+  given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a job that fails and vanishes between two reads (never seen).
+  WinRT toasts: the XML is tested, the toast itself not run here, as for 1.4. A printer with two Windows queues: only the one the app finds is read. Mac: not started.
 - **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the
   printer is ready) is one notification per job, naming the document and the printer, with Open the queue; off by
   default. Test: `AlertTracker` rules on the demo queue's made-up jobs; the demo fixer's stuck job raises one. Mac:

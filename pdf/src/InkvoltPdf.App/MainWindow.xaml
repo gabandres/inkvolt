@@ -162,6 +162,7 @@
                                     <MenuItem Command="app:Cmd.FindNext" />
                                     <MenuItem Command="app:Cmd.FindPrevious" />
                                     <MenuItem Command="app:Cmd.SearchPane" />
+                                    <MenuItem Command="app:Cmd.SearchFolders" />
                                     <Separator />
                                     <MenuItem x:Name="HandMenu" Command="app:Cmd.ToolHand" InputGestureText="H" />
                                     <MenuItem x:Name="SelectMenu" Command="app:Cmd.ToolSelect" InputGestureText="T" />
@@ -265,6 +266,8 @@
                                     <MenuItem Command="app:Cmd.ShowLayers" />
                                     <MenuItem Command="app:Cmd.ShowSignatures" />
                                     <MenuItem x:Name="SignMenu" Command="app:Cmd.Sign" />
+                                    <MenuItem Command="app:Cmd.AddVerification" />
+                                    <MenuItem Command="app:Cmd.CheckSignaturesOnline" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Highlight" />
                                     <MenuItem Command="app:Cmd.Underline" />
@@ -312,6 +315,7 @@
                                         <MenuItem Command="app:Cmd.AiSummarize" />
                                         <MenuItem Command="app:Cmd.AiAsk" />
                                         <MenuItem Command="app:Cmd.AiExplain" />
+                                        <MenuItem Command="app:Cmd.AiTranslate" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.AiSettings" />
                                     </MenuItem>

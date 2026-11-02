@@ -94,8 +94,14 @@ public abstract class PcEnvironment
     /// <summary>A printer's print queue as a list of jobs (the queue card).</summary>
     public abstract IPrintJobs PrintJobs(Func<Task<string?>> findQueue);
 
+    /// <summary>A printer's queue as job alerts read it (<paramref name="listed"/>: the queue it's known by, if any).</summary>
+    public abstract IJobQueueReader JobQueue(string uuid, Func<SpoolerQueue?> listed, Func<Task<string?>> findQueue);
+
     /// <summary>Where copies and preset scans "print" instead of a Windows queue (job name, sheets): the made-up queue; null: the Windows queue.</summary>
     public abstract Action<string, int>? MadeUpPrint { get; }
+
+    /// <summary>Where a printer's batch print jobs go: its Windows queue, or the made-up queue. Files are always real, read through <see cref="WindowsBatchDocuments"/>.</summary>
+    public abstract Core.Printing.IBatchQueue BatchQueue(string uuid, Func<Task<string?>> findQueue);
 
     /// <summary>The made-up queue's photo options and where its photo jobs "print"; null: the printer's Windows queue.</summary>
     public abstract DemoPhotoQueue? PhotoQueue(string uuid);
@@ -120,6 +126,9 @@ public abstract class PcEnvironment
 
     /// <summary>Other apps are started (Inkvolt PDF, the mail app); false on the made-up PC, whose scans only say what would happen.</summary>
     public abstract bool OpensOtherApps { get; }
+
+    /// <summary>Where Help › Report a problem's recordings go: where the user can find one to attach (the demo's: a temp folder, out of the user's things).</summary>
+    public abstract string RecordingsFolder { get; }
 
     /// <summary>The user name sent with maintenance jobs.</summary>
     public abstract string UserName { get; }
@@ -174,7 +183,9 @@ public abstract class PcEnvironment
 
         protected override IQueueStatusSource SpoolerStatus(SpoolerQueue q) => new SpoolerStatusSource(q);
         public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => new WindowsPrintJobs(findQueue);
+        public override IJobQueueReader JobQueue(string uuid, Func<SpoolerQueue?> listed, Func<Task<string?>> findQueue) => new WindowsJobQueueReader(findQueue);
         public override Action<string, int>? MadeUpPrint => null;
+        public override Core.Printing.IBatchQueue BatchQueue(string uuid, Func<Task<string?>> findQueue) => new WindowsBatchQueue(findQueue);
         public override DemoPhotoQueue? PhotoQueue(string uuid) => null;
         public override IOfflineProbes OfflineProbes { get; } = new WindowsOfflineProbes();
         public override IOfflineRepairs OfflineRepairs(Func<Task<string?>> setUpAgain) => new SettingUpAgain(new WindowsOfflineRepairs(), setUpAgain);
@@ -182,6 +193,8 @@ public abstract class PcEnvironment
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
         public override Action<string>? Browser => Shell.Open;
         public override bool OpensOtherApps => true;
+        public override string RecordingsFolder =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents ? documents : AppState.DataDirectory, "Inkvolt Print recordings");
         public override string UserName => Environment.UserName;
         public override string? ImageCache => Path.Combine(AppState.DataDirectory, "images");
         public override bool ChecksHpSoftware => Features.HpCleanup;

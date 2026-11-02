@@ -116,6 +116,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
             {
                 lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
             },
+            Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         var progress = new Progress<WatchProgress>(p =>
         {

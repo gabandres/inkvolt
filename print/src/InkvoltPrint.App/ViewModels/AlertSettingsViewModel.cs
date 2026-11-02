@@ -102,6 +102,21 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
         set => Set(S.OfflineAlerts, value, v => S.OfflineAlerts = v);
     }
 
+    public bool JobAlerts
+    {
+        get => S.JobAlerts;
+        set => Set(S.JobAlerts, value, v => S.JobAlerts = v);
+    }
+
+    /// <summary>What job alerts do, in the rule's own times (<see cref="Core.Alerts.AlertRules"/>).</summary>
+    public string JobAlertsNote { get; } = NoteOf(new Core.Alerts.AlertRules());
+
+    private static string NoteOf(Core.Alerts.AlertRules r) =>
+        $"Naming the document and the printer: Windows reports a problem with the job, or it hasn't moved for {r.JobStuckAfter.TotalMinutes:0} minutes while the printer is ready, " +
+        $"or {r.JobHungAfter.TotalMinutes:0} minutes while the printer says it's printing (a big job on a driver that counts no pages can raise this by mistake). " +
+        $"A stuck job is told again only after real progress, at most {r.JobMaxStuckAlerts} times. Other people's jobs never raise one. " +
+        "The notification shows the document's name, also on the lock screen if Windows shows notifications there; Inkvolt Print doesn't keep it or log it.";
+
     public bool QuietHours
     {
         get => S.QuietHours;

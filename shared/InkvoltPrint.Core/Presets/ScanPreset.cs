@@ -46,6 +46,12 @@ public sealed record ScanPreset
     public bool SkipBlank { get; init; } = true;
     public bool Straighten { get; init; } = true;
 
+    /// <summary>What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.</summary>
+    public PageFilters Cleanup { get; init; }
+
+    /// <summary>The OCR language (a BCP-47 tag) for a searchable PDF; null: Windows' first display language that has one.</summary>
+    public string? OcrLanguage { get; init; }
+
     /// <summary>Batch scanning: one feeder run saved as several files, a new one at each separator sheet.</summary>
     public SplitAt SplitAt { get; init; }
 
@@ -139,6 +145,7 @@ public static partial class ScanPresets
                 FileType = Enum.IsDefined(raw.FileType) ? raw.FileType : PresetFileType.Pdf,
                 After = Enum.IsDefined(raw.After) ? raw.After : PresetAfter.None,
                 SplitAt = Enum.IsDefined(raw.SplitAt) ? raw.SplitAt : SplitAt.None,
+                Cleanup = raw.Cleanup & PageFilters.All,
                 Folder = Enum.IsDefined(raw.Folder) && !(raw.Folder == PresetFolder.Custom && string.IsNullOrWhiteSpace(raw.FolderPath))
                     ? raw.Folder : PresetFolder.Documents,
                 Resolution = Math.Clamp(raw.Resolution, MinResolution, MaxResolution),
@@ -306,6 +313,7 @@ public static class ScanPresetText
         };
         if (p.SplitAt != SplitAt.None) parts.Add($"a new file at each {SplitText(p.SplitAt)}");
         if (p.FindPhotos) parts.Add("each photo on the glass by itself");
+        if (PageCleanup.Describe(p.Cleanup) is { Length: > 0 } cleanup) parts.Add(cleanup);
         if (p.Review) parts.Add("review first");
         if (p.After != PresetAfter.None) parts.Add($"then {After(p.After)}");
         return string.Join(" · ", parts);

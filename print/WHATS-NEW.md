@@ -6,6 +6,18 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.2.0
+- Batch print: Print › Batch takes many PDFs and pictures, or a folder. Each file has its own copies, pages, sides and paper, and you see the sheets each takes and in all before anything prints. They go in order, each result is listed, and a batch that stops says where and carries on from there without printing anything twice.
+- A file that changed or vanished after the estimate isn't printed, and a page range or paper a file or printer doesn't have is said on its line, never changed quietly.
+- Inkvolt Pro (free for now): save a batch as a list, keep the results as a spreadsheet file, print a folder as files land in it, and print from a script or a scheduled task with inkvoltprint print --list file --printer name.
+- Clean up scans: crop to the paper, whiten the background and remove specks, take the dots out of printed pictures, and restore faded colors. Turn each on for a scan or a preset, or per page in the review, and Undo puts it back.
+- Searchable PDFs now work in any language: Greek, Cyrillic, Arabic, Hebrew, Chinese, Japanese, Korean and more can be found in the hidden text. If you have several OCR languages installed, choose one under Text language.
+- Fleet: a new page, from the button at the top of the printer list, shows every printer at once with its state, ink or toner levels, page count, firmware and when it was last read, the ones in trouble first.
+- Fix it… now works on printers known only to Windows too (USB, shared from another PC): it finds a paused queue, Use Printer Offline and stuck jobs, and fixes them after asking. Resuming a queue and turning off Use Printer Offline now ask first on every printer, since waiting jobs start printing.
+- Inkvolt Pro (free for now): Export… on the Fleet page saves the list as a spreadsheet file or JSON, inkvoltprint status --all --json gives a script or a scheduled task the same list, and Fix all resumes paused queues and turns off Use Printer Offline everywhere, asking about each one.
+- Job notifications: turn on "Tell me when my own print job fails or gets stuck" in Settings, and your job's failure, or no progress for 5 minutes on a ready printer (15 if the printer says it's printing), tells you, with the document's name and Open the queue. A stuck job tells you again only if it moved in between, three times at most. Off unless you turn it on. Other people's jobs never raise one.
+- Report a problem can record the printer shown: every reply Inkvolt Print reads from it, read only, with serial numbers, addresses and names taken out, saved as a .zip file for you to read and attach. Nothing is sent.
+
 ## 1.1.0
 - Ink and toner history: Inkvolt Print keeps a reading a day on your PC and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).
 - Firmware watch: when a printer's firmware changes, Inkvolt Print says so on its status card ("Firmware changed from … to … on …") and, with alerts on, once in a notification.

@@ -22,6 +22,16 @@ switch (cmd)
     case "probe" when host is not null:
         await Probe(host);
         break;
+    case "status" when InkvoltPrint.Core.Fleet.FleetCommand.IsFor(args) && (host is null || host.StartsWith("--", StringComparison.Ordinal)):
+        {
+            // Every printer at once, as the app's own "status --all" (Inkvolt Pro).
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var pc = new InkvoltPrint.Windows.Fleet.WindowsFleetPc(local);
+            InkvoltPrint.Core.Pro.Store = pc.ProStore(local);
+            Environment.Exit(await InkvoltPrint.Core.Fleet.FleetCommand.RunAsync(args, Console.Out, Console.Error, pc, () => DateTimeOffset.Now,
+                InkvoltPrint.Core.Suite.Diagnostics.Identity.Current, ct));
+            break;
+        }
     case "status" when host is not null:
         await Status(host);
         break;
@@ -143,11 +153,17 @@ switch (cmd)
                 ? patch : InkvoltPrint.Core.Imaging.PatchCode.PatchT, args.Contains("--a4") ? 210 / 25.4 : 8.5, args.Contains("--a4") ? 297 / 25.4 : 11);
         Console.WriteLine($"Wrote {host}");
         break;
+    case "print":
+        // Printing draws with WPF, which this developer CLI doesn't load: the app's own command line does it (the Store's inkvoltprint alias is the app).
+        Console.Error.WriteLine("Batch printing runs from the app: InkvoltPrint.exe print --help.");
+        Environment.ExitCode = InkvoltPrint.Core.Printing.BatchPrintSummary.Wrong;
+        break;
     default:
         Console.WriteLine("""
             inkvoltprint discover
             inkvoltprint probe <host>
             inkvoltprint status <host>
+            inkvoltprint status --all [--json] [--out file]   (read-only: every printer, most trouble first; Inkvolt Pro)
             inkvoltprint watch <host>                      (LEDM event long-poll; Ctrl+C to stop)
             inkvoltprint settings <host>                   (read-only)
             inkvoltprint spooler                           (read-only: spooler, Windows queues, ports, jobs)
@@ -163,6 +179,7 @@ switch (cmd)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
             inkvoltprint scanpdf <in.pdf> [--dpi 300]      (offline: a scanner's PDF as the Scan tab takes its pages)
             inkvoltprint separator-sheet <out.pdf> [--patch T|2|3] [--a4]   (offline: printable batch scanning separator sheet)
+            InkvoltPrint.exe print --help                  (the app's own command line: print a saved list or a folder)
             """);
         break;
 }

@@ -6,7 +6,7 @@ source, with **no account, no ads, no telemetry and no cloud**: your files stay 
 <p>
   <a href="https://apps.microsoft.com/detail/9MXDTSFJ9W28"><b>Get Inkvolt PDF</b></a> ·
   <a href="https://apps.microsoft.com/detail/9PNR76HJ62SK"><b>Get Inkvolt Print</b></a> (Microsoft Store, Windows 10 and 11, x64 and native ARM64) ·
-  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.3.0">Inkvolt PDF for Mac</a> ·
+  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.4.0">Inkvolt PDF for Mac</a> ·
   <a href="https://bermudezsystems.com/products/inkvolt/">Website</a>
 </p>
 
@@ -127,7 +127,8 @@ install together.
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
 | [`mac/`](mac/README.md) | **Inkvolt for macOS**, in planning: native Swift, Inkvolt Print first (Mac App Store), then Inkvolt PDF | MIT (Inkvolt PDF's Mac app will be AGPL) |
 
-The license of each folder is in its `LICENSE`; the top-level scripts are MIT (see [LICENSE](LICENSE)). Inkvolt PDF's
+The license of each folder is in its `LICENSE`. At the top level, [LICENSE](LICENSE) is the AGPL-3.0 text (Inkvolt
+PDF's) and [LICENSE-MIT](LICENSE-MIT) the MIT text, which covers the top-level scripts. Inkvolt PDF's
 AGPL applies to Inkvolt PDF as distributed (the MIT libraries in it stay MIT on their own); Inkvolt Print ships no AGPL
 code.
 

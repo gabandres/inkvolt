@@ -15,7 +15,11 @@ public sealed record AiMessage(string Role, string Content)
 }
 
 /// <summary>A failure talking to the AI endpoint, with a message meant for the user.</summary>
-public sealed class AiException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed class AiException(string message, Exception? inner = null) : Exception(message, inner)
+{
+    /// <summary>The HTTP status behind it (a refused key, a redirect), when one is; 0 otherwise.</summary>
+    public int Status { get; init; }
+}
 
 /// <summary>
 /// The OpenAI-compatible chat API (<c>POST {base}/chat/completions</c>, <c>GET {base}/models</c>) that Ollama, LM Studio,

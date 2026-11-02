@@ -12,6 +12,7 @@ namespace InkvoltPdf.App;
 /// <summary>A small modal form: labeled rows, OK/Cancel, and a validation hook that keeps the dialog open on error.</summary>
 public sealed class FormDialog : Window
 {
+    private readonly Button _ok;
     private readonly StackPanel _rows = new();
     private readonly Border _error = new() { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 14, 0, 0), Visibility = Visibility.Collapsed };
     private readonly TextBlock _errorText = new() { TextWrapping = TextWrapping.Wrap };
@@ -25,11 +26,13 @@ public sealed class FormDialog : Window
         Title = title;
         Width = width;
         SizeToContent = SizeToContent.Height;
+        // A long form on a small screen scrolls; its buttons stay on screen.
+        MaxHeight = SystemParameters.WorkArea.Height;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        var ok = new Button { Content = okText, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
+        var ok = _ok = new Button { Content = okText, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
         ok.SetResourceReference(StyleProperty, "AccentButtonStyle");
         var cancel = _cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 104 };
         ok.Click += (_, _) =>
@@ -69,7 +72,7 @@ public sealed class FormDialog : Window
         var root = new DockPanel();
         DockPanel.SetDock(footer, Dock.Bottom);
         root.Children.Add(footer);
-        root.Children.Add(body);
+        root.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Focusable = false });
         Content = root;
     }
 
@@ -132,6 +135,9 @@ public sealed class FormDialog : Window
             e.Handled = true;
         };
     }
+
+    /// <summary>The OK button's text, when it depends on what is chosen.</summary>
+    public void SetOkText(string text) => _ok.Content = text;
 
     /// <summary>The Cancel button's text ("Close" when leaving changes nothing).</summary>
     public void SetCancelText(string text) => _cancel.Content = text;

@@ -7,9 +7,12 @@ extension PdfA {
         let doc: MuDoc
         private(set) var changes: [String]
         private(set) var blockers: [String] = []
-        private var removedAnnots = 0, hiddenAnnots = 0, actions = 0, aa = 0, images = 0, lzw = 0, tr = 0, ocNames = 0
-        private(set) var embedded = 0
+        private var removedAnnots = 0, hiddenAnnots = 0, actions = 0, aa = 0, images = 0, lzw = 0, tr = 0, ocNames = 0, ownMetadata = 0
+        private(set) var embedded = 0, dingbats = 0
+        /// Different names `LongNames` shortened before the pass.
+        var longNames = 0
         private let pages: [PObj]
+        private let catalogIdentity: UInt
         /// Pages' content streams and Type 3 glyph procedures, by identity (form XObjects and tiling patterns are told by
         /// their entries).
         private var contents = Set<UInt>()
@@ -18,6 +21,7 @@ extension PdfA {
             self.doc = doc
             self.changes = changes
             pages = try doc.pages()
+            catalogIdentity = doc.catalog.identity
         }
 
         func run() throws {
@@ -51,7 +55,10 @@ extension PdfA {
             if lzw > 0 { changes.append("\(count(lzw, "LZW stream", "LZW streams")) re-compressed") }
             if tr > 0 { changes.append("transfer and halftone functions removed") }
             if embedded > 0 { changes.append("\(count(embedded, "standard font", "standard fonts")) embedded") }
+            if dingbats > 0 { changes.append("check marks and other ZapfDingbats symbols embedded") }
             if ocNames > 0 { changes.append("layer configurations named") }
+            if ownMetadata > 0 { changes.append("\(count(ownMetadata, "picture's or page's own metadata packet", "pictures' and pages' own metadata packets")) removed") }
+            if longNames > 0 { changes.append("\(count(longNames, "name", "names")) longer than PDF/A allows shortened") }
             changes.append("sRGB output intent and PDF/A metadata added")
         }
 
@@ -100,6 +107,10 @@ extension PdfA {
             if d.has("AA") {
                 d.remove("AA")
                 aa += 1
+            }
+            if d.identity != catalogIdentity && d.has("Metadata") {
+                d.remove("Metadata")
+                ownMetadata += 1
             }
             for key in ["A", "OpenAction", "PA"] {
                 if let action = d.dict(key), Self.isForbidden(action) {
@@ -210,6 +221,10 @@ extension PdfA {
             guard let bytes = d.streamData, let ops = try? ContentLexer.parse(bytes, cancel: nil) else { return }
             func names(_ op: COp, _ wanted: Set<String>) -> Bool { op.operands.contains { $0.kind == .name && wanted.contains($0.name) } }
             for op in ops {
+                if op.operands.contains(where: { Self.holdsLongName($0) }) {
+                    blockers.append("Its page content uses a name longer than the 127 bytes PDF/A allows.")
+                    return
+                }
                 let setsCmyk = op.name == "k" || op.name == "K"
                 let last = op.operands.last
                 let cmykSpace = (op.name == "cs" || op.name == "CS") && last?.kind == .name && last?.name == "DeviceCMYK"
@@ -224,9 +239,21 @@ extension PdfA {
             }
         }
 
+        /// A name over PDF/A's limit in an operand, or in the array or dictionary it is.
+        private static func holdsLongName(_ o: CObj) -> Bool {
+            switch o.kind {
+            case .name: LongNames.isTooLong(contentName: o.name)
+            case .array: o.items.contains { holdsLongName($0) }
+            case .dict: o.entries.contains { LongNames.isTooLong(contentName: $0.key) || holdsLongName($0.value) }
+            default: false
+            }
+        }
+
         func block(_ why: String) { blockers.append(why) }
 
         func noteEmbedded() { embedded += 1 }
+
+        func noteDingbats() { dingbats += 1 }
 
         private func cmykBlocker() {
             blockers.append("It uses CMYK color without a color profile; a PDF/A-2b copy here gets an RGB (sRGB) output intent, so that color can't be kept as it is.")

@@ -6,6 +6,29 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.6.0
+- Translate with AI (Review › AI Assistant): a translated copy opens in a new tab with the original beside it, and the two scroll together. It goes one paragraph at a time through your own AI, with no page limit, and you see what will be sent, and where, first. Nothing goes anywhere else.
+- Each paragraph stays in its box: its text wraps there, shrinks if it must, and gets a comment if it still doesn't fit. Tables go cell by cell, and pictures stay where they are.
+- A long translation shows how far it has come, and you can stop it and keep what's done. Your original file isn't changed.
+- Redact by Pattern searches scanned pages too, through text recognition on your PC, and lists every match with its page and the words around it. Accept or skip them one by one or all, with the page beside the list, before anything is removed.
+- Text recognition can miss words and whole lines, so a page read that way is never called clean: it is flagged for you to look at, and places with ink where nothing was read are marked on it.
+- After redacting, the result is read back and searched again, and what was removed is looked for in the rest of the file. In Batch, a file with anything left fails and isn't saved.
+- Save your own pattern sets under a name on this PC, and run one over a folder with Batch's Redact Patterns; password files are asked for as usual.
+- A removal report, as a page and as CSV, lists per file the page, pattern and a masked value of each removal. It never holds the value itself.
+
+## 1.5.0
+- Compare Files takes Word, Excel and PowerPoint files and scans as well as PDFs, on either side. Words on a scan are recognized on your PC first, and a difference that may be a misreading says so.
+- Compare lists formatting changes (font, size, bold, italic, color) and moved paragraphs apart from changes of wording, and leaves running headers and footers out. Tick off any kind to hide it.
+- Scans are lined up before they are overlaid, so a page fed a little crooked no longer looks different all over.
+- The annotated copy now also marks moves, formatting and areas that look different, such as a picture that was swapped.
+- Long-term validation: Add Verification Information stores in a signed file the proof that each certificate was good, so its signatures can still be checked after the certificates expire. It can add a document timestamp too (PAdES B-LTA), and Sign Digitally can do all of it as it signs. It's part of Inkvolt Pro.
+- Before any of that goes online, you see every address that will be contacted and what it gets. Addresses on your PC or local network are never contacted, whatever a file's certificates say.
+- Opening a signed file no longer goes online at all, where it used to check revocation by itself. Check Signatures Online does it when you ask, and a signature's details now say what the file holds for checking it later.
+- Timestamps now go over https only. Sectigo's free server is suggested, and you can enter another. Nothing is contacted unless you add a timestamp.
+- A locked form field's appearance swapped in a later update now shows as a change the signature doesn't allow, not only a changed value.
+- Something laid over a signed page in a later update, as a field calling itself a timestamp or a comment written inside the page's own list, now shows as a change; on a file certified with no changes, as one the certification doesn't allow.
+- Search Folders (Edit menu, Ctrl+Alt+Shift+F): find a word in every PDF of a folder in a moment, with the text around each hit, and open the file right at it. Inkvolt PDF indexes the folder in the background, on your PC, and keeps up as files change. Files it can't read are skipped and listed.
+
 ## 1.4.0
 - Save as PDF/A now works on IRS forms and on documents with Fill & Sign check marks, which it used to refuse. The list of changes says what the copy lost or gained: the form's Reader usage rights, and check marks drawn in a slightly different shape.
 - PDF/A copies pass an independent validator on more files: pictures' and pages' own metadata no longer stays in the copy.

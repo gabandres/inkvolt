@@ -115,6 +115,9 @@ try {
         Set-Content $page '<html><body><h1>Smoke page</h1><p>Hello from a local page.</p></body></html>' -Encoding utf8
         $out = Join-Path $work 'out'
         $docx = Join-Path $out 'sample.docx'
+        $indexed = Join-Path $work 'indexed'
+        New-Item -ItemType Directory -Force $indexed | Out-Null
+        Copy-Item $pdf $indexed
         $steps = @(
             'wait 2500'
             'converters'
@@ -127,6 +130,10 @@ try {
             'batchrun'
             'batchclose'
             "webpage $page"
+            "indexadd $indexed"
+            'indexwait 60'
+            'indexsearch smoke'
+            'indexremove'
             'exit'
         )
         $script = Join-Path $work 'steps.txt'
@@ -150,6 +157,7 @@ try {
         if ($lines -match '^FAILED') { $failures.Add('a dev-script step failed (log above)') }
         if (-not (Test-Path "$work\open.png")) { $failures.Add('no window snapshot (open.png)') }
         if (-not ($lines -match '^findworkers: started=2 failed=0 pages=[1-9].* left running=0$')) { $failures.Add('the package could not search in find workers (log above)') }
+        if (-not ($lines -match '^indexsearch smoke: 1 results')) { $failures.Add('the package could not index a folder in index workers (log above)') }
         if (-not (Test-Path $docx) -or (Get-Item $docx).Length -lt 1000) { $failures.Add('Batch export to Word wrote no sample.docx') }
         if (-not ($lines -match '^webpage: [1-9]\d* bytes')) { $failures.Add('Create PDF from Web Page made no PDF') }
 

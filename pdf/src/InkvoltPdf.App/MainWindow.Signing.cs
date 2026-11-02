@@ -12,6 +12,11 @@ public partial class MainWindow
 {
     private bool _signing;
 
+    /// <summary>The dev script's way to a local authority: a client that may reach this PC's loopback. Null always outside a script.</summary>
+    internal Func<LtvClient>? DevLtvClient { get; set; }
+
+    private LtvClient NewLtvClient() => DevLtvClient?.Invoke() ?? new LtvClient();
+
     /// <summary>
     /// Signs the active document: commits open editors and waits for pending writes, asks for the digital ID and options,
     /// lets the user drag the box (visible, new field), signs as an incremental update, then saves the signed copy
@@ -35,6 +40,17 @@ public partial class MainWindow
             var choice = scripted ?? SignDialog.Show(this, field, aspect, fieldVisible, t.IsSigned);
             if (choice is null) return;
             using var cert = choice.Certificate;
+            using var client = NewLtvClient();
+            if (choice.LongTerm != LongTermLevel.None)
+            {
+                // Before anything else happens: what is contacted, in the person's own view of it.
+                var plan = await Task.Run(() => Ltv.Plan(cert, choice.TimestampUrl, client));
+                if (!LtvDialogs.ConfirmSign(this, plan, choice.LongTerm))
+                {
+                    ShowStatus("Signing cancelled");
+                    return;
+                }
+            }
 
             SignaturePlacement? box = null;
             if (field is null && choice.Visible)
@@ -46,7 +62,7 @@ public partial class MainWindow
                     return;
                 }
             }
-            ShowStatus(choice.Timestamp ? "Signing and getting a timestamp…" : "Signing…");
+            ShowStatus(choice.LongTerm != LongTermLevel.None ? "Signing and getting the long-term data…" : choice.Timestamp ? "Signing and getting a timestamp…" : "Signing…");
             var request = new SignRequest
             {
                 Certificate = cert,
@@ -56,8 +72,10 @@ public partial class MainWindow
                 Reason = choice.Reason,
                 Location = choice.Location,
                 Look = choice.Look,
-                Timestamp = choice.Timestamp ? DocumentTab.TimestampClient(choice.TimestampUrl) : null,
+                Timestamp = choice.Timestamp ? client.TimestampSender(choice.TimestampUrl) : null,
                 Certify = choice.Certify,
+                LongTerm = choice.LongTerm,
+                LongTermClient = choice.LongTerm != LongTermLevel.None ? client : null,
             };
             var outcome = await t.ApplySignatureAsync(request);
             if (outcome == EditOutcome.Declined) ShowStatus("Signing cancelled"); // e.g. the PIN prompt was cancelled
@@ -72,6 +90,91 @@ public partial class MainWindow
                 return;
             }
             t.ShowSignatureDetails(field);
+        }
+        finally
+        {
+            _signing = false;
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    /// <summary>
+    /// Add Verification Information: shows what would be contacted, asks, stores the answers as an update after the
+    /// signatures, then saves the copy (default "&lt;name&gt;-ltv.pdf"), as signing does. Whatever fails, nothing is written.
+    /// </summary>
+    internal async Task AddVerificationAsync(DocumentTab t)
+    {
+        if (_signing) return;
+        _signing = true;
+        try
+        {
+            await t.FlushPendingEditsAsync();
+            if (t.IsDisposed || !ProGate.Check(this, ProFeature.LongTermValidation)) return;
+            if (t.Session.HasEncryption)
+            {
+                Prompt.Info(this, "Protected PDFs can't take long-term data",
+                    "An update can't be appended to an encrypted PDF without breaking its signatures, so nothing can be added to this file.");
+                return;
+            }
+            var data = t.Session.Data;
+            var password = t.Session.Password;
+            using var client = NewLtvClient();
+            var plan = await Task.Run(() => Ltv.Plan(data, password, client));
+            if (t.IsDisposed) return;
+            var url = LtvDialogs.ConfirmAdd(this, plan, client);
+            if (url is null) return;
+            ShowStatus("Getting the long-term data…");
+            var (outcome, result) = await t.AddVerificationAsync(client, url.Length == 0 ? null : url);
+            if (outcome != EditOutcome.Done || result is null || t.IsDisposed) return;
+            if (!result.Changed)
+            {
+                // Same bytes back: nothing to keep in the undo list or to save.
+                if (t.Session.UndoLabel == "Add Verification Information") t.Undo();
+                t.ShowLongTermOutcome("The file already holds everything that could be added. It wasn't changed.", LtvDialogs.Describe(result.Certificates, result.Contacts));
+                return;
+            }
+            // The data must be the file's last change for the signatures to read as they do: save the bytes as they are.
+            var name = Path.GetFileNameWithoutExtension(t.Session.DisplayName);
+            if (!await SaveAsDialogAsync(t, name.EndsWith("-ltv", StringComparison.OrdinalIgnoreCase) ? name + ".pdf" : name + "-ltv.pdf"))
+            {
+                if (!t.IsDisposed && t.Session.UndoLabel == "Add Verification Information") t.Undo();
+                ShowStatus("Not added: the copy wasn't saved");
+                return;
+            }
+            var gaps = result.Certificates.Count(c => !c.Covered);
+            t.ShowLongTermOutcome(gaps == 0 ? "Long-term data added." : $"Long-term data added, but {gaps} certificate{(gaps == 1 ? " has" : "s have")} none: see what was asked.",
+                LtvDialogs.Describe(result.Certificates, result.Contacts));
+        }
+        finally
+        {
+            _signing = false;
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    /// <summary>Check Signatures Online: shows what would be contacted, asks, and shows the signatures in that light. The file stays as it is.</summary>
+    internal async Task CheckSignaturesOnlineAsync(DocumentTab t)
+    {
+        if (_signing) return;
+        _signing = true;
+        try
+        {
+            await t.FlushPendingEditsAsync();
+            if (t.IsDisposed) return;
+            var data = t.Session.Data;
+            var password = t.Session.Password;
+            using var client = NewLtvClient();
+            var plan = await Task.Run(() => Ltv.Plan(data, password, client, onlyMissing: false));
+            if (t.IsDisposed || !LtvDialogs.ConfirmOnline(this, plan)) return;
+            ShowStatus("Checking the signatures online…");
+            LtvOnlineResult result;
+            using (t.BeginBusy("Checking the signatures online…"))
+                result = await Task.Run(() => Ltv.CheckOnlineAsync(data, password, client));
+            if (!t.IsDisposed) t.ShowOnlineCheck(result);
+        }
+        catch (Exception ex) when (ex is SigningException or LtvFetchException)
+        {
+            Prompt.Error(this, "The check didn't work", ex.Message);
         }
         finally
         {

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gabandres/inkvolt/blob/master/print/schemas/fleet-status.schema.json",
+  "title": "Inkvolt Print fleet status",
+  "description": "What inkvoltprint status --all --json and the Fleet page's Export write: every printer on this PC, most trouble first. No serial numbers, UUIDs, MAC addresses or network addresses.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "generated", "printers", "notes"],
+  "properties": {
+    "version": { "const": 1 },
+    "generated": { "$ref": "#/$defs/dateTime" },
+    "notes": {
+      "description": "What couldn't be read for the list as a whole (Windows' printers, its scanners).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/text" }
+    },
+    "printers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/printer" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "dateTime": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "printer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "model", "kind", "connection", "trouble", "status", "problems", "supplies", "pages", "firmware", "lastReading", "lastKnown"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "model": { "type": ["string", "null"], "maxLength": 240 },
+        "kind": { "enum": ["network", "queue", "scanner"] },
+        "connection": { "type": ["string", "null"], "maxLength": 240 },
+        "trouble": {
+          "description": "The order the list is in: error, warning, offline, unknown, ok.",
+          "enum": ["error", "warning", "offline", "unknown", "ok"]
+        },
+        "status": { "$ref": "#/$defs/text" },
+        "problems": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/text" }
+        },
+        "supplies": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/supply" }
+        },
+        "pages": { "type": ["integer", "null"], "minimum": 0 },
+        "firmware": { "type": ["string", "null"], "maxLength": 240 },
+        "lastReading": {
+          "description": "When it last answered: a time, or a day when only the supply history knows. Null when it never has.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2}))?$"
+        },
+        "lastKnown": {
+          "description": "It didn't answer now: its supplies, pages and firmware are from its last reading.",
+          "type": "boolean"
+        }
+      }
+    },
+    "supply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "color", "level", "state"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "color": { "type": ["string", "null"], "maxLength": 24 },
+        "level": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "state": { "type": "string", "maxLength": 24 }
+      }
+    }
+  }
+}

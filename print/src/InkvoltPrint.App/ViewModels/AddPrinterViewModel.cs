@@ -222,7 +222,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
     private void Show(FoundPrinter? f)
     {
         if (f?.Printer is not { } p || !main.Printers.Contains(p)) return;
-        main.Selected = p;
+        main.ShowPrinter(p);
         CloseRequested?.Invoke();
     }
 
@@ -255,7 +255,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
                 AddressError = $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network.";
                 return;
             }
-            if (main.Listed(probe, a.Host!) is { } listed) main.Selected = listed;
+            if (main.Listed(probe, a.Host!) is { } listed) main.ShowPrinter(listed);
             else main.Add(probe, a.Host!);
             CloseRequested?.Invoke();
         }

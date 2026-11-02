@@ -793,7 +793,8 @@ public enum BatchRunner {
             throw BatchCheckFailed(message: "Redaction check: \(report.summary)")
         }
 
-        /// The accessibility check: its report beside the result, and a failure fails the file (the first ones go in its notes).
+        /// The accessibility check: its report beside the result, and a failure or a part not checked fails the file (the
+        /// first ones go in its notes).
         private func checkAccessibility(_ data: [UInt8]) throws {
             let report = try AccessibilityCheck.run(data, password, progress: { [self] done, total in
                 self.report("Checking accessibility…", Double(done) / Double(max(1, total)))
@@ -803,6 +804,8 @@ public enum BatchRunner {
             if report.passed { return }
             for f in report.failures.prefix(10) { notes.append("\(f.condition) · \(f.place): \(f.problem)") }
             if report.failures.count > 10 { notes.append("… and \(report.failures.count - 10) more (see the report)") }
+            for n in report.notes.prefix(10) { notes.append("Not checked: \(n)") }
+            if report.notes.count > 10 { notes.append("… and \(report.notes.count - 10) more not checked (see the report)") }
             throw BatchCheckFailed(message: "Accessibility check: \(report.summary)")
         }
 

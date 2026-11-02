@@ -372,7 +372,9 @@ public sealed class AppSettings
     public string SignImage { get; set; } = "";
     /// <summary>Add an RFC 3161 timestamp (sends only a hash of the signature to <see cref="TimestampUrl"/>).</summary>
     public bool SignTimestamp { get; set; }
-    public string TimestampUrl { get; set; } = "http://timestamp.digicert.com";
+    public string TimestampUrl { get; set; } = "";
+    /// <summary>Long-term validation when signing (<see cref="LongTermLevel"/>).</summary>
+    public int SignLongTerm { get; set; }
     /// <summary>Scan dialog (Inkvolt suite): the last scanner (a network one's UUID, "wia:…" or "twain:…") and the choices made for it.</summary>
     public string ScanDevice { get; set; } = "";
     public string ScanSource { get; set; } = "";
@@ -407,6 +409,8 @@ public sealed class AppSettings
     public bool BatchRecursive { get; set; } = true;
     /// <summary>Watched folders (<c>FolderWatches</c>): watched while the app is open, started again when it starts.</summary>
     public List<WatchSetting> WatchedFolders { get; set; } = [];
+    /// <summary>Folders with a search index (<c>FolderSearches</c>): kept current while the app is open, started again when it starts.</summary>
+    public List<IndexedFolderSetting> IndexedFolders { get; set; } = [];
 
     public string PrintHandling { get; set; } = "Fit";
     public bool PrintFitToPaper { get; set; }
@@ -430,6 +434,9 @@ public sealed class AppSettings
     public List<string> AiNoPreview { get; set; } = [];
     public List<string> AiCloudWarned { get; set; } = [];
 
+    /// <summary>The language last translated into.</summary>
+    public string AiTranslateLanguage { get; set; } = "English";
+
     /// <summary>Each drawing tool's last look, by tool name ("Pen", "Rectangle"…); see <c>DrawStyles</c>.</summary>
     public Dictionary<string, DrawStyleSetting> DrawStyles { get; set; } = [];
     /// <summary>Per-file view state, keyed by full path (most recent 300 kept).</summary>
@@ -441,6 +448,13 @@ public sealed class AppSettings
         public string Folder { get; set; } = "";
         public string Preset { get; set; } = "";
         public string Output { get; set; } = "";
+        public bool Paused { get; set; }
+    }
+
+    /// <summary>A folder with a search index, paused by the user or not. The index itself is a file in the data folder.</summary>
+    public sealed class IndexedFolderSetting
+    {
+        public string Folder { get; set; } = "";
         public bool Paused { get; set; }
     }
 

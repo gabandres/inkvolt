@@ -10,7 +10,7 @@ namespace InkvoltPdf.Core;
 
 public enum SignatureStatus
 {
-    /// <summary>The signature matches the signed bytes and covers the whole file.</summary>
+    /// <summary>The signature matches the signed bytes and covers the whole file, apart from long-term validation data and document timestamps added after it.</summary>
     Valid,
     /// <summary>The signed bytes were altered, or the signature itself is broken.</summary>
     Invalid,
@@ -38,13 +38,14 @@ public enum SignatureStatus
 /// <param name="SigningTime">The verified timestamp's time, else the signed signing-time attribute, else /M (both as the signer claims).</param>
 /// <param name="HasTimestamp">Carries an RFC 3161 timestamp that belongs to this signature (or is a document timestamp); Detail says when its authority isn't trusted.</param>
 /// <param name="CertificateTrusted">
-/// The certificate may sign documents and its chain builds to a root trusted by Windows, at the time of a timestamp from a trusted authority,
-/// else now (revocation is checked online when asked).
+/// The certificate may sign documents, its chain builds to a root trusted by Windows and no verified data in hand says it was revoked, at the
+/// time of a timestamp from a trusted authority, else now.
 /// </param>
 /// <param name="CertificateStatus">"OK" or the chain problems (e.g. "UntrustedRoot, NotTimeValid").</param>
 /// <param name="CertificateValidAtSigningTime">The certificate's validity period includes the signing time (null when unknown).</param>
 /// <param name="Detail">Why a signature is invalid or unsupported, or what else to know (an ignored timestamp, disallowed changes).</param>
 /// <param name="CertificationLevel">For a certifying signature, its DocMDP permission (1 no changes, 2 form filling and signing, 3 also comments), else null.</param>
+/// <param name="LongTerm">What the file holds for checking this signature years from now (null for an empty field or one that didn't check out).</param>
 public sealed record SignatureInfo(
     string FieldName,
     int PageIndex,
@@ -62,12 +63,14 @@ public sealed record SignatureInfo(
     bool? CertificateValidAtSigningTime,
     string? Detail,
     X509Certificate2? Certificate,
-    int? CertificationLevel = null);
+    int? CertificationLevel = null,
+    LongTermInfo? LongTerm = null);
 
 /// <summary>
 /// Verifies digital signatures on the raw file bytes: /ByteRange digests and CMS signatures
 /// (adbe.pkcs7.detached, ETSI.CAdES.detached, adbe.pkcs7.sha1, ETSI.RFC3161 document timestamps).
-/// Certificate trust uses the Windows certificate store; revocation is only checked when asked (it goes online).
+/// Certificate trust uses the Windows certificate store. Verifying never goes online: revocation is judged from what the
+/// file holds (<see cref="LongTermCheck"/>), plus what the person asked for online (<see cref="Ltv.CheckOnlineAsync"/>).
 /// </summary>
 public static class Signatures
 {
@@ -88,9 +91,18 @@ public static class Signatures
         return [.. intact.Where(s => now.FirstOrDefault(n => n.FieldName == s.FieldName)?.Status is not (SignatureStatus.Valid or SignatureStatus.ModifiedAfterSigning))];
     }
 
-    public static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password = null, bool checkRevocationOnline = false)
+    /// <param name="online">Revocation data the person asked for with <see cref="Ltv.CheckOnlineAsync"/>, for this check only.</param>
+    public static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password = null, RevocationSnapshot? online = null) =>
+        [.. Inspect(data, password, online).Select(f => f.Info)];
+
+    /// <summary>With roots trusted for this check alone, for tests: the generated ones are in no Windows store.</summary>
+    internal static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password, X509Certificate2Collection anchors) =>
+        [.. Inspect(data, password, null, anchors).Select(f => f.Info)];
+
+    /// <summary>Everything found checking each signature field, in the file's order.</summary>
+    internal static List<SignatureFacts> Inspect(byte[] data, string? password = null, RevocationSnapshot? online = null, X509Certificate2Collection? anchors = null)
     {
-        var results = new List<SignatureInfo>();
+        var results = new List<SignatureFacts>();
         PdfDocument? doc = null;
         try
         {
@@ -102,9 +114,13 @@ public static class Signatures
             doc = null;
         }
 
-        if (doc is null) return RawScan(data, checkRevocationOnline);
+        if (doc is null) return RawScan(data, anchors);
+        var pool = new RevocationPool();
         using (doc)
         {
+            // What the person asked for goes first: nothing a file holds can push it out of the pool's limits.
+            if (online is not null) pool.AddFrom(online.Pool);
+            Dss.ReadInto(doc, pool);
             var fields = new List<FormEditor.Field>();
             var pageOf = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
             try
@@ -116,7 +132,7 @@ public static class Signatures
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                return RawScan(data, checkRevocationOnline);
+                return RawScan(data, anchors);
             }
 
             foreach (var f in fields.Where(f => f.Type == "/Sig"))
@@ -135,7 +151,7 @@ public static class Signatures
                     var v = PdfObj.Dict(FormEditor.Inherited(f.Dict, "/V"));
                     if (v is null || PdfObj.Array(v.Elements["/ByteRange"]) is not { Elements.Count: >= 4 } br)
                     {
-                        results.Add(new SignatureInfo(f.Name, page, rect, SignatureStatus.Unsigned, null, null, null, null, null, false, false, false, "", null, null, null));
+                        results.Add(new SignatureFacts(new SignatureInfo(f.Name, page, rect, SignatureStatus.Unsigned, null, null, null, null, null, false, false, false, "", null, null, null)));
                         continue;
                     }
                     var range = new long[4];
@@ -152,31 +168,42 @@ public static class Signatures
                     if (signedLength > 0 && signedLength < data.Length && !IsTrailingWhitespace(data, signedLength))
                         changes = SignatureChanges.Analyze(data, signedLength, f.Name, password);
                     var e = changes?.Signed ?? SignatureChanges.EntriesOf(v);
-                    var info = Check(data, range, e.SubFilter, f.Name, page, rect, e.Name, PdfObj.ParseDate(e.M), e.Reason, e.Location, checkRevocationOnline)
-                        with { CertificationLevel = e.CertificationLevel };
+                    var facts = Check(data, range, e.SubFilter, f.Name, page, rect, e.Name, PdfObj.ParseDate(e.M), e.Reason, e.Location, pool, anchors);
+                    var info = facts.Info with { CertificationLevel = e.CertificationLevel };
                     if (info.Status == SignatureStatus.ModifiedAfterSigning && changes is { Problem: { } problem })
                         info = info with
                         {
                             Status = changes.Permitted ? SignatureStatus.ModifiedAfterSigning : SignatureStatus.DisallowedChanges,
                             Detail = info.Detail is null ? problem : $"{problem} {info.Detail}",
                         };
-                    results.Add(info);
+                    else if (info.Status == SignatureStatus.ModifiedAfterSigning && changes is { OnlyValidationData: true })
+                    {
+                        // Only long-term data and document timestamps since: what the signer signed is still the whole document.
+                        info = info with { Status = SignatureStatus.Valid, Detail = info.Detail == AfterSigning ? null : info.Detail };
+                        facts.OnlyValidationDataAfter = true;
+                    }
+                    facts.Info = info;
+                    results.Add(facts);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    results.Add(new SignatureInfo(f.Name, page, rect, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
-                        $"The signature can't be read: {ex.Message}", null));
+                    results.Add(new SignatureFacts(new SignatureInfo(f.Name, page, rect, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
+                        $"The signature can't be read: {ex.Message}", null)));
                 }
             }
         }
+        LongTermCheck.Apply(data, password, results, pool, anchors);
         return results;
     }
 
+    private const string AfterSigning = "The document was changed after it was signed.";
+
     /// <summary>Fallback when the file can't be parsed: find /ByteRange entries in the raw bytes.</summary>
-    private static List<SignatureInfo> RawScan(byte[] data, bool online)
+    private static List<SignatureFacts> RawScan(byte[] data, X509Certificate2Collection? anchors)
     {
         var text = Encoding.Latin1.GetString(data);
-        var list = new List<SignatureInfo>();
+        var list = new List<SignatureFacts>();
+        var pool = new RevocationPool();
         var seen = new HashSet<string>();
         var n = 0;
         foreach (Match m in Regex.Matches(text, @"/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]"))
@@ -188,22 +215,22 @@ public static class Signatures
             var name = $"Signature{++n}";
             try
             {
-                list.Add(Check(data, range, sub.Success ? sub.Groups[1].Value : null, name, -1, default, null, null, null, null, online));
+                list.Add(Check(data, range, sub.Success ? sub.Groups[1].Value : null, name, -1, default, null, null, null, null, pool, anchors));
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                list.Add(new SignatureInfo(name, -1, default, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
-                    $"The signature can't be read: {ex.Message}", null));
+                list.Add(new SignatureFacts(new SignatureInfo(name, -1, default, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
+                    $"The signature can't be read: {ex.Message}", null)));
             }
         }
         return list;
     }
 
-    private static SignatureInfo Check(byte[] data, long[] br, string? subFilter, string field, int page, RectD rect,
-        string? nameEntry, DateTimeOffset? mDate, string? reason, string? location, bool online)
+    private static SignatureFacts Check(byte[] data, long[] br, string? subFilter, string field, int page, RectD rect,
+        string? nameEntry, DateTimeOffset? mDate, string? reason, string? location, RevocationPool pool, X509Certificate2Collection? anchors)
     {
-        SignatureInfo Result(SignatureStatus status, string? detail, bool covers = false) =>
-            new(field, page, rect, status, nameEntry, mDate, reason, location, subFilter, covers, false, false, "", null, detail, null);
+        SignatureFacts Result(SignatureStatus status, string? detail, bool covers = false) =>
+            new(new SignatureInfo(field, page, rect, status, nameEntry, mDate, reason, location, subFilter, covers, false, false, "", null, detail, null));
 
         // Each entry is checked against the file length first, so the sums below can't overflow.
         if (br.Any(x => x < 0 || x > data.Length) || br[2] < br[0] + br[1] || br[2] + br[3] > data.Length)
@@ -277,24 +304,80 @@ public static class Signatures
         // The certificate is judged at a time someone other than the signer vouches for (a verified timestamp), else now:
         // the signing-time attribute and /M are whatever the signer's clock (or a forger) said.
         var hasTimestamp = docTimestamp;
-        DateTimeOffset? stamped = null;
+        DateTimeOffset? stamped = docTimestamp ? claimed : null;
+        var tsa = docTimestamp ? cert : null;
+        var tsaCerts = extra;
         if (ok && si is not null)
         {
-            (stamped, var stampTrusted, var note) = VerifiedTimestamp(si, extra, online);
+            (stamped, var stampTrusted, var note, tsa, tsaCerts) = VerifiedTimestamp(si, extra, pool, anchors);
             hasTimestamp = stamped is not null;
             if (stampTrusted) trustTime = stamped;
             if (note is not null) detail = detail is null ? note : $"{detail} {note}";
         }
         var time = stamped ?? claimed ?? mDate;
-        var (trusted, chainStatus) = cert is null ? (false, "No certificate") : Trust(cert, extra, trustTime, online, docTimestamp ? TimestampingEku : null);
+        var (trusted, chainStatus) = cert is null ? (false, "No certificate") : Trust(cert, Pooled(extra, cert, pool), trustTime, anchors, docTimestamp ? TimestampingEku : null);
         if (!trusted && trustTime is null && chainStatus.Contains(nameof(X509ChainStatusFlags.NotTimeValid)))
             chainStatus = $"{chainStatus}: the certificate has expired (or isn't valid yet), and no trusted timestamp proves it was valid when the document was signed";
         bool? validAtTime = cert is null || time is null ? null : cert.NotBefore <= time.Value.LocalDateTime && time.Value.LocalDateTime <= cert.NotAfter;
         var status = !ok ? SignatureStatus.Invalid : covers ? SignatureStatus.Valid : SignatureStatus.ModifiedAfterSigning;
-        if (status == SignatureStatus.ModifiedAfterSigning) detail ??= "The document was changed after it was signed.";
+        if (status == SignatureStatus.ModifiedAfterSigning) detail ??= AfterSigning;
         var signer = cert?.GetNameInfo(X509NameType.SimpleName, false);
-        return new SignatureInfo(field, page, rect, status, string.IsNullOrEmpty(signer) ? nameEntry : signer, time, reason, location, subFilter,
-            covers, hasTimestamp, trusted, chainStatus, validAtTime, detail, cert);
+        return new SignatureFacts(new SignatureInfo(field, page, rect, status, string.IsNullOrEmpty(signer) ? nameEntry : signer, time, reason, location, subFilter,
+            covers, hasTimestamp, trusted, chainStatus, validAtTime, detail, cert))
+        {
+            End = br[2] + br[3],
+            ContentsForVri = docTimestamp ? contents : PaddedContents(gap),
+            DocumentTimestamp = docTimestamp,
+            Signer = si,
+            Certs = extra,
+            Tsa = tsa,
+            TsaCerts = tsaCerts,
+            Stamped = stamped,
+            TrustTime = trustTime,
+            IsPades = subFilter == "ETSI.CAdES.detached" && si is not null && IsPadesBaseline(si),
+        };
+    }
+
+    /// <summary>The signature dictionary holds an RFC 3161 token that verifies over the file's bytes its /ByteRange names.</summary>
+    internal static bool HoldsTimestamp(byte[] data, PdfDictionary v)
+    {
+        if (PdfObj.Array(v.Elements["/ByteRange"]) is not { Elements.Count: >= 4 } br) return false;
+        var range = new long[4];
+        for (var i = 0; i < 4; i++)
+        {
+            var n = PdfObj.Num(br, i);
+            if (!double.IsFinite(n) || n < 0 || n > data.Length || n != Math.Floor(n)) return false;
+            range[i] = (long)n;
+        }
+        if (range[0] != 0 || range[2] < range[1] || range[2] + range[3] > data.Length) return false;
+        var gap = data.AsSpan((int)range[1], (int)(range[2] - range[1]));
+        if (!IsHexStringOnly(gap) || HexContents(gap) is not { Length: > 0 } contents) return false;
+        var signed = new byte[range[1] + range[3]];
+        Array.Copy(data, 0, signed, 0, range[1]);
+        Array.Copy(data, range[2], signed, range[1], range[3]);
+        try
+        {
+            return Rfc3161TimestampToken.TryDecode(contents, out var token, out _) && token.VerifySignatureForData(signed, out _, token.AsSignedCms().Certificates);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>A PAdES baseline signature names its certificate in a signed attribute and keeps its time in /M, not in a signing-time attribute.</summary>
+    private static bool IsPadesBaseline(SignerInfo si)
+    {
+        var oids = si.SignedAttributes.Cast<CryptographicAttributeObject>().Select(a => a.Oid.Value).ToList();
+        return oids.Contains(Signing.SigningCertificateV2Oid) && !oids.Contains("1.2.840.113549.1.9.5");
+    }
+
+    /// <summary>The CMS's own certificates and those the file keeps (/DSS) that could be in this certificate's chain: an intermediate may be there alone.</summary>
+    private static X509Certificate2Collection Pooled(X509Certificate2Collection extra, X509Certificate2 cert, RevocationPool pool)
+    {
+        var all = new X509Certificate2Collection(extra);
+        if (pool.Certs.Count > 0) all.AddRange(RevocationPool.ChainCandidates(cert, pool.Certs));
+        return all;
     }
 
     private static bool TryCheck(SignedCms cms, ref string? detail)
@@ -334,21 +417,22 @@ public static class Signatures
     /// certificate chains to a root Windows trusts and may sign timestamps). The token sits in the unsigned attributes,
     /// outside what the signer signed, so anyone can put one there: only a trusted one may vouch for the signing time.
     /// </summary>
-    private static (DateTimeOffset? Time, bool Trusted, string? Problem) VerifiedTimestamp(SignerInfo si, X509Certificate2Collection extra, bool online)
+    private static (DateTimeOffset? Time, bool Trusted, string? Problem, X509Certificate2? Tsa, X509Certificate2Collection TsaCerts) VerifiedTimestamp(SignerInfo si, X509Certificate2Collection extra,
+        RevocationPool pool, X509Certificate2Collection? anchors)
     {
         foreach (var attr in si.UnsignedAttributes)
         {
             if (attr.Oid.Value != TimestampTokenOid || attr.Values.Count == 0) continue;
             if (!Rfc3161TimestampToken.TryDecode(attr.Values[0].RawData, out var token, out _))
-                return (null, false, "The embedded timestamp can't be read, so it was ignored.");
+                return (null, false, "The embedded timestamp can't be read, so it was ignored.", null, extra);
             var candidates = new X509Certificate2Collection(extra);
             candidates.AddRange(token.AsSignedCms().Certificates);
             if (!token.VerifySignatureForSignerInfo(si, out var tsa, candidates) || tsa is null)
-                return (null, false, "The embedded timestamp doesn't belong to this signature, so it was ignored.");
-            var (trusted, status) = Trust(tsa, candidates, token.TokenInfo.Timestamp, online, TimestampingEku);
-            return (token.TokenInfo.Timestamp, trusted, trusted ? null : $"The timestamp authority isn't trusted ({status}), so the certificate was checked at the current time.");
+                return (null, false, "The embedded timestamp doesn't belong to this signature, so it was ignored.", null, extra);
+            var (trusted, status) = Trust(tsa, Pooled(candidates, tsa, pool), token.TokenInfo.Timestamp, anchors, TimestampingEku);
+            return (token.TokenInfo.Timestamp, trusted, trusted ? null : $"The timestamp authority isn't trusted ({status}), so the certificate was checked at the current time.", tsa, candidates);
         }
-        return (null, false, null);
+        return (null, false, null, null, extra);
     }
 
     private const string TimestampingEku = "1.3.6.1.5.5.7.3.8";
@@ -365,20 +449,23 @@ public static class Signatures
     ];
 
     /// <summary>
-    /// Builds the chain at <paramref name="time"/> (null: now). Revocation is checked online when asked, and only "couldn't
-    /// check" problems are forgiven (a revoked certificate never is). The end certificate must be meant for the job:
-    /// document signing (<paramref name="eku"/> null) or timestamping.
+    /// Builds the chain at <paramref name="time"/> (null: now), with no network: a certificate in a file must not be able to
+    /// send the app to an address it names (<see cref="RevocationPool.ForbidNetwork"/>). The end certificate must be meant
+    /// for the job: document signing (<paramref name="eku"/> null) or timestamping.
     /// </summary>
-    private static (bool Trusted, string Status) Trust(X509Certificate2 cert, X509Certificate2Collection extra, DateTimeOffset? time, bool online, string? eku = null)
+    private static (bool Trusted, string Status) Trust(X509Certificate2 cert, X509Certificate2Collection extra, DateTimeOffset? time, X509Certificate2Collection? anchors, string? eku = null)
     {
         if (Unfit(cert, eku) is { } unfit) return (false, unfit);
         try
         {
             using var chain = new X509Chain();
-            chain.ChainPolicy.RevocationMode = online ? X509RevocationMode.Online : X509RevocationMode.NoCheck;
-            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
-            chain.ChainPolicy.UrlRetrievalTimeout = TimeSpan.FromSeconds(10);
+            RevocationPool.ForbidNetwork(chain);
             chain.ChainPolicy.ExtraStore.AddRange(extra);
+            if (anchors is not null)
+            {
+                chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                chain.ChainPolicy.CustomTrustStore.AddRange(anchors);
+            }
             if (time is { } t)
             {
                 chain.ChainPolicy.VerificationTime = t.LocalDateTime;
@@ -386,9 +473,6 @@ public static class Signatures
             }
             var trusted = chain.Build(cert);
             var problems = chain.ChainStatus.Select(s => s.Status).Where(s => s != X509ChainStatusFlags.NoError).Distinct().ToList();
-            const X509ChainStatusFlags unknown = X509ChainStatusFlags.RevocationStatusUnknown | X509ChainStatusFlags.OfflineRevocation;
-            if (!trusted && problems.Count > 0 && problems.All(p => (p & ~unknown) == 0))
-                return (true, "OK (revocation couldn't be checked)");
             return (trusted, trusted || problems.Count == 0 ? "OK" : string.Join(", ", problems));
         }
         catch (Exception ex) when (ex is CryptographicException or ArgumentException)
@@ -424,6 +508,16 @@ public static class Signatures
         foreach (var b in gap[1..^1])
             if (!Uri.IsHexDigit((char)b) && b is not ((byte)' ' or (byte)'\r' or (byte)'\n' or (byte)'\t')) return false;
         return true;
+    }
+
+    /// <summary>The /Contents value as written, zero padding included: what a /VRI key for an ordinary signature is the hash of.</summary>
+    private static byte[] PaddedContents(ReadOnlySpan<byte> gap)
+    {
+        var hex = new StringBuilder();
+        foreach (var b in gap[1..^1])
+            if (Uri.IsHexDigit((char)b)) hex.Append((char)b);
+        if (hex.Length % 2 == 1) hex.Append('0');
+        return Convert.FromHexString(hex.ToString());
     }
 
     /// <summary>The DER bytes of a /Contents hex string (zero padding after the CMS structure trimmed).</summary>

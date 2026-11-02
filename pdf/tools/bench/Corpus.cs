@@ -500,6 +500,8 @@ public static class Prose
         "notice", "office", "payment", "project", "record", "report", "request", "schedule", "service", "summary", "survey", "ticket",
     ];
 
+    public static string Word(ref Rng rng) => Words[rng.Next(Words.Length)];
+
     public static string Sentence(ref Rng rng)
     {
         var n = 6 + rng.Next(11);

@@ -352,6 +352,19 @@ public sealed class ProgressPrompt : IDisposable
         }
     }
 
+    /// <summary>Out of the way while a modal question is asked: left to show, it would come up over the question and take the keyboard from it.</summary>
+    public void Pause()
+    {
+        _delay.Stop();
+        _win.Hide();
+    }
+
+    /// <summary>Back after <see cref="Pause"/>, once the job has taken a moment again.</summary>
+    public void Resume()
+    {
+        if (!_closed) _delay.Start();
+    }
+
     private void Cancel()
     {
         if (_cts.IsCancellationRequested) return;

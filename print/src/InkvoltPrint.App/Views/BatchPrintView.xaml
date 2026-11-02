@@ -1,0 +1,219 @@
+<UserControl x:Class="InkvoltPrint.App.Views.BatchPrintView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:InkvoltPrint.App"
+             xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels">
+    <Grid Margin="0,0,16,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- What to add, the settings for all files, what it comes to -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,16,0">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Batch" Style="{StaticResource CardTitle}" />
+                        <Button Content="Add files…" Command="{Binding AddFilesCommand}" HorizontalAlignment="Stretch" Padding="0,8" />
+                        <Button Content="Add a folder…" Command="{Binding AddFolderCommand}" HorizontalAlignment="Stretch" Padding="0,8" Margin="0,8,0,0" />
+
+                        <TextBlock Text="For all files" Margin="0,20,0,6" FontWeight="SemiBold" />
+                        <TextBlock Text="Copies" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="Fewer copies of every file" AutomationProperties.Name="Fewer copies of every file">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" />
+                            </Button>
+                            <TextBox Text="{Binding AllCopies, UpdateSourceTrigger=PropertyChanged}" Width="56" Margin="6,0" TextAlignment="Center"
+                                     AutomationProperties.Name="Copies of every file" />
+                            <Button Command="{Binding MoreCopiesCommand}" Width="36" ToolTip="More copies of every file" AutomationProperties.Name="More copies of every file">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
+                            </Button>
+                        </StackPanel>
+                        <TextBlock Text="Paper" Style="{StaticResource Caption}" Margin="0,12,0,4" />
+                        <ComboBox ItemsSource="{Binding Papers}" SelectedItem="{Binding AllPaper}" HorizontalAlignment="Stretch" AutomationProperties.Name="Paper for every file" />
+                        <CheckBox Content="Print on both sides" IsChecked="{Binding AllTwoSided}" Margin="0,12,0,0"
+                                  Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}"
+                                  AutomationProperties.Name="Print every file on both sides" />
+
+                        <TextBlock Text="{Binding EstimateText}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,16,0,0"
+                                   AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding EstimateText}"
+                                   Visibility="{Binding HasRows, Converter={StaticResource VisibleWhen}}" />
+                        <Button AutomationProperties.Name="Print the batch" Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch" Padding="0,10" Margin="0,12,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" Margin="0,0,8,0" />
+                                <TextBlock Text="Print" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                        <Button Content="Stop" Command="{Binding StopCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                AutomationProperties.Name="Stop the batch"
+                                Visibility="{Binding CanStop, Converter={StaticResource VisibleWhen}}" />
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
+                                     Visibility="{Binding CanStop, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Progress}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding Progress, Converter={StaticResource VisibleWhen}}" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Assertive" AutomationProperties.Name="{Binding Message}"
+                                   Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MessageIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" VerticalAlignment="Top" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="For regular jobs" Style="{StaticResource CardTitle}" />
+                        <Button Content="Open a saved list…" Command="{Binding OpenListCommand}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" />
+                        <Button Content="Save this list…" Command="{Binding SaveListCommand}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                        <Button Content="Save the results as CSV…" Command="{Binding ExportResultsCommand}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                        <Button Content="Print a folder as it fills…" Command="{Binding WatchFolderCommand}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                ToolTip="Each file that lands in the folder prints once with the settings above, then moves to done or failed below it" />
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="12"
+                                   Text="Inkvolt Pro. The command line: inkvoltprint print --help" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- The list -->
+        <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
+            <Grid>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360"
+                            Visibility="{Binding HasRows, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A9;" FontSize="48" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Drop PDFs, pictures or a folder here" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,4" />
+                    <TextBlock Text="You'll see how many sheets each one takes, and set its copies, pages, sides and paper, before anything prints."
+                               Style="{StaticResource Caption}" TextAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <DockPanel Visibility="{Binding HasRows, Converter={StaticResource VisibleWhen}}">
+                    <!-- A folder printing as it fills -->
+                    <Border DockPanel.Dock="Bottom" Padding="12" Visibility="{Binding IsWatching, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Stop watching" Command="{Binding StopWatchingCommand}" Margin="12,0,0,0" />
+                                <TextBlock Text="{Binding WatchedFolder, StringFormat=Printing what lands in {0}}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding WatchLines}" MaxHeight="120" Margin="0,8,0,0" AutomationProperties.Name="What the folder printed" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Wraps in a narrow window: a caption that shrank to nothing beside the links would wrap a letter to a line and push the list out of view -->
+                    <WrapPanel DockPanel.Dock="Top" Margin="12,12,12,4">
+                        <TextBlock Text="Prints from the top down" Style="{StaticResource Caption}" TextWrapping="NoWrap" VerticalAlignment="Center" Margin="0,0,12,0"
+                                   ToolTip="Delete removes the file in focus; Alt+Up and Alt+Down move it" />
+                        <Button Content="Check again" Command="{Binding CheckAgainCommand}" Style="{StaticResource LinkButton}" Margin="0,0,12,0"
+                                ToolTip="Look at every file again, after one changed or came back" />
+                        <Button Content="Start over" Command="{Binding StartOverCommand}" Style="{StaticResource LinkButton}" Margin="0,0,12,0"
+                                ToolTip="Forget the results, so Print sends every file again" />
+                        <Button Content="Open the queue" Command="{Binding OpenPrintQueueCommand}" Style="{StaticResource LinkButton}" Margin="0,0,12,0" />
+                        <Button Content="Remove all" Command="{Binding ClearCommand}" Style="{StaticResource LinkButton}" />
+                    </WrapPanel>
+
+                    <ListBox x:Name="List" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutomationProperties.Name="Files to print, in order"
+                             Background="Transparent" BorderThickness="0" Padding="8,0,8,8" HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
+                             KeyboardNavigation.TabNavigation="Local">
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="Delete" Command="{Binding RemoveCommand}" />
+                            <KeyBinding Modifiers="Alt" Key="Up" Command="{Binding MoveUpCommand}" />
+                            <KeyBinding Modifiers="Alt" Key="Down" Command="{Binding MoveDownCommand}" />
+                        </ListBox.InputBindings>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,6" />
+                                <!-- Focus on a row's box selects the row, so Alt+Up and Alt+Down move the file in focus -->
+                                <Style.Triggers>
+                                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                        <Setter Property="IsSelected" Value="True" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:BatchRowViewModel}">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding SheetsText}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding PagesText}" Style="{StaticResource Caption}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding StateText}" Margin="12,0,0,0" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Name}" ToolTip="{Binding Path}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,4,0,0">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,4,0,0" IsEnabled="{Binding DataContext.IsFree, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                                        <Button Style="{StaticResource LinkButton}" MinWidth="24" ToolTip="Move up (Alt+Up)"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Move {0} up}"
+                                                Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}">
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE70E;" FontSize="12" />
+                                        </Button>
+                                        <Button Style="{StaticResource LinkButton}" Margin="6,0,0,0" MinWidth="24" ToolTip="Move down (Alt+Down)"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Move {0} down}"
+                                                Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}">
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="12" />
+                                        </Button>
+                                        <Button Style="{StaticResource LinkButton}" Margin="6,0,0,0" MinWidth="24" ToolTip="Remove from the list (Delete)"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Remove {0} from the list}"
+                                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}">
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" FontSize="12" />
+                                        </Button>
+                                    </StackPanel>
+                                    <WrapPanel IsEnabled="{Binding Editable}">
+                                        <Button Command="{Binding FewerCopiesCommand}" Width="28" MinHeight="24" Padding="0" ToolTip="Fewer copies"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Fewer copies of {0}}">
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE738;" FontSize="12" />
+                                        </Button>
+                                        <TextBox Text="{Binding Copies, UpdateSourceTrigger=PropertyChanged}" Width="44" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center"
+                                                 ToolTip="Copies" AutomationProperties.Name="{Binding Name, StringFormat=Copies of {0}}" />
+                                        <Button Command="{Binding MoreCopiesCommand}" Width="28" MinHeight="24" Padding="0" ToolTip="More copies" Margin="0,0,12,0"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=More copies of {0}}">
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="12" />
+                                        </Button>
+                                        <TextBox Text="{Binding Range, UpdateSourceTrigger=PropertyChanged}" Width="96" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                 local:Placeholder.Text="All pages"
+                                                 ToolTip="Which pages, like 1-3, 5. Empty prints them all." AutomationProperties.Name="{Binding Name, StringFormat=Pages of {0}: like 1-3 and 5; empty prints them all}"
+                                                 AutomationProperties.HelpText="Empty prints every page." />
+                                        <ComboBox ItemsSource="{Binding Papers}" SelectedItem="{Binding Paper}" MinWidth="140" MaxWidth="220" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                  ToolTip="Paper" AutomationProperties.Name="{Binding Name, StringFormat=Paper for {0}}" />
+                                        <CheckBox Content="Both sides" IsChecked="{Binding TwoSided}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                                  AutomationProperties.Name="{Binding Name, StringFormat=Print {0} on both sides}"
+                                                  Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
+                                    </WrapPanel>
+                                    </DockPanel>
+                                    <DockPanel Margin="0,2,0,0" Visibility="{Binding Message, Converter={StaticResource VisibleWhen}}">
+                                        <Button DockPanel.Dock="Right" Content="Enter password…" Style="{StaticResource LinkButton}" Margin="12,0,0,0"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Enter the password of {0}}"
+                                                Command="{Binding DataContext.EnterPasswordCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}"
+                                                Visibility="{Binding NeedsPassword, Converter={StaticResource VisibleWhen}}" />
+                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DockPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

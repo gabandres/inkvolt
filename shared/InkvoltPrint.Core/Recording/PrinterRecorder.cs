@@ -70,6 +70,20 @@ public static class PrinterRecorder
     internal static readonly Oid[] SnmpSubtrees =
         [Oid.Parse("1.3.6.1.2.1.1"), Oid.Parse("1.3.6.1.2.1.25.3.2"), Oid.Parse("1.3.6.1.2.1.25.3.5"), Oid.Parse("1.3.6.1.2.1.43")];
 
+    /// <summary>
+    /// The file a reply at this path is kept in, or null to leave it out. A printer's discovery tree decides what gets asked for, so it
+    /// also decides this name: it stays a plain name inside the folder (a "C:" would make it drive-relative and leave the folder), is a kind of
+    /// file the fixtures are (nothing that runs when opened from the folder or the .zip), and isn't one of the recording's own.
+    /// </summary>
+    internal static string? KeptName(string path, bool ipp = false)
+    {
+        var name = ipp ? FixtureHandler.IppDocumentName(path) : FixtureHandler.DocumentName(path);
+        name = string.Concat(name.Select(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '_'));
+        var extension = Path.GetExtension(name).ToLowerInvariant();
+        if (extension is not (".xml" or ".json" or ".txt") || name.Length == extension.Length || name.Length > 200) return null;
+        return name.Equals(NotesFile, StringComparison.OrdinalIgnoreCase) || name.Equals(SnmpFile, StringComparison.OrdinalIgnoreCase) ? null : name;
+    }
+
     private const int MaxSnmpObjects = 4000;
     private static readonly TimeSpan SnmpWalkLimit = TimeSpan.FromSeconds(60);
 
@@ -203,6 +217,8 @@ public static class PrinterRecorder
     {
         if (vb.Value is not { Tag: Ber.OctetString, Bytes: { Length: > 0 } bytes } || vb.Value.Text is not { } text) return vb;
         var printable = bytes.All(b => b is >= 0x20 or 0x00 or 0x0A or 0x0D or 0x09);
+        // A stray control byte makes it hex, which no scrubbing reads: what holds a name or a serial, or mostly reads as text, is text regardless. A MAC address stays bytes.
+        printable |= FixtureScrubber.HoldsText(vb.Name.ToString()) || (bytes.Length >= 8 && bytes.Count(b => b is >= 0x20 and < 0x7F) * 4 >= bytes.Length * 3);
         return printable ? vb with { Value = SnmpValue.String(text.ReplaceLineEndings("; ").Replace('\t', ' ')) } : vb;
     }
 
@@ -210,7 +226,7 @@ public static class PrinterRecorder
         IReadOnlyList<string> notKept)
     {
         var sb = new StringBuilder();
-        sb.Append(CultureInfo.InvariantCulture, $"# Inkvolt Print recording, {DateTime.UtcNow:yyyy-MM-dd}: {model ?? "unknown model"}; answered on {string.Join(", ", interfaces)}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"# Inkvolt Print recording, {DateTime.UtcNow:yyyy-MM-dd}: {(model is null ? "unknown model" : scrubber.Scrub("", model.ReplaceLineEndings(" ")))}; answered on {string.Join(", ", interfaces)}\n");
         sb.Append("# Scrubbed (stand-ins of the same shape): ")
             .Append(scrubber.Counts.Count == 0 ? "nothing found" : string.Join(", ", scrubber.Counts.Select(kv => $"{kv.Key} {kv.Value}"))).Append('\n');
         sb.Append("# Every request, in order: milliseconds, method, path, status, file it is kept in\n");
@@ -268,7 +284,14 @@ public static class PrinterRecorder
                     timer.ElapsedMilliseconds, null, null, null));
                 throw;
             }
-            var bytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            // Read here to keep it, so within the same limit as every reply (DeviceHttp); the document this is for is a printer's own, DeviceHttp saw to that.
+            var bytes = await DeviceHttp.ReadBoundedAsync(resp.Content, DeviceHttp.ReplyLimit(request), ct).ConfigureAwait(false);
+            if (bytes is null)
+            {
+                _exchanges.Enqueue(new Exchange(request.Method.Method, path, null, "too long a reply", timer.ElapsedMilliseconds, null, null, null));
+                resp.Dispose();
+                throw new HttpRequestException($"{path}: too long a reply, not read to its end.");
+            }
             var ms = timer.ElapsedMilliseconds;
             var copy = new ByteArrayContent(bytes);
             foreach (var h in resp.Content.Headers) copy.Headers.TryAddWithoutValidation(h.Key, h.Value);
@@ -286,13 +309,13 @@ public static class PrinterRecorder
             {
                 try
                 {
-                    if (IppCodec.Decode(bytes).Ok) (file, text) = (FixtureHandler.IppDocumentName(path), IppText.FromResponse(bytes));
+                    if (IppCodec.Decode(bytes).Ok && KeptName(path, ipp: true) is { } name) (file, text) = (name, IppText.FromResponse(bytes));
                 }
                 catch (FormatException) { }
             }
             else if (resp.StatusCode == HttpStatusCode.OK && request.Method == HttpMethod.Get && bytes.Length > 0 && uri.Query.Length == 0
                      && !type.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && path.Trim('/').Length > 0)
-                file = FixtureHandler.DocumentName(path);
+                file = KeptName(path);
             _exchanges.Enqueue(new Exchange(request.Method.Method, path, resp.StatusCode, null, ms, file, bytes, text));
             return resp;
         }

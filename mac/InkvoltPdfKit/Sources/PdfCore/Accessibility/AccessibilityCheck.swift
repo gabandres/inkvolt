@@ -77,6 +77,17 @@ public struct HumanCheck: Sendable {
     public let how: String
 }
 
+/// What the check says of a document as a whole.
+public enum AccessibilityOutcome: Sendable {
+    /// Checked in full, and nothing fails (the person's checks are still to do).
+    case passes
+    /// Something fails, whether or not all of it was checked.
+    case fails
+    /// Nothing fails in what was checked, but part of it wasn't: a limit on a crafted or huge file, or something that
+    /// couldn't be read.
+    case notFullyChecked
+}
+
 /// The checker's result for one document.
 public struct AccessibilityReport: Sendable {
     /// What fails, in checkpoint order, then by page.
@@ -87,8 +98,19 @@ public struct AccessibilityReport: Sendable {
     /// The document has a structure tree (tags).
     public let tagged: Bool
 
-    /// No machine-checkable condition fails (the person's checks are still to do).
-    public var passed: Bool { failures.isEmpty }
+    public var outcome: AccessibilityOutcome { !failures.isEmpty ? .fails : !notes.isEmpty ? .notFullyChecked : .passes }
+
+    /// All of it was checked and no machine-checkable condition fails (the person's checks are still to do).
+    public var passed: Bool { outcome == .passes }
+
+    /// The result in a few words: what the report's verdict and the log say.
+    public var verdict: String {
+        switch outcome {
+        case .passes: "Passes the machine checks."
+        case .notFullyChecked: "Not fully checked."
+        case .fails: "Fails."
+        }
+    }
 
     /// The conditions that fail, each once, in order.
     public var failedConditions: [String] { Array(Set(failures.map(\.condition))).sorted() }
@@ -96,15 +118,19 @@ public struct AccessibilityReport: Sendable {
     /// The checks for a person (the same for every document).
     public var humanChecks: [HumanCheck] { AccessibilityCheck.humanChecks }
 
-    /// "Fails 4 conditions (12 problems): …" or "Passes every machine check."
+    /// "Fails 4 conditions (12 problems): …", "Passes every machine check." or "Not fully checked: …"
     public var summary: String {
-        if passed {
+        if outcome == .passes {
             let machine = AccessibilityCheck.conditions.filter { $0.how == .machine }.count
             return "Passes every machine check (\(machine) conditions). \(AccessibilityCheck.humanChecks.count) checks are left for a person."
+        }
+        if outcome == .notFullyChecked {
+            return "Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass."
         }
         let conditions = failedConditions.count, problems = failures.count
         let head = "Fails \(conditions) \(conditions == 1 ? "condition" : "conditions") (\(problems) \(problems == 1 ? "problem" : "problems"))"
         return head + (tagged ? "." : ": the document isn't tagged, so a screen reader can't tell its headings, lists, tables or reading order.")
+            + (notes.isEmpty ? "" : " Part of the file wasn't checked.")
     }
 
     /// The pane's line at the top: the result, and what couldn't be checked.
@@ -114,7 +140,15 @@ public struct AccessibilityReport: Sendable {
     }
 
     /// The title of the pane's list of failures.
-    public var failuresTabTitle: String { passed ? "Fails (none)" : "Fails (\(failures.count))" }
+    public var failuresTabTitle: String {
+        !failures.isEmpty ? "Fails (\(failures.count))" : passed ? "Fails (none)" : "Fails (none found so far)"
+    }
+
+    /// What the pane's list of failures says when it is empty.
+    public var nothingFailsText: String {
+        passed ? "Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist."
+            : "Nothing fails in what was checked, but part of the file wasn't checked (see above), so it can't be called a pass."
+    }
 }
 
 /// Accessibility check (the Windows app's `AccessibilityCheck`): a local checker for the machine-checkable failure

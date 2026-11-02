@@ -1,8 +1,4 @@
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 using InkvoltPdf.Core;
-using Microsoft.Win32.SafeHandles;
 
 namespace InkvoltPdf.App;
 
@@ -18,7 +14,7 @@ internal static class CommandLine
 {
     public static async Task<int> RunAsync(string[] args)
     {
-        UseConsole();
+        InkvoltPrint.Windows.Suite.ConsoleOutput.Use();
         try
         {
             // MuPDF's own warnings ("repairing PDF document") would go to stderr between the lines: keep them out.
@@ -44,6 +40,7 @@ internal static class CommandLine
             {
                 lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
             },
+            Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         int code;
         try
@@ -61,53 +58,4 @@ internal static class CommandLine
         Log.Write($"Command line done: exit code {code}");
         return code;
     }
-
-    /// <summary>Output to the redirected handles when there are some, else to the starting terminal's console.</summary>
-    private static void UseConsole()
-    {
-        if (Valid(GetStdHandle(StdOutput))) return; // redirected: a pipe or a file (a script, | Out-Default, a task's log)
-        if (!AttachConsole(AttachParentProcess)) return; // started from Explorer or a task: nowhere to write, the exit code tells
-        var console = CreateFile("CONOUT$", GenericRead | GenericWrite, FileShareRead | FileShareWrite, IntPtr.Zero, OpenExisting, 0, IntPtr.Zero);
-        if (!Valid(console)) return;
-        var writer = TextWriter.Synchronized(new ConsoleWriter(new SafeFileHandle(console, ownsHandle: true)));
-        writer.WriteLine(); // the prompt came back already (a windowed app isn't waited for): start on a line of our own
-        Console.SetOut(writer);
-        Console.SetError(writer);
-    }
-
-    /// <summary>Writes to the console as UTF-16 (WriteConsoleW), so names in any script show whatever the console's code page.</summary>
-    private sealed class ConsoleWriter(SafeFileHandle console) : TextWriter
-    {
-        public override Encoding Encoding => Encoding.Unicode;
-
-        public override void Write(char value) => Write(value.ToString());
-
-        public override void Write(string? value)
-        {
-            if (!string.IsNullOrEmpty(value)) WriteConsole(console, value, value.Length, out _, IntPtr.Zero);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) console.Dispose();
-            base.Dispose(disposing);
-        }
-    }
-
-    private static bool Valid(IntPtr handle) => handle != IntPtr.Zero && handle != new IntPtr(-1);
-
-    private const int AttachParentProcess = -1, StdOutput = -11;
-    private const uint GenericRead = 0x80000000, GenericWrite = 0x40000000, FileShareRead = 1, FileShareWrite = 2, OpenExisting = 3;
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool AttachConsole(int processId);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr GetStdHandle(int handle);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "WriteConsoleW")]
-    private static extern bool WriteConsole(SafeFileHandle console, string text, int length, out int written, IntPtr reserved);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr CreateFile(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
 }

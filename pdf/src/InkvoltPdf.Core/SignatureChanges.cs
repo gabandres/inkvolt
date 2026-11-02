@@ -17,7 +17,8 @@ namespace InkvoltPdf.Core;
 /// is locked by the signature (FieldMDP);</item>
 /// <item>comments and new signature fields: permitted from P=3 and for approval (non-certifying) signatures;</item>
 /// <item>new form fields, bookmarks, page labels, attachments, tags: approval signatures only;</item>
-/// <item>metadata (Info, XMP), validation data (/DSS), document timestamps: always.</item>
+/// <item>metadata (Info, XMP), validation data (/DSS), document timestamps that draw nothing and verify: always. When nothing else changed, the
+/// analysis says so (<see cref="Analysis.OnlyValidationData"/>): such a signature still speaks for the whole document.</item>
 /// </list>
 /// That follows ISO 32000-2 12.8.2.2 (DocMDP) and what Acrobat reports, short of comparing appearance pixels.
 /// </summary>
@@ -32,7 +33,8 @@ internal static class SignatureChanges
     /// <param name="Permitted">Every later change is one the signature permits (also true when the analysis failed).</param>
     /// <param name="Problem">What was changed that isn't permitted, or why the changes couldn't be checked.</param>
     /// <param name="Signed">The signature dictionary's entries in the signed revision (null when not found there).</param>
-    internal sealed record Analysis(bool Permitted, string? Problem, Entries? Signed);
+    /// <param name="OnlyValidationData">Everything added since is long-term validation data (/DSS) or document timestamps: the document itself is as it was signed.</param>
+    internal sealed record Analysis(bool Permitted, string? Problem, Entries? Signed, bool OnlyValidationData = false);
 
     internal static Entries EntriesOf(PdfDictionary v) => new(PdfObj.Name(v.Elements["/SubFilter"]), PdfObj.Str(v.Elements["/Name"]),
         PdfObj.Str(v.Elements["/M"]), PdfObj.Str(v.Elements["/Reason"]), PdfObj.Str(v.Elements["/Location"]), CertificationLevel(v));
@@ -59,9 +61,10 @@ internal static class SignatureChanges
             var entries = v is null ? null : EntriesOf(v);
             var level = entries?.CertificationLevel ?? Approval;
             var revision = data.AsSpan(0, (int)signedLength).ToArray();
-            var problems = new Comparison(before, after, level, v is null ? _ => false : LockOf(v, field!.Dict),
-                Incremental.Tail(revision)?.HasInfo ?? false, Incremental.Tail(data)?.HasInfo ?? false).Run();
-            if (problems.Count == 0) return new(true, null, entries);
+            var comparison = new Comparison(data, before, after, level, v is null ? _ => false : LockOf(v, field!.Dict),
+                Incremental.Tail(revision)?.HasInfo ?? false, Incremental.Tail(data)?.HasInfo ?? false);
+            var problems = comparison.Run();
+            if (problems.Count == 0) return new(true, null, entries, comparison.OnlyValidationData);
             var what = string.Join("; ", problems.Distinct().Take(3)) + (problems.Distinct().Count() > 3 ? "; and more" : "");
             return new(false, level switch
             {
@@ -76,13 +79,17 @@ internal static class SignatureChanges
         }
     }
 
-    /// <summary>Which fields the signature locks: its FieldMDP reference, else the signature field's /Lock.</summary>
+    /// <summary>Which fields the signature locks: its FieldMDP references (all of them), else the signature field's /Lock.</summary>
     private static Func<string, bool> LockOf(PdfDictionary v, PdfDictionary field)
     {
-        var lockDict = PdfObj.Array(v.Elements["/Reference"])?.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()
-            .Where(r => PdfObj.NameOf(r, "/TransformMethod") == "/FieldMDP").Select(r => PdfObj.Dict(r.Elements["/TransformParams"])).FirstOrDefault()
-            ?? PdfObj.Dict(field.Elements["/Lock"]);
-        if (lockDict is null) return _ => false;
+        var locks = PdfObj.Array(v.Elements["/Reference"])?.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()
+            .Where(r => PdfObj.NameOf(r, "/TransformMethod") == "/FieldMDP").Select(r => PdfObj.Dict(r.Elements["/TransformParams"])).OfType<PdfDictionary>().Select(LockOf).ToList() ?? [];
+        if (locks.Count == 0 && PdfObj.Dict(field.Elements["/Lock"]) is { } own) locks.Add(LockOf(own));
+        return name => locks.Any(l => l(name));
+    }
+
+    private static Func<string, bool> LockOf(PdfDictionary lockDict)
+    {
         var names = PdfObj.Array(lockDict.Elements["/Fields"])?.Elements.Select(PdfObj.Text).OfType<string>().ToHashSet() ?? [];
         bool Listed(string name) => names.Any(n => name == n || name.StartsWith(n + ".", StringComparison.Ordinal));
         return PdfObj.NameOf(lockDict, "/Action") switch
@@ -95,7 +102,7 @@ internal static class SignatureChanges
     }
 
     /// <param name="infoA">The revision's trailer names an Info dictionary (PDFsharp makes one up when asked for a missing one).</param>
-    private sealed class Comparison(PdfDocument a, PdfDocument b, int level, Func<string, bool> locked, bool infoA, bool infoB)
+    private sealed class Comparison(byte[] data, PdfDocument a, PdfDocument b, int level, Func<string, bool> locked, bool infoA, bool infoB)
     {
         private static readonly string[] Upward = ["/Parent", "/P", "/IRT", "/Annots", "/Pg", "/Popup"];
         private static readonly HashSet<string> WidgetKeys = ["/V", "/AS", "/AP", "/MK", "/DV", "/P"];
@@ -107,6 +114,8 @@ internal static class SignatureChanges
         private static readonly HashSet<string> NamesKeys = ["/EmbeddedFiles", "/Dests"];
 
         private readonly List<string> _problems = [];
+        private bool _sawValidationData;
+        private bool _sawOther;
         private readonly Dictionary<PdfDictionary, byte[]> _hashes = new(ReferenceEqualityComparer.Instance);
 
         private sealed class Roles
@@ -117,13 +126,21 @@ internal static class SignatureChanges
             /// <summary>Objects page content draws with → the first page using them.</summary>
             public readonly Dictionary<int, int> Content = [];
             public readonly Dictionary<int, (PdfDictionary Dict, bool Widget)> Annots = [];
+            /// <summary>Annotations written inside a page's list rather than referred to: no object number to know them by, so they go by what they say.</summary>
+            public readonly List<(PdfDictionary Dict, bool Widget)> DirectAnnots = [];
             public readonly HashSet<int> Arrays = [];
             public readonly Dictionary<int, FormEditor.Field> FieldOf = [];
             public readonly HashSet<int> FieldNodes = [];
             public readonly HashSet<int> SigValues = [];
-            public readonly HashSet<int> Widgets = [], Comments = [], Meta = [], Harmless = [];
+            public readonly HashSet<int> Widgets = [], Comments = [], Meta = [], Harmless = [], ValidationData = [];
+            /// <summary>Objects a widget draws with (its appearance streams and their resources) → those widgets.</summary>
+            public readonly Dictionary<int, List<int>> DrawnBy = [];
+            public readonly HashSet<string> FieldNames = [];
             public int Catalog = -1, AcroForm = -1, Names = -1, Info = -1;
         }
+
+        /// <summary>After <see cref="Run"/>: every change was validation data or a document timestamp, and there was at least one.</summary>
+        public bool OnlyValidationData => _sawValidationData && !_sawOther && _problems.Count == 0;
 
         public List<string> Run()
         {
@@ -134,7 +151,7 @@ internal static class SignatureChanges
             {
                 if (!ra.Objects.TryGetValue(n, out var objA))
                 {
-                    Added(n, rb);
+                    Added(n, ra, rb);
                     continue;
                 }
                 if (Same(objA, objB)) continue;
@@ -143,21 +160,53 @@ internal static class SignatureChanges
             foreach (var (n, an) in ra.Annots)
                 if (!rb.Annots.ContainsKey(n))
                 {
+                    _sawOther = true;
                     if (an.Widget) Problem("form fields removed");
                     else if (level < 3) Problem("comments removed");
                 }
+            CompareDirectAnnots(ra, rb);
+            // A field dropped from the form while its widget stays on the page is no timestamp's doing.
+            if (ra.FieldNames.Except(rb.FieldNames).Any()) _sawOther = true;
             return _problems;
         }
 
         private void Problem(string what) => _problems.Add(what);
 
+        /// <summary>An annotation written inside a page's list draws on the page like any other, and is judged like any other.</summary>
+        private void CompareDirectAnnots(Roles ra, Roles rb)
+        {
+            string Key((PdfDictionary Dict, bool Widget) annot) => Convert.ToHexString(Ser(annot.Dict, null));
+            var had = ra.DirectAnnots.Select(Key).ToList();
+            foreach (var annot in rb.DirectAnnots)
+            {
+                if (had.Remove(Key(annot))) continue;
+                _sawOther = true;
+                if (annot.Widget ? level < Approval : level < 3) Problem(annot.Widget ? "form fields added" : "comments added");
+            }
+            var has = rb.DirectAnnots.Select(Key).ToList();
+            foreach (var annot in ra.DirectAnnots)
+            {
+                if (has.Remove(Key(annot))) continue;
+                _sawOther = true;
+                if (annot.Widget) Problem("form fields removed");
+                else if (level < 3) Problem("comments removed");
+            }
+        }
+
         private void Changed(int n, PdfObject objA, PdfObject objB, Roles ra, Roles rb)
         {
+            // What follows counts as a change to the document, apart from the few cases that clear this again.
+            var other = true;
             if (ra.Content.TryGetValue(n, out var page)) Problem($"the content of page {page + 1}");
-            else if (n == ra.Catalog) CompareCatalog((PdfDictionary)objA, (PdfDictionary)objB);
+            else if (n == ra.Catalog)
+            {
+                CompareCatalog((PdfDictionary)objA, (PdfDictionary)objB);
+                other = false;
+            }
             else if (ra.Pages.TryGetValue(n, out page))
             {
                 if (!Same(objA, objB, ["/Annots"])) Problem($"page {page + 1} (its size, rotation or resources)");
+                else other = false; // what was added to /Annots is judged on its own
             }
             else if (ra.PageNodes.Contains(n)) Problem("pages added, removed or moved");
             else if (ra.Annots.TryGetValue(n, out var an))
@@ -167,13 +216,28 @@ internal static class SignatureChanges
                 else if (level < 3) Problem("comments changed");
             }
             else if (ra.FieldNodes.Contains(n)) ChangedField(ra.FieldOf.GetValueOrDefault(n), (PdfDictionary)objA, (PdfDictionary)objB, FieldKeys);
-            else if (n == ra.AcroForm) CompareAcroForm(objA as PdfDictionary, objB as PdfDictionary);
+            else if (n == ra.AcroForm)
+            {
+                CompareAcroForm(objA as PdfDictionary, objB as PdfDictionary);
+                other = false;
+            }
             else if (n == ra.Names) CompareNames(objA as PdfDictionary, objB as PdfDictionary);
             else if (ra.SigValues.Contains(n)) Problem("an earlier signature's details");
-            else if (n == ra.Info || ra.Arrays.Contains(n) || rb.Arrays.Contains(n) || ra.Meta.Contains(n)) { }
+            else if (n == ra.Info) other = DiffKeys((PdfDictionary)objA, (PdfDictionary)objB).Any(k => k is not ("/ModDate" or "/Producer"));
+            else if (ra.Arrays.Contains(n) || rb.Arrays.Contains(n)) other = false; // what went in or out is judged on its own
+            // After every other role, and not for what a widget or comment draws with: a store in the signed revision can point
+            // at anything, and must not make that thing free to change.
+            else if (ra.ValidationData.Contains(n) && !ra.Widgets.Contains(n) && !ra.Comments.Contains(n))
+            {
+                _sawValidationData = true;
+                other = false;
+            }
+            else if (ra.Meta.Contains(n)) { }
             else if (ra.Widgets.Contains(n) || rb.Widgets.Contains(n))
             {
                 if (level < 2) Problem("form field appearances");
+                else if (ra.DrawnBy.GetValueOrDefault(n)?.Select(w => ra.FieldOf.GetValueOrDefault(w)).FirstOrDefault(f => f is not null && f.Type != "/Sig" && locked(f.Name)) is { } f)
+                    Problem($"locked field \"{f.Name}\" (its appearance)");
             }
             else if (ra.Comments.Contains(n) || rb.Comments.Contains(n))
             {
@@ -181,28 +245,53 @@ internal static class SignatureChanges
             }
             else if (level == Approval && (ra.Harmless.Contains(n) || rb.Harmless.Contains(n))) { }
             else Problem("other document data");
+            _sawOther |= other;
         }
 
-        private void Added(int n, Roles rb)
+        private void Added(int n, Roles ra, Roles rb)
         {
             if (rb.Annots.TryGetValue(n, out var an))
             {
-                if (an.Widget) AddedField(rb.FieldOf.GetValueOrDefault(n));
-                else if (level < 3) Problem("comments added");
+                if (an.Widget) AddedField(rb.FieldOf.GetValueOrDefault(n), ra);
+                else
+                {
+                    _sawOther = true;
+                    if (level < 3) Problem("comments added");
+                }
             }
-            else if (rb.FieldOf.TryGetValue(n, out var f)) AddedField(f);
+            else if (rb.FieldOf.TryGetValue(n, out var f)) AddedField(f, ra);
         }
 
-        private void AddedField(FormEditor.Field? f)
+        private void AddedField(FormEditor.Field? f, Roles ra)
         {
             if (f?.Type == "/Sig")
             {
-                // A document timestamp (PAdES-LTA) may follow any signature, even a no-changes certification.
-                if (PdfObj.Dict(FormEditor.Inherited(f.Dict, "/V")) is { } v && PdfObj.Name(v.Elements["/SubFilter"]) == "ETSI.RFC3161") return;
+                // A document timestamp (PAdES-LTA) may follow any signature, even a no-changes certification: one that draws
+                // nothing and is one, not any field that says so, which could lay anything over the page.
+                if (PdfObj.Dict(FormEditor.Inherited(f.Dict, "/V")) is { } v && PdfObj.Name(v.Elements["/SubFilter"]) == "ETSI.RFC3161" && DrawsNothing(f) && Signatures.HoldsTimestamp(data, v))
+                {
+                    _sawValidationData = true;
+                    return;
+                }
+                _sawOther = true;
                 if (level < 3) Problem("signature fields added");
             }
-            else if (level < Approval) Problem("form fields added");
+            else
+            {
+                _sawOther = true;
+                if (level < Approval) Problem("form fields added");
+                // A new field under a locked field's name takes its place in a reader.
+                else if (f is not null && ra.FieldNames.Contains(f.Name) && locked(f.Name)) Problem($"locked field \"{f.Name}\" (a new field of the same name)");
+            }
         }
+
+        /// <summary>Each of the field's widgets is hidden or has a box of no size, as an invisible signature's has.</summary>
+        private static bool DrawsNothing(FormEditor.Field f) => f.Widgets.Append(f.Dict).All(w =>
+        {
+            const int hidden = 2;
+            if (((PdfObj.Int(w.Elements["/F"]) ?? 0) & hidden) != 0 || w.Elements["/Rect"] is null) return true;
+            return PdfObj.Array(w.Elements["/Rect"]) is { Elements.Count: 4 } r && (PdfObj.Num(r, 0) == PdfObj.Num(r, 2) || PdfObj.Num(r, 1) == PdfObj.Num(r, 3));
+        });
 
         private void ChangedField(FormEditor.Field? f, PdfDictionary objA, PdfDictionary objB, HashSet<string> allowed)
         {
@@ -213,15 +302,25 @@ internal static class SignatureChanges
             if (keys.Any(k => !allowed.Contains(k))) Problem($"form field \"{name}\" (its properties)");
             else if (keys.Count == 0) { }
             else if (level < 2) Problem("form fields filled in");
-            else if ((keys.Contains("/V") || keys.Contains("/AS")) && f is not null && f.Type != "/Sig" && locked(f.Name)) Problem($"locked field \"{name}\"");
+            else if (f is not null && f.Type != "/Sig" && locked(f.Name)) Problem($"locked field \"{name}\"");
         }
 
         private void CompareCatalog(PdfDictionary x, PdfDictionary y)
         {
             foreach (var key in DiffKeys(x, y))
             {
-                if (key == "/AcroForm") CompareAcroForm(PdfObj.Dict(x.Elements[key]), PdfObj.Dict(y.Elements[key]));
-                else if (key == "/Names" && level == Approval) CompareNames(PdfObj.Dict(x.Elements[key]), PdfObj.Dict(y.Elements[key]));
+                if (key is "/DSS" or "/Extensions")
+                {
+                    _sawValidationData = true;
+                    continue;
+                }
+                if (key == "/AcroForm")
+                {
+                    CompareAcroForm(PdfObj.Dict(x.Elements[key]), PdfObj.Dict(y.Elements[key]));
+                    continue;
+                }
+                _sawOther = true;
+                if (key == "/Names" && level == Approval) CompareNames(PdfObj.Dict(x.Elements[key]), PdfObj.Dict(y.Elements[key]));
                 else if (CatalogKeys.Contains(key) || (level == Approval && ApprovalCatalogKeys.Contains(key))) { }
                 else Problem(key switch
                 {
@@ -235,8 +334,15 @@ internal static class SignatureChanges
 
         private void CompareAcroForm(PdfDictionary? x, PdfDictionary? y)
         {
-            if (x is null || y is null) return;
-            if (DiffKeys(x, y).Any(k => !AcroFormKeys.Contains(k))) Problem("form settings (e.g. XFA data)");
+            if (x is null || y is null)
+            {
+                _sawOther = true;
+                return;
+            }
+            var keys = DiffKeys(x, y);
+            if (keys.Any(k => !AcroFormKeys.Contains(k))) Problem("form settings (e.g. XFA data)");
+            // A form's /SigFlags and /Fields change for a timestamp's field too; a new field in them is judged on its own.
+            if (keys.Any(k => k is not ("/Fields" or "/SigFlags"))) _sawOther = true;
         }
 
         private void CompareNames(PdfDictionary? x, PdfDictionary? y)
@@ -296,7 +402,18 @@ internal static class SignatureChanges
                         var widget = PdfObj.NameOf(annot, "/Subtype") == "/Widget";
                         r.Annots.TryAdd(ir.ObjectNumber, (annot, widget));
                         Walk([annot], widget ? r.Widgets : r.Comments, stop);
+                        if (widget)
+                        {
+                            var drawn = new HashSet<int>();
+                            Walk([annot.Elements["/AP"]], drawn, stop);
+                            foreach (var d in drawn)
+                            {
+                                if (!r.DrawnBy.TryGetValue(d, out var owners)) r.DrawnBy[d] = owners = [];
+                                owners.Add(ir.ObjectNumber);
+                            }
+                        }
                     }
+                    else if (item is PdfDictionary direct) r.DirectAnnots.Add((direct, PdfObj.NameOf(direct, "/Subtype") == "/Widget"));
             }
 
             var acro = PdfObj.Dict(catalog.Elements["/AcroForm"]);
@@ -306,6 +423,7 @@ internal static class SignatureChanges
             FormEditor.Collect(doc, acro, fields);
             foreach (var f in fields)
             {
+                r.FieldNames.Add(f.Name);
                 var guard = 0;
                 for (var node = f.Dict; node is not null && guard++ < 64; node = PdfObj.Dict(node.Elements["/Parent"]))
                     if (node.Reference is { } nr)
@@ -319,7 +437,8 @@ internal static class SignatureChanges
                 if (f.Type == "/Sig" && FormEditor.Inherited(f.Dict, "/V") is PdfReference vr) r.SigValues.Add(vr.ObjectNumber);
             }
 
-            Walk([catalog.Elements["/DSS"], catalog.Elements["/Metadata"], catalog.Elements["/Extensions"], catalog.Elements["/Perms"], info, acro?.Elements["/DR"]], r.Meta, stop);
+            Walk([catalog.Elements["/DSS"], catalog.Elements["/Extensions"]], r.ValidationData, stop);
+            Walk([catalog.Elements["/Metadata"], catalog.Elements["/Perms"], info, acro?.Elements["/DR"]], r.Meta, stop);
             if (catalog.Elements["/Names"] is PdfReference names) r.Names = names.ObjectNumber;
             var namesDict = PdfObj.Dict(catalog.Elements["/Names"]);
             Walk([.. ApprovalCatalogKeys.Where(k => k != "/Names").Select(k => catalog.Elements[k]), namesDict?.Elements["/EmbeddedFiles"], namesDict?.Elements["/Dests"]], r.Harmless, stop);

@@ -27,9 +27,9 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
-/// <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
+/// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry.
@@ -37,7 +37,8 @@ namespace InkvoltPrint.App;
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
 /// Without <c>--snapshot</c>, <c>--demo --tray --simulate-alerts</c> shows the real notifications after the printers connect (toasts in the
-/// packaged copy, one per printer; balloons from a build in bin\).
+/// packaged copy, one per printer; balloons from a build in bin\). <c>--simulate-jobs</c> turns job alerts on and reads the made-up queues
+/// through the same rules (<c>--tray-shot alert</c> then previews the toasts from their XML); <c>--open-queue n</c> does what clicking a job's notification for the n-th printer does.
 /// </summary>
 internal static class DevSnapshot
 {
@@ -74,12 +75,26 @@ internal static class DevSnapshot
                 });
             if (args.Contains("--keep-separators")) scanner.KeepSeparators = true;
             if (args.Contains("--find-photos")) scanner.FindPhotos = true;
+            // --cleanup crop,whiten,descreen,restore: the tab's clean up, before scanning.
+            if (Value(args, "--cleanup") is { } cleanup)
+            {
+                scanner.CropToPaper = cleanup.Contains("crop");
+                scanner.WhitenPages = cleanup.Contains("whiten");
+                scanner.DescreenPages = cleanup.Contains("descreen");
+                scanner.RestoreColors = cleanup.Contains("restore");
+            }
             for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
             // --delete n: delete page n, as the Delete key does (the review then offers Undo); --undo puts it back.
             if (int.TryParse(Value(args, "--delete"), out var delete) && delete > 0 && delete <= scanner.Pages.Count)
                 scanner.RemovePageCommand.Execute(scanner.Pages[delete - 1]);
             if (args.Contains("--undo")) scanner.UndoCommand.Execute(null);
+            // --clean n: the clean up view on the n-th page.
+            if (int.TryParse(Value(args, "--clean"), out var cleanPage) && cleanPage > 0 && cleanPage <= scanner.Pages.Count)
+            {
+                await scanner.CleanUpCommand.ExecuteAsync(scanner.Pages[cleanPage - 1]);
+                await Task.Delay(500);
+            }
             // --photo-box n: select the n-th photo in the photo view (opened by --crop on a scan of photos).
             if (int.TryParse(Value(args, "--photo-box"), out var photoBox) && scanner.IsEditingPhotos && photoBox <= scanner.EditedPhotos.Count)
                 scanner.SelectedPhoto = photoBox - 1;
@@ -112,6 +127,44 @@ internal static class DevSnapshot
             copier.IdCard = copy.StartsWith("idcard", StringComparison.Ordinal);
             await copier.CopyCommand.ExecuteAsync(null);
             if (copy == "idcard") await copier.ScanBackCommand.ExecuteAsync(null);
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+        // --batch: Print › Batch with sample files (demo only), the locked one opened with its password; --batch-decline leaves it out,
+        // --batch-run sends them to the made-up queue, --batch-stop n with it jams the queue after n jobs, --batch-resume then clears the jam and
+        // presses Print again, --batch-cancel presses Stop just after Print; --batch-list file saves the list and opens it again first;
+        // --batch-report file writes each row's state and the message.
+        if (args.Contains("--batch") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true } batchPrinter })
+        {
+            ViewModels.PrintViewModel.AskPdfPassword = (_, _) => args.Contains("--batch-decline") ? null : "demo";
+            if (int.TryParse(Value(args, "--batch-stop"), out var jamAfter)) DemoBatchQueue.ProblemAfter = jamAfter;
+            await batchPrinter.OpenBatchAsync(Demo.SampleBatch());
+            var batch = batchPrinter.Print.Batch!;
+            if (batch.Rows.Count > 1) batch.Rows[1].Copies = 2;
+            if (batch.Rows.Count > 1) batch.Rows[1].TwoSided = true;
+            if (batch.Rows.Count > 1) batch.Rows[1].Range = "1-3";
+            if (Value(args, "--batch-list") is { } listFile)
+            {
+                Core.Printing.BatchPrintList.Save(listFile, batch.Rows.Select(r => new Core.Printing.BatchListEntry(r.Path, r.Settings)));
+                var ask = ViewModels.Prompt.Confirm;
+                ViewModels.Prompt.Confirm = (_, _) => true; // "replace the list?"
+                try { await batch.OpenListAsync(listFile); }
+                finally { ViewModels.Prompt.Confirm = ask; }
+            }
+            if (args.Contains("--batch-cancel"))
+            {
+                var printing = batch.PrintCommand.ExecuteAsync(null);
+                batch.StopCommand.Execute(null);
+                await printing;
+            }
+            else if (args.Contains("--batch-run")) await batch.PrintCommand.ExecuteAsync(null);
+            if (args.Contains("--batch-resume"))
+            {
+                DemoBatchQueue.ProblemAfter = null;
+                await batch.PrintCommand.ExecuteAsync(null);
+            }
+            if (Value(args, "--batch-report") is { } batchReport)
+                await File.WriteAllLinesAsync(batchReport, [.. batch.Rows.Select(r => $"{r.Name} | {r.StateText} | {r.SheetsText} | {r.Message}"),
+                    $"message: {batch.Message}", $"estimate: {batch.EstimateText}", $"can print: {batch.PrintCommand.CanExecute(null)}"]);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (args.Contains("--photos") && window.DataContext is ViewModels.MainViewModel { Selected: { } photoPrinter })
@@ -157,6 +210,23 @@ internal static class DevSnapshot
             }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        // --fleet [fix]: the Fleet page; fix runs Fix all, answering yes (demo only); --fleet-export file writes its CSV or JSON.
+        if (args.Contains("--fleet") && window.DataContext is ViewModels.MainViewModel fleetMain)
+        {
+            window.ShowFleet();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            if (Value(args, "--fleet") == "fix" && fleetMain.Presets.IsDemo)
+            {
+                var ask = ViewModels.Prompt.Confirm;
+                ViewModels.Prompt.Confirm = (_, _) => true;
+                try { await fleetMain.Fleet.FixAllCommand.ExecuteAsync(null); }
+                finally { ViewModels.Prompt.Confirm = ask; }
+                await Task.Delay(TimeSpan.FromSeconds(6)); // the made-up queues' next read
+            }
+            if (Value(args, "--fleet-export") is { } fleetFile) await fleetMain.Fleet.WriteAsync(fleetFile);
+            fleetMain.Fleet.Refresh();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
         if (scrollToEnd && FindTabs(window) is { } shown)
         {
             foreach (var sv in Descendants<ScrollViewer>(shown)) sv.ScrollToEnd();
@@ -167,6 +237,17 @@ internal static class DevSnapshot
         {
             trayController.Simulate();
             await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (args.Contains("--simulate-jobs") && trayController is not null)
+        {
+            await trayController.SimulateJobsAsync();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        // --open-queue n: as if a job's notification for the n-th printer was clicked.
+        if (int.TryParse(Value(args, "--open-queue"), out var queueOf) && trayController is not null && window.DataContext is ViewModels.MainViewModel queueMain && queueMain.Printers.ElementAtOrDefault(queueOf - 1) is { } queuePrinter)
+        {
+            trayController.HandleToast("queue:" + queuePrinter.Uuid);
+            await Task.Delay(TimeSpan.FromSeconds(2));
         }
         if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
@@ -211,19 +292,31 @@ internal static class DevSnapshot
                 "settings" => SettingsWindow.Create(dialogMain, trayController),
                 "help" => HelpDialog.Create(dialogMain),
                 "whatsnew" => WhatsNewDialog.Create(AppHelp.Notes()),
-                "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain)),
+                "report" => ReportProblemDialog.Create(AppHelp.Report(dialogMain), dialogMain.Selected),
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);
+            // --dialog report --record: the printer shown recorded (demo: a made-up printer, into a temp folder), the result in the dialog.
+            if (dialog is ReportProblemDialog report && args.Contains("--record"))
+            {
+                dialog.Owner = window;
+                dialog.Show();
+                await report.RecordAsync();
+            }
             if (dialog is not null)
             {
                 dialog.Owner = window;
                 dialog.Show();
                 // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
+                if (scrollToEnd)
+                {
+                    foreach (var sv in Descendants<ScrollViewer>(dialog)) sv.ScrollToEnd();
+                    await Task.Delay(TimeSpan.FromMilliseconds(500));
+                }
                 shot = dialog;
             }
         }
@@ -344,6 +437,13 @@ internal static class DevSnapshot
         tray?.Simulate();
     }
 
+    /// <summary><c>--demo --tray --simulate-jobs</c> without a snapshot: the real notification for the made-up stuck jobs.</summary>
+    public static async Task SimulateJobsAsync(Tray.TrayController? tray)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        if (tray is not null) await tray.SimulateJobsAsync();
+    }
+
     /// <summary>The tray's menu, alert or settings rendered to <paramref name="path"/>; false for an unknown name.</summary>
     private static async Task<bool> TrayShotAsync(Tray.TrayController tray, string what, string path)
     {
@@ -422,12 +522,41 @@ internal static class DevSnapshot
             Environment.Exit(0);
         }) { IsBackground = true, Name = "Snapshot exit" }.Start();
 
+    /// <summary>The job toasts from the very XML Windows would be given (texts, attribution, buttons), each laid out like a notification.</summary>
+    private static FrameworkElement JobToastPreview(IReadOnlyList<Core.Alerts.AlertNotice> notices)
+    {
+        var column = new StackPanel { Margin = new Thickness(12) };
+        foreach (var toast in Core.Alerts.AlertToasts.PerPrinter(notices))
+        {
+            var xml = System.Xml.Linq.XDocument.Parse(Core.Alerts.AlertToasts.Xml(toast)).Root!;
+            var texts = xml.Element("visual")!.Element("binding")!.Elements("text").ToList();
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock { Text = "Inkvolt Print", FontSize = 12, Margin = new Thickness(0, 0, 0, 10) });
+            stack.Children.Add(new TextBlock { Text = texts[0].Value, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            stack.Children.Add(new TextBlock { Text = texts[1].Value, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            stack.Children.Add(new TextBlock { Text = texts[2].Value, FontSize = 12, Opacity = 0.7, Margin = new Thickness(0, 4, 0, 10) });
+            var buttons = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1 };
+            foreach (var action in xml.Element("actions")!.Elements("action"))
+                buttons.Children.Add(new Button { Content = action.Attribute("content")!.Value, Margin = new Thickness(2) });
+            stack.Children.Add(buttons);
+            var card = new Border { Width = 364, Padding = new Thickness(16), CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Child = stack, Margin = new Thickness(0, 0, 0, 8) };
+            card.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+            card.SetResourceReference(TextElement.ForegroundProperty, "TextFillColorPrimaryBrush");
+            column.Children.Add(card);
+        }
+        var outer = new Border { Child = column };
+        outer.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        return outer;
+    }
+
     /// <summary>
     /// The last alert laid out like a Windows notification (app name, badge icon, title, text). Windows draws the real one,
     /// which a window snapshot can't capture; this shows what it will say.
     /// </summary>
     private static FrameworkElement AlertPreview(Tray.TrayController tray)
     {
+        if (tray.LastNotices.Any(n => n.JobKey is not null)) return JobToastPreview(tray.LastNotices);
         var (title, text) = tray.LastNotices.Count > 0 ? Tray.TrayController.NoticeText(tray.LastNotices) : ("(no alert yet)", "Run with --simulate-alerts.");
         var level = tray.LastNotices.Count > 0 ? tray.LastNotices.Max(n => n.Level) : Core.Alerts.AlertLevel.Ok;
         var badge = level switch

@@ -104,7 +104,7 @@ public class PdfTests
         Assert.Contains("/Count 2", pdf);
         Assert.Contains("/MediaBox [0 0 612 792]", pdf);
         Assert.Contains("3 Tr", pdf);
-        Assert.Contains(@"(Hello \(world\)) Tj", pdf);
+        Assert.Matches(@"<[0-9A-F]+> Tj", pdf); // the words themselves: OcrLayerTests
 
         // Every xref offset must point at "<id> 0 obj".
         var startxref = int.Parse(pdf[(pdf.LastIndexOf("startxref\n", StringComparison.Ordinal) + 10)..].Split('\n')[0]);

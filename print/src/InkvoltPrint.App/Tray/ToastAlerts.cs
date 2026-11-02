@@ -47,14 +47,14 @@ public sealed class ToastAlerts
     private static Action<string?> Marshal(Action<string?> activated) =>
         arguments => Application.Current?.Dispatcher.InvokeAsync(() => activated(arguments));
 
-    /// <summary>One printer's alerts (all with one <see cref="AlertNotice.Uuid"/>). False when Windows refused it.</summary>
+    /// <summary>One toast from <see cref="AlertToasts.PerPrinter"/>. False when Windows refused it.</summary>
     public bool Show(IReadOnlyList<AlertNotice> notices)
     {
         try
         {
             var xml = new XmlDocument();
             xml.LoadXml(AlertToasts.Xml(notices));
-            var toast = new ToastNotification(xml) { Tag = AlertToasts.Tag(notices[0].Uuid), Group = AlertToasts.Group };
+            var toast = new ToastNotification(xml) { Tag = AlertToasts.Tag(notices), Group = AlertToasts.Group };
             toast.Activated += (_, args) => _activated((args as ToastActivatedEventArgs)?.Arguments);
             _notifier.Show(toast);
             return true;

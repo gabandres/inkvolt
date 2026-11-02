@@ -1479,6 +1479,63 @@ int inkv_pdf_version(void *vctx, inkv_doc *d) {
     return version;
 }
 
+int inkv_obj_location(void *vctx, inkv_doc *d, int num, int64_t *offset) {
+    fz_context *ctx = vctx;
+    int where = 0;
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        pdf_xref_entry *x = num > 0 && num < pdf_xref_len(ctx, pdf) ? pdf_get_xref_entry_no_change(ctx, pdf, num) : NULL;
+        if (x && x->type == 'n') where = 1;
+        if (x && x->type == 'o') where = 2;
+        if (x) *offset = x->ofs;
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        return 0;
+    }
+    return where;
+}
+
+int inkv_obj_replace(void *vctx, inkv_doc *d, int num, const uint8_t *text, size_t length, int encrypted, char *err) {
+    fz_context *ctx = vctx;
+    fz_stream *stm = NULL;
+    fz_buffer *data = NULL;
+    pdf_obj *obj = NULL, *ref = NULL;
+    pdf_lexbuf buf;
+    pdf_lexbuf_init(ctx, &buf, PDF_LEXBUF_SMALL);
+    fz_var(stm);
+    fz_var(data);
+    fz_var(obj);
+    fz_var(ref);
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        pdf_xref_entry *x = pdf_get_xref_entry_no_change(ctx, pdf, num);
+        int gen = x ? x->gen : 0;
+        stm = fz_open_memory(ctx, text, length);
+        obj = pdf_parse_stm_obj(ctx, pdf, stm, &buf);
+        if (encrypted && pdf->crypt) pdf_crypt_obj(ctx, pdf->crypt, obj, num, gen);
+        // The new entry has no stream: its data goes along as it is stored (the same /Filter).
+        if (pdf_obj_num_is_stream(ctx, pdf, num)) data = pdf_load_raw_stream_number(ctx, pdf, num);
+        pdf_update_object(ctx, pdf, num, obj);
+        if (data) {
+            ref = pdf_new_indirect(ctx, pdf, num, 0);
+            pdf_update_stream(ctx, pdf, ref, data, 1);
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, ref);
+        pdf_drop_obj(ctx, obj);
+        fz_drop_buffer(ctx, data);
+        fz_drop_stream(ctx, stm);
+        pdf_lexbuf_fin(ctx, &buf);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
 int inkv_set_pdf_version(void *vctx, inkv_doc *d, int version, char *err) {
     fz_context *ctx = vctx;
     fz_try(ctx) inkv_pdf(ctx, d)->version = version;

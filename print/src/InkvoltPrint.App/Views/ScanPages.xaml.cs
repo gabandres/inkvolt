@@ -23,7 +23,7 @@ public partial class ScanPages : UserControl
     public static readonly DependencyProperty ThumbnailHeightProperty =
         DependencyProperty.Register(nameof(ThumbnailHeight), typeof(double), typeof(ScanPages), new PropertyMetadata(MaxThumbnail));
 
-    private const double MaxThumbnail = 285, MinThumbnail = 150, BelowThumbnail = 80; // the page's buttons, its padding, the list's
+    private const double MaxThumbnail = 285, MinThumbnail = 150, BelowThumbnail = 98; // the page's buttons, its padding, the list's
 
     /// <summary>A page's thumbnail height: as tall as the list has room for (a whole page in view in a short window), up to 285.</summary>
     public double ThumbnailHeight
@@ -43,6 +43,11 @@ public partial class ScanPages : UserControl
         Cropper.IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Cropper.Focus());
+        };
+        // The clean up view takes the keyboard on its first choice, so Tab and Space work straight away.
+        FirstCleanChoice.IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FirstCleanChoice.Focus());
         };
         PhotoBoxes.IsVisibleChanged += (_, e) =>
         {

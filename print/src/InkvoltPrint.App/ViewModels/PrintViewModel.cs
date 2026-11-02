@@ -27,6 +27,17 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
 
     public ObservableCollection<PdfThumbnail> Thumbnails { get; } = [];
 
+    /// <summary>Print › Batch: many files at once.</summary>
+    public BatchPrintViewModel? Batch { get; init; }
+
+    /// <summary>The tab shows Batch rather than one PDF.</summary>
+    [ObservableProperty] public partial bool ShowBatch { get; set; }
+
+    partial void OnShowBatchChanged(bool value)
+    {
+        if (value) Batch?.Shown();
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDocument))]
     public partial string? FileName { get; set; }
@@ -189,6 +200,7 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     /// <summary>The printer's Windows queue was just created or removed: re-check what it can do.</summary>
     public void QueueChanged()
     {
+        Batch?.QueueChanged();
         _twoSidedChecked = false;
         if (_pdf is not null) _ = RefreshTwoSidedAsync();
     }
@@ -246,6 +258,11 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PrintCommand))]
     public partial bool QueueBusy { get; set; }
+
+    partial void OnQueueBusyChanged(bool value)
+    {
+        if (Batch is not null) Batch.QueueBusy = value;
+    }
 
     private bool CanPrint() => !IsBusy && !QueueBusy && _pdf is not null && (AllPages || PageRange.TryParse(RangeText, PageCount, out _, out _));
 

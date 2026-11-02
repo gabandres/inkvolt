@@ -62,7 +62,7 @@ public static class AppHelp
             ("Scan", $"{s.ScanResolution} dpi, {(s.ScanColor ? "color" : "gray")}, OCR {OnOff(s.ScanOcr)}, skip blank {OnOff(s.ScanSkipBlank)}, straighten {OnOff(s.ScanStraighten)}"),
             ("Scan presets", vm.Presets.Items.Count.ToString()),
             ("Inkvolt PDF", InkvoltApps.Find(InkvoltApps.InkvoltPdf) is null ? "not installed" : $"installed, open scans {OnOff(s.OpenScansInInkvoltPdf)}"),
-            ("Notification area", tray is { Enabled: true } ? $"on, alerts {OnOff(tray.Alerts)}" : "off"),
+            ("Notification area", tray is { Enabled: true } ? $"on, alerts {OnOff(tray.Alerts)}, job alerts {OnOff(tray.JobAlerts)}" : "off"),
             ("Start with Windows", OnOff(StartWithWindows.IsOn)),
             ("Inkvolt Pro", Core.Pro.Licence is not null ? "licensed" : Core.Pro.Problem is not null ? "key not accepted" : "none"),
         };

@@ -33,9 +33,41 @@ internal sealed class DemoOfflinePc : IOfflineProbes, IOfflineRepairs
             {
                 WorkOffline = true,
                 ReportsOffline = true,
-                Jobs = [new(21, "Invoice 1043.pdf", 2, 0, JobStatus.Error | JobStatus.Printing, DateTime.Now.AddMinutes(-14), Environment.UserName)],
+                Jobs = [Core.Fleet.DemoFleet.OfficeStuckJob(Environment.UserName, DateTime.Now)],
             },
+            // The queue printers (roadmap 2.6): the USB laser is paused in Windows, Front desk holds a stuck job, the MFP is fine.
+            new QueueFacts(UsbQueue, new QueuePort("USB001", PortKind.Other)) { Paused = true },
+            new QueueFacts(SharedQueue, new QueuePort(SharedQueue, PortKind.Other))
+            {
+                ReportsOffline = true,
+                Jobs = [Core.Fleet.DemoFleet.FrontDeskStuckJob(Environment.UserName, DateTime.Now)],
+            },
+            new QueueFacts("Office color MFP", new QueuePort("Office color", PortKind.TcpIp) { Host = Demo.SnmpQueueHost }),
         ];
+    }
+
+    private const string UsbQueue = "Demo USB laser", SharedQueue = @"\\demo-pc\Front desk";
+
+    /// <summary>The made-up office laser's queue, for job alerts; null when <paramref name="queue"/> isn't one of the made-up queues.</summary>
+    public Core.Alerts.JobQueueState? JobQueue(string uuid, string? queue)
+    {
+        var name = string.Equals(uuid, _officeUuid, StringComparison.OrdinalIgnoreCase) ? OfficeQueue : queue;
+        lock (_lock)
+            return _queues.FirstOrDefault(q => q.Name == name) is { } facts ? new Core.Alerts.JobQueueState(facts.Paused, facts.WorkOffline, facts.Jobs.ToList()) : null;
+    }
+
+    /// <summary>A demo queue as it stands now, so the printer list and the Fleet page show what a repair changed.</summary>
+    public Core.Queues.SpoolerQueue Current(Core.Queues.SpoolerQueue queue)
+    {
+        lock (_lock)
+        {
+            if (_queues.FirstOrDefault(q => q.Name == queue.Name) is not { } now) return queue;
+            return queue with
+            {
+                Status = now.Paused ? queue.Status | Core.Queues.SpoolerFlags.StatusPaused : queue.Status & ~Core.Queues.SpoolerFlags.StatusPaused,
+                Attributes = now.WorkOffline ? queue.Attributes | Core.Queues.SpoolerFlags.AttributeWorkOffline : queue.Attributes & ~Core.Queues.SpoolerFlags.AttributeWorkOffline,
+            };
+        }
     }
 
     public Task<SpoolerState> SpoolerAsync(CancellationToken ct) => Task.FromResult(SpoolerState.Running);

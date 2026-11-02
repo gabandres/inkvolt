@@ -25,12 +25,16 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   cupsd makes a temporary destination and reads the printer into a driverless (IPP Everywhere) queue, then keeps it
   (`QueueSetup`; Windows: Set up in Windows). Needs an administrator of the Mac.
 - **Batch** (scan): one feeder run saved as several files, split at separator sheets or by hand (`BatchSplit`).
+- **Batch print**: many files sent in order, a job for each (`Core/Printing/BatchPrint`). Not the scan batch above. Its **estimate** is the sheets a file comes to, read from the file itself before anything prints (`BatchMeasurer`, `BatchPrintLine`); a file's **fingerprint** (its length and SHA-256) is what shows it's still what the estimate saw. **Sent** means the queue has it, not that paper came out. A **list** is a saved batch (`BatchPrintList`). A **batch print folder** is one printed as it fills (`BatchPrintFolder`); a file in its `working` folder may have printed, so it's never sent again by itself.
 - **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T),
   a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
   Left out of the files unless the batch keeps them.
 - **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
   out straight (`PhotoFinder`, `PhotoBox`). Their boxes can be moved, resized, turned or drawn by hand before saving
   (Windows `PhotoBoxesView`; Mac `PhotoBoxEditor`).
+- **Clean up** (of a scanned page): the filters a page can have, in its edits and undone with them: crop to the paper,
+  whiten, descreen, restore colors (`PageFilters`, `PageCleanup`). **The paper's edge**: where a sheet stops differing from
+  the lid (`PaperEdge`); no sure edge, no crop.
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and
@@ -54,5 +58,11 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is
   off (the launch period).
+- **Job alert**: a notification about one of your own print jobs (`AlertTracker.ObserveJobs`). **Failed**: the job itself reports an error, a block or a need for someone at the printer. **Stuck**: your first job in a queue that hasn't moved, the queue running, for 5 minutes with the printer saying it's ready or 15 with it saying it's printing. **Moved** (`JobProgress`): pages, size or stage past the furthest seen, not a state going back and forth. **Your own** (`JobOwner`): the signed-in Windows user's, and from this PC when the job says. **The same job** (`JobRules.Key`): same id and same submit time; the spooler uses ids again.
+- **Fleet**: every entry of the printer list at once, most trouble first (`Core/Fleet`). **Trouble** is one ranking: error, warning, can't be
+  reached, not known yet, fine (`FleetTrouble`). **Last known**: what the supply history and the firmware watch kept of a printer that isn't
+  answering now.
+- **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
+  job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".

@@ -151,6 +151,11 @@ public static partial class ContentEditor
 {
     private const int MaxDepth = 8;
 
+    /// <summary>The most form XObject content walked for one page, counting each drawing (and a little for each, however small).</summary>
+    private const long MaxFormBytes = 64L << 20;
+
+    private const int MaxFills = 5_000;
+
     /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
     internal const string StandInKey = "InkFb";
 
@@ -679,6 +684,8 @@ public static partial class ContentEditor
         public Mat Ctm { get; init; } = Mat.Identity;
         public double Rise { get; init; }
         public double Advance { get; init; }
+        /// <summary>The rectangle text drawn where this operator is shows through (see <see cref="GState.Clip"/>); null when there is none known.</summary>
+        public RectD? Clip { get; init; }
         /// <summary>The operators that set the fill color in effect (to set it back after text of another color); null when that can't be told.</summary>
         public string? FillOp { get; init; }
         /// <summary>The form XObject the run is drawn in (null: the page's own content).</summary>
@@ -709,6 +716,11 @@ public static partial class ContentEditor
         public readonly Dictionary<PdfDictionary, int> FormUses = new(ReferenceEqualityComparer.Instance);
         /// <summary>Things inside form XObjects get negative ids (they aren't page operators).</summary>
         public int Nested;
+        /// <summary>How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.</summary>
+        public long FormBudget = MaxFormBytes;
+        /// <summary>Rectangles the page's own content fills, and where in it: what text written before one would be painted over by.</summary>
+        public readonly List<(RectD Box, int Id)> Fills = [];
+        public bool CutShort => FormBudget < 0;
         public PageContent Content => new(TextRuns, Images);
     }
 
@@ -721,6 +733,8 @@ public static partial class ContentEditor
         public string FontKey = "";
         public double Size = 1, Tc, Tw, Th = 1, Tl, Rise;
         public int Render;
+        /// <summary>The rectangles clipping what is drawn, together, in page space (null: none; other clip shapes aren't followed).</summary>
+        public RectD? Clip;
         public int Fill;
         public string? FillOp = "0 g", FillSpace = "DeviceGray";
         public GState Clone() => (GState)MemberwiseClone();
@@ -749,7 +763,13 @@ public static partial class ContentEditor
         var marked = new Stack<bool>(); // marked-content sequences: does one carry /ActualText?
         var looks = new Stack<LookTag?>(); // and is one a look a paragraph edit gave its text?
         var actualText = 0;
+        var hiddenMarks = new Stack<bool>(); // marked-content sequences: is one a layer that is off?
+        var hiddenLayer = 0;
         Mat tm = Mat.Identity, tlm = Mat.Identity;
+        // The path being built, for a clip: one rectangle is followed, any other shape isn't.
+        RectD? pathBox = null;
+        var pathParts = 0;
+        var clipping = false;
         for (var i = 0; i < ops.Count; i++)
         {
             if ((i & 1023) == 1023) cancel.ThrowIfCancellationRequested();
@@ -757,6 +777,23 @@ public static partial class ContentEditor
             var id = depth == 0 ? i : -++w.Nested;
             switch (op.Name)
             {
+                case "re" when op.Operands.Count >= 4:
+                    pathParts++;
+                    pathBox = BoxOf(page, gs.Ctm, op.N(0), op.N(1), op.N(0) + op.N(2), op.N(1) + op.N(3));
+                    break;
+                case "m" or "l" or "c" or "v" or "y":
+                    pathParts += 2;
+                    break;
+                case "W" or "W*":
+                    clipping = true;
+                    break;
+                case "n" or "f" or "F" or "f*" or "B" or "B*" or "b" or "b*" or "S" or "s":
+                    if (clipping && pathParts == 1 && pathBox is { } clip) gs.Clip = gs.Clip is { } was ? was.Intersect(clip) : clip;
+                    if (depth == 0 && op.Name is not ("n" or "S" or "s") && pathParts == 1 && pathBox is { } filled && w.Fills.Count < MaxFills) w.Fills.Add((filled, i));
+                    clipping = false;
+                    pathParts = 0;
+                    pathBox = null;
+                    break;
                 case "q":
                     if (stack.Count < 256) stack.Push(gs.Clone());
                     break;
@@ -779,7 +816,8 @@ public static partial class ContentEditor
                     gs.FillOp = FillOp(op, 4);
                     break;
                 case "sc" or "scn" when op.Operands.Count is 1 or 3 or 4 && op.Operands.All(o => o.Kind == CKind.Number):
-                    gs.Fill = op.Operands.Count switch
+                    // A spot color's or an indexed space's number isn't a shade of gray: 1 is full ink, not white.
+                    gs.Fill = !IsPlainColorSpace(resources, gs.FillSpace) ? 0 : op.Operands.Count switch
                     {
                         1 => Gray(op.N(0)),
                         3 => Rgb(op.N(0), op.N(1), op.N(2)),
@@ -807,6 +845,10 @@ public static partial class ContentEditor
                     {
                         marked.Push(has);
                         if (has) actualText++;
+                        var off = op.Name == "BDC" && op.Operands.Count >= 2 && op.Operands[0].Name == "OC" && props is { Kind: CKind.Name } layer
+                                  && IsHiddenLayer(page, PdfObj.Dict(PdfObj.Dict(resources?.Elements["/Properties"])?.Elements["/" + layer.Name]));
+                        hiddenMarks.Push(off);
+                        if (off) hiddenLayer++;
                         looks.Push(op.Name == "BDC" && op.Operands.Count >= 2 && op.Operands[0].Name == LookTagName && props is { Kind: CKind.Dict } ld
                             ? LookTag.Read(ld)
                             : looks.Count > 0 ? looks.Peek() : null);
@@ -815,6 +857,7 @@ public static partial class ContentEditor
                 }
                 case "EMC":
                     if (marked.Count > 0 && marked.Pop()) actualText--;
+                    if (hiddenMarks.Count > 0 && hiddenMarks.Pop()) hiddenLayer--;
                     if (looks.Count > 0) looks.Pop();
                     break;
                 case "Tf" when op.Operands.Count >= 2:
@@ -855,7 +898,7 @@ public static partial class ContentEditor
                     var arg = op.Operands.Count > 0 ? op.Operands[^1] : null;
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
                     tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
-                        blocked ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
+                        blocked ?? (hiddenLayer > 0 ? HiddenLayerBlocked : null) ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
                         looks.Count > 0 ? looks.Peek() : null, form is null ? null : form with { Index = i });
                     break;
                 }
@@ -867,6 +910,8 @@ public static partial class ContentEditor
                     if (sub == "/Image") AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
+                        cancel.ThrowIfCancellationRequested();
+                        if (w.FormBudget < 0) break;
                         var m = PdfObj.Array(xobj.Elements["/Matrix"]) is { Elements.Count: 6 } a
                             ? new Mat(PdfObj.Num(a, 0), PdfObj.Num(a, 1), PdfObj.Num(a, 2), PdfObj.Num(a, 3), PdfObj.Num(a, 4), PdfObj.Num(a, 5))
                             : Mat.Identity;
@@ -874,9 +919,17 @@ public static partial class ContentEditor
                         inner.Ctm = m.Times(gs.Ctm);
                         w.FormUses[xobj] = w.FormUses.GetValueOrDefault(xobj) + 1;
                         var bytes = PdfObj.StreamBytes(xobj);
+                        w.FormBudget -= bytes.Length + 1024;
+                        if (w.FormBudget < 0) break;
+                        if (PdfObj.Array(xobj.Elements["/BBox"]) is { Elements.Count: 4 } bbox)
+                        {
+                            var box = BoxOf(page, inner.Ctm, PdfObj.Num(bbox, 0), PdfObj.Num(bbox, 1), PdfObj.Num(bbox, 2), PdfObj.Num(bbox, 3));
+                            inner.Clip = inner.Clip is { } outerClip ? outerClip.Intersect(box) : box;
+                        }
                         var formOps = ContentLexer.Parse(bytes, cancel);
                         var place = new FormPlace(xobj, bytes, formOps, -1, PdfObj.Dict(xobj.Elements["/Resources"]) ?? resources, form, id, op.Operands[0].Name);
-                        Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked, cancel, place);
+                        var inHidden = hiddenLayer > 0 || IsHiddenLayer(page, PdfObj.Dict(xobj.Elements["/OC"]));
+                        Run(w, page, pageIndex, formOps, place.Resources, inner, depth + 1, blocked ?? (inHidden ? HiddenLayerBlocked : null), cancel, place);
                     }
                     break;
                 }
@@ -889,6 +942,14 @@ public static partial class ContentEditor
 
     private static int Gray(double g) => Rgb(g, g, g);
 
+    /// <summary>Whether a color space's numbers read as gray, RGB or CMYK: not Separation, DeviceN, Indexed, Lab or a pattern's.</summary>
+    private static bool IsPlainColorSpace(PdfDictionary? resources, string? name)
+    {
+        if (name is null || name.StartsWith("Device", StringComparison.Ordinal)) return true;
+        return PdfObj.Array(PdfObj.Dict(resources?.Elements["/ColorSpace"])?.Elements["/" + name]) is not { Elements.Count: > 0 } space
+               || PdfObj.Name(PdfObj.Resolve(space.Elements[0])) is not ("Separation" or "DeviceN" or "Indexed" or "Lab" or "Pattern");
+    }
+
     /// <summary>A color operator written again from its numbers (the last <paramref name="count"/> operands).</summary>
     private static string FillOp(COp op, int count) =>
         string.Join(' ', op.Operands.TakeLast(count).Select(o => ContentLexer.Number(o.Num))) + " " + op.Name;
@@ -897,6 +958,20 @@ public static partial class ContentEditor
     {
         static int C(double v) => (int)Math.Round(Math.Clamp(v, 0, 1) * 255);
         return C(r) << 16 | C(g) << 8 | C(b);
+    }
+
+    /// <summary>Why text in a layer that is off stays: nobody sees it, so it isn't edited, and it is never sent for translating.</summary>
+    internal const string HiddenLayerBlocked = "it is invisible text (in a hidden layer)";
+
+    /// <summary>A layer, or a set of layers, the document opens with off.</summary>
+    private static bool IsHiddenLayer(PdfPage page, PdfDictionary? oc)
+    {
+        if (oc is null || page.Owner is not { } doc) return false;
+        if (PdfObj.Array(PdfObj.Dict(PdfObj.Dict(doc.Internals.Catalog.Elements["/OCProperties"])?.Elements["/D"])?.Elements["/OFF"]) is not { } off) return false;
+        bool Off(PdfDictionary? group) => group is not null && off.Elements.Any(e => ReferenceEquals(PdfObj.Dict(e), group));
+        if (PdfObj.NameOf(oc, "/Type") != "/OCMD") return Off(oc);
+        if (PdfObj.Array(oc.Elements["/OCGs"]) is { Elements.Count: > 0 } groups) return groups.Elements.All(g => Off(PdfObj.Dict(g)));
+        return Off(PdfObj.Dict(oc.Elements["/OCGs"]));
     }
 
     private static void AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked)
@@ -931,6 +1006,7 @@ public static partial class ContentEditor
         var items = new List<RunItem>();
         var hex = false;
         double adv = 0, gaps = 0, end = 0; // end: where the last glyph's ink ends (before its spacing)
+        double low = 0, high = 0; // how far its glyphs reach: right-to-left text written in logical order moves back as it goes
         var gapCount = 0;
         var fs = gs.Size;
         void Glyphs(CObj s)
@@ -942,6 +1018,7 @@ public static partial class ContentEditor
                 {
                     items.Add(new RunItem(b, 0, ((char)b).ToString(), false));
                     end = adv + 0.5 * fs * gs.Th;
+                    (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                     adv += (0.5 * fs + gs.Tc) * gs.Th;
                 }
                 return;
@@ -950,6 +1027,7 @@ public static partial class ContentEditor
             {
                 items.Add(new RunItem(g.Code, 0, g.Text, false));
                 end = adv + g.Width * fs * gs.Th;
+                (low, high) = (Math.Min(low, adv), Math.Max(high, end));
                 adv += (g.Width * fs + gs.Tc + (!font.TwoByte && g.Code == 32 ? gs.Tw : 0)) * gs.Th;
             }
         }
@@ -979,7 +1057,7 @@ public static partial class ContentEditor
         var trm = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(tm).Times(gs.Ctm);
         var asc = (font?.Ascent ?? 0.8) * fs;
         var desc = (font?.Descent ?? -0.2) * fs;
-        var box = BoxOf(page, trm, 0, desc, end, asc);
+        var box = BoxOf(page, trm, low, desc, Math.Max(end, high), asc);
         var (bx0, by0) = Project(page, trm, 0, 0);
         var (bx1, by1) = Project(page, trm, 1, 0);
         var (vx0, vy0) = Project(page, trm, 0, 1);
@@ -1012,7 +1090,7 @@ public static partial class ContentEditor
             FontKey = gs.FontKey,
             Tag = tag,
         };
-        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form };
+        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form, Clip = gs.Clip };
         // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
         var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
         if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });

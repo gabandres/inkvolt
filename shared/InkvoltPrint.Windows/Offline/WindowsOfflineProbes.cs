@@ -119,6 +119,36 @@ public sealed class WindowsOfflineProbes : IOfflineProbes
     }
 
     /// <summary>
+    /// One queue by name, a connection to another PC's shared printer included (<see cref="QueuesAsync"/> lists only this PC's):
+    /// on the pool, since winspool waits for RPC to time out on a PC that's off. Null when Windows no longer has it; throws when
+    /// it can't tell (the caller's limit ends the wait).
+    /// </summary>
+    public Task<QueueFacts?> QueueAsync(string name, CancellationToken ct) => Task.Run(() =>
+    {
+        var (q, error) = Winspool.Queue(name);
+        if (q is null)
+        {
+            if (Core.Queues.SpoolerStatus.IsRemoved(error)) return null;
+            throw new System.ComponentModel.Win32Exception(error);
+        }
+        IReadOnlyList<Core.Printing.QueueJob> jobs = [];
+        if (q.Jobs > 0)
+        {
+            try { jobs = Winspool.Jobs(q.Name); }
+            catch (System.ComponentModel.Win32Exception) { } // went away while reading
+        }
+        var ports = Winspool.Ports().ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
+        return (QueueFacts?)new QueueFacts(q.Name, Port(q.PortName, ports.GetValueOrDefault(q.PortName)))
+        {
+            Paused = (q.Status & Winspool.StatusPaused) != 0,
+            ReportsError = (q.Status & Winspool.StatusError) != 0,
+            ReportsOffline = (q.Status & Winspool.StatusOffline) != 0,
+            WorkOffline = (q.Attributes & Winspool.AttributeWorkOffline) != 0,
+            Jobs = jobs,
+        };
+    }, CancellationToken.None);
+
+    /// <summary>
     /// What kind of port a queue prints to: a Standard TCP/IP port (its host from the port monitor's registry key), an IPP
     /// URL, or a WSD port (Windows' discovered WSD and IPP queues both use the WSD port monitor and follow the device by ID).
     /// </summary>

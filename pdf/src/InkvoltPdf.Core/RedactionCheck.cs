@@ -108,12 +108,25 @@ public sealed record RedactionCheckOptions
     /// <summary>The document before it was redacted (opened with the same password): none of its pictures may be under a
     /// redacted area unchanged.</summary>
     public byte[]? Original { get; init; }
+
+    /// <summary>What redaction by pattern looked for: whatever those patterns find in the comments, fields, bookmarks, properties,
+    /// attachments and tags (which no page shows, so no page search saw them) is looked for too, and reported where it is.</summary>
+    public RedactionPatternOptions? Patterns { get; init; }
+
+    /// <summary>What the person chose to keep: not looked for, though <see cref="Patterns"/> would find it.</summary>
+    public IReadOnlyList<string> Kept { get; init; } = [];
+
+    /// <summary>Look only for the values and what <see cref="Patterns"/> read, earlier versions too: no covers, hidden comments or earlier versions' other text (a batch's check of its own redaction).</summary>
+    public bool ValuesOnly { get; init; }
 }
 
 /// <param name="Values">The text looked for: <see cref="RedactionCheckOptions.Values"/> and what was found under covers.</param>
 /// <param name="Notes">What couldn't be checked, and why.</param>
 public sealed record RedactionCheckReport(IReadOnlyList<RedactionFinding> Findings, IReadOnlyList<string> Values, IReadOnlyList<string> Notes)
 {
+    /// <summary>Not everything was looked for (too many values, a search that took too long): clean doesn't mean clean. <see cref="Notes"/> says why.</summary>
+    public bool Incomplete { get; init; }
+
     public bool IsClean => Findings.Count == 0;
 
     /// <summary>Some findings can be fixed (<see cref="RedactionCheck.Fix"/>).</summary>
@@ -197,6 +210,10 @@ public static partial class RedactionCheck
         }
         return [.. Clean(values)];
     }
+
+    /// <summary>A finding about what was just redacted still being in the file, rather than about the file as it came (a box that hides text elsewhere, a hidden layer).</summary>
+    public static bool IsLeftover(RedactionLeak kind) =>
+        kind is not (RedactionLeak.CoveredText or RedactionLeak.CoveredContent or RedactionLeak.UnappliedMark or RedactionLeak.GlyphSpacing or RedactionLeak.HiddenContent);
 
     /// <summary>Checks the document. Nothing is changed.</summary>
     /// <param name="progress">(steps done, steps): pages read, then pages drawn, then earlier versions.</param>
@@ -329,29 +346,43 @@ public static partial class RedactionCheck
                     ready.Release();
                 }
             }, cancel);
-            var scans = new PageScan[pages];
-            for (var p = 0; p < pages; p++)
+            if (options.ValuesOnly) reader.GetAwaiter().GetResult();
+            else
             {
-                cancel.ThrowIfCancellationRequested();
-                scans[p] = p < doc.PageCount ? ScanPage(doc, p) : new PageScan();
-                Step();
+                var scans = new PageScan[pages];
+                for (var p = 0; p < pages; p++)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    scans[p] = p < doc.PageCount ? ScanPage(doc, p) : new PageScan();
+                    Step();
+                }
+                var hidden = new List<(int Start, int End)>[pages];
+                for (var p = 0; p < pages; p++)
+                {
+                    while (!ready.Wait(50, cancel))
+                        if (reader.IsFaulted || reader.IsCanceled) reader.GetAwaiter().GetResult();
+                    hidden[p] = HiddenChars(engine, p, scans[p]);
+                    Marks(p, scans[p]);
+                    Step();
+                }
+                reader.GetAwaiter().GetResult();
+                Covers(engine, scans);
+                for (var p = 0; p < pages; p++) HiddenRuns(p, hidden[p], scans[p]);
+                if (options.Areas is { Count: > 0 } areas) Areas(engine, doc, scans, areas);
+                HiddenContent(doc);
             }
-            var hidden = new List<(int Start, int End)>[pages];
-            for (var p = 0; p < pages; p++)
-            {
-                while (!ready.Wait(50, cancel))
-                    if (reader.IsFaulted || reader.IsCanceled) reader.GetAwaiter().GetResult();
-                hidden[p] = HiddenChars(engine, p, scans[p]);
-                Marks(p, scans[p]);
-                Step();
-            }
-            reader.GetAwaiter().GetResult();
-            Covers(engine, scans);
-            for (var p = 0; p < pages; p++) HiddenRuns(p, hidden[p], scans[p]);
-            if (options.Areas is { Count: > 0 } areas) Areas(engine, doc, scans, areas);
-            HiddenContent(doc);
 
-            var values = Clean(options.Values.Concat(_found)).Take(MaxValues).ToList();
+            var kept = new HashSet<string>(Clean(options.Kept), StringComparer.OrdinalIgnoreCase);
+            // What the patterns found outside the pages goes first: those are leftovers for certain, not just possible ones.
+            var outside = Clean(PatternValues(doc)).Where(v => !kept.Contains(v)).ToList();
+            var all = Clean(outside.Concat(options.Values).Concat(_found)).Where(v => !kept.Contains(v)).ToList();
+            var values = all.Take(MaxValues).ToList();
+            if (all.Count > values.Count)
+            {
+                // With the patterns run over the rest of the file, whatever they can read there has been looked for anyway.
+                _incomplete |= options.Patterns is null || outside.Count > MaxValues;
+                _notes.Add($"Only the first {MaxValues:N0} of {all.Count:N0} redacted values were looked for as written in the rest of the file.");
+            }
             var matcher = new ValueMatcher(values);
             if (!matcher.IsEmpty)
             {
@@ -359,11 +390,25 @@ public static partial class RedactionCheck
                 var inFile = Objects(doc, matcher);
                 EarlierVersions(engine, matcher, inFile, revisions);
                 RawBytes(doc, matcher, inFile);
+                // What the patterns read but the search for it as written didn't place (an attached PDF's kerned text) is still there.
+                for (var v = 0; v < values.Count; v++)
+                    if (!_hit.Contains(v) && outside.Contains(values[v], StringComparer.OrdinalIgnoreCase))
+                        Add(new RedactionFinding(RedactionLeak.FileData, "Another part of the file", values[v]));
             }
             else EarlierVersions(engine, null, [], revisions);
+            if (matcher.TooLarge)
+            {
+                _incomplete = true;
+                _notes.Add("A redacted value was too long to look for in the rest of the file.");
+            }
+            if (matcher.TimedOut)
+            {
+                _incomplete = true;
+                _notes.Add("Looking for the redacted values took too long in part of the file, so that part wasn't searched to the end.");
+            }
 
             var order = _findings.Select((f, i) => (f, i)).OrderBy(x => x.f.Page < 0 ? int.MaxValue : x.f.Page).ThenBy(x => x.f.Kind).ThenBy(x => x.i);
-            return new RedactionCheckReport([.. order.Select(x => x.f)], values, _notes);
+            return new RedactionCheckReport([.. order.Select(x => x.f)], values, _notes) { Incomplete = _incomplete };
         }
 
         // ───────────────────────────── covers ─────────────────────────────
@@ -472,7 +517,8 @@ public static partial class RedactionCheck
                 _found.Add(text.Text[start..end]);
                 for (var i = start; i < end; i++) _reported[p].Add(i);
             }
-            return [.. Runs(text, hidden.Contains)];
+            // A lone character over paper is an OCR layer's box a little off its letter (they are spaced by guess), and tells nothing.
+            return [.. Runs(text, hidden.Contains).Where(r => r.End - r.Start >= 2)];
         }
 
         private static bool Visible(char c) => !char.IsWhiteSpace(c) && !char.IsControl(c)

@@ -387,9 +387,10 @@ internal sealed class TextFont
             has = _program switch
             {
                 TrueTypeProgram tt => tt.HasGlyph(GidOf(code), blank),
-                Type1Program t1 when name is not null => t1.HasName(name),
-                CffProgram { IsCid: false } cff when name is not null && cff.HasName(name) => true,
-                CffProgram { IsCid: false } when name is not null => false,
+                // The program is readable, so it decides: a code with no glyph name draws nothing, whatever a /ToUnicode
+                // and /Widths that cover the whole code page say (pdfTeX's do).
+                Type1Program t1 => name is not null && t1.HasName(name),
+                CffProgram { IsCid: false } cff => name is not null && cff.HasName(name),
                 null when _hasDescriptor && !_embedded => name is not null || _simpleText[code] is not null,
                 null when !_hasDescriptor => name is not null,
                 _ => HasWidth(code) && (!_hasToUnicode || _toUnicode.ContainsKey(code)), // program unreadable: the PDF's tables

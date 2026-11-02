@@ -155,7 +155,11 @@ public sealed class LayerNode(string label, LayerInfo? layer, List<LayerNode> ch
 public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool brokenByEdits = false)
 {
     public SignatureInfo Info { get; } = info;
-    public string Title => Info.Status == SignatureStatus.Unsigned ? $"{Info.FieldName} (not signed)" : Info.SignerName ?? Info.FieldName;
+    public string Title => Info.Status == SignatureStatus.Unsigned ? $"{Info.FieldName} (not signed)"
+        : Info.SubFilter == "ETSI.RFC3161" ? $"Document timestamp: {Info.SignerName ?? Info.FieldName}"
+        : Info.SignerName ?? Info.FieldName;
+    public string? LongTerm => Info.LongTerm?.Summary;
+    public Visibility LongTermVisibility => Info.LongTerm is null ? Visibility.Collapsed : Visibility.Visible;
     public Visibility GoVisibility => Info.PageIndex >= 0 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility SignVisibility => Info.Status == SignatureStatus.Unsigned ? Visibility.Visible : Visibility.Collapsed;
 
@@ -180,7 +184,10 @@ public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool br
             if (!string.IsNullOrWhiteSpace(Info.Reason)) lines.Add($"Reason: {Info.Reason}");
             if (!string.IsNullOrWhiteSpace(Info.Location)) lines.Add($"Location: {Info.Location}");
             if (Info.SubFilter is { } f) lines.Add($"Format: {f}");
-            if (Info.Status != SignatureStatus.Unsigned) lines.Add(Info.CoversWholeDocument ? "Covers the whole document" : "Doesn't cover the whole document (changed after signing)");
+            if (Info.Status != SignatureStatus.Unsigned)
+                lines.Add(Info.CoversWholeDocument ? "Covers the whole document"
+                    : Info.LongTerm?.OnlyValidationDataAfter == true ? "Covers the whole document; long-term validation data was added after it"
+                    : "Doesn't cover the whole document (changed after signing)");
             if (Info.Certificate is { } c)
             {
                 lines.Add($"Certificate: {c.Subject}");
@@ -190,10 +197,24 @@ public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool br
                 lines.Add($"Serial: {c.SerialNumber}");
                 lines.Add($"SHA-1 thumbprint: {c.Thumbprint}");
             }
+            foreach (var check in Info.LongTerm?.Chain ?? []) lines.Add($"Revocation data: {check.Name}: {Describe(check)}");
             if (!string.IsNullOrWhiteSpace(Info.Detail)) lines.Add(Info.Detail);
             return string.Join("\n", lines);
         }
     }
+
+    private static string Describe(CertificateCheck c) => c.Outcome switch
+    {
+        CertificateCheckOutcome.Root => "a root, needs none",
+        CertificateCheckOutcome.NoCheckNeeded => "an OCSP responder, needs none",
+        CertificateCheckOutcome.Good => "not revoked",
+        CertificateCheckOutcome.Revoked => $"REVOKED{(c.RevokedAt is { } at ? $" on {at.UtcDateTime:yyyy-MM-dd}" : "")}",
+        CertificateCheckOutcome.RevokedLater => $"revoked later, on {c.RevokedAt?.UtcDateTime:yyyy-MM-dd}",
+        CertificateCheckOutcome.Unknown => "unknown to its authority",
+        CertificateCheckOutcome.Stale => "too old to speak for the signing time",
+        CertificateCheckOutcome.NoIssuer => "its issuer isn't in the file or on this PC",
+        _ => "none in the file",
+    };
 }
 
 public enum ReviewPane { Comments, Attachments, Layers, Signatures }
@@ -409,7 +430,8 @@ public partial class DocumentTab
         ReviewInfo info;
         try
         {
-            info = await Task.Run(() => ReadReview(session, pw, first, wantTitle));
+            var online = _onlineRevocation;
+            info = await Task.Run(() => ReadReview(session, pw, first, wantTitle, online));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -460,7 +482,7 @@ public partial class DocumentTab
     /// What the review panes show, read from the session's bytes. A huge file opened in place is read (and parsed) only
     /// for what its bytes mention: a reader none of whose names it mentions gets what it returns for a file without them.
     /// </summary>
-    private static ReviewInfo ReadReview(DocumentSession session, string? pw, bool first, bool wantTitle)
+    private static ReviewInfo ReadReview(DocumentSession session, string? pw, bool first, bool wantTitle, RevocationSnapshot? online)
     {
         T Try<T>(string what, string[] names, Func<byte[], T> read, T fallback, T absent)
         {
@@ -481,7 +503,7 @@ public partial class DocumentTab
         var files = Try<IReadOnlyList<AttachmentInfo>>("attachments", ["/EmbeddedFiles", "/Annots"], d => Attachments.List(d, pw), [], []);
         var layers = Try<IReadOnlyList<LayerInfo>>("layers", ["/OCProperties"], d => Layers.List(d, pw), [], []);
         var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", ["/OCProperties"], d => Layers.ReadOrder(d, pw), [], []) : [];
-        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.Verify(d, pw, checkRevocationOnline: true), null, []);
+        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.Verify(d, pw, online), null, []);
         var xfa = first ? Try<(bool, bool)?>("XFA", ["/XFA"], d => FormEditor.HasXfa(d, pw), null, (false, false)) : null;
         var prefs = first
             ? Try<ViewerPrefs?>("opening settings", ["/PageMode", "/PageLayout", "/ViewerPreferences", "/OpenAction"], d => DocumentFeatures.ReadViewerPrefs(d, pw), null,
@@ -1068,6 +1090,7 @@ public partial class DocumentTab
             ? "The signature is valid, but the document was modified after signing."
             : "The signature is intact, but the document was modified after signing and the certificate isn't trusted on this PC.",
         _ when !s.CertificateTrusted => $"The signature is intact, but the certificate isn't trusted on this PC ({s.CertificateStatus}).",
+        _ when s.SubFilter == "ETSI.RFC3161" => "Valid: the document hasn't changed since this timestamp.",
         _ => "Valid: the document hasn't changed since it was signed.",
     };
 
@@ -1108,6 +1131,9 @@ public partial class DocumentTab
             UpdatePaneDetail();
             return;
         }
+        // The bar speaks of the signatures: document timestamps are in the pane, and in the bar only when one is broken.
+        var people = signed.Where(s => s.SubFilter != "ETSI.RFC3161" || SignatureSeverity(s, BrokenByEdits(s)) == "bad").ToList();
+        if (people.Count > 0) signed = people;
         string text;
         if (signed.Count == 1)
         {
@@ -1220,20 +1246,20 @@ public partial class DocumentTab
     }
 
     /// <summary>
-    /// Redact by pattern: finds the matches in the background (a progress window with Cancel shows if that takes a while),
-    /// marks them for redaction and turns on the redaction tool, so a mark can be clicked away before the marks are applied.
-    /// Returns the matches, null when cancelled or stopped.
+    /// Searches by pattern in the background (a progress window with Cancel shows if that takes a while), scans through
+    /// text recognition. Null when cancelled or stopped: a search that stopped must never read as one that found nothing.
     /// </summary>
-    public async Task<List<RedactionMatch>?> MarkPatternMatches(RedactionPatternOptions options)
+    internal async Task<RedactionSearchResult?> SearchPatterns(RedactionPatternOptions options)
     {
         if (!Session.IsPdf || Viewer.Engine is not { } engine) return null;
-        List<RedactionMatch> matches;
+        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
+        RedactionSearchResult found;
         using (var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Searching the pages…"))
         {
             try
             {
                 var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Searching page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / p.Total));
-                matches = await Task.Run(() => RedactionPatterns.Find(engine, options, progress, prompt.Token), prompt.Token);
+                found = await Task.Run(() => RedactionSearch.Find(engine, options, ocr, progress, prompt.Token), prompt.Token);
             }
             catch (OperationCanceledException)
             {
@@ -1244,24 +1270,120 @@ public partial class DocumentTab
                 Notify("The document changed meanwhile. Try again.");
                 return null;
             }
-            catch (TimeoutException ex)
+            catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or ArgumentException or InvalidOperationException or MuPDFCore.MuPDFException)
             {
-                Prompt.Error(Window.GetWindow(this), "The search stopped", ex.Message);
+                Log.Write($"Redact by pattern stopped: {ex.GetType().Name}");
+                Prompt.Error(Window.GetWindow(this), "The search stopped", ex is MuPDFCore.MuPDFException ? "This PDF is damaged and can't be read to the end, so nothing was changed." : ex.Message);
                 return null;
             }
         }
-        if (!ReferenceEquals(engine, Viewer.Engine)) return null;
-        if (matches.Count == 0)
+        return ReferenceEquals(engine, Viewer.Engine) ? found : null;
+    }
+
+    /// <summary>
+    /// Redact by pattern, start to end: search; every hit listed to accept or skip, with the pages to look at by hand;
+    /// apply; read the result back and search it again; the report. Returns whether anything was applied.
+    /// </summary>
+    public async Task<bool> RedactByPattern(RedactionPatternOptions options)
+    {
+        if (await SearchPatterns(options) is not { } found || Window.GetWindow(this) is not { } owner) return false;
+        if (found.Hits.Count == 0 && found.Looks.Count == 0)
         {
             Notify("Nothing matching was found on the pages searched.");
-            return matches;
+            return false;
         }
-        Viewer.AddRedactions(matches.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
-        Viewer.Tool = ViewerTool.Redact;
-        Viewer.GoToPage(matches[0].Page);
-        Notify($"Marked {matches.Count} match{(matches.Count == 1 ? "" : "es")} for redaction ({RedactionPatterns.Summary(matches)}). " +
-               "Check the marks and click any you want to keep to unmark it, then apply them.");
-        return matches;
+        var earlier = Viewer.Redactions.ToList();
+        if (RedactReviewDialog.Show(owner, this, found, earlier) is not { } review) return false;
+        var name = Session.DisplayName;
+        if (review.Accepted.Count == 0 && review.LookAreas.Count == 0 && review.EarlierApplied.Count == 0)
+        {
+            var nothing = new RedactionFileReport(name, [.. review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))], found.Looks, null);
+            RedactionReportDialog.Show(owner, new RedactionReport([nothing]), Path.GetFileNameWithoutExtension(name));
+            return false;
+        }
+
+        var marks = review.Accepted.SelectMany(m => RedactionSearch.Areas([m]).SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r)))).Concat(review.LookAreas).ToList();
+        var before = Session.Data;
+        Viewer.ClearRedactions();
+        Viewer.AddRedactions(marks.Concat(review.EarlierApplied));
+        if (!await ApplyRedactions(confirm: false, check: false))
+        {
+            Viewer.ClearRedactions();
+            Viewer.AddRedactions(earlier);
+            return false;
+        }
+
+        // What the person unticked stays a mark, not applied.
+        if (review.EarlierKept.Count > 0) Viewer.AddRedactions(review.EarlierKept);
+        var areas = marks.Concat(review.EarlierApplied).GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
+        var (read, check, checkOptions) = await ReadBackPatterns(options, review, found, areas, before);
+        var report = read with { MarkedAreas = review.EarlierApplied.Count };
+        LastRedactionReport = report;
+        RedactionReportDialog.Show(owner, new RedactionReport([report]), Path.GetFileNameWithoutExtension(name));
+        // What is left outside the pages has a fix of its own, the check's.
+        if (check is { IsClean: false } && !IsDisposed) await RedactionCheckActions.Show(this, check, checkOptions);
+        return true;
+    }
+
+    /// <summary>The last report of Redact by Pattern (masked values only), for the developer script.</summary>
+    internal RedactionFileReport? LastRedactionReport { get; private set; }
+
+    /// <summary>
+    /// Reads the redacted document back, searches it again, then looks for what was removed everywhere else in the file. A
+    /// remaining hit, or a read-back that didn't finish, is the report's failure. Skipped hits don't count: the person kept them.
+    /// </summary>
+    private async Task<(RedactionFileReport Report, RedactionCheckReport? Check, RedactionCheckOptions Options)> ReadBackPatterns(
+        RedactionPatternOptions options, RedactReview review, RedactionSearchResult found, Dictionary<int, IReadOnlyList<RectD>> areas, byte[] before)
+    {
+        var data = Session.Data;
+        var password = Session.Password;
+        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
+        var kept = RedactionSearch.Values(review.Skipped);
+        var skippedKeys = new HashSet<string>(kept, StringComparer.OrdinalIgnoreCase);
+        var checkOptions = new RedactionCheckOptions
+        {
+            Values = [.. RedactionSearch.SoughtValues(review.Accepted).Where(v => !skippedKeys.Contains(v))],
+            Kept = kept,
+            Areas = areas,
+            Original = before,
+            Patterns = options,
+        };
+        var rows = review.Accepted.Select(h => RedactionReport.Row(h, RedactionOutcome.Removed)).Concat(review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))).ToList();
+        var name = Session.DisplayName;
+        string? failure = null;
+        RedactionCheckReport? check = null;
+        using var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Reading the result back…");
+        try
+        {
+            var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Reading back page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+            var remaining = await Task.Run(() =>
+            {
+                // A page the app has just recognized has its words again in the text; one without (no OCR, or OCR cancelled) is read now.
+                using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password);
+                var unread = areas.Keys.Where(p => p < engine.PageCount && !TextLayer.HasText(engine, p)).ToHashSet();
+                return RedactionSearch.ReadBack(data, password, options, ocr, unread, review.Skipped, progress, prompt.Token);
+            }, prompt.Token);
+            if (remaining.Count > 0)
+            {
+                rows.AddRange(remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere)));
+                failure = $"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Run Redact by Pattern again, or undo.";
+            }
+            prompt.Report("Looking through the rest of the file…", 1);
+            check = await Task.Run(() => RedactionCheck.Run(data, password, checkOptions, null, prompt.Token), prompt.Token);
+            // Only what was removed being left fails it; what else the check finds in the file opens its own report next.
+            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= $"Elsewhere in the file: {check.Summary}";
+            else if (check.Incomplete) failure ??= string.Join(" ", check.Notes);
+        }
+        catch (OperationCanceledException)
+        {
+            failure = "The result wasn't read back: you cancelled it, so nothing says what was removed is gone.";
+        }
+        catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException or NotSupportedException)
+        {
+            Log.Write($"Reading a redaction back failed: {ex.GetType().Name}");
+            failure = "The result couldn't be read back, so nothing says what was removed is gone.";
+        }
+        return (new RedactionFileReport(name, rows, found.Looks, failure), check, checkOptions);
     }
 
     public bool HasSearchResults => _results.Count > 0;
@@ -1524,7 +1646,8 @@ public partial class DocumentTab
             var read = ScanText.Recognize(engine, page, ocr, options, spelling, progress.Token);
             var words = read.Words.ToList();
             if (exclude is not null && exclude.TryGetValue(page, out var blacked))
-                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > 0.3 * w.Rect.Width * w.Rect.Height));
+                // A letter or two touching a black box is a recognizer reading the box's edge, not a word.
+                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > (w.Text.Trim().Length <= 2 ? 0 : 0.3 * w.Rect.Width * w.Rect.Height)));
             if (words.Count > 0) result[page] = words;
             if (read.Cleaned is { } image) cleaned[page] = image;
         }

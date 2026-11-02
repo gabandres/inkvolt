@@ -206,29 +206,49 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   attachments are marked as downloaded from the internet (Mark of the Web), like a browser download, so Windows and
   Office treat them with the same care.
 - **Layers**: show/hide optional content for viewing and printing without changing the file; save as default.
-- **Signatures**: verified in the background (digest, CMS signature, certificate trust with online revocation, a
-  certificate meant for signing); the certificate is judged at the time of a timestamp from a trusted authority, else
-  now (never at the signer's own clock). Changes made after signing are checked against what each signature allows
-  (certification level, locked fields; page content, pages, layers and open actions never), so content swapped or hidden
-  in a later update shows as invalid. An info bar and a details pane; a warning before an edit that would invalidate a
-  signature. XFA-only forms get a notice.
+- **Signatures**: verified in the background and offline (digest, CMS signature, certificate trust, a certificate meant
+  for signing, revocation from the data the file holds); the certificate is judged at the time of a timestamp from a
+  trusted authority, else now (never at the signer's own clock). Opening a file never contacts anything its certificates
+  name. Changes made after signing are checked against what each signature allows (certification level, locked fields;
+  page content, pages, layers and open actions never), so content swapped or hidden in a later update shows as invalid.
+  An info bar and a details pane, which says the PAdES level each signature reaches and what the file holds for it; a
+  warning before an edit that would invalidate a signature. XFA-only forms get a notice.
+- **Long-term validation** (Pro; verifying stays free): keeps a signature checkable after its certificate expires.
+  **Add Verification Information…** (Review menu, the Signatures pane, the command palette) works on any signed file: it
+  gets OCSP answers or CRLs for the whole chain of each signature and its timestamps, stores them in the file (/DSS,
+  /VRI) as an incremental update that leaves the signatures as they were, and can add document timestamps (PAdES B-LTA; a
+  signature with no timestamp of its own takes two, one for its time and one over the data). Sign Digitally can do the same
+  as it signs (B-LT, B-LTA). **Check Signatures Online…** asks about the certificates without changing the file (free).
+  These are the only reasons this feature goes online, and each first lists every address it would contact and what that
+  address gets. Only the addresses the certificates name are asked, http or https as they name them, and the timestamp
+  server in the field, https only: Sectigo's free one is suggested and you can enter another. Addresses on this PC or a local network (private, loopback, link-local,
+  by name or by what a name resolves to, also through redirects) are never contacted. Each request is limited in time and
+  size. With no connection it fails with a message and nothing is written.
 - **Sign Digitally** (Review menu, the Sign button, or clicking an empty signature field): pick a digital ID from the
   Windows certificate store (smart cards and Windows Hello ask for their PIN), a .pfx file, or create a self-signed
   personal ID (RSA 3072, 5 years; optional password-protected .pfx backup); reason, location, a visible box (drag it on
   the page, with live preview and an optional handwritten image) or invisible; optional RFC 3161 timestamp (only a hash
-  goes to the server; default DigiCert) and certification (first signature only). PAdES (ETSI.CAdES.detached, SHA-256,
+  goes to the https server you enter), long-term validation (above) and certification (first signature only). PAdES (ETSI.CAdES.detached, SHA-256,
   SHA-384/512 for EC P-384/P-521). The signature is appended as an incremental update, so earlier signatures stay valid,
   then saved as a new file (name-signed.pdf) and verified.
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
-  **Redact by Pattern…** (Review menu, command palette, the redaction bar) finds and marks US Social Security numbers
+  **Redact by Pattern…** (Review menu, command palette, the redaction bar) finds US Social Security numbers
   (not area 000, 666 or 9xx, group 00 or serial 0000), phone numbers (North American and international +CC), email
   addresses, payment card numbers (only those passing the Luhn check), dates (2026-10-27, 10/27/2026, 27.10.2026,
   October 27, 2026, 27 Oct 2026; impossible days left out), bank account numbers (IBAN, check digits verified), IP
   addresses and, when chosen, US ZIP codes; plus your own words and phrases (whole words, match case) and your own
   regular expression (checked as you type; one that runs too long stops the search with a message). All pages or a page
   range. A match may run onto the next line or be split by a hyphen at a line break; a card number isn't also counted as
-  a phone number. The toast counts the matches of each kind; click a mark with the redaction tool to keep that text,
-  then apply as usual.
+  a phone number. Scanned pages and pictures are searched through text recognition (Windows' OCR, on this PC). Every match is
+  listed with its page and the words around it, the page beside the list; tick or untick them one by one, or Accept All and
+  Skip All, then Redact. The result is read back and searched again, what was removed is looked for in the rest of the
+  file, and the **Redaction Report** says what happened: per file the page, pattern and masked value of each removal (a
+  masked value keeps at most the last two digits of a long number; your words and pattern are listed by kind), with
+  Save CSV. Choices can be saved as a named set on this PC (as plain text, words and all). Own pattern, saved sets, Batch's
+  action and the report's list and CSV are Inkvolt Pro; the built-in kinds, your words, the list and the read-back are free.
+  **A scanned page is never called clean.** Text recognition can misread words and miss whole lines, so a page read that way
+  is flagged for you to look at, whatever was found on it, and places with ink where nothing was read are outlined and can be
+  blacked out unread.
 - **Redaction check**: after Apply, Inkvolt PDF checks the result in the background for anything left of what was
   redacted (a toast says when nothing is; otherwise a report opens), and **Check Redaction…** (Review menu, command
   palette) checks any PDF, such as one redacted elsewhere. It finds text still under black boxes, highlights and other
@@ -390,6 +410,18 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   up), and a close nobody answered (Windows ending the session) keeps the copies.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit. A
   search that will take more than a couple of seconds runs in helper processes of the app, up to eight (see Known limits).
+- **Search Folders** (Edit › Search Folders…, Ctrl+Alt+Shift+F, or Ctrl+K; a Pro feature): a word or phrase across every PDF
+  of a folder and its subfolders, with the text around each hit; Enter or a double-click opens the file at that page with
+  the find bar on the hit. Case and accents are ignored as in Find (Match case, Whole words and Ignore accents can be
+  changed); a word is found inside longer words too. Add a Folder starts indexing in the background: helper processes of the
+  app read the PDFs (up to four, below normal priority, none once it is up to date), so a damaged or hostile file can only end
+  a helper, and searches work on what has been read so far. A file's text layer is what is indexed, OCR's included; a scan
+  with no text layer is counted and waits for Recognize Text (the index runs no OCR). Each folder says what it holds and what it
+  left out: damaged, password protected, too big (over 512 MB or 50,000 pages), too slow or crashing the reader, listed under
+  Skipped Files…, read again when they change or with Rebuild. While the app is open a change is noticed within seconds
+  (and a look every 30 s for what notices miss, as on network drives); with the app closed, at the next start. Pause
+  holds it within 2 s and stays through a restart. Each index is one file in `%LOCALAPPDATA%\InkvoltPdf\FolderIndex`, holding the text of those PDFs, and
+  goes with Remove; nothing leaves the PC.
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
 - **Organize pages** (Ctrl+Shift+O): a grid of large pages; click / Ctrl / Shift to select, arrows to move, drag to
@@ -402,18 +434,21 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   extract (new tab, one file, or a file per page), split (by count, ranges, or bookmarks), move, duplicate, reverse,
   crop/uncrop, combine files. Drag thumbnails onto another tab to copy pages; drop PDFs onto thumbnails to insert them.
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
-  the saved file behind a tab with unsaved changes, recent files or any PDF; Swap). The text of both is compared word by
+  the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
+  by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can
+  be skipped), and a difference that may be a misreading says so. Formatting (font, size, bold, italic, color) and moved
+  passages are listed apart from wording, with a box to hide each kind, and running headers and footers stay out of it. The text of both is compared word by
   word over the whole document, so text that flows onto the next page isn't a change, and pages are lined up by the
   words they share: an inserted or removed page is one change (not a wall of words), a page rewritten in place is
   "changed". Rows of lined-up pages side by side with one scroll bar (both documents always scroll together);
   inserted words green, removed red, changed amber on both sides, with a marker where words went missing on the other
   side. A list of changes (click one, or a highlight on the page; F8 / Shift+F8 or Alt+Down / Alt+Up step through
   them) and a summary count. **Visual** (Ctrl+2) overlays the pages: ink only in the original red, only in the changed
-  file blue, shared grey, with boxes around each area that differs: for drawings and scans. Pages without text (scans)
-  say so instead of counting every word as changed; they are checked visually in the background and listed when they
-  look different. Zoom with Ctrl+wheel, Ctrl+= / Ctrl+- / Ctrl+0 (fit). **Annotated Copy** opens a copy of the
-  changed file with every text change as a comment (highlights quoting the old wording, notes where words or pages were
-  removed, a summary note on page 1) in a new tab, to save and share; a signed file gets the comments appended, a
+  file blue, shared grey, with boxes around each area that differs: for drawings and scans. Scans are lined up first
+  (shifted and skewed up to 15°). Pages left without text say so instead of counting every word as changed; pages are checked
+  visually in the background and listed when something besides their words looks different. Zoom with Ctrl+wheel, Ctrl+= / Ctrl+- / Ctrl+0 (fit). **Annotated Copy** opens a copy of the
+  changed file with every change as a comment (highlights quoting the old wording, saying what moved or how it was
+  reformatted, marking what looks different; notes where words or pages were removed, a summary note on page 1) in a new tab, to save and share; a signed file gets the comments appended, a
   protected one keeps its protection.
 - **Command palette** (Ctrl+K): every command (with its icon), recent files, or a page number. **Shortcuts**: F1;
   tooltips show each button's shortcut. Error messages stay until dismissed; other notices fade.
@@ -426,7 +461,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   product), kept in `%LOCALAPPDATA%\Inkvolt\pro-key.txt` where Inkvolt Print reads it too (`Suite/ProKeyFile`; a key
   from the settings of 1.2.1 moves there on first read), so it survives reinstalling and one key licenses both apps when
   it lists both; one key works on Windows and the Mac. The Pro features are batch presets,
-  watched folders and the command line; `Pro.Allows(feature)` is their one check, and **the gate is off while Inkvolt
+  watched folders, the command line and folder search; `Pro.Allows(feature)` is their one check, and **the gate is off while Inkvolt
   PDF launches** (`Pro.Enforced`, one switch shared with Inkvolt Print; see the roadmap's "Free and Pro"): everything is free, a key is still verified and
   shown, and buying supports the project or gives a business a licence to invoice. With the gate on, a locked feature
   shows what it does and a button to the window (the command line prints the message and exits 2); removing the licence
@@ -499,7 +534,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Batch** (File › Batch…, command palette): the same actions for many files. Add PDFs and images (Add Files, Add
   Folder with or without subfolders, or drag them in; images become PDFs first, on pages the size of the image, Letter or
   A4), then a list of actions in order: Reduce File Size, Protect with Password, Remove Password Protection, Sanitize,
-  Redact Patterns (the choices of Redact by Pattern, applied at once; each row says how many matches of each kind),
+  Redact Patterns (the choices of Redact by Pattern or a saved set, applied at once; each row says how many matches of each
+  kind and which pages to look at by hand; each result is read back and searched again, and a match left, a scan with no OCR
+  language or what the patterns find outside the pages fails the file; a signed file left signed is skipped whole; "Redaction
+  report date time.csv" goes in the results folder, and Redaction Report… shows it),
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
   file; a file that fails any, or can't be checked in full, isn't saved and counts as failed, its notes saying what wasn't checked), Report What's in Each File ("name contents.html" and "name contents.json"
@@ -562,6 +600,18 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   without an answer, printing goes ahead.
 - **Printer Settings (Inkvolt Print)** (File menu, shown when Inkvolt Print is installed) opens Inkvolt Print. Inkvolt Print's "Open in
   Inkvolt PDF" hands a saved scan to Inkvolt PDF (a running Inkvolt PDF opens it in a tab).
+- **Translate with AI** (Review › AI Assistant, command palette; free, through the assistant below): a translated copy of
+  the pages you pick, in any language you name, opens as an unsaved tab with the original beside it, and the two scroll and
+  zoom together (close the split to read the copy alone). It goes paragraph by paragraph, table cell by table cell, after the
+  same window showing what is sent and where; repeated text goes once, and a page's numbers and symbols not at all. No limit on
+  pages or file size, a Cancel that keeps what's done, and your file is only read. Each paragraph stays in its box: it wraps,
+  uses the white space below it, then shrinks (to half its size or 5 points at most); one that still doesn't fit, or stays
+  untranslated, gets a comment saying why, and the summary lists the pages. When the page's font lacks a letter the
+  paragraph is drawn in the closest installed font, named in the summary. Scanned pages and turned text stay as they are and are named;
+  comments, form fields and bookmarks aren't translated. A model's answer is used only as plain text: reasoning, markup and
+  control characters come out, an answer in several paragraphs or far too long is asked for once more and then left out.
+  Code: `Core/Translation.cs`, `Core/ContentEditor.Translate.cs`, `App/DocumentTab.Translate.cs`. Dev steps: `translate`,
+  `translatestate`, `aifake translate`. What a real model (Qwen3 4B) did on real pages: see ROADMAP 3.1.
 - **AI assistant (bring your own, off by default)** (Review › AI Assistant, command palette; right-click selected text ›
   Explain with AI): Inkvolt PDF has no AI of its own. In Settings › AI assistant you can connect one you choose: Ollama
   or LM Studio running on this PC (presets), or any OpenAI-compatible endpoint (`/v1/chat/completions`), on your network
@@ -631,7 +681,8 @@ and written to `<form> merge report.csv`. A form with an open password takes it 
 | Path | What |
 |---|---|
 | `src/InkvoltPdf.Core` | `PdfEngine` (MuPDF: render, text, links, outline; `FindWorkers` for a long Find), `PageEditor` (PDFsharp page edits, bytes in → bytes out), `DocumentSession` (bytes + undo snapshots), `PageText`, `PageRange` |
-| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `CommentFiles` (`.Xfdf.cs`, `.Csv.cs`: comments out and in as XFDF, FDF, CSV; the import's allow-list and cleaning) + `CommentSummary` (Summarize Comments) + `Fdf` (FDF syntax, read and written) + `Csv`, `FormDataFiles` (form data as XFDF, FDF, CSV, JSON) + `FormMerge` (Fill Forms from CSV) + `FormEditor.Data.cs` (fields as data, value checks), `AccessibilityCheck` (`.Run.cs`: document-level checks; `.Structure.cs`: tags, role map, tables, headings; `.Content.cs`: marked content, languages, annotations, fields; `.Fonts.cs`: font rules) + `AccessibilityReportHtml` (the report page) + `HybridXref` (objects of Word's hybrid-reference files that PDFsharp alone misses), `Redaction` + `RedactionPatterns` (redact by pattern: finding SSNs, phones, cards, dates, …) + `RedactionCheck` (`RedactionCheck.Data.cs`: what is left of a redaction: covered text, unapplied marks, leftovers in every object, earlier versions and raw bytes), `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `VisualCompare` (pixel overlay) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`, `ScanText` (Recognize Text's pipeline: render, clean with `InkvoltPrint.Core/Imaging/ScanCleanup`, recognize through `ITextRecognizer`, map back with `ScanFrame`) + `SuspectWords` + `ScanPage` (the cleaned page written back) + `TextLayer` (the invisible OCR text, its kept words, corrections); helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
+| `src/InkvoltPdf.Core` (folder search) | `FolderIndex` (`.Search.cs`: the index file: terms to pages, pages' text, commits, compaction, recovery; a search) + `IndexTerms` (words folded as Find compares them), `IndexWorkers` (the `--index-worker` process that reads a PDF), `FolderIndexer` (keeps a folder's index current). App: `FolderSearch.cs` (`FolderSearches`, the window). Bench: `tools/bench` `index-make`, `index-run` |
+| `src/InkvoltPdf.Core` (features) | `FormEditor` + `FormScripts` (form fields, AF calculations), `TextStamps` + `SignatureStamps` (Fill & Sign, placed pictures), `RubberStamps` (stamps), `Signing` + `DigitalIds` (digital signing), `Ltv` + `LtvClient` + `Dss` + `RevocationData` + `LongTermCheck` (long-term validation; `tools/pades-check` is the EU DSS validator run locally), `Annotations` (comments, drawings) + `DrawingGeometry` (hit-testing, resize handles), `Links` (link annotations), `Attachments`, `Layers`, `Signatures` (verification), `CommentFiles` (`.Xfdf.cs`, `.Csv.cs`: comments out and in as XFDF, FDF, CSV; the import's allow-list and cleaning) + `CommentSummary` (Summarize Comments) + `Fdf` (FDF syntax, read and written) + `Csv`, `FormDataFiles` (form data as XFDF, FDF, CSV, JSON) + `FormMerge` (Fill Forms from CSV) + `FormEditor.Data.cs` (fields as data, value checks), `AccessibilityCheck` (`.Run.cs`: document-level checks; `.Structure.cs`: tags, role map, tables, headings; `.Content.cs`: marked content, languages, annotations, fields; `.Fonts.cs`: font rules) + `AccessibilityReportHtml` (the report page) + `HybridXref` (objects of Word's hybrid-reference files that PDFsharp alone misses), `Redaction` + `RedactionPatterns` (redact by pattern: finding SSNs, phones, cards, dates, …) + `RedactionSearch` (scans through OCR, ink no word explains, the read-back) + `RedactionPatternSets` (saved sets) + `RedactionReport` (masked values, CSV) + `RedactionCheck` (`RedactionCheck.Data.cs`: what is left of a redaction: covered text, unapplied marks, leftovers in every object, earlier versions and raw bytes), `DocumentFeatures` (page labels, opening settings), `FormDesign` (form authoring: fields, names, appearances, tab order) + `FieldDetection` (suggested fields) + `VectorShapes` (lines and boxes a page draws), `PdfSecurity` (AES-256 protect/unprotect), `Optimizer` (reduce size), `ImageImport` (images to PDF), `Bookmarks` + `BookmarkTree` (outline editing), `Flattener` (annotations/fields into page content), `HeaderFooter`, `Watermarks` + `PageMarks` (headers, footers, Bates numbers and watermarks written into pages, removable), `Sanitizer` (Sanitize Document: scan and removal) + `HiddenContent` (hidden-layer content cut out of content streams), `KeptProtection` (edits keep the encryption), `ReadAloudText` (paragraphs for speech), `WordDiff` (patience + Myers word diff) + `DocumentCompare` (words, page alignment, changes) + `CompareMoves` + `CompareLooks` + `CompareScan` (moves, formatting, words read from scans) + `VisualCompare` (pixel overlay) + `CompareAlign` (scans lined up; what looks different besides the words) + `CompareReport` (the annotated copy), `PrintLayout` + `PrintPlan` (fit, pages per sheet, booklet imposition, poster tiles), `ExportPage` (what a page shows: lines, spans, pictures, rules; OCR words to lines) + `DocLayout` (reading order by XY-cut, paragraphs, headings, lists, ruled and aligned tables, running headers and footers) + `DocxWriter` / `XlsxWriter` (hand-written Office Open XML) + `DocumentExport` (Word, Excel, plain text), `ContentEditor` (Edit Text & Images: text runs and pictures of a page, text rewritten in its own font, pictures moved, replaced, deleted) + `ContentLexer` (content streams with byte offsets, inline images) + `TextFont` (`TextFonts.cs`: decoding and encoding text in a page font) + `FontPrograms` (which glyphs an embedded TrueType, CFF or Type 1 program holds) + `GlyphNames` (standard encodings, glyph names), `FontNames`, `PasswordStrength`, `ScanText` (Recognize Text's pipeline: render, clean with `InkvoltPrint.Core/Imaging/ScanCleanup`, recognize through `ITextRecognizer`, map back with `ScanFrame`) + `SuspectWords` + `ScanPage` (the cleaned page written back) + `TextLayer` (the invisible OCR text, its kept words, corrections); helpers `Appearances`, `FontKit`, `PdfObj` (incl. XMP-preserving save) |
 | `src/InkvoltPdf.App` | WPF UI. `Viewer/PageViewer*.cs` is the virtualized page view (`.Forms`, `.Text`, `.Review`, `.Signing` (also pictures), `.Links`, `.Drawing` overlays; `DrawTools`); `DocumentTab` holds panes (`DocumentTab.Review.cs`: comments, attachments, layers, signatures, redaction, labels; `DocumentTab.Drawing.cs`: drawing edits and the style bar; `DocumentTab.Insert.cs`: pictures and links; `DocumentTab.FormDesign.cs` + `Viewer/PageViewer.FormDesign.cs`: Prepare Form; `DocumentTab.EditContent.cs` + `Viewer/PageViewer.EditContent.cs`: Edit Text & Images; `DocumentTab.Split.cs`: split view; `Stamps.cs`: the Stamp menu, custom stamps and placing them; `DocumentTab.Signing.cs`, `SignDialog.cs`, `SigningLibrary.cs`: signing); `Organize.cs` / `FileActions.cs` (print, with `PrintHandlingDialog.cs`) / `FileTools.cs` / `SecurityActions.cs` / `PageMarkActions.cs` are the commands; `DocumentTab.Bookmarks.cs` the bookmark editor; `DocumentTab.Measure.cs` + `Viewer/PageViewer.Measure.cs` Measure (Core: `Measurement.cs`: `MeasureGeometry`, `MeasureScale`, `Measurements`); `PdfAActions.cs` Save as PDF/A-2b (Core: `PdfA.cs`, with `IccProfiles`); `ConvertActions.cs` + `OfficeConverter.cs` (the `--office-to-pdf` helper) + `WebCapture.cs` PDF from Office files and web pages (Core: `Conversion.cs`); `BatchWindow.cs` File › Batch (the runner is Core's `Batch.cs`: `BatchRunner`, `BatchPlan`, the actions, output names, memory gate; presets are Core's `BatchPresets.cs`, the watcher `WatchedFolder.cs`, the command line `BatchCommandLine.cs`, the Pro check and key format `Pro.cs`: `Pro`, `ProKeys`); `BatchAutomation.cs` the presets saved on this PC, the app's watched folders (`FolderWatches`) and the Watched Folders window; `ProWindow.cs` Help › Inkvolt Pro (the key in the settings, `SettingsProStore`); `CommandLine.cs` `--batch` / `--watch` without a window (the console, OCR); `ReadAloud.cs` Read Aloud; `Compare.cs` (picking the two files) + `CompareWindow.cs` (the compare view); `ExportActions.cs` Export to Word / Excel / text (OCR of scanned pages via `PageOcr`: Windows' recognizer and spell checker, `InkvoltPrint.Windows/Ocr`); `DocumentTab.SuspectWords.cs` the Suspect words pane; `SanitizeActions.cs` Sanitize Document; `InventoryActions.cs` What's in This PDF (Core: `DocumentInventory.cs`, `InventoryReportFiles.cs`); `RedactPatternActions.cs` Redact by Pattern (the dialog, also Batch's); `RedactionCheckActions.cs` Check Redaction (the report and its fix; the check after Apply is in `DocumentTab.Review.cs`); `DocumentTab.Accessibility.cs` Accessibility Check (the pane, its checklist, the saved report); `AccessibleActions.cs`
 Make Accessible (the plan, the title and language window, writing it) + `DocumentTab.ReadingOrder.cs` (the Reading order
 pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
@@ -656,7 +707,7 @@ name or under 24 × 24 (`UiInspection`, rules in `InkvoltPrint.Core/Suite/UiAudi
 scanners and choices, with `later`), `scanselect text` and `scanchoose glass|feeder|duplex Color|Grayscale|BlackAndWhite dpi`
 (choose its scanner and settings; `-` keeps one), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
-`comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
+`comparegroup wording|moved|formatting|visual on|off`, `comparelist n`, `comparetext old|new page`, `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 Recognize Text: `dialogok RecognizeText combo1=N check2=on` (combo0 the pages, combo1 the language in Windows' order,
@@ -677,7 +728,9 @@ action's dialog), `batchstate`, `batchstep pdfa`; presets and watched folders: `
 `watchshot out.png`, `watchstate`; Inkvolt Pro: `prowindow [presets|watched|cli]` (Help › Inkvolt Pro, or as a locked feature opens it), `pro key|remove`,
 `proenforce on|off` (the gate, to see the locked views), `proshot out.png`, `prostate` (`tools/pro-key/test-vector.json` has a key). Sanitize: `dialog Sanitize out.png`, `dialogok Sanitize check3=off` (sample: `sanitize-sample.pdf` from `SanitizerTests`, one of
 everything it removes). Redact by Pattern: `dialog RedactPatterns out.png`, `dialogok RedactPatterns text0=Acme{sp}Corp text1=CASE-\d{4}`
-(phrases, then the pattern; the kinds are `check0`…), `redact-patterns [phrase]` (the default kinds), `batchstep redactpatterns [phrase]`;
+(phrases, then the pattern; the kinds are `check0`…), `redact-patterns [phrase]` (the default kinds, marked without the list), `batchstep redactpatterns [phrase|set:name]`,
+`redact-find [phrase|set:name]` (the whole way; with `later`: `reviewstate`, `reviewselect i`, `reviewtoggle i`, `reviewall on|off`, `reviewpress`, `reviewcancel`, `reportclose`), `redactset name kind,kind phrase|regex`, `batchreport`
+(corpus to drive it over: `INKVOLTPDF_REDACT_CORPUS=folder dotnet test --filter WritesTheCorpusWhenAsked`);
 Redaction check: `apply-redactions` (the check follows: `dialogshot`, then `prompt Fix N things` or `closedialog`), `cmd CheckRedaction`,
 `redaction-check` (the findings, logged), `batchstep checkredaction` (samples: `redaction-check-sample.pdf`, the name on page 1 planted in every
 place the check looks, and `redaction-check-box.pdf`, a box over text, from `RedactionCheckTests`);
@@ -731,10 +784,16 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   signing". Redaction, page extraction and encrypted signed files still rewrite the file and break signatures
   (Inkvolt PDF warns first), as does any edit whose update can't be appended (Inkvolt PDF asks before committing it). Pages,
   comments and attachments removed from a signed file stay recoverable from its signed revision until the file is
-  flattened (offered after such a removal; breaks the signatures). Revocation is checked only on request.
-- Signing: no long-term validation data (no DSS/VRI, no embedded OCSP/CRL responses, no document timestamps), no
-  field locks (FieldMDP), and DocMDP permissions of a certified file aren't enforced when verifying. Encrypted PDFs can't be
-  signed (save an unprotected copy first). A self-signed ID shows as untrusted on other PCs until they trust it.
+  flattened (offered after such a removal; breaks the signatures). Revocation is checked online only on request.
+- Signing: encrypted PDFs can't be signed or take long-term data (save an unprotected copy first). A signature field's
+  /Lock is honored and enforced, but certifying doesn't let you pick fields to lock. A self-signed ID shows as untrusted on
+  other PCs until they trust it, and long-term data can't change that.
+- Long-term validation goes without a proxy, since a proxy would connect out of sight of the checks on where it may
+  connect: on a network that only lets traffic out through one, it fails with a message. An internal certificate authority
+  whose addresses are on the local network can't be asked: those certificates are reported as not covered, and signing
+  for the long term with one is refused. Issuers missing from a file aren't fetched when verifying, so such a chain shows as
+  untrusted until Check Signatures Online or the file's own data supplies them. The check of what a file holds reads a
+  limited amount (64 MB, 20 seconds) and says so when it stopped there.
 - Editing pages of a password-protected PDF needs its owner (permissions) password; opening it with the user
   password allows viewing, printing and copying only. Edits keep the protection; extracted and split pages are saved
   without it (Inkvolt PDF warns first). Non-ASCII passwords can't be typed to open a file (a MuPDFCore limitation).
@@ -787,10 +846,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   text: boxes with text in them, vertical rules, curves and scanned pages without OCR text find nothing; a table of
   empty cells becomes a field per cell.
 - Compare: text is matched in the order the pages store it (multi-column layouts can show reordered text as changes),
-  a paragraph moved elsewhere shows as removed in one place and inserted in another, and Thai, Lao or Khmer text (no
-  spaces between words) is compared in long runs. Visual compare overlays pages at their top-left corners without
-  aligning them, so two separate scans of the same paper, or a page shifted by a few points, look different all over.
-  The annotated copy lists text changes only (visual differences aren't in it), and needs the permissions password of a
+  and Thai, Lao or Khmer text (no spaces between words) is compared in long runs. Visual compare lines up scans for shift and
+  skew, not for a page scanned at another size or turned a quarter turn, and pages made by a program aren't lined up, so a page
+  shifted by a few points looks different all over. Windows' recognizer now and then skips a whole line that is on the page:
+  it is listed as removed, marked as maybe misread. A scan against a page made by a program isn't checked visually (they differ
+  all over), only by its words. The annotated copy needs the permissions password of a
   protected changed file. PDFs only (not XPS or EPUB).
 - **PowerPoint and HTML export**: a presentation has one slide size, so pages of another size are shrunk. Fonts that aren't on the PC are replaced by one of their kind, and a wider one wraps sooner, so dense forms come out crowded. PowerPoint's tabs have no leaders, so a contents page loses its dots. Only lines, rectangles and ellipses become shapes: rounded, dashed or see-through ones stay pictures, and are left out where text lies on them; a path reaching more than a page's size off the page is only its part on the page (a fill a rectangle there, an outline a picture, a line cut at the edges). HTML keeps no page layout, colors or fonts, only structure and emphasis; a picture on a page that was turned upright stays unturned there. Neither carries links. Alternate text comes from Figure tags: matched by their box, or in order when a page has as many tags without a box as pictures left. Pictures in the HTML are held in memory until the file is written. Checked in PowerPoint and the W3C validator; LibreOffice and a screen reader haven't been run (`tools/export-corpus` runs LibreOffice when it is installed).
 - Export to Word rebuilds the layout from what the pages draw, so it is a starting point for editing, not a copy:
@@ -838,6 +898,12 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   break across pages oddly; content that loads only on scrolling or after a delay may be missing (the page is scrolled
   once); pages behind a login can't be reached (the session is private). Needs the WebView2 Runtime (Windows 11, or
   installed on Windows 10).
+- Search Folders: a word is looked up by its letters and digits, so a query of only punctuation is refused (Find in the open
+  document takes it). A phrase is checked page by page among those with all its words, so when those are common and rarely side by
+  side it takes seconds, results coming as they are found. 500 pages are listed at most. Terms are cut at 48 characters, so a word
+  inside a longer run than that isn't found past there. The text of a changed or removed file stays in the index file, shown by no search, until the file is compacted
+  (within about 2 minutes, while the app is open). A file only in a cloud drive isn't downloaded for this: it is counted, and read once it is on the PC. A moved or renamed file
+  is read again. A file's comments aren't indexed, as Find doesn't search them.
 - Batch: printing isn't one of its actions (print a file from its tab); nor are page edits that need a page range or a
   choice per file (delete, extract, split, crop, insert). Actions run on every page of each file. Bates numbers that
   continue from file to file make the batch run one file at a time. A file is read whole into memory, and very large
@@ -933,8 +999,6 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
   over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering,
   PowerPoint export.
-- Compare: find moved paragraphs, line up shifted or skewed scans before overlaying them, put visual differences in the
-  annotated copy, and report formatting changes (font, size, color) as well as wording.
 - AI assistant: send pictures of pages to vision models; answers with tables; search by meaning (embeddings, with a
   local model) for Ask on long documents; save a conversation; summaries written into the document as a comment.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).

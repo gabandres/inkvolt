@@ -26,18 +26,19 @@ namespace InkvoltPdf.App;
 /// suspectfix text|keep · findcount word (how often search finds it) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · roapply · pdfa2a (with
 /// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
-/// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] · addsig p x y ·
+/// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] [lt|lta] · ltvloopback tsaurl · addvri · checkonline · levels · addsig p x y ·
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
 /// Stamps: <c>addstamp p x y Approved|Rejected|…|approvedby|custom:file</c> (moved and deleted with movesig / delsig). Inkvolt suite: <c>scandialog</c> (the open Scan dialog's scanners and choices) <c>·
 /// scanselect text · scanchoose glass|feeder|duplex Color|Grayscale|BlackAndWhite dpi</c> (choose the open Scan dialog's scanner and settings; "-" keeps one) <c>·
 /// scanpage file.jpg [dpi]</c> (give the open Scan dialog a page, as if scanned) <c>·
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
-/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a] ·
+/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate ·
+/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
-/// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparestate · comparereport</c>.
+/// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
+/// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
@@ -405,7 +406,45 @@ internal static class DevScript
                 if (tab!.AccessibilityReport is { } a11y) File.WriteAllText(arg, AccessibilityReportHtml.Write(a11y, tab.Session.DisplayName, DateTime.Now));
                 log.Add($"a11yreport: {File.Exists(arg)}");
                 break;
-            case "redact-patterns": log.Add($"redact-patterns: {(await tab!.MarkPatternMatches(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] }))?.Count ?? -1} matches"); break;
+            case "redact-patterns":
+            {
+                // redact-patterns [phrase]: search, every hit marked, without the list (see redact-find for the whole way).
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var found = await tab!.SearchPatterns(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] });
+                log.Add($"redact-patterns: {found?.Hits.Count ?? -1} matches, look at {found?.Looks.Count ?? 0} pages, {clock.ElapsedMilliseconds} ms");
+                if (found is not null) tab.PageView.AddRedactions(found.Hits.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
+                break;
+            }
+            // redact-find [phrase|set:name]: Redact by Pattern the whole way (use "later" for the list and report, which are modal) ·
+            // reviewselect i · reviewtoggle i · reviewall on|off · reviewstate · reviewpress · reviewcancel · reportstate · reportclose ·
+            // redactset name kind,kind|phrase|regex (save a set) · batchreport (the batch's report, modal; use "later")
+            case "redact-find":
+            {
+                var chosen = arg.StartsWith("set:", StringComparison.Ordinal)
+                    ? RedactionPatternSets.Load(Path.Combine(RedactPatternActions.SetsFolder, RedactionPatternSets.FileName(arg[4..]))).Options
+                    : new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] };
+                log.Add($"redact-find: applied {await tab!.RedactByPattern(chosen)}; {tab.LastRedactionReport?.Summary}");
+                log.Add($"redact-find rows: {string.Join("; ", tab.LastRedactionReport?.Removals.Select(r => $"{r.Page + 1} {r.PatternName} {r.Masked} {r.OutcomeText}") ?? [])}");
+                break;
+            }
+            case "reviewselect": RedactReviewDialog.Open!.DevSelect(int.Parse(arg)); break;
+            case "reviewearlier": RedactReviewDialog.Open!.DevSelectEarlier(); break;
+            case "reviewtoggle": RedactReviewDialog.Open!.DevToggle(int.Parse(arg)); break;
+            case "reviewall": RedactReviewDialog.Open!.DevAll(arg == "on"); break;
+            case "reviewstate": log.Add(RedactReviewDialog.Open?.DevState() ?? "review: none open"); break;
+            case "reviewpress": RedactReviewDialog.Open!.DevPress(); break;
+            case "reviewcancel": RedactReviewDialog.Open!.DevCancel(); break;
+            case "reportstate": log.Add(RedactionReportDialog.Open is null ? "report: none open" : "report: open"); break;
+            case "reportclose": RedactionReportDialog.Open?.Close(); break;
+            case "redactset":
+            {
+                var a = arg.Split(' ', 3);
+                var kinds = a[1].Split(',').Where(k => k.Length > 0).Select(k => Enum.Parse<RedactionPattern>(k, true)).ToHashSet();
+                var words = a.ElementAtOrDefault(2)?.Split('|') ?? [];
+                RedactionPatternSets.Save(new RedactionPatternSet(a[0], new RedactionPatternOptions { Patterns = kinds, Phrases = words.Length > 0 ? [words[0]] : [], Expression = words.ElementAtOrDefault(1) }), RedactPatternActions.SetsFolder);
+                break;
+            }
+            case "batchreport": OpenBatch().ShowRedactionReport(); break;
             case "apply-redactions": log.Add($"apply-redactions: {await tab!.ApplyRedactions(confirm: arg == "confirm")}"); break;
             case "attachments":
                 log.Add($"attachments: {tab!.AttachedFiles.Count}");
@@ -441,6 +480,16 @@ internal static class DevScript
                 log.Add($"signatures: {tab!.SignatureResults.Count}, bar: {BarText(tab, "SigBar", "SigBarText")}");
                 foreach (var s in tab.SignatureResults) log.Add($"  {s.FieldName}: {s.Status} signer={s.SignerName} trusted={s.CertificateTrusted} brokenByEdits={tab.BrokenByEdits(s)}: {DocumentTab.SignatureSummary(s, tab.BrokenByEdits(s))}");
                 break;
+            case "ltvloopback":
+                // Long-term validation against a local authority: lets this run's clients reach this PC's loopback, as nothing else does.
+                window.DevLtvClient = () => new Core.LtvClient(allowLoopback: true, allowHttpTimestamp: true);
+                AppSettings.Current.TimestampUrl = arg;
+                break;
+            case "addvri": await window.AddVerificationAsync(tab!); log.Add($"long-term: {tab!.DevLongTermOutcome}"); break;
+            case "checkonline": await window.CheckSignaturesOnlineAsync(tab!); await Task.Delay(800); log.Add($"long-term: {tab!.DevLongTermOutcome}"); break;
+            case "levels":
+                foreach (var s in tab!.SignatureResults) log.Add($"  {s.FieldName}: {s.Status} {s.LongTerm?.Level} {s.LongTerm?.Summary}");
+                break;
             case "makepfx":
             {
                 // makepfx <path> <password> <name>: a self-signed personal ID as a file (never touches the certificate store).
@@ -458,10 +507,11 @@ internal static class DevScript
                 Viewer.SignaturePlacement? box = null;
                 var visible = true;
                 var ts = Array.IndexOf(a, "ts");
+                var longTerm = a.Contains("lta") ? LongTermLevel.Lta : a.Contains("lt") ? LongTermLevel.Lt : LongTermLevel.None;
                 if (a.Length > 2 && a[2] == "box") box = new Viewer.SignaturePlacement(int.Parse(a[3]) - 1, new Core.RectD(Num(a[4]), Num(a[5]), Num(a[6]), Num(a[7])));
                 else if (a.Length > 2 && a[2] == "field") field = a[3];
                 else visible = false;
-                var choice = new SignChoice(cert, "I approve this document", "Dev script", visible, new Core.SignatureLook(), ts > 0, ts > 0 ? a[ts + 1] : "", Core.CertificationLevel.None);
+                var choice = new SignChoice(cert, "I approve this document", "Dev script", visible, new Core.SignatureLook(), ts > 0, ts > 0 ? a[ts + 1] : "", Core.CertificationLevel.None, longTerm);
                 await window.SignDigitallyAsync(tab!, field, choice, box);
                 log.Add($"signed: dirty={tab!.Session.IsDirty} file={tab.Session.DisplayName}");
                 break;
@@ -989,8 +1039,7 @@ internal static class DevScript
             case "compare":
             {
                 var a = arg.Split(' ', 2);
-                var cw = CompareWindow.Open(window, new CompareSide(Path.GetFileName(a[0]), await File.ReadAllBytesAsync(a[0]), null),
-                    new CompareSide(Path.GetFileName(a[1]), await File.ReadAllBytesAsync(a[1]), null), offScreen: true);
+                var cw = CompareWindow.Open(window, (await Comparing.LoadFile(window, a[0]))!, (await Comparing.LoadFile(window, a[1]))!, offScreen: true);
                 await CompareIdle(cw);
                 log.Add(cw.DevDescribe());
                 break;
@@ -1008,6 +1057,19 @@ internal static class DevScript
                 break;
             case "compareselect": Application.Current.Windows.OfType<CompareWindow>().Last().DevSelect(int.Parse(arg)); break;
             case "comparezoom": Application.Current.Windows.OfType<CompareWindow>().Last().DevZoom(arg == "fit" ? 0 : double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) / 100); break;
+            case "comparegroup":
+            {
+                var a = arg.Split(' ', 2);
+                Application.Current.Windows.OfType<CompareWindow>().Last().DevShowGroup(a[0], a[1] == "on");
+                break;
+            }
+            case "comparelist": CompareWindow.DevListed = int.Parse(arg); break;
+            case "comparetext":
+            {
+                var a = arg.Split(' ', 2);
+                log.Add(Application.Current.Windows.OfType<CompareWindow>().Last().DevText(a[0] == "old", int.Parse(a[1])));
+                break;
+            }
             case "comparestate": log.Add(Application.Current.Windows.OfType<CompareWindow>().Last().DevDescribe()); break;
             case "comparereport":
                 await Application.Current.Windows.OfType<CompareWindow>().Last().DevReportAsync();
@@ -1038,6 +1100,14 @@ internal static class DevScript
             // File tools, bookmarks, Read Aloud: openpw pw|drop|cancel (answers the active tab's next open-password prompt) · security ·
             // bookmarks · bookmark add Title | child path Title | rename path Title | delete path | move path parent index |
             // dest path (paths are 0-based, dotted: 1.0) · readaloud (toggle) · readaloud-state · readaloud-skip 1|-1
+            // devfile src dst pages [open owner]: the first pages of a PDF as a file, protected (AES-256) when passwords are given
+            case "devfile":
+            {
+                var a = arg.Split('|');
+                var made = PageEditor.Extract(File.ReadAllBytes(a[0]), null, [.. Enumerable.Range(0, int.Parse(a[2]))]);
+                File.WriteAllBytes(a[1], a.Length > 4 ? PdfSecurity.Protect(made, null, a[3], a[4]) : made);
+                break;
+            }
             case "openpw": ScriptOpenPassword(tab!, arg == "cancel" ? null : arg == "drop" ? new OpenPasswordAnswer(null, true) : new OpenPasswordAnswer(arg, false)); break;
             case "security": log.Add($"security: {SecurityActions.Describe(tab!.Session)} password={(tab.Session.Password is null ? "none" : "set")} open={(tab.Session.OpenPassword is null ? "none" : "set")}"); break;
             case "bookmarks": log.Add($"bookmarks: {tab!.DevBookmarks()}"); break;
@@ -1081,6 +1151,16 @@ internal static class DevScript
                 break;
             case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
             case "aistate": log.Add(tab!.DevAiState()); break;
+            // Translate: translate Language [pages] (the whole job; answer its windows with "later") · translatestate
+            case "translate":
+            {
+                var a = arg.Split(' ', 2);
+                var pages = a.Length > 1 && Core.PageRange.TryParse(a[1], v!.PageCount, out var some, out _) ? some : [.. Enumerable.Range(0, v!.PageCount)];
+                await tab!.AiTranslate(a[0], Core.Translation.Languages.FirstOrDefault(l => l.Name == a[0])?.Tag, pages);
+                log.Add($"translated: {DocumentTab.LastTranslationSummary?.Replace('\n', ' ')}");
+                break;
+            }
+            case "translatestate": log.Add(tab!.DevTranslateState()); break;
             case "dialogfill":
                 if (Application.Current.Windows.OfType<FormDialog>().LastOrDefault(w => w.IsVisible) is { } fd)
                 {
@@ -1157,8 +1237,48 @@ internal static class DevScript
             case "watchstate": log.Add($"watch: {WatchWindow.Open(window).DevState()}; title '{FolderWatches.Summary}'"); break;
             // Inkvolt Pro: prowindow [presets|watched|cli|tag|ro|pdfa2a] (Help › Inkvolt Pro, or as a locked feature opens it) · pro <key>|remove (enter or
             // remove a key in that window) · proenforce on|off (the gate, to see the locked views) · proshot out.png · prostate
+            // Search Folders (with INKVOLTPDF_DATA set, or the index goes to the temp folder): foldersearch (the window, off-screen) · indexadd folder · indexwait [s]
+            // (until up to date) · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i (open result i at the hit: logs the tab's file, page and find bar) ·
+            // indexpause on|off · indexremove (the first folder) · indexlatency ms (the longest wait for the UI thread) · foldersearchshot out.png
+            case "foldersearch": FolderSearchWindow.Open(window, offScreen: true); break;
+            case "indexadd":
+                FolderSearches.Add(arg);
+                FolderSearchWindow.Open(window, offScreen: true).DevRefresh();
+                break;
+            case "indexwait": log.Add(await WaitForIndexes(arg.Length > 0 ? int.Parse(arg) : 600)); break;
+            case "indexstate": log.Add(FolderSearchWindow.Open(window, offScreen: true).DevState()); break;
+            case "indexsearch": log.Add(await FolderSearchWindow.Open(window, offScreen: true).DevSearch(arg)); break;
+            case "indexoption":
+            {
+                var a = arg.Split(' ');
+                FolderSearchWindow.Open(window, offScreen: true).DevOption(a[0], a[1] == "on");
+                break;
+            }
+            case "indexopen":
+            {
+                FolderSearchWindow.Open(window, offScreen: true).DevSelect(int.Parse(arg));
+                await Task.Delay(2000);
+                var t = window.ActiveTab;
+                log.Add($"indexopen: {Log.Name(t?.Session.FilePath)} page {t?.PageView.CurrentPage + 1} of {t?.PageView.PageCount}; find '{(t?.FindName("FindBox") as System.Windows.Controls.TextBox)?.Text}': {(t?.FindName("FindStatus") as System.Windows.Controls.TextBlock)?.Text}");
+                break;
+            }
+            case "indexpause":
+                foreach (var f in FolderSearches.All) f.SetPaused(arg == "on");
+                break;
+            case "indexremove": FolderSearches.Remove(FolderSearches.All[0]); break;
+            case "indexlatency":
+                log.Add($"indexlatency: at most {await FolderSearchWindow.Open(window, offScreen: true).DevLatency(int.Parse(arg)):0.0} ms waiting for the UI thread; {FolderSearches.All[0].StatusText}");
+                break;
+            case "foldersearchshot":
+            {
+                var w = FolderSearchWindow.Open(window, offScreen: true);
+                w.DevRefresh();
+                await Task.Delay(500);
+                Shot(w, arg);
+                break;
+            }
             case "prowindow":
-                ProWindow.Open(window, arg switch { "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, _ => null });
+                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, _ => null });
                 await Task.Delay(300);
                 break;
             case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;
@@ -1241,6 +1361,17 @@ internal static class DevScript
 
     /// <summary>The scripted answer to the next Add/Edit Link dialog (<c>linktarget</c>), if any (null = cancel).</summary>
     internal static bool TakeLinkTarget(out (string? Uri, int Page)? target) => LinkTargets.TryDequeue(out target);
+
+    private static async Task<string> WaitForIndexes(int seconds)
+    {
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (waited.Elapsed.TotalSeconds < seconds)
+        {
+            if (FolderSearches.All.All(f => f.Indexer?.Status.Phase is IndexerPhase.UpToDate or IndexerPhase.Paused)) break;
+            await Task.Delay(100);
+        }
+        return $"indexwait {waited.Elapsed.TotalSeconds:0.0} s: {string.Join(" | ", FolderSearches.All.Select(f => f.StatusText))}";
+    }
 
     private static void SetFindText(DocumentTab tab, string text)
     {
@@ -1725,6 +1856,14 @@ internal static class DevScript
                         { Headers = { ContentType = json } },
                 };
             var text = (mode.Length > 1 ? mode[1] : "An answer.").Replace("\\n", "\n"); // a typed \n is a line break
+            if (mode[0] == "translate")
+            {
+                // A stand-in translation: the user message's words, marked and a little longer; "translate 200" takes that many ms each.
+                using var sent = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var source = sent.RootElement.GetProperty("messages").EnumerateArray().Last().GetProperty("content").GetString()!;
+                text = $"[ES] {source} (traducido)";
+                if (mode.Length > 1 && int.TryParse(mode[1], out var slow)) await Task.Delay(slow, cancellationToken);
+            }
             var sb = new System.Text.StringBuilder();
             foreach (var word in System.Text.RegularExpressions.Regex.Split(text, @"(?<=\s)"))
             {

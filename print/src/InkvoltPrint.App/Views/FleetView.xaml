@@ -1,0 +1,124 @@
+<UserControl x:Class="InkvoltPrint.App.Views.FleetView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:FleetViewModel}"
+             Focusable="False">
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,16,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Content="Stop" Command="{Binding StopFixingCommand}" Margin="0,0,8,0" Padding="14,6"
+                        AutomationProperties.Name="Stop Fix all"
+                        Visibility="{Binding IsFixing, Converter={StaticResource VisibleWhen}}" />
+                <Button Content="Fix all…" Command="{Binding FixAllCommand}" Margin="0,0,8,0" Padding="14,6"
+                        AutomationProperties.HelpText="Resumes paused queues and turns off Use Printer Offline, asking about each one"
+                        ToolTip="Resume paused queues and turn off Use Printer Offline, asking about each one (Inkvolt Pro)" />
+                <Button Content="Export…" Command="{Binding ExportCommand}" Padding="14,6"
+                        AutomationProperties.HelpText="Saves this list as a CSV or JSON file"
+                        ToolTip="Save this list as a CSV or JSON file (Inkvolt Pro)" />
+            </StackPanel>
+            <StackPanel Margin="0,0,16,0">
+                <TextBlock Text="Fleet" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock x:Name="SummaryLine" Text="{Binding Summary}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
+                           AutomationProperties.LiveSetting="Polite" />
+                <TextBlock Text="{Binding ExportMessage}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
+                           Visibility="{Binding ExportMessage, Converter={StaticResource VisibleWhen}}" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- What Fix all did -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,16,12"
+                Visibility="{Binding FixSummary, Converter={StaticResource VisibleWhen}}">
+            <StackPanel>
+                <TextBlock Text="{Binding FixSummary}" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <ItemsControl ItemsSource="{Binding FixSteps}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0">
+                                <Run Text="{Binding Title, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Message, Mode=OneWay}" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding FixLeft}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0">
+                                <Run Text="Left for the printer's own Fix it…: " /><Run Text="{Binding Mode=OneWay}" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- The rows: a list a keyboard moves through (arrows), each read whole by a screen reader; Tab reaches its buttons -->
+        <ListBox x:Name="Rows" ItemsSource="{Binding Rows}" BorderThickness="0" Background="Transparent" Padding="0,0,12,12"
+                 AutomationProperties.Name="Printers, most trouble first"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
+                 KeyboardNavigation.TabNavigation="Continue" HorizontalContentAlignment="Stretch">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource SubtleListItem}">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Row.AccessibleText}" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Margin" Value="0,0,0,6" />
+                    <Setter Property="Padding" Value="12,10" />
+                    <Setter Property="KeyboardNavigation.TabNavigation" Value="Continue" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:FleetRowViewModel}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                            <Button Content="Fix it…" Command="{Binding FixCommand}" Margin="0,0,8,0" Padding="12,4"
+                                    AutomationProperties.Name="{Binding FixName}"
+                                    Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
+                            <Button Content="Open" Command="{Binding OpenCommand}" Padding="12,4" AutomationProperties.Name="{Binding OpenName}" />
+                        </StackPanel>
+                        <Ellipse DockPanel.Dock="Left" Width="11" Height="11" Margin="0,5,10,0" VerticalAlignment="Top"
+                                 Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding Row.Printer.Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Row.StatusLine}" TextWrapping="Wrap" Margin="0,1,0,0" />
+                            <ItemsControl ItemsSource="{Binding Supplies}" Focusable="False" Margin="0,6,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:FleetSupplyView}">
+                                        <StackPanel Margin="0,0,16,4" MinWidth="110">
+                                            <StackPanel Orientation="Horizontal">
+                                                <!-- The supply's own color (decorative: the name says it) -->
+                                                <Ellipse Width="9" Height="9" Margin="0,0,5,0" VerticalAlignment="Center"
+                                                         Fill="{Binding Color, Converter={StaticResource SupplyBrush}}"
+                                                         Stroke="{DynamicResource ControlStrongStrokeColorDefaultBrush}" StrokeThickness="0.5"
+                                                         Visibility="{Binding Color, Converter={StaticResource VisibleWhen}}" />
+                                                <TextBlock Text="{Binding Text}" Style="{StaticResource Caption}" FontSize="12" />
+                                            </StackPanel>
+                                            <Grid Height="4" Margin="0,3,0,0" Visibility="{Binding HasLevel, Converter={StaticResource VisibleWhen}}">
+                                                <Border CornerRadius="2" Background="{DynamicResource ControlStrongFillColorDefaultBrush}" Opacity="0.25" />
+                                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Level, Mode=OneWay}" Height="4" MinHeight="4"
+                                                             Background="Transparent" BorderThickness="0" Focusable="False"
+                                                             Foreground="{Binding LevelKind, Converter={StaticResource LevelBrush}}"
+                                                             AutomationProperties.Name="{Binding Text}" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Row.NoSuppliesText}" Style="{StaticResource Caption}" FontSize="12" Margin="0,4,0,0"
+                                       Visibility="{Binding Row.NoSuppliesText, Converter={StaticResource VisibleWhen}}" />
+                            <TextBlock Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0">
+                                <Run Text="{Binding Row.PagesText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Row.FirmwareText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Row.LastReadText, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DockPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

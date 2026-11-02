@@ -290,9 +290,10 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
 
 - Inkvolt PDF collects no personal data and has no telemetry, analytics, ads or accounts.
 - Documents are processed on the PC (rendering, search, OCR with Windows' own recognizer).
-- Network use happens only on the user's action: an RFC 3161 timestamp when signing with "Add a timestamp" (only a
-  hash of the signature goes to the chosen timestamp server, default DigiCert); certificate revocation checks when
-  verifying a signature on request (Windows fetches CRL/OCSP from the certificate's issuer); and links in documents,
+- Network use happens only on the user's action: an RFC 3161 timestamp when signing with "Add a timestamp" or adding a
+  document timestamp (only a hash goes to the timestamp server in the field, Sectigo's free one unless the user enters another); Add Verification
+  Information, signing for the long term and Check Signatures Online, which ask the OCSP and CRL addresses a certificate names
+  (they learn which certificate is asked about, never the document), each after a window listing them; and links in documents,
   which open in the default browser after the user clicks (and confirms for anything but http/https/mailto).
 - PDF from Web Page loads the address the user types (or a local file) in a private WebView2 session, as a browser
   would; nothing else is sent. PDF from Office File uses the Office installed on the PC; the file stays on the PC.

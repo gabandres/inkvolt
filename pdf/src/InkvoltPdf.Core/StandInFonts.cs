@@ -21,33 +21,33 @@ internal static class StandInFonts
     private static readonly Family[] Families =
     [
         new("Arial", Kind.Sans, "arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf",
-            ["Arial", "Helvetica", "Helv", "Arimo", "Liberation Sans", "Nimbus Sans", "Nimbus Sans L"]),
+            ["Arial", "Helvetica", "Helv", "Arimo", "Liberation Sans", "Nimbus Sans", "Nimbus Sans L", "NimbusSanL", "NimbusSans"]),
         new("Segoe UI", Kind.Sans, "segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuiz.ttf", ["Segoe UI"]),
         new("Calibri", Kind.Sans, "calibri.ttf", "calibrib.ttf", "calibrii.ttf", "calibriz.ttf", ["Calibri", "Carlito"]),
         new("Verdana", Kind.Sans, "verdana.ttf", "verdanab.ttf", "verdanai.ttf", "verdanaz.ttf", ["Verdana", "DejaVu Sans"]),
         new("Tahoma", Kind.Sans, "tahoma.ttf", "tahomabd.ttf", null, null, ["Tahoma"]),
         new("Trebuchet MS", Kind.Sans, "trebuc.ttf", "trebucbd.ttf", "trebucit.ttf", "trebucbi.ttf", ["Trebuchet MS", "Trebuchet"]),
         new("Times New Roman", Kind.Serif, "times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf",
-            ["Times New Roman", "Times", "Tinos", "Liberation Serif", "Nimbus Roman", "Nimbus Roman No9 L"]),
+            ["Times New Roman", "Times", "Tinos", "Liberation Serif", "Nimbus Roman", "Nimbus Roman No9 L", "NimbusRomNo9L", "NimbusRoman"]),
         new("Georgia", Kind.Serif, "georgia.ttf", "georgiab.ttf", "georgiai.ttf", "georgiaz.ttf", ["Georgia"]),
         new("Cambria", Kind.Serif, "cambria.ttc", "cambriab.ttf", "cambriai.ttf", "cambriaz.ttf", ["Cambria", "Caladea"]),
         new("Palatino Linotype", Kind.Serif, "pala.ttf", "palab.ttf", "palai.ttf", "palabi.ttf",
             ["Palatino Linotype", "Palatino", "Book Antiqua", "URW Palladio L"]),
         new("Constantia", Kind.Serif, "constan.ttf", "constanb.ttf", "constani.ttf", "constanz.ttf", ["Constantia"]),
         new("Courier New", Kind.Mono, "cour.ttf", "courbd.ttf", "couri.ttf", "courbi.ttf",
-            ["Courier New", "Courier", "Cousine", "Liberation Mono", "Nimbus Mono", "Nimbus Mono L"]),
+            ["Courier New", "Courier", "Cousine", "Liberation Mono", "Nimbus Mono", "Nimbus Mono L", "NimbusMonL", "NimbusMono"]),
         new("Consolas", Kind.Mono, "consola.ttf", "consolab.ttf", "consolai.ttf", "consolaz.ttf", ["Consolas", "Inconsolata"]),
         new("Lucida Console", Kind.Mono, "lucon.ttf", null, null, null, ["Lucida Console"]),
     ];
 
     private static readonly string[] SerifWords =
-        ["Times", "Serif", "Roman", "Georgia", "Garamond", "Cambria", "Palatino", "Book", "Minion", "Caslon", "Baskerville", "Bodoni",
+        ["Times", "Serif", "Roman", "NimbusRom", "Georgia", "Garamond", "Cambria", "Palatino", "Minion", "Caslon", "Baskerville", "Bodoni",
          "Century", "Cheltenham", "Constantia", "Didot", "Goudy", "Janson", "Sabon", "Utopia", "Charter", "Bookman", "Schoolbook", "Antiqua",
-         "Cochin", "Perpetua", "Rockwell", "Clarendon", "Merriweather", "Lora", "Tiempos", "Source Serif", "Noto Serif", "Libertine", "CMR", "LMRoman"];
+         "Cochin", "Perpetua", "Rockwell", "Clarendon", "Merriweather", "Lora", "Tiempos", "Source Serif", "Noto Serif", "Libertine", "CMR", "CMBX", "CMTI", "CMSL", "SFRM", "STIX", "LMRoman"];
 
     private static readonly string[] MonoWords = ["Mono", "Courier", "Consol", "Code", "Typewriter", "Fixed", "Lucida Console", "Menlo", "Monaco", "CMTT", "LMMono"];
 
-    private static readonly string[] SansWords = ["Sans", "Arial", "Helvetica", "Gothic", "Grotesk", "Verdana", "Tahoma", "Calibri", "Segoe", "Futura", "Frutiger", "Myriad", "Univers", "Gill"];
+    private static readonly string[] SansWords = ["Sans", "NimbusSan", "CMSS", "Arial", "Helvetica", "Gothic", "Gotham", "Grotesk", "Proxima", "Whitney", "Avenir", "Verdana", "Tahoma", "Calibri", "Aptos", "Segoe", "Roboto", "Lato", "Futura", "Frutiger", "Myriad", "Univers", "Gill"];
 
     /// <summary>Lowercase and capitals most text has: what the widths are compared on.</summary>
     private const string Sample = "etaoinshrdlucmfwypvbgkxqjzETAOINSHRDLUCM0123456789";
@@ -57,14 +57,17 @@ internal static class StandInFonts
     /// <summary>What a page font is like: its class, weight and slant (from its name and descriptor flags).</summary>
     internal static (Kind Kind, bool Bold, bool Italic) Describe(TextFont font)
     {
-        var family = FontNames.Family(font.Name);
-        bool Has(string[] words) => words.Any(w => font.Name.Contains(w, StringComparison.OrdinalIgnoreCase) || family.Contains(w, StringComparison.OrdinalIgnoreCase));
-        Kind kind;
-        if ((font.Flags & 1) != 0 || Has(MonoWords)) kind = Kind.Mono;
-        else if (Has(SansWords)) kind = Kind.Sans;
-        else if ((font.Flags & 2) != 0 || Has(SerifWords)) kind = Kind.Serif;
-        else kind = Kind.Sans;
-        return (kind, font.Bold, font.Italic);
+        return (KindOf(font.Name, font.Flags), font.Bold, font.Italic);
+    }
+
+    /// <summary>A font's class from its name and descriptor flags (a subset's name is matched without its tag).</summary>
+    internal static Kind KindOf(string name, int flags)
+    {
+        var family = FontNames.Family(name);
+        bool Has(string[] words) => words.Any(w => name.Contains(w, StringComparison.OrdinalIgnoreCase) || family.Contains(w, StringComparison.OrdinalIgnoreCase));
+        if ((flags & 1) != 0 || Has(MonoWords)) return Kind.Mono;
+        if (Has(SansWords)) return Kind.Sans;
+        return (flags & 2) != 0 || Has(SerifWords) ? Kind.Serif : Kind.Sans;
     }
 
     /// <summary>Installed fonts in the order they come closest to <paramref name="font"/> (its own family first when installed).</summary>
@@ -269,7 +272,7 @@ internal static class StandInFonts
     }
 
     /// <summary>A script fallback's file name as a font name ("seguisym" → "Segoe UI Symbol").</summary>
-    private static string Pretty(string file) => file.ToLowerInvariant() switch
+    internal static string Pretty(string file) => file.ToLowerInvariant() switch
     {
         "seguisym" => "Segoe UI Symbol",
         "seguiemj" => "Segoe UI Emoji",

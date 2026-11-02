@@ -8,7 +8,15 @@
                    Text="These details help find the problem: the version, Windows, a few settings and the end of Inkvolt Print's log. IP addresses, printer IDs and serial numbers, file paths and your names are masked. Nothing is sent: copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share." />
         <TextBox x:Name="Details" IsReadOnly="True" TextWrapping="NoWrap" Height="320" FontFamily="Cascadia Mono, Consolas" FontSize="12"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="Details to report" />
-        <TextBlock x:Name="Status" Style="{StaticResource Caption}" Margin="0,8,0,0" Visibility="Collapsed" />
+        <TextBlock x:Name="Status" Style="{StaticResource Caption}" Margin="0,8,0,0" Visibility="Collapsed" TextWrapping="Wrap" />
+        <DockPanel Margin="0,16,0,0">
+            <StackPanel DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Top">
+                <Button x:Name="RecordButton" Content="Record this printer" Click="Record_Click" MinWidth="150"
+                        ToolTip="Asks the printer shown for everything Inkvolt Print reads from it, read only, and saves the replies with what identifies it taken out" />
+                <Button x:Name="ShowRecording" Content="Show the file" Click="ShowRecording_Click" MinWidth="150" Margin="0,8,0,0" Visibility="Collapsed" />
+            </StackPanel>
+            <TextBlock x:Name="RecordNote" Style="{StaticResource Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
         <DockPanel Margin="0,16,0,0">
             <Button DockPanel.Dock="Right" Content="Close" IsCancel="True" MinWidth="96" />
             <StackPanel Orientation="Horizontal">

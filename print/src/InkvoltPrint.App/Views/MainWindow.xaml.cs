@@ -16,7 +16,21 @@ public partial class MainWindow : Window
         InitializeComponent();
         Root.SizeChanged += (_, _) => FoldSidebar();
         // Choosing a printer in the folded sidebar closes it, as Windows Settings' pane does.
-        PrinterList.SelectionChanged += (_, _) => { if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false)); };
+        PrinterList.SelectionChanged += (_, _) =>
+        {
+            if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false));
+            // Moving through the list by keyboard leaves the Fleet page; the list changing by itself (a queue added, a printer gone) doesn't.
+            if (PrinterList.IsKeyboardFocusWithin && Vm is { } vm) vm.IsFleetShown = false;
+        };
+        // The printer already selected is chosen again: the selection doesn't change, the Fleet page still goes.
+        PrinterList.PreviewMouseLeftButtonUp += (_, e) =>
+        {
+            if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(PrinterList, d) is ListBoxItem && Vm is { } vm) vm.IsFleetShown = false;
+        };
+        PrinterList.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter && Vm is { } vm) vm.IsFleetShown = false;
+        };
         PreviewKeyDown += OnPreviewKey;
         CommandBindings.Add(new CommandBinding(PaletteCommand, (_, _) => OpenPalette()));
         PaletteBox.TextChanged += (_, _) => FilterPalette();
@@ -41,6 +55,16 @@ public partial class MainWindow : Window
     private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.Selected) && IsLoaded) Motion.Enter(PrinterPane);
+        if (e.PropertyName == nameof(MainViewModel.IsFleetShown) && IsLoaded && Vm is { IsFleetShown: false })
+        {
+            Motion.Enter(PrinterPane);
+            // The Fleet page took the keyboard's place with it: back to the printer, on the list.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                if (Keyboard.FocusedElement is UIElement { IsVisible: true }) return;
+                (PrinterList.ItemContainerGenerator.ContainerFromItem(PrinterList.SelectedItem) as ListBoxItem)?.Focus();
+            });
+        }
     }
 
     // ───────────── The sidebar, folded on a narrow window or at a large Text size ─────────────
@@ -65,6 +89,31 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the folded sidebar over the page (sliding in), or closes it; unfolded, it always shows.</summary>
+    /// <summary>Open the queue (a job's notification): brings the print queue card into view, once it has read the queue and shows.</summary>
+    public async Task ShowQueueCardAsync()
+    {
+        for (var i = 0; i < 30; i++)
+        {
+            if (FindQueueCard(this) is { } card)
+            {
+                card.BringIntoView();
+                return;
+            }
+            await Task.Delay(100);
+        }
+    }
+
+    private static FrameworkElement? FindQueueCard(DependencyObject root)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is Border { DataContext: ViewModels.PrintJobsViewModel, IsVisible: true } card) return card;
+            if (FindQueueCard(child) is { } inner) return inner;
+        }
+        return null;
+    }
+
     public void ShowSidebar(bool open, bool focus = true)
     {
         var was = _sidebarOpen;
@@ -178,8 +227,10 @@ public partial class MainWindow : Window
         {
             if (command?.CanExecute(parameter) == true) command.Execute(parameter);
         }
+        if (kind is "section" or "show" or "preset" or "printer") vm.IsFleetShown = false; // what they do is on the printer's page
         switch (kind, arg)
         {
+            case ("app", "fleet"): ShowFleet(); break;
             case ("section", _) when p is not null && int.TryParse(arg, out var section): p.SelectedSection = section; break;
             case ("show", _) when int.TryParse(arg, out var n) && n < vm.Printers.Count: vm.Selected = vm.Printers[n]; break;
             case ("preset", _) when int.TryParse(arg, out var preset) && p?.Scan is not null && preset < vm.Presets.Items.Count:
@@ -190,6 +241,7 @@ public partial class MainWindow : Window
             case ("printer", "setup"): Run(p?.SetUpCommand); break;
             case ("printer", "reconnect"): Run(p?.ReconnectCommand); break;
             case ("printer", "photos"): Run(p?.GoToPhotosCommand); break;
+            case ("printer", "batch"): p?.GoToBatch(); break;
             case ("printer", "fix"): Run(p?.OpenFixerCommand); break;
             case ("printer", "maintenance"): Run(p?.ShowMaintenanceCommand); break;
             case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
@@ -198,7 +250,7 @@ public partial class MainWindow : Window
             case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;
             case ("app", "help"): ShowHelp(); break;
             case ("app", "whatsnew"): WhatsNewDialog.Open(this, AppHelp.Notes()); break;
-            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm)); break;
+            case ("app", "report"): ReportProblemDialog.Open(this, AppHelp.Report(vm), vm.Selected); break;
             case ("app", "about"): AboutDialog.Open(this); break;
         }
     }
@@ -222,6 +274,18 @@ public partial class MainWindow : Window
     }
 
     private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
+
+    private void Fleet_Click(object sender, RoutedEventArgs e) => ShowFleet();
+
+    /// <summary>The Fleet page, with the keyboard on its first row.</summary>
+    public void ShowFleet()
+    {
+        if (Vm is not { } vm) return;
+        ShowSidebar(open: false, focus: false);
+        vm.IsFleetShown = true;
+        Motion.Enter(FleetPage);
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, FleetPage.FocusList);
+    }
 
     private void AddPrinter_Click(object sender, RoutedEventArgs e)
     {
@@ -262,7 +326,7 @@ public partial class MainWindow : Window
             {
                 e.Cancel = true;
                 if (Vm.Selected is { Scan: not null } sel && sel.Scan.HasUnsavedPages) sel.SelectedSection = PrinterViewModel.ScanSection;
-                else Vm.Selected = printers[0];
+                else Vm.ShowPrinter(printers[0]);
             }
         }
         base.OnClosing(e);
@@ -325,18 +389,37 @@ public partial class MainWindow : Window
     private void Window_DragOver(object sender, DragEventArgs e)
     {
         var files = Dropped(e);
-        e.Effects = (DroppedPdf(files) is not null || DroppedPictures(files).Count > 0) && Vm?.Selected is not null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effects = (DroppedPdf(files) is not null || DroppedPictures(files).Count > 0 || HasFolder(files)) && Vm?.Selected is not null ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    /// <summary>Drop a PDF anywhere on the window: it opens in the selected printer's Print section. Pictures go to Photos.</summary>
+    private (string? First, bool Folder) _dragged;
+
+    /// <summary>
+    /// Is a folder being dragged? Asked as the mouse moves, on the UI thread, so asked once per drag and never of another computer
+    /// (a server that's off would hold the window): there, a name without an extension counts as one.
+    /// </summary>
+    private bool HasFolder(string[] files)
+    {
+        if (files.Length == 0) return false;
+        if (_dragged.First != files[0])
+            _dragged = (files[0], files.Any(f => f.StartsWith(@"\\", StringComparison.Ordinal) ? !Path.HasExtension(f) : Directory.Exists(f)));
+        return _dragged.Folder;
+    }
+
+    /// <summary>Drop a PDF anywhere on the window: it opens in the selected printer's Print section. Pictures go to Photos. A folder or several PDFs go to Batch.</summary>
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         try
         {
             var files = Dropped(e);
             if (Vm?.Selected is not { } printer) return;
-            if (DroppedPdf(files) is { } path && File.Exists(path)) await printer.OpenPdfAsync(path);
+            // A folder, several PDFs, or anything printable while Batch shows: all of it goes to the batch, none is quietly left out.
+            var anyFolder = await Task.Run(() => files.Any(Directory.Exists));
+            if (printer.CanPrint && (anyFolder || files.Count(f => f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) > 1
+                                     || (printer.SelectedSection == PrinterViewModel.PrintSection && printer.Print.ShowBatch)))
+                await printer.OpenBatchAsync(files);
+            else if (DroppedPdf(files) is { } path && File.Exists(path)) await printer.OpenPdfAsync(path);
             else if (DroppedPictures(files).Where(File.Exists).ToList() is { Count: > 0 } pictures) await printer.OpenPhotosAsync(pictures);
         }
         catch (Exception ex)

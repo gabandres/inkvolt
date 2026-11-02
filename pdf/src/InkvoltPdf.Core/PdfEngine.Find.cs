@@ -118,6 +118,17 @@ public sealed partial class PdfEngine
         return new PageMatches(page, hits.Count > 0 ? text : null, hits);
     }
 
+    /// <summary>A page's text for an index worker, read on the document's one instance: no second opening for a file read once from start to end.</summary>
+    internal string ReadTextForIndex(int page)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _loaded.Touch(page);
+            return ExtractText(_doc, page).Text;
+        }
+    }
+
     /// <summary>The worker's side of a search: reads the pages asked for, in order, and answers each one until told there are no more.</summary>
     internal void ServeFind(Stream input, Stream output, FindWorkers.OpenRequest search)
     {
@@ -521,9 +532,7 @@ public sealed partial class PdfEngine
         public void Start(FindWorkerPlan plan)
         {
             var name = FindWorkers.NewPipeName();
-            // Only this user's processes may open it, and only this one instance can exist under this name.
-            _pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | PipeOptions.FirstPipeInstance, 1 << 16, 1 << 18);
+            _pipe = FindWorkers.NewPipe(name);
             var process = FindWorkers.StartWithoutHandles(plan.Exe, [.. plan.Args, FindWorkers.Switch, name], Path.GetDirectoryName(plan.Exe) ?? "");
             lock (_gate)
             {
@@ -532,15 +541,7 @@ public sealed partial class PdfEngine
             }
             lock (engine._workerPids) engine._workerPids.Add(process.Id);
             FindWorkers.Job.Add(process);
-            using var waiting = CancellationTokenSource.CreateLinkedTokenSource(_ended.Token);
-            waiting.CancelAfter(plan.ConnectMs);
-            var connect = _pipe.WaitForConnectionAsync(waiting.Token);
-            _ = connect.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted); // observed, should it fail after the wait
-            Task.WhenAny(connect, process.WaitForExitAsync(waiting.Token)).GetAwaiter().GetResult();
-            if (!connect.IsCompletedSuccessfully) throw new InvalidOperationException("The worker didn't connect.");
-            // Whoever got in must be the process just started.
-            if (!FindWorkers.GetNamedPipeClientProcessId(_pipe.SafePipeHandle, out var client)) throw new Win32Exception();
-            if (client != process.Id) throw new InvalidOperationException("Another process answered the pipe.");
+            FindWorkers.AwaitConnection(_pipe, process, plan.ConnectMs, _ended.Token);
         }
 
         public void Send(FindWorkers.OpenRequest request)

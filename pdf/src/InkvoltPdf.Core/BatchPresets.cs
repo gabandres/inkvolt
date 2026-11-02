@@ -215,6 +215,7 @@ public static class BatchPresets
                     foreach (var page in r.Pages) w.WriteNumberValue(page + 1);
                     w.WriteEndArray();
                 }
+                if (r.SetName is not null) w.WriteString("setName", r.SetName);
                 break;
             case WatermarkStep { Options: var m }:
                 w.WriteString("text", m.Image is null ? m.Text : null);
@@ -328,6 +329,19 @@ public static class BatchPresets
     /// <exception cref="BatchPresetException">It isn't JSON, isn't a preset, comes from a newer version, or a setting is wrong.</exception>
     public static BatchPreset Read(string json, string? fallbackName = null)
     {
+        try
+        {
+            return ReadJson(json, fallbackName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // JSON text that holds half a surrogate pair ("\uD800") parses, and only fails when it is read.
+            throw new BatchPresetException("This preset holds text that can't be read.", ex);
+        }
+    }
+
+    private static BatchPreset ReadJson(string json, string? fallbackName)
+    {
         JsonDocument doc;
         try
         {
@@ -423,6 +437,7 @@ public static class BatchPresets
                 MatchCase = f.Bool("matchCase", false),
                 Expression = f.Text("expression", null) is { Length: > 0 } x ? x : null,
                 Pages = f.Pages("pages"),
+                SetName = f.Text("setName", null) is { Length: > 0 } set ? RedactionPatternSets.CleanName(set) : null,
             }),
             "checkRedaction" => new CheckRedactionStep(),
             "checkAccessibility" => new CheckAccessibilityStep(),

@@ -12,5 +12,7 @@
     <Using Include="Xunit" />
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Built first, not referenced: BatchPrintEndToEndTests runs its command line, through Windows' real PDF and picture engines. -->
+    <ProjectReference Include="..\..\src\InkvoltPrint.App\InkvoltPrint.App.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" UndefineProperties="TargetFramework;RuntimeIdentifier" PrivateAssets="all" ExcludeAssets="all" />
   </ItemGroup>
 </Project>

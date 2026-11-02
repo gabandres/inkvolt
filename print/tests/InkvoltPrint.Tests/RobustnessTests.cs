@@ -10,6 +10,220 @@ using InkvoltPrint.Core.Pdf;
 
 namespace InkvoltPrint.Tests;
 
+/// <summary>What a printer can't make the app do over HTTP: ask another computer, or keep a reply without end. All reads go through <see cref="DeviceHttp"/>.</summary>
+public class DeviceHttpLimitsTests
+{
+    private const string Host = "192.0.2.10", Other = "192.0.2.200";
+
+    /// <summary>A reply of so many bytes, read a chunk at a time; counts what was read of it, and can break off instead of ending.</summary>
+    private sealed class Reply(long size, bool breaksOff = false) : Stream
+    {
+        public long At;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => At; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (breaksOff && At >= size) throw new IOException("The connection went.");
+            var n = (int)Math.Min(count, size - At);
+            Array.Clear(buffer, offset, n);
+            At += n;
+            return n;
+        }
+    }
+
+    private sealed class Serving(Stream reply, Action<Uri>? asked = null) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            asked?.Invoke(request.RequestUri!);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(reply) });
+        }
+    }
+
+    private sealed class NothingThere(Action<Uri> asked) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            lock (asked) asked(request.RequestUri!);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        }
+    }
+
+    private static string Fixture(string file) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", file));
+
+    [Theory]
+    [InlineData("http://192.0.2.200/secret.xml")]
+    [InlineData("https://192.0.2.200/secret.xml")]
+    [InlineData("http://192.0.2.10.evil.example/secret.xml")]
+    [InlineData("http://user@192.0.2.200/secret.xml")]
+    public async Task A_request_to_another_computer_isnt_sent(string url)
+    {
+        var asked = new List<Uri>();
+        using var http = new DeviceHttp(Host, new Serving(new MemoryStream([1]), asked.Add));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetBytesOrNullAsync(new Uri(url)));
+        using var post = new HttpRequestMessage(HttpMethod.Post, url);
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(post));
+        Assert.Empty(asked);
+    }
+
+    [Theory]
+    [InlineData(Host, "http://192.0.2.10/a")]
+    [InlineData(Host, "http://192.0.2.10:631/ipp/print")]
+    [InlineData(Host, "https://192.0.2.10/a")]
+    [InlineData(Host, "https://192.0.2.10:8443/eSCL/")]
+    [InlineData("HP-Printer.local", "http://hp-printer.LOCAL:8080/a")]
+    [InlineData("HP-Printer.local", "https://HP-PRINTER.local/a")]
+    [InlineData("2001:db8::5", "http://[2001:db8::5]:631/ipp/print")]
+    [InlineData("[2001:db8::5]", "https://[2001:db8::5]/a")]
+    public async Task The_printers_own_host_on_any_port_or_scheme_is_asked(string host, string url)
+    {
+        var asked = new List<Uri>();
+        using var http = new DeviceHttp(host, new Serving(new MemoryStream([1, 2, 3]), asked.Add));
+        Assert.Equal([1, 2, 3], await http.GetBytesOrNullAsync(new Uri(url)));
+        Assert.Equal(new Uri(url), Assert.Single(asked));
+    }
+
+    [Theory]
+    [InlineData("ftp://192.0.2.10/a")]
+    [InlineData("file:///C:/Windows/win.ini")]
+    public async Task Only_web_addresses_are_asked_on_the_printer_too(string url)
+    {
+        using var http = new DeviceHttp(Host, new Serving(new MemoryStream([1])));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetBytesOrNullAsync(new Uri(url)));
+    }
+
+    [Theory]
+    [InlineData("http://192.0.2.200/DevMgmt/ProductStatusDyn.xml")]
+    [InlineData("//192.0.2.200/DevMgmt/ProductStatusDyn.xml")]
+    [InlineData("http://NPI1A2B3C.local/DevMgmt/ProductStatusDyn.xml")] // its own .local name: the same document, on the address in use
+    public async Task A_link_in_a_printers_documents_stays_on_it_and_still_reads(string link)
+    {
+        var other = false;
+        var tree = Fixture("DevMgmt_DiscoveryTree.xml").Replace("/DevMgmt/ProductStatusDyn.xml", link);
+        Assert.Contains(link, tree);
+        var printer = new FixtureHandler(name => name == "DevMgmt_DiscoveryTree.xml" ? System.Text.Encoding.UTF8.GetBytes(tree)
+            : File.Exists(Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", name)) ? File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "m234dw", name)) : null);
+        var network = new HostRouter(new Dictionary<string, HttpMessageHandler>
+        {
+            [Host] = printer,
+            [Other] = new Serving(new MemoryStream([1]), _ => other = true),
+        });
+        using var http = new DeviceHttp(Host, network);
+        var ledm = new InkvoltPrint.Core.Ledm.LedmClient(http);
+
+        Assert.NotNull(await ledm.GetStatusAsync());
+        Assert.False(other);
+    }
+
+    [Fact]
+    public void A_settings_link_with_the_password_stays_on_the_printer_keeping_its_scheme_and_port()
+    {
+        using var http = new DeviceHttp(Host, new Serving(new MemoryStream([1])));
+        Assert.Equal(new Uri("https://192.0.2.10/DevMgmt/Settings.xml"), http.Https("https://192.0.2.200/DevMgmt/Settings.xml"));
+        Assert.Equal(new Uri("https://192.0.2.10:8443/x"), http.Https("https://user:pw@192.0.2.200:8443/x"));
+        Assert.Equal(new Uri("http://192.0.2.10:8080/x?a=1"), http.Http("http://192.0.2.200:8080/x?a=1"));
+        Assert.Equal(new Uri("https://192.0.2.10:8443/x"), http.Https("https://192.0.2.10:8443/x"));
+        Assert.Equal(new Uri("http://192.0.2.10/DevMgmt/x.xml"), http.Http("/DevMgmt/x.xml"));
+    }
+
+    [Fact]
+    public async Task An_escl_address_kept_from_before_is_asked_on_the_printers_address_at_its_own_port()
+    {
+        var asked = new List<Uri>();
+        var network = new HostRouter(new Dictionary<string, HttpMessageHandler>
+        {
+            [Host] = new NothingThere(asked.Add),
+            [Other] = new NothingThere(asked.Add),
+        });
+        using var http = new DeviceHttp(Host, network);
+        var scanner = new EsclClient(http, new Uri($"http://{Other}:8080/eSCL/"));
+        Assert.Equal(new Uri($"http://{Host}:8080/eSCL/"), scanner.Root);
+        await InkvoltPrint.Core.Probe.PrinterConnection.ProbeAsync(http, new Uri($"http://{Other}:8080/eSCL/"));
+        Assert.DoesNotContain(asked, u => u.Host == Other);
+        Assert.Contains(asked, u => u.Port == 8080 && u.AbsolutePath == "/eSCL/ScannerCapabilities");
+    }
+
+    [Fact]
+    public async Task A_reply_that_never_ends_is_given_up_on_at_the_limit()
+    {
+        var reply = new Reply(300L << 20);
+        using var http = new DeviceHttp(Host, new Serving(reply));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetBytesOrNullAsync(http.Http("/x")));
+        Assert.InRange(reply.At, 1, DeviceHttp.MaxReplyBytes + (1 << 20));
+    }
+
+    [Fact]
+    public async Task A_reply_at_the_limit_is_whole_and_a_scanned_page_may_be_longer()
+    {
+        using var http = new DeviceHttp(Host, new Serving(new Reply(DeviceHttp.MaxReplyBytes)));
+        Assert.Equal(DeviceHttp.MaxReplyBytes, (await http.GetBytesOrNullAsync(http.Http("/x")))!.Length);
+
+        var page = DeviceHttp.MaxReplyBytes + 1000;
+        using var scanner = new DeviceHttp(Host, new Serving(new Reply(page)));
+        using var request = new HttpRequestMessage(HttpMethod.Get, scanner.Http("/eSCL/ScanJobs/1/NextDocument"));
+        DeviceHttp.AllowLongReply(request);
+        using var reply = await scanner.SendAsync(request);
+        Assert.Equal(page, (await reply.Content.ReadAsByteArrayAsync()).Length);
+    }
+
+    [Fact]
+    public async Task A_scanner_can_send_a_page_longer_than_a_document()
+    {
+        var page = DeviceHttp.MaxReplyBytes + 1000;
+        using var http = new DeviceHttp(Host, new LongPageScanner(page));
+        var pages = new List<byte[]>();
+        await foreach (var jpeg in new EsclClient(http, http.Http("/eSCL/")).ScanAsync(new ScanRequest(ScanSource.Platen))) pages.Add(jpeg);
+        Assert.Equal(page, Assert.Single(pages).Length);
+    }
+
+    /// <summary>The M234dw's scanner, with one page longer than any document.</summary>
+    private sealed class LongPageScanner(long size) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Post)
+            {
+                var created = new HttpResponseMessage(System.Net.HttpStatusCode.Created);
+                created.Headers.Location = new Uri("/eSCL/ScanJobs/1", UriKind.Relative);
+                return Task.FromResult(created);
+            }
+            if (path.EndsWith("/NextDocument", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new Reply(size)) });
+            return Task.FromResult(path.EndsWith("/ScannerCapabilities", StringComparison.Ordinal) ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Fixture("eSCL_ScannerCapabilities.xml")) }
+                : path.EndsWith("/ScannerStatus", StringComparison.Ordinal) ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Fixture("eSCL_ScannerStatus.xml")) }
+                : new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        }
+    }
+
+    [Fact]
+    public async Task A_reply_that_breaks_off_reads_as_no_answer()
+    {
+        using var http = new DeviceHttp(Host, new Serving(new Reply(1000, breaksOff: true)));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetBytesOrNullAsync(http.Http("/x")));
+    }
+
+    [Fact]
+    public async Task A_printer_answering_without_end_reads_as_offline_not_a_crash()
+    {
+        using var connection = await InkvoltPrint.Core.Probe.PrinterConnection.OpenAsync(Host, transport: new FreshEndless());
+        Assert.False(connection.Probe.Reachable);
+    }
+
+    private sealed class FreshEndless : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new Reply(100L << 20)) });
+    }
+}
+
 /// <summary>Malformed device replies must fail cleanly (FormatException), never with index errors.</summary>
 public class RobustnessTests
 {

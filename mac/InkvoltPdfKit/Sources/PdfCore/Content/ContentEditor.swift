@@ -481,6 +481,9 @@ public enum ContentEditor {
         return updated
     }
 
+    /// Whether part of the page's content holds data but decodes to nothing (a damaged filter): a rewrite would lose it.
+    static func hasUnreadableContent(_ page: PObj) -> Bool { streams(page).parts.contains(where: \.unreadable) }
+
     private static func splice(_ content: [UInt8], _ edits: Edits) -> [UInt8] {
         var out: [UInt8] = []
         out.reserveCapacity(content.count + 256)

@@ -104,7 +104,7 @@ internal sealed class ProWindow : Window
             _body.Children.Add(new TextBlock { Text = $"Pro licensed to {licence.Name}", FontSize = 16, FontWeight = FontWeights.SemiBold });
             _body.Children.Add(Caption($"Key for {licence.Email}, issued {licence.Issued:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling{(licence.Covers(ProKeys.ProductPrint) ? "; Inkvolt Print on this PC finds it too" : "")}. Thank you for supporting Inkvolt PDF."));
             if (!Pro.Enforced)
-                _body.Children.Add(Caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line) when they start asking for a key."));
+                _body.Children.Add(Caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line, folder search) when they start asking for a key."));
             var remove = new Button { Content = "Remove Licence", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             remove.Click += (_, _) =>
             {
@@ -119,12 +119,12 @@ internal sealed class ProWindow : Window
         if (Pro.Enforced)
         {
             _body.Children.Add(new TextBlock { Text = "Free", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Inkvolt Pro unlocks batch presets, watched folders and the command line: a one-time {Pro.PriceText}, no account. The key is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."));
+            _body.Children.Add(Caption($"Inkvolt Pro unlocks batch presets, watched folders, the command line and folder search: a one-time {Pro.PriceText}, no account. The key is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."));
         }
         else
         {
             _body.Children.Add(new TextBlock { Text = "Everything is free while Inkvolt PDF launches", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"That includes the Pro features: batch presets, watched folders and the command line. Inkvolt Pro ({Pro.PriceText}, one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."));
+            _body.Children.Add(Caption($"That includes the Pro features: batch presets, watched folders, the command line and folder search. Inkvolt Pro ({Pro.PriceText}, one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."));
         }
         if (Pro.Problem is { } problem)
         {
@@ -157,6 +157,7 @@ internal sealed class ProWindow : Window
             _key.Clear();
             Refresh();
             FolderWatches.RaiseChanged(); // the Watched Folders window drops its locked banner
+            FolderSearches.RaiseChanged(); // and so does Search Folders, whose folders start indexing
         }
         catch (ProKeyException ex)
         {

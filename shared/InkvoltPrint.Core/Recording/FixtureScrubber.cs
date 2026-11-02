@@ -277,13 +277,18 @@ public sealed partial class FixtureScrubber(string host, string placeholderHost 
     private const string SysContact = "1.3.6.1.2.1.1.4.", SysName = "1.3.6.1.2.1.1.5.", SysLocation = "1.3.6.1.2.1.1.6.";
     private const string PrtGeneralSerialNumber = "1.3.6.1.2.1.43.5.1.1.17.";
     private const string PrtGeneralCurrentOperator = "1.3.6.1.2.1.43.5.1.1.20.", PrtGeneralServicePerson = "1.3.6.1.2.1.43.5.1.1.21.";
+    private const string PrtGeneralPrinterName = "1.3.6.1.2.1.43.5.1.1.16.";
 
     private static string? TypedSnmp(string oid) =>
         oid.StartsWith(SysContact, StringComparison.Ordinal) || oid.StartsWith(PrtGeneralCurrentOperator, StringComparison.Ordinal)
         || oid.StartsWith(PrtGeneralServicePerson, StringComparison.Ordinal) ? "user"
         : oid.StartsWith(SysName, StringComparison.Ordinal) ? "printer"
         : oid.StartsWith(SysLocation, StringComparison.Ordinal) ? "Location"
+        : oid.StartsWith(PrtGeneralPrinterName, StringComparison.Ordinal) ? "Printer"
         : null;
+
+    /// <summary>An SNMP object that holds what a person typed or a serial number, so it's kept as text for this scrubbing to read.</summary>
+    internal static bool HoldsText(string oid) => oid.StartsWith(PrtGeneralSerialNumber, StringComparison.Ordinal) || TypedSnmp(oid) is not null;
 
     // An element with text only: <dd:SerialNumber attr="…">CN…</dd:SerialNumber>.
     [GeneratedRegex(@"<(?<p>(?:[\w.-]+:)?(?<n>[A-Za-z][\w.-]*))(?:\s[^>]*)?>(?<v>[^<]*)</\k<p>\s*>")]

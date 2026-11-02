@@ -47,6 +47,20 @@ wide sheets.
 `run` finds the app's Release build under `src/InkvoltPdf.App/bin/Release` on its own. Without it, scrolling is measured
 by hand (RESULTS.md says so): open the file, scroll a page a second for 10 s, count pages still blank 200 ms after stopping.
 
+## Folder search (`FolderIndexBench.cs`, roadmap 3.5)
+
+```powershell
+dotnet run --project pdf/tools/bench -c Release -- index-make C:\somewhere\corpus 10000   # 10,000 PDFs and 6 bad ones (about 150 MB, a minute), outside the repository
+dotnet run --project pdf/tools/bench -c Release -- index-run C:\somewhere\corpus          # index it from nothing, search, change a file; exits 1 if a target is missed
+```
+
+Files of 1 to 24 pages (72,797 in all) of made-up prose: a 200-word bank and, one word in five, a vocabulary of 300,000 made-up
+words with a few common and most rare, and a reference number per page, so the list of terms grows as on real files (200,000
+terms); planted words a query knows about. The six bad ones: damaged, empty, cut short, password protected, over the size limit
+(a sparse file), an image with no text. Word queries are timed first, then again with the terms forgotten from memory, and again
+on the index opened anew; a query's target is 1 s to the last result listed (500 pages at most). Phrases are timed too but aren't
+what the target is about. `index-run` changes a file three times and times until a search finds the new word. `INKVOLTPDF_BENCH_WORKERS=n` sets how many workers.
+
 `BenchTests` (`INKVOLTPDF_BENCH=1 dotnet test pdf/tests/InkvoltPdf.Tests`) makes a small corpus, opens every file, runs the
 measures and checks the corpus is byte-for-byte the same twice, so the generator and harness keep working between releases.
 

@@ -32,20 +32,25 @@ public enum AccessibilityReportHtml {
         sb += "which spells out PDF/UA-1 (ISO 14289-1). "
         sb += (report.pages == 1 ? "1 page" : "\(report.pages) pages") + (report.tagged ? ", tagged." : ", not tagged.") + "</p>\n</header>\n"
         sb += "<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#result\">Result</a></li>\n"
-        sb += report.passed ? "" : "<li><a href=\"#failures\">What fails</a></li>\n"
+        sb += report.failures.isEmpty ? "" : "<li><a href=\"#failures\">What fails</a></li>\n"
         sb += "<li><a href=\"#person\">Checks for a person</a></li>\n<li><a href=\"#conditions\">Every condition</a></li>\n"
         sb += report.notes.isEmpty ? "" : "<li><a href=\"#notes\">Not checked</a></li>\n"
         sb += "</ul>\n</nav>\n<main id=\"main\">\n"
 
         // Result
-        sb += "<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict " + (report.passed ? "pass" : "fail") + "\"><strong>"
-        sb += (report.passed ? "Passes the machine checks." : "Fails.") + "</strong> " + e(report.summary) + "</p>\n"
+        let verdict = switch report.outcome {
+        case .passes: "pass"
+        case .notFullyChecked: "partly"
+        case .fails: "fail"
+        }
+        sb += "<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict " + verdict + "\"><strong>"
+        sb += report.verdict + "</strong> " + e(report.summary) + "</p>\n"
         let ticked = checks.filter { done.contains($0.id) }.count
         sb += "<p>Checks for a person: \(ticked) of \(checks.count) done. "
         sb += "A document is accessible only when it passes the machine checks and a person has made these checks.</p>\n</section>\n"
 
         // What fails, by checkpoint
-        if !report.passed {
+        if !report.failures.isEmpty {
             sb += "<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">What fails (\(report.failures.count))</h2>\n"
             var groups: [(key: String, findings: [AccessibilityFinding])] = []
             for f in report.failures {
@@ -94,6 +99,8 @@ public enum AccessibilityReportHtml {
             case .machine:
                 if let n = counts[c.id] {
                     (css, result) = ("fail", n == 1 ? "Fails (1 problem)" : "Fails (\(n) problems)")
+                } else if !report.notes.isEmpty {
+                    (css, result) = ("none", "Nothing found in what was checked")
                 } else {
                     (css, result) = ("pass", "Passes")
                 }
@@ -131,7 +138,7 @@ public enum AccessibilityReportHtml {
     .file { font-size: 1.1rem; font-weight: 600; margin: .2rem 0; word-break: break-all; }
     nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; }
     .verdict { font-size: 1.1rem; padding: .7rem 1rem; border-left: 6px solid; }
-    .verdict.pass { border-color: var(--pass); } .verdict.fail { border-color: var(--fail); }
+    .verdict.pass { border-color: var(--pass); } .verdict.fail { border-color: var(--fail); } .verdict.partly { border-color: var(--muted); }
     table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
     th, td { border: 1px solid var(--line); padding: .4rem .55rem; text-align: left; vertical-align: top; }
     thead th { background: var(--head); }

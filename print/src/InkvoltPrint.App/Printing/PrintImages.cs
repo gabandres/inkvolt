@@ -12,7 +12,7 @@ namespace InkvoltPrint.App.Printing;
 /// </summary>
 public sealed class PrintImages : IDisposable
 {
-    private static readonly string Root = Path.Combine(Path.GetTempPath(), "Inkvolt Print jobs");
+    internal static readonly string Root = Path.Combine(Path.GetTempPath(), "Inkvolt Print jobs");
     private readonly string _folder;
     private int _next;
 

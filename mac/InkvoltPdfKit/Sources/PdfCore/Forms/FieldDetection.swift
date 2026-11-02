@@ -430,7 +430,7 @@ final class RectGrid {
     private static func touches(_ a: RectD, _ b: RectD) -> Bool { a.x <= b.right && a.right >= b.x && a.y <= b.bottom && a.bottom >= b.y }
 
     private func span(_ r: RectD) -> (x0: Int, y0: Int, x1: Int, y1: Int) {
-        func c(_ v: Double) -> Int { Int((min(max(v, -1e6), 1e6) / cell).rounded(.down)) }
+        func c(_ v: Double) -> Int { v.isNaN ? 0 : Int((min(max(v, -1e6), 1e6) / cell).rounded(.down)) } // infinity minus infinity, in a crafted page's numbers
         return (c(r.x), c(r.y), c(r.right), c(r.bottom))
     }
 }

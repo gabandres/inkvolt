@@ -19,7 +19,8 @@ public sealed record SignChoice(
     SignatureLook Look,
     bool Timestamp,
     string TimestampUrl,
-    CertificationLevel Certify);
+    CertificationLevel Certify,
+    LongTermLevel LongTerm = LongTermLevel.None);
 
 /// <summary>
 /// "Sign Digitally": pick a digital ID (Windows certificate store, a .pfx file, or a new personal ID), reason, location,
@@ -98,9 +99,16 @@ public static class SignDialog
 
         var visible = dlg.AddCheck("Show the signature on the page", fieldName is null ? s.SignVisible : fieldVisible);
         visible.IsEnabled = fieldName is null;
-        var showDate = dlg.AddCheck("Show the date", s.SignShowDate);
-        var showReason = dlg.AddCheck("Show the reason", s.SignShowReason);
-        var showDn = dlg.AddCheck("Show the distinguished name", s.SignShowDn);
+        var shown = dlg.Add(null, new WrapPanel());
+        CheckBox ShowCheck(string text, bool value)
+        {
+            var box = new CheckBox { Content = text, IsChecked = value, Margin = new Thickness(0, 0, 16, 0) };
+            shown.Children.Add(box);
+            return box;
+        }
+        var showDate = ShowCheck("Show the date", s.SignShowDate);
+        var showReason = ShowCheck("Show the reason", s.SignShowReason);
+        var showDn = ShowCheck("Show the distinguished name", s.SignShowDn);
         var saved = SignatureLibrary.List().Where(x => !x.Initials).ToList();
         var imageNames = new List<string> { "No image" };
         imageNames.AddRange(saved.Select(x => $"Handwritten: {x.Name}"));
@@ -150,10 +158,27 @@ public static class SignDialog
         reason.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdatePreview()));
 
         var timestamp = dlg.AddCheck("Add a trusted timestamp", s.SignTimestamp);
-        var tsaUrl = dlg.AddText("Timestamp server", s.TimestampUrl);
-        dlg.AddNote("The timestamp server receives only a hash of the signature, never the document.");
-        void SyncTsa() => tsaUrl.IsEnabled = timestamp.IsChecked == true;
+        var tsaUrl = dlg.AddText("Timestamp server", ChosenTimestampUrl(s));
+        dlg.AddNote("Sectigo's free server is suggested; you can enter another that starts with https://. It is contacted only if you add a timestamp, and receives only a hash of the signature, never the document.");
+        var longTerm = dlg.AddChoice("Long-term validation", ["None", "Store revocation data (PAdES B-LT)", "Store revocation data, add a document timestamp (PAdES B-LTA)"],
+            Pro.Allows(ProFeature.LongTermValidation) ? Math.Clamp(s.SignLongTerm, 0, 2) : 0);
+        if (Pro.Allows(ProFeature.LongTermValidation))
+            dlg.AddNote("Keeps the signature checkable after your certificate expires. You see which addresses are asked before anything goes online.");
+        else
+        {
+            longTerm.IsEnabled = false;
+            dlg.AddNote(Pro.Locked(ProFeature.LongTermValidation));
+            var about = dlg.AddFooterButton("About Inkvolt Pro…");
+            about.Click += (_, _) => ProWindow.Open(dlg, ProFeature.LongTermValidation);
+        }
+        void SyncTsa()
+        {
+            if (longTerm.SelectedIndex > 0) timestamp.IsChecked = true; // both levels rest on it
+            timestamp.IsEnabled = longTerm.SelectedIndex == 0;
+            tsaUrl.IsEnabled = timestamp.IsChecked == true;
+        }
         timestamp.Click += (_, _) => SyncTsa();
+        longTerm.SelectionChanged += (_, _) => SyncTsa();
         SyncTsa();
 
         var certify = dlg.AddChoice("Certify", ["Don't certify (approval signature)", "Certify: no changes allowed", "Certify: form filling allowed",
@@ -170,9 +195,9 @@ public static class SignDialog
         dlg.Validate(() =>
         {
             if ((ids.SelectedItem as IdItem)?.Cert is null) return "Choose a digital ID.";
-            if (timestamp.IsChecked == true && !(Uri.TryCreate(tsaUrl.Text.Trim(), UriKind.Absolute, out var u) && u.Scheme is "http" or "https"))
-                return "Enter the timestamp server's address (http:// or https://).";
-            return null;
+            if (timestamp.IsChecked != true) return null;
+            if (tsaUrl.Text.Trim().Length == 0) return "Enter the timestamp server's address (https://…), or untick the timestamp.";
+            return LtvClient.WhyRefused(tsaUrl.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? $"That timestamp server can't be used: {why}." : null;
         });
         var ok = dlg.ShowModal();
         var chosen = (ids.SelectedItem as IdItem)?.Cert;
@@ -190,6 +215,7 @@ public static class SignDialog
         s.SignImage = image.SelectedIndex > 0 ? saved[image.SelectedIndex - 1].Path : "";
         s.SignTimestamp = timestamp.IsChecked == true;
         s.TimestampUrl = tsaUrl.Text.Trim();
+        if (Pro.Allows(ProFeature.LongTermValidation)) s.SignLongTerm = longTerm.SelectedIndex;
         s.Save();
 
         StampImage? stampImage = null;
@@ -206,10 +232,14 @@ public static class SignDialog
         }
         var look = new SignatureLook { ShowDate = s.SignShowDate, ShowReason = s.SignShowReason, ShowDistinguishedName = s.SignShowDn, Image = stampImage };
         return new SignChoice(chosen, Empty(s.SignReason), Empty(s.SignLocation), visible.IsChecked == true, look, s.SignTimestamp, s.TimestampUrl,
-            (CertificationLevel)certify.SelectedIndex);
+            (CertificationLevel)certify.SelectedIndex, (LongTermLevel)longTerm.SelectedIndex);
 
         static string? Empty(string v) => v.Length == 0 ? null : v;
     }
+
+    /// <summary>The timestamp server the person entered. The address that came filled in before there was no default is in many settings files: it doesn't count as chosen.</summary>
+    internal static string ChosenTimestampUrl(AppSettings s) =>
+        s.TimestampUrl is "" or "http://timestamp.digicert.com" ? LtvPlan.SuggestedTimestampServer : s.TimestampUrl;
 
     private static X509Certificate2? LoadPfx(Window owner)
     {
