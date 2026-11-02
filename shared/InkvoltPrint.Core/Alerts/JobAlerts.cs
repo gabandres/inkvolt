@@ -53,6 +53,25 @@ public sealed record JobOwner(string? UserName, string? Domain, string? Machine)
     }
 }
 
+/// <summary>What a printer's last read says for a job that isn't moving: it's idle, it says it's working, or it can't be expected to move it.</summary>
+public enum PrinterWork { NotReady, Ready, Printing }
+
+/// <summary>
+/// How far a job has got, as far as the spooler says: pages printed, pages and bytes spooled, how far along it is
+/// (<see cref="JobRules.Stage"/>), and how many times someone restarted it. Forward is any of them above the furthest seen. A state going back and
+/// forth or a count going down isn't forward, so flicker neither passes for progress nor hides a hung job.
+/// </summary>
+public readonly record struct JobProgress(int Printed, int Pages, int Stage, long Bytes, int Restarts)
+{
+    public static JobProgress Of(QueueJob job) => new(job.PagesPrinted, job.Pages, JobRules.Stage(job.Status), job.Bytes, 0);
+
+    public bool Beyond(JobProgress other) =>
+        Printed > other.Printed || Pages > other.Pages || Stage > other.Stage || Bytes > other.Bytes || Restarts > other.Restarts;
+
+    public JobProgress Furthest(JobProgress other) => new(Math.Max(Printed, other.Printed), Math.Max(Pages, other.Pages), Math.Max(Stage, other.Stage),
+        Math.Max(Bytes, other.Bytes), Math.Max(Restarts, other.Restarts));
+}
+
 /// <summary>
 /// What a job's state means for job alerts (<see cref="AlertTracker.ObserveJobs"/>). A job is one job for as long as its id and
 /// the moment it was submitted stay the same: the spooler uses ids again, and <see cref="Key"/> keeps the two apart. The key
@@ -91,13 +110,26 @@ public static class JobRules
     /// <summary>Could be moving if nothing held it: not paused by hand, not still being written by the app printing it, not on its way out.</summary>
     public static bool ShouldMove(JobStatus s) => !s.HasFlag(JobStatus.Paused) && !s.HasFlag(JobStatus.Spooling) && !IsFinishing(s);
 
+    /// <summary>How far along a job is: being written, waiting, printing, done. Only ever read upward (<see cref="JobProgress"/>).</summary>
+    public static int Stage(JobStatus s) =>
+        IsFinishing(s) && !s.HasFlag(JobStatus.Deleting) && !s.HasFlag(JobStatus.Deleted) ? 3 : s.HasFlag(JobStatus.Printing) ? 2 : s.HasFlag(JobStatus.Spooling) ? 0 : 1;
+
     /// <summary>
-    /// The printer has said it's idle: answering, ready or asleep (it wakes for a job), nothing wrong, and not waiting for someone
-    /// at the manual feed. A printer that says it's printing isn't idle: the job may simply be long, and many drivers count no pages.
+    /// Ready: answering, ready or asleep (it wakes for a job), nothing wrong, not waiting for someone at the manual feed. Printing: the
+    /// same but saying it's printing, where the job may simply be long, since many drivers count no pages, so it gets the longer wait.
     /// </summary>
-    public static bool PrinterReady(PrinterSnapshot snap) =>
-        snap is { Reachable: true, Status: { IsUnavailable: false, Severity: not Severity.Error, Code: "ready" or "idle" or "inPowerSave" } status }
-        && !status.Alerts.Any(a => a.Severity == Severity.Error || a.Id.Contains("manual", StringComparison.OrdinalIgnoreCase));
+    public static PrinterWork Work(PrinterSnapshot snap)
+    {
+        if (snap is not { Reachable: true, Status: { IsUnavailable: false, Severity: not Severity.Error } status }
+            || status.Alerts.Any(a => a.Severity == Severity.Error || a.Id.Contains("manual", StringComparison.OrdinalIgnoreCase)))
+            return PrinterWork.NotReady;
+        return status.Code switch
+        {
+            "ready" or "idle" or "inPowerSave" => PrinterWork.Ready,
+            "processing" or "printing" => PrinterWork.Printing,
+            _ => PrinterWork.NotReady,
+        };
+    }
 }
 
 /// <summary>

@@ -35,7 +35,7 @@
                     <CheckBox IsChecked="{Binding JobAlerts}" Margin="0,12,0,0"
                               Content="Tell me when my own print job fails or gets stuck" />
                     <TextBlock Style="{StaticResource Caption}" Margin="28,4,0,0"
-                               Text="Once per job, naming the document and the printer: Windows reports a problem with the job, or it hasn't moved for 5 minutes while the printer is ready. Other people's jobs never raise one. The notification shows the document's name, also on the lock screen if Windows shows notifications there; Inkvolt Print doesn't keep it or log it." />
+                               Text="{Binding JobAlertsNote}" />
                     <CheckBox IsChecked="{Binding QuietHours}" Margin="0,12,0,0" Content="Quiet hours" />
                     <StackPanel Orientation="Horizontal" Margin="28,6,0,0" IsEnabled="{Binding QuietHours}">
                         <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,10,0" />

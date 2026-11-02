@@ -116,14 +116,23 @@ internal static class Winspool
         Enumerate<PortInfo2>((buf, cb, out needed, out count) => EnumPorts(null, 2, buf, cb, out needed, out count))
             .Where(p => p.pPortName is not null).Select(p => new PortInfo(p.pPortName!, p.pMonitorName, p.pDescription)).ToList();
 
-    /// <param name="printer">The queue's name.</param>
-    /// <param name="timeNotKnown">What a job gets for a submit time the spooler gives as nonsense; null: now.</param>
-    public static IReadOnlyList<QueueJob> Jobs(string printer, DateTime? timeNotKnown = null)
+    public static IReadOnlyList<QueueJob> Jobs(string printer)
     {
         using var h = Open(printer, PrinterAccessUse) ?? throw new Win32Exception(Marshal.GetLastWin32Error());
         return Enumerate<JobInfo1>((buf, cb, out needed, out count) => EnumJobs(h, 0, 1000, 1, buf, cb, out needed, out count))
             .Select(j => new QueueJob((int)j.JobId, j.pDocument ?? "", (int)j.TotalPages, (int)j.PagesPrinted, (JobStatus)(int)j.Status,
-                j.Submitted.ToLocal(timeNotKnown), j.pUserName ?? "") { Machine = j.pMachineName })
+                j.Submitted.ToLocal(), j.pUserName ?? ""))
+            .ToList();
+    }
+
+    /// <summary>The jobs for job alerts (JOB_INFO_2): also the PC each came from and its size so far. A submit time the spooler gives as nonsense
+    /// becomes <see cref="DateTime.MinValue"/>, so a job keeps one time from read to read.</summary>
+    public static IReadOnlyList<QueueJob> JobsInDetail(string printer)
+    {
+        using var h = Open(printer, PrinterAccessUse) ?? throw new Win32Exception(Marshal.GetLastWin32Error());
+        return Enumerate<JobInfo2>((buf, cb, out needed, out count) => EnumJobs(h, 0, 1000, 2, buf, cb, out needed, out count))
+            .Select(j => new QueueJob((int)j.JobId, j.pDocument ?? "", (int)j.TotalPages, (int)j.PagesPrinted, (JobStatus)(int)j.Status,
+                j.Submitted.ToLocal(DateTime.MinValue), j.pUserName ?? "") { Machine = j.pMachineName, Bytes = j.Size })
             .ToList();
     }
 
@@ -279,6 +288,19 @@ internal static class Winspool
         public string? pPrinterName, pMachineName, pUserName, pDocument, pDatatype, pStatus;
         public uint Status, Priority, Position, TotalPages, PagesPrinted;
         public SystemTime Submitted;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct JobInfo2
+    {
+        public uint JobId;
+        public string? pPrinterName, pMachineName, pUserName, pDocument, pNotifyName, pDatatype, pPrintProcessor, pParameters, pDriverName;
+        public IntPtr pDevMode;
+        public string? pStatus;
+        public IntPtr pSecurityDescriptor;
+        public uint Status, Priority, Position, StartTime, UntilTime, TotalPages, Size;
+        public SystemTime Submitted;
+        public uint Time, PagesPrinted;
     }
 
     [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", CharSet = CharSet.Unicode, SetLastError = true)]

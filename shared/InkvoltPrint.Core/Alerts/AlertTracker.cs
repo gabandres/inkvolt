@@ -41,6 +41,12 @@ public sealed record AlertRules
     /// <summary>Nothing in the queue moves this long, with the printer ready: your job is stuck.</summary>
     public TimeSpan JobStuckAfter { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Nothing in the queue moves this long, with the printer saying it's printing: your job may be stuck.</summary>
+    public TimeSpan JobHungAfter { get; init; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>A job is told stuck at most this many times, each after real progress since the last (a flapping job can't spam).</summary>
+    public int JobMaxStuckAlerts { get; init; } = 3;
+
     public TimeSpan HoldFor(AlertKind kind) =>
         AlertCondition.IsSupply(kind) || kind == AlertKind.FirmwareChanged ? TimeSpan.Zero : kind == AlertKind.Offline ? OfflineHold : ErrorHold;
 }
@@ -82,7 +88,7 @@ public sealed partial class AlertTracker
         public DateTimeOffset? LastObserved;
         public readonly Dictionary<string, Track> Tracks = new(StringComparer.Ordinal);
         public readonly JobQueueTrack Queue = new();
-        public bool? Ready;
+        public PrinterWork? Work;
     }
 
     private readonly Dictionary<string, Printer> _printers = new(StringComparer.OrdinalIgnoreCase);
@@ -166,11 +172,7 @@ public sealed partial class AlertTracker
             notices.Add(new AlertNotice(uuid, name, t.Kind, t.Condition!.Title, t.Condition.Body));
         }
         foreach (var (uuid, job) in jobsDue)
-        {
-            job.Told = true;
-            if (!silent && Rules.Jobs) notices.Add(JobNotice(uuid, job));
-            job.Due = null;
-        }
+            if (TellJob(uuid, job, shown: !silent && Rules.Jobs) is { } notice) notices.Add(notice);
         return notices;
     }
 
@@ -224,7 +226,7 @@ public sealed partial class AlertTracker
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>
     public Dictionary<string, IReadOnlyList<string>> Shown() =>
         _printers.Select(p => (p.Key, Keys: p.Value.Tracks.Where(t => t.Value.Notified).Select(t => t.Key)
-                .Concat(p.Value.Queue.Jobs.Values.Where(t => t.Told).Take(MaxRememberedJobs).Select(t => t.Key)).Order(StringComparer.Ordinal).ToList()))
+                .Concat(p.Value.Queue.Jobs.Values.Where(t => t.Remembered).Take(MaxRememberedJobs).Select(t => t.Line())).Order(StringComparer.Ordinal).ToList()))
             .Where(p => p.Keys.Count > 0)
             .ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Keys, StringComparer.OrdinalIgnoreCase);
 }

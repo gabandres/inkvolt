@@ -166,11 +166,65 @@ public class JobAlertTests
             Assert.Empty(Read(t, T0.AddMinutes(i), Queue(Job(printed: i / 2, pages: 1000))));
     }
 
-    [Fact]
-    public void A_long_job_on_a_driver_that_counts_no_pages_is_not_stuck_while_the_printer_says_its_printing()
+    [Theory]
+    [InlineData("processing")]
+    [InlineData("printing")]
+    public void A_hung_job_while_the_printer_says_its_printing_is_told_after_the_longer_wait_in_honest_words(string code)
     {
         var t = Tracker();
-        Assert.Empty(Minutes(t, T0, 180, Queue(Job(printed: 0, pages: 0)), Printing));
+        var printing = new PrinterStatus(code, "Printing", Severity.Info, []);
+        var queue = Queue(Job(printed: 0, pages: 0));
+        Assert.Empty(Minutes(t, T0, 14, queue, printing));
+        Assert.Equal(T0.AddMinutes(15), t.PendingUntil(Laser));
+        var n = Assert.Single(Read(t, T0.AddMinutes(15), queue, printing));
+        Assert.Equal(AlertKind.JobStuck, n.Kind);
+        Assert.Equal("“Report.pdf” may be stuck", n.Title);
+        Assert.Contains("hasn't moved for 15 minutes and may be stuck", n.Body);
+        Assert.Contains("says it's printing", n.Body);
+        Assert.Empty(Minutes(t, T0.AddMinutes(16), 180, queue, printing)); // no progress: the same episode
+    }
+
+    [Fact]
+    public void A_slow_job_that_moves_stays_silent_while_the_printer_says_its_printing()
+    {
+        var pages = Tracker();
+        for (var i = 0; i < 300; i++)
+            Assert.Empty(Read(pages, T0.AddMinutes(i), Queue(Job(printed: i / 14, pages: 1000)), Printing)); // a page every 14 minutes
+
+        var bytes = Tracker();
+        for (var i = 0; i < 300; i++)
+            Assert.Empty(Read(bytes, T0.AddMinutes(i), Queue(Job(printed: 0, pages: 0) with { Bytes = 1000 + i / 14 }), Printing)); // no page counts, its size still growing
+    }
+
+    [Fact]
+    public void A_job_with_pages_reported_and_moving_isnt_stuck_on_a_ready_printer_either()
+    {
+        var t = Tracker();
+        for (var i = 0; i < 120; i++) Assert.Empty(Read(t, T0.AddMinutes(i), Queue(Job(printed: i / 4, pages: 1000))));
+    }
+
+    [Fact]
+    public void A_printer_that_starts_printing_gets_the_longer_wait_from_the_last_movement_and_one_going_ready_the_shorter()
+    {
+        var t = Tracker();
+        var queue = Queue(Job());
+        Assert.Empty(Minutes(t, T0, 3, queue)); // ready
+        Assert.Empty(Minutes(t, T0.AddMinutes(4), 10, queue, Printing)); // 14 minutes still
+        Assert.Single(Read(t, T0.AddMinutes(15), queue, Printing));
+
+        var u = Tracker();
+        Assert.Empty(Minutes(u, T0, 7, queue, Printing));
+        Assert.Empty(Minutes(u, T0.AddMinutes(8), 4, queue)); // ready for 4 minutes: printing wasn't being ready
+        Assert.Contains("is ready", Assert.Single(Read(u, T0.AddMinutes(13), queue)).Body);
+    }
+
+    [Fact]
+    public void A_printer_flipping_between_ready_and_printing_still_tells_a_job_that_never_moves()
+    {
+        var t = Tracker();
+        var told = new List<AlertNotice>();
+        for (var i = 0; i < 60; i++) told.AddRange(Read(t, T0.AddMinutes(i), Queue(Job()), i % 4 == 3 ? Printing : Ready));
+        Assert.Contains("may be stuck", Assert.Single(told).Body);
     }
 
     [Fact]
@@ -255,8 +309,6 @@ public class JobAlertTests
 
     [Theory]
     [InlineData("offline", Severity.Error)]
-    [InlineData("processing", Severity.Info)]
-    [InlineData("printing", Severity.Info)]
     [InlineData("warmingUp", Severity.Info)]
     [InlineData("initializing", Severity.Info)]
     [InlineData("paused", Severity.Warning)]
@@ -361,24 +413,130 @@ public class JobAlertTests
     // ---------------------------------------------------------------- one per job
 
     [Fact]
-    public void Stuck_recovered_and_stuck_again_is_told_once()
+    public void Stuck_recovered_and_stuck_again_is_told_again_after_real_progress()
     {
         var t = Tracker();
         Assert.Single(Minutes(t, T0, 6, Queue(Job(printed: 1))));
         Assert.Empty(Minutes(t, T0.AddMinutes(7), 2, Queue(Job(printed: 2)))); // it moved
-        Assert.Empty(Minutes(t, T0.AddMinutes(10), 30, Queue(Job(printed: 2)))); // stuck again
+        Assert.Empty(Minutes(t, T0.AddMinutes(10), 1, Queue(Job(printed: 2)))); // the wait runs from the movement
+        Assert.Single(Read(t, T0.AddMinutes(12), Queue(Job(printed: 2))));
+        Assert.Empty(Minutes(t, T0.AddMinutes(13), 60, Queue(Job(printed: 2)))); // the same episode, however long
     }
 
     [Fact]
-    public void Stuck_then_failed_is_told_once() // and the other way round
+    public void Flicker_is_not_progress_and_doesnt_hide_a_hung_job()
+    {
+        // A state going back and forth, a count going down and up again: never past what was already seen.
+        JobStatus Flip(int i) => i % 2 == 0 ? JobStatus.Printing : JobStatus.None;
+        int Wobble(int i) => i % 2 == 0 ? 3 : 2;
+        var t = Tracker();
+        for (var i = 0; i < 5; i++) Assert.Empty(Read(t, T0.AddMinutes(i), Queue(Job(status: Flip(i), printed: Wobble(i)))));
+        Assert.Single(Read(t, T0.AddMinutes(5), Queue(Job(status: Flip(5), printed: Wobble(5)))));
+        for (var i = 6; i < 120; i++) Assert.Empty(Read(t, T0.AddMinutes(i), Queue(Job(status: Flip(i), printed: Wobble(i)))));
+    }
+
+    [Fact]
+    public void A_flapping_job_with_real_progress_each_time_is_told_three_times_at_most()
+    {
+        var t = Tracker();
+        var told = new List<AlertNotice>();
+        for (var round = 0; round < 10; round++)
+            told.AddRange(Minutes(t, T0.AddMinutes(round * 7), 6, Queue(Job(printed: round))));
+        Assert.Equal(3, told.Count);
+        Assert.All(told, n => Assert.Equal(AlertKind.JobStuck, n.Kind));
+    }
+
+    [Fact]
+    public void The_cap_is_one_setting_and_so_are_the_waits()
+    {
+        var rules = new AlertRules { Jobs = true, JobMaxStuckAlerts = 1, JobStuckAfter = TimeSpan.FromMinutes(2), JobHungAfter = TimeSpan.FromMinutes(4) };
+        var t = Tracker(rules);
+        var n = Assert.Single(Minutes(t, T0, 3, Queue(Job(printed: 0))));
+        Assert.Contains("2 minutes", n.Body);
+        Assert.Empty(Minutes(t, T0.AddMinutes(4), 30, Queue(Job(printed: 1))));
+        var u = Tracker(rules);
+        Assert.Contains("4 minutes", Assert.Single(Minutes(u, T0, 5, Queue(Job()), Printing)).Body);
+        var defaults = new AlertRules();
+        Assert.Equal((5.0, 15.0, 3), (defaults.JobStuckAfter.TotalMinutes, defaults.JobHungAfter.TotalMinutes, defaults.JobMaxStuckAlerts));
+    }
+
+    [Fact]
+    public void The_same_episode_doesnt_tell_again_across_a_restart_and_progress_while_away_does()
+    {
+        var t = Tracker();
+        Assert.Single(Minutes(t, T0, 6, Queue(Job(printed: 3))));
+
+        var same = new AlertTracker(t.Rules, t.Shown());
+        Assert.Empty(Minutes(same, T0.AddDays(1), 60, Queue(Job(printed: 3))));
+
+        var moved = new AlertTracker(t.Rules, t.Shown());
+        Assert.Single(Minutes(moved, T0.AddDays(1), 30, Queue(Job(printed: 4)))); // it went on while the app was closed, then stopped
+    }
+
+    [Fact]
+    public void The_cap_survives_a_restart()
+    {
+        var t = Tracker();
+        var told = 0;
+        for (var round = 0; round < 3; round++)
+        {
+            told += Minutes(t, T0.AddDays(round), 6, Queue(Job(printed: round))).Count;
+            t = new AlertTracker(t.Rules, t.Shown());
+        }
+        Assert.Equal(3, told);
+        Assert.Empty(Minutes(t, T0.AddDays(5), 30, Queue(Job(printed: 50))));
+    }
+
+    [Fact]
+    public void A_restarted_job_starts_again_its_pages_count_as_moving_and_it_may_be_told_again()
+    {
+        var t = Tracker();
+        Assert.Single(Minutes(t, T0, 6, Queue(Job(printed: 5))));
+        // Someone restarted it: the count starts over, below where it had been.
+        var told = new List<AlertNotice>();
+        told.AddRange(Read(t, T0.AddMinutes(7), Queue(Job(status: JobStatus.Printing | JobStatus.Restarted, printed: 0))));
+        for (var i = 1; i <= 4; i++) told.AddRange(Minutes(t, T0.AddMinutes(7 + i * 4), 3, Queue(Job(status: JobStatus.Printing | JobStatus.Restarted, printed: i))));
+        Assert.Empty(told);
+        Assert.Single(Minutes(t, T0.AddMinutes(30), 6, Queue(Job(status: JobStatus.Printing | JobStatus.Restarted, printed: 4))));
+    }
+
+    [Fact]
+    public void Failed_is_once_per_job_and_told_even_after_stuck()
     {
         var t = Tracker();
         Assert.Equal(AlertKind.JobStuck, Assert.Single(Minutes(t, T0, 6, Queue(Job()))).Kind);
-        Assert.Empty(Minutes(t, T0.AddMinutes(7), 10, Queue(Job(status: JobStatus.Error))));
+        Assert.Equal(AlertKind.JobFailed, Assert.Single(Minutes(t, T0.AddMinutes(7), 10, Queue(Job(status: JobStatus.Error)))).Kind);
+        Assert.Empty(Minutes(t, T0.AddMinutes(18), 2, Queue(Job(status: JobStatus.Printing))));
+        Assert.Empty(Minutes(t, T0.AddMinutes(21), 30, Queue(Job(status: JobStatus.Error))));
+    }
 
-        var u = Tracker();
-        Assert.Equal(AlertKind.JobFailed, Assert.Single(Minutes(u, T0, 3, Queue(Job(status: JobStatus.Error)))).Kind);
-        Assert.Empty(Minutes(u, T0.AddMinutes(4), 30, Queue(Job())));
+    [Fact]
+    public void After_a_failure_stuck_needs_real_progress_too()
+    {
+        var t = Tracker();
+        Assert.Equal(AlertKind.JobFailed, Assert.Single(Minutes(t, T0, 3, Queue(Job(status: JobStatus.Error | JobStatus.Printing)))).Kind);
+        Assert.Empty(Minutes(t, T0.AddMinutes(4), 30, Queue(Job()))); // the error went, the job didn't move
+        Assert.Equal(AlertKind.JobStuck, Assert.Single(Minutes(t, T0.AddMinutes(35), 6, Queue(Job(printed: 1)))).Kind);
+    }
+
+    [Fact]
+    public void A_resubmitted_job_is_a_new_job_and_may_fail_again()
+    {
+        var t = Tracker();
+        Assert.Single(Minutes(t, T0, 3, Queue(Job(9, JobStatus.Error))));
+        Assert.Single(Minutes(t, T0.AddMinutes(4), 3, Queue(Job(10, JobStatus.Error, submitted: Submitted.AddMinutes(4)))));
+    }
+
+    [Fact]
+    public void A_pause_ends_the_episode_without_using_up_the_cap()
+    {
+        var t = Tracker();
+        t.PausedUntil = T0.AddMinutes(10);
+        Assert.Empty(Minutes(t, T0, 6, Queue(Job(printed: 1))));
+        Assert.Empty(Minutes(t, T0.AddMinutes(11), 20, Queue(Job(printed: 1)))); // still the one nobody was told about: it stays quiet
+        var told = 0;
+        for (var round = 2; round < 10; round++) told += Minutes(t, T0.AddHours(round), 6, Queue(Job(printed: round))).Count;
+        Assert.Equal(3, told);
     }
 
     [Fact]
@@ -393,7 +551,7 @@ public class JobAlertTests
         Assert.DoesNotContain("Secret", saved);
         Assert.DoesNotContain("merger", saved);
         Assert.DoesNotContain("gabri", saved);
-        Assert.Matches(@"^Job\|7\|\d+$", Assert.Single(remembered[Laser]));
+        Assert.Matches(@"^Job\|7\|\d+\|1\|0\|\d+\|\d+\|\d+\|\d+\|\d+$", Assert.Single(remembered[Laser]));
 
         var next = new AlertTracker(new AlertRules { Jobs = true }, remembered);
         Assert.Empty(Minutes(next, T0.AddDays(1), 30, Queue(Job(status: JobStatus.Error, name: "Secret merger plan.pdf"))));
@@ -457,9 +615,9 @@ public class JobAlertTests
     [Fact]
     public void Remembered_job_keys_that_make_no_sense_are_ignored_and_bounded()
     {
-        var keys = new List<string> { "Job|", "Job|x|y", "Job|7", "Job|7|1|2", "Job|-1|5", "Job||", "Job|7|99999999999999999999999" };
+        var keys = new List<string> { "Job|", "Job|x|y", "Job|7", "Job|7|1", "Job|7|1|2", "Job|-1|5|0|0|0|0|0|0|0", "Job||", "Job|7|99999999999999999999999|0|0|0|0|0|0|0", "Job|7|1|0|0|0|0|0|x|0", "Job|7|1|0|-1|0|0|0|0|0", "Job|7|1|0|0|0|0|0|0|0|0" };
         Assert.Empty(new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = keys }).Shown());
-        var many = Enumerable.Range(0, 5000).Select(i => $"Job|{i}|{i}").ToList();
+        var many = Enumerable.Range(0, 5000).Select(i => $"Job|{i}|{i}|1|0|0|0|0|0|0").ToList();
         Assert.InRange(new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = many }).Shown()[Laser].Count, 1, 256);
     }
 

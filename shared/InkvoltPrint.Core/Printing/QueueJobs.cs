@@ -28,6 +28,9 @@ public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, 
 {
     /// <summary>The PC it was printed from, where the reader gets it; null: not known.</summary>
     public string? Machine { get; init; }
+
+    /// <summary>The job's size in bytes as spooled so far, where the reader gets it (JOB_INFO_2); 0: not known. It grows while the job is written.</summary>
+    public long Bytes { get; init; }
 }
 
 /// <summary>What the print queue card shows for a job: plain words for the spooler's status bits, pages, time, owner.</summary>
