@@ -6,6 +6,18 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.4.1</title>
+      <pubDate>Mon, 02 Nov 2026 20:52:23 GMT</pubDate>
+      <sparkle:version>1.4.1</sparkle:version>
+      <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">A security fix for signed documents, and a more honest accessibility check.
+
+- Fixed: a signature could still read as valid after a later change laid something over its page, through a field that only called itself a timestamp or a comment written straight into the page's list. Both now count as changes made after signing.
+- Accessibility Check no longer calls a file a pass when part of it couldn't be checked (a very long page, forms nested too deep, a huge number of annotations or tags): it says "Not fully checked" and lists what wasn't, in the pane, the report and Batch, where such a file counts as failed.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.4.1/Inkvolt-PDF-1.4.1.dmg" length="35686043" type="application/octet-stream" sparkle:edSignature="NR+qDBJAUUQdmCgYFhw5cnPBG9xaVQ/fbUHC+bWeYNjdhwI0+92ymrfShsePn8MW64eGQqIcSn9cOSGp8zNuDQ==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.4.0</title>
       <pubDate>Sat, 31 Oct 2026 02:08:07 GMT</pubDate>
       <sparkle:version>1.4.0</sparkle:version>
