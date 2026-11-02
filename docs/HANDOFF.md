@@ -1,5 +1,11 @@
 # Handoff, 2026-11-02 (newest first)
 
+**Mac is back (2026-11-02), rebuilt: macOS 27.2, Xcode 27.1, Swift 6.4.** MuPDF rebuilt on it. Work from the PC goes through
+`bash mac/tools/mac.sh` (`mac/CLAUDE.md`). Fixed on the Mac, not released: the signature hole below (1.4.0 ships it) and
+Accessibility Check's "Not fully checked"; both in `mac/InkvoltPdf/WHATS-NEW.md`'s Next. Mac parity list, in order: the
+unfinished E12 branch, E9, E10, E13, E14, E15, E16, then the PDF roadmap's Mac halves (1.1's 2026-11-01 additions, 1.4,
+2.1, 2.3, 3.1, 3.3, 3.4, 3.5) and Print's (1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.4).
+
 **Released.** Inkvolt Print 1.2.0.0 and Inkvolt PDF 1.6.0.0: both published in the Store on 2026-11-02, GitHub releases `print-v1.2.0.0` and
 `pdf-v1.6.0.0`, website updated, and the privacy page covers translating.
 

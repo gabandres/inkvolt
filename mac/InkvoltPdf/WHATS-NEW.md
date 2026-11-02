@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Fixed: a signature could still read as valid after a later change laid something over its page, through a field that only called itself a timestamp or a comment written straight into the page's list. Both now count as changes made after signing.
+- Accessibility Check no longer calls a file a pass when part of it couldn't be checked (a very long page, forms nested too deep, a huge number of annotations or tags): it says "Not fully checked" and lists what wasn't, in the pane, the report and Batch, where such a file counts as failed.
 
 ## 1.4.0
 - AI assistant (Tools › AI Assistant), off until you turn it on: connect an AI you choose, Ollama or LM Studio on this Mac or a service with your own key (kept in your keychain). Summarize pages, ask about the document in a pane at the right, or Control-click selected text › Explain with AI. Before anything is sent, a window shows where it goes and exactly what goes; answers are marked as AI-generated and link their page citations to the pages. Make Accessible's Reading Order pane can ask it to suggest a picture's alternate text. Inkvolt PDF has no AI of its own and Bermudez Systems receives nothing

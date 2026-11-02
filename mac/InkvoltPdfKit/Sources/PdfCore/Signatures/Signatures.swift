@@ -339,6 +339,22 @@ public enum Signatures {
         return nil
     }
 
+    /// The signature dictionary holds an RFC 3161 token that verifies over the file's bytes its /ByteRange names.
+    static func holdsTimestamp(_ data: [UInt8], _ v: PObj) -> Bool {
+        guard let br = v.array("ByteRange"), br.count >= 4 else { return false }
+        var range: [Int] = []
+        for i in 0..<4 {
+            guard let n = br[i]?.number, n.isFinite, n >= 0, n <= Double(data.count), n == n.rounded(.down) else { return false }
+            range.append(Int(n))
+        }
+        guard range[0] == 0, range[2] >= range[1], range[2] + range[3] <= data.count else { return false }
+        let gap = Array(data[range[1]..<range[2]])
+        guard isHexStringOnly(gap), let contents = hexContents(gap), !contents.isEmpty,
+              let token = try? Rfc3161.Token(der: contents) else { return false }
+        let signed = Array(data[0..<range[1]]) + Array(data[range[2]..<range[2] + range[3]])
+        return token.verify(stamping: signed, candidates: token.cms.certificates) != nil
+    }
+
     static func isTrailingWhitespace(_ data: [UInt8], _ from: Int) -> Bool {
         data[min(from, data.count)...].allSatisfy { $0 == 32 || $0 == 13 || $0 == 10 || $0 == 9 || $0 == 0 }
     }

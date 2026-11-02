@@ -108,6 +108,8 @@ extension AccessibilityChecker {
                     parent.kidCount += 1
                 }
                 stack.append(Level(parent: e, items: kids(item["K"]), depth: depth + 1))
+            } else if item.has("S"), elems[item.identity] == nil {
+                noteOnce("The document's tags are too many or too deeply nested; the rest weren't checked.")
             }
         }
     }
@@ -378,6 +380,9 @@ extension AccessibilityChecker {
         var places = 0
         for r in 0..<rows.count {
             var c = 0
+            if rows[r].kids.lazy.filter({ $0.kind == "TH" || $0.kind == "TD" }).count > 1000 {
+                noteOnce("A table's row has more than 1,000 cells; only the first 1,000 were compared.")
+            }
             for cell in rows[r].kids.lazy.filter({ $0.kind == "TH" || $0.kind == "TD" }).prefix(1000) {
                 while c < grid[r].count && grid[r][c] >= 0 { c += 1 }
                 let rs = min(max(attribute(cell, "Table", "RowSpan")?.int ?? 1, 1), 1000)

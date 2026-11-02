@@ -172,6 +172,7 @@ extension AccessibilityChecker {
         }
         let clip = PageBoxes.visibleBox(page)
         totalOps += min(annots.count, 20_000) * Self.operatorsPerAnnotation
+        if annots.count > 20_000 { notes.append("Page \(p + 1): it has very many annotations; only the first 20,000 were checked.") }
         for (i, a) in annots.elements.lazy.filter(\.isDict).prefix(20_000).enumerated() {
             if i & 255 == 255 { try cancel.check() }
             let subtype = a.name("Subtype") ?? ""
@@ -314,14 +315,23 @@ extension AccessibilityChecker {
             streams.append(n)
         } else {
             streams = Array(n.keys.compactMap { n.dict($0) }.filter(\.isStream).prefix(8)) // every state (a check box's on and off)
+            if n.keys.count > 8 { noteOnce("An annotation has very many appearances; only the first 8 were checked.") }
         }
         for s in streams where (s.identity == n.identity || walkedAppearances.insert(s.identity).inserted) && totalOps <= maxDocumentOperators {
             let bytes = s.streamData ?? []
             let walk = AccessibilityWalk(self, p, page)
             walk.read(bytes.count)
-            let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
-            var marks: [AccessibilityWalk.Mc] = []
-            try walk.run(ops, s.dict("Resources"), .identity, nil, &marks, 0, true)
+            do {
+                let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
+                var marks: [AccessibilityWalk.Mc] = []
+                try walk.run(ops, s.dict("Resources"), .identity, nil, &marks, 0, true)
+            } catch let e as CancellationError {
+                throw e
+            } catch {
+                noteOnce("An annotation's appearance couldn't be read, so its fonts weren't checked.")
+                continue
+            }
+            if walk.stopped { notes.append("Page \(p + 1): an annotation's appearance is very long; only the first part of it was checked.") }
         }
     }
 
@@ -352,6 +362,7 @@ extension AccessibilityChecker {
                 for kid in kids.elements where kid.isDict { stack.append((kid, depth + 1)) }
             }
         }
+        if !stack.isEmpty { noteOnce("The file has very many form fields; only the first 50,000 were checked.") }
         if count > 0 { add("11-005", "The tooltips of \(Self.count(count, "form field")) have no language, and the document has none.", element: "Form fields", count: count) }
     }
 }
@@ -535,7 +546,11 @@ final class AccessibilityWalk {
                             c.formOrder.append(x.identity)
                         }
                     }
-                    if depth >= AccessibilityChecker.maxFormDepth || !active.insert(x.identity).inserted { break }
+                    if depth >= AccessibilityChecker.maxFormDepth {
+                        c.noteOnce("Forms nested more than \(AccessibilityChecker.maxFormDepth) deep weren't checked.")
+                        break
+                    }
+                    if !active.insert(x.identity).inserted { break }
                     let outer = form
                     form = x.identity
                     try run(try formOps(x), x.resources ?? resources, x.matrix.times(st.ctm), x.structParents ?? key, &marks, depth + 1, contentOnly)

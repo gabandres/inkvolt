@@ -69,6 +69,11 @@ final class AccessibilityChecker {
     var docLang = false
     var notes: [String] = []
 
+    /// What wasn't checked, said once however often it comes up: any note means the file doesn't pass.
+    func noteOnce(_ note: String) {
+        if !notes.contains(note) { notes.append(note) }
+    }
+
     private var findings: [AccessibilityFinding] = []
     private var listed: [String: Int] = [:]
     private var dropped: [String: Int] = [:]
@@ -294,11 +299,19 @@ final class AccessibilityChecker {
             if c.has("AS") { add("20-003", "The \(which) layer configuration switches layers automatically (it has an AS entry).") }
         }
         config(oc.dict("D"), "20-002", "default")
-        for c in (oc.array("Configs")?.elements ?? []).filter(\.isDict).prefix(256) { config(c, "20-001", "other") }
+        let configs = (oc.array("Configs")?.elements ?? []).filter(\.isDict)
+        for c in configs.prefix(256) { config(c, "20-001", "other") }
+        if (oc.array("Configs")?.count ?? 0) > 256 { noteOnce("The file has very many layer configurations; only the first 256 were checked.") }
     }
 
     private func embeddedFiles() {
-        for (key, value) in PdfStructure.nameTree(catalog.dict("Names")?.dict("EmbeddedFiles")).prefix(10_000) {
+        var attached = 0
+        for (key, value) in PdfStructure.nameTree(catalog.dict("Names")?.dict("EmbeddedFiles")) {
+            attached += 1
+            if attached > 10_000 {
+                noteOnce("The file has very many attached files; only the first 10,000 were checked.")
+                break
+            }
             guard let spec = value, spec.isDict, spec.has("EF"), !Self.hasBothNames(spec) else { continue }
             add("21-001", "The attached file “\(Self.short(key))” lacks \(spec.has("UF") ? "its F name" : "its UF (Unicode) name").", element: "Attached file")
         }

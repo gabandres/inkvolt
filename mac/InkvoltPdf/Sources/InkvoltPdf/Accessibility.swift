@@ -249,14 +249,15 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
     }
 
     /// What the keyboard lands on after a check: the first failure, else Check Again.
-    var landingControl: NSView { (report?.passed ?? true) ? againButton : table }
+    var landingControl: NSView { (report?.failures.isEmpty ?? true) ? againButton : table }
 
     func show(_ report: AccessibilityReport, checkedAt: Date) {
         self.report = report
         self.checkedAt = checkedAt
         summaryLabel.stringValue = report.paneSummary
         tabs.setLabel(report.failuresTabTitle, forSegment: 0)
-        tabs.selectedSegment = report.passed ? 1 : 0
+        none.stringValue = report.nothingFailsText
+        tabs.selectedSegment = report.failures.isEmpty ? 1 : 0
         following = true
         table.reloadData()
         table.deselectAll(nil)
@@ -286,9 +287,9 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
 
     @objc private func tabChosen() {
         let list = tabs.selectedSegment == 0
-        let passed = report?.passed ?? false
-        none.isHidden = !list || !passed
-        tableScroll.isHidden = !list || passed
+        let noFailures = report?.failures.isEmpty ?? false
+        none.isHidden = !list || !noFailures
+        tableScroll.isHidden = !list || noFailures
         checklistScroll.isHidden = list
     }
 
