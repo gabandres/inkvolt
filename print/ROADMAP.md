@@ -149,7 +149,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
   taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
   encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
-  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only; Mac (PDFKit) not started.
+  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only. Mac: PrintCore done (2026-11-02,
+  mac/docs/PLAN.md P12: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC); PrintMac's
+  PDFKit renderer, the Scan tab's status line and save, and demo mode's PDF-only feeder wait for the Mac.
 - **Effort** S. Windows and Mac.
 
 ### 1.4 Alerts that survive the Store package

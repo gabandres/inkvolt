@@ -7,7 +7,8 @@ import Synchronization
 /// `/eSCL/ScannerCapabilities` → `eSCL_ScannerCapabilities.xml`; HP CDM's `/cdm/...` → `cdm_….json`. An IPP
 /// Get-Printer-Attributes request to `/ipp/print` is answered from `ipp_print.ipp.txt` (`IppText`), and so is
 /// Identify-Printer when that document lists it. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a
-/// document is 404.
+/// document is 404. A scan job that asks for `application/pdf` (a scanner whose capabilities offer only PDF from a source)
+/// gets its pages as a PDF, the JPEGs embedded as they are: one PDF per glass page, the whole feeder batch in one PDF.
 public final class FixtureTransport: HttpTransport {
     /// Address shown for the demo printer: RFC 5737 documentation range, never a real device.
     public static let demoHost = "192.0.2.10"
@@ -18,7 +19,7 @@ public final class FixtureTransport: HttpTransport {
     private let scanPage: (@Sendable () -> [UInt8])?
     private let scanArea: (@Sendable (Int, Int) -> [UInt8])?
     private let feederBatch: (@Sendable () -> [[UInt8]]?)?
-    private let state = Mutex<(pagesLeft: Int, area: (width: Int, height: Int), batch: [[UInt8]])>((0, (2550, 3300), []))
+    private let state = Mutex<(pagesLeft: Int, area: (width: Int, height: Int), batch: [[UInt8]], pdf: Bool, dpi: Int)>((0, (2550, 3300), [], false, 300))
 
     /// - Parameters:
     ///   - document: document name → bytes, or nil when there is none.
@@ -65,28 +66,41 @@ public final class FixtureTransport: HttpTransport {
         if method == "POST" && path.hasSuffix("/ScanJobs") && canScan {
             let settings = String(decoding: request.body ?? [], as: UTF8.self)
             let pages = settings.contains(">Feeder<") ? feederBatch?() : nil
+            let resolution = settings.range(of: #"XResolution>(\d+)<"#, options: .regularExpression)
+                .flatMap { Int(settings[$0].filter(\.isNumber)) } ?? 300
             state.withLock { s in
                 if !settings.isEmpty { s.area = Self.region(settings) ?? s.area }
                 s.batch = pages ?? []
                 s.pagesLeft = s.batch.isEmpty ? 1 : 0
+                s.pdf = settings.contains(">\(ScannerPdf.mediaType)<")
+                s.dpi = resolution
             }
             return HttpResponse(status: 201, headers: ["Location": Self.jobPath])
         }
         if method == "GET" && path == Self.jobPath + "/NextDocument" {
-            enum Next { case batch([UInt8]), one((width: Int, height: Int)), none }
-            let next: Next = state.withLock { s in
-                if !s.batch.isEmpty { return .batch(s.batch.removeFirst()) }
+            enum Next { case batch([[UInt8]]), one((width: Int, height: Int)), none }
+            let (next, pdf, dpi): (Next, Bool, Int) = state.withLock { s in
+                if !s.batch.isEmpty {
+                    // A PDF job's feeder batch comes as one PDF, as many feeders send it; JPEG pages one at a time.
+                    if s.pdf {
+                        defer { s.batch.removeAll() }
+                        return (.batch(s.batch), true, s.dpi)
+                    }
+                    return (.batch([s.batch.removeFirst()]), false, s.dpi)
+                }
                 if canScan && s.pagesLeft == 1 {
                     s.pagesLeft = 0
-                    return .one(s.area)
+                    return (.one(s.area), s.pdf, s.dpi)
                 }
-                return .none
+                return (.none, s.pdf, s.dpi)
+            }
+            func reply(_ pages: [[UInt8]]) -> HttpResponse {
+                pdf ? HttpResponse(status: 200, headers: ["Content-Type": ScannerPdf.mediaType], body: ScannerPdf.write(pages.map { ($0, dpi, nil) }))
+                    : HttpResponse(status: 200, headers: ["Content-Type": "image/jpeg"], body: pages[0])
             }
             switch next {
-            case .batch(let page): return HttpResponse(status: 200, headers: ["Content-Type": "image/jpeg"], body: page)
-            case .one(let area):
-                let page = scanArea?(area.width, area.height) ?? scanPage!()
-                return HttpResponse(status: 200, headers: ["Content-Type": "image/jpeg"], body: page)
+            case .batch(let pages): return reply(pages)
+            case .one(let area): return reply([scanArea?(area.width, area.height) ?? scanPage!()])
             case .none: return HttpResponse(status: 404)
             }
         }

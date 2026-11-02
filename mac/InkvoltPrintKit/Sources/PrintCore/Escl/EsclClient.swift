@@ -37,7 +37,8 @@ public final class EsclClient: Sendable {
     }
 
     /// Runs one scan job and yields each page as JPEG bytes. Platen jobs return one page; feeder jobs return pages until the
-    /// device answers 404 (feeder empty). Stopping early (or an error) deletes the job on the device.
+    /// device answers 404 (feeder empty). Stopping early (or an error) deletes the job on the device. A source that sends
+    /// only PDF is scanned as PDF and each document's pages handed over as JPEG (`ScannerPdf.pages`).
     public func scan(_ request: ScanRequest) -> AsyncThrowingStream<[UInt8], any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -54,11 +55,15 @@ public final class EsclClient: Sendable {
 
     private func runScan(_ request: ScanRequest, _ yield: @Sendable ([UInt8]) -> Void) async throws {
         guard let caps = try await capabilities() else { throw ScanError("Not an eSCL scanner") }
-        if caps.input(for: request.source)?.offersJpeg == false {
-            throw ScanError("This scanner doesn't send JPEG pages from this source, which Inkvolt Print needs.")
+        let input = caps.input(for: request.source)
+        let pdf = input?.pdfOnly == true
+        if input?.offersJpeg == false && !pdf {
+            throw ScanError("This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs.")
         }
         if let problem = try await status().problem(feeder: request.source != .platen) { throw ScanError(problem) }
-        guard let settings = EsclXml.buildScanSettings(request, caps) else { throw ScanError("The scanner has no such source.") }
+        guard let settings = EsclXml.buildScanSettings(request, caps, format: pdf ? ScannerPdf.mediaType : "image/jpeg") else {
+            throw ScanError("The scanner has no such source.")
+        }
 
         let job = try await createJob(settings)
         var done = false
@@ -75,7 +80,12 @@ public final class EsclClient: Sendable {
             let bytes = try await nextDocument(job)
             lastLoad = clock.now - started
             guard let bytes else { break }
-            yield(JpegFix.patchZeroHeight(bytes))
+            if pdf, let input {
+                // One PDF per page, or the whole feeder run in one: either way, its pages in order.
+                for jpeg in try await ScannerPdf.pages(bytes, dpi: EsclXml.resolution(request, input)) { yield(jpeg) }
+            } else {
+                yield(JpegFix.patchZeroHeight(bytes))
+            }
             if request.source == .platen { break }
             page += 1
         }

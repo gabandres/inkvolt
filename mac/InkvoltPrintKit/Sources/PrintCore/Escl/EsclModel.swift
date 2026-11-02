@@ -14,6 +14,9 @@ public struct InputCaps: Equatable, Sendable {
 
     /// Inkvolt asks for JPEG pages; a source listing formats without JPEG can't be scanned from.
     public var offersJpeg: Bool { documentFormats.isEmpty || documentFormats.contains { $0.caseInsensitiveCompare("image/jpeg") == .orderedSame } }
+
+    /// PDF and no JPEG (some feeders): scanned as PDF, its pages taken out as JPEG (`ScannerPdf`).
+    public var pdfOnly: Bool { !offersJpeg && documentFormats.contains { $0.caseInsensitiveCompare(ScannerPdf.mediaType) == .orderedSame } }
 }
 
 public struct ScannerCapabilities: Equatable, Sendable {
@@ -194,12 +197,13 @@ public enum EsclXml {
     public static let scan = "http://schemas.hp.com/imaging/escl/2011/05/03"
     public static let pwg = "http://www.pwg.org/schemas/2010/12/sm"
 
-    /// Always requests JPEG pages; PDF assembly and OCR happen locally so every page can be previewed.
-    public static func buildScanSettings(_ request: ScanRequest, _ caps: ScannerCapabilities) -> String? {
+    /// Requests JPEG pages (PDF assembly and OCR happen locally so every page can be previewed), or PDF from a source that
+    /// offers nothing else (`format`: `ScannerPdf.mediaType`; its pages are taken out as JPEG).
+    public static func buildScanSettings(_ request: ScanRequest, _ caps: ScannerCapabilities, format: String = "image/jpeg") -> String? {
         guard let input = caps.input(for: request.source) else { return nil }
         let width = min(max(request.width ?? input.maxWidth, input.minWidth), input.maxWidth)
         let height = min(max(request.height ?? input.maxHeight, input.minHeight), input.maxHeight)
-        let resolution = input.resolutions.min { abs($0 - request.resolution) < abs($1 - request.resolution) } ?? request.resolution
+        let resolution = Self.resolution(request, input)
         var color = request.color == .color ? "RGB24" : "Grayscale8"
         // A missing mode falls back to the other of color/grey before black-and-white (which loses too much for OCR).
         if !input.colorModes.isEmpty && !input.colorModes.contains(color) {
@@ -218,11 +222,16 @@ public enum EsclXml {
         xml += "<pwg:InputSource>\(request.source == .platen ? "Platen" : "Feeder")</pwg:InputSource>"
         xml += "<scan:ColorMode>\(escape(color))</scan:ColorMode>"
         xml += "<scan:XResolution>\(resolution)</scan:XResolution><scan:YResolution>\(resolution)</scan:YResolution>"
-        xml += "<pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>"
-        if input.hasDocumentFormatExt { xml += "<scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>" }
+        xml += "<pwg:DocumentFormat>\(escape(format))</pwg:DocumentFormat>"
+        if input.hasDocumentFormatExt { xml += "<scan:DocumentFormatExt>\(escape(format))</scan:DocumentFormatExt>" }
         if request.source == .adfDuplex { xml += "<scan:Duplex>true</scan:Duplex>" }
         xml += "</scan:ScanSettings>"
         return xml
+    }
+
+    /// The resolution a scan asks for: the source's closest to the request's.
+    public static func resolution(_ request: ScanRequest, _ input: InputCaps) -> Int {
+        input.resolutions.min { abs($0 - request.resolution) < abs($1 - request.resolution) } ?? request.resolution
     }
 
     static func escape(_ text: String) -> String {
