@@ -314,7 +314,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   each result; a stopped batch says where. Pro: saved lists, a dropped folder printed as it fills, `inkvoltprint print
   --list file --printer name`, the results as CSV. Test: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF that asks for
   its password) print to the demo queue in order with the estimated sheet count; exit codes match Inkvolt PDF's. Mac:
-  the same through the CUPS queue.
+  the same through the CUPS queue. Mac's PrintCore done (2026-11-02, mac/docs/PLAN.md P12: the estimate and bounds, passwords, the run
+  and its stops, the printer's answer checked, a folder's files, the results CSV); saved lists, watched folders, `print --list`,
+  PrintMac's PDFKit pages and CUPS queue and the Batch window wait.
 - **Effort** S-M. Windows and Mac.
 
 ### 2.5 TWAIN
