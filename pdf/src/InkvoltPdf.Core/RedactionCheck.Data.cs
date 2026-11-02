@@ -25,12 +25,20 @@ public static partial class RedactionCheck
     /// </summary>
     internal sealed class ValueMatcher
     {
-        private readonly Regex? _regex;
+        // As many regexes as it takes: a single one has a size limit (its engine refuses it at about 10,000 nodes, which a few
+        // hundred numbers reach), and each value's group number is its index less its regex's first value.
+        private readonly List<(Regex Regex, int First)> _regexes = [];
         private readonly bool[] _digits = [];
         private readonly bool[] _wordStart = [], _wordEnd = [];
 
         public IReadOnlyList<string> Values { get; }
-        public bool IsEmpty => _regex is null;
+        public bool IsEmpty => _regexes.Count == 0;
+
+        /// <summary>Some text took too long and wasn't searched to its end.</summary>
+        public bool TimedOut { get; private set; }
+
+        /// <summary>A value was too large to look for at all.</summary>
+        public bool TooLarge { get; private set; }
 
         public ValueMatcher(IReadOnlyList<string> values)
         {
@@ -51,35 +59,57 @@ public static partial class RedactionCheck
                     : string.Join(@"[\s­]+", v.Split(' ').Select(w => string.Join(@"­?", w.Select(c => Regex.Escape(c.ToString())))));
                 parts.Add($"({pattern})");
             }
-            _regex = new Regex(string.Join('|', parts), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromSeconds(10));
+            Build(parts, 0);
+        }
+
+        private void Build(List<string> parts, int first)
+        {
+            try
+            {
+                _regexes.Add((new Regex(string.Join('|', parts), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromSeconds(10)), first));
+            }
+            catch (NotSupportedException) when (parts.Count > 1)
+            {
+                var half = parts.Count / 2;
+                Build(parts[..half], first);
+                Build(parts[half..], first + half);
+            }
+            catch (NotSupportedException)
+            {
+                TooLarge = true; // one value too large for the engine on its own: it can't be looked for, and the report says so
+            }
         }
 
         /// <summary>Every match: which value, where.</summary>
         public IEnumerable<(int Value, int Start, int Length)> Matches(string text)
         {
-            if (_regex is null || text.Length == 0) yield break;
-            MatchCollection found;
-            try
+            if (text.Length == 0) yield break;
+            foreach (var (regex, first) in _regexes)
             {
-                found = _regex.Matches(text);
-                _ = found.Count; // run it here, inside the try
-            }
-            catch (RegexMatchTimeoutException)
-            {
-                yield break;
-            }
-            foreach (Match m in found)
-            {
-                var v = -1;
-                for (var g = 1; g < m.Groups.Count && v < 0; g++)
-                    if (m.Groups[g].Success) v = g - 1;
-                if (v < 0) continue;
-                int s = m.Index, e = m.Index + m.Length;
-                var before = s > 0 ? text[s - 1] : ' ';
-                var after = e < text.Length ? text[e] : ' ';
-                if (_digits[v] ? char.IsDigit(before) || char.IsDigit(after)
-                    : _wordStart[v] && char.IsLetterOrDigit(before) || _wordEnd[v] && char.IsLetterOrDigit(after)) continue;
-                yield return (v, s, m.Length);
+                MatchCollection found;
+                try
+                {
+                    found = regex.Matches(text);
+                    _ = found.Count; // run it here, inside the try
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    TimedOut = true; // not searched to the end: the report has to say so, not read as clean
+                    continue;
+                }
+                foreach (Match m in found)
+                {
+                    var v = -1;
+                    for (var g = 1; g < m.Groups.Count && v < 0; g++)
+                        if (m.Groups[g].Success) v = first + g - 1;
+                    if (v < 0) continue;
+                    int s = m.Index, e = m.Index + m.Length;
+                    var before = s > 0 ? text[s - 1] : ' ';
+                    var after = e < text.Length ? text[e] : ' ';
+                    if (_digits[v] ? char.IsDigit(before) || char.IsDigit(after)
+                        : _wordStart[v] && char.IsLetterOrDigit(before) || _wordEnd[v] && char.IsLetterOrDigit(after)) continue;
+                    yield return (v, s, m.Length);
+                }
             }
         }
     }
@@ -94,6 +124,55 @@ public static partial class RedactionCheck
     {
         private readonly HashSet<int> _hit = []; // values found somewhere
         private int _hiddenLayers;
+        private bool _incomplete;
+
+        /// <summary>
+        /// What the patterns find in what a file holds besides its pages: comments, form fields, bookmarks, properties and XMP,
+        /// attachments and tags. Only their strings (and attachments' and XMP's contents): the numbers of a content stream would
+        /// look like phone numbers. Dates and ZIP codes aren't looked for in properties: every file's dates and ids are there.
+        /// </summary>
+        private List<string> PatternValues(PdfDocument doc)
+        {
+            var found = new List<string>();
+            if (options.Patterns is not { IsEmpty: false } patterns) return found;
+            var custom = RedactionPatterns.Compile(patterns);
+            var properties = patterns with { Patterns = patterns.Patterns.Where(p => p is not (RedactionPattern.Date or RedactionPattern.ZipCode)).ToHashSet() };
+            var owners = Owners(doc, cancel);
+            foreach (var o in doc.Internals.GetAllObjects())
+            {
+                cancel.ThrowIfCancellationRequested();
+                var owner = owners.GetValueOrDefault(o);
+                var xmp = o is PdfDictionary x && PdfObj.NameOf(x, "/Type") == "/Metadata";
+                if (!xmp && owner is null or { Part: Part.Page or Part.Content }) continue;
+                var sb = new StringBuilder();
+                Strings(o, sb, false, 0);
+                if (o is PdfDictionary { Stream: not null } d && (xmp || owner?.Part == Part.Attachment))
+                {
+                    try
+                    {
+                        var bytes = PdfObj.StreamBytes(d);
+                        if (bytes.Length > MaxStreamBytes) bytes = bytes[..MaxStreamBytes];
+                        sb.Append('\n').Append(xmp ? PlainText(bytes) : FileText(bytes));
+                    }
+                    catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
+                    {
+                        // a filter that fails on its data: its strings were read
+                    }
+                }
+                if (sb.Length == 0) continue;
+                var text = sb.Length > 1 << 20 ? sb.ToString(0, 1 << 20) : sb.ToString();
+                try
+                {
+                    found.AddRange(RedactionPatterns.FindValues(text, xmp || owner?.Part == Part.Info ? properties : patterns, custom));
+                }
+                catch (Exception ex) when (ex is TimeoutException or TooManyHitsException)
+                {
+                    _incomplete = true;
+                    _notes.Add($"{owner?.Where ?? "XMP metadata"} couldn't be searched to the end: {ex.Message}");
+                }
+            }
+            return found;
+        }
 
         /// <summary>
         /// Every object of the document, searched for the values; a hit is reported as what holds it (page content that
@@ -260,7 +339,7 @@ public static partial class RedactionCheck
                         }
                     }
                     using var pages = PdfEngine.Open(prefix, InputFileTypes.PDF, password);
-                    for (var p = 0; p < pages.PageCount; p++)
+                    for (var p = 0; !options.ValuesOnly && p < pages.PageCount; p++)
                     {
                         var gone = Words(pages.GetText(p, cache: false, cancel).Text).Where(w => !current.Contains(w)).Distinct().ToList();
                         if (gone.Count == 0) continue;

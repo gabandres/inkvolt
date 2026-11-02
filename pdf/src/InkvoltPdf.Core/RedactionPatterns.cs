@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -62,6 +63,9 @@ public sealed record RedactionPatternOptions
     /// <summary>The pages to search (0-based); null for all of them.</summary>
     public IReadOnlyList<int>? Pages { get; init; }
 
+    /// <summary>The saved set these came from (<see cref="RedactionPatternSets"/>), when they came from one.</summary>
+    public string? SetName { get; init; }
+
     /// <summary>Nothing to look for.</summary>
     public bool IsEmpty => !Patterns.Any(RedactionPatterns.BuiltIn.Contains) && !Phrases.Any(p => !string.IsNullOrWhiteSpace(p))
                            && string.IsNullOrEmpty(Expression);
@@ -70,7 +74,24 @@ public sealed record RedactionPatternOptions
 /// <param name="Start">Where the match starts in the page's <see cref="PageText.Text"/>.</param>
 /// <param name="End">Where it ends (exclusive).</param>
 /// <param name="Rects">Its boxes on the page, one per line it covers (page space).</param>
-public sealed record RedactionMatch(int Page, RedactionPattern Pattern, int Start, int End, string Text, IReadOnlyList<RectD> Rects);
+public sealed record RedactionMatch(int Page, RedactionPattern Pattern, int Start, int End, string Text, IReadOnlyList<RectD> Rects)
+{
+    /// <summary>The match as the patterns read it: line breaks as spaces, hyphens at line ends gone, recognizer slips put right.</summary>
+    public string Normalized { get; init; } = Text;
+
+    /// <summary>The text just before the match, safe to show (<see cref="RedactionPatterns.Displayable"/>).</summary>
+    public string Before { get; init; } = "";
+
+    /// <summary>The text just after the match, safe to show.</summary>
+    public string After { get; init; } = "";
+
+    /// <summary>Found in what text recognition read on the page, not in the page's own text.</summary>
+    public bool FromOcr { get; init; }
+}
+
+/// <summary>A document has more matches than can be reviewed. Nothing is applied: a partial list must not look complete.</summary>
+public sealed class TooManyHitsException(int limit)
+    : Exception($"More than {limit:N0} matches were found, so the search stopped and nothing was changed. Choose fewer kinds or a narrower pattern.");
 
 /// <summary>
 /// Redaction by pattern: finds Social Security numbers, phone numbers, email addresses, payment card numbers, dates,
@@ -95,6 +116,15 @@ public static class RedactionPatterns
 
     /// <summary>How long the user's expression may take on one page before the search stops.</summary>
     public static readonly TimeSpan ExpressionTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long one page may take in all: each regex call has its own timeout, and a page can make very many calls.</summary>
+    internal static TimeSpan PageBudget { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Most matches in a document before the search stops (<see cref="TooManyHitsException"/>).</summary>
+    public const int MaxHits = 100_000;
+
+    /// <summary>The longest own pattern, the most phrases and the longest phrase: what a hand or a tampered file can give.</summary>
+    public const int MaxExpressionLength = 2_000, MaxPhrases = 2_000, MaxPhraseLength = 500;
 
     public static string Name(RedactionPattern pattern) => pattern switch
     {
@@ -128,6 +158,7 @@ public static class RedactionPatterns
     public static string? ValidateExpression(string? expression)
     {
         if (string.IsNullOrEmpty(expression)) return null;
+        if (expression.Length > MaxExpressionLength) return $"This pattern is too long: keep it under {MaxExpressionLength:N0} characters.";
         try
         {
             var regex = new Regex(expression, RegexOptions.CultureInvariant, ExpressionTimeout);
@@ -155,11 +186,52 @@ public static class RedactionPatterns
         }
     }
 
+    /// <summary>What is wrong with a whole set of choices (from the dialog, a saved set or a preset), in plain words; null when fine.</summary>
+    public static string? Validate(RedactionPatternOptions options)
+    {
+        if (options.Phrases.Count > MaxPhrases) return $"There are too many words and phrases: at most {MaxPhrases:N0}.";
+        if (options.Phrases.Any(p => p.Length > MaxPhraseLength)) return $"A word or phrase is too long: at most {MaxPhraseLength:N0} characters.";
+        return ValidateExpression(options.Expression);
+    }
+
+    /// <summary>
+    /// Text that came from a file, made safe to show: control and invisible format characters (bidirectional overrides that
+    /// would make it read differently) gone, whitespace as single spaces, at most <paramref name="max"/> characters.
+    /// </summary>
+    public static string Displayable(string text, int max = 120)
+    {
+        var sb = new StringBuilder(Math.Min(text.Length, max + 1));
+        foreach (var c in text.Length > max * 8 ? text.AsSpan(0, max * 8) : text.AsSpan())
+        {
+            if (sb.Length > max) break;
+            if (char.IsWhiteSpace(c))
+            {
+                if (sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+                continue;
+            }
+            var kind = char.GetUnicodeCategory(c);
+            if (kind is UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.OtherNotAssigned or UnicodeCategory.PrivateUse) continue;
+            sb.Append(c);
+        }
+        if (sb.Length <= max) return sb.ToString();
+        sb.Length = max;
+        if (char.IsHighSurrogate(sb[^1])) sb.Length--;
+        return sb.Append('…').ToString();
+    }
+
     /// <summary>The matches on one page, in reading order.</summary>
     /// <exception cref="ArgumentException">The expression isn't valid (see <see cref="ValidateExpression"/>).</exception>
     /// <exception cref="TimeoutException">The expression took longer than <see cref="ExpressionTimeout"/>.</exception>
     public static List<RedactionMatch> Find(PageText text, int page, RedactionPatternOptions options) =>
         FindOnPage(text, page, options, Compile(options));
+
+    /// <summary>The values the patterns find in text that isn't on a page (a comment, a property), as the patterns read them.</summary>
+    internal static List<string> FindValues(string text, RedactionPatternOptions options, Regex? custom)
+    {
+        var box = new RectD(0, 0, 1, 1);
+        var lines = text.Split('\n').Select(l => l.Select(c => (c.ToString(), box)).ToList()).ToList();
+        return [.. FindOnPage(new PageText(lines), 0, options, custom).Select(m => m.Normalized)];
+    }
 
     /// <summary>The matches on the chosen pages (all of them when none are chosen), page by page.</summary>
     /// <param name="progress">(pages done, pages to search).</param>
@@ -176,6 +248,7 @@ public static class RedactionPatterns
             cancel.ThrowIfCancellationRequested();
             // Cached only for a few pages: a long document would push the pages the viewer shows out of the engine's text cache.
             matches.AddRange(FindOnPage(engine.GetText(pages[i], cache: pages.Count <= 8, cancel), pages[i], options, custom));
+            if (matches.Count > MaxHits) throw new TooManyHitsException(MaxHits);
             progress?.Report((i + 1, pages.Count));
         }
         return matches;
@@ -210,25 +283,44 @@ public static class RedactionPatterns
 
     // ───────────────────────────── finding ─────────────────────────────
 
-    private static Regex? Compile(RedactionPatternOptions options)
+    internal static Regex? Compile(RedactionPatternOptions options)
     {
+        if (Validate(options) is { } error) throw new ArgumentException(error, nameof(options));
         if (string.IsNullOrEmpty(options.Expression)) return null;
-        if (ValidateExpression(options.Expression) is { } error) throw new ArgumentException(error, nameof(options));
         return new Regex(options.Expression, RegexOptions.CultureInvariant | (options.MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase), ExpressionTimeout);
     }
 
-    private static List<RedactionMatch> FindOnPage(PageText text, int page, RedactionPatternOptions options, Regex? custom)
+    /// <param name="lenient">The text came from a recognizer: read slips kindly (<see cref="LenientView"/>), and a number of the
+    /// right length counts even when its check digit fails, since one misread digit would otherwise hide it.</param>
+    internal static List<RedactionMatch> FindOnPage(PageText text, int page, RedactionPatternOptions options, Regex? custom, bool lenient = false)
     {
         var found = new List<RedactionMatch>();
         if (text.IsEmpty) return found;
-        var (view, map) = View(text.Text);
+        var (plain, plainMap) = View(text.Text);
+        // The kinds read a recognizer's text kindly; the person's own pattern reads what was read ("CASE-12" isn't "CA5E-12").
+        var (view, map) = lenient ? LenientView(plain, plainMap) : (plain, plainMap);
+        var clock = Stopwatch.StartNew();
+        void Spend()
+        {
+            if (clock.Elapsed > PageBudget) throw new TimeoutException($"Looking at page {page + 1} took too long, so the search stopped and nothing was changed.");
+        }
 
-        void Add(RedactionPattern pattern, int start, int end, bool inView)
+        void Add(RedactionPattern pattern, int start, int end, string? readIn, int[]? readMap)
         {
             if (end <= start) return;
-            if (inView) (start, end) = (map[start], map[end - 1] + 1);
+            var normalized = readIn is not null ? readIn[start..end] : View(text.Text[start..end]).View.Trim();
+            if (readMap is not null) (start, end) = (readMap[start], readMap[end - 1] + 1);
             var rects = text.GetRects(start, end).Where(r => !r.IsEmpty).ToList();
-            if (rects.Count > 0) found.Add(new RedactionMatch(page, pattern, start, end, text.Text[start..end], rects));
+            // Text without a box of its own (glyphs of no size) is still text in the file: its page has to go too.
+            if (rects.Count == 0) rects.Add(new RectD(text.BoxAt(start).X, text.BoxAt(start).Y, 1, 1));
+            var after = Math.Min(text.Text.Length, end + ContextChars);
+            found.Add(new RedactionMatch(page, pattern, start, end, text.Text[start..end], rects)
+            {
+                Normalized = normalized,
+                Before = Displayable(text.Text[Math.Max(0, start - ContextChars)..start], ContextChars),
+                After = (end < after && char.IsWhiteSpace(text.Text[end]) ? " " : "") + Displayable(text.Text[end..after], ContextChars),
+            });
+            if (found.Count > MaxHits) throw new TooManyHitsException(MaxHits);
         }
 
         // Built-in kinds: every rule's matches, then where two kinds overlap the stronger (earlier in Strength) keeps the text.
@@ -238,29 +330,43 @@ public static class RedactionPatterns
             try
             {
                 foreach (Match m in rule.Regex.Matches(view))
-                    if (Accept(rule, m, view) is { } end) builtIn.Add((rule.Pattern, m.Index, end));
+                {
+                    if (Accept(rule, m, view, lenient) is { } end) builtIn.Add((rule.Pattern, m.Index, end));
+                    if (builtIn.Count > MaxHits * 4) throw new TooManyHitsException(MaxHits);
+                }
             }
             catch (RegexMatchTimeoutException ex)
             {
                 throw new TimeoutException($"Looking for {Name(rule.Pattern).ToLowerInvariant()} took too long on page {page + 1}.", ex);
             }
+            Spend();
         }
-        var kept = new List<(RedactionPattern Pattern, int Start, int End)>();
+        // Each character at most once: a page of hostile text can hold hundreds of thousands of matches.
+        var taken = new bool[view.Length];
         foreach (var m in builtIn.OrderBy(m => Array.IndexOf(Strength, m.Pattern)).ThenByDescending(m => m.End - m.Start))
-            if (!kept.Any(k => k.Start < m.End && m.Start < k.End)) kept.Add(m);
-        foreach (var (pattern, start, end) in kept) Add(pattern, start, end, inView: true);
+        {
+            if (taken.AsSpan(m.Start, m.End - m.Start).Contains(true)) continue;
+            taken.AsSpan(m.Start, m.End - m.Start).Fill(true);
+            Add(m.Pattern, m.Start, m.End, view, map);
+        }
 
         // The user's phrases go through the page search (whole words, case, hyphenation, whitespace as it does).
         foreach (var phrase in options.Phrases.Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(options.MatchCase ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase))
+        {
             foreach (var (start, end) in text.Find(phrase, options.MatchCase, options.WholeWord))
-                Add(RedactionPattern.Phrase, start, end, inView: false);
+                Add(RedactionPattern.Phrase, start, end, null, null);
+            Spend();
+        }
 
         if (custom is not null)
         {
             try
             {
-                for (var m = custom.Match(view); m.Success; m = m.NextMatch())
-                    if (m.Length > 0) Add(RedactionPattern.Expression, m.Index, m.Index + m.Length, inView: true);
+                for (var m = custom.Match(plain); m.Success; m = m.NextMatch())
+                {
+                    if (m.Length > 0) Add(RedactionPattern.Expression, m.Index, m.Index + m.Length, plain, plainMap);
+                    Spend();
+                }
             }
             catch (RegexMatchTimeoutException ex)
             {
@@ -272,10 +378,13 @@ public static class RedactionPatterns
         return found;
     }
 
+    private const int ContextChars = 48;
+
     /// <summary>
     /// The page text as the patterns read it, with each character's index in the text: whitespace (line breaks too) as a
-    /// space, dashes as '-', soft hyphens dropped, a hyphen at a line break between letters dropped with the break (one
-    /// word) and one between digits kept without the break (one number).
+    /// space, dashes as '-', soft hyphens and other invisible characters dropped, wide forms as plain ones ("１２３" as "123"),
+    /// a hyphen at a line break between letters dropped with the break (one word) and one between digits kept without the
+    /// break (one number), as is one that starts the next line.
     /// </summary>
     private static (string View, int[] Map) View(string text)
     {
@@ -289,6 +398,9 @@ public static class RedactionPatterns
                 if (i + 1 < text.Length && text[i + 1] == '\n') i++;
                 continue;
             }
+            if (char.GetUnicodeCategory(c) == UnicodeCategory.Format) continue;
+            if (c == '\n' && i > 0 && i + 2 < text.Length && char.IsAsciiDigit(text[i - 1]) && IsDash(text[i + 1]) && char.IsAsciiDigit(text[i + 2])) continue;
+            if (c is >= '！' and <= '～' && !IsDash(c)) c = (char)(c - 0xFEE0);
             if (IsDash(c) && i > 0 && i + 2 < text.Length && text[i + 1] == '\n')
             {
                 if (char.IsLetter(text[i - 1]) && char.IsLetter(text[i + 2]))
@@ -296,7 +408,8 @@ public static class RedactionPatterns
                     i++;
                     continue;
                 }
-                if (char.IsAsciiDigit(text[i - 1]) && char.IsAsciiDigit(text[i + 2]))
+                // Between digits (a number), or a letter and a digit (CASE-0412): the hyphen stays, the break goes.
+                if (char.IsLetterOrDigit(text[i - 1]) && char.IsLetterOrDigit(text[i + 2]))
                 {
                     sb.Append('-');
                     map.Add(i++);
@@ -309,16 +422,74 @@ public static class RedactionPatterns
         return (sb.ToString(), [.. map]);
     }
 
+    /// <summary>
+    /// The view for text a recognizer read: in a word of digits and letters recognizers take for digits, those letters become
+    /// the digits ("l23-45-6789", "4111 1lll 1111 1111"), and spaces it put around a dash, slash or at sign go.
+    /// </summary>
+    private static (string View, int[] Map) LenientView(string view, int[] map)
+    {
+        var chars = view.ToCharArray();
+        for (var start = 0; start < chars.Length;)
+        {
+            if (chars[start] == ' ')
+            {
+                start++;
+                continue;
+            }
+            var end = start;
+            while (end < chars.Length && chars[end] != ' ') end++;
+            var (digits, others) = (0, 0);
+            for (var i = start; i < end; i++)
+            {
+                if (char.IsAsciiDigit(chars[i])) digits++;
+                else if (char.IsLetter(chars[i]) && chars[i] is not ('O' or 'o' or 'l' or 'I' or 'S' or 's' or 'B' or 'Z' or 'z')) others++;
+                else if (chars[i] == '@') others++;
+            }
+            if (digits >= 1 && others == 0)
+                for (var i = start; i < end; i++)
+                    chars[i] = chars[i] switch
+                    {
+                        'O' or 'o' => '0',
+                        'l' or 'I' or '|' or '!' => '1',
+                        'S' or 's' => '5',
+                        'B' => '8',
+                        'Z' or 'z' => '2',
+                        var c => c,
+                    };
+            start = end;
+        }
+        var sb = new StringBuilder(chars.Length);
+        var kept = new List<int>(chars.Length);
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] == ' ' && sb.Length > 0)
+            {
+                var next = i + 1;
+                while (next < chars.Length && chars[next] == ' ') next++;
+                if (next < chars.Length && Joins(sb[^1], chars[next], next + 1 < chars.Length ? chars[next + 1] : ' ')) continue;
+            }
+            sb.Append(chars[i]);
+            kept.Add(map[i]);
+        }
+        return (sb.ToString(), [.. kept]);
+
+        static bool Joins(char before, char after, char afterThat) =>
+            before == '@' || after == '@'
+            || (char.IsAsciiDigit(before) && after is '-' or '/' && (char.IsAsciiDigit(afterThat) || afterThat == ' '))
+            || (before is '-' or '/' && char.IsAsciiDigit(after));
+    }
+
     private static bool IsDash(char c) => c is '-' or (>= '‐' and <= '―') or '−' or '﹣' or '－';
 
     /// <summary>Where a rule's match ends once checked (a card or IBAN may lose groups that came after it), or null.</summary>
-    private static int? Accept(Rule rule, Match m, string view)
+    private static int? Accept(Rule rule, Match m, string view, bool lenient)
     {
         var start = m.Index;
         var end = m.Index + m.Length;
         while (true)
         {
-            if (rule.Valid(m, view[start..end])) return end;
+            var value = view[start..end];
+            if (rule.Valid(m, value) || lenient && rule.Relaxed?.Invoke(value) == true) return end;
             if (!rule.Trim) return null;
             var cut = view.LastIndexOfAny([' ', '-'], end - 1, end - start);
             if (cut <= start) return null;
@@ -329,7 +500,8 @@ public static class RedactionPatterns
     // ───────────────────────────── the patterns ─────────────────────────────
 
     /// <param name="Trim">On a failed check, try again without the last group (a year or code printed after the number).</param>
-    private sealed record Rule(RedactionPattern Pattern, Regex Regex, Func<Match, string, bool> Valid, bool Trim = false);
+    /// <param name="Relaxed">What counts on a recognized page, where one misread digit must not hide a number: no check digit.</param>
+    private sealed record Rule(RedactionPattern Pattern, Regex Regex, Func<Match, string, bool> Valid, bool Trim = false, Func<string, bool>? Relaxed = null);
 
     /// <summary>Which kind keeps text two kinds claim: checked numbers first, the loosest last.</summary>
     private static readonly RedactionPattern[] Strength =
@@ -366,7 +538,7 @@ public static class RedactionPatterns
         // 13 to 19 digits run together, or in groups (4-4-4-4, 4-6-5, ...) split by spaces or dashes, all the same.
         new(RedactionPattern.PaymentCard, R(Lead + @"[2-6](?:[0-9]{12,18}|[0-9]{3}(?:[ -][0-9]{2,7}){2,4})" + Trail),
             (_, value) => value.Where(c => c is ' ' or '-').Distinct().Count() <= 1 && Digits(value) is { Length: >= 13 and <= 19 } d && Luhn(d),
-            Trim: true),
+            Trim: true, Relaxed: value => Digits(value).Length is 15 or 16),
 
         new(RedactionPattern.Date, R(Lead + @"(?<y>(?:1[89]|2[0-9])[0-9]{2})(?<s>[-/.])(?<m>0?[1-9]|1[0-2])\k<s>(?<d>0?[1-9]|[12][0-9]|3[01])" + Trail),
             (m, _) => IsDay(Int(m, "y"), Int(m, "m"), Int(m, "d"))),
@@ -389,7 +561,7 @@ public static class RedactionPatterns
 
         // Two letters, two check digits, then up to 30 letters and digits, printed in groups of four or run together.
         new(RedactionPattern.Iban, R(@"(?<![\w])[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,3})?(?![\w])"),
-            (_, value) => IbanValid(value.Replace(" ", "")), Trim: true),
+            (_, value) => IbanValid(value.Replace(" ", "")), Trim: true, Relaxed: value => value.Replace(" ", "").Length is >= 15 and <= 34),
 
         new(RedactionPattern.IpAddress, R(Lead + $@"(?:{Octet}\.){{3}}{Octet}" + Trail), (_, _) => true),
         // IPv6: hex groups and colons; written in full (eight groups) or shortened with "::".

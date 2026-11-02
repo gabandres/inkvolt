@@ -190,6 +190,8 @@ public sealed record SanitizeStep(IReadOnlySet<SanitizeItem> Items) : BatchStep
 public sealed record RedactPatternsStep(RedactionPatternOptions Options) : BatchStep
 {
     public override string Title => "Redact patterns";
+
+    public override ProFeature? Feature => ProFeature.PatternRedaction;
 }
 
 /// <summary>
@@ -397,8 +399,11 @@ public sealed record BatchPlan
             return $"\"{twice.First().Title}\" is in the list twice.";
         if (Steps.OfType<RedactPatternsStep>().Any(r => r.Options.IsEmpty))
             return "Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.";
-        if (Steps.OfType<RedactPatternsStep>().Select(r => RedactionPatterns.ValidateExpression(r.Options.Expression)).FirstOrDefault(e => e is not null) is { } patternError)
+        if (Steps.OfType<RedactPatternsStep>().Select(r => RedactionPatterns.Validate(r.Options)).FirstOrDefault(e => e is not null) is { } patternError)
             return patternError;
+        var firstRedaction = Steps.ToList().FindIndex(s => s is RedactPatternsStep);
+        if (firstRedaction > 0 && Steps.Take(firstRedaction).Any(s => s is ExportStep or ReportContentsStep))
+            return "Put \"Redact patterns\" before exports and reports: what they save would still hold what it removes.";
         if (!ocrAvailable && Steps.Any(s => s is OcrStep))
             return "Text recognition isn't available: Windows has no OCR language installed.";
         return null;
@@ -427,13 +432,34 @@ public sealed class BatchHost
 
     /// <summary>Recognizes a page's words (page points, top-left origin); called from worker threads.</summary>
     public Func<PdfEngine, int, CancellationToken, IReadOnlyList<OcrWord>>? Recognize { get; init; }
+
+    /// <summary>The same recognizer for Redact Patterns, which also reads single places of a page again; called from worker
+    /// threads, one call at a time. Unset: scanned pages can't be searched, and a file that has them fails that action.</summary>
+    public InkvoltPrint.Core.Imaging.ITextRecognizer? Recognizer { get; init; }
+}
+
+/// <summary>A recognizer that runs one call at a time under a lock it shares with the other users of one engine.</summary>
+public sealed class SerialRecognizer(InkvoltPrint.Core.Imaging.ITextRecognizer inner, Lock gate) : InkvoltPrint.Core.Imaging.ITextRecognizer
+{
+    public string Language => inner.Language;
+
+    public string LanguageName => inner.LanguageName;
+
+    public IReadOnlyList<InkvoltPrint.Core.Imaging.RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default)
+    {
+        lock (gate) return inner.Recognize(pixels, width, height, channels, cancel);
+    }
 }
 
 public enum BatchItemState { Waiting, Running, Done, Skipped, Failed, Cancelled }
 
 /// <param name="Outputs">Files written (also for a file that failed in a later action).</param>
 /// <param name="Notes">What else happened (pages recognized, nothing to export, ...).</param>
-public sealed record BatchItemResult(BatchFile File, BatchItemState State, string Message, IReadOnlyList<string> Outputs, IReadOnlyList<string> Notes);
+public sealed record BatchItemResult(BatchFile File, BatchItemState State, string Message, IReadOnlyList<string> Outputs, IReadOnlyList<string> Notes)
+{
+    /// <summary>What Redact Patterns did to this file (masked values only), when the plan has that action.</summary>
+    public RedactionFileReport? Redaction { get; init; }
+}
 
 /// <param name="Index">The file's place in the list.</param>
 /// <param name="Fraction">How far this file is (0..1).</param>
@@ -442,6 +468,12 @@ public sealed record BatchProgress(int Index, BatchItemState State, string Messa
 
 public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
 {
+    /// <summary>Where the removal report went (the plan has Redact Patterns and some file got that far).</summary>
+    public string? RedactionReportPath { get; init; }
+
+    /// <summary>The removal report; null when the plan has no Redact Patterns.</summary>
+    public RedactionReport? RedactionReport => Items.Any(i => i.Redaction is not null) ? new RedactionReport([.. Items.Select(i => i.Redaction).OfType<RedactionFileReport>()]) : null;
+
     public int Done => Items.Count(i => i.State == BatchItemState.Done);
     public int Skipped => Items.Count(i => i.State == BatchItemState.Skipped);
     public int Failed => Items.Count(i => i.State == BatchItemState.Failed);
@@ -550,7 +582,11 @@ public static class BatchRunner
             results[i] = new BatchItemResult(files[i], BatchItemState.Cancelled, "Cancelled", [], []);
             progress?.Report(new BatchProgress(i, BatchItemState.Cancelled, "Cancelled", 0, results[i]));
         }
-        return new BatchSummary([.. results.Select(r => r!)]);
+        var summary = new BatchSummary([.. results.Select(r => r!)]);
+        if (summary.RedactionReport is not { } report) return summary;
+        // Beside the results; its name carries the time so a later run doesn't replace it. Masked values only.
+        var name = $"Redaction report {plan.Date:yyyy-MM-dd HHmmss}.csv";
+        return summary with { RedactionReportPath = names.Place(plan.OutputFolder, name, temp => File.WriteAllBytes(temp, report.ToCsv())) };
     }
 
     /// <summary>OCR renders pages at this resolution (see the app's recognizer), within this many pixels.</summary>
@@ -629,10 +665,15 @@ public static class BatchRunner
         private readonly Dictionary<int, List<RectD>> _redactedAreas = [];
         private byte[]? _beforeRedaction;
         private string _folder = "";
+        private RedactionFileReport? _redaction;
 
         private void Report(string message, double fraction) => progress?.Report(new BatchProgress(index, BatchItemState.Running, message, fraction));
 
-        private BatchItemResult Result(BatchItemState state, string message) => new(file, state, message, [.. _outputs], [.. _notes]);
+        private BatchItemResult Result(BatchItemState state, string message) => new(file, state, message, [.. _outputs], [.. _notes])
+        {
+            // Whatever stopped the file, nothing it found was removed from a saved result.
+            Redaction = state == BatchItemState.Done ? _redaction : _redaction?.WithoutResult(message),
+        };
 
         public async Task<BatchItemResult> RunAsync()
         {
@@ -656,6 +697,9 @@ public static class BatchRunner
                 var changes = plan.Steps.Any(s => s.ChangesPdf);
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
                 var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password);
+                // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
+                if (keepSigned && plan.Steps.Any(s => s is RedactPatternsStep))
+                    return Result(BatchItemState.Skipped, "Signed: not redacted, so its signatures stay valid. Choose to change signed PDFs to redact it");
                 if (keepSigned && plan.Steps.All(s => s.ChangesPdf))
                     return Result(BatchItemState.Skipped, "Signed: left as it is so its signatures stay valid");
                 if (keepSigned) _notes.Add("Signed: only exported, the PDF left as it is so its signatures stay valid");
@@ -684,6 +728,9 @@ public static class BatchRunner
                         case OcrStep:
                             var words = await Task.Run(() => Recognize(data), cancel).ConfigureAwait(false);
                             if (words.Count > 0) data = await EditAsync(data, (d, pw) => TextLayer.AddInvisibleText(d, pw, words)).ConfigureAwait(false);
+                            break;
+                        case RedactPatternsStep redact:
+                            data = await RedactPatternsAsync(data, redact).ConfigureAwait(false);
                             break;
                         default:
                             data = await EditAsync(data, (d, pw) => Apply(step, d, pw)).ConfigureAwait(false);
@@ -791,22 +838,6 @@ public static class BatchRunner
                 case ProtectStep p: return PdfSecurity.Protect(d, pw, p.UserPassword, p.OwnerPassword, p.Permissions, p.Method);
                 case UnprotectStep: return PdfSecurity.Unprotect(d, pw);
                 case SanitizeStep s: return Sanitizer.Sanitize(d, pw, s.Items).Data;
-                case RedactPatternsStep r:
-                {
-                    var (redacted, matches) = RedactionPatterns.Redact(d, pw, r.Options, cancel);
-                    var pages = matches.Select(m => m.Page).Distinct().Count();
-                    if (matches.Count > 0)
-                    {
-                        _beforeRedaction ??= d;
-                        _redactedValues.AddRange(matches.Select(m => m.Text));
-                        foreach (var (page, areas) in RedactionPatterns.Areas(matches))
-                            (_redactedAreas.TryGetValue(page, out var list) ? list : _redactedAreas[page] = []).AddRange(areas);
-                    }
-                    _notes.Add(matches.Count == 0
-                        ? "Redact patterns: nothing found, left as it was"
-                        : $"Redacted {matches.Count} {(matches.Count == 1 ? "match" : "matches")} on {pages} {(pages == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(matches)})");
-                    return redacted;
-                }
                 case WatermarkStep w: return Watermarks.Apply(d, pw, all, w.Options);
                 case HeaderFooterStep h:
                     return HeaderFooter.Apply(d, pw, all, h.Options with
@@ -840,6 +871,72 @@ public static class BatchRunner
                 default: throw new NotSupportedException(step.Title);
             }
         }
+
+        /// <summary>
+        /// Redact Patterns: finds the matches (through OCR on scans), blacks them out, reads the result back and searches it
+        /// again, then looks for what it removed in everything else the file holds. A match still there, a scan nothing could
+        /// read, or a part of the file that couldn't be searched fails the file: nothing is saved for it.
+        /// </summary>
+        private async Task<byte[]> RedactPatternsAsync(byte[] data, RedactPatternsStep step)
+        {
+            var options = step.Options;
+            var ocr = host.Recognizer;
+            IProgress<(int Done, int Total)> Pages(string doing) =>
+                new Progress<(int Done, int Total)>(p => Report($"{doing}: page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+
+            var found = await Task.Run(() =>
+            {
+                using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
+                return RedactionSearch.Find(engine, options, ocr, Pages("Searching"), cancel);
+            }, cancel).ConfigureAwait(false);
+            var hits = found.Hits;
+            var rows = hits.Select(h => RedactionReport.Row(h, RedactionOutcome.NotSaved)).ToList();
+            _redaction = Merge(new RedactionFileReport(file.NamedAs, rows, found.Looks, null));
+
+            if (found.UnreadScans.Any())
+                throw new RedactionCheckFailedException($"Can't be searched: {RedactionReport.Pages(found.UnreadScans)} {(found.UnreadScans.Count() == 1 ? "is a scan" : "are scans")} and Windows has no text recognition language. Nothing was saved.");
+
+            var result = data;
+            if (hits.Count > 0)
+            {
+                var areas = RedactionSearch.Areas(hits);
+                result = await EditAsync(data, (d, pw) => Redaction.Apply(d, pw, areas)).ConfigureAwait(false);
+                _beforeRedaction ??= data;
+                _redactedValues.AddRange(RedactionSearch.Values(hits));
+                foreach (var (page, list) in areas)
+                    (_redactedAreas.TryGetValue(page, out var all) ? all : _redactedAreas[page] = []).AddRange(list);
+                var remaining = await Task.Run(() => RedactionSearch.ReadBack(result, _password, options, ocr, areas.Keys.ToHashSet(), [], Pages("Reading the result back"), cancel), cancel).ConfigureAwait(false);
+                if (remaining.Count > 0)
+                {
+                    _redaction = Merge(new RedactionFileReport(file.NamedAs, [.. remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere))], [], null));
+                    throw new RedactionCheckFailedException($"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Nothing was saved.");
+                }
+                _notes.Add($"Redacted {hits.Count} {(hits.Count == 1 ? "match" : "matches")} on {areas.Count} {(areas.Count == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(hits)})");
+                _redaction = _redaction with { Removals = [.. _redaction.Removals.Select(r => r.Outcome == RedactionOutcome.NotSaved ? r with { Outcome = RedactionOutcome.Removed } : r)] };
+            }
+            else _notes.Add("Redact patterns: nothing found, left as it was");
+
+            // What no page shows: the values just removed, and whatever the patterns find, in comments, fields, properties, ...
+            var check = await Task.Run(() => RedactionCheck.Run(result, _password, new RedactionCheckOptions { Values = _redactedValues, Patterns = options, ValuesOnly = true }, null, cancel), cancel).ConfigureAwait(false);
+            if (!check.IsClean)
+            {
+                foreach (var f in check.Findings.Take(10)) _notes.Add($"{f.Where}: {RedactionCheck.Name(f.Kind)}");
+                if (check.Findings.Count > 10) _notes.Add($"… and {check.Findings.Count - 10} more");
+                throw new RedactionCheckFailedException($"Redaction check: {check.Summary} Nothing was saved. Sanitize can remove most of these: add it before Redact Patterns.");
+            }
+            if (check.Incomplete) throw new RedactionCheckFailedException($"Redaction check: {string.Join(" ", check.Notes)} Nothing was saved.");
+
+            if (found.Looks.Count > 0)
+                _notes.Add($"Look by hand at {RedactionReport.Pages(found.Looks.Select(l => l.Page))}: read by text recognition, which can miss text");
+            return result;
+        }
+
+        /// <summary>This Redact Patterns action's report added to an earlier one's (a plan can hold two).</summary>
+        private RedactionFileReport Merge(RedactionFileReport next) => _redaction is not { } before ? next : before with
+        {
+            Removals = [.. before.Removals, .. next.Removals],
+            Looks = [.. before.Looks, .. next.Looks.Where(l => !before.Looks.Any(o => o.Page == l.Page))],
+        };
 
         /// <summary>The passwords that open and edit the result of <paramref name="step"/>.</summary>
         private void AfterStep(BatchStep step)

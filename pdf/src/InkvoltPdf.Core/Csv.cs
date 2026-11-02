@@ -32,9 +32,9 @@ internal static class Csv
 
     public static string Quote(string value)
     {
-        // A cell starting with =, + or @ would run as a formula in a spreadsheet, quoted or not (CSV injection): a tab goes
+        // A cell starting with =, +, - or @ would run as a formula in a spreadsheet, quoted or not (CSV injection): a tab goes
         // in front, which Read takes off again.
-        if (value.Length > 0 && value[0] is '=' or '+' or '@' && !double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' && !double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
             value = "\t" + value;
         var needs = value.Length > 0 && (value[0] == ' ' || value[^1] == ' ' || value[0] == '\t')
             || value.AsSpan().IndexOfAny(",\"\r\n;") >= 0;
@@ -97,7 +97,7 @@ internal static class Csv
         {
             var value = field.ToString();
             // The guard Write puts in front of formula-like values comes off again.
-            if (value.Length > 1 && value[0] == '\t' && value[1] is '=' or '+' or '@') value = value[1..];
+            if (value.Length > 1 && value[0] == '\t' && value[1] is '=' or '+' or '-' or '@') value = value[1..];
             row.Add(value);
             field.Clear();
             wasQuoted = false;

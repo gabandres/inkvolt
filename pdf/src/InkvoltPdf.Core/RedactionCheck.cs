@@ -108,12 +108,25 @@ public sealed record RedactionCheckOptions
     /// <summary>The document before it was redacted (opened with the same password): none of its pictures may be under a
     /// redacted area unchanged.</summary>
     public byte[]? Original { get; init; }
+
+    /// <summary>What redaction by pattern looked for: whatever those patterns find in the comments, fields, bookmarks, properties,
+    /// attachments and tags (which no page shows, so no page search saw them) is looked for too, and reported where it is.</summary>
+    public RedactionPatternOptions? Patterns { get; init; }
+
+    /// <summary>What the person chose to keep: not looked for, though <see cref="Patterns"/> would find it.</summary>
+    public IReadOnlyList<string> Kept { get; init; } = [];
+
+    /// <summary>Look only for the values: no covers, hidden content or earlier versions' other text (a batch's check of its own redaction).</summary>
+    public bool ValuesOnly { get; init; }
 }
 
 /// <param name="Values">The text looked for: <see cref="RedactionCheckOptions.Values"/> and what was found under covers.</param>
 /// <param name="Notes">What couldn't be checked, and why.</param>
 public sealed record RedactionCheckReport(IReadOnlyList<RedactionFinding> Findings, IReadOnlyList<string> Values, IReadOnlyList<string> Notes)
 {
+    /// <summary>Not everything was looked for (too many values, a search that took too long): clean doesn't mean clean. <see cref="Notes"/> says why.</summary>
+    public bool Incomplete { get; init; }
+
     public bool IsClean => Findings.Count == 0;
 
     /// <summary>Some findings can be fixed (<see cref="RedactionCheck.Fix"/>).</summary>
@@ -329,29 +342,40 @@ public static partial class RedactionCheck
                     ready.Release();
                 }
             }, cancel);
-            var scans = new PageScan[pages];
-            for (var p = 0; p < pages; p++)
+            if (options.ValuesOnly) reader.GetAwaiter().GetResult();
+            else
             {
-                cancel.ThrowIfCancellationRequested();
-                scans[p] = p < doc.PageCount ? ScanPage(doc, p) : new PageScan();
-                Step();
+                var scans = new PageScan[pages];
+                for (var p = 0; p < pages; p++)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    scans[p] = p < doc.PageCount ? ScanPage(doc, p) : new PageScan();
+                    Step();
+                }
+                var hidden = new List<(int Start, int End)>[pages];
+                for (var p = 0; p < pages; p++)
+                {
+                    while (!ready.Wait(50, cancel))
+                        if (reader.IsFaulted || reader.IsCanceled) reader.GetAwaiter().GetResult();
+                    hidden[p] = HiddenChars(engine, p, scans[p]);
+                    Marks(p, scans[p]);
+                    Step();
+                }
+                reader.GetAwaiter().GetResult();
+                Covers(engine, scans);
+                for (var p = 0; p < pages; p++) HiddenRuns(p, hidden[p], scans[p]);
+                if (options.Areas is { Count: > 0 } areas) Areas(engine, doc, scans, areas);
+                HiddenContent(doc);
             }
-            var hidden = new List<(int Start, int End)>[pages];
-            for (var p = 0; p < pages; p++)
-            {
-                while (!ready.Wait(50, cancel))
-                    if (reader.IsFaulted || reader.IsCanceled) reader.GetAwaiter().GetResult();
-                hidden[p] = HiddenChars(engine, p, scans[p]);
-                Marks(p, scans[p]);
-                Step();
-            }
-            reader.GetAwaiter().GetResult();
-            Covers(engine, scans);
-            for (var p = 0; p < pages; p++) HiddenRuns(p, hidden[p], scans[p]);
-            if (options.Areas is { Count: > 0 } areas) Areas(engine, doc, scans, areas);
-            HiddenContent(doc);
 
-            var values = Clean(options.Values.Concat(_found)).Take(MaxValues).ToList();
+            var kept = new HashSet<string>(Clean(options.Kept), StringComparer.OrdinalIgnoreCase);
+            var all = Clean(options.Values.Concat(_found).Concat(PatternValues(doc))).Where(v => !kept.Contains(v)).ToList();
+            var values = all.Take(MaxValues).ToList();
+            if (all.Count > values.Count)
+            {
+                _incomplete = true;
+                _notes.Add($"Only the first {MaxValues:N0} of {all.Count:N0} redacted values were looked for in the rest of the file.");
+            }
             var matcher = new ValueMatcher(values);
             if (!matcher.IsEmpty)
             {
@@ -361,9 +385,19 @@ public static partial class RedactionCheck
                 RawBytes(doc, matcher, inFile);
             }
             else EarlierVersions(engine, null, [], revisions);
+            if (matcher.TooLarge)
+            {
+                _incomplete = true;
+                _notes.Add("A redacted value was too long to look for in the rest of the file.");
+            }
+            if (matcher.TimedOut)
+            {
+                _incomplete = true;
+                _notes.Add("Looking for the redacted values took too long in part of the file, so that part wasn't searched to the end.");
+            }
 
             var order = _findings.Select((f, i) => (f, i)).OrderBy(x => x.f.Page < 0 ? int.MaxValue : x.f.Page).ThenBy(x => x.f.Kind).ThenBy(x => x.i);
-            return new RedactionCheckReport([.. order.Select(x => x.f)], values, _notes);
+            return new RedactionCheckReport([.. order.Select(x => x.f)], values, _notes) { Incomplete = _incomplete };
         }
 
         // ───────────────────────────── covers ─────────────────────────────
