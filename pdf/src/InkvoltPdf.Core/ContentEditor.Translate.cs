@@ -23,11 +23,8 @@ public static partial class ContentEditor
     /// <summary>The most pieces of text a page may have for its paragraphs to be worked out: more is a map or a crafted page, left as it is and reported.</summary>
     internal const int MaxRunsToTranslate = 20_000;
 
-    /// <summary>The most table cells kept for a page (a crafted page could claim any number).</summary>
-    private const int MaxCells = 4_000;
-
     /// <summary>The smallest text a paragraph shrinks to: half its size, and not under 5 points unless it was already.</summary>
-    internal static double SmallestFit(double size) => size <= 5 ? 1 : Math.Clamp(5 / size, 0.5, 1);
+    internal static double SmallestFit(double size) => !(size > 5) ? 1 : Math.Clamp(5 / size, 0.5, 1);
 
     private const double FitStep = 0.05;
 
@@ -37,7 +34,12 @@ public static partial class ContentEditor
     // ---- Finding the paragraphs ----
 
     /// <summary>A page's text runs and pictures, for <see cref="TranslationSlots"/>.</summary>
-    internal static PageContent ReadRaw(PdfPage page, int pageIndex, CancellationToken cancel) => Walk(page, pageIndex, Parse(page, cancel), cancel).Content;
+    /// <exception cref="ContentEditException">Its forms draw each other beyond any sensible amount: not all of it was read.</exception>
+    internal static PageContent ReadRaw(PdfPage page, int pageIndex, CancellationToken cancel)
+    {
+        var walk = Walk(page, pageIndex, Parse(page, cancel), cancel);
+        return walk.CutShort ? throw new ContentEditException("This page's drawings draw each other too many times to read.") : walk.Content;
+    }
 
     /// <summary>
     /// A page's paragraphs for translating, in reading order of their first line: each table cell's text apart from its
@@ -49,6 +51,7 @@ public static partial class ContentEditor
         foreach (var r in content.Runs)
         {
             if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0) continue;
+            if (!double.IsFinite(r.FontSize) || !double.IsFinite(r.Box.X + r.Box.Y + r.Box.Width + r.Box.Height)) continue; // a crafted matrix
             var cell = -1;
             for (var i = 0; i < cells.Count; i++)
                 if (cells[i].Contains(r.Box.CenterX, r.Box.CenterY))
@@ -242,12 +245,21 @@ public static partial class ContentEditor
         for (var i = page.FirstBelow(p.Box.Bottom - 1); i < page.Boxes.Count; i++)
         {
             var (b, run) = page.Boxes[i];
-            if (b.Y - 0.1 * p.FontSize >= bottom) break; // sorted: nothing later comes nearer
+            if (b.Y >= bottom) break; // sorted: nothing later comes nearer
             if (b.Right <= framed.Left + 1 || b.X >= framed.Right - 1 || (run is not null && mine.Contains(run))) continue;
-            bottom = b.Y - 0.1 * p.FontSize;
+            // Some of the gap the page left stays, so a paragraph doesn't read as part of the next.
+            bottom = b.Y - Math.Max(0.1 * p.FontSize, Math.Min(b.Y - p.Box.Bottom, 0.35 * p.FontSize));
             break;
         }
-        return (framed, Math.Max(bottom, p.Box.Bottom));
+        bottom = Math.Max(bottom, p.Box.Bottom);
+        // What the page clips to hides whatever goes past it: new text stays inside, or is flagged.
+        if (Anchor(p.Runs).Info?.Clip is { } clip)
+        {
+            bottom = Math.Min(bottom, clip.Bottom);
+            framed.Right = Math.Max(Math.Min(framed.Right, clip.Right), Math.Min(p.Right, framed.Right));
+            framed.Left = Math.Min(Math.Max(framed.Left, clip.X), Math.Max(p.Left, framed.Left));
+        }
+        return (framed, bottom);
     }
 
     /// <summary>
@@ -260,8 +272,9 @@ public static partial class ContentEditor
         var smallest = SmallestFit(framed.FontSize);
         ParagraphLayout? best = null;
         var fit = 1.0;
-        for (; ; fit = Math.Max(smallest, fit - FitStep))
+        for (var tries = 0; ; tries++, fit = Math.Max(smallest, fit - FitStep))
         {
+            if (tries > 2 / FitStep) fit = smallest; // whatever a crafted page's numbers make of the steps below
             best = LayOut(framed, framed.Runs, text, [], fit);
             if (best.Check.Missing.Count > 0)
             {
@@ -275,11 +288,12 @@ public static partial class ContentEditor
                 best = LayOut(framed, framed.Runs, text, [], fit);
                 if (best.Check.Missing.Count > 0) return (best, 1, false, dropped);
             }
-            if (best.Check.Box.Bottom <= bottom + 0.5) return (best, fit, true, dropped);
-            if (fit <= smallest) return (best, fit, false, dropped);
+            var box = best.Check.Box;
+            if (box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(framed.Right, framed.Box.Right) + 1 && box.X >= Math.Min(framed.Left, framed.Box.X) - 1) return (best, fit, true, dropped);
+            if (fit <= smallest || tries > 2 / FitStep) return (best, fit, false, dropped);
             // Far too tall: text takes room with the square of its size, so jump near where it will fit.
-            var ratio = (bottom - framed.Box.Y) / Math.Max(1, best.Check.Box.Bottom - framed.Box.Y);
-            fit = Math.Min(fit, Math.Round(Math.Sqrt(Math.Max(ratio, 0.01)) * fit / FitStep) * FitStep + 2 * FitStep);
+            var ratio = (bottom - framed.Box.Y) / Math.Max(1, box.Bottom - framed.Box.Y);
+            if (double.IsFinite(ratio)) fit = Math.Min(fit, Math.Round(Math.Sqrt(Math.Max(ratio, 0.01)) * fit / FitStep) * FitStep + 2 * FitStep);
         }
     }
 
@@ -305,7 +319,8 @@ public static partial class ContentEditor
     private static ParagraphLayout LayOutRightToLeft(TextParagraph p, TextRun m, string text, double shrink)
     {
         var cps = TrueTypeFont.CodePoints(text).Where(c => c > 32).Distinct().ToList();
-        var primary = StandInFonts.RankFor(m.Font!).FirstOrDefault(f => cps.All(f.Font.Has))?.Font;
+        var ranked = StandInFonts.RankFor(m.Font!).FirstOrDefault(f => cps.All(f.Font.Has));
+        var primary = ranked?.Font;
         var missing = TrueTypeFont.CodePoints(text)
             .Where(c => c > 32 && !(primary?.Has(c) == true || SystemFonts.For(c, primary) is { } fb && fb.Has(c)))
             .Distinct().Select(char.ConvertFromUtf32).ToList();
@@ -346,7 +361,10 @@ public static partial class ContentEditor
         {
             var shaped = TextShaper.Shape(line, primary);
             foreach (var g in shaped.Glyphs)
-                if (!names.Contains(g.Font.Family)) names.Add(g.Font.Family);
+            {
+                var known = ReferenceEquals(g.Font, primary) ? ranked!.Name : StandInFonts.Pretty(g.Font.Family);
+                if (!names.Contains(known)) names.Add(known);
+            }
             var w = shaped.Width * m.Size * m.HScale * m.Scale;
             var x = p.Align == ParagraphAlign.Center ? p.Center - w / 2 : p.Right - w;
             placed.Add((new PointD(x, baseline), [new Part(null, 0, shaped)]));
@@ -463,6 +481,9 @@ public static partial class ContentEditor
         private HashSet<PdfDictionary>? _shared;
 
         public CidFontWriter Fonts { get; }
+
+        /// <summary>The installed fonts text was drawn in, as people know them.</summary>
+        public List<string> FontNames { get; } = [];
 
         /// <param name="unique">Makes its fonts' resource names different from any earlier run's (a translated copy translated again).</param>
         public TranslationWriter(PdfDocument doc, string unique)
@@ -623,6 +644,8 @@ public static partial class ContentEditor
             }
             fonts.AddRange(layout.Fonts);
             owners.Add(target.ResourceOwner);
+            foreach (var name in layout.Check.StandIns)
+                if (!writer.FontNames.Contains(name)) writer.FontNames.Add(name);
             written.Add(new TranslationWritten(i, fit, fits, dropped));
         }
 

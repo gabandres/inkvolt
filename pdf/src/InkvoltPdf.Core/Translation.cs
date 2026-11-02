@@ -517,6 +517,7 @@ public static class Translation
                     {
                         untranslated++;
                         var why = answers.Failed.TryGetValue(p.Text, out var f) ? f
+                            : p.Text.Length > MaxParagraphChars ? "it is far too long to be one paragraph"
                             : answers.Cancelled ? "the translation was stopped first"
                             : answers.StoppedBecause is not null ? "the endpoint stopped answering first"
                             : "it got no answer";
@@ -538,7 +539,7 @@ public static class Translation
             report.Flags.AddRange(flagged);
         }
         writer.Finish();
-        foreach (var name in writer.Fonts.FontNames) if (!report.Fonts.Contains(name)) report.Fonts.Add(name);
+        report.Fonts.AddRange(writer.FontNames);
 
         if (report.Translated == 0) return new TranslationResult(null, report);
 

@@ -161,9 +161,9 @@ public partial class DocumentTab
         {
             // Stopped before anything was sent, or while the copy was being written.
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex)
         {
-            // Called without awaiting by the menu: nothing may get out of here.
+            // Called without awaiting by the menu: nothing may get out of here, running out of memory on a crafted file included.
             Log.Write($"Translate failed: {ex.GetType().Name}"); // not the message: a server may echo text back
             if (!_disposed) Prompt.Error(owner, "The translation couldn't be finished", ex is AiException or ContentEditException or OpenPasswordUnknownException ? ex.Message : "This PDF's pages couldn't be read for translating. The document wasn't changed.");
         }

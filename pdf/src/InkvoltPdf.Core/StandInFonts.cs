@@ -269,7 +269,7 @@ internal static class StandInFonts
     }
 
     /// <summary>A script fallback's file name as a font name ("seguisym" → "Segoe UI Symbol").</summary>
-    private static string Pretty(string file) => file.ToLowerInvariant() switch
+    internal static string Pretty(string file) => file.ToLowerInvariant() switch
     {
         "seguisym" => "Segoe UI Symbol",
         "seguiemj" => "Segoe UI Emoji",

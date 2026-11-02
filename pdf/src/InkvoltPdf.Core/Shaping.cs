@@ -186,9 +186,6 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
 
     public bool IsEmpty => _fonts.Count == 0;
 
-    /// <summary>The families of the fonts written so far.</summary>
-    public IEnumerable<string> FontNames => _fonts.Select(u => u.Font.Family);
-
     private Used For(TrueTypeFont font)
     {
         foreach (var u in _fonts)

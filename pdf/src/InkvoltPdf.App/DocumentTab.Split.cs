@@ -91,6 +91,13 @@ public partial class DocumentTab
         SplitHost.Children.Add(_mainCaption);
         SecondPaneHost.Children.Add(_secondCaption);
         ApplySplitLayout();
+        // The same place from the start, once both have their sizes.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+        {
+            if (_second is not { } s || _beside is null) return;
+            var (page, x, y) = Viewer.ViewCorner();
+            s.ShowCorner(page, x, y);
+        });
     }
 
     private static System.Windows.FrameworkElement PaneCaption(string text)
