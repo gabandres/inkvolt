@@ -1191,8 +1191,11 @@ public class TranslationCopyTests
     [Fact]
     public void Small_capitals_drawn_a_letter_size_at_a_time_stay_one_text()
     {
-        var pdf = Page("BT /FA 10 Tf 1 0 0 1 300 700 Tm (D) Tj /FA 8 Tf 1 0 0 1 307.2 700 Tm (RAFT) Tj /FA 10 Tf 1 0 0 1 335 700 Tm (W) Tj /FA 8 Tf 1 0 0 1 344.5 700 Tm (ORLD) Tj ET", fontText: "DRAFTWOLD");
-        Assert.Equal("DRAFT WORLD", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text);
+        // No gap between the sizes: a word, as Word draws small capitals. Set apart they'd go to the model as "D" and "IGITAL".
+        var seed = ContentEditor.Read(Page("BT /FA 10 Tf 1 0 0 1 300 700 Tm (D) Tj ET", fontText: "DIGTAL"), null, 0);
+        var after = 300 + seed.Runs[0].Box.Width;
+        var pdf = Page($"BT /FA 10 Tf 1 0 0 1 300 700 Tm (D) Tj /FA 8 Tf 1 0 0 1 {after} 700 Tm (IGITAL) Tj ET", fontText: "DIGTAL");
+        Assert.Equal("DIGITAL", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text);
     }
 
     [Fact]

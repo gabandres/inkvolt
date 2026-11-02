@@ -97,8 +97,10 @@ public static partial class ContentEditor
                 var (prev, r) = (l.Runs[i - 1], l.Runs[i]);
                 var bigger = Math.Max(prev.FontSize, r.FontSize);
                 var smaller = r.FontSize < prev.FontSize ? r : prev;
-                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4;
-                if (r.Box.X - cur.Box.Right > 1.5 * bigger || sizes)
+                var gap = r.Box.X - cur.Box.Right;
+                // Sizes touching are one word (small capitals: a big D, then "IGITAL").
+                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.2 * smaller.FontSize;
+                if (gap > 1.5 * bigger || sizes)
                 {
                     cur = new PLine(r);
                     result.Add(cur);
@@ -290,8 +292,10 @@ public static partial class ContentEditor
             break;
         }
         bottom = Math.Max(bottom, p.Box.Bottom);
-        // What the page clips to hides whatever goes past it: new text stays inside, or is flagged.
-        if (Anchor(p.Runs).Info?.Clip is { } clip)
+        // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
+        // where one of the old lines was drawn, so what counts is what they clip to together.
+        var drawnAt = LineRuns(p, PlainRun(p.Runs));
+        if (drawnAt.All(r => r.Info?.Clip is not null) && drawnAt.Select(r => r.Info!.Clip!.Value).Aggregate((a, b) => a.Union(b)) is var clip)
         {
             bottom = Math.Min(bottom, clip.Bottom);
             framed.Right = Math.Max(Math.Min(framed.Right, clip.Right), Math.Min(p.Right, framed.Right));
@@ -507,6 +511,78 @@ public static partial class ContentEditor
         return cp is >= 0x2E80 and <= 0x9FFF or >= 0xF900 and <= 0xFAFF or >= 0x20000 and <= 0x3FFFF and not (>= 0x3000 and <= 0x303F);
     }
 
+    // ---- Where each new line is drawn ----
+
+    /// <summary>A run's place in the order its content draws things.</summary>
+    private static int DrawOrder(TextRun run) => run.Info?.Form?.Index ?? run.Id;
+
+    /// <summary>
+    /// For each of a paragraph's old lines, the run a new line there is written at: its last one in the paragraph's color
+    /// (what the line draws last has nothing of the line painted over it); a line with none takes the one above's.
+    /// </summary>
+    private static TextRun[] LineRuns(TextParagraph p, TextRun plain)
+    {
+        var chosen = new TextRun?[p.Lines.Count];
+        foreach (var run in p.Runs)
+        {
+            var at = 0;
+            for (var k = 1; k < p.Lines.Count; k++)
+                if (Math.Abs(run.Box.CenterY - p.Lines[k].CenterY) < Math.Abs(run.Box.CenterY - p.Lines[at].CenterY)) at = k;
+            if (run.Color == plain.Color && run.Info is not null && (chosen[at] is not { } had || DrawOrder(run) > DrawOrder(had))) chosen[at] = run;
+        }
+        var result = new TextRun[chosen.Length];
+        var fallback = chosen.FirstOrDefault(r => r is not null) ?? Anchor(p.Runs);
+        for (var k = 0; k < chosen.Length; k++) result[k] = fallback = chosen[k] ?? fallback;
+        return result;
+    }
+
+    /// <summary>
+    /// Which run each new line is written at. A page may paint under each line as it comes (a white band for every line, as
+    /// Word and Acrobat exports do) or clip to it, so a new line goes where the lowest old line it reaches was drawn: with
+    /// everything painted for it already down, and nothing later over it. Lines below the old ones go with the last.
+    /// </summary>
+    private static Dictionary<TextRun, List<(PointD Origin, List<Part> Parts)>> LinesToRuns(TextParagraph p, TextRun[] oldLines, ParagraphLayout layout, double fit)
+    {
+        var result = new Dictionary<TextRun, List<(PointD, List<Part>)>>(ReferenceEqualityComparer.Instance);
+        foreach (var line in layout.Lines)
+        {
+            var bottom = line.Origin.Y + p.Descent * fit;
+            var at = 0;
+            for (var k = 1; k < oldLines.Length; k++)
+                if (p.Lines[k].Y < bottom - 1) at = k;
+            var run = oldLines[at];
+            // Clipped to a rectangle this line isn't in: to one it is in.
+            if (run.Info?.Clip is { } clip && (line.Origin.Y <= clip.Y || line.Origin.Y >= clip.Bottom)
+                && oldLines.FirstOrDefault(r => r.Info?.Clip is { } c && line.Origin.Y > c.Y && line.Origin.Y < c.Bottom) is { } inside) run = inside;
+            if (!result.TryGetValue(run, out var lines)) result[run] = lines = [];
+            lines.Add(line);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// New lines written at a run that may not be in the paragraph's own state: its spacing and horizontal scale are set for
+    /// them, and its size made up for when the run's text matrix scales differently, so they come out as they were laid out.
+    /// </summary>
+    private static string WriteLinesAt(PdfPage page, COp op, TextRun run, TextRun plain, ParagraphLayout layout, CidFontWriter writer)
+    {
+        var face = plain;
+        if (run.Scale > 0 && plain.Scale > 0 && Math.Abs(run.Scale / plain.Scale - 1) > 1e-6) face = plain with { Size = plain.Size * plain.Scale / run.Scale };
+        var before = new StringBuilder();
+        var after = new StringBuilder();
+        if (op.Name != "\"" && Math.Abs(run.CharSpacing - plain.CharSpacing) > 1e-9)
+        {
+            before.Append(ContentLexer.Number(plain.CharSpacing)).Append(" Tc ");
+            after.Append(' ').Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc");
+        }
+        if (Math.Abs(run.HScale - plain.HScale) > 1e-9)
+        {
+            before.Append(ContentLexer.Number(plain.HScale * 100)).Append(" Tz ");
+            after.Append(' ').Append(ContentLexer.Number(run.HScale * 100)).Append(" Tz");
+        }
+        return before + WriteParagraph(page, op, run, face, layout, writer) + after;
+    }
+
     // ---- Writing a page ----
 
     /// <summary>
@@ -625,6 +701,8 @@ public static partial class ContentEditor
 
             var anchor = Anchor(p.Runs);
             var plain = PlainRun(p.Runs) with { };
+            var oldLines = LineRuns(p, plain);
+            var newLines = LinesToRuns(p, oldLines, layout, fit);
             plain.Size *= fit;
             Target target;
             List<(int Start, int End, string Text)> edits;
@@ -672,7 +750,7 @@ public static partial class ContentEditor
             foreach (var run in p.Runs)
             {
                 var op = target.OpOf(run);
-                edits.Add((op.Start, op.End, ReferenceEquals(run, anchor) ? WriteParagraph(page, op, run, plain, layout, writer.Fonts) : Removed(op, run)));
+                edits.Add((op.Start, op.End, newLines.TryGetValue(run, out var lines) ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines }, writer.Fonts) : Removed(op, run)));
                 taken.Add((target, op.Start));
             }
             // Spaces drawn on their own go too; one on the lines of two paragraphs only once.
