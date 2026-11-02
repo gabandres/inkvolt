@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -49,6 +49,8 @@ enum Report {
     private(set) static var onlyReadAloud = false
     /// `--only-attachments-layers`: with `--edit`, only `AttachmentsLayersTest` (quicker runs while working on E9).
     private(set) static var onlyAttachmentsLayers = false
+    /// `--only-split`: with `--edit`, only `SplitTest` (quicker runs while working on split view).
+    private(set) static var onlySplit = false
     /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
     private(set) static var onlyAi = false
     private(set) static var snapshots: String?
@@ -81,6 +83,7 @@ enum Report {
         onlyAi = args.contains("--only-ai")
         onlyReadAloud = args.contains("--only-read-aloud")
         onlyAttachmentsLayers = args.contains("--only-attachments-layers")
+        onlySplit = args.contains("--only-split")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -151,6 +154,11 @@ enum Report {
                     var files = AttachmentsLayersTest(controller: controller, name: name)
                     await files.run()
                 }
+            } else if edits && onlySplit {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var split = SplitTest(controller: controller, name: name)
+                    await split.run()
+                }
             } else if edits && onlyReadAloud {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var reading = ReadAloudTest(controller: controller, name: name)
@@ -196,6 +204,8 @@ enum Report {
                     await reading.run()
                     var files = AttachmentsLayersTest(controller: controller, name: name)
                     await files.run()
+                    var split = SplitTest(controller: controller, name: name)
+                    await split.run()
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
                     // Before signing: a signed document declines the scale's page edits.
@@ -226,7 +236,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

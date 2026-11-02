@@ -109,6 +109,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     var tool: Tool = .text {
         didSet {
             guard tool != oldValue else { return }
+            // Split view's second pane is for reading: a tool that changes the document goes to the main pane.
+            if readingOnly && tool != .hand && tool != .text {
+                let wanted = tool
+                tool = oldValue
+                onWritingTool?(wanted)
+                return
+            }
             drag = nil
             vertices = nil
             measuring = tool.measureTool.map { MeasureDraft($0) }
@@ -120,6 +127,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
     }
     let styles = ToolStyles()
+    /// Split view's second pane: only the hand and text selection; `onWritingTool` gets any other tool picked here.
+    var readingOnly = false
+    var onWritingTool: ((Tool) -> Void)?
+    /// Called when this pane is clicked or gets the keyboard (split view's active pane follows it).
+    var onActivate: (() -> Void)?
     var stamp: StampDesign = RubberStamps.builtIn[0]
     /// The picture the Image tool puts down next.
     var pendingImage: StampImage?
@@ -198,6 +210,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { onActivate?() }
+        return became
+    }
     override var isOpaque: Bool { false }
 
     /// The content changed (an edit, undo, redo, reload): the new engine, pages laid out again if their sizes changed,
@@ -837,6 +855,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        onActivate?()
         window?.makeFirstResponder(self)
         shiftDown = event.modifierFlags.contains(.shift)
         let point = convert(event.locationInWindow, from: nil)

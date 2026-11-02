@@ -18,13 +18,14 @@ extension DocumentWindowController {
         if organizerShown, let chosen = organizer?.selectedPages, !chosen.isEmpty { return chosen }
         let side = sidebar.selectedPages
         if !side.isEmpty && (side.count > 1 || sidebar.menuOpen) { return side }
-        return engine.pageCount == 0 ? [] : [min(pages.currentPage, engine.pageCount - 1)]
+        return engine.pageCount == 0 ? [] : [min(activePages.currentPage, engine.pageCount - 1)]
     }
 
     /// Pages › Organize Pages: the grid of pages in place of the page view (and back).
     @objc func toggleOrganizer(_ sender: Any?) { showOrganizer(!organizerShown) }
 
     func showOrganizer(_ show: Bool) {
+        if show { setSplit(.none) } // the grid takes the panes' place
         if show && organizer == nil {
             let grid = OrganizerView(engine: engine)
             grid.onMove = { [weak self] moving, before in
@@ -45,6 +46,7 @@ extension DocumentWindowController {
         let current = pages.currentPage
         grid.isHidden = !show
         scrollView.isHidden = show
+        paneSplit.isHidden = show
         toolStrip.isHidden = show
         if show {
             grid.reload(engine: engine)
