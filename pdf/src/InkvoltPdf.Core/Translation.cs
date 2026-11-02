@@ -165,9 +165,8 @@ public static class Translation
     /// <exception cref="OwnerPasswordRequiredException">The file was opened without its permissions password, which a copy that changes its text needs.</exception>
     public static TranslationPlan MakePlan(byte[] data, string? password, IReadOnlyList<int> pages, IProgress<int>? progress = null, CancellationToken cancel = default)
     {
-        // A file that needs its permissions password to be edited says so now, before anything is sent, not after hours of translating.
-        using (PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited")) { }
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        // Opened as for the edit: a file that needs its permissions password for that says so now, before anything is sent, not after hours of translating.
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
         PdfEngine? engine = null;
         try
         {
@@ -341,7 +340,13 @@ public static class Translation
                 var (text, problem) = await TranslateOne(job, language, chat, settings, cancel);
                 if (text is not null) answers.Done[job.Text] = text;
                 else answers.Failed[job.Text] = problem!;
-                failuresInRow = 0;
+                // A bad answer says nothing about the next; answers that don't end say the endpoint isn't working.
+                failuresInRow = problem == NoEnd ? failuresInRow + 1 : 0;
+                if (failuresInRow >= settings.FailuresBeforeStopping)
+                {
+                    answers.StoppedBecause = "The endpoint's answers don't come to an end, so the translation stopped.";
+                    break;
+                }
             }
             catch (OperationCanceledException) when (cancel.IsCancellationRequested)
             {
@@ -370,6 +375,8 @@ public static class Translation
         return answers;
     }
 
+    private const string NoEnd = "its answer didn't end in time";
+
     /// <summary>One text's pieces in turn, joined. The text, or null and why not. Connection failures throw <see cref="AiException"/> after their retries.</summary>
     private static async Task<(string? Text, string? Problem)> TranslateOne(TranslationJob job, string language, TranslationChat chat, TranslationSettings settings, CancellationToken cancel)
     {
@@ -390,6 +397,7 @@ public static class Translation
         {
             var messages = TranslationText.Request(piece, language, firm: attempt > 0);
             var (reply, cut) = await Ask(messages, piece, chat, settings, cancel);
+            if (cut == NoEnd) return (null, cut); // it has had all the time a text gets
             if (cut is not null)
             {
                 problem = cut;
@@ -438,7 +446,7 @@ public static class Translation
             catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
             {
                 // Its own limit, not the user's Stop.
-                return (null, guard.TooLong ? "its answer was far longer than the text" : "its answer didn't end in time");
+                return (null, guard.TooLong ? "its answer was far longer than the text" : NoEnd);
             }
             catch (AiException ex) when (retry < settings.RetryWaits.Count && ex.Status is 0 or 429 or >= 500)
             {

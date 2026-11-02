@@ -422,6 +422,17 @@ public class TranslationRunTests
     }
 
     [Fact]
+    public async Task Answers_that_never_end_stop_the_run_after_a_few()
+    {
+        var handler = new FakeAiHandler((_, _, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new EndlessSse(null, keepAlive: true)) { Headers = { ContentType = new("text/event-stream") } } }));
+        var a = await Run(handler, Quick with { ReplyDeadline = TimeSpan.FromMilliseconds(100) }, CancellationToken.None, "One.", "Two.", "Three.", "Four.", "Five.");
+        Assert.NotNull(a.StoppedBecause);
+        Assert.Equal(3, a.Failed.Count);
+        Assert.Equal(3, handler.Requests.Count); // each once: it has had all the time a text gets
+    }
+
+    [Fact]
     public async Task A_stream_that_goes_silent_counts_as_the_endpoint_not_answering()
     {
         var handler = new FakeAiHandler((_, _, _) =>
@@ -1060,6 +1071,15 @@ public class TranslationCopyTests
         var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? words : "THE DOG");
         var p = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text.StartsWith("The", StringComparison.Ordinal));
         Assert.True(p.Box.Bottom <= 792 - 680 + 1, $"{p.Box.Bottom}");
+    }
+
+    [Fact]
+    public void A_signed_files_copy_is_appended_so_the_signed_version_stays_inside()
+    {
+        var pdf = SignedEditTests.Signed();
+        var (_, r) = Translate(pdf, _ => "Un contrato ñandú");
+        Assert.Equal(pdf, r.Data!.AsSpan(0, pdf.Length).ToArray());
+        Assert.Contains("ñandú", ContentEditPdf.Text(r.Data!), StringComparison.Ordinal);
     }
 
     [Fact]
