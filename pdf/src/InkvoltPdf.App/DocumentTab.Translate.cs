@@ -124,7 +124,7 @@ public partial class DocumentTab
             {
                 var head = answers.Cancelled ? "Stopped." : answers.StoppedBecause + "\n";
                 var keep = Prompt.Choose(owner, "Keep what was translated?",
-                    $"{head} {answers.Done.Count:N0} of {jobs.Count:N0} texts are translated. A copy can be made with those, and the rest left in the original language with a comment on each.",
+                    $"{head} {answers.Done.Count:N0} of {jobs.Count:N0} texts are translated. A copy can be made with those, and the rest left in the original language.",
                     ("Make the copy", true), ("Discard", false));
                 if (keep != 0) return;
             }
@@ -203,7 +203,7 @@ public partial class DocumentTab
         if (r.DoNotFit > 0) sb.Append($"\n{Count(r.DoNotFit, "doesn't", "don't")} fit even at the smallest size ({AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.DoesNotFit).Select(f => f.Page))}).");
         if (r.NotTranslated > 0) sb.Append($"\n{Count(r.NotTranslated, "paragraph stays", "paragraphs stay")} in the original language ({AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.NotTranslated).Select(f => f.Page).DefaultIfEmpty(plan.Pages.Count > 0 ? plan.Pages[0].Page : 0))}).");
         if (r.Unchanged > 0) sb.Append($"\nThe model gave {Count(r.Unchanged, "paragraph", "paragraphs")} back unchanged (a name or a code, perhaps).");
-        if (r.Notes > 0) sb.Append($"\nEach has a comment in the copy, in the Comments pane{(r.Notes < r.Flags.Count ? $" (the first {r.Notes:N0})" : "")}.");
+        if (r.Notes > 0) sb.Append($"\n{Count(r.Notes, "comment in the copy marks", "comments in the copy mark")} what to look at (the Comments pane lists them).");
         if (r.Cancelled) sb.Append("\nThe translation was stopped before the end.");
         else if (r.StoppedBecause is { } why) sb.Append($"\nThe endpoint stopped the translation: {why}");
         if (r.Fonts.Count > 0) sb.Append($"\nThe page's fonts don't have all the letters, so some text is drawn in {string.Join(", ", r.Fonts)}.");

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
@@ -79,7 +80,8 @@ public sealed record TranslationSettings
 public enum TranslationFlagKind { DoesNotFit, NotTranslated, CharactersLeftOut }
 
 /// <summary>A paragraph the reader should look at: its page, where it is and why.</summary>
-public sealed record TranslationFlag(TranslationFlagKind Kind, int Page, RectD Box, string Message);
+/// <param name="Noted">It gets a comment in the copy. Paragraphs a stopped run never reached don't: the summary names their pages, and a comment on each of thousands would bury the rest.</param>
+public sealed record TranslationFlag(TranslationFlagKind Kind, int Page, RectD Box, string Message, bool Noted = true);
 
 /// <summary>What a translated copy holds.</summary>
 public sealed class TranslationReport
@@ -196,7 +198,7 @@ public static class Translation
                         crowded.Add(p);
                         continue;
                     }
-                    var (cells, obstacles) = Surroundings(engine, p, content, cancel);
+                    var (cells, obstacles) = Surroundings(engine, doc.Pages[p], p, content, cancel);
                     var slots = ContentEditor.TranslationSlots(content, cells, cancel);
                     var pageHasWords = false;
                     foreach (var slot in slots)
@@ -249,15 +251,21 @@ public static class Translation
     }
 
     /// <summary>A page's table cells (from Export to Word's analysis) and the pictures, vector figures and rules its text must keep clear of.</summary>
-    private static (IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles) Surroundings(PdfEngine? engine, int page, PageContent content, CancellationToken cancel)
+    private static (IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles) Surroundings(PdfEngine? engine, PdfPage pdfPage, int page, PageContent content, CancellationToken cancel)
     {
-        if (engine is null) return ([], []);
+        // The boxes a form's fields fill in: on the page though not in its content.
+        var fields = new List<RectD>();
+        if (PdfObj.Array(pdfPage.Elements["/Annots"]) is { } annots)
+            for (var i = 0; i < annots.Elements.Count && fields.Count < MaxRunsToLayOut; i++)
+                if (PdfObj.Dict(annots.Elements[i]) is { } annot && PdfObj.NameOf(annot, "/Subtype") == "/Widget" && PdfObj.Array(annot.Elements["/Rect"]) is { Elements.Count: >= 4 } rect)
+                    fields.Add(PdfObj.RectToPage(pdfPage, rect));
+        if (engine is null) return ([], fields);
         // A page this crowded isn't worth laying out (its time grows much faster than its text): no tables found, as on a map.
-        if (content.Runs.Count > MaxRunsToLayOut) return ([], []);
+        if (content.Runs.Count > MaxRunsToLayOut) return ([], fields);
         try
         {
             var export = engine.GetExportPage(page, images: true, cancel, boxesOnly: true);
-            var obstacles = export.Rules.Concat(export.Images.Select(i => i.Box)).ToList();
+            var obstacles = export.Rules.Concat(export.Images.Select(i => i.Box)).Concat(fields).ToList();
             var cells = new List<RectD>();
             foreach (var block in DocLayout.LayOut(export, DocLayout.BodySize([export])).Blocks)
                 if (block is DocTable table) cells.AddRange(CellsOf(table));
@@ -265,7 +273,7 @@ public static class Translation
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
-            return ([], []);
+            return ([], fields);
         }
     }
 
@@ -516,12 +524,13 @@ public static class Translation
                     else
                     {
                         untranslated++;
+                        var reached = answers.Failed.ContainsKey(p.Text) || p.Text.Length > MaxParagraphChars;
                         var why = answers.Failed.TryGetValue(p.Text, out var f) ? f
                             : p.Text.Length > MaxParagraphChars ? "it is far too long to be one paragraph"
                             : answers.Cancelled ? "the translation was stopped first"
                             : answers.StoppedBecause is not null ? "the endpoint stopped answering first"
                             : "it got no answer";
-                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, $"This paragraph isn't translated: {why}."));
+                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, $"This paragraph isn't translated: {why}.", reached));
                     }
                 }
             }
@@ -543,7 +552,7 @@ public static class Translation
 
         if (report.Translated == 0) return new TranslationResult(null, report);
 
-        foreach (var group in report.Flags.GroupBy(f => f.Page))
+        foreach (var group in report.Flags.Where(f => f.Noted).GroupBy(f => f.Page))
         {
             var (pageWidth, _) = PdfObj.DisplaySize(doc.Pages[group.Key]);
             foreach (var flag in group.Take(MaxNotesOnPage))

@@ -68,7 +68,7 @@ public static partial class ContentEditor
         foreach (var (cell, runs) in groups)
         {
             cancel.ThrowIfCancellationRequested();
-            var lines = WithoutMarkers(WithMarksInLine(LinesOf(runs)));
+            var lines = WithoutMarkers(WithMarksInLine(SplitAtColumns(LinesOf(runs))));
             foreach (var stack in Stacks(lines))
             {
                 cancel.ThrowIfCancellationRequested();
@@ -78,6 +78,35 @@ public static partial class ContentEditor
         }
         // The same order however the page's runs were grouped.
         return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => r.Id))];
+    }
+
+    /// <summary>
+    /// A line the editor keeps whole comes apart where it is really two things: at a gap wider than word spacing goes (a
+    /// label and what it labels, columns no rules mark), and where the size changes (a form's big title beside its small
+    /// print), or one size would be forced on both. A small mark (a footnote number) stays on its line.
+    /// </summary>
+    private static List<PLine> SplitAtColumns(List<PLine> lines)
+    {
+        var result = new List<PLine>(lines.Count);
+        foreach (var l in lines)
+        {
+            var cur = new PLine(l.Runs[0]);
+            result.Add(cur);
+            for (var i = 1; i < l.Runs.Count; i++)
+            {
+                var (prev, r) = (l.Runs[i - 1], l.Runs[i]);
+                var bigger = Math.Max(prev.FontSize, r.FontSize);
+                var smaller = r.FontSize < prev.FontSize ? r : prev;
+                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4;
+                if (r.Box.X - cur.Box.Right > 1.5 * bigger || sizes)
+                {
+                    cur = new PLine(r);
+                    result.Add(cur);
+                }
+                else cur.Add(r);
+            }
+        }
+        return result;
     }
 
     /// <summary>A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its place from left to right.</summary>
@@ -198,7 +227,8 @@ public static partial class ContentEditor
         {
             // Across: to the next thing on its line, inside what holds it. Its text column on the page is what the page's other text reaches.
             var reachLeft = holder?.X ?? Math.Min(p.Left, page.TextLeft);
-            var reachRight = holder?.Right ?? Math.Max(p.Right, Math.Min(pageWidth - 18, page.TextRight));
+            // To the right margin: as far as the page's text goes, or the left margin mirrored when no text on it is that long.
+            var reachRight = holder?.Right ?? Math.Max(p.Right, Math.Min(pageWidth - 18, Math.Max(page.TextRight, pageWidth - page.TextLeft)));
             foreach (var (b, run) in page.Boxes)
             {
                 if (b.Y >= p.Box.Bottom) break;
@@ -216,14 +246,17 @@ public static partial class ContentEditor
                 reachLeft = Math.Min(p.Left, reachLeft + 1.5);
                 reachRight = Math.Max(p.Right, reachRight - 1.5);
             }
-            var (inLeft, inRight) = holder is { } h ? (h.X, h.Right) : (reachLeft, reachRight);
             var tol = Math.Max(2, 0.2 * p.FontSize);
             var off = Math.Max(20, 2 * p.FontSize);
             var align = p.Align;
             if (p.Lines.Count == 1)
             {
-                if (Math.Abs(p.Box.CenterX - (inLeft + inRight) / 2) <= tol && p.Box.X - inLeft > (holder is null ? off : 2)) align = ParagraphAlign.Center;
-                else if (Math.Abs(p.Box.Right - inRight) <= tol && p.Box.X - inLeft > off) align = ParagraphAlign.Right;
+                // What it could be centered on or end at: what holds it; else the page's text or the page itself.
+                var (left, right) = holder is { } h ? (h.X, h.Right) : (page.TextLeft, page.TextRight);
+                var centered = Math.Abs(p.Box.CenterX - (left + right) / 2) <= tol || (holder is null && Math.Abs(p.Box.CenterX - pageWidth / 2) <= tol);
+                var ended = Math.Abs(p.Box.Right - right) <= tol || (holder is null && Math.Abs(p.Box.Right - (pageWidth - page.TextLeft)) <= tol);
+                if (centered && p.Box.X - left > (holder is null ? off : 2)) align = ParagraphAlign.Center;
+                else if (ended && p.Box.X - left > off) align = ParagraphAlign.Right;
             }
             framed = p with { Align = align };
             switch (align)

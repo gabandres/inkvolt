@@ -1019,6 +1019,77 @@ public class TranslationCopyTests
             Assert.True(run.Box.Right <= 272 + 1, $"{run.Box.Right}");
     }
 
+    [Fact]
+    public void A_big_title_and_the_small_print_beside_it_go_apart()
+    {
+        var pdf = Page("BT /FA 24 Tf 1 0 0 1 72 700 Tm (2024) Tj /FA 8 Tf 1 0 0 1 135 700 Tm (Hello World draft) Tj /FA 14 Tf 1 0 0 1 240 700 Tm (The quick brown fox) Tj ET", fontText: Letters);
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        Assert.Contains(plan.Texts, t => t.Text == "Hello World draft");
+        Assert.Contains(plan.Texts, t => t.Text == "The quick brown fox");
+    }
+
+    [Fact]
+    public void A_label_and_what_it_labels_go_apart_at_a_wide_gap()
+    {
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm (Hello World) Tj 1 0 0 1 150 700 Tm (The quick brown fox) Tj ET", fontText: Letters);
+        Assert.Equal(["Hello World", "The quick brown fox"], Translation.MakePlan(pdf, null, [0]).Texts.Select(t => t.Text).Order());
+        // Word spacing a justified line stretches to is still one line.
+        var one = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm (Hello) Tj 1 0 0 1 104 700 Tm (World) Tj ET", fontText: Letters);
+        Assert.Equal(["Hello World"], Translation.MakePlan(one, null, [0]).Texts.Select(t => t.Text));
+    }
+
+    [Fact]
+    public void Text_stays_clear_of_a_form_field_below_it()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World") + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
+        using (var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            var field = new PdfDictionary(doc);
+            field.Elements["/Type"] = new PdfName("/Annot");
+            field.Elements["/Subtype"] = new PdfName("/Widget");
+            field.Elements["/FT"] = new PdfName("/Tx");
+            field.Elements["/T"] = new PdfString("x");
+            field.Elements["/Rect"] = PdfObj.Reals(doc, 72, 660, 300, 680);
+            doc.Internals.AddObject(field);
+            doc.Pages[0].Elements["/Annots"] = new PdfArray(doc, field.Reference!);
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 4));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? words : "THE DOG");
+        var p = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text.StartsWith("The", StringComparison.Ordinal));
+        Assert.True(p.Box.Bottom <= 792 - 680 + 1, $"{p.Box.Bottom}");
+    }
+
+    [Fact]
+    public void A_stopped_run_keeps_what_it_has_and_only_says_where_the_rest_is()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World") + Lines(72, 650, 12, 14, "2024 draft!"), fontText: Letters);
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        var answers = new TranslationAnswers { Cancelled = true };
+        answers.Done["Hello World"] = "THE DOG";
+        var result = Translation.Apply(plan, answers, "es");
+        Assert.Equal(1, result.Report.Translated);
+        Assert.Equal(1, result.Report.NotTranslated);
+        Assert.True(result.Report.Cancelled);
+        Assert.False(Assert.Single(result.Report.Flags).Noted);
+        Assert.Equal(0, result.Report.Notes);
+        Assert.Empty(Annotations.Read(result.Data!, null));
+        Assert.Contains("THE DOG", ContentEditPdf.Text(result.Data!), StringComparison.Ordinal);
+        Assert.Contains("2024 draft!", ContentEditPdf.Text(result.Data!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nothing_translated_makes_no_copy()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World"), fontText: Letters);
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        var result = Translation.Apply(plan, new TranslationAnswers { StoppedBecause = "No." }, "es");
+        Assert.Null(result.Data);
+        Assert.Equal(1, result.Report.NotTranslated);
+    }
+
     // ---- Crafted files ----
 
     [Fact]

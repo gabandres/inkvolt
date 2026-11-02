@@ -152,7 +152,7 @@ public static partial class ContentEditor
     private const int MaxDepth = 8;
 
     /// <summary>The most form XObject content walked for one page, counting each drawing (and a little for each, however small).</summary>
-    private const long MaxFormBytes = 256L << 20;
+    private const long MaxFormBytes = 64L << 20;
 
     /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
     internal const string StandInKey = "InkFb";
