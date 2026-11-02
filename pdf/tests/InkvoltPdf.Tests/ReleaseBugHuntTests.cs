@@ -160,6 +160,11 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         Passes(await Redact(Doc(catalog: "/Metadata 6 0 R", more: [Core2Pdf.Stream("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><pdf:Producer>iText 5.5.13.3</pdf:Producer><xmp:CreatorTool>Report 16.0.1.2</xmp:CreatorTool></rdf:Description></rdf:RDF></x:xmpmeta>", "/Type /Metadata /Subtype /XML")])));
 
     [Fact]
+    public async Task A_section_number_in_a_destinations_name_isnt_an_address() =>
+        Passes(await Redact(Doc(catalog: "/Names << /Dests 6 0 R >>", page: "/Annots [7 0 R]",
+            more: ["<< /Names [(paragraph.1.2.3.4) [3 0 R /Fit]] >>", "<< /Type /Annot /Subtype /Link /Rect [72 690 300 720] /A << /S /GoTo /D (paragraph.1.2.3.4) >> >>"])));
+
+    [Fact]
     public async Task An_address_in_a_files_title_is_still_found() =>
         Fails(await Redact(Doc(more: ["<< /Title (Server 10.1.2.3) >>"], trailer: "/Info 6 0 R")));
 

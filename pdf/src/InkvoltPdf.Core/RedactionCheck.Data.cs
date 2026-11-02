@@ -145,6 +145,7 @@ public static partial class RedactionCheck
                 var owner = owners.GetValueOrDefault(o);
                 if (owner?.Part == Part.Content || ReferenceEquals(o, doc.SecurityHandler)) continue;
                 var xmp = o is PdfDictionary x && PdfObj.NameOf(x, "/Type") == "/Metadata";
+                var signature = o is PdfDictionary sig && sig.Elements.ContainsKey("/ByteRange");
                 var sb = new StringBuilder();
                 if (ReferenceEquals(o, doc.Info))
                 {
@@ -152,7 +153,7 @@ public static partial class RedactionCheck
                     foreach (var (key, value) in doc.Info.Elements)
                         sb.Append(key is "/Producer" or "/Creator" && value is PdfString s ? ProgramVersion().Replace(s.Value, "") + "\n" : StringsOf(value));
                 }
-                else Strings(o, sb, o is PdfDictionary sig && sig.Elements.ContainsKey("/ByteRange"), 0);
+                else Strings(o, sb, signature, 0, names: false);
                 // A time stamp's digits can pass a card's check.
                 var text = TimeStamp().Replace(sb.ToString(), "");
                 if (o is PdfDictionary { Stream: not null } d && (xmp || owner?.Part is Part.Attachment or Part.Xfa))
@@ -175,22 +176,24 @@ public static partial class RedactionCheck
                         _notes.Add($"{PartName(owner, xmp)} couldn't be read, so it wasn't searched.");
                     }
                 }
-                Search(text, xmp || owner?.Part == Part.Info ? properties : patterns, PartName(owner, xmp));
+                Search(text, xmp || signature || owner?.Part == Part.Info ? properties : patterns, PartName(owner, xmp));
             }
             HiddenLayerValues(doc, owners);
             return found;
 
             void HiddenLayerValues(PdfDocument document, Dictionary<PdfObject, Owner> all)
             {
+                int layers;
                 try
                 {
-                    _hiddenLayers = Math.Max(_hiddenLayers, Sanitizer.Scan(document)[SanitizeItem.HiddenLayers]);
+                    layers = Sanitizer.Scan(document)[SanitizeItem.HiddenLayers];
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or InvalidCastException or NullReferenceException)
                 {
                     return;
                 }
-                if (_hiddenLayers == 0) return;
+                if (layers == 0) return;
+                _hiddenLayers = Math.Max(_hiddenLayers, layers);
                 // No page text holds what a hidden layer draws: its text is read from the content, as the page's own.
                 const string note = "A hidden layer's text was searched, but a picture in one can't be.";
                 if (options.ValuesOnly && !_notes.Contains(note)) _notes.Add(note);
@@ -722,7 +725,8 @@ public static partial class RedactionCheck
         return sb.ToString();
     }
 
-    private static void Strings(PdfItem? item, StringBuilder sb, bool signature, int depth)
+    /// <param name="names">Also the names a file gives its own places (a destination's "paragraph.1.2.3.4"), which nobody reads and which read as addresses.</param>
+    private static void Strings(PdfItem? item, StringBuilder sb, bool signature, int depth, bool names = true)
     {
         if (depth > 16) return;
         switch (item)
@@ -735,11 +739,11 @@ public static partial class RedactionCheck
                 break;
             case PdfDictionary d:
                 foreach (var (key, value) in d.Elements)
-                    if (!(signature && key == "/Contents") && value is not PdfReference) Strings(value, sb, signature, depth + 1);
+                    if (!(signature && key == "/Contents") && value is not PdfReference && (names || key is not ("/Dest" or "/D" or "/Names" or "/Limits"))) Strings(value, sb, signature, depth + 1, names);
                 break;
             case PdfArray a:
                 foreach (var e in a.Elements)
-                    if (e is not PdfReference) Strings(e, sb, signature, depth + 1);
+                    if (e is not PdfReference) Strings(e, sb, signature, depth + 1, names);
                 break;
         }
     }
