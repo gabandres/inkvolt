@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.2.0
 - Batch print: Print › Batch takes many PDFs and pictures, or a folder. Each file has its own copies, pages, sides and paper, and you see the sheets each takes and in all before anything prints. They go in order, each result is listed, and a batch that stops says where and carries on from there without printing anything twice.
 - A file that changed or vanished after the estimate isn't printed, and a page range or paper a file or printer doesn't have is said on its line, never changed quietly.
 - Inkvolt Pro (free for now): save a batch as a list, keep the results as a spreadsheet file, print a folder as files land in it, and print from a script or a scheduled task with inkvoltprint print --list file --printer name.
