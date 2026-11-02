@@ -227,6 +227,77 @@ public enum IppText {
         }
         return values
     }
+
+    /// The other way: a Get-Printer-Attributes response's printer attributes as this text, one value per line, so a
+    /// recording (`PrinterRecorder`) can be read and served again. Values this form can't hold are left out with a comment
+    /// line naming them: collections (`media-col-database`), dateTime, resolution, rangeOfInteger, the with-language
+    /// strings and out-of-band values. Line breaks inside a text value become spaces.
+    public static func fromResponse(_ response: [UInt8]) throws -> String {
+        guard response.count >= 9 else { throw IppFormatError("IPP response too short") }
+        let names = Dictionary(syntaxes.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
+        func u16(_ at: Int) -> Int { Int(response[at]) << 8 | Int(response[at + 1]) }
+        var lines = ""
+        var skipped = Set<String>()
+        var i = 8
+        var group: UInt8 = 0
+        var depth = 0
+        var last: String?
+        while i < response.count {
+            let tag = response[i]
+            i += 1
+            if tag == 0x03 { break } // end-of-attributes
+            if tag < 0x10 {
+                group = tag
+                last = nil
+                continue
+            }
+            guard i + 2 <= response.count else { throw IppFormatError("IPP response truncated") }
+            let nameLength = u16(i)
+            i += 2
+            guard i + nameLength + 2 <= response.count else { throw IppFormatError("IPP response truncated") }
+            let name = String(decoding: response[i..<i + nameLength], as: UTF8.self)
+            i += nameLength
+            let valueLength = u16(i)
+            i += 2
+            guard i + valueLength <= response.count else { throw IppFormatError("IPP response truncated") }
+            let value = Array(response[i..<i + valueLength])
+            i += valueLength
+            if nameLength > 0 && depth == 0 { last = name }
+            // A collection (begCollection 0x34 … endCollection 0x37) is left out whole, members and nested collections too.
+            if tag == 0x34 {
+                depth += 1
+                if group == 0x04, let last { skipped.insert(last) }
+                continue
+            }
+            if tag == 0x37 {
+                depth = max(0, depth - 1)
+                continue
+            }
+            guard depth == 0, group == 0x04, let attribute = last else { continue }
+            guard let syntax = names[tag] else {
+                skipped.insert(attribute)
+                continue
+            }
+            let text: String?
+            switch tag {
+            case IppCodec.integer, IppCodec.enumeration:
+                text = valueLength == 4 ? String(Int32(bitPattern: UInt32(value[0]) << 24 | UInt32(value[1]) << 16 | UInt32(value[2]) << 8 | UInt32(value[3]))) : nil
+            case IppCodec.boolean:
+                text = valueLength == 1 ? (value[0] != 0 ? "true" : "false") : nil
+            default:
+                text = String(decoding: value, as: UTF8.self)
+                    .replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ")
+                    .trimmingCharacters(in: .whitespaces)
+            }
+            guard let text else {
+                skipped.insert(attribute)
+                continue
+            }
+            lines += "\(attribute) \(syntax) \(text)\n"
+        }
+        if !skipped.isEmpty { lines = "# Not kept (no IppText form): \(skipped.sorted().joined(separator: ", "))\n" + lines }
+        return lines
+    }
 }
 
 /// One `printer-alert` value (PWG 5100.9 §5.2.2): `code=jam;index=22;severity=critical;…`.

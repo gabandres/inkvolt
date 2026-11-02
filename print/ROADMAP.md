@@ -122,7 +122,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   since a printer's discovery tree decides what gets asked for and "/C:/x" would have left the folder, and "/run.bat" would have put a script in it. Tests: `ReportRecordingTests`
   (the planted identifiers absent from every file, the .zip and the copied line; the demo printer; no scanning; nothing left after a failure or a cancel). Seen with
   `--demo --dialog report --record`: the zip made from the made-up printer, and on the demo office laser "Nothing answered at [ip]". **Not checked:** on a real printer; Show the file
-  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac: not started.
+  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac (2026-11-02): PrintCore's `PrinterRecorder` and `FixtureScrubber` with RecordingTests ported, on the Windows PC; the command in the `--report` runner over real sockets, and Report a Problem's recording, wait for the Mac (mac/docs/PLAN.md P12).
 - **Beat it when:** the repo holds fixtures from at least one Canon, one Epson, one Brother, one SNMP-only laser and
   one CDM-only HP, each with the status, supplies, alerts and scan tests the demo fixtures have, and the README's "to
   try on hardware" lists shrink to what no fixture can show (a jam, a feeder's duplex order). Test: recording the
