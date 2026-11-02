@@ -7,7 +7,7 @@ import Testing
 /// signatures come to the Mac: appending, reporting and flattening don't read the signature itself. Adapted:
 /// AnEditThatCantBeAppendedStopsInsteadOfBreakingTheSignatures (MuPDF appends to an encrypted signed file too, where
 /// PDFsharp couldn't: the edit is appended); JunkAfterTheEndOfFileStillAppends checks the appended fill's text, not the
-/// signature's state (verification comes later); RemovalsAppended… keeps its page, comment and Fill & Sign parts (attachments, headers and signature
+/// signature's state (verification comes later); RemovalsAppended… keeps its page, comment, attachment and Fill & Sign parts (headers and signature
 /// verification come with their steps); FindsTheLastValidStartxref finds where the last revision ends (`PdfEdit.lastEnd`, which lets MuPDF
 /// read a file with junk after it). Left out: ReadsTheFileIdAsHexOrLiteralStrings and
 /// ALiteralFileIdIsCarriedIntoTheUpdate (the Windows incremental writer's own parsing; MuPDF writes the update here) and
@@ -107,11 +107,14 @@ struct SignedEditTests {
         #expect(!Self.contains(flat, "Second page"))
         #expect(!Self.appended(pdf, flat))
 
-        // Comments too; adding things isn't a removal. Fill & Sign items too.
+        // Comments and attachments too; adding things isn't a removal. Fill & Sign items too.
         let (noted, added) = try SignedEdits.run { try Annotations.addNote(pdf, nil, 0, 100, 100, "Private remark", author: "Me") }
         #expect(added == SignedEditReport(appended: true, removedItemKept: false))
         let id = try #require(try Annotations.read(noted, nil).first { $0.contents == "Private remark" }).id
         #expect(try SignedEdits.run { try Annotations.delete(noted, nil, id) }.1.removedItemKept)
+        let attached = try Attachments.add(pdf, nil, "secret.txt", Array("classified".utf8))
+        let key = try #require(try Attachments.list(attached, nil).first).key
+        #expect(try SignedEdits.run { try Attachments.remove(attached, nil, key) }.1.removedItemKept)
         let typed = try TextStamps.put(pdf, nil, 0, RectD(100, 100, 200, 20), .text, "Private remark", 12)
         let stampId = try #require(try TextStamps.read(typed, nil).first).id
         #expect(try SignedEdits.run { try TextStamps.remove(typed, nil, stampId) }.1.removedItemKept)

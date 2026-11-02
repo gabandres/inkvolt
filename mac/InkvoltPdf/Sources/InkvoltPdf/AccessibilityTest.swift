@@ -57,7 +57,7 @@ struct AccessibilityTest {
         let item = menuItem("Accessibility Check…")
         check(item?.action == #selector(DocumentWindowController.checkAccessibility(_:)), "Tools has Accessibility Check…")
         check(item.map { controller.validateMenuItem($0) } == true, "the command is enabled on a document")
-        check(controller.sidebar.segmentCount == 4, "the sidebar has no Accessibility segment before the first check")
+        check(controller.sidebar.segmentCount == SidebarController.Pane.accessibility.rawValue, "the sidebar has no Accessibility segment before the first check")
 
         NSApp.sendAction(#selector(DocumentWindowController.checkAccessibility(_:)), to: controller, from: nil)
         await settle()
@@ -65,7 +65,7 @@ struct AccessibilityTest {
             check(false, "the check ran")
             return finish()
         }
-        check(controller.sidebar.segmentCount == 5 && controller.sidebar.shownSegment == 4, "the check opens the pane in its own sidebar segment")
+        check(controller.sidebar.segmentCount == SidebarController.Pane.allCases.count && controller.sidebar.shownPane == .accessibility, "the check opens the pane in its own sidebar segment")
         check(!report.passed && report.failedConditions.contains("UA 7.1"), "the untagged synthetic document fails: \(report.failedConditions.joined(separator: " "))")
         check(pane.summary.hasPrefix("Fails ") && pane.failuresTitle == "Fails (\(report.failures.count))", "the pane says what fails (\(pane.failuresTitle))")
         check(pane.shownFailures == report.failures.count && !pane.showsChecklist, "the list has a row per failure")
@@ -100,11 +100,11 @@ struct AccessibilityTest {
         check(pane.done == ["title"] && pane.report != nil && !pane.showsChecklist, "Check Again keeps the tick and shows the failures")
 
         // Back to the thumbnails and to the pane; Show Pages still works with the extra segment.
-        controller.sidebar.show(0)
+        controller.sidebar.show(.pages)
         check(controller.sidebar.shownSegment == 0 && pane.isHidden, "the thumbnails come back")
-        controller.sidebar.show(4)
+        controller.sidebar.show(.accessibility)
         check(!pane.isHidden, "the segment brings the pane back")
-        controller.sidebar.show(0)
+        controller.sidebar.show(.pages)
 
         check(BatchWindowController.offered.contains { $0.title == "Check accessibility" }, "Batch offers the action")
         finish()

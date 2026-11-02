@@ -219,6 +219,8 @@ enum MainMenu {
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
         menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))
         menu.addItem(item("Show Signatures", #selector(DocumentWindowController.showSignatures(_:)), "4", [.command, .option]))
+        menu.addItem(item("Show Attachments", #selector(DocumentWindowController.showAttachments(_:)), "5", [.command, .option]))
+        menu.addItem(item("Show Layers", #selector(DocumentWindowController.showLayers(_:)), "6", [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Read Aloud", #selector(DocumentWindowController.toggleReadAloud(_:)), "y", [.command, .shift]))
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))

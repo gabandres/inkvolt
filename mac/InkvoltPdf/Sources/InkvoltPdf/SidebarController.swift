@@ -14,10 +14,43 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     private let table = ThumbTable()
     private let outlineView = KeyOutlineView()
     private let readBookmarks: @MainActor () -> [Bookmark]
-    private let picker = NSSegmentedControl(labels: ["Pages", "Bookmarks", "Comments", "Signatures"], trackingMode: .selectOne, target: nil,
-                                            action: nil)
+    /// The panes, in the picker's order (Accessibility's segment appears with the first check).
+    enum Pane: Int, CaseIterable {
+        case pages, bookmarks, comments, signatures, attachments, layers, accessibility
+
+        var title: String {
+            switch self {
+            case .pages: "Pages"
+            case .bookmarks: "Bookmarks"
+            case .comments: "Comments"
+            case .signatures: "Signatures"
+            case .attachments: "Attachments"
+            case .layers: "Layers"
+            case .accessibility: "Accessibility"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .pages: "rectangle.portrait.on.rectangle.portrait"
+            case .bookmarks: "bookmark"
+            case .comments: "text.bubble"
+            case .signatures: "signature"
+            case .attachments: "paperclip"
+            case .layers: "square.3.layers.3d"
+            case .accessibility: "accessibility"
+            }
+        }
+
+        var image: NSImage { NSImage(systemSymbolName: symbol, accessibilityDescription: title) ?? NSImage() }
+    }
+
+    /// Symbols with their names as tooltips and for VoiceOver: seven words don't fit the sidebar's width.
+    private let picker = NSSegmentedControl(images: Pane.allCases.dropLast().map(\.image), trackingMode: .selectOne, target: nil, action: nil)
     let comments = CommentsList()
     let signatures = SignaturesPane()
+    let attachments = AttachmentsPane()
+    let layers = LayersPane()
     let accessibility = AccessibilityPane()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
@@ -97,18 +130,23 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
         picker.target = self
         picker.action = #selector(pick)
-        picker.selectedSegment = 0
+        picker.selectedSegment = Pane.pages.rawValue
         picker.setAccessibilityLabel("Sidebar shows")
+        picker.segmentDistribution = .fillEqually
+        for pane in Pane.allCases.dropLast() { picker.setToolTip(pane.title, forSegment: pane.rawValue) }
         outlineScroll.isHidden = true
         comments.isHidden = true
         signatures.isHidden = true
+        attachments.isHidden = true
+        layers.isHidden = true
         accessibility.isHidden = true
-        picker.setEnabled(showsSignatures, forSegment: 3)
+        picker.setEnabled(showsSignatures, forSegment: Pane.signatures.rawValue)
+        picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
 
-        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, accessibility])
-        comments.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        signatures.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        accessibility.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, attachments, layers, accessibility])
+        for pane in [comments, signatures, attachments, layers, accessibility] as [NSView] {
+            pane.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         stack.orientation = .vertical
         stack.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 0, right: 0)
         stack.spacing = 6
@@ -122,23 +160,26 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     }
 
     @objc private func pick() {
-        tableScroll.isHidden = picker.selectedSegment != 0
-        outlineScroll.isHidden = picker.selectedSegment != 1
-        comments.isHidden = picker.selectedSegment != 2
-        signatures.isHidden = picker.selectedSegment != 3
-        accessibility.isHidden = picker.selectedSegment != 4
+        let shown = shownPane
+        tableScroll.isHidden = shown != .pages
+        outlineScroll.isHidden = shown != .bookmarks
+        comments.isHidden = shown != .comments
+        signatures.isHidden = shown != .signatures
+        attachments.isHidden = shown != .attachments
+        layers.isHidden = shown != .layers
+        accessibility.isHidden = shown != .accessibility
     }
 
-    /// Shows the Accessibility pane; its segment appears with the first check (a symbol: the four words fill the width).
+    /// Shows the Accessibility pane; its segment appears with the first check.
     func showAccessibility() {
         _ = view
-        if picker.segmentCount == 4 {
-            picker.segmentCount = 5
-            picker.setImage(NSImage(systemSymbolName: "accessibility", accessibilityDescription: "Accessibility"), forSegment: 4)
-            picker.setToolTip("Accessibility", forSegment: 4)
-            picker.setWidth(28, forSegment: 4)
+        let a = Pane.accessibility
+        if picker.segmentCount == a.rawValue {
+            picker.segmentCount = a.rawValue + 1
+            picker.setImage(a.image, forSegment: a.rawValue)
+            picker.setToolTip(a.title, forSegment: a.rawValue)
         }
-        show(4)
+        show(a)
     }
 
     /// How many segments the picker has (the self-test reads it).
@@ -151,19 +192,36 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     var showsSignatures = false {
         didSet {
             guard isViewLoaded else { return }
-            picker.setEnabled(showsSignatures, forSegment: 3)
-            if !showsSignatures && picker.selectedSegment == 3 { show(0) }
+            picker.setEnabled(showsSignatures, forSegment: Pane.signatures.rawValue)
+            if !showsSignatures && shownPane == .signatures { show(.pages) }
         }
     }
 
-    /// Shows the thumbnails (0), the bookmarks (1), the comments (2), the signatures (3) or, after a check, accessibility (4).
-    func show(_ segment: Int) {
+    /// The Layers segment can be chosen (the document has layers), as Windows shows its rail button only then.
+    var showsLayers = false {
+        didSet {
+            guard isViewLoaded else { return }
+            picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
+            if !showsLayers && shownPane == .layers { show(.pages) }
+        }
+    }
+
+    func show(_ pane: Pane) {
         _ = view
-        picker.selectedSegment = segment
+        picker.selectedSegment = pane.rawValue
         pick()
     }
 
     var shownSegment: Int { picker.selectedSegment }
+    var shownPane: Pane { Pane(rawValue: picker.selectedSegment) ?? .pages }
+
+    /// The thumbnails drawn by another engine over the same pages (the chosen layers), or the document's again (nil).
+    func drawThumbnails(with other: PdfEngine?) {
+        thumbs.engine = other ?? engine
+        thumbs.invalidate()
+        guard isViewLoaded else { return }
+        table.reloadData()
+    }
 
     /// The content changed: thumbnails drawn again from the new engine (old pictures kept meanwhile), the bookmarks read
     /// again.

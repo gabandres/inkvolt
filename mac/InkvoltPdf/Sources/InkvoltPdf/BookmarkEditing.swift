@@ -79,7 +79,7 @@ extension DocumentWindowController {
             try Bookmarks.setOutline(d, pw, try change(try Bookmarks.read(d, pw)))
         }
         if ok, let select {
-            sidebar.show(1)
+            sidebar.show(.bookmarks)
             sidebar.selectBookmark(select)
         }
         return ok

@@ -12,8 +12,10 @@ extension DocumentWindowController {
         info.bottomMargin = 0
         info.leftMargin = 0
         info.rightMargin = 0
-        let options = PrintOptions(pageCount: engine.pageCount, preset: printPreset())
-        let view = PrintSheetView(engine: engine, options: options, info: info)
+        // The layers chosen in the Layers pane print as they show (E9), as on Windows.
+        let printed = layerEngine ?? engine
+        let options = PrintOptions(pageCount: printed.pageCount, preset: printPreset())
+        let view = PrintSheetView(engine: printed, options: options, info: info)
         let operation = NSPrintOperation(view: view, printInfo: info)
         operation.jobTitle = pdf.name
         operation.showsPrintPanel = true

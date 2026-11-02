@@ -3,7 +3,7 @@ import Testing
 @testable import PdfCore
 
 /// Ported from IncrSignatureTests.cs: edits of signed documents are saved as incremental updates (MuPDF's), so the
-/// signatures keep verifying. Adapted: CommentsAttachmentsAndMetadataAreAppended leaves out the attachment (E9); the
+/// signatures keep verifying. Adapted: the
 /// page tree after a rotation is read with MuPDF (PDFsharp on Windows); the update's file ID is compared ignoring case
 /// (MuPDF writes hex strings in lower case).
 struct IncrSignatureTests {
@@ -123,13 +123,17 @@ struct IncrSignatureTests {
         #expect(try TextStamps.read(removed, nil).isEmpty)
     }
 
-    @Test func commentsAndMetadataAreAppended() throws {
+    @Test func commentsAttachmentsAndMetadataAreAppended() throws {
         let pdf = try Self.signedForm()
         let noted = try Annotations.addNote(pdf, nil, 0, 400, 100, "Checked", author: "Reviewer")
         try Self.assertAppended(pdf, noted)
         #expect(try Annotations.read(noted, nil).contains { $0.contents == "Checked" })
 
-        let titled = try PageEditor.writeMetadata(noted, nil, "Contract", "Ada", "", "")
+        let attached = try Attachments.add(noted, nil, "notes.txt", Array("hello".utf8))
+        #expect(try Self.approval(attached).status == .modifiedAfterSigning)
+        #expect(try Attachments.list(attached, nil).contains { $0.fileName == "notes.txt" })
+
+        let titled = try PageEditor.writeMetadata(attached, nil, "Contract", "Ada", "", "")
         #expect(try Self.approval(titled).status == .modifiedAfterSigning)
         #expect(try PageEditor.readMetadata(titled, nil).title == "Contract")
     }

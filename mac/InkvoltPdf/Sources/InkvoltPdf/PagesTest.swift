@@ -371,7 +371,7 @@ struct PagesTest {
 
         // The sidebar's thumbnails: their context menu's Rotate Right on the thumbnail chosen.
         controller.showOrganizer(false)
-        controller.sidebar.show(0)
+        controller.sidebar.show(.pages)
         controller.sidebar.selectPages([1])
         var viaSidebar = false
         if let item = controller.sidebar.thumbMenu(row: 1)?.items.first(where: { $0.title == "Rotate Right" }), let action = item.action {

@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Attachments and Layers in the sidebar (View › Show Attachments ⌥⌘5, Show Layers ⌥⌘6): see, save and remove the files attached to a PDF, attach your own, and open an attached PDF as its own document; show or hide a document's layers for viewing and printing without changing it, or save what you see as its default. The sidebar's buttons are now icons, with their names when you point at them.
 - Read Aloud (View menu, ⇧⌘Y): reads from the top of the page in view, or just the selection, with a macOS voice; the sentence and word being read are highlighted and followed. A bar over the pages has pause, stop, previous and next paragraph, the voice and the speed (0.75×-2×).
 - New PDF from Office File… and from Web Page… (File menu, and the start page's Create a PDF card): Word, Excel and PowerPoint files become PDFs through LibreOffice when it's installed (free, from libreoffice.org); a web address or a saved page is printed to a PDF with your paper, margins and backgrounds. Office files and saved pages also open straight from Finder or File › Open. The result opens as a new PDF; the original isn't changed.
 

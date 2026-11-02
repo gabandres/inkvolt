@@ -145,7 +145,7 @@ struct Core1NavigationTests {
 
 /// Ported from Core1XmpTests (in Core1NavigationTests.cs): XMP metadata kept in step with the Info dictionary, read with
 /// Foundation's XMLDocument where Windows uses XDocument. Adapted: EveryCoreSavePathKeepsTheXmpPacket saves through
-/// comments, Fill & Sign and a form fill (attachments and redaction come later, each with its XMP check).
+/// comments, Fill & Sign, an attachment and a form fill (redaction comes later, with its XMP check).
 /// EditsKeepTheOriginalPacketAndUpdateIt and WriteMetadataUpdatesXmpWithEscaping are whole.
 struct Core1XmpTests {
     static let rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -218,6 +218,7 @@ struct Core1XmpTests {
             ("markup", { try Annotations.addTextMarkup($0, nil, 0, .highlight, [RectD(50, 50, 100, 12)], .yellow, note: nil, author: "Me") }),
             ("contents", { try Annotations.setContents(Annotations.addNote($0, nil, 0, 50, 50, "Hi", author: "Me", id: note), nil, note, "Bye") }),
             ("stamp", { try TextStamps.put($0, nil, 0, RectD(60, 60, 80, 14), .text, "Signed", 11) }),
+            ("attachment", { try Attachments.add($0, nil, "a.txt", [1, 2, 3]) }),
         ]
         let packet = try readXmp(original).rootElement()?.xmlString ?? ""
         let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) >>"],

@@ -202,6 +202,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     /// The content changed (an edit, undo, redo, reload): the new engine, pages laid out again if their sizes changed,
     /// and every page drawn again (the old pictures stay until the new ones arrive).
+    /// The pages drawn by another engine over the same pages (the chosen layers, E9), or by the document's again (nil);
+    /// text, selection and geometry stay the document's.
+    func draw(with other: PdfEngine?) {
+        renderer.engine = other ?? engine
+        renderer.invalidate()
+        needsDisplay = true
+        requestVisible()
+    }
+
     func reload(engine: PdfEngine) {
         self.engine = engine
         renderer.engine = engine

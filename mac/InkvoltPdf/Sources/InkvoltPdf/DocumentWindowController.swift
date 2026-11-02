@@ -40,7 +40,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// A long task started from a menu (the self-test awaits it).
     private(set) var longTask: Task<Void, Never>?
     private var signatureSheet: SignatureSheet?
-    private let split = NSSplitViewController()
+    let split = NSSplitViewController()
     private var diskTimer: Timer?
     private var ignoredDiskState: String?
     private(set) var inspector: InspectorController?
@@ -56,6 +56,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var testLinkAnswer = false
     /// How many times "Open this link?" was asked.
     private(set) var linkQuestions = 0
+
+    // E9 (AttachmentsLayers.swift): the layers read, the ones the person changed (by name: object numbers change when an
+    // edit writes the file whole), the engine drawing them, and what the self-test reads.
+    var layerList: [LayerInfo] = []
+    var layerOrder: [LayerOrderNode] = []
+    var layerChoice: [String: Bool] = [:]
+    var layerTicket = 0
+    var layerEngine: PdfEngine?
+    var layersApplied = 0
+    var lastSavedAttachment: URL?
+    var lastProblem: String?
 
     /// The engine over the document's current bytes (replaced after every edit, undo, redo and reload).
     var engine: PdfEngine { pages.engine }
@@ -151,6 +162,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.signatures.onGo = { [weak self] info in self?.goToSignature(info) }
         sidebar.signatures.onSign = { [weak self] field in self?.signDigitally(field: field) }
         verifySignatures(onOpen: true)
+        wireAttachmentsAndLayers()
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
         editor.onChanged = { [weak self] in self?.commentsChanged() }
@@ -223,6 +235,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         if !foundQuery.isEmpty { find(foundQuery) }
         if change == .reload { hideDiskBar() }
         verifySignatures(onOpen: change == .reload)
+        refreshAttachmentsAndLayers()
         updateSubtitle()
     }
 
@@ -536,12 +549,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     @objc func showComments(_ sender: Any?) {
         if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
-        sidebar.show(2)
+        sidebar.show(.comments)
     }
 
     @objc func showSignatures(_ sender: Any?) {
         if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
-        sidebar.show(3)
+        sidebar.show(.signatures)
     }
 
     /// The sidebar's Accessibility pane (its segment appears with the first check).
@@ -552,7 +565,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     @objc func showBookmarks(_ sender: Any?) {
         if let item = split.splitViewItems.first, item.isCollapsed { item.animator().isCollapsed = false }
-        sidebar.show(1)
+        sidebar.show(.bookmarks)
     }
 
     @objc func nextComment(_ sender: Any?) { pages.selectNext(1) }
