@@ -539,7 +539,7 @@ public static partial class ContentEditor
     private static TextRun[] LineRuns(TextParagraph p, TextRun plain)
     {
         // New text takes the color of the run it is written at: the color most of the paragraph is in, not a link's.
-        var color = p.Runs.Where(r => r.Info is not null).GroupBy(r => r.Color).Select(g => (g.Key, Length: g.Sum(r => r.Text.Trim().Length))).DefaultIfEmpty((plain.Color, 0)).MaxBy(c => c.Length).Item1;
+        var color = p.Runs.Where(r => r.Info is not null).GroupBy(r => r.Color).MaxBy(g => g.Sum(r => r.Text.Trim().Length))?.Key ?? plain.Color;
         var chosen = new TextRun?[p.Lines.Count];
         foreach (var run in p.Runs)
         {
