@@ -72,7 +72,7 @@ public static partial class ContentEditor
             foreach (var stack in Stacks(lines))
             {
                 cancel.ThrowIfCancellationRequested();
-                foreach (var part in SplitShort(stack))
+                foreach (var part in SplitShort(stack, translating: true))
                     slots.Add(new TranslationSlot(Paragraph(spacesOnly, part, translating: true), cell >= 0 ? cells[cell] : null));
             }
         }
@@ -98,8 +98,8 @@ public static partial class ContentEditor
                 var bigger = Math.Max(prev.FontSize, r.FontSize);
                 var smaller = r.FontSize < prev.FontSize ? r : prev;
                 var gap = r.Box.X - cur.Box.Right;
-                // Sizes touching are one word (small capitals: a big D, then "IGITAL").
-                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.2 * smaller.FontSize;
+                // Sizes touching are one word (small capitals: a big D, then "IGITAL"), or go on after a subscript.
+                var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.25 * bigger;
                 if (gap > 1.5 * bigger || sizes)
                 {
                     cur = new PLine(r);
@@ -297,7 +297,7 @@ public static partial class ContentEditor
         var drawnAt = LineRuns(p, PlainRun(p.Runs));
         if (drawnAt.All(r => r.Info?.Clip is not null) && drawnAt.Select(r => r.Info!.Clip!.Value).Aggregate((a, b) => a.Union(b)) is var clip)
         {
-            bottom = Math.Min(bottom, clip.Bottom);
+            bottom = Math.Min(bottom, Math.Max(clip.Bottom, p.Box.Bottom)); // a font's descent may reach past a tight clip: its own text was shown there
             framed.Right = Math.Max(Math.Min(framed.Right, clip.Right), Math.Min(p.Right, framed.Right));
             framed.Left = Math.Min(Math.Max(framed.Left, clip.X), Math.Max(p.Left, framed.Left));
         }

@@ -1199,6 +1199,32 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_short_line_going_on_in_lowercase_stays_with_the_sentence()
+    {
+        // Ragged text in a narrow column: the first line ends short (the next word would fit), mid-sentence.
+        var pdf = Page(Lines(72, 700, 12, 14, "The quick brown", "fox jumps over a lazy dog", "until the dog is done.", "THE DOG"), fontText: Letters);
+        Assert.Contains(Translation.MakePlan(pdf, null, [0]).Texts, t => t.Text.StartsWith("The quick brown fox jumps over a lazy dog until", StringComparison.Ordinal));
+        // In the editor they stay apart, as they were.
+        Assert.Contains(ContentEditor.Read(pdf, null, 0).Paragraphs, q => q.Text == "The quick brown");
+    }
+
+    [Fact]
+    public void A_heading_in_a_tight_clip_keeps_its_size()
+    {
+        var pdf = Page("q 72 694 400 16 re W n " + Lines(72, 700, 14, 16, "Hello World") + "Q", fontText: Letters);
+        var (_, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(0, r.Report.Shrunk);
+    }
+
+    [Theory]
+    [InlineData("ABCDEF+NimbusRomNo9L-Regu", 4, "Serif")]
+    [InlineData("CMR10", 4, "Serif")]
+    [InlineData("Gotham-Book", 34, "Sans")] // "Book" in a name isn't a serif, nor a flag that says so on a font named Gotham
+    [InlineData("ABCDEF+NimbusSanL-Regu", 4, "Sans")]
+    [InlineData("CMTT10", 4, "Mono")]
+    public void A_stand_in_is_chosen_from_the_right_class(string name, int flags, string kind) => Assert.Equal(kind, StandInFonts.KindOf(name, flags).ToString());
+
+    [Fact]
     public void A_word_hyphenated_at_a_line_end_goes_out_whole()
     {
         var pdf = Page(Lines(72, 700, 12, 14, "The quick brown fox jumps over a lazy dog and the quick brown fox ju-", "mps over the lazy dog"), fontText: Letters + "-");

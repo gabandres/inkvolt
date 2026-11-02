@@ -9,7 +9,7 @@ namespace InkvoltPdf.Tests;
 public class ContentEditFontTests
 {
     /// <summary>A one-page PDF showing "ab" in a simple font (/F1) with the given dictionary and descriptor extras.</summary>
-    private static byte[] WithFont(string fontDict, string programObject, string show = "(ab) Tj")
+    private static byte[] WithFont(string fontDict, string programObject, string show = "(ab) Tj", string? extraObject = null)
     {
         var objects = new List<string>
         {
@@ -21,6 +21,7 @@ public class ContentEditFontTests
             "<< /Type /FontDescriptor /FontName /ABCDEF+Test /Flags 32 /FontBBox [0 -200 1000 800] /Ascent 800 /Descent -200 /ItalicAngle 0 /StemV 80 /CapHeight 700 " + programObject.Split('|')[0] + " >>",
             programObject.Split('|')[1],
         };
+        if (extraObject is not null) objects.Add(extraObject);
         return Core2Pdf.Build(objects);
     }
 
@@ -57,6 +58,21 @@ public class ContentEditFontTests
         Assert.Equal(["c"], run.Check("abc").Borrowed); // a width, but no glyph in the subset: a stand-in font draws it
         var edited = ContentEditor.ReplaceText(pdf, null, run, "bab");
         Assert.Contains("(bab) Tj", ContentEditPdf.Content(edited));
+    }
+
+    [Fact]
+    public void A_code_with_no_glyph_name_isnt_drawable_whatever_tounicode_and_widths_say()
+    {
+        // pdfTeX's fonts: /ToUnicode and /Widths cover the whole code page, /Differences only the letters used. Written
+        // through such a code, an accented letter comes out blank ("funci n").
+        var widths = string.Join(' ', Enumerable.Repeat("500", 243 - 97 + 1));
+        var cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /X def 1 begincodespacerange <00> <FF> endcodespacerange " +
+                   "3 beginbfchar <61> <0061> <62> <0062> <F3> <00F3> endbfchar endcmap end end";
+        var pdf = WithFont($"<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Test /FirstChar 97 /LastChar 243 /Widths [{widths}] " +
+            "/Encoding << /Type /Encoding /Differences [97 /a /b] >> /FontDescriptor 6 0 R /ToUnicode 8 0 R >>", Type1Program(".notdef", "a", "b"), extraObject: Core2Pdf.Stream(cmap));
+        var run = ContentEditor.Read(pdf, null, 0).Runs.Single();
+        Assert.Equal("ab", run.Text);
+        Assert.Equal(["ó"], run.Check("aób").Borrowed);
     }
 
     [Fact]
