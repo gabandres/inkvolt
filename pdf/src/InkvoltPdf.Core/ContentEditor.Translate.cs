@@ -190,7 +190,11 @@ public static partial class ContentEditor
             .OrderBy(o => o.Width * o.Height).Select(o => (RectD?)o).FirstOrDefault();
         var holder = slot.Cell ?? panel;
 
-        if ((p.Lines.Count == 1 || slot.Cell is not null) && !page.Crowded)
+        // Light text sits on something dark that isn't known here (a filled band): past its box it would be white on white.
+        var color = p.Lead.Color;
+        var light = slot.Cell is null && 0.3 * (color >> 16 & 0xFF) + 0.59 * (color >> 8 & 0xFF) + 0.11 * (color & 0xFF) > 0.85 * 255;
+
+        if ((p.Lines.Count == 1 || slot.Cell is not null) && !page.Crowded && !light)
         {
             // Across: to the next thing on its line, inside what holds it. Its text column on the page is what the page's other text reaches.
             var reachLeft = holder?.X ?? Math.Min(p.Left, page.TextLeft);
@@ -201,8 +205,9 @@ public static partial class ContentEditor
                 if (b.Bottom <= p.Box.Y) continue; // not on its lines
                 if (run is not null && mine.Contains(run)) continue;
                 if (b.Width > 0.8 * (reachRight - reachLeft) && b.X < p.Box.X && b.Right > p.Box.Right) continue; // behind it
-                if (b.X >= p.Box.Right - 1 && b.X < reachRight) reachRight = b.X - 0.5 * p.FontSize;
-                if (b.Right <= p.Box.X + 1 && b.Right > reachLeft) reachLeft = b.Right + 0.5 * p.FontSize;
+                // Text beside it may grow toward it too: each gets half the gap.
+                if (b.X >= p.Box.Right - 1 && b.X < reachRight) reachRight = b.X - Math.Max(0.5 * p.FontSize, run is null ? 0 : (b.X - p.Box.Right) / 2);
+                if (b.Right <= p.Box.X + 1 && b.Right > reachLeft) reachLeft = b.Right + Math.Max(0.5 * p.FontSize, run is null ? 0 : (p.Box.X - b.Right) / 2);
             }
             reachRight = Math.Max(reachRight, p.Right);
             reachLeft = Math.Min(reachLeft, p.Left);
@@ -241,7 +246,7 @@ public static partial class ContentEditor
         }
 
         // Down: to the next thing below it across its width, and no lower than what holds it or the page's foot.
-        var bottom = slot.Cell?.Bottom ?? panel?.Bottom ?? Math.Max(p.Box.Bottom, pageHeight - 36);
+        var bottom = light ? p.Box.Bottom : slot.Cell?.Bottom ?? panel?.Bottom ?? Math.Max(p.Box.Bottom, pageHeight - 36);
         for (var i = page.FirstBelow(p.Box.Bottom - 1); i < page.Boxes.Count; i++)
         {
             var (b, run) = page.Boxes[i];

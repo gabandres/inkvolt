@@ -979,7 +979,101 @@ public class TranslationCopyTests
         Assert.True(r.Data!.Length < pdf.Length * 3 + 1_500_000, $"{pdf.Length} → {r.Data!.Length}");
     }
 
+    [Fact]
+    public void White_text_stays_in_its_box_on_whatever_dark_thing_it_sits_on()
+    {
+        var pdf = Page("0 0 0 rg 72 690 60 20 re f 1 1 1 rg " + Lines(75, 695, 12, 14, "Hello") + "0 0 0 rg " + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
+        var before = ContentEditor.Read(pdf, null, 0).Paragraphs.First(q => q.Text == "Hello");
+        var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : "THE DOG");
+        var after = ContentEditor.Read(r.Data!, null, 0);
+        var text = after.Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX");
+        Assert.True(text.Box.Right <= before.Box.Right + 1, $"{text.Box.Right} past {before.Box.Right}");
+        Assert.True(text.FontSize < 12);
+    }
+
+    [Fact]
+    public void Text_doesnt_grow_out_of_what_clips_it()
+    {
+        // Inside a clip only as tall as its line: below that it wouldn't show, whatever the text extraction says.
+        var pdf = Page("q 72 690 300 20 re W n " + Lines(72, 695, 12, 14, "Hello World") + "Q", fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 6));
+        var (_, r) = Translate(pdf, _ => words);
+        var clipTop = 792 - 710;
+        var p = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text.StartsWith("The", StringComparison.Ordinal));
+        Assert.True(p.FontSize < 12);
+        // At the smallest size it can't fit: said so, not hidden silently.
+        Assert.Equal(1, r.Report.DoNotFit);
+        Assert.True(p.Box.Y >= clipTop - 1);
+        Assert.True(p.Box.Right <= 372 + 1, $"{p.Box.Right}");
+    }
+
+    [Fact]
+    public void Text_in_a_form_stays_inside_the_forms_box()
+    {
+        // The form's /BBox clips like any clip: here the form is the page's size, so a clip inside it does the same job as a small one would.
+        var form = "q 72 590 200 20 re W n " + Lines(72, 595, 12, 14, "Hello World") + "Q";
+        var pdf = Page("/Fm1 Do", form, fontText: Letters);
+        var (_, r) = Translate(pdf, _ => string.Join(' ', Enumerable.Repeat("The quick brown fox jumps.", 4)));
+        Assert.True(r.Report.DoNotFit == 1 || r.Report.Shrunk == 1);
+        foreach (var run in ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Contains("quick", StringComparison.Ordinal)))
+            Assert.True(run.Box.Right <= 272 + 1, $"{run.Box.Right}");
+    }
+
     // ---- Crafted files ----
+
+    [Fact]
+    public void Forms_that_multiply_are_cut_short_and_the_page_is_named()
+    {
+        var pdf = Page("/Fm1 Do", "BT ET", fontText: Letters);
+        using (var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            // Eight levels of forms, each drawing the next 60 times: 60^8 drawings of the text at the bottom.
+            var fonts = PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/Font"])!;
+            var inner = new PdfDictionary(doc);
+            inner.Elements["/Font"] = fonts;
+            var form = PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(Lines(72, 700, 12, 14, "Hello World")), 0, 0, 612, 792, inner);
+            for (var level = 0; level < 8; level++)
+            {
+                var res = new PdfDictionary(doc);
+                var xo = new PdfDictionary(doc);
+                xo.Elements["/N"] = form.Reference!;
+                res.Elements["/XObject"] = xo;
+                form = PdfObj.FormXObject(doc, Encoding.Latin1.GetBytes(string.Concat(Enumerable.Repeat("/N Do ", 60))), 0, 0, 612, 792, res);
+            }
+            var page = PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!;
+            page.Elements["/Fm1"] = form.Reference!;
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var sw = Stopwatch.StartNew();
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        Assert.Equal([0], plan.UnreadablePages);
+        Assert.Empty(plan.Texts);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(30), sw.Elapsed.ToString());
+        using var cts = new CancellationTokenSource(50);
+        var cancelled = Stopwatch.StartNew();
+        Assert.ThrowsAny<OperationCanceledException>(() => Translation.MakePlan(pdf, null, [0], null, cts.Token));
+        Assert.True(cancelled.Elapsed < TimeSpan.FromSeconds(5), cancelled.Elapsed.ToString());
+    }
+
+    [Fact]
+    public async Task Numbers_a_crafted_page_cant_lay_out_end_in_a_flag_not_a_hang()
+    {
+        // A matrix and size so large the arithmetic overflows into infinity.
+        var pdf = Page("BT /FA 1e300 Tf 1e300 0 0 1e300 1e300 1e300 Tm (Hello World) Tj ET " + Lines(72, 700, 12, 14, "2024 draft!"), fontText: Letters);
+        var (_, r) = await Task.Run(() => Translate(pdf, _ => "THE DOG")).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.NotNull(r);
+    }
+
+    [Fact]
+    public void A_font_size_of_zero_or_nonsense_doesnt_stop_the_page()
+    {
+        var pdf = Page("BT /FA 0 Tf 1 0 0 1 72 600 Tm (Hello World) Tj /FA -12 Tf 1 0 0 1 72 500 Tm (Hello draft) Tj ET " + Lines(72, 700, 12, 14, "2024 draft!"), fontText: Letters);
+        var (_, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Empty(r.Report.FailedPages);
+        Assert.Contains("THE DOG", ContentEditPdf.Text(r.Data!), StringComparison.Ordinal);
+    }
 
     [Fact]
     public void A_page_with_more_text_pieces_than_can_be_worked_out_is_named_and_left_alone()

@@ -58,7 +58,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                 {
                     Directory.CreateDirectory(outDir);
                     var (w, h, rgba) = Render(copy, p);
-                    File.WriteAllBytes(Path.Combine(outDir, $"{Path.GetFileNameWithoutExtension(file)}-{p + 1}.png"), PngEncoder.Encode(w, h, rgba, alpha: true));
+                    File.WriteAllBytes(Path.Combine(outDir, $"{Path.GetFileNameWithoutExtension(file)}-{p + 1}.png"), PngEncoder.Encode(w, h, rgba, alpha: false));
                 }
             }
             Assert.Equal(0, hidden);
@@ -66,12 +66,13 @@ public class TranslationCorpusTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>A page at 1.5x as RGB (the engine gives BGR).</summary>
     private static (int W, int H, byte[] Rgba) Render(PdfEngine engine, int page)
     {
-        var g = engine.GetPage(page);
-        var region = new RectD(0, 0, g.Width, g.Height);
-        var r = engine.RenderRegionRgba(page, region, 1.5, default) ?? throw new InvalidOperationException("no render");
-        return (r.Width, r.Height, r.Rgba);
+        var img = engine.Render(page, 1.5);
+        var rgba = (byte[])img.Pixels.Clone();
+        for (var i = 0; i + 2 < rgba.Length; i += 3) (rgba[i], rgba[i + 2]) = (rgba[i + 2], rgba[i]);
+        return (img.Width, img.Height, rgba);
     }
 
     private static bool SamePixels(PdfEngine a, PdfEngine b, int page)
