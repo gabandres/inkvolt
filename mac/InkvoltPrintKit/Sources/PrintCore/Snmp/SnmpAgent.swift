@@ -90,6 +90,41 @@ public final class SnmpAgent: SnmpTransport {
         return Int64((negative ? "-" : "") + String(chars[start..<end]))
     }
 
+    /// The other way: objects as `parseWalk` reads them, one per line in OID order, each name once. A string that wouldn't
+    /// read back byte for byte (invalid UTF-8, control characters, surrounding spaces, a trailing backslash) is written as
+    /// Hex-STRING; a type the walk form has no word for is a comment line.
+    public static func formatWalk(_ objects: [SnmpVarBind]) -> String {
+        var seen = Set<Oid>()
+        var lines = ""
+        for o in objects.sorted(by: { $0.name < $1.name }) where seen.insert(o.name).inserted {
+            let v = o.value
+            let value: String?
+            switch v.tag {
+            case Ber.integer: value = "INTEGER: \(v.number)"
+            case Ber.gauge32: value = "Gauge32: \(v.number)"
+            case Ber.counter32: value = "Counter32: \(v.number)"
+            case Ber.timeTicks: value = "Timeticks: (\(v.number))"
+            case Ber.objectIdentifier: value = v.objectId.map { "OID: .\($0)" }
+            case Ber.ipAddress: value = v.bytes?.count == 4 ? "IpAddress: \(v.bytes!.map(String.init).joined(separator: "."))" : nil
+            case Ber.octetString:
+                let bytes = v.bytes ?? []
+                value = plainText(bytes).map { "STRING: \"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }
+                    ?? "Hex-STRING: \(SnmpValue.hexString(bytes))"
+            default: value = nil
+            }
+            lines += (value.map { ".\(o.name) = \($0)" } ?? "# .\(o.name) = \(v) (not kept)") + "\n"
+        }
+        return lines
+    }
+
+    /// Text that reads back byte for byte: valid UTF-8, printable, nothing `parseWalk`'s trimming or quoting would change.
+    private static func plainText(_ bytes: [UInt8]) -> String? {
+        guard let s = String(validating: bytes, as: UTF8.self), !s.isEmpty,
+              !s.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }),
+              s.trimmingCharacters(in: .whitespaces) == s, !s.hasSuffix("\\") else { return nil }
+        return s
+    }
+
     public func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
         try Task.checkCancellation()
         return respond(request)
