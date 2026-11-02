@@ -242,6 +242,38 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         Fails(await Redact(WithAttachment("inner.pdf", Encoding.Latin1.GetString(inner))));
     }
 
+    [Fact]
+    public async Task A_file_that_never_got_to_the_search_is_in_the_report_as_failed()
+    {
+        var (good, bad) = (Path.Combine(_root, "good.pdf"), Path.Combine(_root, "bad.pdf"));
+        File.WriteAllBytes(good, Doc());
+        File.WriteAllText(bad, "this isn't a pdf");
+        var plan = new BatchPlan { Steps = [new RedactPatternsStep(new RedactionPatternOptions())], OutputFolder = Path.Combine(_root, "out") };
+        var summary = await BatchRunner.RunAsync([new BatchFile(good), new BatchFile(bad)], plan, new BatchHost(), null, default);
+        var report = summary.RedactionReport!;
+        Assert.Equal(2, report.Files.Count);
+        Assert.True(report.HasFailures);
+        Assert.Contains(Csv.Read(File.ReadAllText(summary.RedactionReportPath!, Encoding.UTF8)), r => r[0] == "bad.pdf" && r[4].StartsWith("Failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_report_with_nothing_removed_doesnt_say_it_was_read_back()
+    {
+        var kept = new RedactionRemoval(0, RedactionPattern.Phone, "***", RedactionOutcome.Kept);
+        Assert.DoesNotContain("Read back", new RedactionReport([new RedactionFileReport("a.pdf", [kept], [], null)]).Headline);
+        var removed = kept with { Outcome = RedactionOutcome.Removed };
+        Assert.Contains("Read back", new RedactionReport([new RedactionFileReport("a.pdf", [removed], [], null)]).Headline);
+    }
+
+    [Fact]
+    public async Task A_picture_nothing_could_read_isnt_said_to_have_been_read()
+    {
+        var summary = await Redact(LightOnBand(0.2, new PlantedReader()));
+        Passes(summary);
+        Assert.DoesNotContain(summary.Items[0].Notes, n => n.Contains("read by text recognition", StringComparison.Ordinal));
+        Assert.Contains(summary.Items[0].Notes, n => n.Contains("Look by hand", StringComparison.Ordinal) && n.Contains("couldn't be read", StringComparison.Ordinal));
+    }
+
     // ───────────── ink the search doesn't see ─────────────
 
     /// <summary>A page of text with a picture on it: a band of a shade with light words in it (a banner, a card).</summary>

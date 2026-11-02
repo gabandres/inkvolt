@@ -583,7 +583,10 @@ public static class BatchRunner
         for (var i = 0; i < results.Length; i++)
         {
             if (results[i] is not null) continue;
-            results[i] = new BatchItemResult(files[i], BatchItemState.Cancelled, "Cancelled", [], []);
+            results[i] = new BatchItemResult(files[i], BatchItemState.Cancelled, "Cancelled", [], [])
+            {
+                Redaction = plan.Steps.Any(s => s is RedactPatternsStep) ? new RedactionFileReport(ReportName(files[i]), [], [], "Cancelled") : null,
+            };
             progress?.Report(new BatchProgress(i, BatchItemState.Cancelled, "Cancelled", 0, results[i]));
         }
         var summary = new BatchSummary([.. results.Select(r => r!)]);
@@ -600,6 +603,9 @@ public static class BatchRunner
             return summary with { RedactionReportProblem = "The redaction report couldn't be saved in the results folder." };
         }
     }
+
+    /// <summary>A file in the removal report: by its name within the batch. Where it lives on this PC is no business of a report that gets passed on.</summary>
+    private static string ReportName(BatchFile file) => Path.Combine(file.RelativeFolder, Path.GetFileName(file.NamedAs));
 
     /// <summary>OCR renders pages at this resolution (see the app's recognizer), within this many pixels.</summary>
     private const double OcrDpi = 300, OcrMaxPixels = 60_000_000;
@@ -683,8 +689,9 @@ public static class BatchRunner
 
         private BatchItemResult Result(BatchItemState state, string message) => new(file, state, message, [.. _outputs], [.. _notes])
         {
-            // Whatever stopped the file, nothing it found was removed from a saved result.
-            Redaction = state == BatchItemState.Done ? _redaction : _redaction?.WithoutResult(message),
+            // Whatever stopped the file, nothing it found was removed from a saved result. Stopped before the search, it is still in the report.
+            Redaction = state == BatchItemState.Done ? _redaction
+                : (_redaction ?? (plan.Steps.Any(s => s is RedactPatternsStep) ? new RedactionFileReport(ReportName(file), [], [], null) : null))?.WithoutResult(message),
         };
 
         public async Task<BatchItemResult> RunAsync()
@@ -903,8 +910,7 @@ public static class BatchRunner
             }, cancel).ConfigureAwait(false);
             var hits = found.Hits;
             var rows = hits.Select(h => RedactionReport.Row(h, RedactionOutcome.NotSaved)).ToList();
-            // The file by its name within the batch: where it lives on this PC is no business of a report that gets passed on.
-            var reportName = Path.Combine(file.RelativeFolder, Path.GetFileName(file.NamedAs));
+            var reportName = ReportName(file);
             _redaction = Merge(new RedactionFileReport(reportName, rows, found.Looks, null));
 
             if (found.UnreadScans.Any())
@@ -941,8 +947,10 @@ public static class BatchRunner
             if (check.Incomplete) throw new RedactionCheckFailedException($"Redaction check: {string.Join(" ", check.Notes)} Nothing was saved.");
             _notes.AddRange(check.Notes);
 
-            if (found.Looks.Count > 0)
-                _notes.Add($"Look by hand at {RedactionReport.Pages(found.Looks.Select(l => l.Page))}: read by text recognition, which can miss text");
+            if (found.Looks.Where(l => l.Reason == RedactionLookReason.PicturesNotRead).Select(l => l.Page).ToList() is { Count: > 0 } unread)
+                _notes.Add($"Look by hand at {RedactionReport.Pages(unread)}: pictures or drawn text that couldn't be read, no text recognition language");
+            if (found.Looks.Where(l => l.Reason != RedactionLookReason.PicturesNotRead).Select(l => l.Page).ToList() is { Count: > 0 } read)
+                _notes.Add($"Look by hand at {RedactionReport.Pages(read)}: read by text recognition, which can miss text");
             return result;
         }
 

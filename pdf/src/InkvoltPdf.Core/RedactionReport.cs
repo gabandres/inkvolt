@@ -71,6 +71,19 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
 
     public int Count(RedactionOutcome outcome) => Files.Sum(f => f.Removals.Count(r => r.Outcome == outcome));
 
+    /// <summary>What the report's page says first when no file failed. Nothing removed: nothing was read back either.</summary>
+    public string Headline
+    {
+        get
+        {
+            var (removed, kept) = (Count(RedactionOutcome.Removed), Count(RedactionOutcome.Kept));
+            var keptText = kept > 0 ? $", {kept:N0} kept as you chose" : "";
+            return removed == 0
+                ? $"Nothing was removed{keptText}."
+                : $"Read back and searched again: none of what was removed is left in the text of the {(Files.Count > 1 ? "files" : "file")}. {removed:N0} removed{keptText}.";
+        }
+    }
+
     /// <summary>What is left of a value in a report.</summary>
     public static string Mask(RedactionPattern pattern, string value)
     {

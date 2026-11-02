@@ -104,8 +104,9 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Finished on Windows 2026-11-01.** Named sets saved on this PC (`RedactionPatternSets`, plain JSON, one regex a set:
   alternation covers more); scanned pages and pictures searched through OCR text (`RedactionSearch`); every hit listed
   with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), then applied;
-  the result read back, searched again, and what was removed looked for in the rest of the file, with what the patterns
-  find in comments, fields, bookmarks, properties, XMP, attachments and tags; the report as a page and as CSV
+  the result read back, searched again, and what was removed looked for in the rest of the file (dates and ZIP codes only
+  by pattern: a file's own time stamps hold the same digits), with what the patterns find in comments, fields, bookmarks,
+  properties, XMP, attachments, tags and every other string the file holds; the report as a page and as CSV
   (`RedactionReport`, `RedactionReportDialog`); Batch runs a set over a folder, asks for passwords as before, and fails a file
   with a hit left, with a scan nothing could read, or with a part that couldn't be searched; the Pro split through
   `ProFeature.PatternRedaction` (sets, regex, the Batch action, the report's rows and CSV; the built-in kinds, phrases, the

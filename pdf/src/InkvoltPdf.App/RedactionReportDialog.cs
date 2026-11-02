@@ -28,14 +28,11 @@ internal static class RedactionReportDialog
         var dlg = new FormDialog(owner, "Redaction Report", "Close", 860);
         dlg.HideCancel();
         var failed = report.Files.Where(f => f.Failure is not null).ToList();
-        var removed = report.Count(RedactionOutcome.Removed);
-        var kept = report.Count(RedactionOutcome.Kept);
         var many = report.Files.Count > 1;
 
         var head = dlg.AddNote(failed.Count > 0
             ? (many ? $"{failed.Count} of {report.Files.Count} files failed. " : "") + "Don't share a failed result: " + string.Join(" ", failed.Take(5).Select(f => (many ? f.File + ": " : "") + f.Failure))
-            : $"Read back and searched again: none of what was removed is left in the text of the {(many ? "files" : "file")}. " +
-              $"{removed:N0} removed{(kept > 0 ? $", {kept:N0} kept as you chose" : "")}.");
+            : report.Headline);
         if (failed.Count > 0) head.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         AutomationProperties.SetLiveSetting(head, AutomationLiveSetting.Polite);
 
