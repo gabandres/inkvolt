@@ -68,6 +68,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var lastSavedAttachment: URL?
     var lastProblem: String?
 
+    // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
+    // pane while the view is split, how, and which pane navigation acts on.
+    let paneSplit = PaneSplitView()
+    var secondPages: PagesView?
+    var secondScroll: NSScrollView?
+    var secondBox: NSView?
+    var splitMode: SplitMode = .none
+    var secondActive = false
+
     /// The engine over the document's current bytes (replaced after every edit, undo, redo and reload).
     var engine: PdfEngine { pages.engine }
 
@@ -119,11 +128,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                                                object: scrollView)
 
         let content = NSViewController()
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, scrollView])
+        paneSplit.addPane(scrollView)
+        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         findBar.isHidden = true
         diskBar.isHidden = true
         noticeBar.isHidden = true
@@ -148,6 +158,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
         pages.editor = editor
         pages.host = self
+        pages.onActivate = { [weak self] in self?.activatePane(second: false) }
         form = FormFiller(controller: self)
         self.content = ContentEditing(controller: self)
         pages.form = form
@@ -207,6 +218,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         inspectorPopover?.close()
         askPopover?.close()
         pages.renderer.cancelAll()
+        secondPages?.renderer.cancelAll()
         sidebar.stop()
         organizer?.stop()
         NotificationCenter.default.removeObserver(self)
@@ -228,6 +240,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         form.reload()
         content.invalidate()
         pages.reload(engine: engine)
+        secondPages?.reload(engine: engine)
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
@@ -251,8 +264,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private func wireTools() {
         toolStrip.onTool = { [weak self] tool in
             guard let self else { return }
-            self.pages.tool = tool
-            self.window?.makeFirstResponder(self.pages)
+            self.pickTool(tool)
         }
         toolStrip.onColor = { [weak self] color in self?.applyColor(color) }
         toolStrip.onWidth = { [weak self] width in self?.applyWidth(width) }
@@ -429,8 +441,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Tools › a tool (its single key while the pages have the focus).
     @objc func chooseTool(_ sender: NSMenuItem) {
         guard let tool = Tool(rawValue: sender.tag) else { return }
-        pages.tool = tool
-        window?.makeFirstResponder(pages)
+        pickTool(tool)
         if tool == .stamp, let spot = toolStrip.frame(of: .stamp) { popUp(stampMenu(), spot.0, spot.1) }
         if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
         if tool == .signature && pages.pendingSignature == nil { askSignature() }
@@ -572,6 +583,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func previousComment(_ sender: Any?) { pages.selectNext(-1) }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if let split = validateSplitItem(item) { return split }
         switch item.action {
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
@@ -806,7 +818,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     /// View › Zoom to Page: the whole current page in the window.
     @objc func fitPage(_ sender: Any?) {
-        let available = scrollView.contentView.frame.size
+        let pages = activePages
+        let available = activeScroll.contentView.frame.size
         let page = pages.currentPage
         guard page >= 0, page < pages.pageRects.count, available.width > 0, available.height > 0 else { return }
         let rect = pages.pageRects[page]
@@ -828,44 +841,48 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func fitWidth(_ sender: Any?, atMost cap: Double) {
-        let available = scrollView.contentView.frame.width
-        guard pages.frame.width > 0, available > 0 else { return }
-        setZoom(min(available / pages.frame.width, cap))
+        let available = activeScroll.contentView.frame.width
+        guard activePages.frame.width > 0, available > 0 else { return }
+        setZoom(min(available / activePages.frame.width, cap))
     }
 
-    private func zoom(by factor: Double) { setZoom(scrollView.magnification * factor) }
+    private func zoom(by factor: Double) { setZoom(activeScroll.magnification * factor) }
 
-    /// Zooms keeping the top of the current view in place.
+    /// Zooms the active pane keeping the top of its view in place.
     func setZoom(_ zoom: Double) {
+        let scrollView = activeScroll
         let clip = scrollView.contentView
         let top = NSPoint(x: clip.bounds.midX, y: clip.bounds.minY)
         let z = min(max(zoom, scrollView.minMagnification), scrollView.maxMagnification)
         scrollView.setMagnification(z, centeredAt: top)
-        pages.scrollTo(y: top.y)
+        activePages.scrollTo(y: top.y)
         magnified()
     }
 
-    @objc private func magnified() {
-        pages.needsDisplay = true
-        pages.requestVisible()
+    @objc func magnified() {
+        for view in allPanes {
+            view.needsDisplay = true
+            view.requestVisible()
+        }
     }
 
     // MARK: Pages
 
-    @objc func nextPage(_ sender: Any?) { go(min(pages.currentPage + 1, engine.pageCount - 1)) }
-    @objc func previousPage(_ sender: Any?) { go(max(pages.currentPage - 1, 0)) }
+    @objc func nextPage(_ sender: Any?) { go(min(activePages.currentPage + 1, engine.pageCount - 1)) }
+    @objc func previousPage(_ sender: Any?) { go(max(activePages.currentPage - 1, 0)) }
     @objc func firstPage(_ sender: Any?) { go(0) }
     @objc func lastPage(_ sender: Any?) { go(engine.pageCount - 1) }
 
-    /// Shows page `page`, from `targetY` (its space, points from the top) when given, else its top.
+    /// Shows page `page` in the active pane, from `targetY` (its space, points from the top) when given, else its top.
     func go(_ page: Int, targetY: Double? = nil) {
+        let pages = activePages
         guard page >= 0 && page < pages.pageRects.count else { return }
         pages.scrollTo(y: pages.pageRects[page].minY + (targetY ?? 0) - (targetY == nil ? PagesView.gap / 2 : 8))
     }
 
-    @objc private func scrolled() {
+    @objc func scrolled() {
         updateSubtitle()
-        sidebar.showCurrent(pages.currentPage)
+        sidebar.showCurrent(activePages.currentPage)
         readingOrder.currentPageChanged()
         window?.invalidateCursorRects(for: pages) // the links of the pages now in view
     }
@@ -904,8 +921,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
     }
 
-    private func updateSubtitle() {
-        window?.subtitle = engine.pageCount == 0 ? "No pages" : "Page \(pages.currentPage + 1) of \(engine.pageCount)"
+    func updateSubtitle() {
+        window?.subtitle = engine.pageCount == 0 ? "No pages" : "Page \(activePages.currentPage + 1) of \(engine.pageCount)"
     }
 
     // MARK: Find
@@ -926,7 +943,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private func hideFind() {
         findBar.isHidden = true
         find("")
-        window?.makeFirstResponder(pages)
+        window?.makeFirstResponder(activePages)
     }
 
     /// Finds `query` on every page (off the main thread), shows the first match from the current page on.
@@ -936,8 +953,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         foundQuery = query
         found = []
         foundIndex = -1
-        pages.matches = [:]
-        pages.currentMatch = nil
+        for view in allPanes {
+            view.matches = [:]
+            view.currentMatch = nil
+        }
         updateRedactBar()
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             findBar.status = ""
@@ -946,7 +965,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
         findBar.status = "Searching…"
         let engine = engine
-        let from = pages.currentPage
+        let from = activePages.currentPage
         DispatchQueue.global(qos: .userInitiated).async {
             var all: [(page: Int, start: Int, end: Int)] = []
             for p in 0..<engine.pageCount {
@@ -967,7 +986,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         found = results
         var byPage: [Int: [(start: Int, end: Int)]] = [:]
         for r in results { byPage[r.page, default: []].append((r.start, r.end)) }
-        pages.matches = byPage
+        for view in allPanes { view.matches = byPage }
         if results.isEmpty {
             findBar.status = "Not found"
         } else {
@@ -983,11 +1002,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         guard !found.isEmpty else { return }
         foundIndex = ((foundIndex + by) % found.count + found.count) % found.count
         let m = found[foundIndex]
-        pages.currentMatch = m
+        for view in allPanes { view.currentMatch = m }
         findBar.status = "\(foundIndex + 1) of \(found.count)"
-        if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first {
+        let pages = activePages
+        if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {
             let r: CGRect = pages.pageRects[m.page]
-            let shown: CGRect = scrollView.contentView.bounds
+            let shown: CGRect = activeScroll.contentView.bounds
             let matchY: CGFloat = r.minY + CGFloat(box.y)
             let y: CGFloat = matchY - shown.height / 3
             if matchY < shown.minY || matchY + CGFloat(box.height) > shown.maxY { pages.scrollTo(y: y) }

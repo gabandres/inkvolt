@@ -531,6 +531,7 @@ extension DocumentWindowController {
     private func setLayerEngine(_ other: PdfEngine?) {
         layerEngine = other
         pages.draw(with: other)
+        secondPages?.draw(with: other)
         sidebar.drawThumbnails(with: other)
         layersApplied += 1
     }

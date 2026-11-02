@@ -222,6 +222,16 @@ enum MainMenu {
         menu.addItem(item("Show Attachments", #selector(DocumentWindowController.showAttachments(_:)), "5", [.command, .option]))
         menu.addItem(item("Show Layers", #selector(DocumentWindowController.showLayers(_:)), "6", [.command, .option]))
         menu.addItem(.separator())
+        let split = NSMenu(title: "Split View")
+        split.addItem(item("Split Top and Bottom", #selector(DocumentWindowController.splitTopAndBottom(_:))))
+        split.addItem(item("Split Side by Side", #selector(DocumentWindowController.splitSideBySide(_:))))
+        split.addItem(item("Remove Split", #selector(DocumentWindowController.removeSplit(_:))))
+        split.addItem(.separator())
+        split.addItem(item("Switch Pane", #selector(DocumentWindowController.switchPane(_:)), "'"))
+        let splitItem = item("Split View", nil)
+        splitItem.submenu = split
+        menu.addItem(splitItem)
+        menu.addItem(.separator())
         menu.addItem(item("Read Aloud", #selector(DocumentWindowController.toggleReadAloud(_:)), "y", [.command, .shift]))
         menu.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
         return menu
