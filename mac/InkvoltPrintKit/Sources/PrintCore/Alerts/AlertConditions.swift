@@ -28,14 +28,18 @@ public struct PrinterSnapshot: Sendable {
     public var supplies: [Consumable]?
     /// The printer's last firmware change while its notice shows (`FirmwareWatch.notice`): alerted once.
     public var firmwareChange: FirmwareChange?
+    /// Days left per supply (`SupplyRow.keyOf(_:)`) where the history can tell: the low-supply alert names them.
+    public var daysLeft: [String: Int]?
 
-    public init(uuid: String, name: String, reachable: Bool, status: PrinterStatus?, supplies: [Consumable]?, firmwareChange: FirmwareChange? = nil) {
+    public init(uuid: String, name: String, reachable: Bool, status: PrinterStatus?, supplies: [Consumable]?, firmwareChange: FirmwareChange? = nil,
+                daysLeft: [String: Int]? = nil) {
         self.uuid = uuid
         self.name = name
         self.reachable = reachable
         self.status = status
         self.supplies = supplies
         self.firmwareChange = firmwareChange
+        self.daysLeft = daysLeft
     }
 }
 
@@ -82,7 +86,7 @@ public enum AlertConditions {
             return found
         }
         if let status = snap.status { addStatus(&found, snap.name, status) }
-        for s in snap.supplies ?? [] { addSupply(&found, snap.name, s, rules, isActive) }
+        for s in snap.supplies ?? [] { addSupply(&found, snap.name, s, rules, isActive, snap.daysLeft) }
         if let fw = snap.firmwareChange {
             found.append(AlertCondition(key: "\(AlertKind.firmwareChanged.rawValue)|\(fw.key)", kind: .firmwareChanged, title: "\(snap.name): firmware changed",
                                         body: "\(fw.text) If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."))
@@ -130,7 +134,7 @@ public enum AlertConditions {
     }
 
     private static func addSupply(_ found: inout [AlertCondition], _ printer: String, _ s: Consumable, _ rules: AlertRules,
-                                  _ isActive: (String) -> Bool) {
+                                  _ isActive: (String) -> Bool, _ daysLeft: [String: Int]?) {
         let detail = "\(s.name)|\(s.colorCode ?? "")"
         if s.isWaste {
             let full = s.state == "full"
@@ -159,7 +163,11 @@ public enum AlertConditions {
                                         body: "\(printer): replace it to keep printing."))
         }
         guard low else { return }
-        let left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? "about \(grouped($0)) pages left" : nil }
+        var left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? "about \(grouped($0)) pages left" : nil }
+        if let days = daysLeft?[SupplyRow.keyOf(s)] {
+            let word = days == 1 ? "day" : "days"
+            left = left.map { "\($0), about \(grouped(days)) \(word) at this rate" } ?? "about \(grouped(days)) \(word) left at this rate"
+        }
         let part = partNumber(s).map { "Replacement: \($0)." }
         let body = "\(printer): \(left ?? "running low")." + (part.map { " \($0)" } ?? "")
         found.append(AlertCondition(key: lowKey, kind: .supplyLow, title: s.percentRemaining.map { "\(s.name) low (\($0)%)" } ?? "\(s.name) low",

@@ -38,12 +38,12 @@ struct TrustingVerifier: ProSignatureVerifier {
 /// lists, the gate, and the file both apps read (with any folder standing in for the app group container). Adapted:
 /// PrintCore can't do ECDSA on Windows, so the keys here are signed by `StandInSigner` (as Inkvolt's public key, for the
 /// app's own `Pro`), and the committed vector (pdf/tools/pro-key/test-vector.json, read in place) is decoded with a
-/// verifier that trusts its signature: its fields, its public key and that its tampered key decodes to another name. The
-/// real signature check of the vector waits for PrintMac's CryptoKit verifier (on the Mac).
+/// verifier that trusts its signature: its fields, its public key and that its tampered key is refused. The real signature
+/// check of the vector waits for PrintMac's CryptoKit verifier (on the Mac).
 /// A_packaged_apps_redirected_copy_is_found_and_the_newest_copy_wins is left out: the Mac has no Store-package redirection,
 /// so `ProKeyFile` reads one place (`candidates` covers it in A_key_installed_in_one_app_is_found_by_the_other).
-@Suite(.serialized)
-final class ProTests {
+extension ProGated {
+@Suite final class ProTests {
     private let root: String
     private static let inkvolt = StandInSigner(publicKey: ProKeys.publicKey)
 
@@ -250,4 +250,5 @@ final class ProTests {
         #expect(ProKeys.fromBase32(Array(ProKeys.toBase32(bytes))) == bytes)
         #expect(ProKeys.isDate("2028-02-29") && !ProKeys.isDate("2027-02-29") && !ProKeys.isDate("2026-13-01") && !ProKeys.isDate("26-10-30"))
     }
+}
 }

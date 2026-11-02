@@ -80,7 +80,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
   trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
   IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
-  (README, "Not done"). Mac: not started (PrintCore store, Swift Charts).
+  (README, "Not done"). Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: the store, the analysis, the chart's data,
+  the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC); the store's folder
+  and the monitor feeding it, the Swift Charts chart, Export history… and demo mode's seeding wait for the Mac.
 - **Beat it when:** each reading's levels and page count are kept on the PC (one row a day per supply, beside
   `state.json`, never sent); the supplies card shows a level-over-time chart and, from the last 30 days' slope,
   "about N days left" and "N pages since this cartridge went in" (a level that jumps up is a change of cartridge;
