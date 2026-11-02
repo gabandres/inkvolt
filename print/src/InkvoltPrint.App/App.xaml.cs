@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -346,5 +347,21 @@ public partial class App : Application
         _vm?.Dispose();
         _instance?.Dispose();
         base.OnExit(e);
+        EndWithoutDllTeardown(e.ApplicationExitCode);
     }
+
+    /// <summary>
+    /// Everything is saved and closed; the process ends here, before Windows unloads the DLLs. Windows.Data.Pdf frees its Direct3D
+    /// device as it unloads, once the PDFs it drew are collected, and on Qualcomm's driver (seen on qcdx11arm64xum.dll 31.0.133.1) that
+    /// crashes with an access violation or a fail-fast in a program with no Inkvolt code. That crash would replace the command line's
+    /// exit code, which a script may read as "not printed". Roadmap 2.4 has the evidence.
+    /// </summary>
+    private static void EndWithoutDllTeardown(int exitCode) => TerminateProcess(GetCurrentProcess(), unchecked((uint)exitCode));
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TerminateProcess(IntPtr process, uint exitCode);
 }
