@@ -1083,6 +1083,16 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Text_stays_inside_the_clip_of_its_last_line_when_its_first_line_has_none()
+    {
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft, 2024!") + "q 72 660 300 26 re W n " + Lines(72, 686, 12, 14, "draft Hello World draft") + "Q", fontText: "Hello World draft, 2024!THEDOGQUICKBROWNFX");
+        var words = string.Join(' ', Enumerable.Repeat("THE QUICK BROWN FOX", 4));
+        var (_, r) = Translate(pdf, _ => words);
+        Assert.True(r.Report.Shrunk == 1 && r.Report.DoNotFit == 0, $"{r.Report.Shrunk} shrunk, {r.Report.DoNotFit} don't fit");
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+    }
+
+    [Fact]
     public void Text_in_a_form_stays_inside_the_forms_box()
     {
         // The form's /BBox clips like any clip: here the form is the page's size, so a clip inside it does the same job as a small one would.

@@ -611,7 +611,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   comments, form fields and bookmarks aren't translated. A model's answer is used only as plain text: reasoning, markup and
   control characters come out, an answer in several paragraphs or far too long is asked for once more and then left out.
   Code: `Core/Translation.cs`, `Core/ContentEditor.Translate.cs`, `App/DocumentTab.Translate.cs`. Dev steps: `translate`,
-  `translatestate`, `aifake translate`. Only a stand-in server has been used so far: see ROADMAP 3.1.
+  `translatestate`, `aifake translate`. What a real model (Qwen3 4B) did on real pages: see ROADMAP 3.1.
 - **AI assistant (bring your own, off by default)** (Review › AI Assistant, command palette; right-click selected text ›
   Explain with AI): Inkvolt PDF has no AI of its own. In Settings › AI assistant you can connect one you choose: Ollama
   or LM Studio running on this PC (presets), or any OpenAI-compatible endpoint (`/v1/chat/completions`), on your network

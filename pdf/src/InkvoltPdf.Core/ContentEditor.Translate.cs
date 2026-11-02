@@ -308,6 +308,8 @@ public static partial class ContentEditor
         // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
         // where one of the old lines was drawn, so what counts is what they clip to together.
         var drawnAt = LineRuns(p, PlainRun(p.Runs));
+        // Lines below the old ones are written with the last: whatever clips that clips them, whatever the others do.
+        if (drawnAt[^1].Info?.Clip is { } lowest) bottom = Math.Min(bottom, Math.Max(lowest.Bottom, p.Box.Bottom));
         if (drawnAt.All(r => r.Info?.Clip is not null) && drawnAt.Select(r => r.Info!.Clip!.Value).Aggregate((a, b) => a.Union(b)) is var clip)
         {
             bottom = Math.Min(bottom, Math.Max(clip.Bottom, p.Box.Bottom)); // a font's descent may reach past a tight clip: its own text was shown there
