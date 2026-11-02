@@ -165,11 +165,13 @@ public static partial class RedactionCheck
                             _incomplete = true;
                             _notes.Add($"{PartName(owner, xmp)}: only its first {MaxStreamBytes >> 20} MB were searched.");
                         }
-                        text += '\n' + (xmp ? ProgramInXmp().Replace(PlainText(bytes), m => ProgramVersion().Replace(m.Value, "")) : owner?.Part == Part.Attachment ? FileText(bytes) : PlainText(bytes));
+                        text += '\n' + (xmp ? ProgramInXmp().Replace(PlainText(bytes), m => ProgramVersion().Replace(m.Value, "")) : owner?.Part == Part.Attachment ? FileText(bytes) + AttachedPdfText(bytes, PartName(owner, xmp)) : PlainText(bytes));
                     }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
                     {
-                        // a filter that fails on its data: its strings were read
+                        // A filter that fails on its data: its strings were read, what it holds wasn't.
+                        _incomplete = true;
+                        _notes.Add($"{PartName(owner, xmp)} couldn't be read, so it wasn't searched.");
                     }
                 }
                 Search(text, xmp || owner?.Part == Part.Info ? properties : patterns, PartName(owner, xmp));
@@ -224,6 +226,25 @@ public static partial class RedactionCheck
                         return;
                     }
                 }
+            }
+        }
+
+        /// <summary>The text of an attached PDF's pages: in its raw bytes a line of kerned text is in pieces, and no pattern would read it.</summary>
+        private string AttachedPdfText(byte[] bytes, string name)
+        {
+            if (bytes.AsSpan(0, Math.Min(bytes.Length, 1024)).IndexOf("%PDF-"u8) < 0) return "";
+            try
+            {
+                using var engine = PdfEngine.Open(bytes, InputFileTypes.PDF, null);
+                var sb = new StringBuilder();
+                for (var p = 0; p < engine.PageCount; p++) sb.Append('\n').Append(engine.GetText(p, cache: false, cancel).Text);
+                return sb.ToString();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or MuPDFException or PasswordRequiredException or ArgumentException)
+            {
+                _incomplete = true;
+                _notes.Add($"{name} is a PDF that couldn't be opened, so its pages weren't searched.");
+                return "";
             }
         }
 
@@ -706,6 +727,9 @@ public static partial class RedactionCheck
         switch (item)
         {
             case PdfString s:
+                sb.Append(s.Value).Append('\n');
+                break;
+            case PdfStringObject s:
                 sb.Append(s.Value).Append('\n');
                 break;
             case PdfDictionary d:

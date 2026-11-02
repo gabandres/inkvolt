@@ -916,7 +916,7 @@ public static class BatchRunner
                 var areas = RedactionSearch.Areas(hits);
                 result = await EditAsync(data, (d, pw) => Redaction.Apply(d, pw, areas)).ConfigureAwait(false);
                 _beforeRedaction ??= data;
-                _redactedValues.AddRange(RedactionSearch.Values(hits));
+                _redactedValues.AddRange(RedactionSearch.SoughtValues(hits));
                 foreach (var (page, list) in areas)
                     (_redactedAreas.TryGetValue(page, out var all) ? all : _redactedAreas[page] = []).AddRange(list);
                 var remaining = await Task.Run(() => RedactionSearch.ReadBack(result, _password, options, ocr, areas.Keys.ToHashSet(), [], Pages("Reading the result back"), cancel), cancel).ConfigureAwait(false);

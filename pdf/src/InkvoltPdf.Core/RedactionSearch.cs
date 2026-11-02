@@ -157,6 +157,13 @@ public static class RedactionSearch
         return values;
     }
 
+    /// <summary>
+    /// What was removed, to look for in the rest of the file: not dates and ZIP codes, whose digits a file's own time stamps and
+    /// ids can hold. What the patterns read outside the pages (<see cref="RedactionCheckOptions.Patterns"/>) covers those.
+    /// </summary>
+    public static List<string> SoughtValues(IEnumerable<RedactionMatch> matches) =>
+        Values(matches.Where(m => m.Pattern is not (RedactionPattern.Date or RedactionPattern.ZipCode)));
+
     private const int MaxValueLength = 200;
 
     /// <summary>Boxes filed by height on the page: a page of hostile text can hold a hundred thousand of them.</summary>

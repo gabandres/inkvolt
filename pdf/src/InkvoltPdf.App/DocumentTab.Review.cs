@@ -1338,7 +1338,7 @@ public partial class DocumentTab
         var skippedKeys = new HashSet<string>(kept, StringComparer.OrdinalIgnoreCase);
         var checkOptions = new RedactionCheckOptions
         {
-            Values = [.. RedactionSearch.Values(review.Accepted).Where(v => !skippedKeys.Contains(v))],
+            Values = [.. RedactionSearch.SoughtValues(review.Accepted).Where(v => !skippedKeys.Contains(v))],
             Kept = kept,
             Areas = areas,
             Original = before,

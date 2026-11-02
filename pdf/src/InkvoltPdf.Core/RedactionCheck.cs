@@ -390,6 +390,10 @@ public static partial class RedactionCheck
                 var inFile = Objects(doc, matcher);
                 EarlierVersions(engine, matcher, inFile, revisions);
                 RawBytes(doc, matcher, inFile);
+                // What the patterns read but the search for it as written didn't place (an attached PDF's kerned text) is still there.
+                for (var v = 0; v < values.Count; v++)
+                    if (!_hit.Contains(v) && outside.Contains(values[v], StringComparer.OrdinalIgnoreCase))
+                        Add(new RedactionFinding(RedactionLeak.FileData, "Another part of the file", values[v]));
             }
             else EarlierVersions(engine, null, [], revisions);
             if (matcher.TooLarge)

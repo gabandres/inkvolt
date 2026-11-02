@@ -213,6 +213,30 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(Ssn, string.Join(" ", field.Items[0].Notes.Append(field.Items[0].Message)));
     }
 
+    [Fact]
+    public async Task A_date_on_the_page_that_is_also_the_files_own_date_doesnt_fail_it()
+    {
+        var pdf = Doc(content: "BT /F1 14 Tf 72 700 Td (Dated 2026-10-27 and more words) Tj ET", catalog: "/Metadata 6 0 R",
+            more: [Core2Pdf.Stream("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"><xmp:CreateDate>2026-10-27T10:00:00Z</xmp:CreateDate></rdf:Description></rdf:RDF></x:xmpmeta>", "/Type /Metadata /Subtype /XML")]);
+        Passes(await Redact(pdf));
+    }
+
+    [Fact]
+    public async Task A_value_in_a_string_held_apart_is_found() =>
+        Fails(await Redact(Doc(more: ["<< /Title 7 0 R >>", $"(Holder {Ssn})"], trailer: "/Info 6 0 R")));
+
+    [Fact]
+    public async Task An_attachment_that_cant_be_read_fails_the_file() =>
+        Fails(await Redact(Doc(catalog: "/Names << /EmbeddedFiles << /Names [(a.bin) 6 0 R] >> >>",
+            more: ["<< /Type /Filespec /F (a.bin) /EF << /F 7 0 R >> >>", Core2Pdf.Stream("this is not flate data at all", "/Type /EmbeddedFile /Filter /FlateDecode")])));
+
+    [Fact]
+    public async Task A_value_in_an_attached_pdf_with_kerned_text_is_found()
+    {
+        var inner = Doc(content: "BT /F1 14 Tf 72 700 Td [(SSN 123-)-20(45-)30(6789)] TJ ET");
+        Fails(await Redact(WithAttachment("inner.pdf", Encoding.Latin1.GetString(inner))));
+    }
+
     // ───────────── ink the search doesn't see ─────────────
 
     /// <summary>A page of text with a picture on it: a band of a shade with light words in it (a banner, a card).</summary>
