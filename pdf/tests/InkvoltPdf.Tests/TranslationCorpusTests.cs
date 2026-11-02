@@ -21,6 +21,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("INKVOLTPDF_CORPUS") is not { Length: > 0 } dir || !Directory.Exists(dir)) return;
         var outDir = Environment.GetEnvironmentVariable("INKVOLTPDF_CORPUS_OUT");
+        var totalUnreadable = 0;
         foreach (var file in Directory.GetFiles(dir, "*.pdf"))
         {
             var pdf = File.ReadAllBytes(file);
@@ -44,6 +45,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
             using var original = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, null);
             Assert.Equal(count, copy.PageCount);
             var hidden = 0;
+            var unreadable = 0;
             foreach (var p in pages)
             {
                 var before = ContentEditor.Read(pdf, null, p);
@@ -54,6 +56,8 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                     Assert.Contains(boxes, b => Math.Abs(b.X - image.Box.X) < 0.01 && Math.Abs(b.Y - image.Box.Y) < 0.01 && Math.Abs(b.Width - image.Box.Width) < 0.01 && Math.Abs(b.Height - image.Box.Height) < 0.01);
                 // The new text's ink: a page whose marked text can be found but whose pixels didn't change hides it.
                 if (copy.GetText(p, cache: false).Text.Contains(Marker, StringComparison.Ordinal) && SamePixels(original, copy, p)) hidden++;
+                // Line by line: what the original shows (a page's own quirks) doesn't count against the copy.
+                unreadable += Math.Max(0, TranslationInk.Problems(copy, p).Count - TranslationInk.Problems(original, p).Count);
                 if (outDir is not null && p < 3)
                 {
                     Directory.CreateDirectory(outDir);
@@ -61,7 +65,9 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                     File.WriteAllBytes(Path.Combine(outDir, $"{Path.GetFileNameWithoutExtension(file)}-{p + 1}.png"), PngEncoder.Encode(w, h, rgba, alpha: false));
                 }
             }
+            output.WriteLine($"  {unreadable} lines don't show as text of their size");
             Assert.Equal(0, hidden);
+            totalUnreadable += unreadable;
             Assert.Empty(r.FailedPages);
         }
     }
