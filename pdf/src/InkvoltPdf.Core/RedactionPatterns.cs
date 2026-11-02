@@ -329,10 +329,16 @@ public static class RedactionPatterns
         {
             try
             {
-                foreach (Match m in rule.Regex.Matches(view))
+                for (var m = rule.Regex.Match(view); m.Success;)
                 {
-                    if (Accept(rule, m, view, lenient) is { } end) builtIn.Add((rule.Pattern, m.Index, end));
+                    var end = Accept(rule, m, view, lenient);
+                    if (end is { } e) builtIn.Add((rule.Pattern, m.Index, e));
                     if (builtIn.Count > MaxHits * 4) throw new TooManyHitsException(MaxHits);
+                    // What a check cut off or refused may hold the next number ("2026 4111 1111 1111 1111"): look again from
+                    // where the number that counted ends, or after the first group of one that didn't.
+                    var next = !rule.Trim || end == m.Index + m.Length ? -1 : end ?? view.IndexOfAny([' ', '-'], m.Index, m.Length);
+                    m = next > m.Index ? rule.Regex.Match(view, next) : m.NextMatch();
+                    Spend();
                 }
             }
             catch (RegexMatchTimeoutException ex)
@@ -510,10 +516,16 @@ public static class RedactionPatterns
         RedactionPattern.IpAddress, RedactionPattern.Phone, RedactionPattern.Date, RedactionPattern.ZipCode,
     ];
 
-    // A number starts where no letter, digit or '@' comes before it, nor a digit and a separator (it would be the tail
-    // of a longer number), and ends the same way.
-    private const string Lead = @"(?<![\w@])(?<![0-9][.,/-])";
-    private const string Trail = @"(?![\w@])(?![.,/-][0-9])";
+    // A number starts where no letter, digit or '@' comes before it, nor a digit and a dot or dash (it would be the tail
+    // of a longer number), and ends the same way. A comma or slash between numbers is a list ("123-45-6789,987-65-4321",
+    // a printed CSV), or a network's size after an address (10.0.0.1/24).
+    private const string Lead = @"(?<![\w@])(?<![0-9][.-])";
+    private const string Trail = @"(?![\w@])(?![.-][0-9])";
+
+    // A date with numbers for its month ends only at a digit after its own separator: another separator between two dates
+    // is a list or a range ("01/01/2025-12/31/2025").
+    private const string DateLead = @"(?<![\w@])(?:(?=[0-9]{1,4}-)(?<![0-9]-)|(?=[0-9]{1,4}/)(?<![0-9]/)|(?=[0-9]{1,4}\.)(?<![0-9]\.))";
+    private const string DateTrail = @"(?![\w@])(?!\k<s>[0-9])";
     private const string Months = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
     private const string Octet = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
 
@@ -540,10 +552,10 @@ public static class RedactionPatterns
             (_, value) => value.Where(c => c is ' ' or '-').Distinct().Count() <= 1 && Digits(value) is { Length: >= 13 and <= 19 } d && Luhn(d),
             Trim: true, Relaxed: value => Digits(value).Length is 15 or 16),
 
-        new(RedactionPattern.Date, R(Lead + @"(?<y>(?:1[89]|2[0-9])[0-9]{2})(?<s>[-/.])(?<m>0?[1-9]|1[0-2])\k<s>(?<d>0?[1-9]|[12][0-9]|3[01])" + Trail),
+        new(RedactionPattern.Date, R(DateLead + @"(?<y>(?:1[89]|2[0-9])[0-9]{2})(?<s>[-/.])(?<m>0?[1-9]|1[0-2])\k<s>(?<d>0?[1-9]|[12][0-9]|3[01])" + DateTrail),
             (m, _) => IsDay(Int(m, "y"), Int(m, "m"), Int(m, "d"))),
         // 10/27/2026 or 27.10.2026: month first or day first, whichever makes a date; two-digit years only with slashes.
-        new(RedactionPattern.Date, R(Lead + @"(?<a>[0-9]{1,2})(?<s>[-/.])(?<b>[0-9]{1,2})\k<s>(?<y>[0-9]{4}|[0-9]{2})" + Trail),
+        new(RedactionPattern.Date, R(DateLead + @"(?<a>[0-9]{1,2})(?<s>[-/.])(?<b>[0-9]{1,2})\k<s>(?<y>[0-9]{4}|[0-9]{2})" + DateTrail),
             (m, _) =>
             {
                 var y = Int(m, "y");

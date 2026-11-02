@@ -573,7 +573,9 @@ public static class Translation
         if (languageTag is { Length: > 0 }) doc.Internals.Catalog.Elements["/Lang"] = PdfObj.MakeString(languageTag);
         else doc.Internals.Catalog.Elements.Remove("/Lang"); // it isn't the original's language any more
 
-        return new TranslationResult(PdfObj.Save(doc), report);
+        // A copy: when a signed original can't be appended to (it is encrypted, say) the copy is rewritten and its signature stops
+        // verifying, which is the truth about it. Refusing here would throw away a translation that may have taken hours.
+        return new TranslationResult(SignedEdits.Run(() => PdfObj.Save(doc), allowRewrite: true).Data, report);
     }
 
     /// <summary>The copy's name: "report (Spanish).pdf", with what a file name can't hold taken out of the language as typed.</summary>
