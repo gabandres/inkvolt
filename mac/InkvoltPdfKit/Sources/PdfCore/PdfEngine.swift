@@ -514,7 +514,7 @@ public final class PdfEngine: @unchecked Sendable {
         var geometry: PageGeometry
         var lines: [(glyphs: [ExportGlyph], turn: Int, sideways: Bool)]
         var images: [ExportImage]
-        var paths: [(box: RectD, stroked: Bool)]
+        var paths: [(box: RectD, stroked: Bool, color: UInt32)]
     }
 
     /// The structured text of a page with its annotations, its pictures (when `images`) and vector paths (the Windows
@@ -574,7 +574,7 @@ public final class PdfEngine: @unchecked Sendable {
         read.paths.reserveCapacity(Int(raw.vector_count))
         for k in 0..<Int(raw.vector_count) {
             let v = raw.vectors[k]
-            read.paths.append((box(v.x0, v.y0, v.x1, v.y1), v.stroked != 0))
+            read.paths.append((box(v.x0, v.y0, v.x1, v.y1), v.stroked != 0, UInt32(v.argb) & 0xFFFFFF))
         }
         return read
     }

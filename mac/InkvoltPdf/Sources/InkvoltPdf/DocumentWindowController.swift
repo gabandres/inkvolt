@@ -618,6 +618,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
             return !form.widgets.isEmpty
         case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
+             #selector(exportPowerPoint(_:)), #selector(exportHtml(_:)),
              #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
              #selector(checkAccessibility(_:)),
              #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),

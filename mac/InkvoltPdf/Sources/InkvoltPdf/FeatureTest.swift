@@ -460,6 +460,8 @@ struct FeatureTest {
             switch format {
             case .word, .excel: ok = ok && (!report.saved || bytes.starts(with: [0x50, 0x4B]))
             case .text: ok = ok && (!report.saved || bytes.starts(with: [0xEF, 0xBB, 0xBF]))
+            case .powerPoint: ok = ok && (!report.saved || bytes.starts(with: [0x50, 0x4B]))
+            case .html: ok = ok && (!report.saved || bytes.starts(with: Array("<!DOCTYPE html>".utf8)))
             }
             if synthetic {
                 // The synthetic document: text on two pages, a scan on the third (recognized), no table.

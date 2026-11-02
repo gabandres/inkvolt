@@ -246,6 +246,21 @@ final class BatchTests {
         #expect(word.bodyParagraphs.contains { OpenXmlPackage.text($0).contains("Page 2 alpha") })
     }
 
+    @Test func exportsToPowerPointAndHtml() async throws {
+        let a = try put("in/a.pdf", ExportTestPdf.make())
+        let summary = try await Self.run([a], plan(.export(.powerPoint, dpi: 150), .export(.html, dpi: 150)))
+        #expect(summary.done == 1)
+        let pptx = try OpenXmlPackage(Self.read(outFile("a.pptx")))
+        #expect(pptx.parts.keys.filter { $0.hasPrefix("ppt/slides/slide") }.count == 2)
+        #expect(try Self.readText(outFile("a.html")).contains("<h1>Quarterly Report</h1>"))
+
+        // Nothing on the pages: no file, and a note.
+        let b = try put("in/b.pdf", ExportTestPdf.blank(1))
+        _ = try await Self.run([b], plan(.export(.powerPoint, dpi: 150), .export(.html, dpi: 150)))
+        #expect(!Self.exists(outFile("b.pptx")))
+        #expect(!Self.exists(outFile("b.html")))
+    }
+
     @Test func exportsCommentsFormDataAndSummaries() async throws {
         let form = try put("in/form.pdf", Core1TestPdf.navigation())
         let plain = try put("in/plain.pdf", TestPdf.make(1))

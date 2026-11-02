@@ -10,7 +10,10 @@ import Testing
 /// there. corpus.json and baseline.json are read in place (names, SHA-256, page counts). For each document: the PDF is
 /// the one baselined (else "source changed", not compared), its page count is the baseline's, the Word file is a sound
 /// package `textutil` reads, and the text export, and the Word file's paragraphs, tables and sections, are compared with
-/// the Windows ones. The Mac's exports are left in /tmp/inkvolt-export-corpus/mac to open or diff. Prints one
+/// the Windows ones. PowerPoint and HTML too (E15), with the PDF as their source: the presentation a sound package with a
+/// slide per page and no active content in the web page; with Windows' `.pptx` and `.html` beside its others, their slides,
+/// text boxes, shapes, pictures, tables and text, and the page's blocks of text, are compared. The Mac's exports are left in
+/// /tmp/inkvolt-export-corpus/mac to open, diff or run Windows' `ExportCorpus pptx` and `html` checks on. Prints one
 /// "CORPUS <name> ..." line per document.
 struct ExportCorpusTests {
     static let folder = "/tmp/inkvolt-export-corpus"
@@ -37,6 +40,22 @@ struct ExportCorpusTests {
         return (OpenXmlPackage.elements(doc.body, "w:p").map(OpenXmlPackage.text), tables.count,
                 OpenXmlPackage.elements(doc.document, "w:sectPr").count,
                 tables.reduce(0) { $0 + OpenXmlPackage.children($1, "w:tr").count })
+    }
+
+    /// What a presentation holds: slides, text boxes, simple shapes, pictures, tables, and each text box's text in order.
+    private func deck(_ pptx: [UInt8]) throws -> (slides: Int, textBoxes: Int, shapes: Int, pictures: Int, tables: Int, lines: [String]) {
+        let d = try ExportPptxTests.Deck(pptx)
+        let slides = d.slides
+        let boxes = slides.flatMap(ExportPptxTests.textBoxes)
+        let shapes = slides.reduce(0) { $0 + ExportPptxTests.shapes($1).count + OpenXmlPackage.elements($1, "p:cxnSp").count }
+        return (slides.count, boxes.count, shapes, slides.reduce(0) { $0 + OpenXmlPackage.elements($1, "p:pic").count },
+                slides.reduce(0) { $0 + OpenXmlPackage.elements($1, "a:tbl").count }, boxes.map(ExportPptxTests.text))
+    }
+
+    /// A web page's blocks of text in order: headings, paragraphs, list items and table cells.
+    private func blocks(_ html: String) throws -> [String] {
+        let names: Set<String> = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td", "th"]
+        return ExportHtmlTests.descendants(try ExportHtmlTests.dom(html)).filter { names.contains($0.name ?? "") }.map(ExportHtmlTests.textOf)
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: folder))) func corpusExportsAsOnWindows() throws {
@@ -88,6 +107,31 @@ struct ExportCorpusTests {
                 ok = ok && a.sections == b.sections
             } else {
                 line += " | no Windows export to compare"
+            }
+
+            // PowerPoint and HTML (E15), with the PDF as their source, as the Windows tool exports them.
+            let withSource = ExportOptions(title: name, source: pdf)
+            let pptx = MemorySink(), html = MemorySink()
+            _ = try DocumentExport.export(engine, .powerPoint, to: pptx, options: withSource)
+            _ = try DocumentExport.export(engine, .html, to: html, options: withSource)
+            try Data(pptx.bytes).write(to: URL(fileURLWithPath: "\(out)/\(name).pptx"))
+            try Data(html.bytes).write(to: URL(fileURLWithPath: "\(out)/\(name).html"))
+            let deckProblems = try OpenXmlPackage(pptx.bytes).validate()
+            let page = String(decoding: html.bytes, as: UTF8.self)
+            let active = try NSRegularExpression(pattern: #"<(script|iframe|object|embed|link|base|form|svg|math|video|audio|source|a)|\son\w+\s*=|\s(href|srcset)\s*=|\ssrc="(?!data:image/(png|jpeg);base64,)"#,
+                                                 options: .caseInsensitive).numberOfMatches(in: page, range: NSRange(page.startIndex..., in: page))
+            let mineDeck = try deck(pptx.bytes), mineBlocks = try blocks(page)
+            line += " | pptx \(deckProblems.isEmpty ? "valid" : "INVALID") slides \(mineDeck.slides) | html active \(active) blocks \(mineBlocks.count)"
+            ok = ok && deckProblems.isEmpty && active == 0 && mineDeck.slides == engine.pageCount
+            let windowsDeck = FileManager.default.contents(atPath: "\(Self.folder)/windows/\(name).pptx").map(Array.init)
+            let windowsPage = FileManager.default.contents(atPath: "\(Self.folder)/windows/\(name).html").map { String(decoding: $0, as: UTF8.self) }
+            if let windowsDeck, let windowsPage {
+                let theirDeck = try deck(windowsDeck), theirBlocks = try blocks(windowsPage)
+                line += " | vs Windows: slides \(mineDeck.slides)/\(theirDeck.slides) text boxes \(mineDeck.textBoxes)/\(theirDeck.textBoxes)"
+                    + " shapes \(mineDeck.shapes)/\(theirDeck.shapes) pictures \(mineDeck.pictures)/\(theirDeck.pictures) tables \(mineDeck.tables)/\(theirDeck.tables)"
+                    + " slide text \(String(format: "%.3f", sameLines(mineDeck.lines, theirDeck.lines))) alike"
+                    + " | html blocks \(mineBlocks.count)/\(theirBlocks.count) (\(String(format: "%.3f", sameLines(mineBlocks, theirBlocks))) alike)"
+                ok = ok && mineDeck.slides == theirDeck.slides
             }
             if !ok { failures += 1 }
             print(line + " \(ok ? "PASS" : "FAIL")")

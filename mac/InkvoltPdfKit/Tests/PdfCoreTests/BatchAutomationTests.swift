@@ -68,6 +68,8 @@ extension ProGated {
             .unprotect,
             .export(.jpeg, dpi: 300),
             .export(.word, dpi: 150),
+            .export(.powerPoint, dpi: 150),
+            .export(.html, dpi: 150),
             .makeAccessible(language: "es-PR"),
             .saveAsPdfA,
             .protect(ProtectStep("open-secret", "owner-secret", PdfPermissions(print: .lowResolution, copy: false), .aes128)),

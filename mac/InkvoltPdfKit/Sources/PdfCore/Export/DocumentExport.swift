@@ -1,7 +1,8 @@
 import Foundation
 
-/// What `DocumentExport` makes: a Word document, an Excel workbook of the tables found, or plain text.
-public enum ExportFormat: Sendable, CaseIterable { case word, excel, text }
+/// What `DocumentExport` makes: a Word document, an Excel workbook of the tables found, plain text, a PowerPoint
+/// presentation or a web page.
+public enum ExportFormat: Sendable, CaseIterable { case word, excel, text, powerPoint, html }
 
 public enum ExportStage: Sendable { case reading, recognizing, writing }
 
@@ -34,11 +35,18 @@ public struct ExportOptions: Sendable {
     public var recognize: Recognizer?
     /// Called as each page is read or recognized, and once before the file is written (on the exporting thread).
     public var progress: (@Sendable (ExportProgress) -> Void)?
+    /// The PDF itself, for PowerPoint and HTML to read its language and its figures' alternate text; nil goes without them.
+    public var source: [UInt8]?
+    /// The password that opens `source`.
+    public var sourcePassword: String?
 
-    public init(pages: [Int]? = nil, title: String? = nil, recognize: Recognizer? = nil, progress: (@Sendable (ExportProgress) -> Void)? = nil) {
+    public init(pages: [Int]? = nil, title: String? = nil, recognize: Recognizer? = nil, source: [UInt8]? = nil, sourcePassword: String? = nil,
+                progress: (@Sendable (ExportProgress) -> Void)? = nil) {
         self.pages = pages
         self.title = title
         self.recognize = recognize
+        self.source = source
+        self.sourcePassword = sourcePassword
         self.progress = progress
     }
 }
@@ -55,8 +63,9 @@ public struct ExportProblem: Equatable, Sendable {
 }
 
 /// What an export did. `saved`: false when nothing was extracted, so there is nothing to save: no text at all (and,
-/// for Word, no pictures either), or, for Excel, no tables. `recognized`: pages whose text came from the recognizer;
-/// `noText`: pages without text (after recognition), `noTextWithPictures` those with pictures (Word keeps them);
+/// for Word, PowerPoint and HTML, no pictures either, and for PowerPoint no shapes), or, for Excel, no tables.
+/// `recognized`: pages whose text came from the recognizer; `noText`: pages without text (after recognition),
+/// `noTextWithPictures` those with pictures (Word, PowerPoint and HTML keep them);
 /// `tables`: Excel's tables (one sheet each); `unreadable`: damaged pages, exported empty; `recognitionFailed`: pages
 /// exported without text because recognition failed.
 public struct ExportReport: Equatable, Sendable {
@@ -70,32 +79,42 @@ public struct ExportReport: Equatable, Sendable {
     public var recognitionFailed: [ExportProblem]
 }
 
-/// Export to Word, Excel and plain text (pdf/GLOSSARY.md "Document export"). `export` (to a sink) and `exportToFile`
+/// Export to Word, Excel, plain text, PowerPoint and HTML (pdf/GLOSSARY.md "Document export"). `export` (to a sink) and `exportToFile`
 /// read the pages (a damaged page exports empty; a page without text is recognized when the caller gives a recognizer),
 /// lay out the document and write the format, or report that there was nothing to save. Pages come in one at a time;
 /// each format lays the whole document out once all pages are in (body size and heading levels are document-wide).
 public enum DocumentExport {
-    /// The file extension of `format` (".docx", ".xlsx", ".txt").
+    /// The file extension of `format` (".docx", ".xlsx", ".txt", ".pptx", ".html").
     public static func fileExtension(_ format: ExportFormat) -> String {
         switch format {
         case .word: ".docx"
         case .excel: ".xlsx"
         case .text: ".txt"
+        case .powerPoint: ".pptx"
+        case .html: ".html"
         }
     }
 
     /// Exports the pages of `engine` to `output`. When the report says nothing was saved, discard the output: Excel and
-    /// text wrote nothing, Word may have written part of a file. `exportToFile` handles that.
+    /// text wrote nothing, the others may have written part of a file. `exportToFile` handles that.
     /// - Throws: `CancellationError` when `cancel` fires; a write error of `output`.
     public static func export(_ engine: PdfEngine, _ format: ExportFormat, to output: ByteSink, options: ExportOptions = ExportOptions(),
                               cancel: CancelToken? = nil) throws -> ExportReport {
         let pages = options.pages ?? Array(0..<engine.pageCount)
-        let run = Run(engine, pages, images: format == .word, options, cancel)
+        let tags = format == .powerPoint || format == .html ? ExportTags.read(options.source, options.sourcePassword) : .none
+        let run = Run(engine, pages, images: format == .word || format == .powerPoint || format == .html, shapes: format == .powerPoint, tags: tags,
+                      options, cancel)
         var tables = 0
         let saved: Bool
         switch format {
         case .word:
             try writeDocx(output, { try run.next()?.page }, options.title)
+            saved = run.noText < pages.count || run.noTextWithPictures > 0
+        case .powerPoint:
+            try writePptx(output, { try run.next()?.page }, options.title, tags.language)
+            saved = run.noText < pages.count || run.noTextWithPictures > 0 || run.withShapes > 0
+        case .html:
+            try writeHtml(output, try run.all().map(\.page), options.title, tags.language)
             saved = run.noText < pages.count || run.noTextWithPictures > 0
         case .excel:
             let found = try self.tables(run.all())
@@ -155,16 +174,21 @@ public enum DocumentExport {
         let engine: PdfEngine
         let pages: [Int]
         let images: Bool
+        let shapes: Bool
+        let tags: ExportTags
         let options: ExportOptions
         let cancel: CancelToken?
-        var recognized = 0, noText = 0, noTextWithPictures = 0
+        var recognized = 0, noText = 0, noTextWithPictures = 0, withShapes = 0
         var unreadable: [ExportProblem] = [], recognitionFailed: [ExportProblem] = []
         private var i = 0
 
-        init(_ engine: PdfEngine, _ pages: [Int], images: Bool, _ options: ExportOptions, _ cancel: CancelToken?) {
+        init(_ engine: PdfEngine, _ pages: [Int], images: Bool, shapes: Bool = false, tags: ExportTags = .none, _ options: ExportOptions,
+             _ cancel: CancelToken?) {
             self.engine = engine
             self.pages = pages
             self.images = images
+            self.shapes = shapes
+            self.tags = tags
             self.options = options
             self.cancel = cancel
         }
@@ -184,7 +208,7 @@ public enum DocumentExport {
             var page: ExportPage
             var readable = true
             do {
-                page = try engine.exportPage(p, images: images, cancel: cancel)
+                page = tags.onPictures(try engine.exportPage(p, images: images, cancel: cancel, shapes: shapes), p)
             } catch let error as PdfEngineError {
                 // A damaged page: export the rest (it stays empty, and the report says so).
                 unreadable.append(ExportProblem(p, error.message))
@@ -212,6 +236,7 @@ public enum DocumentExport {
                 noText += 1
                 if !page.images.isEmpty { noTextWithPictures += 1 }
             }
+            if !page.shapes.isEmpty { withShapes += 1 }
             i += 1
             return (p + 1, page)
         }
@@ -250,6 +275,41 @@ public enum DocumentExport {
     static func writeDocx(_ output: ByteSink, _ pages: [ExportPage], _ title: String?) throws {
         var it = pages.makeIterator()
         try writeDocx(output, { it.next() }, title)
+    }
+
+    /// Writes a .pptx, one slide per page. Pictures are stored as each page arrives; only the rest is kept until the end.
+    static func writePptx(_ output: ByteSink, _ next: () throws -> ExportPage?, _ title: String?, _ language: String?) throws {
+        let writer = PptxWriter(output)
+        var kept: [ExportPage] = []
+        while var page = try next() {
+            if !page.images.isEmpty {
+                let p = page
+                page.images = try p.images.filter { DocLayout.keeps(p, $0) && !$0.data.isEmpty }.map { i in
+                    var i = i
+                    i.ref = try writer.addImage(i.data, i.ext)
+                    i.data = []
+                    return i
+                }
+            }
+            kept.append(page)
+        }
+        try writer.finish(DocLayout.analyzeSlides(kept), title, language ?? guessLanguage(kept))
+    }
+
+    /// Writes a .pptx of pages already read (the tests' way in).
+    static func writePptx(_ output: ByteSink, _ pages: [ExportPage], _ title: String?, _ language: String?) throws {
+        var it = pages.makeIterator()
+        try writePptx(output, { it.next() }, title, language)
+    }
+
+    /// Writes one .html. Its pictures are inside it, so they are kept until the end.
+    static func writeHtml(_ output: ByteSink, _ pages: [ExportPage], _ title: String?, _ language: String?) throws {
+        try HtmlWriter.write(output, DocLayout.analyzeDocument(pages), title, language ?? guessLanguage(pages))
+    }
+
+    /// The language the words look like, when they say so.
+    private static func guessLanguage(_ pages: [ExportPage]) -> String? {
+        AutoTag.Language.guess(pages.lazy.flatMap(\.lines).prefix(2000).map(\.text).joined(separator: " "))
     }
 
     /// The tables found on the pages, named after their page ("Page 3", "Page 3 (2)"); page numbers are 1-based.

@@ -190,7 +190,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         .optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect, .sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })),
         .redactPatterns(RedactionPatternOptions()), .checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: "DRAFT")),
         .headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions()), .ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a,
-        .export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.text, dpi: 150), .export(.png, dpi: 150), .export(.jpeg, dpi: 150),
+        .export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150),
+        .export(.png, dpi: 150), .export(.jpeg, dpi: 150),
         .export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150),
     ]
 

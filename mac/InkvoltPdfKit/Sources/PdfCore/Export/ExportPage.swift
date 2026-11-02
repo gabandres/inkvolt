@@ -136,6 +136,10 @@ public struct ExportImage: Equatable, Sendable {
     public var ref: String?
     /// Where it is on the page as shown, when something needs that after a page was turned (`DocLayout.analyzeForTags`).
     public var pageBox: RectD?
+    /// What it shows, from the PDF's tags (`ExportTags`); nil when they don't say.
+    public var alt: String?
+    /// The quarter turns its page was turned by for layout (`ExportPage.turned`): its pixels weren't.
+    public var turn = 0
 
     public init(_ data: [UInt8], _ ext: String, _ pixelWidth: Int, _ pixelHeight: Int, _ box: RectD, ref: String? = nil) {
         self.data = data
@@ -156,6 +160,8 @@ public struct ExportPage: Equatable, Sendable {
     public var images: [ExportImage]
     public var rules: [RectD]
     public var fromOcr = false
+    /// The simple shapes the page draws, in order (only read for PowerPoint; see `ExportShapes`).
+    public var shapes: [ExportShape] = []
 
     public init(_ width: Double, _ height: Double, _ lines: [ExportLine], _ images: [ExportImage], _ rules: [RectD], fromOcr: Bool = false) {
         self.width = width
@@ -199,7 +205,13 @@ public struct ExportPage: Equatable, Sendable {
         page.images = images.map { i in
             var i = i
             i.box = map(i.box)
+            i.turn = (i.turn + turn) % 4
             return i
+        }
+        page.shapes = shapes.map { s in
+            var s = s
+            s.box = map(s.box)
+            return s
         }
         page.rules = rules.map(map)
         return page

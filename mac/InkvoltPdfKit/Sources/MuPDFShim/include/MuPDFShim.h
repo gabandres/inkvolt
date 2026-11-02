@@ -251,10 +251,11 @@ typedef struct {
     size_t length;
 } inkv_eimage;
 
-/// A vector path's bounds, and whether it is stroked (else filled).
+/// A vector path's bounds, whether it is stroked (else filled), and its color (0xAARRGGBB, as MuPDF gives it).
 typedef struct {
     float x0, y0, x1, y1;
     int stroked;
+    unsigned int argb;
 } inkv_evector;
 
 /// A page read for export: text lines (their characters [first, first + count)), fonts, pictures and vector paths, in

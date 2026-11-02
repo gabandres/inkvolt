@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -53,6 +53,8 @@ enum Report {
     private(set) static var onlySplit = false
     /// `--only-ocr`: with `--edit`, only `OcrTest` (quicker runs while working on Recognize Text).
     private(set) static var onlyOcr = false
+    /// `--only-export`: with `--edit`, only `ExportTest` (quicker runs while working on export).
+    private(set) static var onlyExport = false
     /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
     private(set) static var onlyAi = false
     private(set) static var snapshots: String?
@@ -87,6 +89,7 @@ enum Report {
         onlyAttachmentsLayers = args.contains("--only-attachments-layers")
         onlySplit = args.contains("--only-split")
         onlyOcr = args.contains("--only-ocr")
+        onlyExport = args.contains("--only-export")
         snapshots = value("--snapshots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
@@ -157,6 +160,11 @@ enum Report {
                     var files = AttachmentsLayersTest(controller: controller, name: name)
                     await files.run()
                 }
+            } else if edits && onlyExport {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var export = ExportTest(controller: controller, name: name)
+                    await export.run()
+                }
             } else if edits && onlyOcr {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var ocr = OcrTest(controller: controller, name: name)
@@ -195,6 +203,10 @@ enum Report {
                 }
                 var features = FeatureTest(controller: controller, name: name, openedFrom: openedFrom)
                 await features.run()
+                if openedFrom != nil && openedFrom == syntheticPath {
+                    var export = ExportTest(controller: controller, name: name)
+                    await export.run()
+                }
                 if openedFrom != nil && openedFrom == syntheticPath {
                     // After FeatureTest, so the copy has its Fill & Sign marks (ZapfDingbats) to embed.
                     var pdfa = PdfATest(controller: controller, name: name)
@@ -247,7 +259,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyOcr {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyOcr && !onlyExport {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

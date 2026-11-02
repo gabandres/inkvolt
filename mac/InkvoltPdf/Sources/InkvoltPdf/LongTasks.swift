@@ -318,16 +318,21 @@ extension DocumentWindowController {
         return (outcome, report)
     }
 
-    /// File › Export to Word, Excel or text: the pages and options, the file, then the export with progress.
+    /// File › Export To (Word, Excel, plain text, PowerPoint, HTML): the pages and options, the file, then the export with
+    /// progress.
     @objc func exportWord(_ sender: Any?) { askExport(.word) }
     @objc func exportExcel(_ sender: Any?) { askExport(.excel) }
     @objc func exportText(_ sender: Any?) { askExport(.text) }
+    @objc func exportPowerPoint(_ sender: Any?) { askExport(.powerPoint) }
+    @objc func exportHtml(_ sender: Any?) { askExport(.html) }
 
     static func exportTitle(_ format: ExportFormat) -> String {
         switch format {
         case .word: "Export to Word"
         case .excel: "Export Tables to Excel"
         case .text: "Export as Plain Text"
+        case .powerPoint: "Export to PowerPoint"
+        case .html: "Export to HTML"
         }
     }
 
@@ -338,6 +343,10 @@ extension DocumentWindowController {
         case .excel: "Each table found (ruled grids, or text lined up in columns) becomes a sheet, named after its page. Plain numbers "
             + "become numbers; other values stay text as shown."
         case .text: "The text in reading order (columns one after another), a paragraph per line, table rows as tab-separated cells. UTF-8."
+        case .powerPoint: "One slide per page: text in editable text boxes where the page has it, headings as slide titles, tables, pictures "
+            + "and simple shapes. A presentation has one slide size, so pages of another size are shrunk to fit it."
+        case .html: "One file that reflows to any screen: headings, lists, tables and pictures in reading order, with the alternate text "
+            + "the PDF's tags give. It holds no scripts and loads nothing from anywhere; the look and positions of the pages aren't kept."
         }
     }
 
@@ -421,7 +430,9 @@ extension DocumentWindowController {
         let data = session.data, password = session.password
         let name = (session.displayName as NSString).deletingPathExtension
         let recognizeWith: Recognizer? = recognize ? (recognizer ?? PageOcr.recognizer(VisionRecognizer())) : nil
-        let options = ExportOptions(pages: chosen, title: name, recognize: recognizeWith) { at in
+        // PowerPoint and HTML read the language and alternate text from the PDF itself; the others have no use for its bytes.
+        let source = format == .powerPoint || format == .html ? data : nil
+        let options = ExportOptions(pages: chosen, title: name, recognize: recognizeWith, source: source, sourcePassword: password) { at in
             let text: String
             switch at.stage {
             case .reading: text = "Reading page \(at.page + 1) (\(at.index + 1) of \(at.count))…"

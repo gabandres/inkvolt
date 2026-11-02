@@ -1420,6 +1420,7 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
                 e->x1 = b->bbox.x1;
                 e->y1 = b->bbox.y1;
                 e->stroked = b->u.v.stroked != 0;
+                e->argb = b->u.v.argb;
             }
         }
     }

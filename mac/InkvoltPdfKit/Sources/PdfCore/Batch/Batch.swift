@@ -163,6 +163,7 @@ public enum BatchExportFormat: String, CaseIterable, Sendable {
     case word, excel, text, png, jpeg
     /// Form data (`FormEditor.exportData`).
     case formDataXfdf, formDataFdf
+    case powerPoint, html
 }
 
 /// One action of a batch, applied to each file in turn (the order matters; the Windows app's `BatchStep` records).
@@ -232,6 +233,8 @@ public enum BatchStep: Equatable, Sendable {
             switch format {
             case .word: "Export to Word"
             case .excel: "Export tables to Excel"
+            case .powerPoint: "Export to PowerPoint"
+            case .html: "Export to HTML"
             case .text: "Export as plain text"
             case .formDataXfdf: "Export form data (XFDF)"
             case .formDataFdf: "Export form data (FDF)"
@@ -868,12 +871,27 @@ public enum BatchRunner {
                 return
             }
 
-            let exportFormat: ExportFormat = format == .word ? .word : format == .excel ? .excel : .text
+            let exportFormat: ExportFormat = switch format {
+            case .word: .word
+            case .excel: .excel
+            case .powerPoint: .powerPoint
+            case .html: .html
+            default: .text
+            }
             let sink = MemorySink()
-            let report = try DocumentExport.export(engine, exportFormat, to: sink, options: ExportOptions(title: ((file.path as NSString).lastPathComponent as NSString).deletingPathExtension), cancel: cancel)
+            let title = ((file.path as NSString).lastPathComponent as NSString).deletingPathExtension
+            let report = try DocumentExport.export(engine, exportFormat, to: sink, options: ExportOptions(title: title, source: data, sourcePassword: password),
+                                                   cancel: cancel)
             for problem in report.unreadable { notes.append("Page \(problem.page + 1) couldn't be read") }
             if !report.saved {
-                notes.append(exportFormat == .word ? "Word: no text or pictures, nothing saved" : exportFormat == .excel ? "Excel: no tables found, nothing saved" : "Text: no text found, nothing saved")
+                let why = switch exportFormat {
+                case .word: "Word: no text or pictures, nothing saved"
+                case .excel: "Excel: no tables found, nothing saved"
+                case .powerPoint: "PowerPoint: nothing on the pages, nothing saved"
+                case .html: "HTML: no text or pictures, nothing saved"
+                case .text: "Text: no text found, nothing saved"
+                }
+                notes.append(why)
                 return
             }
             try cancel.check()

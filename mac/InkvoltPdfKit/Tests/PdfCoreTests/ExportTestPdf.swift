@@ -295,10 +295,20 @@ struct OpenXmlPackage {
         var result: [String: String] = [:]
         for r in Self.elements(try xml(relsPart), "Relationship") {
             let target = Self.attr(r, "Target") ?? ""
-            result[Self.attr(r, "Id") ?? ""] = target.hasPrefix("/") ? String(target.dropFirst())
-                : ((dir.isEmpty ? target : dir + "/" + target) as NSString).standardizingPath
+            result[Self.attr(r, "Id") ?? ""] = target.hasPrefix("/") ? String(target.dropFirst()) : Self.resolve(dir.isEmpty ? target : dir + "/" + target)
         }
         return result
+    }
+
+    /// A package path with its "." and ".." steps taken (`NSString.standardizingPath` leaves ".." in a relative path, and
+    /// a presentation's relationships point up a folder: "../slideLayouts/slideLayout1.xml").
+    static func resolve(_ path: String) -> String {
+        var out: [Substring] = []
+        for step in path.split(separator: "/", omittingEmptySubsequences: true) {
+            if step == "." { continue }
+            if step == ".." { if !out.isEmpty { out.removeLast() } } else { out.append(step) }
+        }
+        return out.joined(separator: "/")
     }
 
     /// What stands in for the Open XML SDK's validator: every XML part is well formed, every part has a content type,

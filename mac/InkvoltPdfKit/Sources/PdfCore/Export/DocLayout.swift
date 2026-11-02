@@ -153,6 +153,14 @@ public struct DocPage: Equatable, Sendable {
 /// and pictures in reading order. Columns are found by recursive XY-cut (whitespace gutters, then gaps between bands);
 /// tables from ruled grids, or from text aligned in columns over several rows; headings from font sizes larger than the
 /// document's body text.
+/// A page laid out for a slide. `source`: the page as laid out (turned upright, if it was), for what a flow leaves out:
+/// lines reading sideways and shapes. `running`: where lines that repeat on most pages are.
+public struct SlidePage: Equatable, Sendable {
+    public var layout: DocPage
+    public var source: ExportPage
+    public var running: [RectD]
+}
+
 public enum DocLayout {
     static let thin = 3.0 // a path this thin (pt) is a rule
 
@@ -174,6 +182,24 @@ public enum DocLayout {
     /// `analyzeDocument` for tagging: each paragraph and picture also says where it is on the page as shown
     /// (`DocParagraph.sources`, `ExportImage.pageBox`), whatever turning a page for layout did, and `pages`' running headers
     /// and footers come back as boxes on each page.
+    /// The pages laid out one by one for slides: every line stays on its page (a slide shows its running head as the page
+    /// does, so `SlidePage.running` only says where those are, and no word is carried over from the page before).
+    public static func analyzeSlides(_ pages: [ExportPage]) -> [SlidePage] {
+        let upright = pages.map(DocLayout.upright)
+        let stripped = running(upright).pages
+        let body = bodySize(upright)
+        let laid = assignHeadings(upright.map { layOut($0, body) }, body)
+        return laid.indices.map { i in
+            // The lines the running parts took away, each as often as it was there.
+            var kept = stripped[i].lines
+            var boxes: [RectD] = []
+            for line in upright[i].lines {
+                if let k = kept.firstIndex(of: line) { kept.remove(at: k) } else { boxes.append(line.box) }
+            }
+            return SlidePage(layout: laid[i], source: upright[i], running: boxes)
+        }
+    }
+
     public static func analyzeForTags(_ pages: [ExportPage]) -> (layout: DocLayoutResult, running: [[RectD]]) {
         let marked = pages.map { p -> ExportPage in
             var p = p

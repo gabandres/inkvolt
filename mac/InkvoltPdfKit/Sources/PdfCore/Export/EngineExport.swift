@@ -32,9 +32,10 @@ extension PdfEngine {
     /// the pictures (encoded, when `images`; transparent ones as PNG with their transparency) and the thin lines and box
     /// outlines the page draws. Charts and diagrams drawn with vectors (`DocLayout.figureRegions`) become one picture
     /// each, rendered as shown, and their labels and lines are left out of the text. Not cached.
-    /// `boxesOnly`: pictures and figures say where they are, without their pixels (tagging needs no more).
+    /// `boxesOnly`: pictures and figures say where they are, without their pixels (tagging needs no more). `shapes`: read
+    /// the page's simple shapes too (`ExportShapes`); what is neither one nor text is added as a picture.
     /// - Throws: `CancellationError` when `cancel` fired; `PdfEngineError` when MuPDF can't read the page.
-    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil, boxesOnly: Bool = false) throws -> ExportPage {
+    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil, boxesOnly: Bool = false, shapes: Bool = false) throws -> ExportPage {
         let read = try exportRead(page, images: images, boxesOnly: boxesOnly, jpegAbovePixels: Self.jpegAbovePixels, cancel: cancel)
         let g = read.geometry
         var pictures: [ExportImage] = []
@@ -45,7 +46,8 @@ extension PdfEngine {
             pictures.append(img)
         }
         let tooManyPaths = read.paths.count > Self.maxRulePaths
-        let paths = Array(read.paths.prefix(Self.maxRulePaths))
+        let colored = Array(read.paths.prefix(Self.maxRulePaths))
+        let paths = colored.map { (box: $0.box, stroked: $0.stroked) }
 
         var rules: [RectD] = tooManyPaths ? [] : DocLayout.rulesFromPaths(paths)
         // Accents joined to their letters and leaders found across the page (a capital's accent is a line of its own);
@@ -112,7 +114,25 @@ extension PdfEngine {
                 }
             }
         }
-        return ExportPage(g.width, g.height, lines, pictures, rules)
+        var found: [ExportShape] = []
+        if shapes && images && !boxesOnly && !tooManyPaths {
+            let drawn = colored.map { ExportPath($0.box, $0.stroked, $0.color) }
+                .filter { p in !figures.contains { $0.inflate(1).contains(p.box.centerX, p.box.centerY) } }
+            var raster: ExportShapes.Raster?
+            if ExportShapes.needsRaster(drawn), let whole = try renderRegion(page, RectD(0, 0, g.width, g.height), scale: 2, cancel: cancel) {
+                raster = ExportShapes.Raster(rgba: whole.rgba, width: whole.width, height: whole.height, scale: Double(whole.width) / max(1, g.width))
+            }
+            let read = try ExportShapes.read(drawn, raster, lines, pictures.map(\.box), g.width, g.height, cancel: cancel)
+            found = read.shapes
+            for area in read.pictures {
+                if let r = try renderRegion(page, area, scale: 2, cancel: cancel) {
+                    pictures.append(ExportImage(PngEncoder.encode(r.width, r.height, r.rgba, alpha: true), "png", r.width, r.height, area))
+                }
+            }
+        }
+        var result = ExportPage(g.width, g.height, lines, pictures, rules)
+        result.shapes = found
+        return result
 
         func overlap(_ a: RectD, _ b: RectD) -> Double {
             max(0, min(a.right, b.right) - max(a.x, b.x)) * max(0, min(a.bottom, b.bottom) - max(a.y, b.y))

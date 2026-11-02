@@ -167,6 +167,8 @@ enum MainMenu {
         export.addItem(item("Word…", #selector(DocumentWindowController.exportWord(_:))))
         export.addItem(item("Excel (Tables)…", #selector(DocumentWindowController.exportExcel(_:))))
         export.addItem(item("Plain Text…", #selector(DocumentWindowController.exportText(_:))))
+        export.addItem(item("PowerPoint Presentation…", #selector(DocumentWindowController.exportPowerPoint(_:))))
+        export.addItem(item("HTML Web Page…", #selector(DocumentWindowController.exportHtml(_:))))
         let exportItem = item("Export To", nil)
         exportItem.submenu = export
         menu.addItem(exportItem)
