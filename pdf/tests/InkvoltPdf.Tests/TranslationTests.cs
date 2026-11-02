@@ -203,6 +203,16 @@ internal sealed class LocalModelServer : IDisposable
     }
 }
 
+public class TranslationSampleFile
+{
+    /// <summary>The report as a file, to drive the real app with it: set INKVOLTPDF_TRANSLATE_SAMPLE to a path and run this test.</summary>
+    [Fact]
+    public void Writes_a_report_when_asked()
+    {
+        if (Environment.GetEnvironmentVariable("INKVOLTPDF_TRANSLATE_SAMPLE") is { Length: > 0 } path) File.WriteAllBytes(path, TranslationPdf.Report(100));
+    }
+}
+
 public class TranslationReplyTests
 {
     private static string Ok(string reply, string source = "A short source sentence.")
