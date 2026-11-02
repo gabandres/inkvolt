@@ -820,7 +820,7 @@ public class TranslationCopyTests
     [Fact]
     public void A_word_wider_than_its_box_is_broken_and_stays_inside()
     {
-        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft", "Hello World draft") + Lines(300, 700, 12, 14, "2024 draft!", "2024 draft!"), fontText: Letters);
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World draft", "draft World draft") + Lines(300, 700, 12, 14, "2024 draft!", "2024 draft!"), fontText: Letters);
         var word = string.Concat(Enumerable.Repeat("thequickbrownfox", 8));
         var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? word : t);
         var box = ContentEditor.Read(pdf, null, 0).Paragraphs.First(q => q.Text.StartsWith("Hello", StringComparison.Ordinal)).Box;
@@ -1251,6 +1251,38 @@ public class TranslationCopyTests
         // All about as wide, so no next word would fit on the line above: but they aren't one sentence.
         var pdf = Page(Lines(72, 700, 10, 12, "Lazy dog", "Brown fox", "Quick dog", "Lazy fox"), fontText: Letters);
         Assert.Equal(4, Translation.MakePlan(pdf, null, [0]).Texts.Count);
+    }
+
+    [Fact]
+    public void Text_shrinks_no_smaller_than_the_floor_when_its_first_run_is_a_bigger_initial()
+    {
+        // The paragraph is written at 8 points, the size most of it has: half of that would be under the 5-point floor.
+        var pdf = Page("BT /FA 12 Tf 1 0 0 1 72 700 Tm (T) Tj /FA 8 Tf 1 0 0 1 81 700 Tm (he quick brown fox jumps over a lazy dog) Tj ET " + Lines(72, 688, 8, 10, "THE DOG"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 40));
+        var (_, r) = Translate(pdf, t => t.StartsWith("T", StringComparison.Ordinal) && t != "THE DOG" ? words : "THE FOX");
+        Assert.DoesNotContain(TranslationInk.Problems(r.Data!, 0), q => q.Contains("drawn at", StringComparison.Ordinal));
+        Assert.Equal(1, r.Report.DoNotFit);
+    }
+
+    [Fact]
+    public void Text_doesnt_grow_under_a_band_painted_later_for_something_else()
+    {
+        // A short text on the left, and lower down, across the page, a white band painted for a line in the right column only.
+        var pdf = Page(Lines(72, 700, 12, 14, "Hello World") +
+                       "1 g 70 658 480 14 re f 0 g " + Lines(350, 661, 12, 14, "2024 draft!"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 5));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? words : "THE DOG");
+        Assert.Empty(TranslationInk.Problems(r.Data!, 0));
+        Assert.Contains(TranslationInk.Solid(words), TranslationInk.Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_notes_small_number_stays_and_its_first_line_stays_with_the_rest()
+    {
+        var pdf = Page("BT /FA 5 Tf 1 0 0 1 72 703 Tm (1) Tj /FA 8 Tf 1 0 0 1 76 700 Tm (The quick brown fox jumps over a lazy dog and on) Tj ET " + Lines(72, 690, 8, 10, "until the lazy dog is done and the quick brown fox has gone"), fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("The quick brown fox jumps over a lazy dog and on until the lazy dog is done and the quick brown fox has gone", Assert.Single(plan.Texts).Text);
+        Assert.Contains(ContentEditor.Read(r.Data!, null, 0).Runs, q => q.Text == "1");
     }
 
     [Fact]

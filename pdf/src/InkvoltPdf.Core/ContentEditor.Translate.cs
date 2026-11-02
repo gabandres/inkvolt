@@ -158,7 +158,9 @@ public static partial class ContentEditor
         foreach (var l in lines)
         {
             var first = l.Runs[0];
-            if (l.Runs.Count > 1 && first.Text.Trim().Length <= 2 && !first.Text.Any(char.IsLetterOrDigit))
+            // Or a note's number, smaller than what follows: read as the line's size, the line would fall out of its paragraph.
+            var note = l.Runs.Count > 1 && first.Text.Trim().Length <= 3 && first.FontSize < 0.85 * l.Runs[1].FontSize;
+            if (l.Runs.Count > 1 && (note || first.Text.Trim().Length <= 2 && !first.Text.Any(char.IsLetterOrDigit)))
             {
                 var line = new PLine(l.Runs[1]);
                 foreach (var r in l.Runs.Skip(2)) line.Add(r);
@@ -212,7 +214,9 @@ public static partial class ContentEditor
     /// A paragraph as it will be written: the edges its lines stay between, its alignment as the page shows it (a single
     /// line can't tell, so its place on the page or in its cell does), and how far down it may go.
     /// </summary>
-    internal static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight)
+    /// <param name="fills">Rectangles the page fills, with their place in its content: one filled after the paragraph is drawn would paint over text that grows into it.</param>
+    internal static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
+        IReadOnlyList<(RectD Box, int Id)>? fills = null)
     {
         var p = slot.Paragraph;
         var framed = p with { };
@@ -293,6 +297,13 @@ public static partial class ContentEditor
             bottom = b.Y - Math.Max(0.1 * p.FontSize, Math.Min(b.Y - p.Box.Bottom, 0.35 * p.FontSize));
             break;
         }
+        // Filled after this paragraph is written: a band under some later line reaches across, even where no text is.
+        if (fills is { Count: > 0 } && p.Runs.All(r => r.Info?.Form is null))
+        {
+            var last = p.Runs.Max(DrawOrder);
+            foreach (var (box, id) in fills)
+                if (id > last && box.Y >= p.Box.Bottom - 1 && box.Y < bottom && box.Right > framed.Left + 1 && box.X < framed.Right - 1) bottom = box.Y;
+        }
         bottom = Math.Max(bottom, p.Box.Bottom);
         // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
         // where one of the old lines was drawn, so what counts is what they clip to together.
@@ -313,7 +324,7 @@ public static partial class ContentEditor
     internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text)
     {
         var dropped = new List<string>();
-        var smallest = SmallestFit(framed.FontSize);
+        var smallest = SmallestFit(framed.Lead.FontSize); // of the size it is written in: its first run may be a mark or a big initial
         ParagraphLayout? best = null;
         var fit = 1.0;
         for (var tries = 0; ; tries++, fit = Math.Max(smallest, fit - FitStep))
@@ -693,7 +704,7 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, "its translation is far too long for any box"));
                 continue;
             }
-            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight);
+            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills);
             var (layout, fit, fits, dropped) = FitText(framed, bottom, text);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {

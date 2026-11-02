@@ -154,6 +154,8 @@ public static partial class ContentEditor
     /// <summary>The most form XObject content walked for one page, counting each drawing (and a little for each, however small).</summary>
     private const long MaxFormBytes = 64L << 20;
 
+    private const int MaxFills = 5_000;
+
     /// <summary>The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).</summary>
     internal const string StandInKey = "InkFb";
 
@@ -716,6 +718,8 @@ public static partial class ContentEditor
         public int Nested;
         /// <summary>How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.</summary>
         public long FormBudget = MaxFormBytes;
+        /// <summary>Rectangles the page's own content fills, and where in it: what text written before one would be painted over by.</summary>
+        public readonly List<(RectD Box, int Id)> Fills = [];
         public bool CutShort => FormBudget < 0;
         public PageContent Content => new(TextRuns, Images);
     }
@@ -785,6 +789,7 @@ public static partial class ContentEditor
                     break;
                 case "n" or "f" or "F" or "f*" or "B" or "B*" or "b" or "b*" or "S" or "s":
                     if (clipping && pathParts == 1 && pathBox is { } clip) gs.Clip = gs.Clip is { } was ? was.Intersect(clip) : clip;
+                    if (depth == 0 && op.Name is not ("n" or "S" or "s") && pathParts == 1 && pathBox is { } filled && w.Fills.Count < MaxFills) w.Fills.Add((filled, i));
                     clipping = false;
                     pathParts = 0;
                     pathBox = null;

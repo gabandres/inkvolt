@@ -27,7 +27,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
             var pdf = File.ReadAllBytes(file);
             int count;
             using (var e = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, null)) count = e.PageCount;
-            var pages = Enumerable.Range(0, Math.Min(count, 30)).ToArray();
+            var pages = Environment.GetEnvironmentVariable("INKVOLTPDF_CORPUS_PAGES") is { Length: > 0 } some && PageRange.TryParse(some, count, out var chosen, out _) ? chosen : [.. Enumerable.Range(0, Math.Min(count, 30))];
             var sw = Stopwatch.StartNew();
             var plan = Translation.MakePlan(pdf, null, pages);
             var answers = new TranslationAnswers();
@@ -57,8 +57,12 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                 // The new text's ink: a page whose marked text can be found but whose pixels didn't change hides it.
                 if (copy.GetText(p, cache: false).Text.Contains(Marker, StringComparison.Ordinal) && SamePixels(original, copy, p)) hidden++;
                 // Line by line: what the original shows (a page's own quirks) doesn't count against the copy.
-                unreadable += Math.Max(0, TranslationInk.Problems(copy, p).Count - TranslationInk.Problems(original, p).Count);
-                if (outDir is not null && p < 3)
+                var problems = TranslationInk.Problems(copy, p);
+                var had = TranslationInk.Problems(original, p).Count;
+                unreadable += Math.Max(0, problems.Count - had);
+                if (problems.Count > had)
+                    foreach (var problem in problems.Take(4)) output.WriteLine($"    p{p + 1}: {problem}");
+                if (outDir is not null && (p < 3 || problems.Count > had))
                 {
                     Directory.CreateDirectory(outDir);
                     var (w, h, rgba) = Render(copy, p);
