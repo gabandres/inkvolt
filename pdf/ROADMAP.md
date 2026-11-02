@@ -501,9 +501,9 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Crafted PDFs: 30,000 runs on a page, 19,000 paragraphs on a page, a million characters in one operator, forms drawing
   forms 60^8 times (cut short at 64 MB and named, and cancellable), coordinates that overflow to infinity (an endless loop
   found in review), unreadable content, a font with nonsense widths. The real app driven with `--script` and looked at:
-  all 100 pages through the Translate command path to a stand-in on a real socket, the Send window, progress with the
-  UI answering, Cancel and keep (376 paragraphs left, pages named), both panes scrolling to the same place from either side;
-  the menu command's window with the Ollama preset on f1040. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
+  all 100 pages to a stand-in on a real socket, the Send window, progress with the UI answering, Cancel and keep
+  (376 paragraphs left, pages named), both panes scrolling to the same place from either side; the menu command and its
+  window with the Ollama preset and no network (`aifake translate`) on f1040. No model's answers looked at, only the stand-in's. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
   export corpus files, first 30 pages of each, 99 pages and 2,524 paragraphs, each answer longer and marked: page counts
   and pictures kept, no page's new text hidden (pixels changed), no page failed, read and written in seconds; 207 paragraphs
   don't fit at the smallest size and 50 are left (`/ActualText` and unreadable characters).
