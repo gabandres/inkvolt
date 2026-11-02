@@ -16,7 +16,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     private let readBookmarks: @MainActor () -> [Bookmark]
     /// The panes, in the picker's order (Accessibility's segment appears with the first check).
     enum Pane: Int, CaseIterable {
-        case pages, bookmarks, comments, signatures, attachments, layers, accessibility
+        case pages, bookmarks, comments, signatures, attachments, layers, suspectWords, accessibility
 
         var title: String {
             switch self {
@@ -26,6 +26,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             case .signatures: "Signatures"
             case .attachments: "Attachments"
             case .layers: "Layers"
+            case .suspectWords: "Suspect Words"
             case .accessibility: "Accessibility"
             }
         }
@@ -38,6 +39,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             case .signatures: "signature"
             case .attachments: "paperclip"
             case .layers: "square.3.layers.3d"
+            case .suspectWords: "text.magnifyingglass"
             case .accessibility: "accessibility"
             }
         }
@@ -51,6 +53,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     let signatures = SignaturesPane()
     let attachments = AttachmentsPane()
     let layers = LayersPane()
+    let suspectWords = SuspectWordsPane()
     let accessibility = AccessibilityPane()
     private var tableScroll = NSScrollView()
     private var outlineScroll = NSScrollView()
@@ -139,12 +142,14 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         signatures.isHidden = true
         attachments.isHidden = true
         layers.isHidden = true
+        suspectWords.isHidden = true
         accessibility.isHidden = true
         picker.setEnabled(showsSignatures, forSegment: Pane.signatures.rawValue)
         picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
+        picker.setEnabled(showsSuspectWords, forSegment: Pane.suspectWords.rawValue)
 
-        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, attachments, layers, accessibility])
-        for pane in [comments, signatures, attachments, layers, accessibility] as [NSView] {
+        let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, attachments, layers, suspectWords, accessibility])
+        for pane in [comments, signatures, attachments, layers, suspectWords, accessibility] as [NSView] {
             pane.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         stack.orientation = .vertical
@@ -167,6 +172,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         signatures.isHidden = shown != .signatures
         attachments.isHidden = shown != .attachments
         layers.isHidden = shown != .layers
+        suspectWords.isHidden = shown != .suspectWords
         accessibility.isHidden = shown != .accessibility
     }
 
@@ -203,6 +209,16 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             guard isViewLoaded else { return }
             picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
             if !showsLayers && shownPane == .layers { show(.pages) }
+        }
+    }
+
+    /// The Suspect Words segment can be chosen (the document has suspect words, or the pane was asked for), as Windows
+    /// shows its rail button after Recognize Text marks some.
+    var showsSuspectWords = false {
+        didSet {
+            guard isViewLoaded else { return }
+            picker.setEnabled(showsSuspectWords, forSegment: Pane.suspectWords.rawValue)
+            if !showsSuspectWords && shownPane == .suspectWords { show(.pages) }
         }
     }
 

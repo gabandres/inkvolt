@@ -79,6 +79,11 @@ void inkv_drop_cookie(inkv_cookie *cookie);
 int inkv_render_rgb(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
                     inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err);
 
+/// As `inkv_render_rgb`, but the page's own content only: no annotations or form fields (Recognize Text's cleaned page,
+/// which keeps the comments as comments).
+int inkv_render_rgb_contents(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
+                             inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err);
+
 /// The whole page at `scale`, with its annotations, written as a PNG or a JPEG (quality 90). 0 on failure.
 int inkv_save_image(void *ctx, inkv_doc *doc, int page, float scale, const char *path, int jpeg, char *err);
 

@@ -153,6 +153,14 @@ final class ProgressSheet: NSWindowController {
 
 // MARK: Recognize Text and Export
 
+/// Runs a closure when a checkbox changes (the Recognize Text dialog's Clean, which enables Replace the scans).
+@MainActor
+final class CheckToggle: NSObject {
+    private let action: () -> Void
+    init(_ action: @escaping () -> Void) { self.action = action }
+    @objc func changed() { action() }
+}
+
 extension DocumentWindowController {
     private static func pages(_ n: Int) -> String { n == 1 ? "1 page" : "\(n) pages" }
 
@@ -179,34 +187,83 @@ extension DocumentWindowController {
         })
     }
 
-    /// Tools › Recognize Text (OCR)…: which pages, then the recognition (one undo step).
+    /// Tools › Recognize Text (OCR)…: which pages, the language, cleaning and suspect words, then the recognition (one
+    /// undo step), as the Windows dialog asks.
     @objc func recognizeText(_ sender: Any?) {
         guard let window else { return }
         let alert = NSAlert()
         alert.messageText = "Recognize Text (OCR)"
-        alert.informativeText = "Pages that already have text are skipped. The pages look the same afterwards; their words can be searched, "
-            + "selected and copied. Recognition runs on this Mac with Apple's Vision, so check important text."
+        alert.informativeText = "Cleaning straightens pages (up to 15°), turns sideways and upside-down pages upright, and removes specks and grey "
+            + "paper; the pages look the same unless you replace the scans. Suspect words are listed to check and correct. Pages that already "
+            + "have text are skipped. Recognition runs on this Mac with Apple's Vision, so check important text."
         let choice = pageChoice(allTitle: "All pages without text")
-        alert.accessoryView = choice.view
+        let languages = Self.ocrLanguages()
+        let language = NSPopUpButton(frame: .zero, pullsDown: false)
+        language.addItems(withTitles: ["Detect the language"] + languages.map(\.name))
+        language.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrLanguage }).map { $0 + 1 } ?? 0)
+        language.setAccessibilityLabel("Language")
+        language.toolTip = "The language of the text. Vision detects it when you don't choose one."
+        let clean = NSButton(checkboxWithTitle: "Straighten and clean the pages first", target: nil, action: nil)
+        clean.state = AppSettings.ocrClean ? .on : .off
+        clean.toolTip = "Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing."
+        let suspects = NSButton(checkboxWithTitle: "Mark suspect words to check", target: nil, action: nil)
+        suspects.state = AppSettings.ocrSuspects ? .on : .off
+        suspects.toolTip = "Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. "
+            + "Tools › Review Suspect Words lists them."
+        let replace = NSButton(checkboxWithTitle: "Replace the scans with the cleaned pages", target: nil, action: nil)
+        replace.state = .off
+        replace.isEnabled = clean.state == .on
+        replace.toolTip = "The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save."
+        let toggle = CheckToggle {
+            replace.isEnabled = clean.state == .on
+            if clean.state == .off { replace.state = .off }
+        }
+        clean.target = toggle
+        clean.action = #selector(CheckToggle.changed)
+        let languageRow = NSStackView(views: [NSTextField(labelWithString: "Language:"), language])
+        let stack = NSStackView(views: [choice.view, languageRow, clean, suspects, replace])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        stack.frame = NSRect(x: 0, y: 0, width: 360, height: 140)
+        alert.accessoryView = stack
         alert.addButton(withTitle: "Recognize")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
+                withExtendedLifetime(toggle) {}
                 guard response == .alertFirstButtonReturn else { return }
                 let read = choice.read()
                 guard let chosen = read.pages, !chosen.isEmpty else {
                     self.pdf.showError(read.error ?? "No pages chosen.", nil)
                     return
                 }
+                let index = language.indexOfSelectedItem
+                AppSettings.ocrLanguage = index > 0 && index <= languages.count ? languages[index - 1].tag : ""
+                AppSettings.ocrClean = clean.state == .on
+                AppSettings.ocrSuspects = suspects.state == .on
+                let options = RecognizeOptions(clean: clean.state == .on, checkWords: suspects.state == .on,
+                                               keepCleanedImage: clean.state == .on && replace.state == .on)
                 // The alert's sheet is still closing: start once it's gone.
-                DispatchQueue.main.async { MainActor.assumeIsolated { self.startLongTask { await self.runRecognize(pages: chosen) } } }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self.startLongTask { await self.runRecognize(pages: chosen, options: options) } }
+                }
             }
         }
     }
 
-    /// Runs Recognize Text on `pages` with the progress sheet; what it did comes back (nil outcome: not started).
+    /// The languages Vision reads, by name, for the dialog.
+    static func ocrLanguages() -> [(tag: String, name: String)] {
+        VisionRecognizer.supportedLanguages.map { tag in (tag, Locale.current.localizedString(forIdentifier: tag) ?? tag) }
+    }
+
+    /// Runs Recognize Text on `pages` with the progress sheet; what it did comes back (nil outcome: not started). With
+    /// `recognizer` (Scan's, the self-test's): the pages as rendered, as before roadmap 2.2. Without: roadmap 2.2's
+    /// pipeline with `options` (the saved choices when nil), `ocr` (Vision in the chosen language when nil) and the Mac's
+    /// dictionary for suspect words.
     @discardableResult
-    func runRecognize(pages chosen: [Int], recognizer: Recognizer? = nil) async -> (outcome: EditOutcome?, report: RecognizeTextReport?) {
+    func runRecognize(pages chosen: [Int], recognizer: Recognizer? = nil, options: RecognizeOptions? = nil,
+                      ocr: (any TextRecognizer)? = nil, spelling: (any Spelling)? = nil) async -> (outcome: EditOutcome?, report: RecognizeTextReport?) {
         let sheet = ProgressSheet(title: "Recognizing text",
                                   text: "Starting text recognition… The first time on this Mac, macOS loads it, which can take about a minute.")
         progressSheet = sheet
@@ -215,20 +272,39 @@ extension DocumentWindowController {
             sheet.end()
             progressSheet = nil
         }
-        let recognize = recognizer ?? PageOcr.recognizer(VisionRecognizer())
         let progress: @Sendable (Int, Int) -> Void = { done, total in
             onMain {
                 guard done < total else { return sheet.update("Adding the text layer…", 1) }
                 sheet.update("Recognizing text: page \(done + 1) of \(total)…", Double(done) / Double(max(total, 1)))
             }
         }
-        let (outcome, report) = await editor.recognizeText(pages: chosen, recognizer: recognize, cancel: sheet.token, progress: progress)
+        let outcome: EditOutcome?, report: RecognizeTextReport?
+        if let recognizer {
+            (outcome, report) = await editor.recognizeText(pages: chosen, recognizer: recognizer, cancel: sheet.token, progress: progress)
+        } else {
+            let options = options ?? RecognizeOptions(clean: AppSettings.ocrClean, checkWords: AppSettings.ocrSuspects)
+            let language = AppSettings.ocrLanguage
+            let reader: any TextRecognizer = ocr ?? VisionRecognizer(languages: language.isEmpty ? nil : [language])
+            let dictionary: (any Spelling)? = options.checkWords ? (spelling ?? MacSpelling(language: reader.language)) : nil
+            (outcome, report) = await editor.recognizeText(pages: chosen, ocr: reader, options: options, spelling: dictionary,
+                                                           cancel: sheet.token, progress: progress)
+        }
         switch outcome {
         case .done?:
             let words = report?.words ?? 0, hadText = report?.hadText ?? 0, pagesWithWords = report?.pagesWithWords ?? 0
+            let suspect = report?.suspect ?? 0, replaced = report?.replaced ?? 0
             let had = hadText > 0 ? " (\(hadText) already had text)" : ""
-            notify("Recognized \(words) word\(words == 1 ? "" : "s") on \(Self.pages(pagesWithWords))\(had). They can be searched and selected now.",
-                   canUndo: true)
+            let cleaned = replaced > 0 ? " \(Self.pages(replaced)) \(replaced == 1 ? "was" : "were") replaced with the cleaned image\(replaced == 1 ? "" : "s")." : ""
+            if words == 0 {
+                notify("No text was recognized on these pages.\(cleaned)", canUndo: true)
+            } else if suspect > 0 {
+                notify("Recognized \(words) word\(words == 1 ? "" : "s") on \(Self.pages(pagesWithWords)); \(suspect) suspect word\(suspect == 1 ? "" : "s") "
+                    + "to check in the sidebar's Suspect Words.\(cleaned)", canUndo: true)
+                reviewSuspectWords(nil)
+            } else {
+                notify("Recognized \(words) word\(words == 1 ? "" : "s") on \(Self.pages(pagesWithWords))\(had). They can be searched and selected now.\(cleaned)",
+                       canUndo: true)
+            }
         case .noChange?:
             let had = report?.hadText ?? 0
             notify(had == chosen.count ? (chosen.count == 1 ? "This page already has text: nothing to recognize."

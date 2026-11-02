@@ -22,6 +22,9 @@ enum AppSettings {
         static let scanResolution = "ScanResolution"
         static let scanPageSize = "ScanPageSize"
         static let scanOcr = "ScanOcr"
+        static let ocrLanguage = "OcrLanguage"
+        static let ocrClean = "OcrClean"
+        static let ocrSuspects = "OcrSuspects"
     }
 
     /// How many files' last pages are kept (the Windows app's MaxFiles).
@@ -72,6 +75,22 @@ enum AppSettings {
     }
 
     static let zoomModes = [("FitWidth", "Fit width"), ("FitPage", "Fit page"), ("ActualSize", "Actual size")]
+
+    /// Recognize Text's language (a BCP-47 tag; empty: Vision finds out for itself), and its two checks (on by default).
+    static var ocrLanguage: String {
+        get { defaults.string(forKey: Key.ocrLanguage) ?? "" }
+        set { defaults.set(newValue, forKey: Key.ocrLanguage) }
+    }
+
+    static var ocrClean: Bool {
+        get { bool(Key.ocrClean, true) }
+        set { defaults.set(newValue, forKey: Key.ocrClean) }
+    }
+
+    static var ocrSuspects: Bool {
+        get { bool(Key.ocrSuspects, true) }
+        set { defaults.set(newValue, forKey: Key.ocrSuspects) }
+    }
 
     /// The version this was last run as ("1.0.0"): What's New after an update shows what came since.
     static var lastVersionSeen: String? {

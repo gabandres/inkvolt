@@ -13,6 +13,8 @@ public struct VisionRecognizer: TextRecognizer {
 
     public init(languages: [String]? = nil) { self.languages = languages }
 
+    public var language: String? { languages?.first }
+
     /// The languages Vision recognizes at the accurate level.
     public static var supportedLanguages: [String] {
         (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? []
