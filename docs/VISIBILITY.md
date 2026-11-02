@@ -30,7 +30,7 @@ Both apps have been in the Store since 2026-10-25, so "last month" is their whol
 | awesome-free-apps | 2026-10-29 | PRs #458, #459 | Open | |
 | thechampagne/awesome-windows | 2026-10-29 | PRs #125, #126 | Open | |
 | awesome-foss-alternatives | 2026-10-29 | PR #84 | Open | |
-| pluja/awesome-privacy | 2026-10-29 | PR #1256 | Open | |
+| pluja/awesome-privacy | 2026-10-29 | PR #1256 | Closed 2026-11-02 | The maintainer read the repository as having no license ("Other" in GitHub's detection); a new PR is welcome if that changes |
 | open-source-mac-os-apps | 2026-10-29 | PR #1864 | Open | |
 | jaywcjlove/awesome-mac | 2026-10-29 | PR #4045 | Open | |
 | Homebrew tap | 2026-10-30 | https://github.com/gabandres/homebrew-inkvolt | Live: `brew install --cask gabandres/inkvolt/inkvolt-pdf` (installed, audited and uninstalled on the owner's Mac) | Bump `version` and `sha256` with each Mac release (`release.sh` could do it). homebrew-cask itself needs 225 stars, 90 forks or 90 watchers for a self-submission (75/30/30 when someone else submits) and a repository older than 30 days: not yet |
