@@ -328,8 +328,9 @@ public static class BatchPrintCommandLine
             var summary = await BatchPrintFolder.RunAsync(folder, queue, documents, folderOptions, progress, cancel).ConfigureAwait(false);
             output.WriteLine($"{BatchPrintText.Count(summary.Sent, "file")} sent ({BatchPrintText.Sheets(summary.SheetsSent)}), {summary.Failed:N0} failed.");
             if (summary.StopReason is { } why) error.WriteLine($"Stopped: {why}");
+            if (summary.LeftWaiting > 0) error.WriteLine($"{BatchPrintText.Count(summary.LeftWaiting, "file")} left in the folder for the next run: cut off, or still changing. Not printed.");
             // Ctrl+C is how a plain watch ends; a run that was to finish the folder (--once) stopped before the end.
-            var code = summary.StopReason is not null || (request.Once && cancel.IsCancellationRequested) ? BatchPrintSummary.Stopped : summary.Failed > 0 ? BatchPrintSummary.SomeFailed : BatchPrintSummary.Done;
+            var code = summary.StopReason is not null || (request.Once && cancel.IsCancellationRequested) ? BatchPrintSummary.Stopped : summary.Failed > 0 || summary.LeftWaiting > 0 ? BatchPrintSummary.SomeFailed : BatchPrintSummary.Done;
             if (request.Report is { } report && !WriteReport(report, results, error) && code == BatchPrintSummary.Done) code = BatchPrintSummary.SomeFailed;
             return code;
         }

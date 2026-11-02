@@ -49,7 +49,8 @@ public sealed record BatchFolderProgress(BatchFolderEntry? Finished = null, stri
 /// <param name="Failed">Files moved to "failed".</param>
 /// <param name="SheetsSent">Sheets sent.</param>
 /// <param name="StopReason">Why it stopped with files left in the folder (the printer's problem in a run with <see cref="BatchFolderOptions.Once"/>, the run's limit of sheets), or null.</param>
-public sealed record BatchFolderSummary(int Sent, int Failed, int SheetsSent, string? StopReason);
+/// <param name="LeftWaiting">With <see cref="BatchFolderOptions.Once"/>, printable files still at the top of the folder when it ended: cut off, or still changing.</param>
+public sealed record BatchFolderSummary(int Sent, int Failed, int SheetsSent, string? StopReason, int LeftWaiting = 0);
 
 /// <summary>The folder is watched already (by the app or a command line): two watchers would race for its files.</summary>
 public sealed class BatchFolderBusyException(string folder)
@@ -190,7 +191,7 @@ public static class BatchPrintFolder
                 break;
             }
         }
-        return new BatchFolderSummary(sent, failed, sheets, stopReason);
+        return new BatchFolderSummary(sent, failed, sheets, stopReason, options.Once ? ReadyToPrint(folder) : 0);
     }
 
     private sealed record Halt(string Why, bool Final);

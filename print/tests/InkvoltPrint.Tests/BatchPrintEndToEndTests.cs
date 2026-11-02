@@ -234,6 +234,22 @@ public class BatchPrintEndToEndTests
         Assert.Contains("0 files sent (0 sheets)", second.Out);
     }
 
+    /// <summary>A scheduled task reads the exit code: a file left behind unprinted isn't "every file sent".</summary>
+    [Fact]
+    public async Task A_run_that_leaves_a_cut_off_file_behind_doesnt_exit_as_if_all_were_sent()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var f = new BatchFolder();
+        var cutOff = Path.Combine(f.Root, "cut.pdf");
+        File.WriteAllBytes(cutOff, BatchPrintSamples.Pdf(2, "A")[..64]);
+
+        var run = await Run(null, "print", "--watch", f.Root, "--printer", Printer, "--once", "--demo");
+
+        Assert.True(run.Code == BatchPrintSummary.SomeFailed, $"exit {run.Code}\n{run.Out}\n{run.Err}");
+        Assert.Contains("1 file left in the folder", run.Err);
+        Assert.True(File.Exists(cutOff));
+    }
+
     /// <summary>
     /// Windows' PDF engine can't open AES-256 (Acrobat's usual protection) with any password, and that's neither a wrong password
     /// nor damage: found on a real queue. The engine stops at the dictionary, so this file needs no real encryption.
@@ -291,6 +307,7 @@ public class BatchPrintEndToEndTests
         using var f = new BatchFolder();
         const string script = """
             Add-Type -Namespace Inkvolt -Name Keys -MemberDefinition '[DllImport("kernel32")] public static extern bool GenerateConsoleCtrlEvent(uint e, uint g); [DllImport("kernel32")] public static extern bool SetConsoleCtrlHandler(IntPtr h, bool a);'
+            [void][Inkvolt.Keys]::SetConsoleCtrlHandler([IntPtr]::Zero, $false) # a shell or CI that started this may have passed down "ignore Ctrl+C", which the app would inherit
             $i = New-Object Diagnostics.ProcessStartInfo $env:TEST_EXE
             $i.Arguments = $env:TEST_ARGS
             $i.UseShellExecute = $false
