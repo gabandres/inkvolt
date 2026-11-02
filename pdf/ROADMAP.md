@@ -73,7 +73,7 @@ there are business users.
 | 3.6 Speed on huge files | All of it | |
 
 **Built (2026-10-30), gate off.** Decided with the owner: **$19**, one time. `Pro.Allows(feature)` in Core (`Pro.cs`) is
-the one check every Pro feature asks (presets, watched folders, the command line); behind it the licence is real: a key
+the one check every Pro feature asks (presets, watched folders, the command line, pattern redaction beyond the built-in kinds); behind it the licence is real: a key
 `INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
 signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
 the public key in the suite's shared library (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProCheck`, `ProKeyFile`, moved there
@@ -100,9 +100,45 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Now.** Areas, selected text, every match of a search; pages become images at 300 dpi with OCR text put back.
   Redact by Pattern (`RedactionPatterns`): SSN, phone, email, card (Luhn), date, IBAN (mod 97), IP and ZIP patterns,
   phrases and a regex (with a timeout), across line breaks and hyphens, on all pages or a range, marked for review in
-  the document; Batch's Redact Patterns action applies them over many files. Still to do: saved named pattern sets,
-  scanned pages through OCR text, a per-hit list with context, the removal report, the Pro split (the read-back check
-  is 1.5's check after Apply).
+  the document; Batch's Redact Patterns action applies them over many files.
+- **Finished on Windows 2026-11-01.** Named sets saved on this PC (`RedactionPatternSets`, plain JSON, one regex a set:
+  alternation covers more); scanned pages and pictures searched through OCR text (`RedactionSearch`); every hit listed
+  with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), then applied;
+  the result read back, searched again, and what was removed looked for in the rest of the file, with what the patterns
+  find in comments, fields, bookmarks, properties, XMP, attachments and tags; the report as a page and as CSV
+  (`RedactionReport`, `RedactionReportDialog`); Batch runs a set over a folder, asks for passwords as before, and fails a file
+  with a hit left, with a scan nothing could read, or with a part that couldn't be searched; the Pro split through
+  `ProFeature.PatternRedaction` (sets, regex, the Batch action, the report's rows and CSV; the built-in kinds, phrases, the
+  list, the read-back and the pages to look at stay free).
+- **What the app promises about scans.** Nothing: a page read by OCR is never called clean. A page counts as read by OCR
+  when its pictures cover half of it (even under a text layer, which can be poor or planted), when it has no text and
+  some ink or a picture, or when it has ink no word explains (a logo, text drawn as shapes). Each such page is flagged in
+  the list, the report and Batch's notes, whatever was found on it. Ink where nothing was read is read again on its own at
+  300 dpi, since Windows' recognizer can skip a whole line; what stays unread is outlined on the page and can be ticked to
+  black out unread. Without an OCR language a scan fails its file in Batch. A value OCR can't read on a page is the limit
+  that remains: only a person looking at the page catches it, and the dialog, the report and this page say so.
+- **Other limits.** A page with a text layer that covers all its ink and pictures under half of it isn't read by OCR, so
+  text whose visible glyphs differ from its text layer (a broken or hostile font map) can pass. A number or word broken at
+  a line end with no hyphen or space ("123456" / "789") reads as two. Phrases on OCR text must be read exactly right; digits
+  are read kindly (l for 1, O for 0, spaces round dashes; no check digit on OCR pages). A hit on OCR text blacks out the
+  whole word it is in. More than 100,000 hits stop the search rather than list part of them. One page has 10 seconds, each
+  regex call 1 second: past that the search stops with an error and nothing is changed.
+- **Checked.** `RedactionCorpusTests`: the generated corpus (line-broken, hyphenated, split runs, /Rotate 90, scans upright,
+  under /Rotate and on their side, a picture on a text page, a scan under a poor text layer, the encrypted copy through
+  Batch) finds 21 of 21 with a stand-in recognizer that reads only what still shows, and leaves 0. The real app with Windows'
+  recognizer (`--script`, en-US, Debug build): 21 of 21 on the same file and 0 left, in Redact by Pattern on the plain copy
+  and in Batch with a saved set on the plain and encrypted copies; the list and the report looked at in screenshots; 100
+  plain pages searched in 5.6 s with no false flags; a list of 30,000 hits opens and Accept All / Skip All answer. `RedactionSetsAndReportTests`: tampered, oversized and malformed
+  sets refused whole; masks; formula cells; the Pro gate. Attacks that turned up real bugs, all fixed with tests: quadratic
+  overlap check on a page of hostile numbers; a page's regex time unbounded across calls; a hit dropped when its glyphs have
+  no box; invisible and wide characters hiding a number; the check stopping with an error on many or long values (its regex
+  size limit), treating a timeout as clean, and timing out on a redacted page's pixels; a signed file exported unredacted when the plan had an export after Redact Patterns; a
+  dash in a CSV cell starting a formula.
+- **Not checked.** A person's eyes on a real scan, and a real scan at all: every scan here is synthetic. Windows' recognizer
+  dropping a line didn't happen on these files, so reading a place again has only run against the stand-in. OCR languages
+  other than en-US. A screen reader on the list. With `Pro.Enforced` on, the Free report and the Pro window were seen in
+  screenshots and Batch's gate is tested, but the sets' buttons and the regex box weren't pressed; nor, gate off, were
+  they driven by hand (sets were saved and loaded through dev steps).
 - **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
   a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
   so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
@@ -111,7 +147,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30).
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 waits for the Mac (on hold).
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
@@ -217,7 +253,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   keep it (page text, hidden or off-page content, comments and appearances, fields and XFA, bookmarks, Info and XMP,
   attachments, tags, scripts, unused objects, each earlier incremental version, raw bytes decompressed) and text an
   earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
-  picture. Fix redacts, sanitizes and rewrites. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
+  picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
+  a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
   busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
   do: glyph-spacing inference around pixel redactions.

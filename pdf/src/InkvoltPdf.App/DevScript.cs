@@ -406,7 +406,44 @@ internal static class DevScript
                 if (tab!.AccessibilityReport is { } a11y) File.WriteAllText(arg, AccessibilityReportHtml.Write(a11y, tab.Session.DisplayName, DateTime.Now));
                 log.Add($"a11yreport: {File.Exists(arg)}");
                 break;
-            case "redact-patterns": log.Add($"redact-patterns: {(await tab!.MarkPatternMatches(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] }))?.Count ?? -1} matches"); break;
+            case "redact-patterns":
+            {
+                // redact-patterns [phrase]: search, every hit marked, without the list (see redact-find for the whole way).
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var found = await tab!.SearchPatterns(new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] });
+                log.Add($"redact-patterns: {found?.Hits.Count ?? -1} matches, look at {found?.Looks.Count ?? 0} pages, {clock.ElapsedMilliseconds} ms");
+                if (found is not null) tab.PageView.AddRedactions(found.Hits.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
+                break;
+            }
+            // redact-find [phrase|set:name]: Redact by Pattern the whole way (use "later" for the list and report, which are modal) ·
+            // reviewselect i · reviewtoggle i · reviewall on|off · reviewstate · reviewpress · reviewcancel · reportstate · reportclose ·
+            // redactset name kind,kind|phrase|regex (save a set) · batchreport (the batch's report, modal; use "later")
+            case "redact-find":
+            {
+                var chosen = arg.StartsWith("set:", StringComparison.Ordinal)
+                    ? RedactionPatternSets.Load(Path.Combine(RedactPatternActions.SetsFolder, RedactionPatternSets.FileName(arg[4..]))).Options
+                    : new RedactionPatternOptions { Phrases = arg.Length > 0 ? [arg] : [] };
+                log.Add($"redact-find: applied {await tab!.RedactByPattern(chosen)}; {tab.LastRedactionReport?.Summary}");
+                log.Add($"redact-find rows: {string.Join("; ", tab.LastRedactionReport?.Removals.Select(r => $"{r.Page + 1} {r.PatternName} {r.Masked} {r.OutcomeText}") ?? [])}");
+                break;
+            }
+            case "reviewselect": RedactReviewDialog.Open!.DevSelect(int.Parse(arg)); break;
+            case "reviewtoggle": RedactReviewDialog.Open!.DevToggle(int.Parse(arg)); break;
+            case "reviewall": RedactReviewDialog.Open!.DevAll(arg == "on"); break;
+            case "reviewstate": log.Add(RedactReviewDialog.Open?.DevState() ?? "review: none open"); break;
+            case "reviewpress": RedactReviewDialog.Open!.DevPress(); break;
+            case "reviewcancel": RedactReviewDialog.Open!.DevCancel(); break;
+            case "reportstate": log.Add(RedactionReportDialog.Open is null ? "report: none open" : "report: open"); break;
+            case "reportclose": RedactionReportDialog.Open?.Close(); break;
+            case "redactset":
+            {
+                var a = arg.Split(' ', 3);
+                var kinds = a[1].Split(',').Where(k => k.Length > 0).Select(k => Enum.Parse<RedactionPattern>(k, true)).ToHashSet();
+                var words = a.ElementAtOrDefault(2)?.Split('|') ?? [];
+                RedactionPatternSets.Save(new RedactionPatternSet(a[0], new RedactionPatternOptions { Patterns = kinds, Phrases = words.Length > 0 ? [words[0]] : [], Expression = words.ElementAtOrDefault(1) }), RedactPatternActions.SetsFolder);
+                break;
+            }
+            case "batchreport": OpenBatch().ShowRedactionReport(); break;
             case "apply-redactions": log.Add($"apply-redactions: {await tab!.ApplyRedactions(confirm: arg == "confirm")}"); break;
             case "attachments":
                 log.Add($"attachments: {tab!.AttachedFiles.Count}");
@@ -1232,7 +1269,7 @@ internal static class DevScript
                 break;
             }
             case "prowindow":
-                ProWindow.Open(window, arg switch { "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, _ => null });
+                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, _ => null });
                 await Task.Delay(300);
                 break;
             case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;

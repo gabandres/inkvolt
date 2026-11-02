@@ -40,6 +40,7 @@ internal static class CommandLine
             {
                 lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
             },
+            Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         int code;
         try

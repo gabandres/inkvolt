@@ -1,0 +1,96 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using InkvoltPdf.Core;
+
+namespace InkvoltPdf.App;
+
+/// <summary>
+/// The removal report as a page in the app, after Redact by Pattern or a batch: whether reading the result back found
+/// anything (free: it is the safety check), the pages to look at by hand (free, for the same reason), and per file the page,
+/// pattern and masked value of each removal, with Save CSV (Pro). It only ever holds masked values.
+/// </summary>
+internal static class RedactionReportDialog
+{
+    /// <summary>A line of the list.</summary>
+    internal sealed record Row(string File, string Page, string What, string Masked, string Outcome)
+    {
+        public string Spoken => $"{File}, page {Page}: {What}, {Masked}, {Outcome}";
+    }
+
+    /// <summary>The report on the screen, for the developer script.</summary>
+    internal static FormDialog? Open { get; private set; }
+
+    public static void Show(Window owner, RedactionReport report, string suggestedName)
+    {
+        var dlg = new FormDialog(owner, "Redaction Report", "Close", 860);
+        dlg.HideCancel();
+        var failed = report.Files.Where(f => f.Failure is not null).ToList();
+        var removed = report.Count(RedactionOutcome.Removed);
+        var kept = report.Count(RedactionOutcome.Kept);
+        var many = report.Files.Count > 1;
+
+        var head = dlg.AddNote(failed.Count > 0
+            ? (many ? $"{failed.Count} of {report.Files.Count} files failed. " : "") + "Don't share a failed result: " + string.Join(" ", failed.Take(5).Select(f => (many ? f.File + ": " : "") + f.Failure))
+            : $"Read back and searched again: none of what was removed is left in the text of the {(many ? "files" : "file")}. " +
+              $"{removed:N0} removed{(kept > 0 ? $", {kept:N0} kept as you chose" : "")}.");
+        if (failed.Count > 0) head.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+        AutomationProperties.SetLiveSetting(head, AutomationLiveSetting.Polite);
+
+        if (report.HasLooks)
+        {
+            var pages = report.Files.Where(f => f.Looks.Count > 0).Select(f => (many ? f.File + ": " : "") + RedactionReport.Pages(f.Looks.Select(l => l.Page)));
+            var look = dlg.AddNote("This doesn't say those pages are clean. Look by hand at " + string.Join("; ", pages.Take(8)) +
+                                   ": they were read by text recognition (OCR), which can misread words and miss whole lines.");
+            look.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
+        }
+
+        if (Pro.Allows(ProFeature.PatternRedaction))
+        {
+            var rows = report.Files.SelectMany(f =>
+                f.Removals.Select(r => new Row(f.File, (r.Page + 1).ToString(), r.PatternName, r.Masked, r.OutcomeText))
+                    .Concat(f.Looks.Select(l => new Row(f.File, (l.Page + 1).ToString(), l.Text, "", "Look by hand")))).ToList();
+            var list = new ListBox { Height = 360, ItemsSource = rows };
+            list.ItemTemplate = (DataTemplate)XamlReader.Parse(
+                "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
+                "<TextBlock TextWrapping='Wrap' Margin='0,2,0,2'>" +
+                (many ? "<Run Text='{Binding File, Mode=OneTime}' FontWeight='SemiBold' /><Run Text=' · ' />" : "") +
+                "<Run Text='Page ' /><Run Text='{Binding Page, Mode=OneTime}' /><Run Text=' · ' /><Run Text='{Binding What, Mode=OneTime}' /><Run Text='  ' />" +
+                "<Run Text='{Binding Masked, Mode=OneTime}' FontFamily='Cascadia Mono, Consolas' /><Run Text='  ' />" +
+                "<Run Text='{Binding Outcome, Mode=OneTime}' Foreground='{DynamicResource TextFillColorSecondaryBrush}' /></TextBlock></DataTemplate>");
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            VirtualizingPanel.SetIsVirtualizing(list, true);
+            AutomationProperties.SetName(list, "Each removal");
+            list.ItemContainerStyle = new Style(typeof(ListBoxItem)) { BasedOn = (Style?)Application.Current.TryFindResource(typeof(ListBoxItem)) };
+            list.ItemContainerStyle.Setters.Add(new Setter(AutomationProperties.NameProperty, new System.Windows.Data.Binding(nameof(Row.Spoken))));
+            dlg.Add("Each removal (values masked)", list, top: 14);
+            dlg.AddNote("A masked value keeps at most the last two digits of a long number. Your words and your own pattern are listed by kind, never as written.");
+        }
+        else dlg.AddNote(Pro.Locked(ProFeature.PatternRedaction));
+
+        dlg.AddFooterButton("Save CSV…").Click += (_, _) =>
+        {
+            if (!ProGate.Check(dlg, ProFeature.PatternRedaction)) return;
+            if (CommentFileActions.PickSave(dlg, "Save the report", "CSV (*.csv)|*.csv", suggestedName + " redaction report.csv", null) is not { } path) return;
+            try
+            {
+                File.WriteAllBytes(path, report.ToCsv());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Prompt.Error(dlg, "The report couldn't be saved", ex.Message);
+            }
+        };
+        Open = dlg;
+        try
+        {
+            dlg.ShowModal();
+        }
+        finally
+        {
+            Open = null;
+        }
+    }
+}

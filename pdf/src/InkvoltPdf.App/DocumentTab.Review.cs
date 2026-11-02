@@ -1246,20 +1246,20 @@ public partial class DocumentTab
     }
 
     /// <summary>
-    /// Redact by pattern: finds the matches in the background (a progress window with Cancel shows if that takes a while),
-    /// marks them for redaction and turns on the redaction tool, so a mark can be clicked away before the marks are applied.
-    /// Returns the matches, null when cancelled or stopped.
+    /// Searches by pattern in the background (a progress window with Cancel shows if that takes a while), scans through
+    /// text recognition. Null when cancelled or stopped: a search that stopped must never read as one that found nothing.
     /// </summary>
-    public async Task<List<RedactionMatch>?> MarkPatternMatches(RedactionPatternOptions options)
+    internal async Task<RedactionSearchResult?> SearchPatterns(RedactionPatternOptions options)
     {
         if (!Session.IsPdf || Viewer.Engine is not { } engine) return null;
-        List<RedactionMatch> matches;
+        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
+        RedactionSearchResult found;
         using (var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Searching the pages…"))
         {
             try
             {
                 var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Searching page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / p.Total));
-                matches = await Task.Run(() => RedactionPatterns.Find(engine, options, progress, prompt.Token), prompt.Token);
+                found = await Task.Run(() => RedactionSearch.Find(engine, options, ocr, progress, prompt.Token), prompt.Token);
             }
             catch (OperationCanceledException)
             {
@@ -1270,24 +1270,116 @@ public partial class DocumentTab
                 Notify("The document changed meanwhile. Try again.");
                 return null;
             }
-            catch (TimeoutException ex)
+            catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or ArgumentException or InvalidOperationException or MuPDFCore.MuPDFException)
             {
-                Prompt.Error(Window.GetWindow(this), "The search stopped", ex.Message);
+                Log.Write($"Redact by pattern stopped: {ex.GetType().Name}");
+                Prompt.Error(Window.GetWindow(this), "The search stopped", ex is MuPDFCore.MuPDFException ? "This PDF is damaged and can't be read to the end, so nothing was changed." : ex.Message);
                 return null;
             }
         }
-        if (!ReferenceEquals(engine, Viewer.Engine)) return null;
-        if (matches.Count == 0)
+        return ReferenceEquals(engine, Viewer.Engine) ? found : null;
+    }
+
+    /// <summary>
+    /// Redact by pattern, start to end: search; every hit listed to accept or skip, with the pages to look at by hand;
+    /// apply; read the result back and search it again; the report. Returns whether anything was applied.
+    /// </summary>
+    public async Task<bool> RedactByPattern(RedactionPatternOptions options)
+    {
+        if (await SearchPatterns(options) is not { } found || Window.GetWindow(this) is not { } owner) return false;
+        if (found.Hits.Count == 0 && found.Looks.Count == 0)
         {
             Notify("Nothing matching was found on the pages searched.");
-            return matches;
+            return false;
         }
-        Viewer.AddRedactions(matches.SelectMany(m => m.Rects.Select(r => new RedactMark(m.Page, r.Inflate(0.5)))));
-        Viewer.Tool = ViewerTool.Redact;
-        Viewer.GoToPage(matches[0].Page);
-        Notify($"Marked {matches.Count} match{(matches.Count == 1 ? "" : "es")} for redaction ({RedactionPatterns.Summary(matches)}). " +
-               "Check the marks and click any you want to keep to unmark it, then apply them.");
-        return matches;
+        if (RedactReviewDialog.Show(owner, this, found) is not { } review) return false;
+        var name = Session.DisplayName;
+        if (review.Accepted.Count == 0 && review.LookAreas.Count == 0)
+        {
+            var nothing = new RedactionFileReport(name, [.. review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))], found.Looks, null);
+            RedactionReportDialog.Show(owner, new RedactionReport([nothing]), Path.GetFileNameWithoutExtension(name));
+            return false;
+        }
+
+        var earlier = Viewer.Redactions.ToList();
+        var marks = review.Accepted.SelectMany(m => RedactionSearch.Areas([m]).SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r)))).Concat(review.LookAreas).ToList();
+        var before = Session.Data;
+        Viewer.AddRedactions(marks);
+        if (!await ApplyRedactions(confirm: false, check: false))
+        {
+            Viewer.ClearRedactions();
+            Viewer.AddRedactions(earlier);
+            return false;
+        }
+
+        var areas = marks.Concat(earlier).GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
+        var (report, check, checkOptions) = await ReadBackPatterns(options, review, found, areas, before);
+        LastRedactionReport = report;
+        RedactionReportDialog.Show(owner, new RedactionReport([report]), Path.GetFileNameWithoutExtension(name));
+        // What is left outside the pages has a fix of its own, the check's.
+        if (check is { IsClean: false } && !IsDisposed) await RedactionCheckActions.Show(this, check, checkOptions);
+        return true;
+    }
+
+    /// <summary>The last report of Redact by Pattern (masked values only), for the developer script.</summary>
+    internal RedactionFileReport? LastRedactionReport { get; private set; }
+
+    /// <summary>
+    /// Reads the redacted document back, searches it again, then looks for what was removed everywhere else in the file. A
+    /// remaining hit, or a read-back that didn't finish, is the report's failure. Skipped hits don't count: the person kept them.
+    /// </summary>
+    private async Task<(RedactionFileReport Report, RedactionCheckReport? Check, RedactionCheckOptions Options)> ReadBackPatterns(
+        RedactionPatternOptions options, RedactReview review, RedactionSearchResult found, Dictionary<int, IReadOnlyList<RectD>> areas, byte[] before)
+    {
+        var data = Session.Data;
+        var password = Session.Password;
+        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
+        var kept = RedactionSearch.Values(review.Skipped);
+        var skippedKeys = new HashSet<string>(kept, StringComparer.OrdinalIgnoreCase);
+        var checkOptions = new RedactionCheckOptions
+        {
+            Values = [.. RedactionSearch.Values(review.Accepted).Where(v => !skippedKeys.Contains(v))],
+            Kept = kept,
+            Areas = areas,
+            Original = before,
+            Patterns = options,
+        };
+        var rows = review.Accepted.Select(h => RedactionReport.Row(h, RedactionOutcome.Removed)).Concat(review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))).ToList();
+        var name = Session.DisplayName;
+        string? failure = null;
+        RedactionCheckReport? check = null;
+        using var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Reading the result back…");
+        try
+        {
+            var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Reading back page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+            var remaining = await Task.Run(() =>
+            {
+                // A page the app has just recognized has its words again in the text; one without (no OCR, or OCR cancelled) is read now.
+                using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password);
+                var unread = areas.Keys.Where(p => p < engine.PageCount && !TextLayer.HasText(engine, p)).ToHashSet();
+                return RedactionSearch.ReadBack(data, password, options, ocr, unread, review.Skipped, progress, prompt.Token);
+            }, prompt.Token);
+            if (remaining.Count > 0)
+            {
+                rows.AddRange(remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere)));
+                failure = $"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Run Redact by Pattern again, or undo.";
+            }
+            prompt.Report("Looking through the rest of the file…", 1);
+            check = await Task.Run(() => RedactionCheck.Run(data, password, checkOptions, null, prompt.Token), prompt.Token);
+            // Only what was removed being left fails it; what else the check finds in the file opens its own report next.
+            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= $"Elsewhere in the file: {check.Summary}";
+            else if (check.Incomplete) failure ??= string.Join(" ", check.Notes);
+        }
+        catch (OperationCanceledException)
+        {
+            failure = "The result wasn't read back: you cancelled it, so nothing says what was removed is gone.";
+        }
+        catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException or NotSupportedException)
+        {
+            Log.Write($"Reading a redaction back failed: {ex.GetType().Name}");
+            failure = "The result couldn't be read back, so nothing says what was removed is gone.";
+        }
+        return (new RedactionFileReport(name, rows, found.Looks, failure), check, checkOptions);
     }
 
     public bool HasSearchResults => _results.Count > 0;
@@ -1550,7 +1642,8 @@ public partial class DocumentTab
             var read = ScanText.Recognize(engine, page, ocr, options, spelling, progress.Token);
             var words = read.Words.ToList();
             if (exclude is not null && exclude.TryGetValue(page, out var blacked))
-                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > 0.3 * w.Rect.Width * w.Rect.Height));
+                // A letter or two touching a black box is a recognizer reading the box's edge, not a word.
+                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > (w.Text.Trim().Length <= 2 ? 0 : 0.3 * w.Rect.Width * w.Rect.Height)));
             if (words.Count > 0) result[page] = words;
             if (read.Cleaned is { } image) cleaned[page] = image;
         }

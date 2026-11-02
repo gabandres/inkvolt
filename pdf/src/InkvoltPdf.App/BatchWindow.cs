@@ -74,6 +74,7 @@ internal sealed class BatchWindow : Window
     private readonly Button _start = new() { Content = "Start", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
     private readonly Button _stop = new() { Content = "Stop", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
     private readonly Button _openFolder = new() { Content = "Open Folder", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+    private readonly Button _report = new() { Content = "Redaction Report…", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
     private readonly Button _close = new() { Content = "Close", MinWidth = 104, IsCancel = true };
     private readonly List<UIElement> _editors = [];
     private readonly ComboBox _preset = new() { MinWidth = 220 };
@@ -301,9 +302,11 @@ internal sealed class BatchWindow : Window
             if (Directory.Exists(_folder.Text)) Shell.Open(_folder.Text);
         };
         _close.Click += (_, _) => Close();
+        _report.Click += (_, _) => ShowRedactionReport();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 16, 24, 16) };
         buttons.Children.Add(_start);
         buttons.Children.Add(_stop);
+        buttons.Children.Add(_report);
         buttons.Children.Add(_openFolder);
         buttons.Children.Add(_close);
         var watched = new Button { Content = "Watched Folders…", MinWidth = 104, Margin = new Thickness(24, 16, 0, 16), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
@@ -907,6 +910,7 @@ internal sealed class BatchWindow : Window
             {
                 lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
             },
+            Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         var progress = new Progress<BatchProgress>(p =>
         {
@@ -959,9 +963,16 @@ internal sealed class BatchWindow : Window
                (summary.Failed + summary.Skipped > 0 ? " The list says why for each file not done." : "") +
                (written > 0 ? " Double-click a file to open its result." : ""), error: summary.Failed > 0);
         _openFolder.IsEnabled = written > 0;
+        _report.Visibility = summary.RedactionReport is null ? Visibility.Collapsed : Visibility.Visible;
         _start.Content = "Run Again";
         Log.Write($"Batch: {summary.Text}");
         if (_closeWhenDone) Close();
+    }
+
+    /// <summary>The last run's removal report as a page.</summary>
+    internal void ShowRedactionReport()
+    {
+        if (LastSummary?.RedactionReport is { } report) RedactionReportDialog.Show(this, report, "Batch");
     }
 
     private static string RowText(BatchItemResult r)
@@ -1057,6 +1068,7 @@ internal sealed class BatchWindow : Window
             "protect" => new ProtectStep(rest.Split(' ')[0], rest.Split(' ').ElementAtOrDefault(1), PdfPermissions.All),
             "unprotect" => new UnprotectStep(),
             "sanitize" => new SanitizeStep(SanitizeActions.Kinds.Select(k => k.Item).Where(i => i != SanitizeItem.Signatures).ToHashSet()),
+            "redactpatterns" when rest.StartsWith("set:", StringComparison.Ordinal) => new RedactPatternsStep(RedactionPatternSets.Load(Path.Combine(RedactPatternActions.SetsFolder, RedactionPatternSets.FileName(rest[4..]))).Options),
             "redactpatterns" => new RedactPatternsStep(new RedactionPatternOptions { Phrases = rest.Length > 0 ? [rest] : [] }),
             "checkredaction" => new CheckRedactionStep(),
             "checkaccessibility" => new CheckAccessibilityStep(),

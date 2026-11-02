@@ -8,6 +8,11 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Translate with AI (Review › AI Assistant): a translated copy opens in a new tab with the original beside it, and the two scroll together. It goes one paragraph at a time through your own AI, with no page limit, and you see what will be sent, and where, first. Nothing goes anywhere else.
 - Each paragraph stays in its box: its text wraps there, shrinks if it must, and gets a comment if it still doesn't fit. Tables go cell by cell, and pictures stay where they are.
 - A long translation shows how far it has come, and you can stop it and keep what's done. Your original file isn't changed.
+- Redact by Pattern searches scanned pages too, through text recognition on your PC, and lists every match with its page and the words around it. Accept or skip them one by one or all, with the page beside the list, before anything is removed.
+- Text recognition can miss words and whole lines, so a page read that way is never called clean: it is flagged for you to look at, and places with ink where nothing was read are marked on it.
+- After redacting, the result is read back and searched again, and what was removed is looked for in the rest of the file. In Batch, a file with anything left fails and isn't saved.
+- Save your own pattern sets under a name on this PC, and run one over a folder with Batch's Redact Patterns; password files are asked for as usual.
+- A removal report, as a page and as CSV, lists per file the page, pattern and a masked value of each removal. It never holds the value itself.
 
 ## 1.5.0
 - Compare Files takes Word, Excel and PowerPoint files and scans as well as PDFs, on either side. Words on a scan are recognized on your PC first, and a difference that may be a misreading says so.

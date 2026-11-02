@@ -215,6 +215,7 @@ public static class BatchPresets
                     foreach (var page in r.Pages) w.WriteNumberValue(page + 1);
                     w.WriteEndArray();
                 }
+                if (r.SetName is not null) w.WriteString("setName", r.SetName);
                 break;
             case WatermarkStep { Options: var m }:
                 w.WriteString("text", m.Image is null ? m.Text : null);
@@ -423,6 +424,7 @@ public static class BatchPresets
                 MatchCase = f.Bool("matchCase", false),
                 Expression = f.Text("expression", null) is { Length: > 0 } x ? x : null,
                 Pages = f.Pages("pages"),
+                SetName = f.Text("setName", null) is { Length: > 0 } set ? RedactionPatternSets.CleanName(set) : null,
             }),
             "checkRedaction" => new CheckRedactionStep(),
             "checkAccessibility" => new CheckAccessibilityStep(),

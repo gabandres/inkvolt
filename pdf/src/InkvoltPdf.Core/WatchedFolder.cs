@@ -90,7 +90,7 @@ public static class WatchedFolder
         folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         if (Validate(folder, plan.OutputFolder) is { } folderError) throw new ArgumentException(folderError, nameof(folder));
         plan = plan with { Passwords = PasswordPolicy.Skip, KeepSubfolders = false };
-        host = new BatchHost { Recognize = host.Recognize }; // no prompts: nobody may be there to answer
+        host = new BatchHost { Recognize = host.Recognize, Recognizer = host.Recognizer }; // no prompts: nobody may be there to answer
         if (plan.Validate(host.Recognize is not null) is { } planError) throw new ArgumentException(planError, nameof(plan));
 
         using var held = DropFolder.Lock(folder, LockName) ?? throw new FolderWatchedException(folder);
