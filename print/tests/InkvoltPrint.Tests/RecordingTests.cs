@@ -326,7 +326,7 @@ public sealed class RecordingTests : IDisposable
     {
         var printer = new EndlessReply();
         await Assert.ThrowsAnyAsync<Exception>(() => PrinterRecorder.RecordAsync("192.0.2.77", _dir, new RecordOptions { Transport = printer, Who = Me }));
-        Assert.True(printer.Read <= PrinterRecorder.MaxReplyBytes + (1 << 20), $"read {printer.Read:N0} bytes");
+        Assert.True(printer.Read <= DeviceHttp.MaxReplyBytes + (1 << 20), $"read {printer.Read:N0} bytes");
     }
 
     [Fact]

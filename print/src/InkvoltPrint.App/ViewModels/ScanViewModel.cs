@@ -782,9 +782,11 @@ public sealed partial class ScanViewModel : ObservableObject
                 foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters };
             });
         }
-        var noEdge = cleanup.HasFlag(PageFilters.CropToPaper) ? changed.Count(p => !p.Edits.Filters.HasFlag(PageFilters.CropToPaper) && !p.HasPhotos) : 0;
+        // Every page the crop was tried on, not only those something else changed: with crop alone, one with no edge has no other change.
+        var noEdge = cleanup.HasFlag(PageFilters.CropToPaper)
+            ? added.Count(p => !p.LooksBlank && !p.IsSkipped && !p.IsSeparator && !p.HasPhotos && !p.FindsPhotos && !p.Edits.Filters.HasFlag(PageFilters.CropToPaper)) : 0;
         var text = changed.Count == 0 ? "" : changed.Count == 1 ? "1 page was cleaned up (Undo puts it back)." : $"{changed.Count} pages were cleaned up (Undo puts them back).";
-        return noEdge == 0 ? text : $"{text} The paper's edge couldn't be told from the lid on {(noEdge == 1 ? "1 page" : $"{noEdge} pages")}: kept whole.";
+        return noEdge == 0 ? text : $"{text} The paper's edge couldn't be told from the lid on {(noEdge == 1 ? "1 page" : $"{noEdge} pages")}: kept whole.".TrimStart();
     }
 
     /// <summary>

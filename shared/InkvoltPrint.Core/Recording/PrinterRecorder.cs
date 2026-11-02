@@ -84,18 +84,13 @@ public static class PrinterRecorder
         return name.Equals(NotesFile, StringComparison.OrdinalIgnoreCase) || name.Equals(SnmpFile, StringComparison.OrdinalIgnoreCase) ? null : name;
     }
 
-    /// <summary>The most kept of one reply: a printer's documents are kilobytes, and one that never stops mustn't fill this PC's memory.</summary>
-    internal const int MaxReplyBytes = 32 << 20;
-
     private const int MaxSnmpObjects = 4000;
     private static readonly TimeSpan SnmpWalkLimit = TimeSpan.FromSeconds(60);
 
     public static async Task<RecordResult> RecordAsync(string host, string folder, RecordOptions? options = null, CancellationToken ct = default)
     {
         options ??= new RecordOptions();
-        var named = Uri.TryCreate($"http://{host}/", UriKind.Absolute, out var given) ? given.Host : host; // an address may come with its port
-        var printerHosts = new[] { named, options.EsclHint?.Host, options.IppHint?.Host }.OfType<string>().Select(h => h.Trim('[', ']')).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        using var capture = new Capture(options.Transport ?? DeviceHttp.NetworkHandler(host), options.Scan, printerHosts);
+        using var capture = new Capture(options.Transport ?? DeviceHttp.NetworkHandler(host), options.Scan);
         var snmp = options.Snmp is null ? null : new SnmpCapture(options.Snmp);
         var notKept = new List<string>();
         var scans = new List<(string Name, byte[] Jpeg)>();
@@ -259,7 +254,7 @@ public static class PrinterRecorder
     }
 
     /// <summary>Lets reads through and keeps each reply; refuses anything that would change the printer.</summary>
-    private sealed class Capture(HttpMessageHandler inner, bool scan, IReadOnlySet<string> printerHosts) : DelegatingHandler(inner)
+    private sealed class Capture(HttpMessageHandler inner, bool scan) : DelegatingHandler(inner)
     {
         private readonly ConcurrentQueue<Exchange> _exchanges = new();
 
@@ -276,12 +271,6 @@ public static class PrinterRecorder
                           && (request.Method == HttpMethod.Post || request.Method == HttpMethod.Delete || request.Method == HttpMethod.Get);
             if (request.Method != HttpMethod.Get && !getAttributes && !scanJob)
                 throw new InvalidOperationException($"A recording only reads: {request.Method} {path} not sent.");
-            // A printer's discovery tree decides what's asked for, and what's asked for ends up in a file the user attaches: nothing from another computer.
-            if (!printerHosts.Contains(uri.Host.Trim('[', ']')))
-            {
-                _exchanges.Enqueue(new Exchange(request.Method.Method, path, null, "another computer, not asked", 0, null, null, null));
-                throw new HttpRequestException($"{path}: on another computer, not asked.");
-            }
 
             var timer = Stopwatch.StartNew();
             HttpResponseMessage resp;
@@ -295,7 +284,8 @@ public static class PrinterRecorder
                     timer.ElapsedMilliseconds, null, null, null));
                 throw;
             }
-            var bytes = await Bounded(resp.Content, ct).ConfigureAwait(false);
+            // Read here to keep it, so within the same limit as every reply (DeviceHttp); the document this is for is a printer's own, DeviceHttp saw to that.
+            var bytes = await DeviceHttp.ReadBoundedAsync(resp.Content, DeviceHttp.ReplyLimit(request), ct).ConfigureAwait(false);
             if (bytes is null)
             {
                 _exchanges.Enqueue(new Exchange(request.Method.Method, path, null, "too long a reply", timer.ElapsedMilliseconds, null, null, null));
@@ -328,21 +318,6 @@ public static class PrinterRecorder
                 file = KeptName(path);
             _exchanges.Enqueue(new Exchange(request.Method.Method, path, resp.StatusCode, null, ms, file, bytes, text));
             return resp;
-        }
-
-        /// <summary>The whole reply, or null past <see cref="MaxReplyBytes"/>.</summary>
-        private static async Task<byte[]?> Bounded(HttpContent content, CancellationToken ct)
-        {
-            if (content.Headers.ContentLength > MaxReplyBytes) return null;
-            await using var reply = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            using var kept = new MemoryStream();
-            var chunk = new byte[1 << 16];
-            for (int n; (n = await reply.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0;)
-            {
-                if (kept.Length + n > MaxReplyBytes) return null;
-                kept.Write(chunk, 0, n);
-            }
-            return kept.ToArray();
         }
     }
 

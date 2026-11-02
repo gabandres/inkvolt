@@ -33,9 +33,44 @@ public sealed class DeviceHttp : IDisposable
 
     private static HttpClient NewClient(HttpMessageHandler handler)
     {
-        var client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+        var client = new HttpClient(new BoundedReplies(handler), disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
         client.DefaultRequestHeaders.ExpectContinue = false;
         return client;
+    }
+
+    /// <summary>Every reply read here, up to its limit, under the request's timeout. Past the limit, or cut off, it reads as no answer.</summary>
+    private sealed class BoundedReplies(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            HttpResponseMessage? resp = null;
+            byte[]? body;
+            try
+            {
+                resp = await base.SendAsync(request, ct).ConfigureAwait(false);
+                body = await ReadBoundedAsync(resp.Content, ReplyLimit(request), ct).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                resp?.Dispose();
+                throw new HttpRequestException($"{request.RequestUri?.AbsolutePath}: the reply broke off.", ex);
+            }
+            catch
+            {
+                resp?.Dispose();
+                throw;
+            }
+            if (body is null)
+            {
+                resp.Dispose();
+                throw new HttpRequestException($"{request.RequestUri?.AbsolutePath}: too long a reply, not read to its end.");
+            }
+            var whole = new ByteArrayContent(body);
+            foreach (var h in resp.Content.Headers) whole.Headers.TryAddWithoutValidation(h.Key, h.Value);
+            resp.Content.Dispose();
+            resp.Content = whole;
+            return resp;
+        }
     }
 
     /// <summary>
@@ -67,16 +102,56 @@ public sealed class DeviceHttp : IDisposable
 
     public void ClearCredentials() => _basicAuth = null;
 
-    public Uri Http(string path) => new(HttpBase, path);
-    public Uri Https(string path) => new(HttpsBase, path);
+    /// <summary>The most kept of a reply: a printer's documents are kilobytes, and one that never stops mustn't fill this PC's memory.</summary>
+    public const long MaxReplyBytes = 32L << 20;
 
-    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TimeSpan? timeout = null,
-        CancellationToken ct = default, HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead) =>
-        await SendAsync(ClientFor(request.RequestUri), request, timeout, ct, completion).ConfigureAwait(false);
+    /// <summary>The most kept of a reply marked <see cref="AllowLongReply"/>: a scanned page, or a feeder's whole run as one PDF.</summary>
+    public const long MaxScanReplyBytes = 1L << 30;
 
-    private async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpRequestMessage request, TimeSpan? timeout,
-        CancellationToken ct, HttpCompletionOption completion)
+    private static readonly HttpRequestOptionsKey<long> ReplyLimitKey = new("Inkvolt.ReplyLimit");
+
+    public static void AllowLongReply(HttpRequestMessage request) => request.Options.Set(ReplyLimitKey, MaxScanReplyBytes);
+
+    internal static long ReplyLimit(HttpRequestMessage request) => request.Options.TryGetValue(ReplyLimitKey, out var limit) ? limit : MaxReplyBytes;
+
+    /// <summary>The whole body, or null past <paramref name="limit"/> (nothing more of it is read).</summary>
+    internal static async Task<byte[]?> ReadBoundedAsync(HttpContent content, long limit, CancellationToken ct)
     {
+        if (content.Headers.ContentLength > limit) return null;
+        await using var body = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var kept = new MemoryStream((int)Math.Min(content.Headers.ContentLength ?? 0, limit));
+        var chunk = new byte[1 << 16];
+        for (int n; (n = await body.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0;)
+        {
+            if (kept.Length + n > limit) return null;
+            kept.Write(chunk, 0, n);
+        }
+        return kept.ToArray();
+    }
+
+    /// <summary>Whether a web address is on this printer: its host, whatever the port or scheme.</summary>
+    private bool IsOnThisPrinter(Uri uri) => uri is { IsAbsoluteUri: true, Scheme: "http" or "https" } && SameHost(uri.IdnHost, HttpBase.IdnHost);
+
+    private static bool SameHost(string a, string b) => string.Equals(a.TrimEnd('.'), b.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A link a printer gave, on this printer: the same scheme, port and path, on the host in use. A printer often names itself some
+    /// other way (its .local name), and what it names can't send this app, or the password, to another computer.
+    /// </summary>
+    public Uri OnThisPrinter(Uri link) =>
+        !link.IsAbsoluteUri || link.Scheme is not ("http" or "https") || (IsOnThisPrinter(link) && link.UserInfo.Length == 0) ? link
+        : new UriBuilder(link) { Host = HttpBase.Host, UserName = "", Password = "" }.Uri;
+
+    public Uri Http(string path) => OnThisPrinter(new(HttpBase, path));
+    public Uri Https(string path) => OnThisPrinter(new(HttpsBase, path));
+
+    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, TimeSpan? timeout = null, CancellationToken ct = default) =>
+        await SendAsync(ClientFor(request.RequestUri), request, timeout, ct).ConfigureAwait(false);
+
+    private async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpRequestMessage request, TimeSpan? timeout, CancellationToken ct)
+    {
+        // Every request to a printer comes through here, whatever its documents named. Nothing goes to another computer.
+        if (request.RequestUri is not { } uri || !IsOnThisPrinter(uri)) throw new HttpRequestException($"Not asked: {request.RequestUri?.Scheme} address that isn't on this printer.");
         // The admin password belongs to the web server (HTTPS on 443), never to another TLS port such as IPPS on 631.
         if (_basicAuth is not null && request.RequestUri is { Scheme: "https" } target && target.Port == HttpsBase.Port)
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
@@ -84,7 +159,8 @@ public sealed class DeviceHttp : IDisposable
         cts.CancelAfter(timeout ?? DefaultTimeout);
         try
         {
-            return await client.SendAsync(request, completion, cts.Token).ConfigureAwait(false);
+            // BoundedReplies has read the body by the time this returns, so HttpClient doesn't keep a second copy of it.
+            return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -127,7 +203,7 @@ public sealed class DeviceHttp : IDisposable
             }
         };
         using var once = NewClient(handler);
-        return await SendAsync(once, request, timeout, ct, HttpCompletionOption.ResponseContentRead).ConfigureAwait(false);
+        return await SendAsync(once, request, timeout, ct).ConfigureAwait(false);
     }
 
     public async Task<HttpResponseMessage> GetAsync(Uri uri, TimeSpan? timeout = null, CancellationToken ct = default)

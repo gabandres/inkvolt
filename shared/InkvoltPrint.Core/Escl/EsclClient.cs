@@ -14,7 +14,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
     private ScannerCapabilities? _caps;
     private EsclQuirks _quirks = EsclQuirks.None;
 
-    public Uri Root { get; } = root.AbsoluteUri.EndsWith('/') ? root : new Uri(root.AbsoluteUri + "/");
+    public Uri Root { get; } = http.OnThisPrinter(root.AbsoluteUri.EndsWith('/') ? root : new Uri(root.AbsoluteUri + "/"));
 
     public async Task<ScannerCapabilities?> GetCapabilitiesAsync(CancellationToken ct = default)
     {
@@ -114,6 +114,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
         for (var attempt = 0; ; attempt++)
         {
             using var req = Request(HttpMethod.Get, new Uri(job, "NextDocument"));
+            DeviceHttp.AllowLongReply(req); // a page, or a feeder's run as one PDF
             using var resp = await http.SendAsync(req, PageTimeout, ct).ConfigureAwait(false);
             switch (resp.StatusCode)
             {
