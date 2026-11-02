@@ -357,8 +357,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   output); `status --all` on the development PC, whose one printer was away, in 7 s with `state.json` unchanged. **Not checked:** any real
   printer or real queue repair (paused, Use Printer Offline, a printer shared from a PC that's off, access denied); the Pro window opening
   from the page with the gate on; the Save dialog (the snapshot aid writes the file directly); Excel opening the CSV; a screen reader, and Tab
-  through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: on
-  hold (owner, 2026-10-31).
+  through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: PrintCore done
+  (2026-11-02, mac/docs/PLAN.md P12: the entries, the order, the page's words, the CSV and JSON against the schema, `status --all`,
+  and `Diagnostics.scrub`, which they need); the reader over CUPS and the readers, the page, Export… and Fix all wait for the Mac.
 - **Beat it when:** a Fleet page lists every printer's state, each supply's level, page count, firmware and the last
   reading's time, sorted by trouble; the offline fixer runs on queue printers too (paused, Use Printer Offline, stuck
   jobs, without the network steps). Pro: Export CSV, `inkvoltprint status --all --json` for a script or a scheduled
