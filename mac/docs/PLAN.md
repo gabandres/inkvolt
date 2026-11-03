@@ -35,7 +35,7 @@ Notify left out for printers that don't keep it.
 Since (2026-10-27, not in a build yet): the glass photos' boxes adjusted by hand (Photos…: move, resize, turn, draw,
 keyboard), and Print Photos' paper type, quality and color, sent with the job straight to the printer's queue.
 
-Not on the Mac: Open in Inkvolt PDF (no Mac Inkvolt PDF yet), HP clean-up (nothing like it on macOS), WIA.
+Not on the Mac: HP clean-up (nothing like it on macOS), WIA. (Open in Inkvolt PDF came with Inkvolt PDF for Mac: roadmap 3.5.)
 
 ## Layout
 
@@ -230,7 +230,14 @@ sheet's buttons were cut off (it's wider now) |
   Pictures suggested, as the Windows preset's folder kind says). A sync folder is any folder the user picks there (iCloud
   Drive, Dropbox: no code of its own). After saving, a preset can print a copy on its printer or attach the files to a new
   email through macOS's share service (`NSSharingService` `.composeEmail`, the user's mail app; the Windows `MailRoute`
-  isn't needed). Open in Inkvolt PDF waits for a Mac Inkvolt PDF: a Windows preset with it only saves.
+  isn't needed). Open in Inkvolt PDF (roadmap 3.5, done 2026-11-02), as on Windows: a preset's last step (offered when
+  Inkvolt PDF is installed, or kept as "(not installed)"; a JPEG preset says Inkvolt PDF opens PDFs only), Settings ›
+  General's "Open scans in Inkvolt PDF" (off; shown when it is installed), and the save bar's Open in Inkvolt PDF link
+  after a PDF save (`InkvoltPdfApp`). Mac difference: Inkvolt PDF is found by bundle identifier through Launch Services
+  and handed the files with `NSWorkspace.open(_:withApplicationAt:)`, not a URL scheme (the sandbox allows it; nothing
+  else is shared). Checked on `ignia-mac`: the build (0 warnings) and `--report --demo --scan` (the saved PDF listed for
+  the hand-off, Inkvolt PDF found). Not checked: a person seeing Inkvolt PDF open the files, and the report with a stub
+  app registered in its place (the real Inkvolt PDF is installed on the Mac).
 - Add a printer is a sheet over the main window (File › Add a Printer… ⌘N, the toolbar's +, the empty list's button). Its rules
   (what an address that answered becomes, the order, what the sheet says, a few identified at a time) are PrintCore's
   `AddPrinter`, tested, where the Windows app keeps them in its view model. The search's networks are the Ethernet and Wi-Fi

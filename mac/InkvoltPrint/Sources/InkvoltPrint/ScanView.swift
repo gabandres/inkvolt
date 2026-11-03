@@ -276,6 +276,11 @@ private struct SaveBar: View {
                 if let problem = scan.problem { Text(problem).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
                 Text(scan.status).foregroundStyle(.secondary)
             }
+            if !scan.savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
+                Button("Open in Inkvolt PDF") { scan.openSavedInInkvoltPdf() }
+                    .buttonStyle(.link)
+                    .help(scan.savedPdfs.count == 1 ? "Open the PDF just saved in Inkvolt PDF" : "Open the PDFs just saved in Inkvolt PDF")
+            }
             Spacer()
             if scan.isSaving { ProgressView().controlSize(.small) }
             Button("Clear") { scan.clear() }.disabled(scan.pages.isEmpty || scan.isScanning || scan.isSaving)

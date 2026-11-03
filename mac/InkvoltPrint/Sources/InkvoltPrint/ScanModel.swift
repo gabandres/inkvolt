@@ -66,6 +66,8 @@ final class ScanModel {
     /// What scanning or saving is doing, or what it did.
     private(set) var status = ""
     private(set) var problem: String?
+    /// The PDFs the last save wrote (a batch: one per file), for the save bar's Open in Inkvolt PDF.
+    private(set) var savedPdfs: [URL] = []
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
     /// The files of a batch a preset save wrote before it failed part-way: saving again writes only the rest.
@@ -577,7 +579,7 @@ final class ScanModel {
             all += urls
         }
         isSaving = false
-        await finishSaving(all, in: folder.lastPathComponent, reveal: p.after == .none)
+        await finishSaving(all, in: folder.lastPathComponent, reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
         await after(p.after, all)
     }
 
@@ -605,13 +607,7 @@ final class ScanModel {
             service.subject = urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : "Scans"
             service.perform(withItems: urls)
         case .openInInkvoltPdf:
-            let pdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
-            guard !pdfs.isEmpty else { return }
-            guard let app = InkvoltPdfApp.url else {
-                problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved."
-                return
-            }
-            NSWorkspace.shared.open(pdfs, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
+            if !InkvoltPdfApp.open(urls) { problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved." }
         default:
             break
         }
@@ -653,11 +649,23 @@ final class ScanModel {
         }
     }
 
-    private func finishSaving(_ urls: [URL], in place: String, reveal: Bool) async {
+    /// The save's status line; then, with Settings' "Open scans in Inkvolt PDF" on and Inkvolt PDF installed, the saved
+    /// PDFs open there (once: not again when the preset's own step opens them), else Finder shows them when asked.
+    private func finishSaving(_ urls: [URL], in place: String, reveal: Bool, presetOpens: Bool = false) async {
         let saved = pages.toSave.count == 1 ? "1 page" : "\(pages.toSave.count) pages"
         let files = urls.count > 1 ? " as \(urls.count) files" : ""
         clear()
         status = "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place)."
-        if reveal { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+        savedPdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
+        if InkvoltPdfApp.openScans && !presetOpens && !savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
+            _ = InkvoltPdfApp.open(savedPdfs)
+        } else if reveal {
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        }
+    }
+
+    /// The save bar's Open in Inkvolt PDF: every PDF the last save wrote.
+    func openSavedInInkvoltPdf() {
+        if !InkvoltPdfApp.open(savedPdfs) { problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved." }
     }
 }

@@ -18,6 +18,7 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     @State private var login = LoginItem()
+    @AppStorage(InkvoltPdfApp.openScansKey) private var openScans = false
 
     var body: some View {
         Form {
@@ -35,6 +36,14 @@ private struct GeneralSettings: View {
                     if login.needsApproval {
                         Button("Open Login Items Settings") { SMAppService.openSystemSettingsLoginItems() }
                     }
+                }
+            }
+            // Shown when Inkvolt PDF is installed, as on Windows (or while the switch is on, so it can be turned off).
+            if InkvoltPdfApp.url != nil || openScans {
+                Section {
+                    Toggle("Open scans in Inkvolt PDF", isOn: $openScans)
+                    Text("Each PDF you save opens there automatically.")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
         }

@@ -52,7 +52,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
 | 3.3 The printer's own copier | All of it | |
 | 3.4 Job notifications | All of it | |
-| 3.5 Open in Inkvolt PDF on the Mac | All of it | |
+| 3.5 Open in Inkvolt PDF on the Mac | All of it (done 2026-11-02) | |
 
 The seam (built with 1.6): the key format, its verification, the gate and the store are `ProKeys`, `ProCheck` and
 `ProKeyFile` in `InkvoltPrint.Core/Suite`; each app's `Pro.Allows(feature)` (`InkvoltPrint.Core/Pro.cs`,
@@ -449,6 +449,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Beat it when:** the Mac app finds Inkvolt PDF by bundle identifier and hands a saved PDF over through its URL
   scheme, with the same two switches as Windows. Test: the `--report` runner with a stub app registered for the scheme.
 - **Effort** S. Mac (Windows has it); after Inkvolt PDF's Mac 1.0.
+- **Now (built 2026-11-02, Mac).** The preset's last step (D7 part e), Settings' "Open scans in Inkvolt PDF" and the
+  save bar's Open in Inkvolt PDF, as on Windows (`InkvoltPdfApp`: found by bundle identifier, the files handed over with
+  `NSWorkspace.open`, which the sandbox allows, rather than a URL scheme). Checked on the Mac by `--report --demo --scan`
+  with the real Inkvolt PDF installed; not with a stub app, and no person has seen the hand-off (mac/docs/PLAN.md).
 
 ## Where we already win
 

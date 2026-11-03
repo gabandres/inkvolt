@@ -155,7 +155,7 @@ enum Report {
         await scan.save(to: url, reveal: false)
         let pdf = PDFDocument(url: url)
         let text = pdf?.string ?? ""
-        lines.append("scan saved: \(scan.status) \(scan.problem ?? "")")
+        lines.append("scan saved: \(scan.status) \(scan.problem ?? ""); for Open in Inkvolt PDF: \(scan.savedPdfs.map(\.lastPathComponent)), installed: \(InkvoltPdfApp.url != nil)")
         lines.append("PDF pages \(pdf?.pageCount ?? 0), text \(text.count) characters, finds 'demo scanner': \(text.contains("demo scanner"))")
         // A one-click preset into a remembered folder (made here: no one picks it over SSH).
         if let p = model.presets.first {

@@ -160,6 +160,9 @@ private struct PresetEditor: View {
                         Text(InkvoltPdfApp.url == nil ? "Open in Inkvolt PDF (not installed)" : "Open in Inkvolt PDF").tag(PresetAfter.openInInkvoltPdf)
                     }
                 }
+                if preset.after == .openInInkvoltPdf && preset.fileType == .jpeg {
+                    Text("Inkvolt PDF opens PDFs: JPEG scans are only saved.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
