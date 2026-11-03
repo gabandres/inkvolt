@@ -157,9 +157,10 @@ public partial class MainWindow : Window
         if (Vm is not { } vm) return;
         ShowSidebar(open: false, focus: false);
         var p = vm.Selected;
-        _paletteAll = PrintPalette.Build(
-            p is null ? null : new PrintPalette.Printer(p.Name, p.CanPrint, p.Scan is not null, p.ShowCopy, p.Settings is not null, p.NeedsSetup, p.CanFix, p.IsNetworkPrinter, p.CanSetSnmpLogin),
-            p is null ? -1 : vm.Printers.IndexOf(p), [.. vm.Printers.Select(x => x.Name)], [.. vm.Presets.Items.Select(x => x.Name)]);
+        static PrintPalette.Printer Offer(ViewModels.PrinterViewModel x) =>
+            new(x.Name, x.CanPrint, x.Scan is not null, x.ShowCopy, x.Settings is not null, x.NeedsSetup, x.CanFix, x.IsNetworkPrinter, x.CanSetSnmpLogin);
+        _paletteAll = PrintPalette.Build(p is null ? null : Offer(p), p is null ? -1 : vm.Printers.IndexOf(p),
+            [.. vm.Printers.Select(x => x.Name)], [.. vm.Presets.Items.Select(x => x.Name)], [.. vm.Printers.Select(Offer)]);
         Palette.Visibility = Visibility.Visible;
         Motion.Enter(PaletteCard, rise: -8); // drops in from the top
         PaletteBox.Text = "";
@@ -180,7 +181,7 @@ public partial class MainWindow : Window
 
     private void FilterPalette()
     {
-        var result = PaletteSearch.Filter(_paletteAll, PaletteBox.Text, i => i.Name, i => i.Category);
+        var result = PaletteSearch.Filter(_paletteAll, PaletteBox.Text, i => i.Name, i => i.Category, showWhenEmpty: PrintPalette.ShownWhenEmpty);
         PaletteList.ItemsSource = result;
         PaletteList.SelectedIndex = result.Count > 0 ? 0 : -1;
         var q = PaletteBox.Text.Trim();
@@ -222,6 +223,14 @@ public partial class MainWindow : Window
     {
         if (Vm is not { } vm) return;
         var p = vm.Selected;
+        // Another printer's menu command ("on:n:command"): that printer is shown, then its command runs, as from its own menu.
+        if (PrintPalette.OnOther(id) is var (index, command) && index < vm.Printers.Count)
+        {
+            vm.IsFleetShown = false;
+            vm.Selected = vm.Printers[index];
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => RunPaletteEntry($"printer:{command}"));
+            return;
+        }
         var (kind, arg) = id.IndexOf(':') is var colon and > 0 ? (id[..colon], id[(colon + 1)..]) : (id, "");
         static void Run(ICommand? command, object? parameter = null)
         {

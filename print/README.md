@@ -164,7 +164,10 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   (`AppState.ResetPreferences`; printers, presets, scans and the Scan tab's choices are kept) and turns Start with Windows off.
 - **Command palette** (Ctrl+K), as Inkvolt PDF's: type to find any command of the sidebar, the printer's header buttons,
   sections and menu (only what the selected printer offers), another printer to show, or a scan preset to run (with its
-  Ctrl+1…9); ↑↓ choose, Enter runs, Esc closes; it says what to try when nothing matches. The list is `Core/Suite/PrintPalette`,
+  Ctrl+1…9); ↑↓ choose, Enter runs, Esc closes; it says what to try when nothing matches. Another printer's menu commands
+  are entries too ("Front desk: Fix printing problems…", category Other printers, as far as that printer offers each): they
+  show that printer and run there, no "Show …" first, and are listed only once a word is typed, so the list Ctrl+K opens on
+  stays as short as before (`PrintPalette.ShownWhenEmpty`). The list is `Core/Suite/PrintPalette`,
   the matching `Core/Suite/PaletteSearch` (shared with Inkvolt PDF's palette; both tested).
 - **Help** (sidebar › *Help and shortcuts*, F1): the keyboard shortcuts, why a printer may not be found (VPN, firewall, another
   network: *Add a printer* looks harder; the empty printer list says the same, with an *Add a printer…* button), *What's new*,

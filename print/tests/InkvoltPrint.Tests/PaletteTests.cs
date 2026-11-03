@@ -72,9 +72,68 @@ public class PaletteTests
         Assert.Contains(list, e => e.Id == "app:add");
     }
 
+    // ── Another printer's menu, without showing it first ──
+
+    private static readonly PrintPalette.Printer Inkjet = new("Demo inkjet", CanPrint: true, CanScan: true, CanCopy: true,
+        HasSettings: false, NeedsSetup: false, CanFix: true, IsNetwork: true, SnmpAccess: false);
+
+    private static readonly PrintPalette.Printer FrontDesk = new("Front desk", CanPrint: true, CanScan: false, CanCopy: false,
+        HasSettings: false, NeedsSetup: false, CanFix: true, IsNetwork: false);
+
+    private static List<PrintPalette.Entry> BuildAll(int selected = 0) =>
+        PrintPalette.Build(selected < 0 ? null : new[] { Mfp, Inkjet, FrontDesk }[selected], selected,
+            ["HP LaserJet MFP M234dw", "Demo inkjet", "Front desk"], ["Document to PDF"], [Mfp, Inkjet, FrontDesk]);
+
+    [Fact]
+    public void Another_printers_menu_commands_are_entries_of_their_own()
+    {
+        var other = BuildAll().Where(e => e.Id.StartsWith("on:")).ToList();
+        Assert.Equal(
+            ["Demo inkjet: Reconnect", "Demo inkjet: Print photos…", "Demo inkjet: Batch print: many files…", "Demo inkjet: Fix printing problems…",
+             "Demo inkjet: Printer maintenance…", "Demo inkjet: Remove from Inkvolt Print…",
+             "Front desk: Reconnect", "Front desk: Print photos…", "Front desk: Batch print: many files…", "Front desk: Fix printing problems…",
+             "Front desk: Remove from Inkvolt Print…"],
+            other.Select(e => e.Name));
+        Assert.Equal(["on:1:reconnect", "on:1:photos", "on:1:batch", "on:1:fix", "on:1:maintenance", "on:1:remove"], other.Take(6).Select(e => e.Id));
+        Assert.All(other, e => Assert.Equal("Other printers", e.Category));
+        Assert.DoesNotContain(other, e => e.Name.StartsWith("HP LaserJet")); // the selected printer's are its plain entries
+        // The same commands as the selected printer's menu, and what the printer offers only.
+        Assert.Equal(BuildAll(1).Where(e => e.Id.StartsWith("printer:") && e.Category == "Demo inkjet" && PrintPalette.MenuIds.Contains(e.Id[8..])).Select(e => e.Name),
+            other.Take(6).Select(e => e.Name["Demo inkjet: ".Length..]));
+        Assert.Equal(BuildAll().Count(e => e.Id.StartsWith("on:")), BuildAll().Where(e => e.Id.StartsWith("on:")).Select(e => e.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void They_wait_for_a_word_so_the_list_stays_short()
+    {
+        var all = BuildAll();
+        var empty = PaletteSearch.Filter(all, "", e => e.Name, e => e.Category, showWhenEmpty: PrintPalette.ShownWhenEmpty);
+        Assert.DoesNotContain(empty, e => e.Id.StartsWith("on:"));
+        Assert.Equal(all.Count(e => !e.Id.StartsWith("on:")), empty.Count);
+
+        var fix = PaletteSearch.Filter(all, "front fix", e => e.Name, e => e.Category, showWhenEmpty: PrintPalette.ShownWhenEmpty);
+        Assert.Equal("on:2:fix", fix[0].Id);
+        Assert.Single(fix);
+        var inkjet = PaletteSearch.Filter(all, "inkjet maint", e => e.Name, e => e.Category, showWhenEmpty: PrintPalette.ShownWhenEmpty);
+        Assert.Equal("on:1:maintenance", Assert.Single(inkjet).Id);
+    }
+
+    [Fact]
+    public void An_entry_for_another_printer_names_which_and_what()
+    {
+        Assert.Equal((1, "fix"), PrintPalette.OnOther("on:1:fix"));
+        Assert.Null(PrintPalette.OnOther("printer:fix"));
+        Assert.Null(PrintPalette.OnOther("on:x:fix"));
+        Assert.Null(PrintPalette.OnOther("on:1:"));
+    }
+
+    [Fact]
+    public void Without_the_printers_details_only_Show_entries_as_before() =>
+        Assert.DoesNotContain(Build(Mfp), e => e.Id.StartsWith("on:"));
+
     [Fact]
     public void EveryEntryHasAnIcon() =>
-        Assert.All(Build(Mfp), e => Assert.True(e.Glyph.Length == 1 && char.GetUnicodeCategory(e.Glyph[0]) == System.Globalization.UnicodeCategory.PrivateUse, e.Name));
+        Assert.All(BuildAll(), e => Assert.True(e.Glyph.Length == 1 && char.GetUnicodeCategory(e.Glyph[0]) == System.Globalization.UnicodeCategory.PrivateUse, e.Name));
 
     [Fact]
     public void NothingMatchesSaysWhatToTry()

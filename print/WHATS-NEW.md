@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Ctrl+K reaches every printer's menu: type a printer's name and a command ("front desk fix") to run it on that printer straight away, without showing it first.
 - Printers that answer only SNMP can have their own community: enter it under SNMP access when you add the printer by its address, or change it later from the printer's menu (SNMP access…). It's kept in Windows Credential Manager and used only to read the printer.
 - Inkvolt Pro (free for now): SNMPv3. For a printer that answers only SNMPv3, enter its user name and its two passphrases instead of a community. Every request is signed and encrypted (SHA-256, AES-128), and Inkvolt Print says whether the printer refused the user name or a passphrase.
 

@@ -215,7 +215,7 @@ the right edge looks cut in the shots; on screen it isn't. Organize's page pictu
 | # | Criterion | Round 1 | Round 2 | What changed |
 |---|---|---|---|---|
 | 4 | Fluent consistency | 9.5 | 10 | Motion where Fluent expects it: a section's page when its tab is chosen, the printer's page when another printer is, a status line when its words change, the folded sidebar sliding in, the palette dropping in; 167 ms, decelerate, none when Windows' Animation effects is off (`Motion`). |
-| 6 | Flexibility | 9.5 | 10 | A command palette (Ctrl+K), the same as Inkvolt PDF's: every sidebar, header, section and printer-menu command, each other printer, each scan preset with its Ctrl+1…9 (`after/print-palette.png`, `after/print-palette-scan-dark.png`); it says what to try when nothing matches (`after/print-palette-nomatch.png`). Help lists Ctrl+K. Everything is a few keys away without the mouse. |
+| 6 | Flexibility | 9.5 | 10 | A command palette (Ctrl+K), the same as Inkvolt PDF's: every sidebar, header, section and printer-menu command, each other printer, each scan preset with its Ctrl+1…9 (`after/print-palette.png`, `after/print-palette-scan-dark.png`); it says what to try when nothing matches (`after/print-palette-nomatch.png`). Help lists Ctrl+K. Everything is a few keys away without the mouse. Round 3 (2026-11-03): another printer's menu commands too, as "Printer: command" entries listed once a word is typed (so the list it opens on stays as short), run on that printer without showing it first (`after/print-palette-other.png`, `after/print-palette-other-ran.png`; 0 audit findings). |
 | 14 | Responsiveness | 9.5 | 10 | At Text size 150 % the 272-DIP sidebar took a third of a 1180-DIP window, at 200 % nearly half, cutting the printer's name to "HP LaserJ…" and wrapping the tabs in three rows (`before/print-overview-200.png`). Below 852 DIPs of room it folds into a Printers button that opens it over the page, as Windows Settings folds its pane (`after/print-overview-150.png`, `after/print-overview-200.png`, `after/print-nav-open-150.png`); never at 100 %. |
 | | Every other criterion | — | as round 1 | |
 | | **Weighted** | **9.50** | **9.61** | |
@@ -224,7 +224,6 @@ The audit finds no control without a name or under 24 × 24 on the palette, the 
 
 #### Still short
 
-- **The palette** acts on the selected printer; another printer's menu commands need "Show …" first.
 - **Motion in the scan review** (a page added, deleted, moved) stays immediate: the review's own Undo and status line
   say what happened, and animating the page grid while scanning would compete with the progress bar.
 

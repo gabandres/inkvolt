@@ -130,8 +130,8 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
   cleanup and a Unicode OCR layer.
 - Windows, no hardware (hold lifted for these by the owner, 2026-11-03): 3.2 a community per printer DONE (2026-11-03,
   Credential Manager, `SnmpLoginTests`); SNMPv3 DONE (2026-11-03, Pro, authPriv SHA-256/AES-128, `SnmpV3Tests`; never
-  tried on a printer's agent; PrintCore on the Mac needs the same port later); UX still short (the palette for another printer,
-  motion in the scan review).
+  tried on a printer's agent; PrintCore on the Mac needs the same port later); UX: the palette for another printer DONE
+  (2026-11-03, "Printer: command" entries once a word is typed); motion in the scan review.
 - Hardware, both platforms: 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, batch print on paper, a real jam for job
   alerts. No physical printer has printed a page, and neither stuck-job rule has fired on a real spooler.
 
@@ -351,7 +351,7 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
 - Print `print/ROADMAP.md` waves 2 and 3; Help › Report a problem button for `record`; WIA scanners that only offer
   PDF; TWAIN and black-and-white in Print's own Scan tab.
 - UX still short (`docs/UX-REVIEW.md`): PDF group menus as WinUI-style flyouts, the bar at 150 % text on 1200-px
-  windows, Print's palette for a printer other than the selected one, motion in the scan review.
+  windows, motion in Print's scan review (Print's palette for another printer: done 2026-11-03).
 - Tests: a test that measures time takes its limit from `Timing.Limit`, cancels with `Timing.CancelAfter`, and goes in
   `[Collection(Timing.Alone)]` if it holds a deadline or checks a file is let go (item 8). On a PC loaded by other work
   the full run still overruns a few hang guards (`FolderIndexerTests.A_file_that_never_ends…`' 15 s stall); rerun alone.
