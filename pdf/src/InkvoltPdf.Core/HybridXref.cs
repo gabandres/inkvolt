@@ -16,12 +16,20 @@ internal static partial class HybridXref
 {
     private const int MaxSections = 64, MaxObjects = 8_000_000;
 
+    /// <summary>
+    /// The most an xref stream may inflate to (<see cref="MaxObjects"/> rows of 8 bytes); a small file could otherwise
+    /// inflate one to gigabytes. Past it the file is left as it is.
+    /// </summary>
+    internal const int MaxStreamBytes = 64 << 20;
+
     /// <summary>The file with every object reachable by PDFsharp, or the same array when it isn't a hybrid file (or can't be read as one).</summary>
-    public static byte[] Normalize(byte[] data)
+    public static byte[] Normalize(byte[] data) => Normalize(data, MaxStreamBytes);
+
+    internal static byte[] Normalize(byte[] data, int maxStreamBytes)
     {
         try
         {
-            return Merge(data) ?? data;
+            return Merge(data, maxStreamBytes) ?? data;
         }
         catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentException or IndexOutOfRangeException or OverflowException)
         {
@@ -34,7 +42,7 @@ internal static partial class HybridXref
     [GeneratedRegex(@"/XRefStm\s+(\d+)")] private static partial Regex XRefStm();
     [GeneratedRegex(@"/Prev\s+(\d+)")] private static partial Regex Prev();
 
-    private static byte[]? Merge(byte[] data)
+    private static byte[]? Merge(byte[] data, int maxStreamBytes)
     {
         if (Incremental.StartXref(data) is not { } start) return null;
         var entries = new Dictionary<int, Entry>();
@@ -54,10 +62,10 @@ internal static partial class HybridXref
                 {
                     hybrid = true;
                     var stm = long.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture);
-                    if (seen.Add(stm)) Stream(data, stm, entries);
+                    if (seen.Add(stm)) Stream(data, stm, entries, maxStreamBytes);
                 }
             }
-            else trailer = Stream(data, at, entries);
+            else trailer = Stream(data, at, entries, maxStreamBytes);
             lastTrailer ??= trailer;
             if (Prev().Match(trailer) is { Success: true } p) queue.Add(long.Parse(p.Groups[1].Value, CultureInfo.InvariantCulture));
         }
@@ -135,7 +143,7 @@ internal static partial class HybridXref
     }
 
     /// <summary>Reads an xref stream into <paramref name="entries"/> (entries already known win) and returns its dictionary's text.</summary>
-    private static string Stream(byte[] data, long at, Dictionary<int, Entry> entries)
+    private static string Stream(byte[] data, long at, Dictionary<int, Entry> entries, int maxStreamBytes)
     {
         var window = Encoding.Latin1.GetString(data, (int)at, (int)Math.Min(data.Length - at, 64 * 1024));
         var s = window.IndexOf("stream", StringComparison.Ordinal);
@@ -148,7 +156,7 @@ internal static partial class HybridXref
         if (data[bodyAt] == '\r') bodyAt++;
         if (data[bodyAt] == '\n') bodyAt++;
         var raw = data.AsSpan(bodyAt, Math.Min(int.Parse(length.Groups[1].Value, CultureInfo.InvariantCulture), data.Length - bodyAt)).ToArray();
-        var bytes = Regex.IsMatch(dict, @"/Filter\s*\[?\s*/FlateDecode") ? Inflate(raw) : raw;
+        var bytes = Regex.IsMatch(dict, @"/Filter\s*\[?\s*/FlateDecode") ? Inflate(raw, maxStreamBytes) : raw;
         var w = Regex.Match(dict, @"/W\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s*\]");
         if (!w.Success) throw new FormatException("xref W");
         int w1 = int.Parse(w.Groups[1].Value, CultureInfo.InvariantCulture), w2 = int.Parse(w.Groups[2].Value, CultureInfo.InvariantCulture), w3 = int.Parse(w.Groups[3].Value, CultureInfo.InvariantCulture);
@@ -185,12 +193,18 @@ internal static partial class HybridXref
         return dict;
     }
 
-    private static byte[] Inflate(byte[] raw)
+    /// <exception cref="InvalidDataException">The data inflates to more than <paramref name="maxBytes"/>.</exception>
+    private static byte[] Inflate(byte[] raw, int maxBytes)
     {
         using var input = new MemoryStream(raw);
         using var z = new ZLibStream(input, CompressionMode.Decompress);
         using var output = new MemoryStream();
-        z.CopyTo(output);
+        var chunk = new byte[64 * 1024];
+        for (int n; (n = z.Read(chunk)) > 0;)
+        {
+            if (output.Length + n > maxBytes) throw new InvalidDataException("xref stream too large");
+            output.Write(chunk, 0, n);
+        }
         return output.ToArray();
     }
 

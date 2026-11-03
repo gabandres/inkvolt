@@ -17,9 +17,15 @@ enum HybridXref {
     }
 
     /// The file with every object reachable, or the same bytes when it isn't a hybrid file (or can't be read as one).
-    static func normalize(_ data: [UInt8]) -> [UInt8] { (try? merge(data)) ?? data }
+    /// The most an xref stream may inflate to (`maxObjects` rows of 8 bytes); a small file could otherwise inflate one to
+    /// gigabytes. Past it the file is left as it is.
+    static let maxStreamBytes = 64 << 20
 
-    private static func merge(_ data: [UInt8]) throws -> [UInt8]? {
+    static func normalize(_ data: [UInt8]) -> [UInt8] { normalize(data, maxStreamBytes: maxStreamBytes) }
+
+    static func normalize(_ data: [UInt8], maxStreamBytes: Int) -> [UInt8] { (try? merge(data, maxStreamBytes)) ?? data }
+
+    private static func merge(_ data: [UInt8], _ maxStreamBytes: Int) throws -> [UInt8]? {
         guard let start = startXref(data) else { return nil }
         var entries: [Int: Entry] = [:]
         var seen = Set<Int>()
@@ -36,10 +42,10 @@ enum HybridXref {
                 trailer = try classic(data, at, &entries)
                 if let x = number(trailer, "/XRefStm") {
                     hybrid = true
-                    if seen.insert(x).inserted { _ = try stream(data, x, &entries) }
+                    if seen.insert(x).inserted { _ = try stream(data, x, &entries, maxStreamBytes) }
                 }
             } else {
-                trailer = try stream(data, at, &entries)
+                trailer = try stream(data, at, &entries, maxStreamBytes)
             }
             if lastTrailer == nil { lastTrailer = trailer }
             if let p = number(trailer, "/Prev") { queue.append(p) }
@@ -135,7 +141,7 @@ enum HybridXref {
     }
 
     /// Reads an xref stream into `entries` (entries already known win) and returns its dictionary's text.
-    private static func stream(_ data: [UInt8], _ at: Int, _ entries: inout [Int: Entry]) throws -> String {
+    private static func stream(_ data: [UInt8], _ at: Int, _ entries: inout [Int: Entry], _ maxStreamBytes: Int) throws -> String {
         guard at >= 0, at < data.count else { throw Damaged() }
         let window = data[at..<min(data.count, at + 64 * 1024)]
         guard let s = window.firstRange(of: Array("stream".utf8)) else { throw Damaged() }
@@ -149,7 +155,7 @@ enum HybridXref {
         let raw = data[bodyAt..<min(data.count, bodyAt + min(length, data.count))]
         var bytes = Array(raw)
         if groups(#"(/Filter\s*\[?\s*/FlateDecode)"#, dict) != nil {
-            guard let inflated = Inflate.zlib(raw, limit: 256 << 20) else { throw Damaged() }
+            guard let inflated = Inflate.zlib(raw, limit: maxStreamBytes + 1), inflated.count <= maxStreamBytes else { throw Damaged() }
             bytes = inflated
         }
         guard let w = groups(#"/W\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s*\]"#, dict), let w1 = Int(w[0]), let w2 = Int(w[1]), let w3 = Int(w[2]),

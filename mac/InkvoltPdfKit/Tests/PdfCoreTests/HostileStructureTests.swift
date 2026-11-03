@@ -1,3 +1,4 @@
+import Compression
 import Foundation
 import Testing
 @testable import PdfCore
@@ -554,5 +555,85 @@ struct HostileStructureTests {
         for _ in 0..<pages { objects.append("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>") }
         let file = Core2Pdf.build(objects)
         _ = try within { try AutoTag.figureAlts(Core2Pdf.open(file)).count }
+    }
+
+    // MARK: One huge Flate stream (a small file that inflates to gigabytes)
+
+    /// A zlib stream of `head` and then `zeros` zero bytes, deflated a chunk at a time (its checksum left zero: neither
+    /// reader below checks it).
+    private static func zlibThenZeros(_ head: [UInt8], _ zeros: Int) -> [UInt8] {
+        var out: [UInt8] = [0x78, 0x9C]
+        var stream = compression_stream(dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!, dst_size: 0,
+                                        src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!, src_size: 0, state: nil)
+        guard compression_stream_init(&stream, COMPRESSION_STREAM_ENCODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else { return [] }
+        defer { compression_stream_destroy(&stream) }
+        var dst = [UInt8](repeating: 0, count: 1 << 20)
+        func feed(_ src: [UInt8], last: Bool) {
+            src.withUnsafeBufferPointer { s in
+                stream.src_ptr = s.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 1)!
+                stream.src_size = s.count
+                while true {
+                    let status = dst.withUnsafeMutableBufferPointer { d -> compression_status in
+                        stream.dst_ptr = d.baseAddress!
+                        stream.dst_size = d.count
+                        return compression_stream_process(&stream, last ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0)
+                    }
+                    out += dst[0..<(dst.count - stream.dst_size)]
+                    if status == COMPRESSION_STATUS_END || status == COMPRESSION_STATUS_ERROR { break }
+                    if stream.src_size == 0 && (!last || stream.dst_size > 0) { break }
+                }
+            }
+        }
+        feed(head, last: false)
+        let chunk = [UInt8](repeating: 0, count: 1 << 20)
+        var left = zeros
+        while left > 0 {
+            feed(Array(chunk.prefix(min(chunk.count, left))), last: false)
+            left -= chunk.count
+        }
+        feed([], last: true)
+        return out + [0, 0, 0, 0]
+    }
+
+    /// A hybrid file (a classic table whose trailer names an xref stream) whose Flate xref stream inflates to `rows` rows.
+    private static func hybridFileWithXrefRows(_ rows: Int) -> [UInt8] {
+        var data = [UInt8](repeating: 0, count: rows * 3)
+        for i in 0..<rows { data[i * 3] = 1 }
+        let packed = zlibThenZeros(data, 0)
+        var file = latin1Bytes("%PDF-1.7\n")
+        let streamAt = file.count
+        file += latin1Bytes("1 0 obj\n<< /Type /XRef /W [1 1 1] /Index [0 \(rows)] /Filter /FlateDecode /Length \(packed.count) >>\nstream\n")
+        file += packed
+        file += latin1Bytes("\nendstream\nendobj\n")
+        let tableAt = file.count
+        file += latin1Bytes("xref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 1 /XRefStm \(streamAt) >>\nstartxref\n\(tableAt)\n%%EOF\n")
+        return file
+    }
+
+    @Test func HybridXrefLeavesAFileWhoseXrefStreamInflatesPastTheLimit() {
+        // 400,000 rows of 3 bytes inflate to 1.2 MB: past a 1 MB limit the file is left as it is (read as a plain file), under
+        // a 2 MB one it is merged. The real limit, 64 MB, holds HybridXref's 8 million objects at 8 bytes a row.
+        let file = Self.hybridFileWithXrefRows(400_000)
+        #expect(file.count < 64 * 1024)
+        #expect(HybridXref.normalize(file, maxStreamBytes: 1 << 20) == file)
+        #expect(HybridXref.normalize(file, maxStreamBytes: 2 << 20) != file)
+        #expect(HybridXref.maxStreamBytes == 64 << 20)
+    }
+
+    @Test func PngDecoderReadsOnlyThePixelsItsSizeNeeds() {
+        // A 1×1 picture whose image data goes on with 256 MB of zeros (about 250 KB packed): only its 4 bytes are inflated.
+        let ihdr: [UInt8] = [0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]
+        let idat = Self.zlibThenZeros([0, 10, 20, 30], 256 << 20)
+        var png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        func chunk(_ type: String, _ body: [UInt8]) {
+            png += [UInt8(body.count >> 24 & 255), UInt8(body.count >> 16 & 255), UInt8(body.count >> 8 & 255), UInt8(body.count & 255)]
+            png += Array(type.utf8) + body + [0, 0, 0, 0] // the CRC isn't checked
+        }
+        chunk("IHDR", ihdr)
+        chunk("IDAT", idat)
+        chunk("IEND", [])
+        let image = PngDecoder.decode(png)
+        #expect(image?.width == 1 && image?.height == 1)
+        #expect(image?.rgb == [10, 20, 30])
     }
 }

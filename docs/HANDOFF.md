@@ -40,7 +40,9 @@ Foundation-only code that builds and tests on Windows (`mac/tools/swift-dev.ps1`
 [Mac] = needs a Mac (`mac/tools/mac.sh`). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md` or
 `print/ROADMAP.md`; port tests first, same names.
 1. Small fixes [Mac]: ~~`main.swift:8` sets `Pro.store` after the command line runs~~ (done 2026-11-02);
-   ~~`PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s~~ (done); one huge Flate stream is unbounded (both apps).
+   ~~`PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s~~ (done); ~~one huge Flate stream is unbounded~~ (done
+   for HybridXref and the Mac's PngDecoder; left: PDFsharp's `UnfilteredValue` on Windows has no limit, see PLAN.md's
+   "Small fixes after the E-steps").
 2. Print 3.5 Open in Inkvolt PDF [Mac]: D7 part e added it to scan presets; check what's left and mark it done.
 3. Print 1.6 Pro key [PC core, Mac UI] (S): CryptoKit, the key in the app group container, one key for both apps.
 4. Print 1.3 Scanners that only give PDF [PC core, Mac UI] (S): PDFKit renders the pages.

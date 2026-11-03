@@ -46,9 +46,10 @@ enum PngDecoder {
         default: return nil
         }
         if colorType != 0 && colorType != 3 && depth < 8 { return nil }
-        guard idat.count > 6, let raw = inflate(Array(idat[2..<(idat.count - 4)])) else { return nil }
         let bitsPerPixel = channels * depth
         let stride = (width * bitsPerPixel + 7) / 8
+        // Only the bytes the size needs are inflated (as .NET's ReadExactly): a small file's data could go on for gigabytes.
+        guard idat.count > 6, let raw = Inflate.raw(idat[2..<(idat.count - 4)], limit: height * (stride + 1)) else { return nil }
         guard raw.count >= height * (stride + 1) else { return nil }
 
         // Unfilter, row by row.
@@ -135,11 +136,5 @@ enum PngDecoder {
 
     private static func be32(_ b: [UInt8], _ at: Int) -> UInt32 {
         UInt32(b[at]) << 24 | UInt32(b[at + 1]) << 16 | UInt32(b[at + 2]) << 8 | UInt32(b[at + 3])
-    }
-
-    /// Raw deflate data (the zlib header and checksum already stripped) inflated.
-    private static func inflate(_ data: [UInt8]) -> [UInt8]? {
-        guard let out = try? (Data(data) as NSData).decompressed(using: .zlib) as Data else { return nil }
-        return Array(out)
     }
 }

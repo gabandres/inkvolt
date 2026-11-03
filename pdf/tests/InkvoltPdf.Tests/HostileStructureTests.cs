@@ -469,4 +469,72 @@ public class HostileStructureTests
         var data = Core2Pdf.Build(objects);
         await Within(() => ExportTags.Read(data, null));
     }
+
+    // ───────────────────────── One huge Flate stream (a small file that inflates to gigabytes) ─────────────────────────
+
+    /// <summary>A zlib stream of <paramref name="head"/> and then <paramref name="zeros"/> zero bytes, made a chunk at a time.</summary>
+    private static byte[] ZlibThenZeros(byte[] head, long zeros)
+    {
+        using var output = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            z.Write(head);
+            var chunk = new byte[1 << 20];
+            for (var left = zeros; left > 0; left -= chunk.Length) z.Write(chunk, 0, (int)Math.Min(chunk.Length, left));
+        }
+        return output.ToArray();
+    }
+
+    /// <summary>A hybrid file (a classic table whose trailer names an xref stream) whose Flate xref stream inflates to <paramref name="rows"/> rows.</summary>
+    private static byte[] HybridFileWithXrefRows(int rows)
+    {
+        var data = new byte[rows * 3];
+        for (var i = 0; i < rows; i++) data[i * 3] = 1;
+        var packed = ZlibThenZeros(data, 0);
+        var file = new List<byte>(Encoding.ASCII.GetBytes("%PDF-1.7\n"));
+        var streamAt = file.Count;
+        file.AddRange(Encoding.ASCII.GetBytes($"1 0 obj\n<< /Type /XRef /W [1 1 1] /Index [0 {rows}] /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"));
+        file.AddRange(packed);
+        file.AddRange(Encoding.ASCII.GetBytes("\nendstream\nendobj\n"));
+        var tableAt = file.Count;
+        file.AddRange(Encoding.ASCII.GetBytes($"xref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 1 /XRefStm {streamAt} >>\nstartxref\n{tableAt}\n%%EOF\n"));
+        return [.. file];
+    }
+
+    [Fact]
+    public void HybridXrefLeavesAFileWhoseXrefStreamInflatesPastTheLimit()
+    {
+        // 400,000 rows of 3 bytes inflate to 1.2 MB: past a 1 MB limit the file is left as it is (read as a plain file), under
+        // a 2 MB one it is merged. The real limit, 64 MB, holds HybridXref's 8 million objects at 8 bytes a row.
+        var file = HybridFileWithXrefRows(400_000);
+        Assert.True(file.Length < 64 * 1024);
+        Assert.Same(file, HybridXref.Normalize(file, maxStreamBytes: 1 << 20));
+        Assert.NotSame(file, HybridXref.Normalize(file, maxStreamBytes: 2 << 20));
+        Assert.Equal(64 << 20, HybridXref.MaxStreamBytes);
+    }
+
+    [Fact]
+    public void PngDecoderReadsOnlyThePixelsItsSizeNeeds()
+    {
+        // A 1×1 picture whose image data goes on with 256 MB of zeros (about 250 KB packed): only its 4 bytes are inflated.
+        var ihdr = new byte[] { 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0 };
+        var idat = ZlibThenZeros([0, 10, 20, 30], 256L << 20);
+        var png = new List<byte> { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A };
+        void Chunk(string type, byte[] body)
+        {
+            png.AddRange([(byte)(body.Length >> 24), (byte)(body.Length >> 16), (byte)(body.Length >> 8), (byte)body.Length]);
+            png.AddRange(Encoding.ASCII.GetBytes(type));
+            png.AddRange(body);
+            png.AddRange([0, 0, 0, 0]); // the CRC isn't checked
+        }
+        Chunk("IHDR", ihdr);
+        Chunk("IDAT", idat);
+        Chunk("IEND", []);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var image = PngDecoder.Decode([.. png]);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal((1, 1), (image.Width, image.Height));
+        Assert.Equal([10, 20, 30], image.Rgb);
+        Assert.True(allocated < 16 << 20, $"{allocated:N0} bytes allocated");
+    }
 }

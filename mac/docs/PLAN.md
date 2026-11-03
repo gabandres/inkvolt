@@ -385,7 +385,17 @@ reaches the app target, checked by building on `ignia-mac` and by the self-test.
 waits 0.45 s for the keys to rest, is written when the document is asked to close (`PdfDocument.canClose` flushes it and
 waits for the edit before deciding), so ⌘W saves or asks about it instead of losing it; Windows writes it on its own
 timer and closes a tab after `FlushPendingEditsAsync`, which doesn't flush it either (a Mac addition). PrepareFormTest's
-new check (47, all pass on `ignia-mac`).
+new check (47, all pass on `ignia-mac`). One huge Flate stream, traced per route (both apps): HybridXref's xref stream
+was unbounded on Windows (`HybridXref.Inflate`) and cut at 256 MB on the Mac; both now give up past 64 MB
+(`HybridXref.MaxStreamBytes`, 8 million objects at 8 bytes a row) and leave the file as it is. The Mac's `PngDecoder`
+inflated a picture's whole data (`NSData.decompressed`); it now inflates only the bytes its size needs, as Windows'
+`ReadExactly` does. Already bounded: `RedactionCheck`'s raw streams (`MaxStreamBytes`, both), Windows' `Dss.Bytes`
+(`maxBytes`), and everything MuPDF loads (`pdf_load_stream` stops at 200 times the stream's /Length, at least 100 MB:
+MuPDF 1.25's `fz_read_best`). Print inflates nothing of its own (scanner PDFs go to MuPDF or PDFKit). Left: PDFsharp's
+`UnfilteredValue` on Windows (about 35 call sites through `PdfObj.StreamBytes` and directly) has no limit; bounding it
+means a capped Flate reader in front of PDFsharp's, with each caller deciding what a stream too big to read means (for
+redaction it must not read as empty). HostileStructureTests: HybridXrefLeavesAFileWhoseXrefStreamInflatesPastTheLimit,
+PngDecoderReadsOnlyThePixelsItsSizeNeeds (same names on both).
 
 ### Parity with Windows
 
