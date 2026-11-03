@@ -31,18 +31,10 @@ Local Network privilege. Design for three states:
 
 There is no API to ask for the privilege or to read its state.
 
-**Degraded: the offline fixer.** A sandboxed app can read the local CUPS queues and their state, and cancel the
-user's own jobs. It **cannot** do any of these on its own:
-
-- resume a paused queue
-- accept jobs again
-- cancel other users' jobs
-- add or delete a queue
-
-macOS cupsd requires the operator or admin authorization right for those operations and refuses peer credentials for
-them. The only other way in is Authorization Services, which the sandbox forbids. So the v1 fixer diagnoses the
-problem, cancels the user's own stuck jobs, then hands off to Printers & Scanners with exact instructions. A one-click
-Resume or Re-add would need a separate, non-App Store build.
+**The offline fixer, for an administrator, does it from the sandbox:** resume a paused queue, accept jobs again,
+re-point a queue and add one (libcups over cupsd's socket; probe results below). A standard user can't (cupsd asks for
+the operator or admin right), nor can anyone cancel other users' jobs: then the fixer diagnoses, cancels the user's own
+stuck jobs and hands off to Printers & Scanners.
 
 **Cut from the App Store app:** Sparkle and any updater other than the App Store (2.4.5(vii)), privileged helpers and
 root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
@@ -353,7 +345,7 @@ sandbox" above.)
   step-by-step text.
 - Tell the user exactly what to click: Resume in the queue window, or remove and re-add the printer (Inkvolt shows the
   correct address).
-- A one-click fixer would need a Developer ID build with an authorization prompt, outside the App Store.
+- For a standard user a one-click fixer would need a Developer ID build with an authorization prompt, outside the App Store.
 
 ## Q3. App Store Review Guidelines (last updated October 16, 2026)
 

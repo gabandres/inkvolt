@@ -14,8 +14,7 @@ https://github.com/gabandres/inkvolt-pdf, the address before the move, redirects
 From the repository root:
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Pdf                    # Store build with the Partner Center identity, unsigned
-pwsh -File packaging/pack-msix.ps1 -App Pdf -Version 1.1.0.0   # a later submission
+pwsh -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0   # Store build with the Partner Center identity, unsigned; higher than the last submission
 ```
 
 Before packing a release, rename `## Next` in `pdf/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
@@ -120,7 +119,7 @@ needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDeskt
 > (automation of a separate, hidden Office instance) and from web pages through the system WebView2 runtime, and sign documents with certificates from the user's Windows certificate store and
 > smart cards, and (only when the user turns it on) send text the user picks to an AI endpoint the user configures. It installs no services or drivers, needs no administrator rights, and changes no system settings.
 
-### Draft Store description
+### Store description before 2026-10-30 (replaced by the text under "Listing proposals 2026-10-30")
 
 Short description:
 
@@ -271,6 +270,9 @@ Description (en-us):
 > Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt. Also for Mac:
 > https://bermudezsystems.com/products/inkvolt/
 
+For the next listing: "Scan straight into a PDF with Inkvolt Print" is out of date (Inkvolt PDF scans by itself, File ›
+Scan, sharing only Inkvolt Print's code); write "Scan straight into a PDF from network, USB and TWAIN scanners."
+
 Short description (es):
 
 > Editor y lector de PDF gratis: edita texto, llena y firma formularios, une y organiza páginas, convierte PDF a Word y
@@ -290,7 +292,8 @@ Partner Center asks for a privacy policy URL; publish a short page (e.g. on the 
 
 - Inkvolt PDF collects no personal data and has no telemetry, analytics, ads or accounts.
 - Documents are processed on the PC (rendering, search, OCR with Windows' own recognizer).
-- Network use happens only on the user's action: an RFC 3161 timestamp when signing with "Add a timestamp" or adding a
+- Store installs ask Windows' own Store service whether an update is ready, about 30 s after startup (Settings turns it
+  off); only this app's package is named. Other network use happens only on the user's action: an RFC 3161 timestamp when signing with "Add a timestamp" or adding a
   document timestamp (only a hash goes to the timestamp server in the field, Sectigo's free one unless the user enters another); Add Verification
   Information, signing for the long term and Check Signatures Online, which ask the OCSP and CRL addresses a certificate names
   (they learn which certificate is asked about, never the document), each after a window listing them; and links in documents,
@@ -348,7 +351,7 @@ If `install.ps1`'s copy is installed too, both appear under "Open with"; uninsta
 `AppEnvironment.IsPackaged` (src/InkvoltPdf.App/AppEnvironment.cs) tells the two apart at run time:
 
 - File associations, the Start menu entry and the `inkvoltpdf` command (app execution alias) come from the manifest;
-  the alias is also the command line (`inkvoltpdf --batch`, `--watch`, `--help`: README's "Command line"), so after a
+  the alias is also the command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`: README's "Command line"), so after a
   package change check `inkvoltpdf --help | Out-Default` prints the usage and `$LASTEXITCODE` is 0;
   nothing writes registry associations. Settings' "Open Default apps" opens the package's own Default apps page.
 - Settings and logs stay at `%LOCALAPPDATA%\InkvoltPdf`; Windows redirects that into the package's private folder, so a

@@ -7,7 +7,7 @@ scores 9.62 / 9.61). Work on branch `mac-ux` from master; commit per area; push;
 merges). Don't run `release.sh`, don't touch App Store Connect.
 
 ## Read first
-- `CLAUDE.md`, `mac/CLAUDE.md` (rules: 0 warnings, the 150 ms type-check flag, PdfCore Foundation-only, privacy,
+- `CLAUDE.md`, `mac/CLAUDE.md` (rules: 0 warnings, the 150 ms type-check flag, PrintCore Foundation-only, privacy,
   no device identifiers in the repo), `mac/README.md`, `mac/docs/PLAN.md` ("Mac differences" sections).
 - `docs/UX-REVIEW.md`: reuse its rubric and criteria, re-weighted for macOS where a criterion is Windows-specific.
 - `git log --oneline -40 -- mac/InkvoltPdf/Sources mac/InkvoltPrint/Sources` for what the D7/E-steps built.

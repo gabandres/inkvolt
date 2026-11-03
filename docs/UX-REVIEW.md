@@ -84,7 +84,7 @@ Fourteen criteria, weighted to 100. Each is scored 0–10 per app; the app's sco
 15. **Motion** (H4, WCAG 2.3.3): `Motion.Enter`, a 167 ms fade and 8-px rise for toasts and the palette, skipped when
     `SystemParameters.ClientAreaAnimation` is off.
 
-### Still short, and why
+### Still short after the first pass (round 2 below closed these)
 
 - **Text size in the title bar and Organize**: the tab strip in the title bar and the Organize page grid keep their size
   (the title bar's height is the caption's, and the Organize cards are page pictures, which the page zoom already enlarges).
@@ -111,7 +111,7 @@ Fourteen criteria, weighted to 100. Each is scored 0–10 per app; the app's sco
 | 10 | Keyboard and focus | 8.5 | 9.5 | `LinkButton` had no Fluent focus ring (WPF's dotted default); it has one now. Tabs, lists and buttons were already in order. |
 | 11 | Accessible names | 9.5 | 9.5 | The audit found no nameless control on any tab or dialog. |
 | 12 | Contrast and themes | 9.5 | 9.5 | Light, dark and Windows setting; the black-toner swatch gets an outline in dark mode. |
-| 13 | Targets and DPI | 8.0 | 9.5 | The scan review's page buttons (turn, crop, delete) were 14 px wide and the About card's text fields 19 px tall (`before/print-scan-review.png`); links and those fields are at least 24 px now (`after/print-scan-review.png`). The audit finds nothing under 24 × 24 on the audited states. |
+| 13 | Targets and DPI | 8.0 | 9.5 | The scan review's page buttons (turn, crop, delete) were 14 px wide and the About card's text fields 19 px tall (`before/print-scan-review.png`); links and those fields are at least 24 px now (`after/print-review-undo.png`). The audit finds nothing under 24 × 24 on the audited states. |
 | 14 | Responsiveness | 8.5 | 9.5 | The Scan settings' scrollbar covered the captions (`before/print-scan.png` → `after/print-scan.png`), as did What's New's. Windows' *Text size* now scales every window (`after/print-overview-textsize150.png`); at large sizes the tabs wrap in their order (WPF's TabPanel moved the selected row to the bottom) and the printer's buttons go under its name instead of over its address. Window position and size are remembered. |
 | | **Weighted** | **9.0** | **9.5** (9.50) | |
 
@@ -131,7 +131,7 @@ Fourteen criteria, weighted to 100. Each is scored 0–10 per app; the app's sco
    go under the name when there is no room; the section tabs wrap in order (`WrapPanel`).
 10. **Review shortcuts** (H7): Ctrl+R / Ctrl+L and Ctrl+S, listed in Help.
 
-### Still short, and why
+### Still short after the first pass (round 2 below closed these)
 
 - **The sidebar at large text** keeps its 272-DIP width, scaled: at 200 % on a small window it takes much of it. Windows
   Settings folds its own pane at that point; doing so here is a layout change for another pass.

@@ -1,12 +1,12 @@
-# Inkvolt: free, private PDF and printer apps for Windows
+# Inkvolt: free, private PDF and printer apps for Windows and Mac
 
 **Inkvolt PDF** is a PDF reader and editor. **Inkvolt Print** handles your printers and scanners. Both are free and open
-source, with **no account, no ads, no telemetry and no cloud**: your files stay on your PC.
+source, with **no account, no ads, no telemetry and no cloud**: your files stay on your computer.
 
 <p>
   <a href="https://apps.microsoft.com/detail/9MXDTSFJ9W28"><b>Get Inkvolt PDF</b></a> ·
   <a href="https://apps.microsoft.com/detail/9PNR76HJ62SK"><b>Get Inkvolt Print</b></a> (Microsoft Store, Windows 10 and 11, x64 and native ARM64) ·
-  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.4.0">Inkvolt PDF for Mac</a> ·
+  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0">Inkvolt PDF for Mac</a> ·
   <a href="https://bermudezsystems.com/products/inkvolt/">Website</a>
 </p>
 
@@ -116,8 +116,8 @@ names are trademarks of their owners, used here only for comparison.*
 
 ## For developers
 
-Two Windows apps in one repository. Each is its own app with its own Microsoft Store listing; they share code and
-install together.
+Two apps, for Windows and the Mac, in one repository. Each is its own app with its own store listing; they share code
+and install together.
 
 | Folder | What | License |
 |---|---|---|
@@ -125,7 +125,7 @@ install together.
 | [`print/`](print/README.md) | **Inkvolt Print**: a lean, private app for your printers and scanners (status, ink or toner, scan, copy, print) | MIT |
 | `shared/` | `InkvoltPrint.Core` (protocols: eSCL, IPP, LEDM, CDM, SNMP, scan options, remembered printers) and `InkvoltPrint.Windows` (discovery, Windows queues, WIA): used by both apps; tested by `print/tests` | MIT |
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
-| [`mac/`](mac/README.md) | **Inkvolt for macOS**, in planning: native Swift, Inkvolt Print first (Mac App Store), then Inkvolt PDF | MIT (Inkvolt PDF's Mac app will be AGPL) |
+| [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (1.0 in App Review, Mac App Store) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
 
 The license of each folder is in its `LICENSE`. At the top level, [LICENSE](LICENSE) is the AGPL-3.0 text (Inkvolt
 PDF's) and [LICENSE-MIT](LICENSE-MIT) the MIT text, which covers the top-level scripts. Inkvolt PDF's
@@ -165,8 +165,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 ### Microsoft Store
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Pdf      # → pdf/publish/msix
-pwsh -File packaging/pack-msix.ps1 -App Print    # → print/publish/msix
+pwsh -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # → pdf/publish/msix
+pwsh -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
 ```
 
 Partner Center values, Store policy notes and listing drafts: [`pdf/packaging/README.md`](pdf/packaging/README.md),

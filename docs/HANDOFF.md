@@ -2,27 +2,98 @@
 
 ## Start here (next session)
 
-**Your job: keep closing the Mac parity gap.** Work down "Mac work after the E-steps, easiest first" below, in that
-order, one item per commit, each with its .NET tests ported first (same names), 0 warnings, `mac/docs/PLAN.md`,
+What is truly left, per app and platform, checked against the code on 2026-11-02. Done items are gone from this list;
+`git log` has them. **No release is planned: the owner decides on return.** Don't publish a Mac or Store version on your
+own (when the owner asks: `INKVOLT_PUBLISH=yes release.sh <v> --publish`, then the Homebrew tap
+`gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.4.1 and 1.5.0 were).
+
+**How to work a Mac item.** One item per commit, its .NET tests ported first (same names), 0 warnings, `mac/docs/PLAN.md`,
 `WHATS-NEW.md` "## Next" and the roadmap's Mac line updated, then push to master. Use `bash mac/tools/mac.sh` for
-everything on the Mac (`mac/CLAUDE.md`); items marked [PC] build and test on Windows (`mac/tools/swift-dev.ps1`). One agent
-on the Mac at a time (they share `~/Repos/inkvolt-pc` and `/Applications`); a second agent may run [PC] items in its own
-worktree. After each push, check the `mac` CI job: CI's Xcode is older than the Mac's and rejects long expressions the Mac
-compiles (split them), and its runner is slow (heavy tests skip on `GITHUB_ACTIONS`, as `ScanCorpus.runs` and Vision's do).
-Release a Mac PDF version when a few items have landed (owner: no need to ask; `release.sh <v> --publish`, then the
-Homebrew tap `gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.4.1 and 1.5.0 were).
+everything on the Mac (`mac/CLAUDE.md`). One agent on the Mac at a time (they share `~/Repos/inkvolt-pc` and
+`/Applications`). After each push, check the `mac` CI job: CI's Xcode is older than the Mac's and rejects long
+expressions the Mac compiles (split them), and its runner is slow (heavy tests skip on `GITHUB_ACTIONS`, as
+`ScanCorpus.runs` and Vision's do). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md`.
 
-**Done on 2026-11-02.** Inkvolt PDF for Mac 1.4.1 (Windows' 1.5.0 signature fix; Not fully checked) and 1.5.0 (E9
-attachments and layers, E10 Read Aloud, E12 PDF from Office files through LibreOffice and from web pages, E13 split view,
-E14 OCR clean-up and suspect words, E15 PowerPoint and HTML export, E16 a faster Find and less memory; numbers in
-`mac/tools/bench/RESULTS.md`, from the M1 Air, to measure again on the mini). Print for Mac's PrintCore halves of 1.1, 1.2,
-1.3, 1.5, 1.6, 2.4 and 2.6 (built and tested on Windows; their PrintMac and app parts are in PLAN.md's P12). `mac/tools/mac.sh`.
+### Inkvolt PDF for Mac: scheduled (unattended run, Tue 2026-11-03 08:10)
 
-**Open, besides the ranked list.** The Windows `test` CI job fails about one run in two on a different timing test each time
-(`PageCleanupTests.A_huge_page…`, `TranslationCopyTests.Forms_that_multiply…`, `DeviceHttpLimitsTests.A_reply_that_breaks_off…`,
-`Core1EngineTests.RenderStopsMidwayWhenCancelled`): give them CI-sized limits or skip the heavy ones on `GITHUB_ACTIONS`.
-Print for Mac 1.0 has waited for App Review since 2026-10-27 (nothing missing on our side); the owner is asking Apple.
-Only a person: look at the new Mac UI (PLAN.md lists it per step), hear Read Aloud, try E12 with a real LibreOffice.
+One agent, cheapest first, one commit each, in this order:
+1. Saved signatures between launches (`SignatureLibrary` keeps them for the run only, `FillSign.swift`).
+2. Rotate view (per window and split pane; links, selection, fields, comments and Prepare Form follow the turn, as
+   Windows' `RotatedView`; PdfCore has `RotatedView`, the app never turns the view).
+3. Dark pages.
+4. Dragging thumbnails to move pages (and PDFs dropped on them; today only the organizer and bookmarks take drags).
+5. Reading modes: single, two pages, cover (`PagesView` lays out continuously only).
+6. Insert from Scanner into the open document (Pages has Insert from File and Blank; the start page's From a Scanner…
+   makes a new PDF).
+7. Report a Problem (the Help menu has What's New, Pro and GitHub only).
+8. Comments and form data in and out (roadmap 1.4): Export and Import Comments (XFDF, FDF, CSV), Summarize Comments,
+   form data as CSV and JSON (the Mac has XFDF and FDF only), Fill Forms from CSV (`FormMerge`), Batch's comment exports
+   and summary, `--fill`.
+9. Redaction by pattern, Windows' additions of 2026-11-01 (roadmap 1.1, "Finished on Windows 2026-11-01"): named sets,
+   scans searched through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's
+   new failure rules, the Pro split.
+
+### Inkvolt PDF for Mac: other gaps, not scheduled
+
+- Small, each with Windows tests to port: form fields' hover (enter, exit) actions (PdfCore runs them, `FormFill.swift`
+  runs only click, focus and blur); resizing pictures and moving them with the arrow keys in Edit Text & Images; Extract
+  as a file per page, Split (by count, ranges, bookmarks) and Reverse Page Order (PdfCore has `PageEditor.reverse`, no
+  command); Go to Page; Document Properties; Compare's zoom and start-page card; an attached PDF with its own password;
+  export with the layers shown; Accessibility Check's words for Attach a File and Read Aloud (PLAN.md, accessibility).
+- No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's printer
+  settings when printing, the Snapshot tool.
+- Larger roadmap items: 2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers in
+  its sandboxed container; File › Scan already has the feeder, both sides and OCR); 3.4 long-term validation (writing /DSS
+  and /VRI, B-LTA, Check Signatures Online, Batch's action, the Pro gate, the rest of LtvTests.cs;
+  `Signatures.verify(online:)` exists in PdfCore, unused by the app); 3.3 Compare with Office files, scans and formatting;
+  3.5 indexed folder search; Microsoft Office as E12's converter (backlog note below, on the mini); 3.1 Translate (after
+  2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
+- The Mac UX pass (`mac/docs/UX-BRIEF.md`, not started; after the PDF items).
+
+### Inkvolt PDF for Windows: open, no hardware needed
+
+1. OCR: re-read bands with ink and no words (`ScanText`). Helps Redact by Pattern on scans and Recognize Text.
+2. PDF 3.4: certifying with a choice of fields to lock (Pro in the table, not built); Batch's long-term action.
+3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
+   `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
+4. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects
+   piece by piece, row spans).
+5. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the
+   PC was loaded, recheck idle.
+6. UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.
+7. Small fixes: `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` call `TryGetProperty` on a root that may
+   not be an object, so JSON such as `[]` throws InvalidOperationException past their `JsonException` catch (check
+   `ValueKind` first; the Mac returns nil or AiError). DevScript's `compare` passes its paths straight to
+   `Comparing.LoadFile`, which shows a modal error the off-screen script never answers, so a bad path hangs it (check the
+   files first and log the failure). PDFsharp's `UnfilteredValue` has no size limit (about 35 call sites through
+   `PdfObj.StreamBytes` and directly): one huge Flate stream can take the memory; bounding it needs a decision per
+   caller, and redaction must not read an over-limit stream as empty (PLAN.md's "Small fixes after the E-steps").
+8. CI: the Windows `test` job fails about one run in two on a different timing test each time
+   (`PageCleanupTests.A_huge_page…`, `TranslationCopyTests.Forms_that_multiply…`, `DeviceHttpLimitsTests.A_reply_that_breaks_off…`,
+   `Core1EngineTests.RenderStopsMidwayWhenCancelled`): give them CI-sized limits or skip the heavy ones on `GITHUB_ACTIONS`.
+
+Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and black-and-white
+in Scan).
+
+### Inkvolt Print, Windows and Mac: ON HOLD (owner, 2026-11-02)
+
+Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review (the owner is asking Apple).
+- Mac, the app halves of what PrintCore already has (PLAN.md's P12): 1.6 Pro key (CryptoKit verifier, the app group
+  container, Help › Inkvolt Pro…), 1.3 scanners that only give PDF (PDFKit renderer), 1.5 firmware watch, 1.1 supply
+  history (Swift Charts), 2.6 Fleet page, 2.4 batch print, 1.2 record a printer (`--report` runner). Not started on the
+  Mac: 3.4 job notifications (the rules to PrintCore; CUPS gives no page counts through `cupsGetJobs2`), 2.3 scan
+  cleanup and a Unicode OCR layer.
+- Windows, no hardware: 3.2 a community per printer and SNMPv3 against the made-up agent; UX still short (the palette
+  for another printer, motion in the scan review).
+- Hardware, both platforms: 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, batch print on paper, a real jam for job
+  alerts. No physical printer has printed a page, and neither stuck-job rule has fired on a real spooler.
+
+### Only a person
+
+Look at the Mac UI nobody has seen (PLAN.md lists it per step), hear Read Aloud with a real voice, try E12 with a real
+LibreOffice and web address, see Inkvolt PDF open a scan from Inkvolt Print for Mac.
+
+### Machines
 
 **The M1 Air is being sold (owner, 2026-11-02); an M6 Mac mini (24 GB, 512 GB) replaces it.** Sell only after the mini runs
 builds and releases. **Backed up to OneDrive (2026-11-02, hashes checked):** `Work/Bermudez Systems LLC/Inkvolt/Keys/Mac signing and
@@ -33,82 +104,22 @@ another), `~/.inkvolt-sparkle/ed25519.key` (also on OneDrive: check the copy mat
 Mac copy can be updated), `~/Repos/inkvolt/mac/InkvoltPrint/.env.local` (ASC key, keychain password), the SSH keys
 `~/.ssh/id_ed25519_github_*`; then on the mini: Xcode, `sh mac/Vendor/mupdf/build.sh`, the `ignia-mac` entry in
 `~/.ssh/config` on the PC (or a new host name), and `mac.sh`'s `INKVOLT_MAC_HOST`. Other projects' files on the Air
-(Ignia, Callbook builds in `~/build-artifacts`) are outside this repo.
-
-**Mac work after the E-steps, easiest first (owner, 2026-11-02: take them in this order).** [PC] = PrintCore or other
-Foundation-only code that builds and tests on Windows (`mac/tools/swift-dev.ps1`), so it goes on after the Air is sold;
-[Mac] = needs a Mac (`mac/tools/mac.sh`). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md` or
-`print/ROADMAP.md`; port tests first, same names.
-1. Small fixes [Mac]: ~~`main.swift:8` sets `Pro.store` after the command line runs~~ (done 2026-11-02);
-   ~~`PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s~~ (done); ~~one huge Flate stream is unbounded~~ (done
-   for HybridXref and the Mac's PngDecoder; left: PDFsharp's `UnfilteredValue` on Windows has no limit, see PLAN.md's
-   "Small fixes after the E-steps").
-2. ~~Print 3.5 Open in Inkvolt PDF [Mac]~~ (done 2026-11-02: Settings' switch and the save bar's link added; a person
-   should see Inkvolt PDF open a scan).
-3. Print 1.6 Pro key [PC core, Mac UI] (S): CryptoKit, the key in the app group container, one key for both apps.
-4. Print 1.3 Scanners that only give PDF [PC core, Mac UI] (S): PDFKit renders the pages.
-5. Print 1.5 Firmware watch and "keep my cartridges working" [PC core, Mac UI] (S).
-6. Print 1.1 Supply history, pages per cartridge, days left [PC core, Mac UI with Swift Charts] (S).
-7. Print 2.6 Fleet page, export, command line [PC core, Mac UI] (S): the same page and JSON from `--report`.
-8. Print 3.4 Job notifications [Mac] (S): stuck and error jobs from CUPS.
-9. PDF D7 leftovers [Mac] (S each): rotate view, dark pages, reading modes (single, two pages, cover), dragging thumbnails
-   to move pages, saved signatures between launches, Report a Problem, Insert from Scanner into the open document.
-10. PDF 1.1's 2026-11-01 additions to redaction by pattern [Mac] (S): see the roadmap's 1.1 "Effort" line.
-11. PDF 1.4 Comments and form data in and out [Mac] (S-M): CSV/JSON, comment summaries, Batch's exports, `--fill`.
-12. Print 2.4 Batch print [PC core, Mac UI] (S-M).
-13. Print 1.2 Record a printer [PC core, Mac command] (S-M): the same command in the `--report` runner.
-14. PDF 2.3 USB scanners in the PDF app [Mac] (M): File › Scan already uses ImageCaptureCore through InkvoltPrintKit;
-    what's left is Windows' feeder/OCR flow and the scanners Inkvolt Print remembers.
-15. PDF 3.4 Long-term validation (PAdES B-LT, B-LTA, Check Signatures Online) [Mac] (M): LtvTests.cs beyond the part ported.
-16. PDF 3.3 Compare with Office files, scans and formatting [Mac] (M): needs E12's conversion and E14's OCR.
-17. PDF 3.5 Indexed folder search [Mac] (M).
-18. Print 2.3 Scan cleanup and a Unicode OCR layer [Mac] (M): Core Image filters in `ScanImaging`, the layer in `ScanPdf`.
-19. Microsoft Office as E12's converter [Mac mini only] (M): see the backlog note below.
-20. PDF 3.1 Translate side by side [Mac] (M, after 2.1).
-21. PDF 2.1 Paragraph text editing [Mac] (L): the largest; the Mac has the line-level editor.
-Not ranked, they wait for hardware on Windows too: Print 2.1, 2.2, 2.5, 3.1, 3.2, 3.3. Only a person: look at the Mac UI
-nobody has seen (PLAN.md lists it per step), a real voice for Read Aloud, a real LibreOffice and web address for E12.
+(Ignia, Callbook builds in `~/build-artifacts`) are outside this repo. The Mac runs macOS 27.2, Xcode 27.1, Swift 6.4.
 
 **Backlog (owner, 2026-11-02): Microsoft Word, Excel and PowerPoint as E12's converter on the Mac** (Windows converts through
 Office first). About a day: AppleScript per app with a time limit, files staged in Office's group container
 (`~/Library/Group Containers/UBF8T346G9.Office/`) because Office for Mac is sandboxed, Word left as found, the
-`com.apple.security.automation.apple-events` entitlement and `NSAppleEventsUsageDescription` (release.sh's preflight
-expects no entitlements today). Needs Microsoft 365 signed in on the Mac and a person to allow the Automation prompt; do it
-on the mini.
+`com.apple.security.automation.apple-events` entitlement and `NSAppleEventsUsageDescription` (`sign.sh` and `release.sh`
+sign Inkvolt PDF with no entitlements today; add the entitlements file there). Needs Microsoft 365 signed in on the Mac
+and a person to allow the Automation prompt; do it on the mini.
 
-**Mac is back (2026-11-02), rebuilt: macOS 27.2, Xcode 27.1, Swift 6.4.** MuPDF rebuilt on it. Work from the PC goes through
-`bash mac/tools/mac.sh` (`mac/CLAUDE.md`). The signature hole below and Accessibility Check's "Not fully checked" were fixed
-and released in 1.4.1; the E-steps E9-E16 in 1.5.0 (see "Start here"). What's left is the ranked list below.
+### Notes
 
-**Released.** Inkvolt Print 1.2.0.0 and Inkvolt PDF 1.6.0.0: both published in the Store on 2026-11-02, GitHub releases `print-v1.2.0.0` and
-`pdf-v1.6.0.0`, website updated, and the privacy page covers translating.
+**Released and current.** Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
+1.5.0 (GitHub release `pdf-mac-v1.5.0`, Homebrew). The Store's release notes are in English and Spanish; neither app has a
+Spanish interface (its own project, not started).
 
-**Print's hold is cleared.** The exit crash is Windows.Data.Pdf and Qualcomm's driver, reproduced in a program with no Inkvolt code; `App.OnExit`
-now ends the process first (0 of 63 after). Batch print ran on real Windows queues on file ports with its output read back. No physical printer
-has printed a page, and neither stuck-job rule has fired on a real spooler: a dead port goes straight to Error. First thing with a printer in reach.
-
-**A real model found what a stand-in couldn't.** Translate's first real run (Qwen3 4B on llama.cpp, `Z:\tools\llama.cpp\models`) showed only each
-paragraph's first line: a white band painted before each line covered the text, and extraction still read it. Fixed, and checked by eye on ten
-pages. Run a real model before trusting Translate again; llama-server on another port leaves the knowledge base's embedding server alone.
-Limits in `pdf/ROADMAP.md` 3.1 "Still wrong": rows drawn by one operator move their figures, turned tables stay in English, link underlines
-stay behind, inline bold goes.
-
-**Reviews.** Hostile-input reviews before these releases found about 18 bugs in Print and about 20 in PDF, all fixed, among them recordings following a
-printer's links to other computers, and Batch redaction passing values in hidden layers, earlier versions and attachments. Keep doing them.
-
-**Spanish.** Neither Windows app has a Spanish interface or language files; Translate translates documents, not the app. The Store's release notes
-are in both languages. Not started: it would be its own project.
-
-**Next (Windows), no hardware needed, in order.**
-1. OCR: re-read bands with ink and no words (`ScanText`). Helps Redact by Pattern on scans and Recognize Text.
-2. PDF 3.4: certifying with a choice of fields to lock (Pro in the table, not built); Batch's long-term action.
-3. Print 3.2: a community per printer and SNMPv3, against the made-up agent; a real printer with `public` off finishes it.
-4. Translate's "Still wrong" list, rows drawn by one operator first.
-5. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans).
-6. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the PC was loaded, recheck idle.
-7. UX still short (`docs/UX-REVIEW.md`): PDF group menus as flyouts, the bar at 150 % text, Print's palette for another printer, motion in the scan review.
-
-**Needs hardware, later.** Print 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, TWAIN and black-and-white in Scan, batch print on paper, a real jam for job alerts.
+**Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
 
 **Tests.** 4,320, none failing except the usual timing tests under load: `ThreadClockTests`, `AccessibilityCheckStopsOn…`,
 `A_file_that_takes_all_the_memory…` and others. Each passes alone. `AccessibilityCheckStopsOn…` has failed in most full runs and could use a longer limit.

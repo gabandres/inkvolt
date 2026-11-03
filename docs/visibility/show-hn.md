@@ -29,7 +29,7 @@ apply redactions, Inkvolt PDF re-renders each page without the covers and compar
 to find text hidden by color or covers, measures the gap beside a box to tell whether the text positions still leak the
 removed width, opens every earlier version kept by incremental saves, decompresses every stream, and searches the raw
 bytes. It also runs on PDFs redacted elsewhere, and "Fix" rewrites the file as one version and checks again. Code:
-`pdf/src/InkvoltPdf.Core/Redaction/` (Windows) and `mac/InkvoltPdfKit/Sources/PdfCore/Redaction/` (Mac); the tests
+`pdf/src/InkvoltPdf.Core/Redaction*.cs` (Windows) and `mac/InkvoltPdfKit/Sources/PdfCore/Redaction/` (Mac); the tests
 plant a name in every place the check looks and assert it is found.
 
 **What's in This PDF.** One report of everything a file carries besides its pages: every script with the external

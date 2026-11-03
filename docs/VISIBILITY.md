@@ -36,7 +36,7 @@ Both apps have been in the Store since 2026-10-25, so "last month" is their whol
 | Homebrew tap | 2026-10-30 | https://github.com/gabandres/homebrew-inkvolt | Live: `brew install --cask gabandres/inkvolt/inkvolt-pdf` (installed, audited and uninstalled on the owner's Mac) | Bump `version` and `sha256` with each Mac release (`release.sh` could do it). homebrew-cask itself needs 225 stars, 90 forks or 90 watchers for a self-submission (75/30/30 when someone else submits) and a repository older than 30 days: not yet |
 | Website: Pro page and six guides | 2026-10-30 | /products/inkvolt/pro/, /redact-pdf/, /pdf-to-word/, /fill-and-sign/, /acrobat-alternative/, /pdfgear-alternative/, /whats-in-a-pdf/ | Live, all 200 (deployed; portfolio 86921ff pushed; IndexNow 200). See "Website" below | |
 | SaaSHub | 2026-10-30 | https://www.saashub.com/inkvolt-pdf (live once approved) | Submitted, free queue (1–12 weeks); categories PDF Editor, PDF Tools, PDF Readers And Editors, Document Management; competitors PDFgear, PDF-XChange Editor, Okular, Adobe Acrobat DC, Foxit Reader; contact gabriel@bermudezsystems.com | Register at saashub.com with that address to claim and verify it (verification needs an address on bermudezsystems.com: it has one); add the logo and Mac screenshots |
-| MacUpdate | 2026-10-30 | https://www.macupdate.com/content/submit | Account created for gabriel@bermudezsystems.com (password in `~/.inkvolt-visibility/accounts.txt`); verification mail sent, not yet clicked | Click the verification link, sign in, Add App: Inkvolt PDF 1.2.0, the GitHub release DMG as the download, Free, macOS 15, Apple silicon |
+| MacUpdate | 2026-10-30 | https://www.macupdate.com/content/submit | Account created for gabriel@bermudezsystems.com (password in `~/.inkvolt-visibility/accounts.txt`); verification mail sent, not yet clicked | Click the verification link, sign in, Add App: Inkvolt PDF 1.5.0 (or the latest Mac release), the GitHub release DMG as the download, Free, macOS 15, Apple silicon |
 | Softpedia | 2026-10-30 | https://www.softpedia.com/user/submit.shtml | Not submitted: the form requires ticking "No AI-written code", and Inkvolt is written with Claude Code | None, unless Softpedia changes the rule. Don't tick it |
 | FileHorse | 2026-10-30 | https://www.filehorse.com/submit/ | Not submitted: requests go through a contact form behind reCAPTCHA | The owner sends the contact form (text below, "Directory texts") |
 | OpenAlternative | 2026-10-30 | https://openalternative.co/submit | Not submitted: submitting needs a sign-in (an email magic link, Google or GitHub); the Gmail connector isn't authorized in these sessions and the browser has no GitHub sign-in | The owner signs in with GitHub and submits https://github.com/gabandres/inkvolt (free queue; the paid options aren't for us) |
@@ -74,11 +74,12 @@ rule decides); "Big documents open at once" on the product page meets the bench'
 FileHorse contact form (subject "Program submission: Inkvolt PDF for Mac"; Windows is Store-only, so only the Mac
 DMG is offered):
 
-> I'm the developer (Bermudez Systems LLC). Inkvolt PDF for Mac 1.2.0, https://bermudezsystems.com/products/inkvolt/ ·
-> download: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.2.0 (notarized DMG) · licence: open source,
+> I'm the developer (Bermudez Systems LLC). Inkvolt PDF for Mac 1.5.0, https://bermudezsystems.com/products/inkvolt/ ·
+> download: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0 (notarized DMG) · licence: open source,
 > AGPL-3.0, free · icon and screenshots: https://github.com/gabandres/inkvolt/tree/master/docs/screenshots · a PDF
-> editor: read, annotate, fill forms, organize pages, OCR with Apple's text recognition, redaction with a check of the
-> whole file, Sanitize, What's in This PDF. No account, ads or telemetry. No affiliate programme. The Windows version
+> editor: read, annotate, fill forms, edit text, organize pages, OCR with Apple's text recognition, export to Word, Excel
+> and PowerPoint, digital signatures, compare, redaction with a check of the whole file, Sanitize, What's in This PDF,
+> batch. No account, ads or telemetry. No affiliate programme. The Windows version
 > is in the Microsoft Store only (9MXDTSFJ9W28).
 
 ## Next 30 days (in order)

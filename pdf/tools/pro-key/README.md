@@ -2,7 +2,7 @@
 
 Makes the signing key pair, issues a licence key for a purchase and checks one. Not shipped. The format it writes is
 what `ProKeys` in `shared/InkvoltPrint.Core/Suite/ProKeys.cs` reads, for Inkvolt PDF and Inkvolt Print alike (and the
-Mac port will read with CryptoKit); `test-vector.json` here is the shared check. The apps keep an entered key in
+Mac app reads with CryptoKit, `mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`); `test-vector.json` here is the shared check. The apps keep an entered key in
 `%LOCALAPPDATA%\Inkvolt\pro-key.txt` (`ProKeyFile`), so one key entered in either app licenses both.
 
 ```powershell
@@ -33,7 +33,7 @@ INKVOLT-PRO-AFAWI-YJAJR-XXMZL-MMFRW-…-GYQ
   1. the licensee's name
   2. their email
   3. the issue date, `yyyy-MM-dd`
-  4. the products, comma-separated: `pdf`, `print` (Inkvolt Print reserved; one key may list both)
+  4. the products, comma-separated: `pdf`, `print` (Inkvolt Print; one key may list both)
 - **Signature**: ECDSA on the NIST P-256 curve over SHA-256 of the whole payload (version byte included), encoded as
   `r || s`, 32 bytes each (IEEE P1363 fixed-field; what .NET's `DSASignatureFormat.IeeeP1363FixedFieldConcatenation`
   writes and CryptoKit's `P256.Signing.ECDSASignature(rawRepresentation:)` reads).

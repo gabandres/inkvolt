@@ -18,13 +18,14 @@ week), M (2-4 weeks), L (more than a month).
 platforms. Second engines and other additions with no known demand wait for it: Tesseract in 2.2 stays to do until
 reviews or issues ask for missing languages.
 
-**Mac on hold (owner, 2026-10-31).** The Mac isn't up and running, so work goes on on Windows alone, even where that leaves
-the Mac behind. An item below that is done on Windows counts as done for now; its Mac half waits until the Mac is back.
+**Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 1.4, 2.1, 2.3's leftovers, 3.1, 3.3, 3.4 and 3.5,
+in the order of the ranked list in `docs/HANDOFF.md`.
 
-**Platforms.** Full parity (decided 2026-10-27, on hold, see above): an item is done only when it ships on Windows and on the Mac, so a
+**Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
-follows in the same release cycle. Until the Mac reaches parity with today's Windows app (PLAN.md's "Parity with
-Windows": 1.0, then steps E1-E13), new items queue behind those steps on the Mac. One Pro key works on both.
+follows in the same release cycle. PLAN.md's "Parity with Windows" steps (1.0, then E1-E16) are done; what the Mac still
+lacks is the list above. One Pro key works on both.
 Mac first, Windows to follow: moving and recoloring notes and text markups (the Mac's `AnnotationMoves`, D7 part d).
 
 ## Free and Pro
@@ -73,7 +74,7 @@ there are business users.
 | 3.6 Speed on huge files | All of it | |
 
 **Built (2026-10-30), gate off.** Decided with the owner: **$19**, one time. `Pro.Allows(feature)` in Core (`Pro.cs`) is
-the one check every Pro feature asks (presets, watched folders, the command line, pattern redaction beyond the built-in kinds); behind it the licence is real: a key
+the one check every Pro feature asks (`ProFeature`: the rows of the table above); behind it the licence is real: a key
 `INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
 signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
 the public key in the suite's shared library (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProCheck`, `ProKeyFile`, moved there
@@ -150,7 +151,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 waits for the Mac (on hold).
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 is still to do on the Mac.
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
@@ -170,7 +171,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
   with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
   originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` comes with 1.4). Still to do: a
-  500-file run over a real network share; the alias tested in an installed Store package.
+  500-file run over a real network share; `--batch` and `--watch` through the alias of an installed package (the pack's
+  smoke run starts the app through the alias, with a dev script only).
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the
@@ -196,7 +198,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
   (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
   OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
-  conditions for 49 (the other is a veraPDF inconsistency, see the tool's README); veraPDF's own 297 PDF/UA-1 test
+  conditions for 50 (wcag-table-word, long called a veraPDF inconsistency, was a later object stream PDFsharp missed; see
+  the tool's README); veraPDF's own 297 PDF/UA-1 test
   files: 296 of 297 (the other can't be opened by PDFsharp). Mac: done 2026-10-30 (Tools › Accessibility Check…, the sidebar's pane, the
   report, Batch's action): against Windows on the same files, the same pass or fail for 50 of 50 and 296 of 297, the same conditions
   for 49 and 296; the two differences are files Windows' PDF reader reads differently (`mac/docs/PLAN.md`).
@@ -236,7 +239,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
   and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
   makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac after 1.0.
+- **Effort** S-M. Windows; Mac still to do.
 
 ### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case
@@ -269,7 +272,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   for Updates…; a ready update shows in the title bar ("Update required" when mandatory, never blocking reading); Update
   settles unsaved documents as closing does, then the Store installs it. Setting to turn the startup check off; only
   Windows' Store service is asked. Decisions tested with a fake Store (`UpdateCheck`). Mac: the PDF app ships outside
-  the App Store, so its update check comes with that distribution.
+  the App Store and updates through Sparkle 2 (done with D8, 2026-10-28).
 - **Effort** S.
 
 ## Wave 2
@@ -355,7 +358,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   bold and italic change for a selection; text inside form XObjects edits too. Test: on the export corpus, 20 words
   added to a paragraph re-extract in order, nothing overlaps the next block, and the page opens in Acrobat and pdf.js
   with the same text; a file whose fonts aren't installed is still editable (where Acrobat isn't).
-- **Effort** L. Windows, then the Mac (its 1.0 has the line-level editor; this follows after 1.0).
+- **Effort** L. Windows done but for the Still to do above; the Mac has the line-level editor only, and this is still to do there.
 
 ### 2.2 Better OCR
 - **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),
@@ -376,8 +379,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   5.4% → 3.8%, Spanish 44.9% (12.8% with Spanish chosen) → 8.0% and 41.3% (5.1%) → 4.3%, turned pages 99.9% → 3.7%
   (its RESULTS.md). Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
   "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
-  Batch, Scan or export (they get the cleaning, not the review), and the Mac (`mac/docs/PLAN.md`, E14). The Mac 1.0 uses
-  Apple's Vision.
+  Batch, Scan or export (they get the cleaning, not the review). Mac: stage A done with E14 (2026-11-02,
+  `mac/docs/PLAN.md`), with Apple's Vision as its recognizer.
 - **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,
   optionally written back as the cleaned image; a second, local engine (Tesseract, Apache-2.0, 100+ languages;
   [tessdata](https://github.com/tesseract-ocr/tessdata)) is an optional download for languages Windows lacks, with
@@ -385,7 +388,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   updated; "make the text editable" turns a page's recognized text into real text in a matching font (for 2.1).
   Test: on a scan corpus (skewed 3-10°, noisy, two languages) the word error rate is lower than today's on every file,
   and a corrected word is found by search.
-- **Effort** L. Windows; the Mac gets deskew and correction after 1.0 (Vision already does the languages).
+- **Effort** L. Windows; Mac: stage A done with E14 (2026-11-02; Vision does the languages).
 
 ### 2.3 USB scanners (WIA, TWAIN)
 - **Leader.** Acrobat: scans through TWAIN or WIA (Windows) and Image Capture (Mac), presets, deskew, background removal,
@@ -405,12 +408,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   presets, error words, the TWAIN model). **Hardware:** this PC's one WIA scanner is Windows' eSCL driver for an HP Color
   LaserJet MFP M277 that is no longer on the network: listed, and connecting said "The scanner isn't answering…"; no page
   has been scanned through a real WIA or TWAIN driver (no USB scanner, no TWAIN manager here), so the acceptance test (a WIA
-  flatbed and a WIA feeder scanner, 10 pages each) is still to run. 2.2's cleanup (deskew, despeckle) isn't built, so
-  scans get OCR only. Mac (ImageCaptureCore) pending.
+  flatbed and a WIA feeder scanner, 10 pages each) is still to run. Scans are straightened and cleaned (2.2) before OCR
+  reads them; the scan itself is kept as scanned (only Recognize Text writes the cleaned page back). Mac: File › Scan uses
+  ImageCaptureCore with the feeder, both sides and OCR; leaving out blank pages, scan presets and the scanners Inkvolt Print
+  remembers are still to do there.
 - **Beat it when:** WIA 2 scanners (and 64-bit TWAIN sources) are listed beside eSCL ones in the same dialog with feeder,
   duplex, color and dpi; blank pages are dropped on request; every scan goes through 2.2's cleanup and OCR; scan presets
   are saved. Test: a WIA flatbed and a WIA feeder scanner each scan a 10-page stack into one PDF, OCR included.
-- **Effort** M. Windows; the Mac through ImageCaptureCore after 1.0.
+- **Effort** M. Windows; Mac: scanning through ImageCaptureCore is in, the rest is still to do (above).
 
 ### 2.4 Tags, reading order, alt text, PDF/UA
 - **Leader.** Acrobat Pro: Autotag in Adobe's cloud (headings, borderless tables, nested lists, multi-column reading
@@ -592,7 +597,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no
   page or size cap. Test: a 100-page report translated with a local model keeps page count and figure positions, every
   paragraph translated, nothing sent beyond localhost.
-- **Effort** M (after 2.1). Windows; Mac with the AI features.
+- **Effort** M (after 2.1). Windows; Mac still to do (its AI assistant came with E11, 2026-10-30; 2.1 first).
 
 ### 3.2 Export to PowerPoint and HTML
 - **Leader.** Acrobat exports to PowerPoint and HTML, with "retain page layout" or flowing text
@@ -602,7 +607,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   headings, lists and tables from `DocLayout`, pictures embedded, alt text from tags, valid HTML5 with no external
   requests. Test: export-corpus runs open in PowerPoint and LibreOffice with no repair prompt; the HTML passes the W3C
   validator and reads in order in a screen reader.
-- **Effort** M. Windows; Mac after its Word export.
+- **Effort** M. Windows; Mac: done with E15 (2026-11-02).
 - **Now.** Windows done 2026-10-30: File › Export (and the command palette, Batch, presets, the command line through
   presets). PowerPoint: `PptxWriter`, one slide per page; a presentation has one slide size, so it is the size most pages
   have and pages of another size are shrunk and centered. Each paragraph is an editable text box where the page has it, a
@@ -618,7 +623,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   read in the plain-text export's order. Word's page counts are unchanged.
   **Not checked yet:** LibreOffice (not installed on the PC that ran this: `run.ps1` runs it when it is) and a real
   screen reader (the order test reads the file's order, which is what one follows).
-  **Still to do:** the Mac (PLAN.md's E15). Slides don't keep a font that isn't installed: a wider one wraps sooner, so
+  **Known:** slides don't keep a font that isn't installed: a wider one wraps sooner, so
   dense forms come out crowded (the Word export's limit too). Links aren't carried over, in either format.
 
 ### 3.3 Compare: Office files, scans and formatting
@@ -683,7 +688,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Beat it when:** a folder is indexed in the background (a local file beside our settings), kept current as files
   change, OCR text included; results with context, opened at the hit; accents and case ignored as Find does. Test:
   10,000 PDFs indexed once, a word query answered in under 1 s, a changed file found again within a minute.
-- **Effort** M. Windows; Mac after 1.0 (Spotlight covers part of it there).
+- **Effort** M. Windows; Mac still to do (Spotlight covers part of it there).
 - **Now.** Windows done 2026-10-31: Edit › Search Folders… (Ctrl+Alt+Shift+F, the command palette), Pro (`ProFeature.FolderSearch`; the gate stays off). No new
   dependency: a small inverted index of our own, one file per folder in the data folder's `FolderIndex` (`FolderIndex`): terms to pages, each page's text compressed, written
   only at the end, a commit at a time, flushed before its footer, so a crash leaves the last commit; compaction writes a new file. Terms fold what Find's own comparer reads alike,
@@ -696,8 +701,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   a one-letter query at 219 ms; the first query after opening 84 ms (target 1 s, met). A changed file found again in 3.4 s, three times out of three (target a minute, met); opening the index 27 ms. The Release app on that corpus: indexed with the window answering in at most
   35 ms, paused and resumed, a result opened at its hit, a new file found. Tests: every byte offset of a commit cut (`FolderIndexTests`), a writer killed 8 times mid-commit (`FolderIndexerTests`), workers dying, hanging, spinning and running out of memory
   on a file, a folder going away. **Missed, not part of the target:** a phrase of two words common but rarely side by side took 3.2-4.1 s to list 500 pages (first result 14-20 ms; every page has to be read).
-  **Not checked:** real-world PDFs at this scale (the corpus is generated), a real hostile PDF (a worker's death is simulated), an MSIX install (`smoke-msix.ps1` has a step, not run), a network drive, a disk filling up. **Cloud drives:** real Cloud Files placeholders are tested on a sync root the test makes, on this PC, with no provider running (read when on the PC, counted and left alone when only in the cloud, a sub-folder included). Of OneDrive itself only one folder on one PC was measured, its 7 PDFs listed, all on the PC already: a file only in OneDrive's cloud has not been seen staying there, nor Dropbox or Google Drive at all.
-  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes). The Mac's half waits (see Mac on hold).
+  **Not checked:** real-world PDFs at this scale (the corpus is generated), a real hostile PDF (a worker's death is simulated), a network drive, a disk filling up. An MSIX install indexes and searches a folder in the pack's smoke run (`smoke-msix.ps1`), passed with 1.5.0. **Cloud drives:** real Cloud Files placeholders are tested on a sync root the test makes, on this PC, with no provider running (read when on the PC, counted and left alone when only in the cloud, a sub-folder included). Of OneDrive itself only one folder on one PC was measured, its 7 PDFs listed, all on the PC already: a file only in OneDrive's cloud has not been seen staying there, nor Dropbox or Google Drive at all.
+  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes). The Mac's half is still to do.
 
 ### 3.6 Speed on huge files (differentiator)
 - **The gap.** Acrobat users report freezes on 200-500 page files and on large drawings, and Adobe staff suggest
@@ -737,7 +742,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   measures (RESULTS.md, on the M1 Air, to be run again on the M6 Mac mini): MuPDF instances don't wait on each other there, so
   Find reads pages on threads in process (`PdfEngine.findAll`, every core but one, no workers): 5,000 pages in 0.55 s, the
   drawing set in 6.9 s (33.5 s before); one copy of a file's bytes for all of an engine's instances took the drawing set's
-  peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (575 ms a sheet) and its Find.
+  peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (584 ms a sheet) and its Find.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
@@ -757,8 +762,8 @@ Kept up with the same rule: a claim here has a test or a source.
 - **Recovery copies**, signed files edited by appending (signatures kept), protection kept through every edit.
 - **Prepare Form** with field detection, Acrobat's own format scripts, fields that show filled in every viewer.
 - **PDF/A-2b** checked with veraPDF on the test documents; **Bates**, header and footer, watermark; **measure** written
-  as Acrobat writes it; **booklet and poster** printing; **Batch** of 12 actions on worker threads.
-- **Native ARM64** on Windows, and a native Mac app (in progress), not a cross-platform shell.
+  as Acrobat writes it; **booklet and poster** printing; **Batch** of 16 actions on worker threads.
+- **Native ARM64** on Windows, and a native Mac app (1.5.0 released), not a cross-platform shell.
 
 ## Not doing, and why
 

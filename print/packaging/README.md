@@ -15,7 +15,7 @@ From the repository root:
 
 ```powershell
 pwsh -File packaging/pack-msix.ps1 -App Print                    # Store build with the Partner Center identity, unsigned
-pwsh -File packaging/pack-msix.ps1 -App Print -Version 1.1.0.0   # a later submission
+pwsh -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.2.0.0, the last published
 ```
 
 Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
@@ -90,7 +90,7 @@ says Store apps that require elevation for any part of their functionality won't
 starting PowerShell or cmd (Windows S mode can't start them). Three features need administrator rights:
 
 - **Printer added by IP address.** Unpackaged copies create the queue with one UAC prompt (`Add-Printer -IppURL` through
-  `src/InkvoltPrint.Windows/Elevated.cs`). Packaged copies (`Features.ElevatedQueueSetup` in `src/InkvoltPrint.App/Features.cs`)
+  `../shared/InkvoltPrint.Windows/Elevated.cs`). Packaged copies (`Features.ElevatedQueueSetup` in `src/InkvoltPrint.App/Features.cs`)
   copy the printer's IPP address to the clipboard and open Settings > Printers & scanners, with the steps on screen:
   Add device > "Add manually" > "Add a printer using an IP address or hostname" > IPP Device > paste. Inkvolt Print then
   watches for ten minutes and links the new queue by its port (`QueuePrinter.FindByHost`). Printers found on the network
@@ -145,6 +145,8 @@ Inkvolt Print's values (the script's defaults):
 Inkvolt PDF, the suite's other app, is Store ID `9MXDTSFJ9W28` (`BermudezSystems.InkvoltPDF`, same publisher).
 
 Version: four numbers, the last one 0 (the Store reserves it), higher than every earlier submission.
+
+Published: 1.2.0.0 on 2026-11-02 (GitHub release `print-v1.2.0.0`).
 
 ## Upload
 
@@ -352,7 +354,7 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
 
 ## How the packaged app differs
 
-`AppPackage.IsPackaged` (`src/InkvoltPrint.Windows/AppPackage.cs`) tells the two apart at run time:
+`AppPackage.IsPackaged` (`../shared/InkvoltPrint.Windows/AppPackage.cs`) tells the two apart at run time:
 
 - "Open with", the Start menu entry and the `inkvoltprint` command come from the manifest; `ShellIntegration` writes no
   registry entries.
@@ -360,9 +362,9 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
 - Settings, remembered printers and logs stay at `%LOCALAPPDATA%\InkvoltPrint`; Windows redirects a packaged app's writes
   there into `%LOCALAPPDATA%\Packages\<family>\LocalCache\Local\InkvoltPrint`, so a packaged and an unpackaged copy keep
   separate state. Uninstalling the package removes it. Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
-  copy was written last (`InkvoltPaths.StateFiles` in `src/InkvoltPrint.Core/Suite/InkvoltPaths.cs`). Saved printer passwords
+  copy was written last (`InkvoltPaths.StateFiles` in `../shared/InkvoltPrint.Core/Suite/InkvoltPaths.cs`). Saved printer passwords
   live in Windows Credential Manager, which isn't redirected.
-- `InkvoltApps.Find` (`src/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias
+- `InkvoltApps.Find` (`../shared/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\inkvoltpdf.exe` / `inkvoltprint.exe`), then App Paths, then the install folders.
   Inkvolt PDF uses the same code, so "Open in Inkvolt PDF" and Inkvolt PDF's "Printer Settings (Inkvolt Print)" work packaged too.
 - Start with Windows is the manifest's startup task, not the HKCU `Run` value; alerts are toasts under the package identity

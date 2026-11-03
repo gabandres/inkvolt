@@ -1,12 +1,13 @@
 # Inkvolt for macOS
 
-Native Swift versions of Inkvolt Print (first, Mac App Store) and Inkvolt PDF (later, notarized DMG). Decisions, scope,
+Native Swift versions of Inkvolt Print (Mac App Store; 1.0 in App Review, further work on hold, owner 2026-11-02) and
+Inkvolt PDF (notarized DMG, released; 1.5.0). Decisions, scope,
 layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 
 - **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
   `pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
-  imports an Apple framework (the probe, PrintMac, the app) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
+  imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
   what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac

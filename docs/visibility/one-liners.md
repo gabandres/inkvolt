@@ -70,6 +70,6 @@ https://apps.microsoft.com/detail/9PNR76HJ62SK
 
 **X / Bluesky / Mastodon**
 
-Inkvolt PDF for Mac 1.2: native, on Apple silicon, free and AGPL. Redaction with the check, Sanitize, What's in This
-PDF, OCR with macOS's recognizer, export to Word. `brew install --cask gabandres/inkvolt/inkvolt-pdf`
-https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.2.0
+Inkvolt PDF for Mac 1.5: native, on Apple silicon, free and AGPL. Redaction with the check, digital signatures, compare,
+batch, OCR with macOS's recognizer, export to Word and PowerPoint. `brew install --cask gabandres/inkvolt/inkvolt-pdf`
+https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0

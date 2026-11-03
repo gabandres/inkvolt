@@ -126,14 +126,14 @@ Hi,
 Inkvolt PDF for Mac is a native Swift app (Apple silicon, macOS 15) on the MuPDF engine, free and AGPL, with no
 account and no telemetry. It reads in tabs, comments and draws, fills and signs, edits text and pictures, organizes
 pages, OCRs with macOS's own text recognition, exports to Word and Excel, prints booklets and posters, scans from
-AirScan scanners, and redacts with a check afterwards for anything left in the file (metadata, comments, attachments,
+network and USB scanners, signs digitally, compares versions, runs batches, and redacts with a check afterwards for anything left in the file (metadata, comments, attachments,
 earlier versions). What's in This PDF lists every script, link and hidden element a file carries.
 
 It's outside the Mac App Store because of MuPDF's licence: a notarized DMG that updates itself, or
 `brew install --cask gabandres/inkvolt/inkvolt-pdf`. The Windows version came first and the Mac app is catching up
 release by release; the site says exactly what is still missing.
 
-Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.2.0
+Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0
 Site: https://bermudezsystems.com/products/inkvolt/
 
 One developer, Puerto Rico.
@@ -156,7 +156,7 @@ attachments, earlier versions) before you share it.
 
 Notarized DMG with its own updates, or Homebrew: `brew install --cask gabandres/inkvolt/inkvolt-pdf`.
 
-Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.2.0
+Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0
 Source: https://github.com/gabandres/inkvolt
 
 I'm the one developer, in Puerto Rico, and glad to answer anything.

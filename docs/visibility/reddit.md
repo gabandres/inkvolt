@@ -38,7 +38,7 @@ hidden element a file carries before you send it.
 
 - Windows 10/11, x64 and ARM64: Microsoft Store (`winget install 9MXDTSFJ9W28`)
 - Mac (Apple silicon, macOS 15): notarized DMG on GitHub, or `brew install --cask gabandres/inkvolt/inkvolt-pdf`.
-  The Mac app is behind Windows; the README lists what's there.
+  The Mac app is behind Windows; its What's New lists what's there.
 - Source (AGPL-3.0): https://github.com/gabandres/inkvolt
 
 Everything is free. A one-time $19 Pro for a few power features is planned and switched off for now. Tell me what's
@@ -74,10 +74,10 @@ I made this. Inkvolt PDF for Mac is a native Swift app (Apple silicon, macOS 15)
 organize pages, OCR with Apple's text recognition, redact with a check of the whole file afterwards, Sanitize, and What's in This
 PDF. It's AGPL, notarized, updates through Sparkle, and has no account or telemetry.
 
-It's a port of the Windows app and doesn't have everything yet (no signing, compare or batch on the Mac so far);
-the README lists what's there.
+It's a port of the Windows app and doesn't have everything yet (no two-page view, rotate view or dark pages, no
+comment import or export, no long-term signatures so far); the Mac's What's New lists what's there.
 
-Download (official): https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.2.0 · Homebrew:
+Download (official): https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0 · Homebrew:
 `brew install --cask gabandres/inkvolt/inkvolt-pdf` · Free, no in-app purchase.
 
 ---
