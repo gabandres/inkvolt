@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
+    @objc func reportProblem(_ sender: Any?) { ReportProblemWindowController.show() }
 
     /// No untitled document: a viewer opens files.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
@@ -382,6 +383,7 @@ enum MainMenu {
         menu.addItem(item("What's New in Inkvolt PDF", #selector(AppDelegate.showWhatsNew(_:))))
         menu.addItem(item("Inkvolt Pro…", #selector(AppDelegate.showPro(_:))))
         menu.addItem(item("Inkvolt PDF on GitHub", #selector(AppDelegate.openSourcePage(_:))))
+        menu.addItem(item("Report a Problem…", #selector(AppDelegate.reportProblem(_:))))
         return menu
     }
 }

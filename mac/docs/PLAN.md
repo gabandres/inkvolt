@@ -427,7 +427,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Reload, recovery copies, password protection | D2 and D7 |
 | Print (with pages per sheet, booklet, poster) | D6 and D7 |
 | Scan, printer status when printing, Inkvolt Print's printer settings | Scan: D7 (Inkvolt Print's PrintCore and PrintMac: eSCL, Bonjour, ImageCaptureCore); printer status and printer settings later, with the printer reading |
-| Help › What's New, updates | What's New: D7; updates: D8 (Sparkle) |
+| Help › What's New, updates | What's New: D7; updates: D8 (Sparkle); Help › Report a Problem: 2026-11-03 |
 | Redaction (with redaction by pattern), Sanitize Document | E1 (done 2026-10-28; Batch's two redaction actions with E8, 2026-10-30) |
 | What's in This PDF | E1a (done 2026-10-28; Batch's Report What's in Each File with E8, 2026-10-30) |
 | Signatures (verify), Sign Digitally | E2 (done 2026-10-30; Security.framework; identities from the Keychain) |
@@ -564,6 +564,13 @@ Mac differences for the PDF app (so far):
   ("Insert N pages from the scanner"); "Make the text searchable" then recognizes the inserted pages (its own undo step,
   as Scan's new PDF). The place is clamped to the document as it is then, as Windows. AppTest drives it with Inkvolt
   Print's demo scanners; no real scanner was used.
+- Report a Problem (2026-11-03): Help › Report a Problem… (Windows: the same) shows the details (the version, macOS
+  and its architecture, the settings Windows lists that the Mac has, plus the reading mode), masked by PrintCore's
+  `Diagnostics.scrub`, editable before Copy; Copy and Open a GitHub Issue copies them and opens a prefilled issue. The
+  report, log tail and issue address are `ProblemReport` in PdfCore (Windows' shared `Diagnostics.Report`, `Tail`,
+  `IssueUrl`), tested by HelpTests' five report, tail and issue tests (same names; a stand-in scrub, the masking being
+  DiagnosticsTests'). Differences: "macOS:" where Windows writes "Windows:" and .NET's version; the Mac app keeps no
+  log, so the report says "(no log yet)". Nothing is sent.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -842,6 +849,9 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   document with a real scanner: the self-test uses Inkvolt Print's demo scanners only). The window titled Insert from
   Scanner with its Insert row; a network (eSCL) and a USB scanner; the feeder's pages inserted in order where chosen;
   Make the text searchable recognizing only the inserted pages; the window going back to Scan for File › Scan….
+- Report a Problem (Help menu): the window's layout and wrapping, the details' monospaced text, editing them before
+  Copy, and Copy and Open a GitHub Issue opening the browser on a prefilled issue (the self-test only makes the
+  address).
 
 ## Open decisions
 

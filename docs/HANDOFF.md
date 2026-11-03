@@ -24,13 +24,20 @@ One agent, cheapest first, one commit each, in this order:
 5. ~~Reading modes~~ Done 2026-11-03 (View › Single Page ⌘4, Continuous ⌘5, Two Pages ⌘6, Two Pages with Cover ⌘7).
 6. ~~Insert from Scanner~~ Done 2026-11-03 (Pages › Insert from Scanner…; demo scanners only: a person must check it
    with a real scanner, PLAN.md).
-7. Report a Problem (the Help menu has What's New, Pro and GitHub only).
+7. ~~Report a Problem~~ Done 2026-11-03 (Help › Report a Problem…; `ProblemReport`, HelpTests).
 8. Comments and form data in and out (roadmap 1.4): Export and Import Comments (XFDF, FDF, CSV), Summarize Comments,
    form data as CSV and JSON (the Mac has XFDF and FDF only), Fill Forms from CSV (`FormMerge`), Batch's comment exports
    and summary, `--fill`.
+   **Skipped in the unattended run of 2026-11-03** (no code committed): the Windows core alone is about 2,000 lines
+   (`CommentFiles` with its XFDF and CSV parts, `FormDataFiles`, `FormMerge`, `CommentSummary`) and 22 tests, plus the
+   app's commands, Batch's three actions and `--fill`: well past the run's 90 minutes an item. Split it into its own
+   session or two (CommentFiles first; then FormDataFiles' CSV and JSON with FormMerge and `--fill`; then the summary).
 9. Redaction by pattern, Windows' additions of 2026-11-01 (roadmap 1.1, "Finished on Windows 2026-11-01"): named sets,
    scans searched through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's
    new failure rules, the Pro split.
+   **Skipped in the unattended run of 2026-11-03** (no code committed): Windows' additions of 2026-11-01 and 2026-11-02
+   are about 3,500 changed lines (79ba338 alone 2,384), touching the pattern search, OCR text, the hit list, the
+   read-back, the report and Batch: past the run's 90 minutes an item. Its own session.
 
 ### Inkvolt PDF for Mac: other gaps, not scheduled
 

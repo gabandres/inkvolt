@@ -79,6 +79,7 @@ struct AppTest {
         await palette()
         whatsNew()
         about()
+        reportProblem()
         await scan()
         await openFromAnotherApp()
         await convertFiles()
@@ -300,6 +301,36 @@ struct AppTest {
         check(a.notices.string.contains("GNU AFFERO GENERAL PUBLIC LICENSE"), "About › License: the AGPL's full text")
         a.notices.string = AboutWindowController.noticesText()
         a.window?.orderOut(nil)
+    }
+
+    // MARK: Report a Problem
+
+    /// Help › Report a Problem… through the menu's own item: the details (version, macOS, settings; the user's name and
+    /// this Mac's name masked), Copy, and Copy and Open a GitHub Issue (the address made, no browser in the self-test).
+    private mutating func reportProblem() {
+        var menuItem: NSMenuItem?
+        for top in NSApp.mainMenu?.items ?? [] {
+            if let hit = top.submenu?.items.first(where: { $0.title == "Report a Problem…" }) { menuItem = hit }
+        }
+        if let menuItem, let action = menuItem.action { NSApp.sendAction(action, to: nil, from: menuItem) }
+        guard let r = ReportProblemWindowController.shared, r.window?.isVisible == true else {
+            return check(false, "Report a Problem: the window didn't open")
+        }
+        let text = r.details.string
+        let user = NSUserName()
+        check(text.hasPrefix("Inkvolt PDF \(WhatsNew.version)") && text.contains("macOS: ") && text.contains("Dark pages: ")
+              && text.contains("(no log yet)") && (user.count < 3 || !text.contains(user)),
+              "Help › Report a Problem…: the version, macOS and settings, the user's name masked")
+        let board = NSPasteboard(name: .init("com.bermudezsystems.InkvoltPdf.selftest.report"))
+        r.details.string = text + "\nAn added line"
+        let copied = r.copy(to: board) && board.string(forType: .string)?.hasSuffix("An added line") == true
+        r.issueClicked()
+        let url = r.openedIssue?.absoluteString ?? ""
+        check(copied && url.hasPrefix("https://github.com/gabandres/inkvolt/issues/new?title=") && url.count < 2000
+              && board.string(forType: .string)?.hasSuffix("An added line") == true,
+              "Report a Problem: Copy takes the details as edited; Copy and Open a GitHub Issue makes the issue's address")
+        board.releaseGlobally()
+        r.closeClicked()
     }
 
     // MARK: Scan
