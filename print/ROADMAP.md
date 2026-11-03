@@ -484,6 +484,13 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   `NSWorkspace.open`, which the sandbox allows, rather than a URL scheme). Checked on the Mac by `--report --demo --scan`
   with the real Inkvolt PDF installed; not with a stub app, and no person has seen the hand-off (mac/docs/PLAN.md).
 
+### 3.6 Supply levels for USB printers
+- **Leader.** The makers' own apps (HP Smart, Epson, Canon, Brother) read their USB printers' levels through their own drivers.
+- **Built (Windows, 2026-11-03), route 1:** a queue on Windows' IPP class driver (IPP over USB included) is asked for its `marker-*` levels and state through `IppPrintDevice`, read with the network IPP mapping; *Not reported by this printer* when nothing answers. `QueueDeviceTests`. Not yet seen on an IPP-over-USB printer: this PC has none.
+- **Next, route 2:** ask the driver over Windows' bidirectional printing (`IBidiSpl`: `\Printer.Consumables`, `\Printer.Configuration`, `\Printer.DeviceInfo`, alerts) for queue printers on a maker's driver, with a made-up USB laser with driver-reported toner and one with none in demo mode.
+- **Mac (later):** PrintCore could do the same for a USB printer through CUPS (an IPP-over-USB printer's driverless queue answers Get-Printer-Attributes through `ippusbxd`/CUPS' own IPP-USB support). Not started; nothing in `mac/` changed.
+- **Effort** S (route 1), M (route 2). Windows; Mac later. Free.
+
 ## Where we already win
 
 Kept up with the same rule: a claim here has a test or a source.

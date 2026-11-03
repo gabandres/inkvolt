@@ -123,10 +123,12 @@ public static class QueueSnmp
     /// <summary>The spooler's ordinary states, whose only detail is the jobs-waiting note.</summary>
     private static bool IsOrdinary(PrinterStatus w) => w.Code is "ready" or "printing" or "warmingUp" or "initializing" or "inPowerSave";
 
-    public static QueueStatusRead Merge(QueueStatusRead windows, SnmpReading snmp)
+    public static QueueStatusRead Merge(QueueStatusRead windows, SnmpReading snmp) =>
+        MergeStatus(windows, SnmpPrinterStatus.ToStatus(snmp), SnmpPrinterStatus.ToConsumables(snmp));
+
+    /// <summary>Windows' status and the printer's own (over SNMP, or IPP through Windows), as <see cref="Merge"/> describes.</summary>
+    public static QueueStatusRead MergeStatus(QueueStatusRead windows, PrinterStatus printer, IReadOnlyList<Consumable> supplies)
     {
-        var printer = SnmpPrinterStatus.ToStatus(snmp);
-        var supplies = SnmpPrinterStatus.ToConsumables(snmp);
         var w = windows.Status;
         if (HeldByWindows(w))
         {

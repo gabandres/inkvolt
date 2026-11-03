@@ -4393,4 +4393,10 @@ Start over</value>
     <value>What's new in Inkvolt Print</value>
     <comment>window title</comment>
   </data>
+  <data name="Queue_SuppliesTitle" xml:space="preserve">
+    <value>Ink or toner</value>
+  </data>
+  <data name="Queue_SuppliesNotReported" xml:space="preserve">
+    <value>Not reported by this printer.</value>
+  </data>
 </root>

@@ -87,15 +87,20 @@ public abstract class PcEnvironment
 
     /// <summary>
     /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, the
-    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one.
+    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one; for
+    /// the others (USB, WSD), the printer through Windows' IPP class driver (IPP over USB) or the driver over bidi when they answer.
     /// </summary>
     public IQueueStatusSource QueueStatus(SpoolerQueue q)
     {
         var windows = SpoolerStatus(q);
-        return QueueKinds.SnmpAddress(q) is { } host ? new SnmpQueueStatusSource(windows, host, Snmp, q.PortCommunity) : windows;
+        if (QueueKinds.SnmpAddress(q) is { } host) return new SnmpQueueStatusSource(windows, host, Snmp, q.PortCommunity);
+        return DeviceReaders(q) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
     }
 
     protected abstract IQueueStatusSource SpoolerStatus(SpoolerQueue q);
+
+    /// <summary>The ways a queue printer is asked for more than the spooler says (<see cref="IQueueDeviceReader"/>), in order.</summary>
+    protected abstract IReadOnlyList<IQueueDeviceReader> DeviceReaders(SpoolerQueue q);
 
     /// <summary>A printer's print queue as a list of jobs (the queue card).</summary>
     public abstract IPrintJobs PrintJobs(Func<Task<string?>> findQueue);
@@ -191,6 +196,7 @@ public abstract class PcEnvironment
         }
 
         protected override IQueueStatusSource SpoolerStatus(SpoolerQueue q) => new SpoolerStatusSource(q);
+        protected override IReadOnlyList<IQueueDeviceReader> DeviceReaders(SpoolerQueue q) => QueueDeviceReaders.For(q);
         public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => new WindowsPrintJobs(findQueue);
         public override IJobQueueReader JobQueue(string uuid, Func<SpoolerQueue?> listed, Func<Task<string?>> findQueue) => new WindowsJobQueueReader(findQueue);
         public override Action<string, int>? MadeUpPrint => null;

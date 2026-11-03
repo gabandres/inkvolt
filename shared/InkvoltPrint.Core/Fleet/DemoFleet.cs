@@ -96,6 +96,9 @@ public static class DemoFleet
     /// <summary>A demo queue's status: what <see cref="SpoolerStatus"/> makes of its made-up bits as <paramref name="current"/> has them now (no spooler is asked).</summary>
     public static IQueueStatusSource QueueStatus(SpoolerQueue queue, Func<SpoolerQueue, SpoolerQueue>? current = null) => new MadeUpQueue(queue, current);
 
+    /// <summary>What the made-up PC's queue printers answer beyond the spooler (<see cref="IQueueDeviceReader"/>): nothing yet.</summary>
+    public static IReadOnlyList<IQueueDeviceReader> DeviceReaders(SpoolerQueue queue) => [];
+
     private sealed class MadeUpQueue(SpoolerQueue queue, Func<SpoolerQueue, SpoolerQueue>? current) : IQueueStatusSource
     {
         public string Origin => CoreStrings.Queue_OriginWindows;
@@ -118,7 +121,8 @@ public sealed class DemoFleetPc(Func<HttpMessageHandler> transport, ISnmpTranspo
     public IQueueStatusSource QueueStatus(SpoolerQueue queue)
     {
         var windows = DemoFleet.QueueStatus(queue, current);
-        return QueueKinds.SnmpAddress(queue) is { } host ? new SnmpQueueStatusSource(windows, host, snmp, queue.PortCommunity) : windows;
+        if (QueueKinds.SnmpAddress(queue) is { } host) return new SnmpQueueStatusSource(windows, host, snmp, queue.PortCommunity);
+        return DemoFleet.DeviceReaders(queue) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
     }
 
     public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => wia.ListScannersAsync(ct);

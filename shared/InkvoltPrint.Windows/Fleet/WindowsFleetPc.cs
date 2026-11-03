@@ -42,7 +42,8 @@ public sealed class WindowsFleetPc : IFleetPc
     public IQueueStatusSource QueueStatus(SpoolerQueue queue)
     {
         var windows = new SpoolerStatusSource(queue);
-        return QueueKinds.SnmpAddress(queue) is { } host ? new SnmpQueueStatusSource(windows, host, UdpSnmpTransport.Instance, queue.PortCommunity) : windows;
+        if (QueueKinds.SnmpAddress(queue) is { } host) return new SnmpQueueStatusSource(windows, host, UdpSnmpTransport.Instance, queue.PortCommunity);
+        return new DeviceQueueStatusSource(windows, QueueDeviceReaders.For(queue));
     }
 
     public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => WindowsWia.Instance.ListScannersAsync(ct);

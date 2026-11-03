@@ -299,12 +299,22 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- A queue printer that reports no levels by any route -->
+                    <Border Visibility="{Binding SuppliesNotReported, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CardTitle}" Text="{x:Static loc:Strings.Queue_SuppliesTitle}" />
+                            <TextBlock Style="{StaticResource Caption}" Text="{x:Static loc:Strings.Queue_SuppliesNotReported}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Toner -->
                     <Border Visibility="{Binding Supplies.Count, Converter={StaticResource VisibleWhen}}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource CardTitle}">
                                 <Run Text="{Binding SuppliesTitle, Mode=OneWay}" /><Run Text="{Binding StaleSuffix, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </TextBlock>
+                            <TextBlock Style="{StaticResource Caption}" Text="{Binding SuppliesSource}" Margin="0,-4,0,8"
+                                       Visibility="{Binding SuppliesSource, Converter={StaticResource VisibleWhen}}" />
                             <ItemsControl ItemsSource="{Binding Supplies}">
                                 <ItemsControl.ItemContainerStyle>
                                     <Style TargetType="ContentPresenter">

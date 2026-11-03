@@ -122,6 +122,21 @@ switch (cmd)
             Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
                               $"{status.Message}{string.Concat(status.Alerts.Select(a => $"; {a.Message}"))} | port={q.PortName} monitor={q.PortMonitor} " +
                               $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
+            // What the printer (IPP through Windows, IPP over USB included) or the driver (bidi) says beyond the spooler; why not, on stderr.
+            if (System.Diagnostics.Trace.Listeners.OfType<System.Diagnostics.ConsoleTraceListener>().FirstOrDefault() is null)
+                System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener(useErrorStream: true));
+            foreach (var reader in InkvoltPrint.Windows.Printing.QueueDeviceReaders.For(q))
+            {
+                using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                InkvoltPrint.Core.Queues.QueueDeviceReading? r;
+                try { r = await reader.ReadAsync(limit.Token); }
+                catch (OperationCanceledException) { r = null; }
+                Console.WriteLine(r is null || !r.SaysAnything
+                    ? $"    {reader.GetType().Name}: nothing"
+                    : $"    {InkvoltPrint.Core.Queues.QueueDeviceText.Source(r.From)}: {r.Status?.Message ?? "(no status)"}" +
+                      string.Concat((r.Status?.Alerts ?? []).Concat(r.Alerts).Select(a => $"; {a.Id}")) + " | " +
+                      (r.Supplies.Count == 0 ? "no supplies" : string.Join(", ", r.Supplies.Select(s => $"{s.Name} {(s.PercentRemaining is { } p ? $"{p}%" : s.State)}"))));
+            }
         }
         // USB printers plugged in that nothing can print to (no serials: names and ports only). --unplugged: also those Windows
         // remembers but doesn't see now, read as if plugged in, to check what the sidebar would show.

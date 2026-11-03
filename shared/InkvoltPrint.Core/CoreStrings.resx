@@ -3778,4 +3778,22 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="NeedsDriver_ListName" xml:space="preserve">
     <value>Printers that need their driver</value>
   </data>
+  <data name="Queue_FromPrinterOverUsb" xml:space="preserve">
+    <value>the printer over USB (IPP, through Windows)</value>
+  </data>
+  <data name="Queue_FromPrinterThroughWindows" xml:space="preserve">
+    <value>the printer over IPP, through Windows</value>
+  </data>
+  <data name="Queue_FromDriver" xml:space="preserve">
+    <value>the printer's driver</value>
+  </data>
+  <data name="Queue_SourcePrinterOverUsb" xml:space="preserve">
+    <value>From the printer over USB</value>
+  </data>
+  <data name="Queue_SourcePrinter" xml:space="preserve">
+    <value>From the printer, through Windows</value>
+  </data>
+  <data name="Queue_SourceDriver" xml:space="preserve">
+    <value>From its driver</value>
+  </data>
 </root>

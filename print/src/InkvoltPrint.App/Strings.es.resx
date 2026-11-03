@@ -3575,4 +3575,10 @@ Start over</value>
   <data name="WhatsNew_Title" xml:space="preserve">
     <value>What's new in Inkvolt Print</value>
   </data>
+  <data name="Queue_SuppliesTitle" xml:space="preserve">
+    <value>Tinta o tóner</value>
+  </data>
+  <data name="Queue_SuppliesNotReported" xml:space="preserve">
+    <value>Esta impresora no lo informa.</value>
+  </data>
 </root>

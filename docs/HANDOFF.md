@@ -145,6 +145,11 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
   `--demo --sample-pdf [--printer n] --press-print report.txt`. **A person must still run it on the real Windows 10 PC**
   (the test zip from that session, or the next Store build): frame, caption buttons, icons, Choose a PDF → Print.
 
+- USB printers' supply levels (owner, 2026-11-03, for Print 1.3.0.0; roadmap 3.6): route 1 DONE, levels and status from a printer on
+  Windows' IPP class driver (IPP over USB included) through `IppPrintDevice` (`QueueDeviceTests`), the supplies card's source line and
+  *Not reported by this printer*. Route 2, the driver over bidi (`IBidiSpl`), NOT STARTED (stopped at the usage line). No IPP-over-USB
+  printer has been tried; the M234dw and M277 here (IPP class driver over WSD) answer the call with a timeout while they're off the network.
+
 ### Only a person
 
 Look at the Mac UI nobody has seen (PLAN.md lists it per step), hear Read Aloud with a real voice, try E12 with a real

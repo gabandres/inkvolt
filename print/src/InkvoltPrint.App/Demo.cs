@@ -77,6 +77,7 @@ internal static class Demo
         public override bool HasWindowsQueues => false;
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
+        protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);
         public override IPrintJobs PrintJobs(Func<Task<string?>> findQueue) => Demo.PrintJobs;
         public override IJobQueueReader JobQueue(string uuid, Func<Core.Queues.SpoolerQueue?> listed, Func<Task<string?>> findQueue) => new DemoJobQueue(uuid, listed);
         public override Action<string, int>? MadeUpPrint => Demo.PrintJobs.Add;

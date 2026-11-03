@@ -3076,4 +3076,22 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="NeedsDriver_ListName" xml:space="preserve">
     <value>Impresoras a las que les falta su controlador</value>
   </data>
+  <data name="Queue_FromPrinterOverUsb" xml:space="preserve">
+    <value>la impresora por USB (IPP, a través de Windows)</value>
+  </data>
+  <data name="Queue_FromPrinterThroughWindows" xml:space="preserve">
+    <value>la impresora por IPP, a través de Windows</value>
+  </data>
+  <data name="Queue_FromDriver" xml:space="preserve">
+    <value>el controlador de la impresora</value>
+  </data>
+  <data name="Queue_SourcePrinterOverUsb" xml:space="preserve">
+    <value>De la impresora por USB</value>
+  </data>
+  <data name="Queue_SourcePrinter" xml:space="preserve">
+    <value>De la impresora, a través de Windows</value>
+  </data>
+  <data name="Queue_SourceDriver" xml:space="preserve">
+    <value>De su controlador</value>
+  </data>
 </root>

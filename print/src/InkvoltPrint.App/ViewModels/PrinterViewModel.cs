@@ -161,6 +161,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         ? string.Format(_wia is null ? Strings.Printer_SourceSuppliesNoScan : Strings.Printer_SourceSuppliesScansViaWindows, source.Origin)
         : string.Format(_wia is null ? Strings.Printer_SourceStatusOnly : Strings.Printer_SourceStatusOnlyScansViaWindows, source.Origin);
 
+    /// <summary>
+    /// For a queue printer's supplies: where its levels came from ("From the printer over USB", "From its driver"); null for a
+    /// network printer or when the levels are Windows' own (SNMP shows its origin in the status note).
+    /// </summary>
+    public string? SuppliesSource => _queueSource is DeviceQueueStatusSource { From: { } from } && Supplies.Count > 0 ? QueueDeviceText.Source(from) : null;
+
+    /// <summary>A queue printer that answers and reports no supply levels by any route: the page says so instead of showing nothing.</summary>
+    public bool SuppliesNotReported => IsQueuePrinter && IsOnline && Supplies.Count == 0;
+
     /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
     public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : ScannerDevice?.ConnectionText);
 
@@ -803,6 +812,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         StatusDetail = read.Status.Detail;
         StatusSeverity = read.Status.Severity;
         Sync(Alerts, read.Status.Alerts);
+        OnPropertyChanged(nameof(SuppliesNotReported));
         OnPropertyChanged(nameof(ListStatus));
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
@@ -1144,6 +1154,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         SupplyChartNote = _history.ChartNote(supplies);
         Sync(Supplies, supplies.Select(s => new SupplyViewModel(s) { HistoryLine = _history.LineFor(s) }).ToList());
         OnPropertyChanged(nameof(SuppliesTitle));
+        OnPropertyChanged(nameof(SuppliesSource));
+        OnPropertyChanged(nameof(SuppliesNotReported));
     }
 
     private void SetOffline() => SetOffline(Strings.Printer_CantReach,
