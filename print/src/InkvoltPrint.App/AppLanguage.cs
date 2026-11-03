@@ -13,6 +13,13 @@ namespace InkvoltPrint.App;
 /// </summary>
 public static class AppLanguage
 {
+    /// <summary>
+    /// False until the Spanish translation is complete: the interface is then always English, Settings › Language is
+    /// hidden and a saved choice is ignored (only the dev aids' <c>--lang</c> still picks a language). Turned on with the
+    /// Spanish strings, so a release cut before them never shows a half-translated app on a Spanish Windows.
+    /// </summary>
+    public static bool SpanishReady => false;
+
     /// <summary>Windows' display language as the process started, before <see cref="Apply"/> changed the UI culture.</summary>
     private static readonly CultureInfo WindowsDisplay = CultureInfo.CurrentUICulture;
 
@@ -29,7 +36,7 @@ public static class AppLanguage
     public static void Apply(string? saved, string[] args)
     {
         var argument = Array.IndexOf(args, "--lang") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-        Use(UiLanguage.Resolve(argument, saved, WindowsDisplay));
+        Use(SpanishReady || argument is not null ? UiLanguage.Resolve(argument, saved, WindowsDisplay) : UiLanguage.English);
         // WPF formats bound numbers and dates as en-US unless told otherwise: Windows' regional format instead.
         FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement),
             new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(CultureInfo.CurrentCulture.IetfLanguageTag)));

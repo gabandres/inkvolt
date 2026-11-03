@@ -24,16 +24,18 @@
                     <RadioButton Content="Light" Tag="Light" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
                     <RadioButton Content="Dark" Tag="Dark" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
                 </StackPanel>
-                <TextBlock Text="{x:Static loc:Strings.Settings_Language}" Margin="0,16,0,6" />
-                <StackPanel x:Name="LanguageChoices" AutomationProperties.Name="{x:Static loc:Strings.Settings_Language}">
-                    <RadioButton Content="{x:Static loc:Strings.Settings_LanguageWindows}" Tag="" GroupName="language" Checked="Language_Checked" />
-                    <RadioButton Content="{x:Static loc:Strings.Settings_LanguageEnglish}" Tag="en" GroupName="language" Margin="0,6,0,0"
-                                 Checked="Language_Checked" Language="en" />
-                    <RadioButton Content="{x:Static loc:Strings.Settings_LanguageSpanish}" Tag="es" GroupName="language" Margin="0,6,0,0"
-                                 Checked="Language_Checked" Language="es" />
+                <StackPanel x:Name="LanguageSection">
+                    <TextBlock Text="{x:Static loc:Strings.Settings_Language}" Margin="0,16,0,6" />
+                    <StackPanel x:Name="LanguageChoices" AutomationProperties.Name="{x:Static loc:Strings.Settings_Language}">
+                        <RadioButton Content="{x:Static loc:Strings.Settings_LanguageWindows}" Tag="" GroupName="language" Checked="Language_Checked" />
+                        <RadioButton Content="{x:Static loc:Strings.Settings_LanguageEnglish}" Tag="en" GroupName="language" Margin="0,6,0,0"
+                                     Checked="Language_Checked" Language="en" />
+                        <RadioButton Content="{x:Static loc:Strings.Settings_LanguageSpanish}" Tag="es" GroupName="language" Margin="0,6,0,0"
+                                     Checked="Language_Checked" Language="es" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="{x:Static loc:Strings.Settings_LanguageRestart}" />
                 </StackPanel>
-                <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="{x:Static loc:Strings.Settings_LanguageRestart}" />
 
                 <TextBlock Text="Scanning" Style="{StaticResource CardTitle}" Margin="0,24,0,8" />
                 <TextBlock Text="Save scans to" Margin="0,0,0,6" />

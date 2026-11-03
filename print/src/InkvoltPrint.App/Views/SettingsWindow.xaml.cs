@@ -25,6 +25,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         (_vm, _tray) = (vm, tray);
         MaxHeight = SystemParameters.WorkArea.Height * 0.9;
+        LanguageSection.Visibility = AppLanguage.SpanishReady ? Visibility.Visible : Visibility.Collapsed;
         OpenInPdfBox.Visibility = InkvoltApps.Find(InkvoltApps.InkvoltPdf) is not null ? Visibility.Visible : Visibility.Collapsed;
         AlertsSection.Visibility = tray is null ? Visibility.Collapsed : Visibility.Visible; // the --try window and dev runs have no tray
         Show(vm.State);
