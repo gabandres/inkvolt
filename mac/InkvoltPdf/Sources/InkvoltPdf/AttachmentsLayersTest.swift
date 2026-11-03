@@ -236,6 +236,15 @@ struct AttachmentsLayersTest {
               "the file and its undo history are untouched; Reset and Save as Default turn on")
         let printed = (window.printOperation(NSPrintInfo()).view as? PrintSheetView)?.engine
         check(printed != nil && printed === window.layerEngine, "printing uses the layers shown")
+        // Export reads the same: the document with the layers as shown (Windows exports from its view engine).
+        if let s = window.pdf.session {
+            let exported = try? DocumentWindowController.exportEngine(s.data, s.password, window.shownLayerVisibility)
+            let asIs = try? DocumentWindowController.exportEngine(s.data, s.password, [:])
+            let shown = Self.ink(exported, x: 100) < 0.01 && Self.ink(exported, x: 250) > 0.9 && Self.ink(asIs, x: 250) < 0.01
+            check(shown && window.shownLayerVisibility.count == 2, "export uses the layers shown (Blue hidden, Red shown), the document's own without a choice")
+            exported?.close()
+            asIs?.close()
+        }
 
         pane.resetButton.performClick(nil)
         let reset = await wait { window.layerEngine == nil }

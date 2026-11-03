@@ -414,6 +414,17 @@ extension DocumentWindowController {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
+    /// The engine an export reads: the document with `layers` shown or hidden as in the Layers pane (none: as it is).
+    nonisolated static func exportEngine(_ data: [UInt8], _ password: String?, _ layers: [Int: Bool]) throws -> PdfEngine {
+        if layers.isEmpty { return try PdfEngine.open(data, password: password) }
+        return try PdfEngine.open(try Layers.withVisibility(data, password, layers))
+    }
+
+    /// The layers shown differently from the document's default (by the Layers pane), by object number; empty: none.
+    var shownLayerVisibility: [Int: Bool] {
+        Dictionary(layerList.compactMap { l in layerChoice[l.name].map { (l.id, $0) } }, uniquingKeysWith: { a, _ in a })
+    }
+
     /// Exports `pages` to `url` with the progress sheet (from a copy of the document's bytes, so edits meanwhile don't
     /// matter); the report, or nil when cancelled or failed (said in the notice bar or an alert).
     @discardableResult
@@ -444,9 +455,11 @@ extension DocumentWindowController {
         }
         let token = sheet.token
         let path = url.path
+        // What is shown: the layers chosen in the Layers pane, as Windows exports from its view engine.
+        let layers = shownLayerVisibility
         let result: Result<ExportReport, Error> = await Task.detached {
             do {
-                let engine = try PdfEngine.open(data, password: password)
+                let engine = try Self.exportEngine(data, password, layers)
                 defer { engine.close() }
                 return .success(try DocumentExport.exportToFile(engine, format, path, options: options, cancel: token))
             } catch {
