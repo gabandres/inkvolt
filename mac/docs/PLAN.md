@@ -417,7 +417,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
-| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); rotate view and dark pages done 2026-11-03; reading modes (single, two pages, cover) still to do (HANDOFF's list) |
+| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view and dark pages done 2026-11-03 |
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
@@ -550,6 +550,14 @@ Mac differences for the PDF app (so far):
   inserted, as Insert Pages from File. Drag starts are AppKit's (NSTableView), so the self-test drops through the same
   `drop(_:before:)` with its own pasteboard (ViewTest): the mouse part of a drag isn't exercised over SSH. The organizer
   keeps its own drags (moving only).
+- Reading modes (2026-11-03): View › Single Page (⌘4), Continuous (⌘5), Two Pages (⌘6), Two Pages with Cover (⌘7), as
+  Windows' Ctrl+4…7, for the active pane, kept as the mode new windows open with (`Layout`, the Windows name and
+  values); a second pane starts in the main pane's mode. `PagesView` lays out pairs in rows (the cover alone on the
+  right, odd pages on the right after it, as Windows' `Relayout`), and Single Page lays out only the page shown; going
+  to a page, a find match, a flashed or revealed comment and Read Aloud's word show their page first
+  (`prepareToShow`). Single Page turns past a page's end by the scroll wheel (a pull of 60 points at the edge, not
+  momentum), Page Down, Space and the arrows; Home and End go to the first and last page. A file's own /PageLayout
+  isn't read yet (Windows opens it the way it asks). ViewTest checks it.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -820,6 +828,10 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
 - Thumbnail drags: dragging one or several thumbnails in the sidebar (the gap where they will land), dropping them in
   another window's sidebar (a copy, "+" on the pointer), and a PDF or pictures dragged from the Finder onto the
   thumbnails; the moved pages selected after.
+- Reading modes: View › Single Page (⌘4), Continuous (⌘5), Two Pages (⌘6), Two Pages with Cover (⌘7): the pairs'
+  gap and centering at several zooms, Zoom to Width and Zoom to Page fitting a pair, turned pages in pairs, Single
+  Page turned by scrolling on past a page's end with a mouse wheel and a trackpad (no flicker from coasting), by Page
+  Down, Space and the arrows, and the subtitle and thumbnails following.
 
 ## Open decisions
 

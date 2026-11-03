@@ -206,6 +206,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Fit the width once the window has its size (pages narrower than the window stay at actual size).
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
+                self.pages.setReadingMode(PagesView.ReadingMode(rawValue: AppSettings.readingMode) ?? .continuous)
                 self.applyOpeningZoom()
                 var page = self.pdf.startPage
                 if !Report.isRunning || AppTest.isActive, let path = self.pdf.fileURL?.path {
@@ -234,6 +235,22 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// View › Rotate View Clockwise (⇧⌘R) and Counterclockwise (⇧⌘L): the active pane's view only, never the file.
     @objc func rotateViewClockwise(_ sender: Any?) { activePages.rotateView(clockwise: true); scrolled() }
     @objc func rotateViewCounterclockwise(_ sender: Any?) { activePages.rotateView(clockwise: false); scrolled() }
+
+    // MARK: Reading modes
+
+    /// View › Single Page (⌘4), Continuous (⌘5), Two Pages (⌘6), Two Pages with Cover (⌘7): the active pane's layout,
+    /// kept as the setting new windows open with (as Windows).
+    @objc func singlePageMode(_ sender: Any?) { setReadingMode(.single) }
+    @objc func continuousMode(_ sender: Any?) { setReadingMode(.continuous) }
+    @objc func twoPagesMode(_ sender: Any?) { setReadingMode(.twoPages) }
+    @objc func coverMode(_ sender: Any?) { setReadingMode(.cover) }
+
+    func setReadingMode(_ mode: PagesView.ReadingMode) {
+        if organizerShown { showOrganizer(false) }
+        activePages.setReadingMode(mode)
+        AppSettings.readingMode = mode.rawValue
+        scrolled()
+    }
 
     /// View › Dark Pages (Night Reading): every window's pages, thumbnails and organizer, kept as a setting.
     @objc func toggleDarkPages(_ sender: Any?) { AppSettings.setDarkPages(!AppSettings.darkPages) }
@@ -702,6 +719,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         switch item.action {
         case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)):
             return engine.pageCount > 0
+        case #selector(singlePageMode(_:)), #selector(continuousMode(_:)), #selector(twoPagesMode(_:)), #selector(coverMode(_:)):
+            let modes: [Selector: PagesView.ReadingMode] = [#selector(singlePageMode(_:)): .single, #selector(continuousMode(_:)): .continuous,
+                                                            #selector(twoPagesMode(_:)): .twoPages, #selector(coverMode(_:)): .cover]
+            item.state = item.action.flatMap { modes[$0] } == activePages.readingMode ? .on : .off
+            return engine.pageCount > 0
         case #selector(toggleDarkPages(_:)):
             item.state = AppSettings.darkPages ? .on : .off
             return true
@@ -998,6 +1020,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func go(_ page: Int, targetY: Double? = nil) {
         let pages = activePages
         guard page >= 0 && page < pages.pageRects.count else { return }
+        pages.prepareToShow(page)
         // A spot down the page only on an upright view (as Windows: a turned view shows the page's top).
         let y = pages.viewRotation == 0 ? targetY : nil
         pages.scrollTo(y: pages.pageRects[page].minY + (y ?? 0) - (y == nil ? PagesView.gap / 2 : 8))
@@ -1139,6 +1162,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         for view in allPanes { view.currentMatch = m }
         findBar.status = "\(foundIndex + 1) of \(found.count)"
         let pages = activePages
+        pages.prepareToShow(m.page)
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {
             let shownBox: CGRect = pages.viewRect(box, pages.pageRects[m.page])
             let shown: CGRect = activeScroll.contentView.bounds

@@ -283,19 +283,103 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         RotatedView.size(Double(page.width), Double(page.height), viewRotation)
     }
 
+    /// How the pages are laid out (Windows' `ViewLayout`): one after another, one at a time, two side by side, or two
+    /// side by side after a cover page alone (odd pages on the right, as a printed book).
+    enum ReadingMode: String, CaseIterable {
+        case single = "SinglePage", continuous = "Continuous", twoPages = "Facing", cover = "FacingCover"
+    }
+
+    private(set) var readingMode: ReadingMode = .continuous
+    /// The page shown in Single Page (the others have no place in the view).
+    private(set) var singlePage = 0
+
+    /// Lays the pages out another way, keeping the page at the top of the window in view.
+    func setReadingMode(_ mode: ReadingMode) {
+        guard mode != readingMode else { return }
+        let page = currentPage
+        readingMode = mode
+        singlePage = min(page, max(engine.pageCount - 1, 0))
+        layoutPages()
+        window?.invalidateCursorRects(for: self)
+        if page < pageRects.count { scrollTo(y: pageRects[page].minY - Self.gap / 2) }
+        needsDisplay = true
+        requestVisible()
+    }
+
+    /// Makes `page` part of the layout before something scrolls to it (Single Page shows it instead of the page shown).
+    func prepareToShow(_ page: Int) {
+        guard readingMode == .single, page != singlePage, page >= 0, page < engine.pageCount else { return }
+        singlePage = page
+        layoutPages()
+        window?.invalidateCursorRects(for: self)
+        needsDisplay = true
+        pageShown()
+    }
+
+    /// Tells the window the page shown changed (its subtitle and the sidebar follow the scroll position).
+    private func pageShown() {
+        guard let clip = enclosingScrollView?.contentView else { return }
+        NotificationCenter.default.post(name: NSView.boundsDidChangeNotification, object: clip)
+    }
+
+    /// The pages sharing a row with `page` (two-page modes pair them).
+    func rowOf(_ page: Int) -> ClosedRange<Int> {
+        let n = engine.pageCount
+        switch readingMode {
+        case .twoPages:
+            let f = page - page % 2
+            return f...min(f + 1, max(n - 1, f))
+        case .cover:
+            if page == 0 { return 0...0 }
+            let f = page % 2 == 1 ? page : page - 1
+            return f...min(f + 1, max(n - 1, f))
+        case .single, .continuous:
+            return page...page
+        }
+    }
+
     private func layoutPages() {
-        let sizes = (0..<engine.pageCount).map { i -> (width: Double, height: Double) in
+        let n = engine.pageCount
+        let sizes = (0..<n).map { i -> (width: Double, height: Double) in
             let g = engine.page(i)
             return RotatedView.size(g.width, g.height, viewRotation)
         }
         let widest = sizes.map(\.width).max() ?? 612
         var y = Self.margin
-        pageRects = sizes.map { g in
-            let r = NSRect(x: Self.margin + (widest - g.width) / 2, y: y, width: g.width, height: g.height)
-            y += g.height + Self.gap
-            return r
+        switch readingMode {
+        case .continuous:
+            pageRects = sizes.map { g in
+                let r = NSRect(x: Self.margin + (widest - g.width) / 2, y: y, width: g.width, height: g.height)
+                y += g.height + Self.gap
+                return r
+            }
+            setFrameSize(NSSize(width: widest + 2 * Self.margin, height: max(y - Self.gap + Self.margin, Self.margin * 2)))
+        case .single:
+            singlePage = min(singlePage, max(n - 1, 0))
+            pageRects = Array(repeating: .zero, count: n)
+            guard n > 0 else { return setFrameSize(NSSize(width: 2 * Self.margin, height: 2 * Self.margin)) }
+            let g = sizes[singlePage]
+            pageRects[singlePage] = NSRect(x: Self.margin, y: Self.margin, width: g.width, height: g.height)
+            setFrameSize(NSSize(width: g.width + 2 * Self.margin, height: g.height + 2 * Self.margin))
+        case .twoPages, .cover:
+            pageRects = Array(repeating: .zero, count: n)
+            let center = Self.margin + widest + Self.gap / 2
+            var i = 0
+            while i < n {
+                let row = rowOf(i)
+                let height = row.map { sizes[$0].height }.max() ?? 0
+                for j in row {
+                    let g = sizes[j]
+                    var right = readingMode == .cover ? j % 2 == 0 : j % 2 == 1
+                    if row.count == 1 && readingMode == .twoPages { right = false }
+                    let x = right ? center + Self.gap / 2 : center - Self.gap / 2 - g.width
+                    pageRects[j] = NSRect(x: x, y: y + (height - g.height) / 2, width: g.width, height: g.height)
+                }
+                y += height + Self.gap
+                i = row.upperBound + 1
+            }
+            setFrameSize(NSSize(width: 2 * widest + Self.gap + 2 * Self.margin, height: max(y - Self.gap + Self.margin, Self.margin * 2)))
         }
-        setFrameSize(NSSize(width: widest + 2 * Self.margin, height: max(y - Self.gap + Self.margin, Self.margin * 2)))
     }
 
     // MARK: Drawing
@@ -331,9 +415,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     /// The pages a rectangle of this view touches.
     func pages(in rect: NSRect) -> ClosedRange<Int>? {
+        if readingMode == .single {
+            return singlePage < pageRects.count && pageRects[singlePage].intersects(rect) ? singlePage...singlePage : nil
+        }
         guard let first = pageRects.firstIndex(where: { $0.maxY >= rect.minY }) else { return nil }
         let last = pageRects.lastIndex(where: { $0.minY <= rect.maxY }) ?? first
-        return first <= last ? first...last : nil
+        // A row's pages together (in two-page modes a short page may end above the row's tall one).
+        let lo = rowOf(first).lowerBound, hi = rowOf(last).upperBound
+        return lo <= hi ? lo...hi : nil
     }
 
     /// The place outlined for a moment (`flash`).
@@ -409,6 +498,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     /// Outlines a place for a moment (a finding chosen in the Accessibility pane; Windows' `Viewer.Flash`).
     func flash(_ page: Int, _ box: RectD) {
+        prepareToShow(page)
         flashed = (page, box)
         needsDisplay = true
         flashTask?.cancel()
@@ -826,7 +916,27 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// The page under a point of this view (else the nearest), with the point in that page's space.
     func page(at point: NSPoint) -> (page: Int, x: Double, y: Double)? {
         guard !pageRects.isEmpty else { return nil }
-        let i = pageRects.firstIndex { point.y <= $0.maxY + Self.gap / 2 } ?? pageRects.count - 1
+        var i: Int
+        switch readingMode {
+        case .single:
+            i = min(singlePage, pageRects.count - 1)
+        case .continuous:
+            i = pageRects.firstIndex { point.y <= $0.maxY + Self.gap / 2 } ?? pageRects.count - 1
+        case .twoPages, .cover:
+            // The row under the point, then the page of that row nearest it across.
+            var row = rowOf(pageRects.count - 1)
+            var k = 0
+            while k < pageRects.count {
+                let r = rowOf(k)
+                let bottom = r.map { pageRects[$0].maxY }.max() ?? 0
+                if point.y <= bottom + Self.gap / 2 {
+                    row = r
+                    break
+                }
+                k = r.upperBound + 1
+            }
+            i = row.min { abs(pageRects[$0].midX - point.x) < abs(pageRects[$1].midX - point.x) } ?? row.lowerBound
+        }
         let p = pageSpace(point, pageRects[i])
         return (i, p.x, p.y)
     }
@@ -920,6 +1030,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         selectedId = id
         needsDisplay = true
         if reveal, let id, let f = frame(of: id), f.page < pageRects.count {
+            prepareToShow(f.page)
             let rect = viewRect(f.rect, pageRects[f.page]).insetBy(dx: -40, dy: -40)
             scrollToVisible(rect)
         }
@@ -1607,6 +1718,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 return super.keyDown(with: event)
             }
         }
+        // Single Page: past the end of the page (or its top), the next (or previous) page; Home and End go to the first
+        // and last.
+        if readingMode == .single {
+            let maxY = max(Double(frame.height - clip.bounds.height), 0)
+            if event.specialKey == .home { return turnSinglePage(to: 0) }
+            if event.specialKey == .end { return turnSinglePage(to: engine.pageCount - 1) }
+            if y > maxY + 1 && clip.bounds.minY >= maxY - 1 { return turnSinglePage(to: singlePage + 1) }
+            if y < -1 && clip.bounds.minY <= 1 { return turnSinglePage(to: singlePage - 1, fromBottom: true) }
+        }
         scrollTo(y: y)
     }
 
@@ -1727,10 +1847,41 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// Keeps the word being read in view (Read Aloud), with some room around it.
     func followSpeech() {
         guard let s = speech, s.page < pageRects.count, let text = try? engine.text(s.page) else { return }
+        prepareToShow(s.page)
         let boxes = text.rects(s.word.start, s.word.end)
         guard let first = boxes.first else { return }
         let box = boxes.dropFirst().reduce(viewRect(first, pageRects[s.page])) { $0.union(viewRect($1, pageRects[s.page])) }
         if !visibleRect.contains(box) { scrollToVisible(box.insetBy(dx: -40, dy: -80)) }
+    }
+
+    /// Single Page: scrolling on past the end of the page shows the next one (and back past its top the one before), as
+    /// Windows' viewer; a pull of 60 points at the edge turns the page, so a trackpad's coasting doesn't.
+    private var pull = 0.0
+
+    override func scrollWheel(with event: NSEvent) {
+        guard readingMode == .single, let clip = enclosingScrollView?.contentView, !event.modifierFlags.contains(.command) else {
+            return super.scrollWheel(with: event)
+        }
+        let atBottom = clip.bounds.maxY >= frame.height - 1, atTop = clip.bounds.minY <= 1
+        let dy = Double(event.scrollingDeltaY) * (event.hasPreciseScrollingDeltas ? 1 : 10)
+        if event.momentumPhase != [] || (dy < 0 && !atBottom) || (dy > 0 && !atTop) || dy == 0 {
+            pull = 0
+            return super.scrollWheel(with: event)
+        }
+        pull += dy
+        if abs(pull) < 60 { return }
+        let next = pull < 0 ? singlePage + 1 : singlePage - 1
+        pull = 0
+        turnSinglePage(to: next, fromBottom: next < singlePage)
+    }
+
+    /// Single Page: shows `page`, at its top (or its bottom, going back).
+    func turnSinglePage(to page: Int, fromBottom: Bool = false) {
+        guard readingMode == .single, page >= 0, page < engine.pageCount, page != singlePage else { return }
+        prepareToShow(page)
+        scrollTo(y: fromBottom ? Double(frame.height) : 0)
+        requestVisible()
+        pageShown()
     }
 
     /// Scrolls so `y` (this view's coordinates) is at the top of what is shown.

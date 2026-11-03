@@ -154,7 +154,8 @@ extension DocumentWindowController {
 
     private func openSecondPane() {
         let second = PagesView(engine: engine)
-        second.setViewRotation(pages.viewRotation) // starts turned as the main pane; turns on its own after
+        second.setViewRotation(pages.viewRotation) // starts turned and laid out as the main pane; its own after
+        second.setReadingMode(pages.readingMode)
         second.readingOnly = true
         second.host = self
         second.tool = .text

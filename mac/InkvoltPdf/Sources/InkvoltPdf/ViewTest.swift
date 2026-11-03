@@ -7,7 +7,9 @@ import PdfCore
 /// it was clicked, an arrow key moving a comment the way it points on the screen, the file unchanged, the split pane's
 /// own turn, the turn remembered for the file); View › Dark Pages (Night Reading) (the page's paper drawn dark grey, in
 /// the split pane too, kept as a setting, back to white); thumbnails dropped in the sidebar (pages moved, a PDF file
-/// inserted, another window's page copied in, each one undo step). Only counts and states are written.
+/// inserted, another window's page copied in, each one undo step); View › Single Page, Two Pages, Two Pages with Cover and
+/// Continuous (pages paired in rows, a click finding the right page of a row, text selected there, Single Page showing
+/// one page that Next Page, End and Home turn, the mode kept). Only counts and states are written.
 @MainActor
 struct ViewTest {
     let controller: DocumentWindowController
@@ -77,6 +79,7 @@ struct ViewTest {
         await rotateView()
         await darkPages()
         await thumbnailDrops()
+        await readingModes()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -129,6 +132,63 @@ struct ViewTest {
     private func firstLine(_ page: Int) -> String {
         guard let t = try? controller.engine.text(page) else { return "" }
         return String(t.text.prefix(30))
+    }
+
+    private func ticked(_ title: String) -> Bool {
+        guard let item = menuItem(title) else { return false }
+        _ = controller.validateMenuItem(item)
+        return item.state == .on
+    }
+
+    private mutating func readingModes() async {
+        let n = controller.engine.pageCount
+        guard n >= 3 else {
+            lines.append("SKIP reading modes: needs three pages")
+            return
+        }
+        controller.setZoom(0.5)
+        controller.go(0)
+        let two = choose("Two Pages")
+        var r = pages.pageRects
+        let paired = abs(r[0].midY - r[1].midY) < 1 && r[1].minX > r[0].maxX && r[2].minY > r[0].maxY
+        let hit = pages.page(at: NSPoint(x: r[1].midX, y: r[1].midY))?.page
+        check(two && pages.readingMode == .twoPages && ticked("Two Pages") && paired && hit == 1,
+              "Two Pages: pages 1 and 2 side by side, page 3 below; a point on the right page finds page 2")
+        if let spot = textSpot() {
+            controller.go(spot.page)
+            pages.tool = .text
+            await press(pages, page: spot.page, [spot.start, PointD((spot.start.x + spot.end.x) / 2, spot.start.y), spot.end])
+            let text = pages.selectedText ?? ""
+            check(!text.isEmpty && text.split(separator: " ").count >= 3, "text selected with the mouse in Two Pages: “\(text)”")
+            pages.clearSelection()
+        }
+
+        let cover = choose("Two Pages with Cover")
+        r = pages.pageRects
+        check(cover && pages.readingMode == .cover && r[0].minX > pages.frame.midX - 1 && abs(r[1].midY - r[2].midY) < 1 && r[1].minY > r[0].maxY
+              && r[2].minX > r[1].maxX,
+              "Two Pages with Cover: the cover alone on the right, then pages 2 and 3 side by side")
+
+        let single = choose("Single Page")
+        let shown = pages.pageRects.filter { !$0.isEmpty }.count
+        controller.go(0)
+        controller.nextPage(nil)
+        let turned = pages.currentPage == 1 && pages.pageRects[0].isEmpty && !pages.pageRects[1].isEmpty
+        controller.window?.makeFirstResponder(pages)
+        pages.keyDown(with: key(119, String(UnicodeScalar(NSEndFunctionKey)!)))
+        let end = pages.currentPage == n - 1
+        pages.keyDown(with: key(115, String(UnicodeScalar(NSHomeFunctionKey)!)))
+        let home = pages.currentPage == 0
+        check(single && ticked("Single Page") && shown == 1 && turned && end && home,
+              "Single Page: one page shown; Next Page shows page 2 alone, End the last, Home the first")
+
+        let back = choose("Continuous")
+        r = pages.pageRects
+        check(back && pages.readingMode == .continuous && r.allSatisfy { !$0.isEmpty } && r[1].minY > r[0].maxY
+              && AppSettings.readingMode == "Continuous",
+              "Continuous again: every page in one column, kept as the mode new windows open with")
+        controller.setZoom(1) // as the tests after this one expect
+        controller.go(0)
     }
 
     private mutating func thumbnailDrops() async {

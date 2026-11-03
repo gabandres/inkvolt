@@ -21,7 +21,7 @@ One agent, cheapest first, one commit each, in this order:
 2. ~~Rotate view~~ Done 2026-11-03 (View › Rotate View Clockwise ⇧⌘R / Counterclockwise ⇧⌘L; ViewTest).
 3. ~~Dark pages~~ Done 2026-11-03 (View › Dark Pages (Night Reading), Settings; `NightColors`).
 4. ~~Dragging thumbnails~~ Done 2026-11-03 (the sidebar's thumbnails: move, copy to another window, PDFs and pictures dropped).
-5. Reading modes: single, two pages, cover (`PagesView` lays out continuously only).
+5. ~~Reading modes~~ Done 2026-11-03 (View › Single Page ⌘4, Continuous ⌘5, Two Pages ⌘6, Two Pages with Cover ⌘7).
 6. Insert from Scanner into the open document (Pages has Insert from File and Blank; the start page's From a Scanner…
    makes a new PDF).
 7. Report a Problem (the Help menu has What's New, Pro and GitHub only).

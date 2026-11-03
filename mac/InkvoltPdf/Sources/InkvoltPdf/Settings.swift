@@ -17,6 +17,7 @@ enum AppSettings {
         static let lastVersionSeen = "LastVersionSeen"
         static let filePositions = "FilePositions"
         static let darkPages = "DarkPages"
+        static let layout = "Layout"
         static let scanDevice = "ScanDevice"
         static let scanSource = "ScanSource"
         static let scanColor = "ScanColor"
@@ -49,6 +50,12 @@ enum AppSettings {
     static var darkPages: Bool {
         get { bool(Key.darkPages, false) }
         set { defaults.set(newValue, forKey: Key.darkPages) }
+    }
+
+    /// The reading mode new windows open with (Windows' `Layout`: SinglePage, Continuous, Facing, FacingCover).
+    static var readingMode: String {
+        get { defaults.string(forKey: Key.layout) ?? "Continuous" }
+        set { defaults.set(newValue, forKey: Key.layout) }
     }
 
     /// Turns dark pages on or off in every window (pages, thumbnails, the organizer).
@@ -162,7 +169,7 @@ enum AppSettings {
     /// choices are kept (as Windows' Reset to defaults keeps recent files and signatures).
     static func resetToDefaults() {
         let dark = darkPages
-        for key in [Key.theme, Key.restorePosition, Key.keepRecoveryCopies, Key.authorName, Key.zoomMode, Key.darkPages] { defaults.removeObject(forKey: key) }
+        for key in [Key.theme, Key.restorePosition, Key.keepRecoveryCopies, Key.authorName, Key.zoomMode, Key.darkPages, Key.layout] { defaults.removeObject(forKey: key) }
         if dark != darkPages { NotificationCenter.default.post(name: PageRenderer.darkPagesChanged, object: nil) }
     }
 
