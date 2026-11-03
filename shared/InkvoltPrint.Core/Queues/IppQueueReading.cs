@@ -44,7 +44,10 @@ public static class IppQueueReading
         }
         if (!response.Attributes.ContainsKey("printer-state") && !response.Attributes.ContainsKey("marker-names")) return null;
         var status = IppClient.ToStatus(response);
-        return new QueueDeviceReading(usb ? QueueReadingFrom.PrinterOverUsb : QueueReadingFrom.PrinterThroughWindows,
-            status, [], IppClient.ToConsumables(response));
+        var from = usb ? QueueReadingFrom.PrinterOverUsb : QueueReadingFrom.PrinterThroughWindows;
+        // No state it can read says nothing about the printer: Windows' status stands (a jam it knows of doesn't become "Unknown"), with the problems it did give.
+        return status.Code == "unknown"
+            ? new QueueDeviceReading(from, null, status.Alerts, IppClient.ToConsumables(response))
+            : new QueueDeviceReading(from, status, [], IppClient.ToConsumables(response));
     }
 }

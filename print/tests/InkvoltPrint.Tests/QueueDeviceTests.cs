@@ -67,7 +67,7 @@ public class QueueDeviceTests
         // Wrong types: a level as text, a state as a keyword. Read as unknown, never thrown.
         var odd = IppQueueReading.From(AttributesGroup("printer-state keyword idle\nmarker-names name Black\nmarker-levels keyword full"), usb: true);
         Assert.NotNull(odd);
-        Assert.Equal("unknown", odd.Status!.Code);
+        Assert.Null(odd.Status); // no state it can read: Windows' stands (APrinterWithNoStateLeavesWindowsHeadline)
         Assert.Equal("unknown", odd.Supplies.Single().State);
         Assert.Null(odd.Supplies.Single().PercentRemaining);
     }
@@ -115,6 +115,36 @@ public class QueueDeviceTests
         Assert.True(source.HasSupplyLevels);
         Assert.Equal(QueueReadingFrom.PrinterOverUsb, source.From);
         Assert.Equal("the printer over USB (IPP, through Windows)", source.Origin);
+    }
+
+    [Theory]
+    [InlineData("marker-names name Black\nmarker-levels integer 40")] // no printer-state
+    [InlineData("printer-state keyword idle\nmarker-names name Black\nmarker-levels integer 40")] // not an enum
+    [InlineData("printer-state enum 9\nmarker-names name Black\nmarker-levels integer 40")] // not a state IPP has
+    public async Task APrinterWithNoStateLeavesWindowsHeadline(string attributes)
+    {
+        var reading = IppQueueReading.From(AttributesGroup(attributes), usb: true);
+        var jam = new PrinterStatus("media-jam", "Paper jam", Severity.Error, [], "Clear the jam.");
+        var source = new DeviceQueueStatusSource(new FixedWindows(jam), [new Reader(_ => Task.FromResult(reading))]);
+
+        var read = await source.ReadAsync(CancellationToken.None);
+
+        Assert.Equal("Paper jam", read!.Status.Message); // not "Unknown", with nothing wrong
+        Assert.Equal(Severity.Error, read.Status.Severity);
+        Assert.Equal(40, read.Supplies.Single().PercentRemaining);
+    }
+
+    [Fact]
+    public async Task AProblemFromAPrinterWithNoStateIsStillAdded()
+    {
+        var reading = IppQueueReading.From(AttributesGroup("printer-state-reasons keyword media-jam-error\nmarker-names name Black"), usb: true);
+        var source = new DeviceQueueStatusSource(new FixedWindows(Ready), [new Reader(_ => Task.FromResult(reading))]);
+
+        var read = await source.ReadAsync(CancellationToken.None);
+
+        Assert.Equal("Ready", read!.Status.Message);
+        Assert.Equal(Severity.Error, read.Status.Severity);
+        Assert.Contains(read.Status.Alerts, a => a.Id == "media-jam");
     }
 
     [Fact]
