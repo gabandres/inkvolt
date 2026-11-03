@@ -15,4 +15,9 @@
     <!-- Built first, not referenced: BatchPrintEndToEndTests runs its command line, through Windows' real PDF and picture engines. -->
     <ProjectReference Include="..\..\src\InkvoltPrint.App\InkvoltPrint.App.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" UndefineProperties="TargetFramework;RuntimeIdentifier" PrivateAssets="all" ExcludeAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Time limits and cancellation for both test projects (CI's runners are slower) -->
+    <Compile Include="..\..\..\shared\Testing\Timing.cs" Link="Timing.cs" />
+    <Using Include="Inkvolt.Testing" />
+  </ItemGroup>
 </Project>

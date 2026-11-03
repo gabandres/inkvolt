@@ -404,8 +404,8 @@ public class ExportPptxTests
             using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
             using var ms = new MemoryStream();
             Assert.True(DocumentExport.Export(engine, format, ms, new ExportOptions()).Saved);
-        }).WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.InRange(watch.Elapsed.TotalSeconds, 0, 5);
+        }).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(30)));
+        Assert.InRange(watch.Elapsed, TimeSpan.Zero, Timing.Limit(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

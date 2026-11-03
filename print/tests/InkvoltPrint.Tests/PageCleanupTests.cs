@@ -565,7 +565,7 @@ public class PageCleanupTests
         Assert.True(clock.Elapsed < TimeSpan.FromMinutes(2), $"{clock.Elapsed.TotalSeconds:0.0} s");
         Assert.Equal(PageFilters.PixelFilters, result.Done);
 
-        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        using var cancel = Timing.CancelAfter(TimeSpan.FromMilliseconds(100)); // not a pool timer: Parallel.For fills the pool
         clock.Restart();
         Assert.ThrowsAny<OperationCanceledException>(() => PageCleanup.Apply(page, w, h, 1, 600, PageFilters.PixelFilters, cancel.Token));
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"cancelled after {clock.Elapsed.TotalSeconds:0.0} s");

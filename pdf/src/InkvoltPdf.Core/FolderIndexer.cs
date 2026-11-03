@@ -416,6 +416,8 @@ public sealed class FolderIndexer : IDisposable
 
     private sealed record Item(string RelativePath, string FullPath, long Size, long Ticks);
 
+    private const string Away = "The folder isn't there just now. The index stays as it is, and its files are found again when it's back.";
+
     /// <summary>Lists the folder, reads what is new or changed, takes out what is gone. Returns how long until the next look.</summary>
     private TimeSpan Pass()
     {
@@ -425,7 +427,7 @@ public sealed class FolderIndexer : IDisposable
         if (!Directory.Exists(_folder))
         {
             // A drive that is away for now: the index stays as it is. Only a listing that worked can take files out.
-            _problem = "The folder isn't there just now. The index stays as it is, and its files are found again when it's back.";
+            _problem = Away;
             SetPhase(IndexerPhase.Problem);
             return _options.Rescan;
         }
@@ -469,7 +471,8 @@ public sealed class FolderIndexer : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _problem = $"Couldn't list the folder: {ex.Message}";
+            // Gone between the check above and the listing: away, as above, not a listing that failed.
+            _problem = Directory.Exists(_folder) ? $"Couldn't list the folder: {ex.Message}" : Away;
             SetPhase(IndexerPhase.Problem);
             return _options.Rescan;
         }

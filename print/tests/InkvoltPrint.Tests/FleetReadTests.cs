@@ -327,10 +327,10 @@ public sealed class FleetReadTests : IDisposable
         foreach (var q in pc.Queues) pc.Sources[q.Name] = new Source(async _ => { await new TaskCompletionSource().Task; return null; });
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var read = await FleetReader.ReadAllAsync(pc, Now, limit: TimeSpan.FromMilliseconds(200)).WaitAsync(TimeSpan.FromSeconds(30));
+        var read = await FleetReader.ReadAllAsync(pc, Now, limit: TimeSpan.FromMilliseconds(200)).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(30)));
 
         Assert.Equal(40, read.Printers.Count);
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(15), $"took {sw.Elapsed}");
+        Assert.True(sw.Elapsed < Timing.Limit(TimeSpan.FromSeconds(15)), $"took {sw.Elapsed}"); // 17.6 s seen on CI
     }
 
     [Fact]

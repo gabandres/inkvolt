@@ -239,7 +239,7 @@ public class JsFormTests
         var before = GC.GetAllocatedBytesForCurrentThread();
         var sw = Stopwatch.StartNew();
         var r = Fill(form, ("a", "1"));
-        Assert.True(sw.ElapsedMilliseconds < 3000, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.True(sw.Elapsed < Timing.Limit(TimeSpan.FromSeconds(3)), $"took {sw.ElapsedMilliseconds} ms");
         Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 64 * 1024 * 1024, "allocated too much");
         Assert.Equal("", ValueOf(r.Data, "b"));
         Assert.Contains(r.Log, l => l.Contains("failed", StringComparison.Ordinal));

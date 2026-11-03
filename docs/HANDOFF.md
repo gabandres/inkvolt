@@ -85,9 +85,16 @@ One agent, cheapest first, one commit each, in this order:
    stream past 256 MB instead of skipping it; the attachment list shows the packed size of one without /Size that unpacks
    past it. Still unbounded: PDFsharp's own inflating while it opens a file (object streams), and a Flate filter that
    isn't first in its array or an LZW one (checked only after decoding, so memory is spent first).
-8. CI: the Windows `test` job fails about one run in two on a different timing test each time
-   (`PageCleanupTests.A_huge_page…`, `TranslationCopyTests.Forms_that_multiply…`, `DeviceHttpLimitsTests.A_reply_that_breaks_off…`,
-   `Core1EngineTests.RenderStopsMidwayWhenCancelled`): give them CI-sized limits or skip the heavy ones on `GITHUB_ACTIONS`.
+8. ~~CI: the Windows `test` job fails about one run in two on a different timing test each time~~ Done 2026-11-03:
+   `shared/Testing/Timing.cs` (linked into both test projects): `Timing.Limit` (4× on `GITHUB_ACTIONS`),
+   `Timing.CancelAfter` (cancels from a thread of its own: a pool timer fired after Parallel.For work had finished) and
+   the `Timing.Alone` collection (runs after the parallel tests) for deadline tests and file-let-go tests. Causes in the
+   last 40 runs: a starved thread pool (PageCleanup, TranslationCopy, OtherBrands IPP, DeviceHttpLimits, CertificatePin,
+   FleetRead), a quiet period a stalled timer overran (BatchPrintFolder), handles to files open in place inherited by a
+   child another test started with Process.Start (FindWorker, InPlace; `KeptText` now runs alone), Pro's globals read
+   outside the Pro collection (`LtvProTests`), and a real bug: FolderIndexer called a folder moved away mid-listing
+   "Couldn't list the folder" instead of away. Not fixed: OfficeConverter starts its helper with Process.Start, so the
+   helper holds every tab's in-place file while it converts (saving over one fails meanwhile).
 
 Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and black-and-white
 in Scan).
@@ -322,9 +329,9 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
   PDF; TWAIN and black-and-white in Print's own Scan tab.
 - UX still short (`docs/UX-REVIEW.md`): PDF group menus as WinUI-style flyouts, the bar at 150 % text on 1200-px
   windows, Print's palette for a printer other than the selected one, motion in the scan review.
-- Tests: three timing tests flake only when both test projects run in parallel on a loaded PC
-  (`JsFormTests.HostileScripts…` was loosened; `ThreadClockTests` and one more seen once); consider a serial
-  collection for timing tests.
+- Tests: a test that measures time takes its limit from `Timing.Limit`, cancels with `Timing.CancelAfter`, and goes in
+  `[Collection(Timing.Alone)]` if it holds a deadline or checks a file is let go (item 8). On a PC loaded by other work
+  the full run still overruns a few hang guards (`FolderIndexerTests.A_file_that_never_ends…`' 15 s stall); rerun alone.
 - Pro: issue the first business licences with `pdf/tools/pro-key issue` (private key in `C:\Users\gabri\.inkvolt-pro\`,
   backed up to OneDrive › Work › Bermudez Systems LLC › Inkvolt › Keys); the flip of `Pro.Enforced` is a release note.
 - Homebrew main cask once the repo has 225 stars and is 30 days old; until then the tap.

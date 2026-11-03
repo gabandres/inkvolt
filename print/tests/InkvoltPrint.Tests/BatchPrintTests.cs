@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using InkvoltPrint.Core;
 using InkvoltPrint.Core.Printing;
@@ -881,6 +882,7 @@ public class BatchPrintListTests
 }
 
 /// <summary>A folder printed as it fills.</summary>
+[Collection(Timing.Alone)] // quiet periods and polling: see Timing.Alone
 public class BatchPrintFolderTests
 {
     private static readonly BatchFolderOptions Fast = new()
@@ -966,15 +968,18 @@ public class BatchPrintFolderTests
         var path = f.File("growing.pdf");
         using var stop = new CancellationTokenSource();
         var queue = new FakeQueue();
-        var options = Fast with { Once = false, QuietPeriod = TimeSpan.FromMilliseconds(400) };
+        // The writes come every 50 ms for a second, far inside the quiet period, so a stalled timer on a busy runner
+        // (CI's Task.Delay(100) took past 400 ms) can't open a quiet gap between two of them.
+        var options = Fast with { Once = false, QuietPeriod = TimeSpan.FromSeconds(2) };
         var run = Run(f, queue, options, ct: stop.Token);
-        for (var i = 0; i < 6; i++)
+        var writing = Stopwatch.StartNew();
+        while (writing.Elapsed < TimeSpan.FromSeconds(1))
         {
-            await Task.Delay(100);
+            await Task.Delay(50);
             File.AppendAllText(path, " ");
             Assert.Empty(queue.Sent);
         }
-        for (var i = 0; i < 300 && queue.Sent.Count == 0; i++) await Task.Delay(20);
+        for (var i = 0; i < 750 && queue.Sent.Count == 0; i++) await Task.Delay(20);
         Assert.Single(queue.Sent);
         await stop.CancelAsync();
         await run;

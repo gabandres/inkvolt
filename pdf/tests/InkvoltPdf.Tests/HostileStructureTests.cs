@@ -11,8 +11,9 @@ namespace InkvoltPdf.Tests;
 /// </summary>
 public class HostileStructureTests
 {
-    private static async Task<T> Within<T>(Func<T> work, int seconds = 20) =>
-        await Task.Run(work).WaitAsync(TimeSpan.FromSeconds(seconds));
+    /// <summary>Work that must end, not hang: the limit is far past what it takes (20 s was overrun on a loaded PC), and longer on CI.</summary>
+    private static async Task<T> Within<T>(Func<T> work, int seconds = 60) =>
+        await Task.Run(work).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(seconds)));
 
     private const string Widget = "/Type /Annot /Subtype /Widget /F 4 /P 3 0 R";
 
@@ -382,7 +383,7 @@ public class HostileStructureTests
         // 5,000 pages sharing a content stream at the limit of drawing steps for a page: 10 billion steps. (The document's limit
         // lowered here: the real one takes minutes to reach.)
         var data = SharedPages(5000, string.Concat(Enumerable.Repeat("q Q ", 1_000_000)));
-        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 60);
+        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 120); // past 60 s on a loaded PC
         Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
     }
 
@@ -400,7 +401,7 @@ public class HostileStructureTests
         };
         for (var i = 0; i < pages; i++) objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots 3 0 R >>");
         var data = Core2Pdf.Build(objects);
-        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 60);
+        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 120); // past 60 s on a loaded PC
         Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
     }
 

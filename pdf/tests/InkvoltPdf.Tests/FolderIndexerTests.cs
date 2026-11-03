@@ -286,7 +286,8 @@ public sealed class FolderIndexerTests : IDisposable
     {
         Put("a.pdf", "aword");
         Put("glutton.pdf", "gluttonword");
-        var options = Quick() with { WorkerArgs = ["index-worker-fault", "eat", "glutton.pdf"], MaxWorkers = 1, Stall = TimeSpan.FromSeconds(30) };
+        // The wait far past what reaching the limit takes, even paging on a loaded PC: what ends the worker must be the limit.
+        var options = Quick() with { WorkerArgs = ["index-worker-fault", "eat", "glutton.pdf"], MaxWorkers = 1, Stall = Timing.Limit(TimeSpan.FromMinutes(2)) };
         using var indexer = TakeOwnership(Start(options));
         UpToDate(indexer, 1);
         Assert.Equal(IndexedState.Crashed, indexer.Index!.Files["glutton.pdf"].State); // not "too slow": the job's limit ended it, not the wait

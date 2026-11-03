@@ -8,6 +8,7 @@ namespace InkvoltPdf.Tests;
 /// Huge files (roadmap 3.6): a big PDF opens in place and is read only when asked for; a large render runs in strips on
 /// several threads. The tests open small files in place (DocumentSession.Open's threshold argument).
 /// </summary>
+[Collection(Timing.Alone)] // checks that the file is let go: see Timing.Alone
 public sealed class InPlaceTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "inkvolt-inplace-" + Guid.NewGuid().ToString("N"));

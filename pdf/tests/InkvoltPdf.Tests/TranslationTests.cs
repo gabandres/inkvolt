@@ -1424,10 +1424,10 @@ public class TranslationCopyTests
         Assert.Equal([0], plan.UnreadablePages);
         Assert.Empty(plan.Texts);
         Assert.True(sw.Elapsed < TimeSpan.FromMinutes(4), sw.Elapsed.ToString()); // seconds alone; much longer with every other test running
-        using var cts = new CancellationTokenSource(50);
+        using var cts = Timing.CancelAfter(TimeSpan.FromMilliseconds(50)); // a pool timer fired after the plan had finished on CI
         var cancelled = Stopwatch.StartNew();
         Assert.ThrowsAny<OperationCanceledException>(() => Translation.MakePlan(pdf, null, [0], null, cts.Token));
-        Assert.True(cancelled.Elapsed < TimeSpan.FromSeconds(5), cancelled.Elapsed.ToString());
+        Assert.True(cancelled.Elapsed < Timing.Limit(TimeSpan.FromSeconds(5)), cancelled.Elapsed.ToString());
     }
 
     [Fact]

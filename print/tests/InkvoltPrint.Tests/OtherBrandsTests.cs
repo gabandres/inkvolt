@@ -12,6 +12,7 @@ namespace InkvoltPrint.Tests;
 /// Canon, Epson, Brother and other IPP Everywhere / eSCL printers: status and supplies from IPP, scanning over eSCL.
 /// The fixtures are written from the public specs (Fixtures/inkjet-demo), never captured from a device.
 /// </summary>
+[Collection(Timing.Alone)] // probe deadlines: see Timing.Alone
 public class OtherBrandsTests
 {
     private static string InkjetFile(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "inkjet-demo", name);

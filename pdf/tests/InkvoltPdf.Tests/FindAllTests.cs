@@ -5,9 +5,11 @@ namespace InkvoltPdf.Tests;
 
 /// <summary>
 /// These classes run one at a time: <see cref="PdfEngine.KeptTextChars"/> is process-wide, and FindAllTests lowers it
-/// while a test runs, which changes what any other search in the process keeps.
+/// while a test runs, which changes what any other search in the process keeps. They also run alone, after the parallel
+/// tests (as <see cref="Timing.Alone"/>): FindWorkerTests checks that files open in place are let go, and a child another
+/// test starts meanwhile with Process.Start inherits MuPDF's handles to them (CI: File.Delete and File.Move denied).
 /// </summary>
-[CollectionDefinition("KeptText")]
+[CollectionDefinition("KeptText", DisableParallelization = true)]
 public sealed class KeptTextCollection;
 
 /// <summary>Find across a document (roadmap 3.6): pages read on several threads, in order, remembered for the next search.</summary>

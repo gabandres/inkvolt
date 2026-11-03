@@ -12,6 +12,7 @@ namespace InkvoltPrint.Tests;
 /// Certificate pins are per TLS port: a printer may use one certificate for its web server (443) and another for IPPS
 /// (631). Real TLS handshakes against throwaway servers on this PC's loopback address (no LAN, no printer).
 /// </summary>
+[Collection(Timing.Alone)] // TLS handshakes within a request's deadline: see Timing.Alone
 public class CertificatePinTests
 {
     [Fact]

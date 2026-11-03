@@ -11,6 +11,7 @@ using InkvoltPrint.Core.Pdf;
 namespace InkvoltPrint.Tests;
 
 /// <summary>What a printer can't make the app do over HTTP: ask another computer, or keep a reply without end. All reads go through <see cref="DeviceHttp"/>.</summary>
+[Collection(Timing.Alone)] // 32 MB replies within a request's deadline: see Timing.Alone
 public class DeviceHttpLimitsTests
 {
     private const string Host = "192.0.2.10", Other = "192.0.2.200";
@@ -169,7 +170,7 @@ public class DeviceHttpLimitsTests
         using var scanner = new DeviceHttp(Host, new Serving(new Reply(page)));
         using var request = new HttpRequestMessage(HttpMethod.Get, scanner.Http("/eSCL/ScanJobs/1/NextDocument"));
         DeviceHttp.AllowLongReply(request);
-        using var reply = await scanner.SendAsync(request);
+        using var reply = await scanner.SendAsync(request, Timing.Limit(DeviceHttp.DefaultTimeout));
         Assert.Equal(page, (await reply.Content.ReadAsByteArrayAsync()).Length);
     }
 

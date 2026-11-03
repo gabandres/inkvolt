@@ -1012,8 +1012,12 @@ public class LtvTests
         Assert.Contains(result.Certificates, c => c.Outcome.Contains("CRL"));
     }
 
-    // ---- Free and Pro ----
+}
 
+/// <summary>Long-term validation's Pro gate. In the Pro collection: ProTests turns <see cref="Pro.Enforced"/> on meanwhile.</summary>
+[Collection("Pro")]
+public class LtvProTests
+{
     [Fact]
     public void Adding_is_pro_and_verifying_stays_free()
     {
