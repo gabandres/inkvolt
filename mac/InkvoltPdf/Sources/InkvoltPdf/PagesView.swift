@@ -244,11 +244,40 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         requestVisible()
     }
 
+    /// The view turned clockwise by 0, 90, 180 or 270 degrees, on screen only (the file, thumbnails, printing and
+    /// export stay as they are): Windows' `PageViewer.SetViewRotation`. Each window and split pane has its own; links,
+    /// the selection, fields, comments and Prepare Form follow it, since every page point goes through `viewRect`,
+    /// `viewPoint`, `page(at:)` and `pagePoint`.
+    private(set) var viewRotation = 0
+
+    /// Turns the view to `degrees` (any multiple of 90), keeping the page at the top of the window in view.
+    func setViewRotation(_ degrees: Int) {
+        let d = RotatedView.normalize(degrees)
+        guard d != viewRotation else { return }
+        let page = currentPage
+        viewRotation = d
+        layoutPages()
+        window?.invalidateCursorRects(for: self)
+        if page < pageRects.count { scrollTo(y: pageRects[page].minY - Self.gap / 2) }
+        needsDisplay = true
+        requestVisible()
+    }
+
+    func rotateView(clockwise: Bool) { setViewRotation(viewRotation + (clockwise ? 90 : -90)) }
+
+    /// A page's size before the view's turn, from the rectangle it shows in.
+    private func unturned(_ page: NSRect) -> (width: Double, height: Double) {
+        RotatedView.size(Double(page.width), Double(page.height), viewRotation)
+    }
+
     private func layoutPages() {
-        let widest = (0..<engine.pageCount).map { engine.page($0).width }.max() ?? 612
-        var y = Self.margin
-        pageRects = (0..<engine.pageCount).map { i in
+        let sizes = (0..<engine.pageCount).map { i -> (width: Double, height: Double) in
             let g = engine.page(i)
+            return RotatedView.size(g.width, g.height, viewRotation)
+        }
+        let widest = sizes.map(\.width).max() ?? 612
+        var y = Self.margin
+        pageRects = sizes.map { g in
             let r = NSRect(x: Self.margin + (widest - g.width) / 2, y: y, width: g.width, height: g.height)
             y += g.height + Self.gap
             return r
@@ -311,15 +340,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             r.fill()
             NSGraphicsContext.restoreGraphicsState()
             if let image = renderer.image(i) {
-                NSImage(cgImage: image.image, size: r.size).draw(in: r, from: .zero, operation: .sourceOver, fraction: 1,
-                                                                 respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high.rawValue])
+                let whole = unturned(r)
+                drawPicture(image.image, RectD(0, 0, whole.width, whole.height), r, operation: .sourceOver,
+                            hints: [.interpolation: NSImageInterpolation.high.rawValue])
             }
             if let scale = tileScale(for: i) {
                 for tile in renderer.tiles(i, scale: scale) {
-                    let box = viewRect(tile.rect, r)
-                    guard box.intersects(dirtyRect) else { continue }
-                    NSImage(cgImage: tile.image, size: box.size).draw(in: box, from: .zero, operation: .copy, fraction: 1,
-                                                                      respectFlipped: true, hints: nil)
+                    guard viewRect(tile.rect, r).intersects(dirtyRect) else { continue }
+                    drawPicture(tile.image, tile.rect, r, operation: .copy, hints: nil)
                 }
             }
             drawMarks(i, r)
@@ -442,11 +470,75 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         return marks.count
     }
 
+    /// A rectangle of a page's space where it shows in this view (`page` is the page's rectangle in `pageRects`).
     func viewRect(_ b: RectD, _ page: NSRect) -> NSRect {
-        NSRect(x: page.minX + b.x, y: page.minY + b.y, width: b.width, height: b.height)
+        var t = b
+        if viewRotation != 0 {
+            let g = unturned(page)
+            t = RotatedView.toView(b, g.width, g.height, viewRotation)
+        }
+        return NSRect(x: page.minX + t.x, y: page.minY + t.y, width: t.width, height: t.height)
     }
 
-    func viewPoint(_ p: PointD, _ page: NSRect) -> NSPoint { NSPoint(x: page.minX + p.x, y: page.minY + p.y) }
+    func viewPoint(_ p: PointD, _ page: NSRect) -> NSPoint {
+        guard viewRotation != 0 else { return NSPoint(x: page.minX + p.x, y: page.minY + p.y) }
+        let g = unturned(page)
+        let v = RotatedView.toView(p.x, p.y, g.width, g.height, viewRotation)
+        return NSPoint(x: page.minX + v.x, y: page.minY + v.y)
+    }
+
+    /// An arrow key's step on the screen as a move in page `page`'s space (the view may be turned), as Windows' `Nudge`.
+    func arrowStep(_ key: NSEvent.SpecialKey?, _ step: Double, page: Int) -> (dx: Double, dy: Double) {
+        let (vx, vy): (Double, Double) = switch key {
+        case .leftArrow: (-step, 0)
+        case .rightArrow: (step, 0)
+        case .upArrow: (0, -step)
+        default: (0, step)
+        }
+        guard viewRotation != 0 else { return (vx, vy) }
+        let g = engine.page(page)
+        let a = RotatedView.fromView(0, 0, g.width, g.height, viewRotation)
+        let b = RotatedView.fromView(vx, vy, g.width, g.height, viewRotation)
+        return (b.x - a.x, b.y - a.y)
+    }
+
+    /// A point of this view in the space of the page shown in `page` (not kept on the page).
+    func pageSpace(_ point: NSPoint, _ page: NSRect) -> PointD {
+        let x = Double(point.x - page.minX), y = Double(point.y - page.minY)
+        guard viewRotation != 0 else { return PointD(x, y) }
+        let g = unturned(page)
+        let p = RotatedView.fromView(x, y, g.width, g.height, viewRotation)
+        return PointD(p.x, p.y)
+    }
+
+    /// Draws a picture of part `b` (page space) of the page shown in `r`, turned with the view.
+    private func drawPicture(_ image: CGImage, _ b: RectD, _ r: NSRect, operation: NSCompositingOperation,
+                             hints: [NSImageRep.HintKey: Any]?) {
+        guard viewRotation != 0, let ctx = NSGraphicsContext.current?.cgContext else {
+            let box = viewRect(b, r)
+            NSImage(cgImage: image, size: box.size).draw(in: box, from: .zero, operation: operation, fraction: 1,
+                                                          respectFlipped: true, hints: hints)
+            return
+        }
+        let g = unturned(r)
+        ctx.saveGState()
+        ctx.translateBy(x: r.minX, y: r.minY)
+        ctx.concatenate(Self.turn(viewRotation, g.width, g.height))
+        let box = NSRect(x: b.x, y: b.y, width: b.width, height: b.height)
+        NSImage(cgImage: image, size: box.size).draw(in: box, from: .zero, operation: operation, fraction: 1,
+                                                      respectFlipped: true, hints: hints)
+        ctx.restoreGState()
+    }
+
+    /// `RotatedView.toView` as a transform of a `width` x `height` page's space (both y down).
+    static func turn(_ rotation: Int, _ width: Double, _ height: Double) -> CGAffineTransform {
+        switch rotation {
+        case 90: CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: height, ty: 0)
+        case 180: CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: width, ty: height)
+        case 270: CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: width)
+        default: .identity
+        }
+    }
 
     /// One screen point in this view's units (the handles and strokes keep their size at any zoom).
     var onePixel: CGFloat { 1 / max(enclosingScrollView?.magnification ?? 1, 0.05) }
@@ -688,8 +780,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let r = pageRects[i]
             let shown = visibleRect.intersection(r)
             guard !shown.isEmpty else { continue }
-            let region = RectD(Double(shown.minX - r.minX), Double(shown.minY - r.minY), Double(shown.width), Double(shown.height))
+            var region = RectD(Double(shown.minX - r.minX), Double(shown.minY - r.minY), Double(shown.width), Double(shown.height))
             let g = engine.page(i)
+            if viewRotation != 0 { region = RotatedView.fromView(region, g.width, g.height, viewRotation) }
             tiles += renderer.requestTiles(i, scale: scale, region: region, size: (g.width, g.height))
         }
         wantedTiles = tiles
@@ -721,16 +814,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     func page(at point: NSPoint) -> (page: Int, x: Double, y: Double)? {
         guard !pageRects.isEmpty else { return nil }
         let i = pageRects.firstIndex { point.y <= $0.maxY + Self.gap / 2 } ?? pageRects.count - 1
-        let r = pageRects[i]
-        return (i, Double(point.x - r.minX), Double(point.y - r.minY))
+        let p = pageSpace(point, pageRects[i])
+        return (i, p.x, p.y)
     }
 
     /// A point of this view in page `page`'s space, kept on the page.
     func pagePoint(_ point: NSPoint, on page: Int) -> PointD {
         let r = pageRects[page]
-        let x = min(max(Double(point.x - r.minX), 0), Double(r.width))
-        let y = min(max(Double(point.y - r.minY), 0), Double(r.height))
-        return PointD(x, y)
+        let kept = NSPoint(x: min(max(point.x, r.minX), r.maxX), y: min(max(point.y, r.minY), r.maxY))
+        return pageSpace(kept, r)
     }
 
     /// The page at the middle of what is shown (the "current" page).
@@ -798,12 +890,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let v = viewPoint(e, r)
             if abs(v.x - point.x) <= reach && abs(v.y - point.y) <= reach { return (f.page, 100 + i) }
         }
-        let px = onePixel
-        let box = viewRect(f.rect, r).insetBy(dx: -2 * px, dy: -2 * px)
-        let frame = RectD(Double(box.minX), Double(box.minY), Double(box.width), Double(box.height))
+        // The handles in page space, each where it shows (the view may be turned), so the resize works in page space.
+        let px = Double(onePixel)
+        let frame = RectD(f.rect.x - 2 * px, f.rect.y - 2 * px, f.rect.width + 4 * px, f.rect.height + 4 * px)
         for h in handles(of: id) {
-            let p = DrawingGeometry.handlePoint(frame, h)
-            if abs(CGFloat(p.x) - point.x) <= reach && abs(CGFloat(p.y) - point.y) <= reach { return (f.page, h) }
+            let p = viewPoint(DrawingGeometry.handlePoint(frame, h), r)
+            if abs(p.x - point.x) <= reach && abs(p.y - point.y) <= reach { return (f.page, h) }
         }
         return nil
     }
@@ -996,8 +1088,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
                 NSCursor.closedHand.push()
             } else if let text = try? engine.text(page), !text.isEmpty {
-                let r = pageRects[page]
-                let caret = text.hitTest(Double(start.x - r.minX), Double(start.y - r.minY))
+                let at = pageSpace(start, pageRects[page])
+                let caret = text.hitTest(at.x, at.y)
                 selection = TextSelection(page: page, anchor: caret, head: caret)
                 drag = .text
             } else {
@@ -1569,13 +1661,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case .leftArrow, .rightArrow, .upArrow, .downArrow:
             guard canMove(id), let f = frame(of: id) else { return false }
             let step = shift ? 10.0 : 1.0
-            var dx = 0.0, dy = 0.0
-            switch event.specialKey {
-            case .leftArrow: dx = -step
-            case .rightArrow: dx = step
-            case .upArrow: dy = -step
-            default: dy = step
-            }
+            let (dx, dy) = arrowStep(event.specialKey, step, page: f.page)
             let g = engine.page(f.page)
             let d = DrawingGeometry.clampMove(f.rect, dx, dy, g.width, g.height)
             let moved = RectD(f.rect.x + d.dx, f.rect.y + d.dy, f.rect.width, f.rect.height)

@@ -30,7 +30,8 @@ extension DocumentWindowController {
     /// Pages › Add Bookmark: a bookmark to the page shown (from the top of what is shown), its title asked.
     @objc func addBookmark(_ sender: Any?) {
         let page = pages.currentPage
-        let shownTop = Double(scrollView.contentView.bounds.minY - pages.pageRects[page].minY)
+        // From the top of what is shown, on an upright view (a turned view's top isn't the page's).
+        let shownTop = pages.viewRotation == 0 ? Double(scrollView.contentView.bounds.minY - pages.pageRects[page].minY) : 0
         let top: Double? = shownTop > 1 ? min(shownTop, engine.page(page).height) : nil
         let after = sidebar.selectedBookmark
         askTitle("Add Bookmark", initial: "Page \(page + 1)", button: "Add") { [weak self] title in

@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest` and
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest` and
 /// `CompareTest`; with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -51,6 +51,8 @@ enum Report {
     private(set) static var onlyAttachmentsLayers = false
     /// `--only-split`: with `--edit`, only `SplitTest` (quicker runs while working on split view).
     private(set) static var onlySplit = false
+    /// `--only-view`: with `--edit`, only `ViewTest` (rotate view, dark pages, reading modes).
+    private(set) static var onlyView = false
     /// `--only-ocr`: with `--edit`, only `OcrTest` (quicker runs while working on Recognize Text).
     private(set) static var onlyOcr = false
     /// `--only-export`: with `--edit`, only `ExportTest` (quicker runs while working on export).
@@ -88,6 +90,7 @@ enum Report {
         onlyReadAloud = args.contains("--only-read-aloud")
         onlyAttachmentsLayers = args.contains("--only-attachments-layers")
         onlySplit = args.contains("--only-split")
+        onlyView = args.contains("--only-view")
         onlyOcr = args.contains("--only-ocr")
         onlyExport = args.contains("--only-export")
         snapshots = value("--snapshots")
@@ -173,6 +176,11 @@ enum Report {
                     var ocr = OcrTest(controller: controller, name: name)
                     await ocr.run()
                 }
+            } else if edits && onlyView {
+                if controller.pdf.fileURL?.path != syntheticFormPath {
+                    var view = ViewTest(controller: controller, name: name)
+                    await view.run()
+                }
             } else if edits && onlySplit {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var split = SplitTest(controller: controller, name: name)
@@ -232,6 +240,8 @@ enum Report {
                     await files.run()
                     var split = SplitTest(controller: controller, name: name)
                     await split.run()
+                    var view = ViewTest(controller: controller, name: name)
+                    await view.run()
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
                     // Before signing: a signed document declines the scale's page edits.
@@ -262,7 +272,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyOcr && !onlyExport {
+                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

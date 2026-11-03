@@ -204,7 +204,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             MainActor.assumeIsolated {
                 self.applyOpeningZoom()
                 var page = self.pdf.startPage
-                if page == 0, !Report.isRunning || AppTest.isActive, let path = self.pdf.fileURL?.path, let last = AppSettings.lastPage(path) { page = last }
+                if !Report.isRunning || AppTest.isActive, let path = self.pdf.fileURL?.path {
+                    if page == 0, let last = AppSettings.lastPage(path) { page = last }
+                    if let turn = AppSettings.lastRotation(path) { self.pages.setViewRotation(turn) }
+                }
                 if page > 0 { self.go(min(page, self.engine.pageCount - 1)) }
                 self.pages.requestVisible()
                 self.window?.makeFirstResponder(self.pages)
@@ -216,9 +219,21 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
     }
 
+    /// Reopen at last page: the page this file was left at, and the view's turn.
+    func rememberPosition() {
+        guard let path = pdf.fileURL?.path else { return }
+        AppSettings.remember(page: pages.currentPage, rotation: pages.viewRotation, for: path)
+    }
+
+    // MARK: Rotate view
+
+    /// View › Rotate View Clockwise (⇧⌘R) and Counterclockwise (⇧⌘L): the active pane's view only, never the file.
+    @objc func rotateViewClockwise(_ sender: Any?) { activePages.rotateView(clockwise: true); scrolled() }
+    @objc func rotateViewCounterclockwise(_ sender: Any?) { activePages.rotateView(clockwise: false); scrolled() }
+
     func windowWillClose(_ notification: Notification) {
         // Reopen at last page: where this file was left.
-        if !Report.isRunning || AppTest.isActive, let path = pdf.fileURL?.path { AppSettings.remember(page: pages.currentPage, for: path) }
+        if !Report.isRunning || AppTest.isActive { rememberPosition() }
         progressSheet?.cancelClicked()
         readAloud.stop()
         ai.cancel?.cancel()
@@ -678,6 +693,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let split = validateSplitItem(item) { return split }
         switch item.action {
+        case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)):
+            return engine.pageCount > 0
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
             return true
@@ -971,7 +988,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func go(_ page: Int, targetY: Double? = nil) {
         let pages = activePages
         guard page >= 0 && page < pages.pageRects.count else { return }
-        pages.scrollTo(y: pages.pageRects[page].minY + (targetY ?? 0) - (targetY == nil ? PagesView.gap / 2 : 8))
+        // A spot down the page only on an upright view (as Windows: a turned view shows the page's top).
+        let y = pages.viewRotation == 0 ? targetY : nil
+        pages.scrollTo(y: pages.pageRects[page].minY + (y ?? 0) - (y == nil ? PagesView.gap / 2 : 8))
     }
 
     @objc func scrolled() {
@@ -1111,11 +1130,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         findBar.status = "\(foundIndex + 1) of \(found.count)"
         let pages = activePages
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {
-            let r: CGRect = pages.pageRects[m.page]
+            let shownBox: CGRect = pages.viewRect(box, pages.pageRects[m.page])
             let shown: CGRect = activeScroll.contentView.bounds
-            let matchY: CGFloat = r.minY + CGFloat(box.y)
+            let matchY: CGFloat = shownBox.minY
             let y: CGFloat = matchY - shown.height / 3
-            if matchY < shown.minY || matchY + CGFloat(box.height) > shown.maxY { pages.scrollTo(y: y) }
+            if matchY < shown.minY || shownBox.maxY > shown.maxY { pages.scrollTo(y: y) }
         }
     }
 }

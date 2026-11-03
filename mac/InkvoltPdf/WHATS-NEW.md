@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Rotate view (View › Rotate View Clockwise ⇧⌘R, Counterclockwise ⇧⌘L): turns the pages on screen only, without changing the file. Each window and split pane has its own; links, selection, fields and comments follow the turn, and a file reopens the way you left it.
 - Fill & Sign keeps your signatures and initials between launches: up to three signatures and one set of initials, listed with their pictures in the Signature menu (and Tools › Place Saved Signature). Delete one from the same menu.
 - Prepare Form: closing a document right after moving a field with the arrow keys keeps the move (it was lost).
 

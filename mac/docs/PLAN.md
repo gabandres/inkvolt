@@ -417,7 +417,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
-| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view and dark pages still to do (HANDOFF's list) |
+| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); rotate view done 2026-11-03; reading modes (single, two pages, cover) and dark pages still to do (HANDOFF's list) |
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
@@ -526,6 +526,16 @@ Mac differences for the PDF app (so far):
   update checks are Sparkle's automatic checks. The command palette is ⇧⌘K (⌘K is Link Selected Text, ⇧⌘P Page Setup)
   and lists the menu bar's own items, each checked along the front window's responder chain. The self-test keeps its
   settings in a defaults suite of its own.
+- Rotate view (2026-11-03): View › Rotate View Clockwise (⇧⌘R) and Counterclockwise (⇧⌘L) (Windows: Ctrl+Shift+Plus
+  and Minus) turn the active pane's view only; a second pane starts at the main pane's turn, then turns on its own.
+  `PagesView` lays the pages out turned and maps every page point through `viewRect`, `viewPoint`, `pageSpace`,
+  `page(at:)` and `pagePoint` (`RotatedView`), so links, the selection, fields, comments, Prepare Form and Measure follow
+  it; the page pictures and tiles are drawn as rendered, under a turned transform (Windows renders them turned).
+  Arrow keys move comments and Prepare Form's fields the way they point on the screen, as Windows' `Nudge`. A field's
+  or the text editor's box sits over the turned field upright (Windows turns the editor). Labels (Measure's value,
+  reading order's numbers) stay upright. Going to a spot down a page (a bookmark, a link's target) goes to the page's top
+  on a turned view, as on Windows, and Add Bookmark takes the page's top. The turn is remembered per file with the page
+  (Reopen at last page). Thumbnails, printing and export stay as the file is. ViewTest (`--only-view`) checks it.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -785,6 +795,10 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
 - Saved signatures: the Signature menu's pictures beside each saved signature (light and dark mode), the disabled Draw
   and Type Signature with their tooltip when three are saved, Delete a Saved Signature's question, Tools › Place Saved
   Signature, Sign Digitally's Image list; quitting and opening the app again keeps them.
+- Rotate view: View › Rotate View Clockwise (⇧⌘R) and Counterclockwise (⇧⌘L) at 90°, 180° and 270°: the pages and their
+  sharp tiles at 400 % drawn turned (no gaps or seams), selecting text, clicking links, filling a field (its editor
+  sits over the turned field, upright), drawing and resizing comments, Prepare Form's fields and their handles' cursors,
+  Measure, the find highlight and Read Aloud's marks; each split pane on its own; a file reopening turned.
 
 ## Open decisions
 

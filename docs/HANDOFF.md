@@ -18,8 +18,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 
 One agent, cheapest first, one commit each, in this order:
 1. ~~Saved signatures between launches~~ Done 2026-11-03 (`SavedSignatures`, Application Support's "Inkvolt PDF/signatures").
-2. Rotate view (per window and split pane; links, selection, fields, comments and Prepare Form follow the turn, as
-   Windows' `RotatedView`; PdfCore has `RotatedView`, the app never turns the view).
+2. ~~Rotate view~~ Done 2026-11-03 (View › Rotate View Clockwise ⇧⌘R / Counterclockwise ⇧⌘L; ViewTest).
 3. Dark pages.
 4. Dragging thumbnails to move pages (and PDFs dropped on them; today only the organizer and bookmarks take drags).
 5. Reading modes: single, two pages, cover (`PagesView` lays out continuously only).

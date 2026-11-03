@@ -116,9 +116,16 @@ enum AppSettings {
         return all?[path]?["page"] as? Int
     }
 
-    static func remember(page: Int, for path: String) {
+    /// The view's turn `path` was left at (nil: upright, none kept, or Reopen at last page is off).
+    static func lastRotation(_ path: String) -> Int? {
+        guard restorePosition else { return nil }
+        let all = defaults.dictionary(forKey: Key.filePositions) as? [String: [String: Any]]
+        return (all?[path]?["rotation"] as? Int).flatMap { $0 == 0 ? nil : $0 }
+    }
+
+    static func remember(page: Int, rotation: Int = 0, for path: String) {
         var all = defaults.dictionary(forKey: Key.filePositions) as? [String: [String: Any]] ?? [:]
-        all[path] = ["page": page, "at": Date().timeIntervalSince1970]
+        all[path] = ["page": page, "rotation": rotation, "at": Date().timeIntervalSince1970]
         if all.count > maxFiles {
             let oldest = all.sorted { ($0.value["at"] as? Double ?? 0) < ($1.value["at"] as? Double ?? 0) }.prefix(all.count - maxFiles)
             for entry in oldest { all.removeValue(forKey: entry.key) }

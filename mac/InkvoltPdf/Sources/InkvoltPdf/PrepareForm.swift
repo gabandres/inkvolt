@@ -499,7 +499,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         case 123 where plain || shiftOnly, 124 where plain || shiftOnly, 125 where plain || shiftOnly, 126 where plain || shiftOnly: // Arrows
             guard let field, !field.signed else { return false }
             let step = shiftOnly ? 10.0 : 1.0
-            let move: (Double, Double) = event.keyCode == 123 ? (-step, 0) : event.keyCode == 124 ? (step, 0) : event.keyCode == 126 ? (0, -step) : (0, step)
+            let key: NSEvent.SpecialKey = event.keyCode == 123 ? .leftArrow : event.keyCode == 124 ? .rightArrow : event.keyCode == 126 ? .upArrow : .downArrow
+            let move = pages.arrowStep(key, step, page: field.pageIndex) // on the screen, as the view is turned
             let g = pages.engine.page(field.pageIndex)
             model.nudge(move.0, move.1, pageWidth: g.width, pageHeight: g.height)
             nudgeTimer?.invalidate()
