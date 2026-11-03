@@ -9,7 +9,8 @@ import PdfCore
 /// the split pane too, kept as a setting, back to white); thumbnails dropped in the sidebar (pages moved, a PDF file
 /// inserted, another window's page copied in, each one undo step); View › Single Page, Two Pages, Two Pages with Cover and
 /// Continuous (pages paired in rows, a click finding the right page of a row, text selected there, Single Page showing
-/// one page that Next Page, End and Home turn, the mode kept). Only counts and states are written.
+/// one page that Next Page, End and Home turn, the mode kept); Go › Go to Page… (a number shown, one past the end refused
+/// with the range, the page kept). Only counts and states are written.
 @MainActor
 struct ViewTest {
     let controller: DocumentWindowController
@@ -80,8 +81,30 @@ struct ViewTest {
         await darkPages()
         await thumbnailDrops()
         await readingModes()
+        await goToPage()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
+    }
+
+    /// Go › Go to Page… through the menu's own item, with the self-test's answer typed in.
+    private mutating func goToPage() async {
+        let n = controller.engine.pageCount
+        guard n >= 2 else {
+            lines.append("SKIP Go to Page: needs two pages")
+            return
+        }
+        controller.go(0)
+        GoToPageState.testAnswer = " \(n) "
+        let chosen = choose("Go to Page…")
+        await settle()
+        let shown = pages.currentPage == n - 1 && GoToPageState.lastProblem == nil
+        GoToPageState.testAnswer = String(n + 1)
+        choose("Go to Page…")
+        await settle()
+        let refused = pages.currentPage == n - 1 && GoToPageState.lastProblem == "Enter a page from 1 to \(n)."
+        GoToPageState.testAnswer = nil
+        controller.go(0)
+        check(chosen && shown && refused, "Go to Page…: “\(n)” shows the last page; “\(n + 1)” is refused with the range, the page kept")
     }
 
     /// A page with three words in a row on one line: from the first word's start to the third's end.

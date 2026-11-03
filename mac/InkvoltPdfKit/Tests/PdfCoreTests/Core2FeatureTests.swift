@@ -5,7 +5,7 @@ import Testing
 /// Ported from Core2FeatureTests.cs: its comment parts (highlights, strike-outs, notes, replies, edits and deletes; the
 /// Fill & Sign stamp in the comments list). The reply is made with MuPDF's objects where Windows uses PDFsharp's, and the
 /// form of ListsStampsAndSkipsWidgets is written by hand (FormTests.MakeForm comes with D5). Attachments and layers came
-/// with E9 (below); page labels and the rest come with their steps.
+/// with E9 (below), page labels with Go to Page (at the end); the rest come with their steps.
 struct Core2FeatureTests {
     static func lineRects(_ data: [UInt8], _ word: String, page: Int = 0) throws -> [RectD] {
         let engine = try PdfEngine.open(data)
@@ -94,7 +94,7 @@ struct Core2FeatureTests {
 // ---------------- Attachments and layers (E9) ----------------
 // Ported from Core2FeatureTests.cs with the same names. Adapted: the file-attachment annotation is written by hand where
 // Windows builds it with PDFsharp; the Windows path "C:\temp\notes.txt" keeps its backslashes (only the name is kept, as
-// there). HostilePageLabelsAndCyclicTreesStayCheap waits for the page labels' reader (DocumentFeatures).
+// there).
 
 extension Core2FeatureTests {
     @Test func addsListsExtractsAndRemovesAttachments() throws {
@@ -194,5 +194,44 @@ extension Core2FeatureTests {
         let started = Date()
         _ = try Layers.readOrder(data, nil)
         #expect(Date().timeIntervalSince(started) < 5)
+    }
+}
+
+// ---------------- Page labels (Go to Page) ----------------
+// Ported from Core2FeatureTests.cs with the same names. The labels are written into the catalog by hand where Windows
+// adds them with PDFsharp.
+
+extension Core2FeatureTests {
+    @Test func readsPageLabels() throws {
+        let nums = "0 << /S /r >> 2 << /S /D >> 4 << /S /D /P (A-) /St 8 >> 6 << /S /A /St 27 >>"
+        let data = TestPdf.make(7, catalogExtra: "/PageLabels << /Nums [\(nums)] >> ")
+        let labels = try DocumentFeatures.pageLabels(data, nil)
+        #expect(labels == ["i", "ii", "1", "2", "A-8", "A-9", "AA"])
+        #expect(DocumentFeatures.findPageByLabel(labels, "A-8") == 4)
+        #expect(DocumentFeatures.findPageByLabel(labels, "II") == 1)
+        #expect(DocumentFeatures.findPageByLabel(labels, "99") == nil)
+        #expect(try DocumentFeatures.pageLabels(TestPdf.make(2), nil) == nil)
+        #expect(DocumentFeatures.formatNumber(14, "r") == "xiv")
+        // Go to Page (Windows' DocumentTab.FindPage, a Mac addition to the test): a label first, then a page number.
+        #expect(DocumentFeatures.findPage(labels, " 2 ", pageCount: 7) == 3)
+        #expect(DocumentFeatures.findPage(nil, "2", pageCount: 7) == 1)
+        #expect(DocumentFeatures.findPage(nil, "8", pageCount: 7) == nil)
+        #expect(DocumentFeatures.findPage(nil, "0", pageCount: 7) == nil)
+        #expect(DocumentFeatures.findPage(labels, "", pageCount: 7) == nil)
+    }
+
+    @Test func hostilePageLabelsAndCyclicTreesStayCheap() throws {
+        let data = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /PageLabels 4 0 R /Names << /EmbeddedFiles 5 0 R >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+            "<< /Kids [4 0 R 4 0 R 4 0 R] /Nums [0 << /S /A /St 2147483647 >>] >>",
+            "<< /Kids [5 0 R 5 0 R 5 0 R 5 0 R] >>",
+        ])
+        let labels = try #require(try DocumentFeatures.pageLabels(data, nil))
+        #expect(labels.count == 1)
+        #expect(labels[0].count < 32, "\(labels[0])")
+        #expect(try Attachments.list(data, nil).isEmpty)
+        #expect(DocumentFeatures.formatNumber(Int(Int32.max), "R") == "2147483647")
     }
 }

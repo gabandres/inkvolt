@@ -256,6 +256,7 @@ enum MainMenu {
         menu.addItem(item("Previous Page", #selector(DocumentWindowController.previousPage(_:)), String(UnicodeScalar(NSUpArrowFunctionKey)!), [.command, .option]))
         menu.addItem(item("First Page", #selector(DocumentWindowController.firstPage(_:)), String(UnicodeScalar(NSHomeFunctionKey)!), []))
         menu.addItem(item("Last Page", #selector(DocumentWindowController.lastPage(_:)), String(UnicodeScalar(NSEndFunctionKey)!), []))
+        menu.addItem(item("Go to Page…", #selector(DocumentWindowController.goToPage(_:)), "g", [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Next Comment", #selector(DocumentWindowController.nextComment(_:)), "]", [.command, .option]))
         menu.addItem(item("Previous Comment", #selector(DocumentWindowController.previousComment(_:)), "[", [.command, .option]))

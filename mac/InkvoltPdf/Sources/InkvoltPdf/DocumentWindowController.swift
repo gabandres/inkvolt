@@ -717,7 +717,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let split = validateSplitItem(item) { return split }
         switch item.action {
-        case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)):
+        case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)), #selector(goToPage(_:)):
             return engine.pageCount > 0
         case #selector(singlePageMode(_:)), #selector(continuousMode(_:)), #selector(twoPagesMode(_:)), #selector(coverMode(_:)):
             let modes: [Selector: PagesView.ReadingMode] = [#selector(singlePageMode(_:)): .single, #selector(continuousMode(_:)): .continuous,

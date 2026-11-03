@@ -117,6 +117,25 @@ public enum DocumentFeatures {
         }
     }
 
+    /// The page whose label is `text`: an exact match first, then one ignoring case and spaces around it (Windows'
+    /// `FindPageByLabel`); nil without labels or a match.
+    public static func findPageByLabel(_ labels: [String]?, _ text: String) -> Int? {
+        guard let labels else { return nil }
+        let text = text.trimmingCharacters(in: .whitespaces)
+        if text.isEmpty { return nil }
+        if let i = labels.firstIndex(of: text) { return i }
+        return labels.firstIndex { $0.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(text) == .orderedSame }
+    }
+
+    /// The page a typed label or number refers to: a matching label first, then a page number from 1 to `pageCount`
+    /// (Windows' `DocumentTab.FindPage`, behind Go to Page).
+    public static func findPage(_ labels: [String]?, _ text: String, pageCount: Int) -> Int? {
+        let text = text.trimmingCharacters(in: .whitespaces)
+        if let byLabel = findPageByLabel(labels, text) { return byLabel }
+        guard let n = Int(text), n >= 1, n <= pageCount else { return nil }
+        return n - 1
+    }
+
     /// A page number in a /PageLabels style (D, R, r, A, a; nil = no number).
     public static func formatNumber(_ n: Int, _ style: String?) -> String {
         switch style {

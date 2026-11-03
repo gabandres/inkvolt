@@ -44,7 +44,7 @@ One agent, cheapest first, one commit each, in this order:
 - Small, each with Windows tests to port: form fields' hover (enter, exit) actions (PdfCore runs them, `FormFill.swift`
   runs only click, focus and blur); resizing pictures and moving them with the arrow keys in Edit Text & Images; Extract
   as a file per page, Split (by count, ranges, bookmarks) and Reverse Page Order (PdfCore has `PageEditor.reverse`, no
-  command); Go to Page; Document Properties; Compare's zoom and start-page card; an attached PDF with its own password;
+  command); Document Properties; Compare's zoom and start-page card; an attached PDF with its own password;
   export with the layers shown; Accessibility Check's words for Attach a File and Read Aloud (PLAN.md, accessibility).
 - No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's printer
   settings when printing, the Snapshot tool.
