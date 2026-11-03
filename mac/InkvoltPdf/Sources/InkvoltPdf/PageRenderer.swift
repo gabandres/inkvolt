@@ -55,6 +55,22 @@ final class PageRenderer {
 
     func image(_ page: Int) -> Image? { cache[page] }
 
+    /// Dark pages (night reading) as set, unless macOS already inverts the screen's colors (Accessibility › Display ›
+    /// Invert colors; Windows: not in a high-contrast theme). Pictures drawn while it is on are mapped by `NightColors`.
+    static var nightReading: Bool {
+        AppSettings.darkPages && !NSWorkspace.shared.accessibilityDisplayShouldInvertColors
+    }
+
+    /// Posted when dark pages are turned on or off: every page view, thumbnail list and organizer draws again.
+    static let darkPagesChanged = Notification.Name("InkvoltDarkPagesChanged")
+
+    /// A render with dark pages applied when asked.
+    nonisolated private static func night(_ rendered: RenderedImage?, _ dark: Bool, _ token: CancelToken) -> RenderedImage? {
+        guard dark, var image = rendered else { return rendered }
+        do { try NightColors.apply(&image.pixels, cancel: token) } catch { return nil }
+        return image
+    }
+
     /// Asks for the page at `scale` pixels per point unless it is there already or on its way.
     func request(_ page: Int, scale: Double) {
         if let c = cache[page], abs(c.scale - scale) < 0.001 { return }
@@ -63,8 +79,9 @@ final class PageRenderer {
         let token = CancelToken()
         pending[page] = (scale, token)
         let engine = engine
+        let dark = Self.nightReading
         queue.async {
-            let rendered = try? engine.render(page, scale: scale, cancel: token)
+            let rendered = Self.night(try? engine.render(page, scale: scale, cancel: token), dark, token)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self.arrived(page, scale, token, rendered) }
             }
@@ -144,8 +161,9 @@ final class PageRenderer {
         let token = CancelToken()
         pendingTiles[key] = token
         let engine = engine
+        let dark = Self.nightReading
         queue.async {
-            let rendered = try? engine.render(key.page, scale: scale, region: rect, cancel: token)
+            let rendered = Self.night(try? engine.render(key.page, scale: scale, region: rect, cancel: token), dark, token)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self.tileArrived(key, rect, token, rendered) }
             }

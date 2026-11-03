@@ -71,10 +71,14 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
     func draw(_ page: Int, _ r: NSRect) {
         guard let pages else { return }
         let px = pages.onePixel
+        // Dark pages: no tint over the fields (as Windows), only their outline.
+        let tint = !PageRenderer.nightReading
         for w in fillable where w.pageIndex == page && w.kind != .pushButton {
             let rect = pages.viewRect(w.rect, r)
-            NSColor.systemBlue.withAlphaComponent(0.07).setFill()
-            rect.fill(using: .multiply)
+            if tint {
+                NSColor.systemBlue.withAlphaComponent(0.07).setFill()
+                rect.fill(using: .multiply)
+            }
             let path = NSBezierPath(rect: rect)
             path.lineWidth = px
             NSColor.systemBlue.withAlphaComponent(0.35).setStroke()

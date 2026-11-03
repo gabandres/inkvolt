@@ -231,6 +231,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func rotateViewClockwise(_ sender: Any?) { activePages.rotateView(clockwise: true); scrolled() }
     @objc func rotateViewCounterclockwise(_ sender: Any?) { activePages.rotateView(clockwise: false); scrolled() }
 
+    /// View › Dark Pages (Night Reading): every window's pages, thumbnails and organizer, kept as a setting.
+    @objc func toggleDarkPages(_ sender: Any?) { AppSettings.setDarkPages(!AppSettings.darkPages) }
+
     func windowWillClose(_ notification: Notification) {
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive { rememberPosition() }
@@ -695,6 +698,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         switch item.action {
         case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)):
             return engine.pageCount > 0
+        case #selector(toggleDarkPages(_:)):
+            item.state = AppSettings.darkPages ? .on : .off
+            return true
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
             return true

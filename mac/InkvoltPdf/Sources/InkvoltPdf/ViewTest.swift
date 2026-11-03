@@ -5,7 +5,8 @@ import PdfCore
 /// View › Rotate View Clockwise and Counterclockwise through the menu's own items (the pages laid out turned, page points
 /// mapped there and back, text selected with the mouse on the turned view giving the same text, a note put down where
 /// it was clicked, an arrow key moving a comment the way it points on the screen, the file unchanged, the split pane's
-/// own turn, the turn remembered for the file). Only counts and states are written.
+/// own turn, the turn remembered for the file); View › Dark Pages (Night Reading) (the page's paper drawn dark grey, in
+/// the split pane too, kept as a setting, back to white). Only counts and states are written.
 @MainActor
 struct ViewTest {
     let controller: DocumentWindowController
@@ -73,6 +74,7 @@ struct ViewTest {
     mutating func run() async {
         lines.append("== \(name): reading view (\(controller.engine.pageCount) pages)")
         await rotateView()
+        await darkPages()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -89,6 +91,53 @@ struct ViewTest {
             }
         }
         return nil
+    }
+
+    /// One pixel of a picture (red, green, blue).
+    private func pixel(_ image: CGImage, _ x: Int, _ y: Int) -> [UInt8] {
+        var px = [UInt8](repeating: 0, count: 4)
+        let drawn = px.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(data: raw.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(image, in: CGRect(x: -x, y: -(image.height - 1 - y), width: image.width, height: image.height))
+            return true
+        }
+        return drawn ? Array(px.prefix(3)) : []
+    }
+
+    /// The paper's color at page 1's top-left corner once its picture is drawn again (nil: not drawn in 10 s).
+    private func cornerOnceDrawn(_ view: PagesView) async -> [UInt8]? {
+        for _ in 0..<100 {
+            view.requestVisible()
+            if let image = view.renderer.image(0), image.scale > 0 { return pixel(image.image, 1, 1) }
+            await settle(100)
+        }
+        return nil
+    }
+
+    private mutating func darkPages() async {
+        guard controller.engine.pageCount > 0, let session = controller.pdf.session else { return }
+        let before = session.data
+        controller.go(0)
+        controller.splitTopAndBottom(nil)
+        await settle()
+        let darkOn = choose("Dark Pages (Night Reading)")
+        let state = menuItem("Dark Pages (Night Reading)").map { item -> Bool in
+            _ = controller.validateMenuItem(item)
+            return item.state == .on
+        } ?? false
+        let corner = await cornerOnceDrawn(pages)
+        let second = controller.secondPages != nil
+        var secondCorner: [UInt8]?
+        if let pane = controller.secondPages { secondCorner = await cornerOnceDrawn(pane) }
+        check(darkOn && state && AppSettings.darkPages && corner.map { $0.allSatisfy { abs(Int($0) - Int(NightColors.paper)) <= 2 } } == true
+              && second && secondCorner == corner,
+              "Dark Pages (Night Reading) draws the paper dark grey in both panes (\(corner.map { "\($0)" } ?? "not drawn")), ticked and kept as a setting")
+        controller.removeSplit(nil)
+        choose("Dark Pages (Night Reading)")
+        let back = await cornerOnceDrawn(pages)
+        check(!AppSettings.darkPages && back.map { $0.allSatisfy { $0 >= 250 } } == true && controller.pdf.session?.data == before,
+              "turned off: the paper white again (\(back.map { "\($0)" } ?? "not drawn")), the file unchanged")
     }
 
     private mutating func rotateView() async {

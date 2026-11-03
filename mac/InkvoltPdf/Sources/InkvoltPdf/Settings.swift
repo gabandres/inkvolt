@@ -16,6 +16,7 @@ enum AppSettings {
         static let zoomMode = "ZoomMode"
         static let lastVersionSeen = "LastVersionSeen"
         static let filePositions = "FilePositions"
+        static let darkPages = "DarkPages"
         static let scanDevice = "ScanDevice"
         static let scanSource = "ScanSource"
         static let scanColor = "ScanColor"
@@ -42,6 +43,19 @@ enum AppSettings {
     static var restorePosition: Bool {
         get { bool(Key.restorePosition, true) }
         set { defaults.set(newValue, forKey: Key.restorePosition) }
+    }
+
+    /// Dark pages for night reading: pages drawn with their lightness flipped, hue kept (`NightColors`).
+    static var darkPages: Bool {
+        get { bool(Key.darkPages, false) }
+        set { defaults.set(newValue, forKey: Key.darkPages) }
+    }
+
+    /// Turns dark pages on or off in every window (pages, thumbnails, the organizer).
+    static func setDarkPages(_ on: Bool) {
+        guard on != darkPages else { return }
+        darkPages = on
+        NotificationCenter.default.post(name: PageRenderer.darkPagesChanged, object: nil)
     }
 
     /// Keep a recovery copy of documents with unsaved changes (`RecoveryCopies`).
@@ -147,7 +161,9 @@ enum AppSettings {
     /// Settings back to how Inkvolt PDF starts; recent files, where files were left, What's New and the Scan and Export
     /// choices are kept (as Windows' Reset to defaults keeps recent files and signatures).
     static func resetToDefaults() {
-        for key in [Key.theme, Key.restorePosition, Key.keepRecoveryCopies, Key.authorName, Key.zoomMode] { defaults.removeObject(forKey: key) }
+        let dark = darkPages
+        for key in [Key.theme, Key.restorePosition, Key.keepRecoveryCopies, Key.authorName, Key.zoomMode, Key.darkPages] { defaults.removeObject(forKey: key) }
+        if dark != darkPages { NotificationCenter.default.post(name: PageRenderer.darkPagesChanged, object: nil) }
     }
 
     /// Clears everything the self-test's suite holds.
@@ -166,6 +182,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let zoom = NSPopUpButton(frame: .zero, pullsDown: false)
     let restore = NSButton(checkboxWithTitle: "Reopen each file at the page where I left off", target: nil, action: nil)
     let recovery = NSButton(checkboxWithTitle: "Keep recovery copies of unsaved changes", target: nil, action: nil)
+    let dark = NSButton(checkboxWithTitle: "Dark pages (inverted colors for night reading)", target: nil, action: nil)
     let updates = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
     let author = NSTextField(string: "")
     let aiState = NSTextField(wrappingLabelWithString: "")
@@ -206,6 +223,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             [NSTextField(labelWithString: "App theme:"), theme],
             [NSTextField(labelWithString: "Open documents at:"), zoom],
             [NSGridCell.emptyContentView, restore],
+            [NSGridCell.emptyContentView, dark],
             [NSGridCell.emptyContentView, recovery],
             [NSGridCell.emptyContentView, updates],
             [NSTextField(labelWithString: "Author name on comments:"), author],
@@ -250,6 +268,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         zoom.selectItem(at: AppSettings.zoomModes.firstIndex { $0.0 == AppSettings.zoomMode } ?? 0)
         restore.state = AppSettings.restorePosition ? .on : .off
         recovery.state = AppSettings.keepRecoveryCopies ? .on : .off
+        dark.state = AppSettings.darkPages ? .on : .off
         updates.state = updater?.controller.updater.automaticallyChecksForUpdates == true ? .on : .off
         updates.isEnabled = updater != nil
         author.stringValue = AppSettings.authorName.isEmpty ? AppSettings.userName : AppSettings.authorName
@@ -271,6 +290,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         zoom.selectItem(at: 0)
         restore.state = .on
         recovery.state = .on
+        dark.state = .off
         updates.state = .on
         author.stringValue = AppSettings.userName
     }
@@ -280,6 +300,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         AppSettings.zoomMode = AppSettings.zoomModes[max(zoom.indexOfSelectedItem, 0)].0
         AppSettings.restorePosition = restore.state == .on
         AppSettings.keepRecoveryCopies = recovery.state == .on
+        AppSettings.setDarkPages(dark.state == .on)
         let name = author.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.authorName = name == AppSettings.userName ? "" : name // empty: follow the Mac user's name
         if let updater, updates.isEnabled, !Report.isRunning { updater.controller.updater.automaticallyChecksForUpdates = updates.state == .on }

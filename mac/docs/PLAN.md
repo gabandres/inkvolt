@@ -417,7 +417,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
-| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); rotate view done 2026-11-03; reading modes (single, two pages, cover) and dark pages still to do (HANDOFF's list) |
+| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); rotate view and dark pages done 2026-11-03; reading modes (single, two pages, cover) still to do (HANDOFF's list) |
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
@@ -536,6 +536,14 @@ Mac differences for the PDF app (so far):
   reading order's numbers) stay upright. Going to a spot down a page (a bookmark, a link's target) goes to the page's top
   on a turned view, as on Windows, and Add Bookmark takes the page's top. The turn is remembered per file with the page
   (Reopen at last page). Thumbnails, printing and export stay as the file is. ViewTest (`--only-view`) checks it.
+- Dark pages (2026-11-03): View › Dark Pages (Night Reading) (Windows: the View menu and the look bar) and Settings'
+  "Dark pages" box, one setting for every window (`DarkPages`, as Windows). `NightColors` in PdfCore is the Windows
+  viewer's map (lightness flipped, hue kept, 26...226), tested by NightColorsTests (a Mac addition: Windows' map is
+  private to its viewer, untested); `PageRenderer` applies it to the page views', thumbnails' and organizer's pictures
+  as they are drawn, and the paper under a page is dark grey. Windows leaves pages alone in a high-contrast theme; the
+  Mac does when Accessibility's Invert colors is on (the screen is inverted already). Fields lose their tint (as
+  Windows). Printing, export and the file are unchanged. ViewTest checks it.
+- Settings leaving out dark pages (D7 part e, above) no longer holds: the box is there since 2026-11-03.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -799,6 +807,10 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   sharp tiles at 400 % drawn turned (no gaps or seams), selecting text, clicking links, filling a field (its editor
   sits over the turned field, upright), drawing and resizing comments, Prepare Form's fields and their handles' cursors,
   Measure, the find highlight and Read Aloud's marks; each split pane on its own; a file reopening turned.
+- Dark pages: View › Dark Pages (Night Reading) and Settings' box: pages, thumbnails and the organizer's cards dark at
+  once in every window (no flash of white while redrawing), colored pictures keeping their hue, the fields' outline
+  without tint, comments and the selection still readable; with Accessibility's Invert colors on, pages are left as
+  they are.
 
 ## Open decisions
 

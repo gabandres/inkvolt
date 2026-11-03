@@ -19,7 +19,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 One agent, cheapest first, one commit each, in this order:
 1. ~~Saved signatures between launches~~ Done 2026-11-03 (`SavedSignatures`, Application Support's "Inkvolt PDF/signatures").
 2. ~~Rotate view~~ Done 2026-11-03 (View › Rotate View Clockwise ⇧⌘R / Counterclockwise ⇧⌘L; ViewTest).
-3. Dark pages.
+3. ~~Dark pages~~ Done 2026-11-03 (View › Dark Pages (Night Reading), Settings; `NightColors`).
 4. Dragging thumbnails to move pages (and PDFs dropped on them; today only the organizer and bookmarks take drags).
 5. Reading modes: single, two pages, cover (`PagesView` lays out continuously only).
 6. Insert from Scanner into the open document (Pages has Insert from File and Blank; the start page's From a Scanner…

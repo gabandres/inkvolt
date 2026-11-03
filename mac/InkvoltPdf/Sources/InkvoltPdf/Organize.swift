@@ -352,6 +352,7 @@ final class OrganizerView: NSScrollView, NSCollectionViewDataSource, NSCollectio
         self.engine = engine
         thumbs = PageRenderer(engine: engine, label: "inkvolt.pdf.organizer", qos: .utility, keepAtMost: 200)
         super.init(frame: .zero)
+        NotificationCenter.default.addObserver(self, selector: #selector(darkPagesChanged), name: PageRenderer.darkPagesChanged, object: nil)
         let layout = NSCollectionViewFlowLayout()
         layout.itemSize = NSSize(width: Self.cardWidth + 16, height: Self.cardWidth * 1.3 + 40)
         layout.minimumInteritemSpacing = 12
@@ -405,6 +406,12 @@ final class OrganizerView: NSScrollView, NSCollectionViewDataSource, NSCollectio
     }
 
     func stop() { thumbs.cancelAll() }
+
+    /// Dark pages turned on or off: the cards drawn again.
+    @objc func darkPagesChanged() {
+        thumbs.invalidate()
+        grid.reloadData()
+    }
 
     private func scale(_ page: Int) -> Double {
         let g = engine.page(page)

@@ -221,6 +221,7 @@ enum MainMenu {
         menu.addItem(.separator())
         menu.addItem(item("Rotate View Clockwise", #selector(DocumentWindowController.rotateViewClockwise(_:)), "r", [.command, .shift]))
         menu.addItem(item("Rotate View Counterclockwise", #selector(DocumentWindowController.rotateViewCounterclockwise(_:)), "l", [.command, .shift]))
+        menu.addItem(item("Dark Pages (Night Reading)", #selector(DocumentWindowController.toggleDarkPages(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
         menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))

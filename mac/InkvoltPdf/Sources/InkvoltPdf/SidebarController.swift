@@ -79,6 +79,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         thumbs = PageRenderer(engine: engine, label: "inkvolt.pdf.thumbs", qos: .utility, keepAtMost: 120)
         super.init(nibName: nil, bundle: nil)
         outline = OutlineItem.tree(bookmarks())
+        NotificationCenter.default.addObserver(self, selector: #selector(darkPagesChanged), name: PageRenderer.darkPagesChanged, object: nil)
     }
 
     @available(*, unavailable)
@@ -230,6 +231,13 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
     var shownSegment: Int { picker.selectedSegment }
     var shownPane: Pane { Pane(rawValue: picker.selectedSegment) ?? .pages }
+
+    /// Dark pages turned on or off: the thumbnails drawn again.
+    @objc func darkPagesChanged() {
+        thumbs.invalidate()
+        guard isViewLoaded else { return }
+        table.reloadData()
+    }
 
     /// The thumbnails drawn by another engine over the same pages (the chosen layers), or the document's again (nil).
     func drawThumbnails(with other: PdfEngine?) {

@@ -201,12 +201,25 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Pages")
+        NotificationCenter.default.addObserver(self, selector: #selector(darkPagesChanged), name: PageRenderer.darkPagesChanged, object: nil)
         // The pointer's moves, for the measuring tools' value so far (AppKit keeps the area on the visible part).
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// Dark pages turned on or off: every page drawn again (the old pictures shown meanwhile).
+    @objc func darkPagesChanged() {
+        renderer.invalidate()
+        needsDisplay = true
+        requestVisible()
+    }
+
+    /// The paper under a page's picture (dark grey with dark pages, as `NightColors` maps white).
+    static var paperColor: NSColor {
+        PageRenderer.nightReading ? NSColor(white: CGFloat(NightColors.paper) / 255, alpha: 1) : .white
+    }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -336,7 +349,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             shadow.shadowBlurRadius = 4
             shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
             shadow.set()
-            NSColor.white.setFill()
+            Self.paperColor.setFill()
             r.fill()
             NSGraphicsContext.restoreGraphicsState()
             if let image = renderer.image(i) {
