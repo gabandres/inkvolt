@@ -351,7 +351,8 @@ public class LtvTests
         var signed = SignBb(pki);
         var copy = signed.ToArray();
         pki.Dispose(); // the "internet" is gone
-        using var client = pki.Client(TimeSpan.FromSeconds(3));
+        // Windows retries a refused connection for about 2 s; on CI that overran a 3 s deadline ("didn't answer in time").
+        using var client = pki.Client(Timing.Limit(TimeSpan.FromSeconds(10)));
         var ex = await Assert.ThrowsAsync<SigningException>(() => Ltv.AddVerificationAsync(signed, null, client));
         Assert.Contains("Nothing was changed", ex.Message);
         Assert.Contains("can't be reached", ex.Message);
@@ -447,7 +448,7 @@ public class LtvTests
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var ex = await Assert.ThrowsAsync<LtvFetchException>(() => client.GetAsync($"{pki.BaseUrl}/slow", LtvAddressKind.Crl, 1000));
         Assert.Contains("didn't answer in time", ex.Message);
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), clock.Elapsed.ToString());
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(5)), clock.Elapsed.ToString());
     }
 
     [Fact]
@@ -612,7 +613,7 @@ public class LtvTests
         Assert.Contains(plan.Addresses, a => a.Url.Contains("192.168.1.1") && a.RefusedBecause is not null);
         Assert.Contains(plan.Addresses, a => a.Url.Contains("169.254") && a.RefusedBecause is not null);
 
-        using var client = pki.Client(TimeSpan.FromSeconds(3));
+        using var client = pki.Client(Timing.Limit(TimeSpan.FromSeconds(10))); // the test server's answers must come within it
         var result = await Ltv.AddVerificationAsync(signed, null, client);
         Assert.DoesNotContain(result.Contacts, c => c.Url.Contains("192.168") || c.Url.Contains("169.254"));
         Assert.Contains(result.Certificates, c => !c.Covered && c.Name == "Hostile" && c.Outcome.Contains("local network"));

@@ -89,7 +89,8 @@ One agent, cheapest first, one commit each, in this order:
    `Timing.CancelAfter` (cancels from a thread of its own: a pool timer fired after Parallel.For work had finished) and
    the `Timing.Alone` collection (runs after the parallel tests) for deadline tests and file-let-go tests. Causes in the
    last 40 runs: a starved thread pool (PageCleanup, TranslationCopy, OtherBrands IPP, DeviceHttpLimits, CertificatePin,
-   FleetRead; then QueuePrinter's 50 ms call deadline and BatchPrint's 100 ms ones, which the healthy call must meet too), a quiet period a stalled timer overran (BatchPrintFolder), handles to files open in place inherited by a
+   FleetRead; then QueuePrinter's 50 ms call deadline and BatchPrint's 100 ms ones, which the healthy call must meet too;
+   LtvTests' 3 s client deadline, which a refused loopback connection Windows retries for ~2 s overran), a quiet period a stalled timer overran (BatchPrintFolder), handles to files open in place inherited by a
    child another test started with Process.Start (FindWorker, InPlace; `KeptText` now runs alone), Pro's globals read
    outside the Pro collection (`LtvProTests`), and a real bug: FolderIndexer called a folder moved away mid-listing
    "Couldn't list the folder" instead of away. Not fixed: OfficeConverter starts its helper with Process.Start, so the
