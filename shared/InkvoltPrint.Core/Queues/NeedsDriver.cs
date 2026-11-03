@@ -216,7 +216,8 @@ public static partial class PrinterNames
     {
         if (friendlyName?.Trim() is { Length: > 0 } friendly && !IsPlaceholderName(friendly)) return Clean(friendly, joined: false);
         // A hardware id usbprint shortened (20 characters and a 4-digit checksum, "Hewlett-PackardHP_LaBB7B") has only part of the model.
-        foreach (var id in hardwareIds.Select(StripEnumerator).Where(h => h.Length > 0 && !IsShortened(h)))
+        // USB\VID_…&PID_… (a device with no USBPRINT node) has no name in it.
+        foreach (var id in hardwareIds.Where(h => !h.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase)).Select(StripEnumerator).Where(h => h.Length > 0 && !IsShortened(h)))
             return Clean(id.Replace('_', ' '), joined: true);
         if (deviceIdName?.Trim() is { Length: > 0 } fromId) return Clean(StripEnumerator(fromId).Replace('_', ' '), joined: true);
         return "USB printer";

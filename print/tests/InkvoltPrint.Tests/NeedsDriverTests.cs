@@ -56,6 +56,15 @@ public class NeedsDriverTests
         }
     }
 
+    [Theory]
+    [InlineData("USB Printing Support")]
+    [InlineData(null)]
+    public void A_usb_device_with_only_its_vendor_and_product_ids_is_a_usb_printer(string? friendly)
+    {
+        // A printer-class device with no USBPRINT node: its hardware ids say nothing a person can read.
+        Assert.Equal("USB printer", PrinterNames.ForDevice(friendly, null, [@"USB\VID_03F0&PID_2B17&REV_0100", @"USB\VID_03F0&PID_2B17"]));
+    }
+
     [Fact]
     public async Task A_look_with_no_usb_printer_asks_the_spooler_nothing()
     {
