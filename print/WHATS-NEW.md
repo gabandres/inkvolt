@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.3.0
 - A USB printer Windows has no driver for now shows on the printer list as *Plugged in, needs its driver*, with what to do step by step: its maker's driver page (HP's for an HP), Windows Update's optional updates, or adding it in Windows. It says so when Windows protected print mode keeps makers' drivers out. Once a driver is in but Windows made no queue, *Set it up* makes one. Some older printers (host-based USB lasers) only ever work with their maker's driver.
 - USB printers (and others set up in Windows) can show their ink or toner levels: a printer Windows set up with its own IPP driver, over USB or the network, is asked for its levels and problems the way a Wi-Fi printer is, and the page says where they came from. On a maker's driver, the driver is asked next ("From its driver"), when it can say. One that reports none says "Not reported by this printer".
 - Inkvolt Print speaks Spanish: it follows Windows' language, or choose under Settings › Language (Same as Windows, English or Español). It takes effect the next time the app starts.
