@@ -69,9 +69,9 @@ One agent, cheapest first, one commit each, in this order:
 6. UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.
 7. Small fixes: done 2026-11-03, `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` check that the JSON
    root is an object before `TryGetProperty` (`[]`, `"x"`, `1`, `null` gave InvalidOperationException; AiProtocolTests'
-   `JsonThatIsNotAnObjectIsNotAChatCompletion`). DevScript's `compare` passes its paths straight to
-   `Comparing.LoadFile`, which shows a modal error the off-screen script never answers, so a bad path hangs it (check the
-   files first and log the failure). PDFsharp's `UnfilteredValue` has no size limit (about 35 call sites through
+   `JsonThatIsNotAnObjectIsNotAChatCompletion`). Done 2026-11-03, DevScript's `compare` checks that both
+   files exist and open before `Comparing.LoadFile` (whose modal error the off-screen script never answered) and fails the
+   step (`FAILED:` in the log, the app quits) on a bad path or a side that doesn't load. PDFsharp's `UnfilteredValue` has no size limit (about 35 call sites through
    `PdfObj.StreamBytes` and directly): one huge Flate stream can take the memory; bounding it needs a decision per
    caller, and redaction must not read an over-limit stream as empty (PLAN.md's "Small fixes after the E-steps").
 8. CI: the Windows `test` job fails about one run in two on a different timing test each time

@@ -1039,7 +1039,17 @@ internal static class DevScript
             case "compare":
             {
                 var a = arg.Split(' ', 2);
-                var cw = CompareWindow.Open(window, (await Comparing.LoadFile(window, a[0]))!, (await Comparing.LoadFile(window, a[1]))!, offScreen: true);
+                if (a.Length < 2) throw new ArgumentException("compare needs two paths: compare old.pdf new.pdf");
+                // LoadFile says what's wrong in a modal nobody answers off-screen, so a bad path would hang the script: check first
+                foreach (var path in a)
+                {
+                    if (!File.Exists(path)) throw new FileNotFoundException($"compare: no file at {path}", path);
+                    using (File.OpenRead(path)) { } // unreadable (locked, no access): throws here, not in a dialog
+                }
+                var sides = new CompareSide[2];
+                for (var i = 0; i < 2; i++)
+                    sides[i] = await Comparing.LoadFile(window, a[i]) ?? throw new InvalidOperationException($"compare: couldn't load {a[i]}");
+                var cw = CompareWindow.Open(window, sides[0], sides[1], offScreen: true);
                 await CompareIdle(cw);
                 log.Add(cw.DevDescribe());
                 break;
