@@ -684,8 +684,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   **Not checked:** Acrobat's "LTV enabled" (Acrobat isn't on this PC; `tools/pades-check` says how, by hand). Real certificate authorities and
   timestamp servers: every run was against the generated one, so a real CA's OCSP answers older than a fresh timestamp (issued ahead by a CDN) are
   handled only as far as "still in force at that time" in our own check; EU DSS may ask for a later one. Smart cards.
-  **Still to do:** the Mac. Certifying with a choice of fields to lock (Pro in the table above) isn't built; a signature field's own /Lock is
-  honored. Encrypted files are refused, since `Incremental` can't append to them. Batch has no long-term action.
+  **Certifying with fields locked**, Windows done 2026-11-03 (Pro, `ProFeature.FieldLocking`; the gate stays off): the Sign dialog's "Lock form
+  fields" (when certifying a form) locks all fields, the ones chosen, or all but those. The signature gets a FieldMDP reference after its DocMDP
+  one (/Data the catalog, /Action, /Fields, /V /1.2), the signature field a /SigFieldLock /Lock saying the same, and the locked fields the
+  read-only flag; a field's own /Lock is honored beside it (a reference each). The verifier reports a later change to a locked field as not
+  allowed ("locked field "Name""), and to an open one as allowed. **Checked:** `FieldLockTests` (the dictionaries against ISO 32000-1 Tables
+  233, 253, 254, 256; a locked and an open field changed after each of the three choices); EU DSS 6.5.1 (`tools/pades-check`) reports
+  PAdES-BASELINE-LTA, TOTAL_PASSED, for a form certified with a field locked and then given long-term data. **Not checked:** Acrobat's view of
+  the lock.
+  **Still to do:** the Mac. Encrypted files are refused, since `Incremental` can't append to them. Batch has no long-term action.
 
 ### 3.5 Indexed folder search
 - **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search

@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- When you certify a form, you can lock all its fields, only the ones you choose, or all but those. A later change to a locked field shows as not allowed when the signatures are checked. It's part of Inkvolt Pro.
 - The Fill & Sign, Comment, pointer and Draw menus say in a line under each tool what it does.
 - With large text (Windows' Text size), the command bar keeps more of its buttons on a smaller window, and its menus get the larger text too.
 - Saving a large file while a Word, Excel or PowerPoint file converts to PDF no longer fails.

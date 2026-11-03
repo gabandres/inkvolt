@@ -62,7 +62,9 @@ One agent, cheapest first, one commit each, in this order:
    The Mac (Vision) port should check whether Vision skips lines too before porting it (`MissedLines.cs`,
    `MissedLinesTests`). Seen while measuring: the redaction corpus's page 3 (three lines of numbers, typeset) is read
    upside down once cleaned ("OO 6830 9999 9999 9999"; as rendered it reads right): `Upright` on a page of digits.
-2. PDF 3.4: certifying with a choice of fields to lock (Pro in the table, not built); Batch's long-term action.
+2. PDF 3.4: ~~certifying with a choice of fields to lock~~ Done 2026-11-03 (`FieldLock` on `SignRequest`, the Sign dialog's
+   "Lock form fields", `ProFeature.FieldLocking`; `FieldLockTests`, EU DSS B-LTA TOTAL_PASSED on a certified form with a
+   field locked). Left: Batch's long-term action (not started: it needs the address window per batch, and a client per run).
 3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
 4. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects

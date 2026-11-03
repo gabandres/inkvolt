@@ -32,6 +32,8 @@ public enum ProFeature
     CompareOfficeAndScans,
     /// <summary>Indexing folders and searching them (Find and the Search pane on open documents stay free).</summary>
     FolderSearch,
+    /// <summary>Certifying with a choice of form fields to lock: all, these, or all but these (certifying itself stays free).</summary>
+    FieldLocking,
 }
 
 /// <summary>
@@ -90,6 +92,7 @@ public static class Pro
         ProFeature.LongTermValidation => "Long-term validation",
         ProFeature.FolderSearch => "Folder search",
         ProFeature.CompareOfficeAndScans => "Compare Office files and scans",
+        ProFeature.FieldLocking => "Field locking",
         _ => "Command line",
     };
 
@@ -104,6 +107,7 @@ public static class Pro
         ProFeature.AccessibleOutput => "Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too.",
         ProFeature.LongTermValidation => "Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.",
         ProFeature.CompareOfficeAndScans => "Compare a Word, Excel or PowerPoint file or a scan with a PDF, the scan's words recognized on this PC, and see font, size, bold, italic and color changes listed apart from wording.",
+        ProFeature.FieldLocking => "When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.",
         ProFeature.FolderSearch => "Index whole folders on this PC, nothing sent anywhere, and find a word across thousands of PDFs in under a second, with the text around each hit; a result opens at the hit, and the index keeps up as files change.",
         _ => "inkvoltpdf --batch runs a preset on files or folders without a window; inkvoltpdf --watch watches a folder from a terminal or a scheduled task.",
     };
@@ -119,6 +123,7 @@ public static class Pro
         ProFeature.AccessibleOutput => "Saving accessible PDF/A-2a files is part of Inkvolt Pro.",
         ProFeature.LongTermValidation => "Adding long-term validation data is part of Inkvolt Pro.",
         ProFeature.FolderSearch => "Searching folders is part of Inkvolt Pro.",
+        ProFeature.FieldLocking => "Choosing fields to lock is part of Inkvolt Pro.",
         ProFeature.CompareOfficeAndScans => "Comparing Office files, scans and formatting is part of Inkvolt Pro.",
         _ => "The command line is part of Inkvolt Pro.",
     };

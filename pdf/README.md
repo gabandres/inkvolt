@@ -232,7 +232,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Windows certificate store (smart cards and Windows Hello ask for their PIN), a .pfx file, or create a self-signed
   personal ID (RSA 3072, 5 years; optional password-protected .pfx backup); reason, location, a visible box (drag it on
   the page, with live preview and an optional handwritten image) or invisible; optional RFC 3161 timestamp (only a hash
-  goes to the https server you enter), long-term validation (above) and certification (first signature only). PAdES (ETSI.CAdES.detached, SHA-256,
+  goes to the https server you enter), long-term validation (above) and certification (first signature only; certifying a form can lock all its fields,
+  the ones chosen, or all but those: Pro). PAdES (ETSI.CAdES.detached, SHA-256,
   SHA-384/512 for EC P-384/P-521). The signature is appended as an incremental update, so earlier signatures stay valid,
   then saved as a new file (name-signed.pdf) and verified.
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.

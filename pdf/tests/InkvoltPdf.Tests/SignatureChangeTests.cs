@@ -15,7 +15,7 @@ public class SignatureChangeTests
     private static SignatureInfo Approval(byte[] pdf) => Signatures.Verify(pdf).Single(s => s.FieldName == "Approval");
 
     /// <summary>Appends an incremental update (classic xref table) redefining or adding <paramref name="objects"/>.</summary>
-    private static byte[] Append(byte[] pdf, IReadOnlyDictionary<int, string> objects, string? root = null)
+    internal static byte[] Append(byte[] pdf, IReadOnlyDictionary<int, string> objects, string? root = null)
     {
         var text = Encoding.Latin1.GetString(pdf);
         var prev = Regex.Matches(text, @"startxref\s+(\d+)").Last().Groups[1].Value;
@@ -36,7 +36,7 @@ public class SignatureChangeTests
     }
 
     /// <summary>The body of object <paramref name="n"/> as it is in the file (between "n 0 obj" and "endobj").</summary>
-    private static string Body(byte[] pdf, int n)
+    internal static string Body(byte[] pdf, int n)
     {
         var text = Encoding.Latin1.GetString(pdf);
         var start = text.LastIndexOf($"\n{n} 0 obj", StringComparison.Ordinal) + $"\n{n} 0 obj".Length;

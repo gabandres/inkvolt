@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -20,7 +21,8 @@ public sealed record SignChoice(
     bool Timestamp,
     string TimestampUrl,
     CertificationLevel Certify,
-    LongTermLevel LongTerm = LongTermLevel.None);
+    LongTermLevel LongTerm = LongTermLevel.None,
+    FieldLock? Lock = null);
 
 /// <summary>
 /// "Sign Digitally": pick a digital ID (Windows certificate store, a .pfx file, or a new personal ID), reason, location,
@@ -45,7 +47,8 @@ public static class SignDialog
     ];
 
     /// <param name="fieldAspect">Width/height of the box the signature goes in (an existing field's), for the preview.</param>
-    public static SignChoice? Show(Window owner, string? fieldName, double fieldAspect, bool fieldVisible, bool alreadySigned)
+    /// <param name="lockable">The form fields a certifying signature can lock (none: no choice of fields is offered).</param>
+    public static SignChoice? Show(Window owner, string? fieldName, double fieldAspect, bool fieldVisible, bool alreadySigned, IReadOnlyList<string> lockable)
     {
         var s = AppSettings.Current;
         var dlg = new FormDialog(owner, fieldName is null ? "Sign digitally" : $"Sign \"{fieldName}\"", "Sign…", 520);
@@ -188,6 +191,34 @@ public static class SignDialog
             certify.IsEnabled = false;
             certify.ToolTip = "Only the first signature can certify a document.";
         }
+        // Certifying a form: which of its fields to lock (FieldMDP). A locked field changed later shows as not allowed.
+        ComboBox? lockChoice = null;
+        ListBox? lockList = null;
+        if (lockable.Count > 0 && !alreadySigned)
+        {
+            lockChoice = dlg.AddChoice("Lock form fields", FieldLocks.Choices);
+            lockList = dlg.Add(null, new ListBox { MaxHeight = 132, SelectionMode = SelectionMode.Multiple, ItemsSource = lockable,
+                ToolTip = "The fields to lock, or to leave open", Visibility = Visibility.Collapsed }, top: 6);
+            AutomationProperties.SetName(lockList, "Form fields");
+            var lockNote = dlg.AddNote("");
+            if (!Pro.Allows(ProFeature.FieldLocking))
+            {
+                lockChoice.IsEnabled = false;
+                lockNote.Text = Pro.Locked(ProFeature.FieldLocking);
+            }
+            void SyncLock()
+            {
+                var certifying = certify.SelectedIndex > 0;
+                lockChoice.IsEnabled = certifying && Pro.Allows(ProFeature.FieldLocking);
+                var picks = certifying && lockChoice.SelectedIndex is 2 or 3;
+                lockList.Visibility = picks ? Visibility.Visible : Visibility.Collapsed;
+                if (Pro.Allows(ProFeature.FieldLocking))
+                    lockNote.Text = certifying ? FieldLocks.Note(lockChoice.SelectedIndex) : "Certify to lock form fields.";
+            }
+            certify.SelectionChanged += (_, _) => SyncLock();
+            lockChoice.SelectionChanged += (_, _) => SyncLock();
+            SyncLock();
+        }
         refresh = UpdatePreview;
         DescribeId();
         UpdatePreview();
@@ -195,6 +226,8 @@ public static class SignDialog
         dlg.Validate(() =>
         {
             if ((ids.SelectedItem as IdItem)?.Cert is null) return "Choose a digital ID.";
+            if (lockChoice is { IsEnabled: true, SelectedIndex: 2 or 3 } && lockList!.SelectedItems.Count == 0)
+                return lockChoice.SelectedIndex == 2 ? "Choose the fields to lock." : "Choose the fields to leave open.";
             if (timestamp.IsChecked != true) return null;
             if (tsaUrl.Text.Trim().Length == 0) return "Enter the timestamp server's address (https://…), or untick the timestamp.";
             return LtvClient.WhyRefused(tsaUrl.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? $"That timestamp server can't be used: {why}." : null;
@@ -232,7 +265,9 @@ public static class SignDialog
         }
         var look = new SignatureLook { ShowDate = s.SignShowDate, ShowReason = s.SignShowReason, ShowDistinguishedName = s.SignShowDn, Image = stampImage };
         return new SignChoice(chosen, Empty(s.SignReason), Empty(s.SignLocation), visible.IsChecked == true, look, s.SignTimestamp, s.TimestampUrl,
-            (CertificationLevel)certify.SelectedIndex, (LongTermLevel)longTerm.SelectedIndex);
+            (CertificationLevel)certify.SelectedIndex, (LongTermLevel)longTerm.SelectedIndex,
+            lockChoice is { IsEnabled: true } && certify.SelectedIndex > 0
+                ? FieldLocks.From(lockChoice.SelectedIndex, lockList!.SelectedItems.Cast<string>().ToList()) : null);
 
         static string? Empty(string v) => v.Length == 0 ? null : v;
     }

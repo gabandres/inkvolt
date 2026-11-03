@@ -27,6 +27,24 @@ public enum CertificationLevel
     FormFillingAndComments = 3,
 }
 
+/// <summary>Which form fields a signature locks (FieldMDP, ISO 32000-1 12.8.2.4): every field, the ones listed, or all but those.</summary>
+public enum FieldLockAction
+{
+    All,
+    Include,
+    Exclude,
+}
+
+/// <summary>
+/// The fields a signature locks: after it, a change to a locked field's value, appearance or properties is reported as not
+/// allowed, and a change to any other field stays allowed (within what the certification allows). <see cref="Fields"/> are
+/// full field names; a name also locks the fields under it ("address" locks "address.city").
+/// </summary>
+public sealed record FieldLock(FieldLockAction Action, IReadOnlyList<string> Fields)
+{
+    public static readonly FieldLock AllFields = new(FieldLockAction.All, []);
+}
+
 /// <summary>What a visible signature shows: text on the left, an optional image (e.g. a handwritten signature) on the right.</summary>
 public sealed record SignatureLook
 {
@@ -70,6 +88,11 @@ public sealed class SignRequest
     /// </summary>
     public Func<byte[], CancellationToken, Task<byte[]>>? Timestamp { get; init; }
     public CertificationLevel Certify { get; init; }
+    /// <summary>
+    /// The form fields this signature locks (FieldMDP), chosen when certifying; null locks none beyond what the signed
+    /// field's own /Lock names. Part of Inkvolt Pro (<see cref="ProFeature.FieldLocking"/>).
+    /// </summary>
+    public FieldLock? Lock { get; init; }
     /// <summary>The time written to /M and shown in the appearance (default: now).</summary>
     public DateTimeOffset? Time { get; init; }
 }
@@ -103,6 +126,9 @@ public static class Signing
         if (!cert.HasPrivateKey) throw new SigningException("This digital ID has no private key, so it can't sign.");
         if (req.LongTerm != LongTermLevel.None && (req.Timestamp is null || req.LongTermClient is null))
             throw new SigningException("Long-term validation needs a timestamp server.");
+        if (req.Lock is not null && !Pro.Allows(ProFeature.FieldLocking)) throw new SigningException(Pro.Locked(ProFeature.FieldLocking));
+        if (req.Lock is { Action: not FieldLockAction.All, Fields.Count: 0 })
+            throw new SigningException("Choose at least one field to lock, or lock all of them.");
         var hash = DigestFor(cert);
 
         var existing = Signatures.Verify(data, password);
@@ -264,22 +290,21 @@ public static class Signing
                 sigRef.Elements["/TransformParams"] = tp;
                 sig.Elements["/Reference"] = new PdfArray(doc, sigRef);
             }
-            // A signature field's /Lock names the fields signing it locks (FieldMDP): record it in the signature, and make
-            // those fields read-only, as Acrobat does.
-            if (req.FieldName is not null && PdfObj.Dict(fieldDict.Elements["/Lock"]) is { } lockDict)
+            // The fields signing locks (FieldMDP): what a signature field's own /Lock names, and what the person chose. Each is
+            // recorded in the signature (a reference of its own: a later change must keep to both), and those fields are
+            // made read-only, as Acrobat does. The chosen lock also goes into the field's /Lock when it has none.
+            var fieldName = req.FieldName ?? PdfObj.Text(fieldDict.Elements["/T"])!;
+            if (req.FieldName is not null && PdfObj.Dict(fieldDict.Elements["/Lock"]) is { } ownLock)
+                AddFieldMdp(doc, sig, acro, ownLock, fieldName);
+            if (req.Lock is { } chosen)
             {
-                var tp = new PdfDictionary(doc);
-                tp.Elements["/Type"] = new PdfName("/TransformParams");
-                tp.Elements["/Action"] = lockDict.Elements["/Action"] ?? new PdfName("/All");
-                if (lockDict.Elements["/Fields"] is { } lockFields) tp.Elements["/Fields"] = lockFields;
-                tp.Elements["/V"] = new PdfName("/1.2");
-                var sigRef = new PdfDictionary(doc);
-                sigRef.Elements["/Type"] = new PdfName("/SigRef");
-                sigRef.Elements["/TransformMethod"] = new PdfName("/FieldMDP");
-                sigRef.Elements["/TransformParams"] = tp;
-                if (PdfObj.Array(sig.Elements["/Reference"]) is { } refs) refs.Elements.Add(sigRef);
-                else sig.Elements["/Reference"] = new PdfArray(doc, sigRef);
-                LockFields(doc, acro, lockDict, req.FieldName);
+                var lockDict = LockDictionary(doc, acro, chosen, fieldName);
+                AddFieldMdp(doc, sig, acro, lockDict, fieldName);
+                if (fieldDict.Elements["/Lock"] is null)
+                {
+                    doc.Internals.AddObject(lockDict);
+                    fieldDict.Elements["/Lock"] = lockDict.Reference!;
+                }
             }
             doc.Internals.AddObject(sig);
             fieldDict.Elements["/V"] = sig.Reference!;
@@ -432,6 +457,52 @@ public static class Signing
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is { } annots && annots.Elements.Any(e => ReferenceEquals(PdfObj.Dict(e), widget)))
                 return p;
         return -1;
+    }
+
+    /// <summary>
+    /// A signature field lock dictionary (ISO 32000-1 Table 233) for <paramref name="chosen"/>: /Type /SigFieldLock,
+    /// /Action, and /Fields for /Include and /Exclude. Each name must be a form field other than the signature's own.
+    /// </summary>
+    private static PdfDictionary LockDictionary(PdfDocument doc, PdfDictionary acro, FieldLock chosen, string signatureField)
+    {
+        var lockDict = new PdfDictionary(doc);
+        lockDict.Elements["/Type"] = new PdfName("/SigFieldLock");
+        lockDict.Elements["/Action"] = new PdfName("/" + chosen.Action);
+        if (chosen.Action == FieldLockAction.All) return lockDict;
+        var all = new List<FormEditor.Field>();
+        FormEditor.Collect(doc, acro, all);
+        var names = all.Select(f => f.Name).Where(n => n != signatureField).ToList();
+        var fields = new PdfArray(doc);
+        foreach (var name in chosen.Fields.Distinct(StringComparer.Ordinal))
+        {
+            if (!names.Any(n => n == name || n.StartsWith(name + ".", StringComparison.Ordinal)))
+                throw new SigningException($"This document has no form field named \"{name}\" to lock.");
+            fields.Elements.Add(PdfObj.MakeString(name));
+        }
+        lockDict.Elements["/Fields"] = fields;
+        return lockDict;
+    }
+
+    /// <summary>
+    /// Records <paramref name="lockDict"/> in the signature as a FieldMDP signature reference (ISO 32000-1 Tables 253 and
+    /// 256: /Type /SigRef, /TransformMethod /FieldMDP, /Data the catalog, /TransformParams with /Action, /Fields and
+    /// /V /1.2), after a DocMDP one, and makes the fields it locks read-only.
+    /// </summary>
+    private static void AddFieldMdp(PdfDocument doc, PdfDictionary sig, PdfDictionary acro, PdfDictionary lockDict, string signatureField)
+    {
+        var tp = new PdfDictionary(doc);
+        tp.Elements["/Type"] = new PdfName("/TransformParams");
+        tp.Elements["/Action"] = lockDict.Elements["/Action"] ?? new PdfName("/All");
+        if (lockDict.Elements["/Fields"] is { } lockFields) tp.Elements["/Fields"] = lockFields;
+        tp.Elements["/V"] = new PdfName("/1.2");
+        var sigRef = new PdfDictionary(doc);
+        sigRef.Elements["/Type"] = new PdfName("/SigRef");
+        sigRef.Elements["/TransformMethod"] = new PdfName("/FieldMDP");
+        sigRef.Elements["/TransformParams"] = tp;
+        sigRef.Elements["/Data"] = doc.Internals.Catalog.Reference!;
+        if (PdfObj.Array(sig.Elements["/Reference"]) is { } refs) refs.Elements.Add(sigRef);
+        else sig.Elements["/Reference"] = new PdfArray(doc, sigRef);
+        LockFields(doc, acro, lockDict, signatureField);
     }
 
     /// <summary>Sets the read-only flag on the fields a signature field's /Lock names (/All, /Include or /Exclude).</summary>

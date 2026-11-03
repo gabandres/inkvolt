@@ -8,6 +8,7 @@ namespace InkvoltPdf.Tests;
 /// pdf/tools/pades-check/README.md. Opt-in with INKVOLTPDF_PADES_CHECK set; needs Java and the tool's libraries. Set
 /// INKVOLTPDF_PADES_KEEP to a folder to keep the files and the validator's output there.
 /// </summary>
+[Collection("Pro")] // signing with a field lock asks the Pro check, which ProTests switches on and off
 public class PadesCheckTests
 {
     private static string ToolFolder()
@@ -59,6 +60,12 @@ public class PadesCheckTests
                 ["added-to-b-b"] = ((await Ltv.AddVerificationAsync(Signing.Sign(TestPdf.Make(2), null, new SignRequest { Certificate = signer }), null, client, stamp)).Pdf, "PAdES-BASELINE-LTA"),
                 ["certified-no-changes"] = ((await Ltv.AddVerificationAsync(Signing.Sign(TestPdf.Make(1), null, new SignRequest { Certificate = signer, Certify = CertificationLevel.NoChanges }), null, client, stamp)).Pdf, "PAdES-BASELINE-LTA"),
             };
+            // Certified with fields locked (FieldMDP beside DocMDP); a client of its own, as one client allows only so many requests.
+            using (var lockClient = pki.Client())
+                files["certified-locked-fields"] = ((await Ltv.AddVerificationAsync(Signing.Sign(FieldLockTests.Form(), null, new SignRequest
+                {
+                    Certificate = signer, Certify = CertificationLevel.FormFilling, Lock = new FieldLock(FieldLockAction.Include, ["Name"]),
+                }), null, lockClient, lockClient.TimestampSender(pki.TimestampUrl))).Pdf, "PAdES-BASELINE-LTA");
             pki.Overrides["/ocsp"] = _ => Task.FromResult(LtvTestPki.Http(503, []));
             files["crls-only"] = (await Signing.SignAsync(TestPdf.Make(1), null, new SignRequest { Certificate = signer, Timestamp = stamp, LongTerm = LongTermLevel.Lta, LongTermClient = client }), "PAdES-BASELINE-LTA");
             pki.Overrides.Remove("/ocsp");

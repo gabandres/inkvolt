@@ -505,6 +505,7 @@ public partial class DocumentTab : UserControl, IDisposable
         if (ticket != _annotationLoad || _disposed) return;
         Viewer.SetPageRotations(rotations);
         Viewer.SetFormWidgets(widgets);
+        FormWidgets = widgets;
         Viewer.SetStamps(stamps);
 
         var fields = widgets.Where(w => !w.ReadOnly && w.Kind is not (FormFieldKind.PushButton or FormFieldKind.Signature))

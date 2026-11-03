@@ -78,6 +78,13 @@ public partial class DocumentTab
         if (sender is FrameworkElement { Tag: SignatureItem s } && !IsBusy) SignRequested?.Invoke(this, s.Info.FieldName);
     }
 
+    /// <summary>The document's form widgets, as last read (for the fields a certifying signature can lock).</summary>
+    public IReadOnlyList<FormWidget> FormWidgets { get; private set; } = [];
+
+    /// <summary>The form fields a signature can lock: every field but signatures and buttons, each name once, in form order.</summary>
+    public IReadOnlyList<string> LockableFields =>
+        [.. FormWidgets.Where(w => w.Kind is not (FormFieldKind.Signature or FormFieldKind.PushButton)).Select(w => w.FieldName).Distinct(StringComparer.Ordinal)];
+
     /// <summary>The empty signature field <paramref name="fieldName"/>: its box (width/height) and whether it is visible.</summary>
     public (double Aspect, bool Visible) SignatureFieldShape(string fieldName)
     {

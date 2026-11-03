@@ -37,7 +37,7 @@ public partial class MainWindow
                 return;
             }
             var (aspect, fieldVisible) = field is null ? (3.6, true) : t.SignatureFieldShape(field);
-            var choice = scripted ?? SignDialog.Show(this, field, aspect, fieldVisible, t.IsSigned);
+            var choice = scripted ?? SignDialog.Show(this, field, aspect, fieldVisible, t.IsSigned, t.LockableFields);
             if (choice is null) return;
             using var cert = choice.Certificate;
             using var client = NewLtvClient();
@@ -74,6 +74,7 @@ public partial class MainWindow
                 Look = choice.Look,
                 Timestamp = choice.Timestamp ? client.TimestampSender(choice.TimestampUrl) : null,
                 Certify = choice.Certify,
+                Lock = choice.Lock,
                 LongTerm = choice.LongTerm,
                 LongTermClient = choice.LongTerm != LongTermLevel.None ? client : null,
             };
