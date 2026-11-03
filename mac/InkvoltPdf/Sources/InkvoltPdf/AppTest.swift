@@ -80,6 +80,7 @@ struct AppTest {
         whatsNew()
         about()
         reportProblem()
+        await hoverActions()
         await scan()
         await openFromAnotherApp()
         await convertFiles()
@@ -331,6 +332,47 @@ struct AppTest {
               "Report a Problem: Copy takes the details as edited; Copy and Open a GitHub Issue makes the issue's address")
         board.releaseGlobally()
         r.closeClicked()
+    }
+
+    // MARK: Form fields' hover actions
+
+    /// A field's hover actions (/AA /E and /X) run as the pointer enters and leaves it, through the page view's own
+    /// pointer handling (Windows' SetHoverWidget), on a small form made here: entering runs the enter script, leaving the
+    /// exit script, and a hover while another action runs is dropped.
+    private mutating func hoverActions() async {
+        let w = "/Type /Annot /Subtype /Widget /F 4 /P 3 0 R"
+        let enter = #"<< /S /JavaScript /JS (this.getField\("a"\).value = "in";) >>"#
+        let exit = #"<< /S /JavaScript /JS (this.getField\("a"\).value = "out";) >>"#
+        let bytes = SyntheticPdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [5 0 R 6 0 R] /Resources << /Font << /Helv 4 0 R >> >> >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< \(w) /FT /Tx /T (a) /Rect [72 700 300 722] /DA (/Helv 12 Tf 0 g) >>",
+            "<< \(w) /FT /Btn /Ff 65536 /T (hover) /Rect [72 600 200 640] /AA << /E \(enter) /X \(exit) >> >>",
+        ])
+        guard let document = NewDocuments.open(bytes, name: "Hover form.pdf"), let c = document.windowControllers.first as? DocumentWindowController
+        else { return check(false, "hover actions: the form didn't open") }
+        defer { document.close() }
+        _ = await wait(5) { c.form.widgets.count == 2 && !c.pages.pageRects.isEmpty }
+        guard let button = c.form.widgets.first(where: { $0.fieldName == "hover" }), let page = c.pages.pageRects.first else {
+            return check(false, "hover actions: the button wasn't read")
+        }
+        let on = c.pages.viewPoint(PointD(button.rect.centerX, button.rect.centerY), page)
+        let off = c.pages.viewPoint(PointD(500, 60), page)
+        c.pages.tool = .hand
+        c.pages.hoverField(at: on)
+        await c.form.settle()
+        let entered = c.form.value("a") == "in"
+        c.pages.hoverField(at: off)
+        await c.form.settle()
+        let left = c.form.value("a") == "out"
+        c.pages.hoverField(at: on)
+        c.pages.hoverField(at: off) // while the enter action runs: dropped
+        await c.form.settle()
+        let dropped = c.form.value("a") == "in" && c.form.hovered == nil
+        check(entered && left && dropped, "form field hover: entering runs its enter action, leaving its exit action; "
+              + "a hover while another action runs is dropped")
     }
 
     // MARK: Scan

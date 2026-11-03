@@ -25,6 +25,10 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
     private var queue: [String: String] = [:]
     private(set) var pendingWrite: Task<Void, Never>?
     private(set) var pendingAction: Task<Void, Never>?
+    /// Actions queued or running (hover actions are dropped while there are any).
+    private var actionsRunning = 0
+    /// The widget under the pointer (Windows' hover widget).
+    private(set) var hovered: FormWidget?
     /// What the last write's scripts said (the self-test reads it).
     private(set) var lastResult: FormFillResult?
     let host: AppFormHost
@@ -54,6 +58,7 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         widgets = (try? FormEditor.read(session.data, session.password)) ?? []
         if let f = focused { focused = widgets.first { $0.fieldName == f.fieldName && $0.pageIndex == f.pageIndex && $0.annotIndex == f.annotIndex } }
         if let e = editing, !widgets.contains(where: { $0.fieldName == e.fieldName && $0.annotIndex == e.annotIndex }) { closeEditor() }
+        if let h = hovered { hovered = widgets.first { $0.fieldName == h.fieldName && $0.rect == h.rect } }
         layoutEditor()
         if let pages { pages.window?.invalidateCursorRects(for: pages) }
     }
@@ -433,12 +438,24 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         if let name = result.focusField, editing == nil, let w = fillable.first(where: { $0.fieldName == name }) { focus(w, open: true) }
     }
 
+    /// The pointer over `w` (nil: over no field): the field it left runs its exit action, the one it entered its enter
+    /// action (Windows' `SetHoverWidget`). Hover actions are dropped while others run; clicks and focus changes are kept.
+    func hover(_ w: FormWidget?) {
+        if w == nil && hovered == nil || Self.same(w, hovered) { return }
+        let old = hovered
+        hovered = w
+        if let old, old.triggers.contains(.exit), actionsRunning == 0 { runAction(old, .exit) }
+        if let w, w.triggers.contains(.enter), actionsRunning == 0 { runAction(w, .enter) }
+    }
+
     /// Runs a widget's actions (after the values before it are written: its scripts read them).
     func runAction(_ w: FormWidget, _ trigger: FormTrigger) {
         let before = pendingAction
+        actionsRunning += 1
         pendingAction = Task { [weak self] in
             await before?.value
             await self?.pendingWrite?.value
+            defer { self?.actionsRunning -= 1 }
             guard let self, let editor = self.editor else { return }
             guard let r = await editor.formAction(w, trigger, host: self.host) else { return }
             for a in Array(Set(r.alerts)).prefix(3) { self.controller?.notify(a) }

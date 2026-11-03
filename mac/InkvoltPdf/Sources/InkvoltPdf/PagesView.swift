@@ -203,7 +203,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         setAccessibilityLabel("Pages")
         NotificationCenter.default.addObserver(self, selector: #selector(darkPagesChanged), name: PageRenderer.darkPagesChanged, object: nil)
         // The pointer's moves, for the measuring tools' value so far (AppKit keeps the area on the visible part).
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self))
+        // The pointer's moves, entering and leaving also run form fields' hover actions.
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable)
@@ -1427,12 +1428,27 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         startEdit { await onMeasured(tool, done.page, done.points) }
     }
 
-    /// The pointer over the pages: the measurement under way follows it.
+    /// The pointer over the pages: the form field under it (its hover actions), the measurement under way follows it.
     override func mouseMoved(with event: NSEvent) {
-        guard var m = measuring, m.isActive, m.page < pageRects.count else { return super.mouseMoved(with: event) }
         let point = convert(event.locationInWindow, from: nil)
+        hoverField(at: point)
+        guard var m = measuring, m.isActive, m.page < pageRects.count else { return super.mouseMoved(with: event) }
         m.move(page: m.page, pagePoint(point, on: m.page), shift: event.modifierFlags.contains(.shift))
         measuring = m
+    }
+
+    /// The pointer left the pages: hover ends (Windows: the page surface's MouseLeave).
+    override func mouseExited(with event: NSEvent) {
+        form?.hover(nil)
+        super.mouseExited(with: event)
+    }
+
+    /// The form field under `point` gets the hover (its enter action; the one before its exit action), with a tool that
+    /// fills fields.
+    func hoverField(at point: NSPoint) {
+        guard let form else { return }
+        guard tool.fillsFields, let hit = page(at: point) else { return form.hover(nil) }
+        form.hover(form.widget(page: hit.page, pagePoint(point, on: hit.page)))
     }
 
     /// For the self-test: the measuring tool's state, and the points of a measurement as if clicked (the Windows dev

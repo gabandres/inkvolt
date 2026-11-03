@@ -602,6 +602,12 @@ Mac differences for the PDF app (so far):
   its own invalid characters and device names such as CON), and a name is cut to fit the Mac's 255 bytes (Windows: the
   259-character path). Windows has no tests for these (app code): SplitFilesTests (3) is a Mac addition. PagesTest
   checks the file per page, the new document, a split by count twice (numbered names) and at the bookmarks.
+- Form fields' hover actions (2026-11-03): a field's /AA /E and /X actions run as the pointer enters and leaves it with a
+  tool that fills fields (`PagesView.hoverField`, from the page view's mouse moves and its exit, `FormFiller.hover`),
+  through `FormEditor.runAction` as clicks and focus changes are; a hover while another action is queued or running is
+  dropped (Windows' `SetHoverWidget` and `QueueWidgetAction`). The core and FormActionTests'
+  `HoverRunsScriptsWithoutDialogsPrintingOrOutwardActions` were already ported. AppTest checks it on a small form made
+  there.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -885,6 +891,8 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   address).
 - Document Properties (File menu, ⇧⌘I): the sheet's rows and their wrapping (a long location, a long producer), the four
   fields, Save Changes, Cancel and What's in This PDF…, on a protected and a signed file.
+- Form fields' hover actions: a real form whose fields change on hover (a button's look, a help text set by its
+  script) with a mouse and a trackpad; nothing flickering while the pointer crosses fields quickly.
 - Extract Pages and Split Document (Pages menu): both sheets' layout, Choose… for the folder, the problem line after a
   wrong range or pattern, the progress sheet on a long document, the Finder opening on the folder, and the password
   question on a protected file.
