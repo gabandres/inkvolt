@@ -49,6 +49,9 @@ struct CorpusPage {
 
 enum ScanCorpus {
     static let dpi = 300
+    /// The tests that make 300 dpi scan pages run on a Mac, not in CI: on GitHub's three-core runner they took the
+    /// whole run to 7 minutes and starved the loopback servers of the timing tests (a 120 s connect wait ran out).
+    static let runs = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil
 
     static let files: [CorpusFile] = [
         CorpusFile(name: "en-skew3-light", language: "en", font: "/Times-Roman", fontSize: 11, minSkew: 3, maxSkew: 4, noise: 8, specks: 150, shading: 10),

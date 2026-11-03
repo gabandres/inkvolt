@@ -7,7 +7,7 @@ import Testing
 /// (`ScanCorpus`, ported with the same seeds), so the expectations are Windows' own. Adapted: colour is RGB on the Mac
 /// (Windows' BGR), so ColourIsKeptWhenAsked warms the red channel at index 0.
 struct ScanCleanupTests {
-    @Test(arguments: [("en-skew3-light", 0), ("en-skew6-noisy", 1), ("en-skew10-shaded", 0), ("es-skew4-noisy", 1), ("es-skew8-shaded", 0)])
+    @Test(.enabled(if: ScanCorpus.runs), arguments: [("en-skew3-light", 0), ("en-skew6-noisy", 1), ("en-skew10-shaded", 0), ("es-skew4-noisy", 1), ("es-skew8-shaded", 0)])
     func corpusPagesAreStraightenedAndLeftUpright(_ name: String, _ page: Int) throws {
         let (pixels, w, h, truth) = try ScanCorpus.makePage(ScanCorpus.file(name), page)
         #expect(abs(truth.skew) >= 3 && abs(truth.skew) <= 10)
@@ -22,7 +22,7 @@ struct ScanCleanupTests {
         #expect(cleaned.gray.pixels.contains { $0 < 60 })
     }
 
-    @Test(arguments: [(0, 2), (1, 3)]) // upside down: two turns; turned clockwise on the glass: three more make it upright
+    @Test(.enabled(if: ScanCorpus.runs), arguments: [(0, 2), (1, 3)]) // upside down: two turns; turned clockwise on the glass: three more make it upright
     func turnedPagesAreTurnedUpright(_ page: Int, _ expected: Int) throws {
         let (pixels, w, h, truth) = try ScanCorpus.makePage(ScanCorpus.file("en-turned"), page)
         #expect(truth.turns != 0)
@@ -33,7 +33,7 @@ struct ScanCleanupTests {
         #expect(cleaned.gray.width == size.0 && cleaned.gray.height == size.1)
     }
 
-    @Test(arguments: [-15.0, -12.5, 14.0, 15.0])
+    @Test(.enabled(if: ScanCorpus.runs), arguments: [-15.0, -12.5, 14.0, 15.0])
     func skewsUpToFifteenDegreesAreFound(_ skew: Double) throws {
         let (pixels, w, h, _) = try ScanCorpus.makePage(ScanCorpus.file("en-skew3-light"), 0)
         let straight = try ScanCleanup.clean(pixels, w, h, 1, ScanCorpus.dpi).gray
@@ -92,7 +92,7 @@ struct ScanCleanupTests {
         #expect(ScanCleanup.turn(ScanCleanup.turn(px, 3, 2, 1, 1), 2, 3, 1, 3) == px)
     }
 
-    @Test func colourIsKeptWhenAsked() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func colourIsKeptWhenAsked() throws {
         let (gray, w, h, _) = try ScanCorpus.makePage(ScanCorpus.file("en-skew3-light"), 0)
         var rgb = [UInt8](repeating: 0, count: w * h * 3)
         for i in gray.indices {

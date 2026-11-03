@@ -17,7 +17,7 @@ struct OcrCorpusTests {
         #expect(WordErrorRate.words(" Total:  €1,234\nrío ") == ["Total:", "€1,234", "río"])
     }
 
-    @Test func theCorpusIsTheSameEveryTime() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func theCorpusIsTheSameEveryTime() throws {
         var file = ScanCorpus.files[0]
         file.pages = 1
         let (first, truth) = try ScanCorpus.make(file)
@@ -32,7 +32,7 @@ struct OcrCorpusTests {
         #expect(!(try engine.text(0).text.contains { $0.isLetter })) // a scan: no text to find until it's recognized
     }
 
-    @Test func theCorpusHasTwoLanguagesAndTheRoadmapsSkews() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func theCorpusHasTwoLanguagesAndTheRoadmapsSkews() throws {
         #expect(Set(ScanCorpus.files.map(\.language)).sorted() == ["en", "es"])
         #expect(ScanCorpus.files.allSatisfy { $0.minSkew >= 3 && $0.minSkew <= 10 && $0.maxSkew >= 3 && $0.maxSkew <= 10 })
         let spanish = try ScanCorpus.makePage(ScanCorpus.files.first { $0.language == "es" }!, 0).truth

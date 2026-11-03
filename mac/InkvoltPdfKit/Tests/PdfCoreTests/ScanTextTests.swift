@@ -73,7 +73,7 @@ struct ScanTextTests {
         #expect(abs(x0 - 123) <= 1.0 && abs(y0 - 73) <= 1.0, "\(x0), \(y0)")
     }
 
-    @Test func anUpsideDownSkewedScanIsReadUprightAndItsWordsLandWhereTheyAre() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func anUpsideDownSkewedScanIsReadUprightAndItsWordsLandWhereTheyAre() throws {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
         let reader = FirstLineReader()
@@ -97,7 +97,7 @@ struct ScanTextTests {
         #expect(word.rect.height >= 10 && word.rect.height <= 22) // 16 pt Helvetica-Bold
     }
 
-    @Test func thePageAsScannedIsReadAsToday() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func thePageAsScannedIsReadAsToday() throws {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
         let reader = FirstLineReader()
@@ -109,7 +109,7 @@ struct ScanTextTests {
         #expect(reader.seen?.width == 2550 && reader.seen?.height == 3300) // 300 dpi, as rendered
     }
 
-    @Test func theCleanedPageCanReplaceTheScanAndTheWordsFitIt() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func theCleanedPageCanReplaceTheScanAndTheWordsFitIt() throws {
         let scan = try Self.turnedScan()
         let pdf = try PdfEngine.open(scan)
         let page = try ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
@@ -135,7 +135,7 @@ struct ScanTextTests {
         #expect(try FormTests.ink(data, RectD(72, 700, 200, 40)) < heading)
     }
 
-    @Test func aCleanedPageIsHeldCompressedAsItWillBeWritten() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aCleanedPageIsHeldCompressedAsItWillBeWritten() throws {
         // Replace the scans holds every page until it writes them: raw, a 500-page Letter colour scan was about 12.6 GB.
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
