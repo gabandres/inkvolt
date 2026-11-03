@@ -31,7 +31,7 @@ extension DocumentWindowController {
                  ("Created", meta?.created.map(Self.date)), ("Modified", meta?.modified.map(Self.date))]
         return rows.compactMap { label, value in
             guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return (label, value)
+            return (label, PropertyText.shown(value)) // a hostile file's 2 MB Producer made the sheet taller than the screen
         }
     }
 

@@ -101,3 +101,27 @@ public enum SidebarText {
         }
     }
 }
+
+/// A value read from the file for Document Properties' read-only rows (creator, producer…): control characters and line
+/// breaks made spaces, runs of spaces made one, cut to `maxLength` with "…" (a hostile file's 2 MB Producer made the
+/// sheet taller than any screen, its buttons out of reach).
+public enum PropertyText {
+    public static let maxLength = 300
+
+    public static func shown(_ value: String) -> String {
+        var out = ""
+        var space = false
+        for ch in value {
+            if out.count >= maxLength { return out.trimmingCharacters(in: .whitespaces) + "…" }
+            if ch.isWhitespace || ch.unicodeScalars.allSatisfy({ $0.properties.generalCategory == .control }) {
+                space = !out.isEmpty
+                continue
+            }
+            if space { out.append(" ") }
+            space = false
+            out.append(ch)
+        }
+        return out
+    }
+}
+

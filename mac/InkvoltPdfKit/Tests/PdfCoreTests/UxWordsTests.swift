@@ -62,4 +62,14 @@ struct UxWordsTests {
         #expect(SidebarText.points(sizeMode: 0) == SidebarText.points(sizeMode: 1))
         #expect(SidebarText.points(sizeMode: 9) == SidebarText.points(sizeMode: 3))
     }
+
+    @Test func A_document_propertys_value_is_shown_short_and_on_one_line() {
+        // A hostile file's Producer of 2 MB made Document Properties' sheet 685,000 points tall (review of 1.6.0).
+        let huge = String(repeating: "Producer word ", count: 150_000)
+        let shown = PropertyText.shown(huge)
+        #expect(shown.count <= PropertyText.maxLength + 1)
+        #expect(shown.hasSuffix("…"))
+        #expect(PropertyText.shown("Line one\nline two\r\n\tend\u{7}") == "Line one line two end")
+        #expect(PropertyText.shown("Acrobat 9") == "Acrobat 9")
+    }
 }
