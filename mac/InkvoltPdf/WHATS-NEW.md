@@ -5,6 +5,13 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- A calmer window: a toolbar like Preview's (sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search), and the markup tools in a bar of their own that comes when you want it (the Markup button, View › Show Markup Toolbar ⇧⌘A, or any tool you pick). Add or remove buttons with View › Customize Toolbar….
+- The Tools menu is grouped by what you're doing: Annotate, Fill & Sign, Redact, Forms, Measure, Accessibility, AI Assistant. Every tool keeps its key.
+- The start page shows your recent files first and four tools; Show All Tools has the rest.
+- The sidebar shows only the panes your document has (Signatures, Layers and Suspect Words appear when there is something in them).
+- Settings apply as soon as you change them, as in other Mac apps.
+- Document windows can be made much narrower, to sit beside another app.
+- File › Share… sends the PDF by Mail, Messages or AirDrop.
 - Compare Files: zoom in and out (⌘= and ⌘-, ⌘0 fits the window), and a Compare files card on the start page.
 - Exports to Word, Excel, text, PowerPoint and HTML follow the layers you show or hide in the Layers pane, as printing does.
 - Edit Text & Images: resize a picture by its handles (Shift keeps its proportions) and move it with the arrow keys (Shift: 10 points).

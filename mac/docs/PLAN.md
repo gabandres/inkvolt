@@ -879,6 +879,21 @@ Decided 2026-10-27 for the PDF app:
   Release review, 2026-10-30 (AiHostileTests, through the parsers and the real connection): `JSONSerialization` recurses without a limit, so a few kilobytes of `{"a":{"a":…` from an endpoint ran the thread out of stack and stopped the app, as did a preset file: `JsonNesting` refuses what nests past 64, as Windows' System.Text.Json does. Also added: an event of many data lines is read at its blank line after 64 tries (a million lines were each read to the end, for hours), trailers without a line break stop at 64 KB, and a body queued past 64 MB ends the connection (nothing makes a server wait for its reader). Checked and unchanged: keys only in the Keychain, off by default, nothing of the document sent before the window's Send (with the Ollama preset, `/api/ps` and `/api/show` on loopback carry the model's name before it, as on Windows), redirects, and names and addresses outside their label.
   A person must look at (nobody at the screen; snapshots of the sheets and the pane were read, in dark mode, but not on a real screen or in light mode): the pane opening beside the pages and being dragged wider; the disclosure triangle and the sheet growing with it; the amber box for an internet endpoint in light mode; a long answer streaming with the list scrolling along; a citation's look and click; Return and Shift-Return in the question box; the Control-click menu; the real Local Network question with a server on another computer; VoiceOver reading the status line and an answer. Not exercised at all: a real Ollama or LM Studio (none on ignia-mac; no paid service was called, by rule), a real https endpoint through URLSession and through the socket path's certificate check (only TLS to a plain server, refused), saving a key in the real login keychain from the app (locked over SSH; `AiKeychainStore` itself is tested on a throwaway keychain).
 
+Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; Mac differences from Windows):
+- The document window has a macOS toolbar (`WindowToolbar.swift`; its default and allowed items are `ToolbarLayout` in
+  PdfCore): sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search, customizable. Windows keeps its one-row command
+  bar with every tool. The Mac's tool strip is the markup toolbar, hidden until asked for (⇧⌘A, Preview's key) or until a
+  markup tool is picked; its groups drop from the right in a narrow window.
+- The Tools menu groups the tools in submenus (Annotate, Fill & Sign, Redact, Forms, Measure, Accessibility, AI
+  Assistant), File the new PDFs (New PDF) and the PDF/A saves (Save as PDF/A); Windows' ribbon groups differ.
+- The start page shows four tool cards (Fill & sign, Edit text & images, Combine files, Create a PDF), the other six behind
+  Show All Tools; Recent comes before the tools. Windows shows all ten.
+- The sidebar picker holds only the panes the document offers; Windows' rail shows its buttons the same way (Layers,
+  Suspect Words), the Mac now does it for Signatures too.
+- Settings apply as they change (no Save or Cancel), as Mac apps do; Windows' dialog applies on Save.
+- `--ux-shots` (with `--self-test`, `--snapshots` and `--synthetic`): the review's shots, menu listing and AX audit
+  (`AxAudit` in PdfCore).
+
 ### What a person must look at (unattended run, 2026-11-03)
 
 Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each needs a person at the Mac:
@@ -922,6 +937,10 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   question on a protected file.
 - Reverse Page Order (Pages menu): the thumbnails and the organizer redrawn in the new order, the chosen card where it
   went.
+- The UX review's window (branch `mac-ux`): the toolbar in Liquid Glass, light and dark, its overflow menu in a narrow
+  window, Customize Toolbar…'s sheet and Icon and Text mode, the Markup button staying pressed while the markup bar shows,
+  Share's picker, the tab bar under the unified toolbar; the start page's Show All Tools; Settings applying as you change
+  them; Increase Contrast and VoiceOver over the toolbar and the markup bar.
 - Go to Page (Go menu, ⌥⌘G): the sheet's field taking focus, Return going there, a label typed in a file with page
   labels (the self-test's document has none), and the sheet asked again with the range.
 
