@@ -41,6 +41,9 @@ Remove-Item Env:INKVOLT_TEXTSCALE
 & $Exe --demo --theme Dark --palette scan --snapshot (Join-Path $Out 'print-palette-scan-dark.png') | Out-Null
 & $Exe --demo --palette zzz --snapshot (Join-Path $Out 'print-palette-nomatch.png') | Out-Null
 & $Exe --demo --palette 'go to scan' --run-palette --snapshot (Join-Path $Out 'print-palette-ran.png') | Out-Null
+# Round 3: the scan review after Undo and after a move (its motion ends in these states)
+& $Exe --demo --tab Scan --scan 3 --delete 2 --undo --snapshot (Join-Path $Out 'print-review-undone.png') --a11y-audit (Join-Path $Out 'print-review-undone.txt') | Out-Null
+& $Exe --demo --tab Scan --scan 3 --move 1 --snapshot (Join-Path $Out 'print-review-moved.png') | Out-Null
 # Round 3: another printer's menu command from the palette (listed once a word is typed), and run
 & $Exe --demo --palette 'office fix' --snapshot (Join-Path $Out 'print-palette-other.png') --a11y-audit (Join-Path $Out 'print-palette-other.txt') | Out-Null
 & $Exe --demo --palette 'office fix' --run-palette --snapshot (Join-Path $Out 'print-palette-other-ran.png') | Out-Null

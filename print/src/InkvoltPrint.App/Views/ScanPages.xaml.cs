@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
@@ -13,12 +14,15 @@ namespace InkvoltPrint.App.Views;
 /// <summary>
 /// The Scan tab's page review: large thumbnails to turn, crop, delete and reorder. Reordering by dragging (pages make
 /// room as the dragged one passes over them) or from the keyboard (Alt+Shift+arrows move the selected page; the new
-/// position is announced to screen readers).
+/// position is announced to screen readers). A page put back, the one taking a deleted page's place and a moved page ease
+/// into place (<see cref="Core.Suite.ReviewMotion"/>), never while a scan or save shows its progress.
 /// </summary>
 public partial class ScanPages : UserControl
 {
     private Point? _dragStart;
     private ScanPageViewModel? _dragPage;
+    private bool _dragging;
+    private ScanViewModel? _watched;
 
     public static readonly DependencyProperty ThumbnailHeightProperty =
         DependencyProperty.Register(nameof(ThumbnailHeight), typeof(double), typeof(ScanPages), new PropertyMetadata(MaxThumbnail));
@@ -53,6 +57,32 @@ public partial class ScanPages : UserControl
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PhotoBoxes.Focus());
         };
+        DataContextChanged += (_, _) => Watch(Vm);
+        Unloaded += (_, _) => Watch(null);
+        Loaded += (_, _) => Watch(Vm);
+    }
+
+    private void Watch(ScanViewModel? vm)
+    {
+        if (_watched == vm) return;
+        if (_watched is not null) _watched.Pages.CollectionChanged -= PagesChanged;
+        _watched = vm;
+        if (vm is not null) vm.Pages.CollectionChanged += PagesChanged;
+    }
+
+    /// <summary>The review's motion (<see cref="Core.Suite.ReviewMotion"/>): the page that moves eases into place once its container exists.</summary>
+    private void PagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!Motion.Enabled || !PagesList.IsVisible || _watched is not { } vm) return;
+        var step = Core.Suite.ReviewMotion.For(e.Action, e.NewStartingIndex, e.OldStartingIndex, vm.Pages.Count,
+            (e.NewItems ?? e.OldItems)?.Count ?? 0, vm.IsBusy, _dragging);
+        if (step.Kind == Core.Suite.ReviewMotion.Kind.None) return;
+        var page = vm.Pages[step.Index];
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (PagesList.ItemContainerGenerator.ContainerFromItem(page) is ListBoxItem item)
+                Motion.Enter(item, Core.Suite.ReviewMotion.Rise(step.Kind), Core.Suite.ReviewMotion.Slide(step.Kind));
+        });
     }
 
     private ScanViewModel? Vm => DataContext as ScanViewModel;
@@ -81,7 +111,9 @@ public partial class ScanPages : UserControl
         _dragPage = null;
         _dragStart = null;
         var from = Vm?.Pages.IndexOf(page) ?? -1;
-        DragDrop.DoDragDrop(PagesList, new DataObject(typeof(ScanPageViewModel), page), DragDropEffects.Move);
+        _dragging = true; // the page follows the pointer: no motion on top
+        try { DragDrop.DoDragDrop(PagesList, new DataObject(typeof(ScanPageViewModel), page), DragDropEffects.Move); }
+        finally { _dragging = false; }
         if (Vm is { } vm && vm.Pages.IndexOf(page) is var to and >= 0 && to != from)
         {
             Announce($"Moved to position {to + 1} of {vm.Pages.Count}");

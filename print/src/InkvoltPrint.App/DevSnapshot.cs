@@ -89,6 +89,9 @@ internal static class DevSnapshot
             if (int.TryParse(Value(args, "--delete"), out var delete) && delete > 0 && delete <= scanner.Pages.Count)
                 scanner.RemovePageCommand.Execute(scanner.Pages[delete - 1]);
             if (args.Contains("--undo")) scanner.UndoCommand.Execute(null);
+            // --move n: page n one place later, as Alt+Shift+Right does (the review's motion slides it in from the left).
+            if (int.TryParse(Value(args, "--move"), out var move) && move > 0 && move < scanner.Pages.Count)
+                scanner.MovePage(scanner.Pages[move - 1], move);
             // --clean n: the clean up view on the n-th page.
             if (int.TryParse(Value(args, "--clean"), out var cleanPage) && cleanPage > 0 && cleanPage <= scanner.Pages.Count)
             {

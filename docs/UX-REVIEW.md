@@ -224,8 +224,14 @@ The audit finds no control without a name or under 24 × 24 on the palette, the 
 
 #### Still short
 
-- **Motion in the scan review** (a page added, deleted, moved) stays immediate: the review's own Undo and status line
-  say what happened, and animating the page grid while scanning would compete with the progress bar.
+Nothing left from round 2 (2026-11-03): the palette reaches another printer's menu (criterion 6 above), and the scan
+review has motion. **Motion in the scan review:** the earlier reasoning holds while scanning, so motion is the subtle
+version: a page Undo puts back rises into place, the page taking a deleted one's place fades in, a moved page slides in
+from the side it came from (167 ms, decelerate, none with Windows' Animation effects off), and nothing moves while a scan or
+a save shows its progress bar (pages from the scanner just appear), while a page is dragged (it follows the pointer), or
+when several pages change at once (`Core/Suite/ReviewMotion`, `ReviewMotionTests`). Final states: `after/print-review-undone.png`,
+`after/print-review-moved.png` (0 audit findings); the motion itself isn't in a still. Criterion 4 was already 10; the
+weighted score stays 9.61.
 
 ## How to reproduce
 

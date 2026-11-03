@@ -191,7 +191,11 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   **Printers** button that opens it over the page, as Windows Settings folds its pane: choosing a printer, Esc or a click
   outside closes it (`Core/Suite/NavPane`, tested). Motion, short and reducible as in Inkvolt PDF (`Motion`: 167 ms, none
   when Windows' Animation effects is off): a section's page when its tab is chosen, the printer's page when another
-  printer is, a status line when its words change, the folded sidebar and the palette arriving.
+  printer is, a status line when its words change, the folded sidebar and the palette arriving, and the scan review's
+  pages (`Core/Suite/ReviewMotion`, tested): a page Undo puts back rises into place, the page taking a deleted one's place
+  fades in, a moved page slides in from the side it came from; never while a scan or save shows its progress bar (pages
+  from the scanner just appear), while a page is dragged, or when several change at once (a restored scan). `--move n`
+  moves page n one place later (dev aid, with `--delete n` and `--undo`).
 - One instance per user (named mutex + current-user-only pipe, listening as soon as the mutex is taken: files opened together
   with "Open with" before the window is up are held and opened in order; another launch waits up to 20 s for it). Software rendering (the UI is static; GPU rendering cost ~200 MB on ARM64).
 - Unhandled errors are logged to `%LOCALAPPDATA%\InkvoltPrint\logs\inkvoltprint.log` and shown; the app keeps running. Closing with unsaved scans asks first.
