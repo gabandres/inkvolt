@@ -738,8 +738,8 @@ Mac differences for the PDF app (so far):
 - Accessibility check (roadmap 1.3): the command is Tools › Accessibility Check… (Windows: Review), the pane is the sidebar's last
   segment, a symbol that appears with the first check. Fixes that name a command name
   the Mac's: File › Remove Password Protection…, Pages › Flatten…, Tools › Prepare Form, File › Document Properties (Windows' words since
-  2026-11-03; the language and "Show document title" still say a PDF editor's, as on Windows); the checks that Windows words with Attach a File and Read Aloud still say the program that
-  wrote the file and VoiceOver (⌘F5), though E9 and E10 brought both (to change in the checker's words). Saving the report offers Open Report in the pane (Windows: Open on its toast). Text in a corrupt file differs by reader: MuPDF
+  2026-11-03; the language and "Show document title" still say a PDF editor's, as on Windows); the checks that Windows words with Attach a File and Read Aloud
+  name the Mac's: View › Show Attachments, then Attach… (21-001), and Read Aloud (⇧⌘Y) or VoiceOver (2026-11-03). Saving the report offers Open Report in the pane (Windows: Open on its toast). Text in a corrupt file differs by reader: MuPDF
   rebuilds what it can, so a file PDFsharp refuses is checked as far as it reads (`7.5-t01-fail-c.pdf`, with an external stream: Windows
   says it can't be checked, the Mac fails it, as veraPDF does). Limits Windows doesn't have, none reached by a real file: at most 2,500,000
   parsed drawing steps of forms are kept, a form drawn again isn't read again, 500,000,000 drawing steps per document (then a note),
