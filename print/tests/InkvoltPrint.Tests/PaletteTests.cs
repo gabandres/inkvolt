@@ -11,6 +11,19 @@ public class PaletteTests
     private static List<PrintPalette.Entry> Build(PrintPalette.Printer? selected = null, int index = 0) =>
         PrintPalette.Build(selected, selected is null ? -1 : index, ["HP LaserJet MFP M234dw", "Demo inkjet", "Front desk"], ["Document to PDF", "Photo", "Receipt"]);
 
+    [Fact]
+    public void AnEntryKeepsMeaningThePrinterItNamed_WhenTheListMoves()
+    {
+        string a = "A", b = "B", c = "C";
+        IReadOnlyList<string> built = [a, b, c];
+
+        Assert.Same(b, PrintPalette.Target(1, built, [a, b, c]));
+        Assert.Same(b, PrintPalette.Target(1, built, [c, a, b])); // a new one sorted in, or the order changed
+        Assert.Null(PrintPalette.Target(1, built, [a, c])); // removed meanwhile: nothing runs, not the next one's command
+        Assert.Null(PrintPalette.Target(3, built, [a, b, c]));
+        Assert.Null(PrintPalette.Target(-1, built, [a, b, c]));
+    }
+
     // ── The list ──
 
     [Fact]

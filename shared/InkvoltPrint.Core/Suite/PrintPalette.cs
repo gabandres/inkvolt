@@ -100,6 +100,14 @@ public static class PrintPalette
         return parts is ["on", var n, var command] && int.TryParse(n, out var index) && index >= 0 && MenuIds.Contains(command) ? (index, command) : null;
     }
 
+    /// <summary>
+    /// The printer an entry's index means: the one at <paramref name="index"/> in the list the palette was built from, while it's still
+    /// on the list. The list moves while the palette is open (a queue comes, discovery answers, one is removed), and an index into the
+    /// list as it is now would run "Remove" or "Fix" on another printer than the one the entry named. Null when it's gone.
+    /// </summary>
+    public static T? Target<T>(int index, IReadOnlyList<T> asBuilt, IEnumerable<T> now) where T : class =>
+        index >= 0 && index < asBuilt.Count && now.Contains(asBuilt[index]) ? asBuilt[index] : null;
+
     /// <summary>The palette's words when nothing matches: what to try next.</summary>
     public static string NoMatch(string query)
     {

@@ -152,11 +152,15 @@ public partial class MainWindow : Window
 
     private List<PrintPalette.Entry> _paletteAll = [];
 
+    /// <summary>The printers as the palette listed them: its entries' indexes are into this, not the list as it is by the time one runs.</summary>
+    private List<ViewModels.PrinterViewModel> _palettePrinters = [];
+
     public void OpenPalette()
     {
         if (Vm is not { } vm) return;
         ShowSidebar(open: false, focus: false);
         var p = vm.Selected;
+        _palettePrinters = [.. vm.Printers];
         static PrintPalette.Printer Offer(ViewModels.PrinterViewModel x) =>
             new(x.Name, x.CanPrint, x.Scan is not null, x.ShowCopy, x.Settings is not null, x.NeedsSetup, x.CanFix, x.IsNetworkPrinter, x.CanSetSnmpLogin);
         _paletteAll = PrintPalette.Build(p is null ? null : Offer(p), p is null ? -1 : vm.Printers.IndexOf(p),
@@ -224,11 +228,15 @@ public partial class MainWindow : Window
         if (Vm is not { } vm) return;
         var p = vm.Selected;
         // Another printer's menu command ("on:n:command"): that printer is shown, then its command runs, as from its own menu.
-        if (PrintPalette.OnOther(id) is var (index, command) && index < vm.Printers.Count)
+        if (PrintPalette.OnOther(id) is var (index, command))
         {
+            if (PrintPalette.Target(index, _palettePrinters, vm.Printers) is not { } target) return; // gone since the palette opened
             vm.IsFleetShown = false;
-            vm.Selected = vm.Printers[index];
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => RunPaletteEntry($"printer:{command}"));
+            vm.Selected = target;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                if (vm.Selected == target) RunPaletteEntry($"printer:{command}");
+            });
             return;
         }
         var (kind, arg) = id.IndexOf(':') is var colon and > 0 ? (id[..colon], id[(colon + 1)..]) : (id, "");
@@ -241,7 +249,7 @@ public partial class MainWindow : Window
         {
             case ("app", "fleet"): ShowFleet(); break;
             case ("section", _) when p is not null && int.TryParse(arg, out var section): p.SelectedSection = section; break;
-            case ("show", _) when int.TryParse(arg, out var n) && n < vm.Printers.Count: vm.Selected = vm.Printers[n]; break;
+            case ("show", _) when int.TryParse(arg, out var n) && PrintPalette.Target(n, _palettePrinters, vm.Printers) is { } shown: vm.Selected = shown; break;
             case ("preset", _) when int.TryParse(arg, out var preset) && p?.Scan is not null && preset < vm.Presets.Items.Count:
                 _ = p.RunPresetCommand.ExecuteAsync(vm.Presets.Items[preset]);
                 break;
