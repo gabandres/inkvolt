@@ -179,8 +179,10 @@ and a person to allow the Automation prompt; do it on the mini.
 ### Notes
 
 **Released and current.** Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
-1.5.0 (GitHub release `pdf-mac-v1.5.0`, Homebrew). The Store's release notes are in English and Spanish; neither app has a
-Spanish interface (its own project, not started).
+1.5.0 (GitHub release `pdf-mac-v1.5.0`, Homebrew). The Store's release notes are in English and Spanish; Inkvolt Print for
+Windows has a Spanish interface on master, not released yet (the owner reviews the wording: `print/docs/SPANISH-REVIEW.md`; when it ships, the Store
+listing's "La aplicación está en inglés." goes, in Partner Center). **Open: Inkvolt PDF's Spanish interface**, its own project, not started (`UiLanguage` in
+`shared/` is ready for it, `CoreLanguage.Use` opts it into the shared library's Spanish), the same for the Mac apps, and What's New in Spanish.
 
 **Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
 

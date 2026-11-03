@@ -113,10 +113,10 @@ public sealed class SupplyChartView : FrameworkElement
             var points = l.Segments.SelectMany(s => s).ToList();
             return l.Changes.Count switch
             {
-                0 => string.Format(Strings.Chart_LineName, l.Supply, points[0].Percent, points[^1].Percent),
-                1 => string.Format(Strings.Chart_LineNameChangedOn, l.Supply, points[0].Percent, points[^1].Percent,
+                0 => string.Format(Strings.Chart_LineName, Core.Model.SupplyNames.FromEnglish(l.Supply), points[0].Percent, points[^1].Percent),
+                1 => string.Format(Strings.Chart_LineNameChangedOn, Core.Model.SupplyNames.FromEnglish(l.Supply), points[0].Percent, points[^1].Percent,
                     l.Changes[0].ToString("d MMM yyyy", CultureInfo.CurrentCulture)),
-                var n => string.Format(Strings.Chart_LineNameChangedTimes, l.Supply, points[0].Percent, points[^1].Percent, n),
+                var n => string.Format(Strings.Chart_LineNameChangedTimes, Core.Model.SupplyNames.FromEnglish(l.Supply), points[0].Percent, points[^1].Percent, n),
             };
         });
         AutomationProperties.SetName(this, string.Format(Strings.Chart_Name, data.From.ToString("d MMM yyyy", CultureInfo.CurrentCulture), string.Join("; ", parts)));

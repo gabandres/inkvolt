@@ -218,6 +218,8 @@ select or insert.
 
 ### Spanish listing (es)
 
+**When the Spanish interface ships** (on master, not released yet; the manifest declares `es`, `es\*.resources.dll` are in the package and `pack-msix.ps1` fails without them): in Partner Center, take "La aplicación está en inglés." out of the description below, in the same submission.
+
 Live since 2026-10-30 (Submission 11, Published; `msstore submission get` lists `en-us` and `es`), submitted with the en-us screenshots and the text below; plain Spanish only, which covers every Spanish market (Spanish (Americas), `es-019`, was removed). Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`), and once a draft has been edited in Partner Center the submission API refuses it (409 InvalidState, "in the state 'None'"), so a listing change goes through the Partner Center pages. Their keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check the result with `msstore submission get`. When the en-us description changes, change this one to match. The app itself is in English, and the description says so.
 
 Short description:

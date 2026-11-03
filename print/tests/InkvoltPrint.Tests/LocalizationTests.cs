@@ -137,6 +137,61 @@ public partial class LocalizationTests
         }
     }
 
+    [Fact]
+    public void TheSharedLibrary_IsEnglishUnlessAnAppOptsIn_WhateverTheThreadsLanguage()
+    {
+        // The command lines and Inkvolt PDF never opt in, so a Spanish Windows doesn't change them.
+        var before = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = UiLanguage.Spanish;
+            Assert.Equal("Paper jam", InkvoltPrint.Core.CoreStrings.Status_PaperJam);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = before;
+        }
+    }
+
+    [Fact]
+    public void Spanish_ComesFromTheSatelliteAssembly()
+    {
+        var spanish = InkvoltPrint.Core.CoreStrings.ResourceManager.GetString(nameof(InkvoltPrint.Core.CoreStrings.Status_PaperJam), UiLanguage.Spanish);
+        Assert.Equal("Atasco de papel", spanish);
+    }
+
+    [Theory]
+    [InlineData("Black toner")]
+    [InlineData("Tri-color ink cartridge")]
+    [InlineData("Photo black ink")]
+    [InlineData("toner")]
+    [InlineData("Black Toner Cartridge DT-5200")] // a printer's own name
+    [InlineData("Maintenance box")]
+    public void AHistoryName_ReadsTheSameInEnglish(string kept)
+    {
+        Assert.Equal(kept, InkvoltPrint.Core.Model.SupplyNames.FromEnglish(kept));
+    }
+
+    [Theory]
+    [InlineData("Black toner")]
+    [InlineData("Tóner negro")] // the key is what the history keeps, never the name shown
+    public void ASupply_KeepsItsEnglishKey_WhateverItsName(string shown)
+    {
+        var supply = new InkvoltPrint.Core.Model.Consumable(shown, "toner", "K", 50, "ok", null, null, null, null, null)
+        {
+            Key = InkvoltPrint.Core.Model.SupplyNames.EnglishName("K", "toner", capitalize: true),
+        };
+        Assert.Equal("Black toner", supply.Key);
+        Assert.Equal("Black toner|K", InkvoltPrint.Core.History.SupplyRow.KeyOf(supply));
+    }
+
+    [Fact]
+    public void ASupplyWithoutAKey_IsKnownByItsName()
+    {
+        var supply = new InkvoltPrint.Core.Model.Consumable("Waste Toner Box", "waste", null, null, "ok", null, null, null, null, null);
+        Assert.Equal("Waste Toner Box", supply.Key);
+    }
+
     /// <summary>A value any format specifier accepts.</summary>
     private sealed class AnyValue : IFormattable
     {

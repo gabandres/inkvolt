@@ -65,6 +65,38 @@ internal static class SupplyNames
     }
 
     /// <summary>
+    /// A name the supply history kept (<see cref="EnglishName"/>) in the interface's language, for the chart's spoken text: "Black
+    /// toner" reads "Tóner negro" in Spanish. A printer's own name (IPP, SNMP) stays as it is.
+    /// </summary>
+    public static string FromEnglish(string english)
+    {
+        foreach (var kind in KnownKinds)
+        {
+            if (english.Equals(kind, StringComparison.OrdinalIgnoreCase)) return Name(null, colorKnown: false, kind);
+            if (!english.EndsWith(" " + kind, StringComparison.OrdinalIgnoreCase)) continue;
+            var color = ColorWord(english[..^(kind.Length + 1)], Feminine(kind));
+            return color is null ? english : Name(color, colorKnown: true, kind);
+        }
+        return english;
+    }
+
+    // The longest first: "ink cartridge" before "ink".
+    private static readonly string[] KnownKinds = ["ink cartridge", "ink tank", "printhead", "toner", "drum", "supply", "ink"];
+
+    private static string? ColorWord(string english, bool feminine) => english.ToLowerInvariant() switch
+    {
+        "black" => feminine ? CoreStrings.Supply_Black_Feminine : CoreStrings.Supply_Black,
+        "cyan" => CoreStrings.Supply_Cyan,
+        "magenta" => CoreStrings.Supply_Magenta,
+        "yellow" => feminine ? CoreStrings.Supply_Yellow_Feminine : CoreStrings.Supply_Yellow,
+        "tri-color" => CoreStrings.Supply_TriColor,
+        "photo black" => CoreStrings.Supply_PhotoBlack,
+        "matte black" => CoreStrings.Supply_MatteBlack,
+        "gray" => CoreStrings.Supply_Gray,
+        _ => null,
+    };
+
+    /// <summary>
     /// Kinds whose word takes the feminine form of a colour in Spanish ("tinta negra"); the English is the same either way.
     /// </summary>
     public static bool Feminine(string kind) => kind is "ink" or "wax";

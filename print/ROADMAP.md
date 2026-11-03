@@ -491,6 +491,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Mac (later):** PrintCore could do the same for a USB printer through CUPS (an IPP-over-USB printer's driverless queue answers Get-Printer-Attributes through `ippusbxd`/CUPS' own IPP-USB support). Not started; nothing in `mac/` changed.
 - **Effort** S (route 1), M (route 2). Windows; Mac later. Free.
 
+### 3.7 Spanish interface
+- **Built (Windows, 2026-11-03):** every string of the app and of what the shared library shows moved to resources (`Strings`, `CoreStrings`; 2,209 strings) and translated, the language following Windows or Settings › Language, 0 UIA findings on 20 Spanish screens, the shots in `docs/ux-review/spanish/`. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in `LocalizationTests`), a real printer in Spanish.
+- **Next:** the owner reviews the wording (`print/docs/SPANISH-REVIEW.md`); the Store listing loses "La aplicación está en inglés." when it ships; What's New in Spanish; Inkvolt PDF's Spanish interface and the Mac apps' (each its own project).
+
 ## Where we already win
 
 Kept up with the same rule: a claim here has a test or a source.

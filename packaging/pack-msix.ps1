@@ -53,7 +53,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 # What differs between the two apps. Folder: the app's folder in the repo (src, packaging, notices). Required: files the
-# publish output must hold (a publish that lacks them would package an app that can't start). Extras: files from the app's
+# publish output must hold (a publish that lacks them would package an app that can't start, or Inkvolt Print without its Spanish). Extras: files from the app's
 # folder copied into the package root.
 $apps = @{
     Pdf   = @{
@@ -64,7 +64,7 @@ $apps = @{
     }
     Print = @{
         Folder = 'print'; Name = 'InkvoltPrint'; IdentityName = 'BermudezSystems.InkvoltPrint'; DisplayName = 'Inkvolt Print'
-        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll')
+        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md', 'LICENSE')
     }
 }
@@ -194,7 +194,12 @@ New-Item -ItemType Directory -Force $priRoot | Out-Null
 Copy-Item $assets (Join-Path $priRoot 'Assets') -Recurse
 Set-Content (Join-Path $priRoot 'AppxManifest.xml') (New-Manifest $Architectures[0]) -Encoding utf8
 $priConfig = Join-Path $OutDir 'priconfig.xml'
-Invoke-Tool $makepri @('createconfig', '/cf', $priConfig, '/dq', 'en-US', '/pv', '10.0.0', '/o')
+# The languages the manifest declares (<Resource Language="…" />; Inkvolt Print: en-us and es) are the PRI's default
+# qualifiers, so the package's resource languages match what it says it speaks. The interface's own text is in .NET
+# satellite assemblies (es\*.resources.dll), copied with the publish output.
+$languages = @([regex]::Matches($template, '<Resource\s+Language="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+if (-not $languages) { throw 'The manifest template declares no <Resource Language="…" />.' }
+Invoke-Tool $makepri @('createconfig', '/cf', $priConfig, '/dq', ($languages -join '_'), '/pv', '10.0.0', '/o')
 $pri = Join-Path $OutDir 'resources.pri'
 Invoke-Tool $makepri @('new', '/pr', $priRoot, '/cf', $priConfig, '/mn', (Join-Path $priRoot 'AppxManifest.xml'), '/of', $pri, '/o')
 

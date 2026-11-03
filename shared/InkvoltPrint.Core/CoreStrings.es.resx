@@ -707,13 +707,13 @@
     <value>{0}: casi lleno</value>
   </data>
   <data name="Fleet_SupplyEmpty" xml:space="preserve">
-    <value>{0}: vacío</value>
+    <value>{0}: se agotó</value>
   </data>
   <data name="Fleet_SupplyMissing" xml:space="preserve">
     <value>{0}: falta</value>
   </data>
   <data name="Fleet_SupplyLow" xml:space="preserve">
-    <value>{0}: bajo</value>
+    <value>{0}: queda poco</value>
   </data>
   <data name="Fleet_SupplyOk" xml:space="preserve">
     <value>{0}: bien</value>
@@ -851,7 +851,7 @@
     <value>{0} casi lleno</value>
   </data>
   <data name="Alert_SupplyEmpty" xml:space="preserve">
-    <value>{0} vacío</value>
+    <value>{0}: se agotó</value>
   </data>
   <data name="Alert_ReplaceToKeepPrinting" xml:space="preserve">
     <value>{0}: reemplázalo para seguir imprimiendo.</value>
@@ -884,10 +884,10 @@
     <value>queda poco</value>
   </data>
   <data name="Alert_SupplyLowPercent" xml:space="preserve">
-    <value>{0} bajo ({1}%)</value>
+    <value>{0}: queda poco ({1}%)</value>
   </data>
   <data name="Alert_SupplyLow" xml:space="preserve">
-    <value>{0} bajo</value>
+    <value>{0}: queda poco</value>
   </data>
   <data name="Alert_OpenPrinter" xml:space="preserve">
     <value>Abrir impresora</value>

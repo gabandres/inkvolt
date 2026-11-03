@@ -2,6 +2,7 @@
 
 Domain terms Inkvolt Print's modules are named after. Plain English; the code's doc comments say how.
 
+- **Interface language**: the language the app's own words are in, picked once at start-up (`AppLanguage`, the choice in `UiLanguage`) and read from `Strings` and `CoreStrings`. What a printer sends stays as it sends it. A supply's **key** (`Consumable.Key`) is its English name whatever the language: what its history and alerts go by.
 - **Printer reading**: one read of a printer's state: its status, supply levels and usage counters
   (`PrinterReading`, from `PrinterConnection.ReadAsync`).
 - **Printer status**: the module that takes a reading over whichever interfaces the printer answered on, in one fallback

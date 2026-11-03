@@ -28,12 +28,6 @@
   <data name="Common_OK" xml:space="preserve">
     <value>Aceptar</value>
   </data>
-  <data name="Common_Yes" xml:space="preserve">
-    <value>Sí</value>
-  </data>
-  <data name="Common_No" xml:space="preserve">
-    <value>No</value>
-  </data>
   <data name="Common_Save" xml:space="preserve">
     <value>Guardar</value>
   </data>
@@ -46,20 +40,8 @@
   <data name="Common_Delete" xml:space="preserve">
     <value>Eliminar</value>
   </data>
-  <data name="Common_Back" xml:space="preserve">
-    <value>Atrás</value>
-  </data>
-  <data name="Common_Next" xml:space="preserve">
-    <value>Siguiente</value>
-  </data>
   <data name="Common_Done" xml:space="preserve">
     <value>Listo</value>
-  </data>
-  <data name="Common_Retry" xml:space="preserve">
-    <value>Volver a intentar</value>
-  </data>
-  <data name="Common_Browse" xml:space="preserve">
-    <value>Examinar…</value>
   </data>
   <data name="Common_Change" xml:space="preserve">
     <value>Cambiar…</value>
@@ -78,9 +60,6 @@
   </data>
   <data name="Common_Undo" xml:space="preserve">
     <value>Deshacer</value>
-  </data>
-  <data name="Common_Help" xml:space="preserve">
-    <value>Ayuda</value>
   </data>
   <data name="Common_Settings" xml:space="preserve">
     <value>Configuración</value>
@@ -1825,7 +1804,7 @@ Los detalles se guardaron en {1}</value>
     <value>Escanear: {0}</value>
   </data>
   <data name="Presets_FolderGone" xml:space="preserve">
-    <value>La carpeta "{0}" ya no existe. Elige otra en Administrar ajustes de escaneo.</value>
+    <value>La carpeta "{0}" ya no existe. Elige otra en Administrar ajustes.</value>
   </data>
   <data name="Printer_AboutWindowsPrinter" xml:space="preserve">
     <value>Impresora de Windows</value>
@@ -1930,7 +1909,7 @@ Los detalles se guardaron en {1}</value>
     <value>Otro dispositivo responde en esta dirección</value>
   </data>
   <data name="Printer_ElsewhereDetail" xml:space="preserve">
-    <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Es mi impresora.</value>
+    <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Esta es mi impresora.</value>
   </data>
   <data name="Printer_AcceptDeviceQuestion" xml:space="preserve">
     <value>¿Usar el dispositivo que ahora responde en {0} como {1}?
@@ -1938,7 +1917,7 @@ Los detalles se guardaron en {1}</value>
 Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un restablecimiento o una nueva tarjeta de red le dio un nuevo ID. Si no, es otro dispositivo que tomó la dirección de la impresora, y Resolver… puede encontrarla.</value>
   </data>
   <data name="Printer_ThisIsMyPrinter" xml:space="preserve">
-    <value>Es mi impresora</value>
+    <value>Esta es mi impresora</value>
   </data>
   <data name="Printer_ScannerNotConnected" xml:space="preserve">
     <value>El escáner no está conectado ahora. Comprueba que esté encendido y conectado, y vuelve a intentarlo.</value>
@@ -1989,7 +1968,7 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
     <value>Comprueba que esté encendida y conectada a la misma red que este PC ({0}). Inkvolt Print sigue intentándolo en segundo plano.</value>
   </data>
   <data name="Printer_SetupInSettings" xml:space="preserve">
-    <value>En Configuración, elige Agregar dispositivo y luego “Agregar manualmente” › “Agregar una impresora mediante una dirección TCP/IP o un nombre de host”. Elige “Dispositivo IPP” y pega {0} (está en el portapapeles). Inkvolt Print detecta la impresora cuando se agrega.</value>
+    <value>En Configuración, elige Agregar dispositivo y luego “Agregar manualmente” › “Agregar una impresora por medio de una dirección TCP/IP o un nombre de host”. Elige “Dispositivo IPP” y pega {0} (está en el portapapeles). Inkvolt Print detecta la impresora cuando se agrega.</value>
   </data>
   <data name="Printer_SettingUpAdmin" xml:space="preserve">
     <value>Configurando… acepta la solicitud de permiso de Windows para agregar la impresora.</value>
@@ -2099,7 +2078,7 @@ Las actualizaciones de HP han traído la "seguridad dinámica", que impide que f
     <value>Listo. Vuelve a guardar para confiar en el certificado actual de la impresora; se te pedirá la contraseña de administrador.</value>
   </data>
   <data name="PrinterSettings_SavedUnknown" xml:space="preserve">
-    <value>Guardado, pero la impresora no dijo qué conservó, así que no se sabe si cambiaron sus actualizaciones automáticas. Vuelve a comprobarlo en un momento (Volver a leer de la impresora) o en su página web.</value>
+    <value>Guardado, pero la impresora no dijo qué conservó, así que no se sabe si cambiaron sus actualizaciones automáticas. Vuelve a comprobarlo en un momento (Volver a cargar desde la impresora) o en su página web.</value>
   </data>
   <data name="PrinterSettings_NotifyNoLongerOffered" xml:space="preserve">
     <value>Esta impresora no puede buscar actualizaciones sin instalarlas, así que ya no se ofrece "{0}" para ella.</value>
@@ -2108,7 +2087,7 @@ Las actualizaciones de HP han traído la "seguridad dinámica", que impide que f
     <value>Esta impresora no puede buscar actualizaciones sin instalarlas: activó la instalación automática. La impresora mantuvo activadas las actualizaciones automáticas ("{0}") y no se pudo restaurar la configuración anterior ("{1}"). Cámbiala aquí o en su página web.</value>
   </data>
   <data name="PrinterSettings_TiedSentBackUnknown" xml:space="preserve">
-    <value>Esta impresora no puede buscar actualizaciones sin instalarlas: activó la instalación automática. Se volvió a enviar la configuración anterior, pero la impresora no dijo si la aceptó. Compruébalo en un momento (Volver a leer de la impresora) o en su página web.</value>
+    <value>Esta impresora no puede buscar actualizaciones sin instalarlas: activó la instalación automática. Se volvió a enviar la configuración anterior, pero la impresora no dijo si la aceptó. Compruébalo en un momento (Volver a cargar desde la impresora) o en su página web.</value>
   </data>
   <data name="PrinterSettings_TiedNotTakenBack" xml:space="preserve">
     <value>Esta impresora no puede buscar actualizaciones sin instalarlas: activó la instalación automática, y no aceptó de nuevo la configuración anterior. Revisa las actualizaciones automáticas en su página web.</value>
@@ -3117,7 +3096,7 @@ Empezar de nuevo</value>
     <value>Informar un problema…</value>
   </data>
   <data name="Help_ReportTip" xml:space="preserve">
-    <value>Copia los detalles que necesita un informe y abre un issue de GitHub para pegarlos. Inkvolt Print no envía nada.</value>
+    <value>Copia los detalles que necesita un informe y abre una incidencia de GitHub para pegarlos. Inkvolt Print no envía nada.</value>
   </data>
   <data name="Help_Shortcuts" xml:space="preserve">
     <value>Métodos abreviados de teclado</value>
@@ -3468,19 +3447,19 @@ Empezar de nuevo</value>
     <value>Copiado.</value>
   </data>
   <data name="Report_CopiedIssue" xml:space="preserve">
-    <value>Copiado. Pega los detalles en el issue, debajo de Details, y envíalo.</value>
+    <value>Copiado. Pega los detalles en la incidencia, debajo de Details, y envíalo.</value>
   </data>
   <data name="Report_CopyAndIssue" xml:space="preserve">
-    <value>Copiar y abrir un issue de GitHub</value>
+    <value>Copiar y abrir una incidencia de GitHub</value>
   </data>
   <data name="Report_CopyAndIssueTip" xml:space="preserve">
-    <value>Copia los detalles y abre un issue nuevo de GitHub en tu navegador para pegarlos</value>
+    <value>Copia los detalles y abre una incidencia nueva de GitHub en tu navegador para pegarlos</value>
   </data>
   <data name="Report_DetailsName" xml:space="preserve">
     <value>Detalles para informar</value>
   </data>
   <data name="Report_Intro" xml:space="preserve">
-    <value>Estos detalles ayudan a encontrar el problema: la versión, Windows, algunas opciones de configuración y el final del registro de Inkvolt Print. Las direcciones IP, los identificadores y números de serie de las impresoras, las rutas de archivo y tus nombres aparecen ocultos. No se envía nada: cópialos y pégalos en un issue de GitHub o en un correo electrónico. Borra lo que prefieras no compartir.</value>
+    <value>Estos detalles ayudan a encontrar el problema: la versión, Windows, algunas opciones de configuración y el final del registro de Inkvolt Print. Las direcciones IP, los identificadores y números de serie de las impresoras, las rutas de archivo y tus nombres aparecen ocultos. No se envía nada: cópialos y pégalos en una incidencia de GitHub o en un correo electrónico. Borra lo que prefieras no compartir.</value>
   </data>
   <data name="Report_Record" xml:space="preserve">
     <value>Grabar esta impresora</value>
@@ -3495,7 +3474,7 @@ Empezar de nuevo</value>
     <value>Para grabar una impresora, muéstrala primero y vuelve aquí.</value>
   </data>
   <data name="Report_RecordSaved" xml:space="preserve">
-    <value>Guardado como {0} en {1}. Léelo antes de compartirlo y luego adjúntalo al issue.</value>
+    <value>Guardado como {0} en {1}. Léelo antes de compartirlo y luego adjúntalo a la incidencia.</value>
   </data>
   <data name="Report_RecordSavedDemo" xml:space="preserve">
     <value>Demostración: guardado como {0} en {1}, de la impresora inventada.</value>
