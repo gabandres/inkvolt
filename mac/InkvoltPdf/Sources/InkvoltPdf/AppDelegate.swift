@@ -112,6 +112,8 @@ enum MainMenu {
     private static func item(_ title: String, _ action: Selector?, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
+        // The jargon the Windows names keep, said plainly on the item (UX review, round 2; renames are proposed).
+        item.toolTip = PlainWords.note(for: title)
         return item
     }
 
