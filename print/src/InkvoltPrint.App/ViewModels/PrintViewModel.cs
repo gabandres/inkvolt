@@ -87,9 +87,11 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     [ObservableProperty] public partial bool MessageIsError { get; set; }
 
     public bool HasDocument => FileName is not null;
-    public string PageCountText => PageCount == 1 ? "1 page" : $"{PageCount} pages";
-    public string AllPagesText => PageCount == 1 ? "The page" : $"All {PageCount} pages";
-    public string? MoreThumbnailsText => PageCount > MaxThumbnails ? $"+ {PageCount - MaxThumbnails} more pages" : null;
+    public string PageCountText => Core.Plural.Of(PageCount, Strings.Print_Pages_One, Strings.Print_Pages_Many);
+    public string AllPagesText => Core.Plural.Of(PageCount, Strings.Print_AllPages_One, Strings.Print_AllPages_Many);
+    public string? MoreThumbnailsText => PageCount > MaxThumbnails
+        ? Core.Plural.Of(PageCount - MaxThumbnails, Strings.Print_MorePages_One, Strings.Print_MorePages_Many)
+        : null;
 
     /// <summary>Error for the page-range box, or null.</summary>
     public string? RangeError => AllPages || PageCount == 0 || PageRange.TryParse(RangeText, PageCount, out _, out var e) ? null : e;
@@ -102,10 +104,18 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
             if (PageCount == 0 || !TrySelectedPages(out var pages)) return "";
             var perCopy = TwoSided ? (pages.Count + 1) / 2 : pages.Count;
             var sheets = perCopy * Copies;
-            var what = pages.Count == 1 ? "1 page" : $"{pages.Count} pages";
-            if (Copies > 1) what += $" × {Copies} copies";
-            return $"Prints {what} on {sheets} sheet{(sheets == 1 ? "" : "s")} of paper{(TwoSided ? ", both sides" : "")}.";
+            var paper = TwoSided
+                ? Core.Plural.Of(sheets, Strings.Print_SheetsBothSides_One, Strings.Print_SheetsBothSides_Many)
+                : Core.Plural.Of(sheets, Strings.Print_Sheets_One, Strings.Print_Sheets_Many);
+            return string.Format(Strings.Print_Summary, PagesAndCopies(pages.Count, Copies), paper);
         }
+    }
+
+    /// <summary>"3 pages", or "3 pages × 2 copies".</summary>
+    private static string PagesAndCopies(int pages, int copies)
+    {
+        var what = Core.Plural.Of(pages, Strings.Print_Pages_One, Strings.Print_Pages_Many);
+        return copies > 1 ? string.Format(Strings.Print_PagesTimesCopies, what, copies) : what;
     }
 
     partial void OnRangeTextChanged(string value)
@@ -132,8 +142,8 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Choose a PDF to print",
-            Filter = "PDF documents (*.pdf)|*.pdf",
+            Title = Strings.Print_ChoosePdf,
+            Filter = Strings.Print_PdfFilter + "|*.pdf",
             InitialDirectory = state.PrintFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
         if (dialog.ShowDialog() == true) await OpenAsync(dialog.FileName);
@@ -147,7 +157,7 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     {
         if (IsBusy)
         {
-            SetMessage($"Still sending the current job. Open \"{Path.GetFileName(path)}\" again when it's done.", error: true);
+            SetMessage(string.Format(Strings.Print_StillSending, Path.GetFileName(path)), error: true);
             return;
         }
         var generation = ++_openGeneration;
@@ -187,13 +197,13 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
         catch (PdfOpenException ex)
         {
             Clear();
-            SetMessage(ex.IsPasswordProtected ? "This PDF is password protected and no password was entered." : ex.Message, error: true);
+            SetMessage(ex.IsPasswordProtected ? Strings.Print_PasswordNotEntered : ex.Message, error: true);
         }
         catch (Exception ex)
         {
             Log.Write($"Open PDF failed: {ex}");
             Clear();
-            SetMessage($"Could not open the PDF: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Print_CouldNotOpen, ex.Message), error: true);
         }
     }
 
@@ -278,26 +288,25 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
             var queueName = await findQueue();
             if (queueName is null)
             {
-                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.", error: true);
+                SetMessage(Strings.Print_NotSetUp, error: true);
                 return;
             }
             var progress = new Progress<string>(m => SetMessage(m));
             await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
                     FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize),
                 progress, _cts.Token, onSpooling: () => IsSpooling = true);
-            SetMessage($"Sent to the printer: {(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}" +
-                       $"{(Copies > 1 ? $" × {Copies} copies" : "")} ({sw.Elapsed.TotalSeconds:0.0} s).");
+            SetMessage(string.Format(Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
             RatingRequest.NoteSuccess(state);
         }
         catch (OperationCanceledException)
         {
-            SetMessage("Printing cancelled.");
+            SetMessage(Strings.Print_Cancelled);
         }
         catch (Exception ex)
         {
             // Spooler/driver/serializer errors come in many types; never let one escape the command.
             Log.Write($"Print failed: {ex}");
-            SetMessage($"Could not print: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Print_CouldNotPrint, ex.Message), error: true);
         }
         finally
         {
@@ -346,9 +355,9 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
     {
         var (a, b) = (Math.Min(w, h), Math.Max(w, h));
         bool Near(double x, double y) => Math.Abs(a - x) < 0.08 && Math.Abs(b - y) < 0.08;
-        var name = Near(8.5, 11) ? "Letter" : Near(8.5, 14) ? "Legal" : Near(8.27, 11.69) ? "A4" : Near(5.83, 8.27) ? "A5" : null;
-        var orient = w > h ? ", landscape" : "";
-        return name is not null ? $"{name}{orient}" : $"{w:0.#} × {h:0.#} in";
+        var name = Near(8.5, 11) ? Strings.Print_PaperLetter : Near(8.5, 14) ? Strings.Print_PaperLegal : Near(8.27, 11.69) ? "A4" : Near(5.83, 8.27) ? "A5" : null;
+        if (name is null) return string.Format(Strings.Print_PaperInches, w, h);
+        return w > h ? string.Format(Strings.Print_PaperLandscape, name) : name;
     }
 
     private static BitmapSource Decode(byte[] jpeg)

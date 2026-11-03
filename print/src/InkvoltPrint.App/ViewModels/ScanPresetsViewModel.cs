@@ -28,8 +28,8 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     {
         _library = library;
         PrinterName = printerName;
-        Folders.Add(new("Documents", PresetFolder.Documents, null));
-        Folders.Add(new("Pictures", PresetFolder.Pictures, null));
+        Folders.Add(new(Strings.Presets_Documents, PresetFolder.Documents, null));
+        Folders.Add(new(Strings.Presets_Pictures, PresetFolder.Pictures, null));
         foreach (var f in syncFolders) Folders.Add(new($"{f.Name}  ({f.Path})", PresetFolder.Custom, f.Path));
         Folders.Add(Browse);
         foreach (var p in library.Items) Items.Add(new PresetItem(this, p));
@@ -46,7 +46,8 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     /// <summary>Asks the user for a folder (the dialog's OpenFolderDialog); null when cancelled. Unset: no browsing.</summary>
     public Func<string?, string?>? PickFolder { get; set; }
 
-    public static readonly FolderChoice Browse = new("Other folder…", PresetFolder.Custom, null, IsBrowse: true);
+    // The lists below are built when asked for (they're records: equal by value), never once: their labels are in the interface's language.
+    public static FolderChoice Browse => new(Strings.Presets_OtherFolder, PresetFolder.Custom, null, IsBrowse: true);
 
     public ObservableCollection<FolderChoice> Folders { get; } = [];
     public ObservableCollection<PresetItem> Items { get; } = [];
@@ -61,34 +62,36 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     /// <summary>Why Save didn't close the editor.</summary>
     [ObservableProperty] public partial string? Error { get; set; }
 
-    public static IReadOnlyList<Option<PresetSource>> Sources { get; } =
+    public static IReadOnlyList<Option<PresetSource>> Sources =>
     [
-        new(PresetSource.Auto, "Feeder if it has pages, else glass"),
-        new(PresetSource.Glass, "Scanner glass"),
-        new(PresetSource.Feeder, "Document feeder"),
+        new(PresetSource.Auto, Strings.Presets_SourceAuto),
+        new(PresetSource.Glass, Strings.Presets_SourceGlass),
+        new(PresetSource.Feeder, Strings.Presets_SourceFeeder),
     ];
 
-    public static IReadOnlyList<Option<PresetFileType>> FileTypes { get; } =
+    public static IReadOnlyList<Option<PresetFileType>> FileTypes =>
     [
-        new(PresetFileType.SearchablePdf, "PDF, searchable (text recognition)"),
+        new(PresetFileType.SearchablePdf, Strings.Presets_FileSearchablePdf),
         new(PresetFileType.Pdf, "PDF"),
-        new(PresetFileType.Jpeg, "JPEG images (one per page)"),
+        new(PresetFileType.Jpeg, Strings.Presets_FileJpeg),
     ];
 
-    public static IReadOnlyList<Option<int>> Resolutions { get; } =
-        [new(150, "150 dpi (draft)"), new(200, "200 dpi (screen)"), new(300, "300 dpi (documents)"), new(600, "600 dpi (photos, slower)"), new(1200, "1200 dpi (slowest)")];
+    public static IReadOnlyList<Option<int>> Resolutions =>
+        [new(150, string.Format(Strings.Scan_ResolutionDraft, 150)), new(200, string.Format(Strings.Scan_ResolutionScreen, 200)),
+         new(300, string.Format(Strings.Scan_ResolutionDocuments, 300)), new(600, string.Format(Strings.Scan_ResolutionPhotos, 600)),
+         new(1200, string.Format(Strings.Presets_ResolutionSlowest, 1200))];
 
-    public static IReadOnlyList<Option<string?>> PageSizes { get; } =
-        [new(null, "Letter or A4 (by region)"), .. ScanChoices.PageSizes.Select(p => new Option<string?>(p.Key, p.Label))];
+    public static IReadOnlyList<Option<string?>> PageSizes =>
+        [new(null, Strings.Presets_PageSizeByRegion), .. ScanChoices.PageSizes.Select(p => new Option<string?>(p.Key, p.Label))];
 
-    public static IReadOnlyList<Option<SplitAt>> Splits { get; } = [.. Enum.GetValues<SplitAt>().Select(s => new Option<SplitAt>(s, Separators.Label(s)))];
+    public static IReadOnlyList<Option<SplitAt>> Splits => [.. Enum.GetValues<SplitAt>().Select(s => new Option<SplitAt>(s, Separators.Label(s)))];
 
-    public static IReadOnlyList<Option<PresetAfter>> Afters { get; } =
+    public static IReadOnlyList<Option<PresetAfter>> Afters =>
     [
-        new(PresetAfter.None, "Nothing else"),
-        new(PresetAfter.OpenInInkvoltPdf, "Open it in Inkvolt PDF"),
-        new(PresetAfter.Print, "Print a copy"),
-        new(PresetAfter.Email, "Email it (opens your mail app)"),
+        new(PresetAfter.None, Strings.Presets_AfterNothing),
+        new(PresetAfter.OpenInInkvoltPdf, Strings.Presets_AfterOpenPdf),
+        new(PresetAfter.Print, Strings.Presets_AfterPrint),
+        new(PresetAfter.Email, Strings.Presets_AfterEmail),
     ];
 
     public static string TokenHelp =>
@@ -111,7 +114,7 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
         var item = new PresetItem(this, ScanPresets.Create(Snapshot()));
         Items.Add(item);
         Selected = item;
-        Prompt.Announce($"Added {item.Name}");
+        Prompt.Announce(string.Format(Strings.Presets_Added, item.Name));
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -121,17 +124,17 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
         var item = new PresetItem(this, ScanPresets.Duplicate(Snapshot(), source.ToPreset()));
         Items.Insert(Items.IndexOf(source) + 1, item);
         Selected = item;
-        Prompt.Announce($"Added {item.Name}");
+        Prompt.Announce(string.Format(Strings.Presets_Added, item.Name));
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Delete()
     {
-        if (Selected is not { } item || !Prompt.Ask($"Delete the preset \"{item.Name}\"? Files it saved stay where they are.", "Delete")) return;
+        if (Selected is not { } item || !Prompt.Ask(string.Format(Strings.Presets_DeleteQuestion, item.Name), Strings.Common_Delete)) return;
         var i = Items.IndexOf(item);
         Items.Remove(item);
         Selected = Items.Count == 0 ? null : Items[Math.Min(i, Items.Count - 1)];
-        Prompt.Announce($"Deleted {item.Name}");
+        Prompt.Announce(string.Format(Strings.Presets_Deleted, item.Name));
     }
 
     private bool CanMoveUp() => Selected is { } s && Items.IndexOf(s) > 0;
@@ -152,7 +155,7 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
         Selected = item;
         MoveUpCommand.NotifyCanExecuteChanged();
         MoveDownCommand.NotifyCanExecuteChanged();
-        Prompt.Announce($"Moved to position {from + by + 1} of {Items.Count}");
+        Prompt.Announce(string.Format(Strings.Scan_MovedTo, from + by + 1, Items.Count));
     }
 
     private List<ScanPreset> Snapshot() => Items.Select(i => i.ToPreset()).ToList();
@@ -299,29 +302,29 @@ public sealed partial class PresetItem : ObservableObject
     {
         get
         {
-            var ctx = new NameContext(DateTime.Now, string.IsNullOrWhiteSpace(Name) ? "Preset" : Name.Trim(), _owner.PrinterName, _original.NextNumber, 2,
+            var ctx = new NameContext(DateTime.Now, string.IsNullOrWhiteSpace(Name) ? Strings.Presets_ExampleName : Name.Trim(), _owner.PrinterName, _original.NextNumber, 2,
                 CultureInfo.CurrentCulture);
             var folder = Folder.IsBrowse ? "…" : Folder.Kind == PresetFolder.Custom ? Folder.Path ?? "" : Folder.Label;
             var sub = FileNameTemplate.Subfolder(Subfolder, ctx);
             var name = FileNameTemplate.FileName(FileName, ctx);
             var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : $"{name}.pdf";
-            return Path.Combine(folder, sub, file) + (Splits ? "  (one per file, each with its own {n})" : "");
+            return Path.Combine(folder, sub, file) + (Splits ? "  " + Strings.Presets_ExampleSplit : "");
         }
     }
 
     /// <summary>Things worth knowing about the choices (not errors).</summary>
     public string? Note =>
-        After.Value == PresetAfter.OpenInInkvoltPdf && FileType.Value == PresetFileType.Jpeg ? "Inkvolt PDF opens PDFs: JPEG scans are only saved."
-        : After.Value == PresetAfter.Email ? "Inkvolt Print sends nothing itself: your mail app opens a new message with the file attached, for you to address and send."
-        : FileType.Value == PresetFileType.SearchablePdf && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? "Text recognition isn't available on this PC: PDFs won't be searchable."
+        After.Value == PresetAfter.OpenInInkvoltPdf && FileType.Value == PresetFileType.Jpeg ? Strings.Presets_NoteJpegNoPdf
+        : After.Value == PresetAfter.Email ? Strings.Presets_NoteEmail
+        : FileType.Value == PresetFileType.SearchablePdf && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? Strings.Presets_NoteNoOcr
         : null;
 
     /// <summary>The first thing that stops this preset being saved, or null.</summary>
     public string? Problem(IReadOnlyList<ScanPreset> all) =>
         ScanPresets.NameProblem(all, _original.Id, Name)
-        ?? (FileNameError is { } f ? $"File name: {f}" : null)
-        ?? (SubfolderError is { } s ? $"Subfolder: {s}" : null)
-        ?? (Folder.IsBrowse ? "Choose a folder to save into." : null);
+        ?? (FileNameError is { } f ? string.Format(Strings.Presets_FileNameProblem, f) : null)
+        ?? (SubfolderError is { } s ? string.Format(Strings.Presets_SubfolderProblem, s) : null)
+        ?? (Folder.IsBrowse ? Strings.Presets_ChooseFolder : null);
 
     public ScanPreset ToPreset() => _original with
     {

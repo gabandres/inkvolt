@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices.WindowsRuntime;
+using InkvoltPrint.Core;
 using Windows.Data.Pdf;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
@@ -37,7 +38,7 @@ public sealed class PdfSource
         }
         catch (Exception ex) when (ex.HResult == unchecked((int)0x8007052B)) // ERROR_WRONG_PASSWORD
         {
-            throw new PdfOpenException("This PDF is password protected.", isPasswordProtected: true);
+            throw new PdfOpenException(CoreStrings.Win_PdfPassword, isPasswordProtected: true);
         }
         catch (Exception ex) when (ex is not PdfOpenException and not OperationCanceledException)
         {
@@ -56,7 +57,7 @@ public sealed class PdfSource
         }
         catch (Exception ex) when (ex.HResult == unchecked((int)0x8007052B)) // ERROR_WRONG_PASSWORD
         {
-            throw new PdfOpenException("This PDF is password protected.", isPasswordProtected: true);
+            throw new PdfOpenException(CoreStrings.Win_PdfPassword, isPasswordProtected: true);
         }
         catch (Exception ex) when (ex is not PdfOpenException and not OperationCanceledException)
         {
@@ -77,7 +78,7 @@ public sealed class PdfSource
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new PdfOpenException($"Could not open the PDF: {ex.Message}", isPasswordProtected: ex.HResult == unchecked((int)0x8007052B));
+            throw new PdfOpenException(string.Format(CoreStrings.Win_PdfCouldNotOpen, ex.Message), isPasswordProtected: ex.HResult == unchecked((int)0x8007052B));
         }
     }
 
@@ -88,8 +89,8 @@ public sealed class PdfSource
     private static PdfOpenException Failed(Exception ex)
     {
         if (ex.HResult is unchecked((int)0x80048040) or unchecked((int)0x80048042))
-            return new PdfOpenException("Windows can't open this kind of password protection. Save the PDF without it, or with an older kind, then try again.", isPasswordProtected: false, isUnsupportedLock: true);
-        return new PdfOpenException(string.IsNullOrWhiteSpace(ex.Message) ? "Could not open the PDF: it may be damaged." : $"Could not open the PDF: {ex.Message}", isPasswordProtected: false);
+            return new PdfOpenException(CoreStrings.Win_PdfUnsupportedLock, isPasswordProtected: false, isUnsupportedLock: true);
+        return new PdfOpenException(string.IsNullOrWhiteSpace(ex.Message) ? CoreStrings.Win_PdfDamaged : string.Format(CoreStrings.Win_PdfCouldNotOpen, ex.Message), isPasswordProtected: false);
     }
 
     /// <summary>Page size in inches (PDF pages report size in 1/96 in).</summary>

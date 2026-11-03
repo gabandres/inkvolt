@@ -97,7 +97,7 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
         {
             if (NeverSent(ex) is { } why) return new MaintenanceResult(false, why);
             // Sent, then no answer: the printer may well be doing it. Saying so keeps a cleaning from being sent twice.
-            return new MaintenanceResult(false, "The printer didn't answer, so the request may have started anyway. Check the printer before trying again.");
+            return new MaintenanceResult(false, CoreStrings.Maint_NoAnswerMayHaveStarted);
         }
     }
 
@@ -112,10 +112,9 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
         for (var e = ex.InnerException; e is not null; e = e.InnerException)
         {
             if (e is System.Security.Authentication.AuthenticationException)
-                return "Not sent: the secure connection to the printer failed. If its security certificate changed (after a reset or " +
-                       "an update), check it under Printer settings; otherwise another device may be answering at its address.";
+                return CoreStrings.Maint_NotSentTls;
             if (e is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
-                return "Not sent: the printer refused the connection. Check that it's on, then try again.";
+                return CoreStrings.Maint_NotSentRefused;
         }
         return null;
     }
@@ -127,11 +126,10 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
             switch (MaintenanceRequests.ReadCalibration(state))
             {
                 case CalibrationStatus.Running:
-                    return new MaintenanceResult(false, "An alignment is already under way on the printer. Finish it there first.");
+                    return new MaintenanceResult(false, CoreStrings.Maint_AlignRunning);
                 case CalibrationStatus.AwaitingParameters:
                     // HPLIP base/maint.py: "ParmsRequested" → "Restart device and start alignment".
-                    return new MaintenanceResult(false, "An earlier alignment is still waiting to be finished on the printer. Finish it on the " +
-                                                        "printer's control panel, or turn the printer off and on again, then try again.");
+                    return new MaintenanceResult(false, CoreStrings.Maint_AlignWaiting);
             }
         }
         return await PostLedmAsync(action, action.Target!, MaintenanceRequests.StartAlignment(), ct).ConfigureAwait(false);
@@ -155,16 +153,16 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => throw new LedmAuthRequiredException(Http.HasCredentials),
             _ when resp.IsSuccessStatusCode => new MaintenanceResult(true, action.Sent),
             HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented =>
-                new MaintenanceResult(false, "The printer doesn't offer this to apps after all. Use its control panel or web page."),
+                new MaintenanceResult(false, CoreStrings.Maint_NotOfferedToApps),
             HttpStatusCode.Conflict or HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests =>
-                new MaintenanceResult(false, "The printer is busy and didn't start it. Try again when it's idle."),
-            var s => new MaintenanceResult(false, $"The printer refused it (HTTP {(int)s})."),
+                new MaintenanceResult(false, CoreStrings.Maint_BusyNotStarted),
+            var s => new MaintenanceResult(false, string.Format(CoreStrings.Maint_RefusedHttp, (int)s)),
         };
     }
 
     private async Task<MaintenanceResult> IdentifyAsync(MaintenanceAction action, CancellationToken ct)
     {
-        if (connection.Ipp is not { } ipp) return new MaintenanceResult(false, "The printer doesn't answer IPP any more.");
+        if (connection.Ipp is not { } ipp) return new MaintenanceResult(false, CoreStrings.Maint_NoIpp);
         IppResponse r;
         try
         {
@@ -172,15 +170,15 @@ public sealed class MaintenanceClient(PrinterConnection connection, string? user
         }
         catch (Exception ex) when (ex is DeviceHttpException or FormatException)
         {
-            return new MaintenanceResult(false, $"The printer refused it ({ex.Message}).");
+            return new MaintenanceResult(false, string.Format(CoreStrings.Maint_RefusedWhy, ex.Message));
         }
         return r.StatusCode switch
         {
             < 0x0100 => new MaintenanceResult(true, action.Sent),
             // PWG 5100.13 §4.1: a printer SHOULD ask for an authenticated user and answers with one of these when it does.
-            0x0401 or 0x0402 or 0x0403 => new MaintenanceResult(false, "The printer only does this for a signed-in user. Use its control panel or web page."),
-            0x0501 => new MaintenanceResult(false, "The printer doesn't offer this after all."),
-            var s => new MaintenanceResult(false, $"The printer refused it (IPP status 0x{s:X4})."),
+            0x0401 or 0x0402 or 0x0403 => new MaintenanceResult(false, CoreStrings.Maint_SignedInOnly),
+            0x0501 => new MaintenanceResult(false, CoreStrings.Maint_NotOffered),
+            var s => new MaintenanceResult(false, string.Format(CoreStrings.Maint_RefusedIpp, s)),
         };
     }
 

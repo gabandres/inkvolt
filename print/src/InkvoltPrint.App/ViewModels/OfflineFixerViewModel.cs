@@ -43,7 +43,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(CheckAgainCommand))]
     public partial bool IsRunning { get; set; }
 
-    [ObservableProperty] public partial string Headline { get; set; } = "Checking…";
+    [ObservableProperty] public partial string Headline { get; set; } = Strings.Fixer_Checking;
     [ObservableProperty] public partial string? Advice { get; set; }
 
     /// <summary>What the last repair did ("Done: “Office laser” now prints to 192.0.2.23."), kept across the re-check.</summary>
@@ -95,7 +95,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         _run?.Cancel();
         var run = _run = new CancellationTokenSource();
         IsRunning = true;
-        Headline = "Checking…";
+        Headline = Strings.Fixer_Checking;
         Advice = null;
         Repairs.Clear();
         OnPropertyChanged(nameof(HasRepairs));
@@ -115,7 +115,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
             foreach (var c in report.Checks) Show(c);
             // The UUID mDNS answered for is public: two devices claiming it, or the old address still answering, means ask.
             if (report.Found is { } found && (report.Adoption == AdoptDecision.Adopt
-                                              || report.Adoption == AdoptDecision.Ask && Prompt.Ask(report.AdoptionQuestion!, $"Use {found.Address}")))
+                                              || report.Adoption == AdoptDecision.Ask && Prompt.Ask(report.AdoptionQuestion!, string.Format(Strings.Fixer_UseAddress, found.Address))))
                 _adoptAddress(found.Address);
             Report = report;
             foreach (var r in report.Repairs) Repairs.Add(new FixerRepairViewModel(r, this));
@@ -129,7 +129,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Write($"Offline fixer: {ex}");
-            Headline = "The check didn't finish";
+            Headline = Strings.Fixer_CheckDidntFinish;
             Advice = ex.Message;
         }
         finally
@@ -149,7 +149,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         // locked): Cancel stops waiting, a late "Yes" then changes nothing, and the fixer looks again.
         using var cancel = new CancellationTokenSource();
         row.Cancellation = CanElevate && !manual ? cancel : null;
-        row.Message = CanElevate && repair.AdminOnly ? "Waiting for permission… Approve the Windows prompt, or Cancel." : "Working…";
+        row.Message = CanElevate && repair.AdminOnly ? Strings.Fixer_WaitingForPermission : Strings.Fixer_Working;
         row.Steps = null;
         RepairOutcome outcome;
         try
@@ -174,7 +174,7 @@ public sealed partial class OfflineFixerViewModel : ObservableObject
         switch (outcome.Kind)
         {
             case RepairOutcomeKind.Fixed:
-                LastResult = $"Done: {Lower(repair.Title)}.";
+                LastResult = string.Format(Strings.Fixer_Done, Lower(repair.Title));
                 LastResultIsError = false;
                 row.Message = null;
                 await RunAsync(); // see what's left
@@ -252,12 +252,12 @@ public sealed partial class FixerCheckViewModel(CheckResult initial) : Observabl
 
     public string AccessibleText => $"{Title}: {State switch
     {
-        CheckState.Passed => "OK",
-        CheckState.Warning => "warning",
-        CheckState.Failed => "problem",
-        CheckState.Running => "checking",
-        CheckState.Skipped => "skipped",
-        _ => "waiting",
+        CheckState.Passed => Strings.Fixer_StateOk,
+        CheckState.Warning => Strings.Fixer_StateWarning,
+        CheckState.Failed => Strings.Fixer_StateProblem,
+        CheckState.Running => Strings.Fixer_StateChecking,
+        CheckState.Skipped => Strings.Fixer_StateSkipped,
+        _ => Strings.Fixer_StateWaiting,
     }}. {Detail}";
 }
 
@@ -268,23 +268,23 @@ public sealed partial class FixerRepairViewModel(Repair repair, OfflineFixerView
     public string Title => Repair.Title;
     public string Detail => Repair.Detail;
 
-    public string ButtonText => Repair.ManualOnly ? "Show me how"
-        : !owner.CanElevate && Repair.AdminOnly ? "Show me how"
+    public string ButtonText => Repair.ManualOnly ? Strings.Fixer_ShowMeHow
+        : !owner.CanElevate && Repair.AdminOnly ? Strings.Fixer_ShowMeHow
         : Repair.Kind switch
         {
-            RepairKind.CancelStuckJobs => Repair.JobIds.Count == 1 ? "Cancel job" : "Cancel jobs",
-            RepairKind.RestartStuckJobs => "Print again",
-            RepairKind.StartSpooler => "Start it",
-            RepairKind.RestartSpooler => "Restart it",
-            RepairKind.SetUpAgain or RepairKind.RecreateIppQueue => "Set up again",
-            _ => "Fix it",
+            RepairKind.CancelStuckJobs => Repair.JobIds.Count == 1 ? Strings.Fixer_CancelJob : Strings.Fixer_CancelJobs,
+            RepairKind.RestartStuckJobs => Strings.Fixer_PrintAgain,
+            RepairKind.StartSpooler => Strings.Fixer_StartIt,
+            RepairKind.RestartSpooler => Strings.Fixer_RestartIt,
+            RepairKind.SetUpAgain or RepairKind.RecreateIppQueue => Strings.Fixer_SetUpAgain,
+            _ => Strings.Fixer_FixIt,
         };
 
     /// <summary>Shown under the button: it will ask for administrator permission (unpackaged copies).</summary>
     public string? AdminNote => owner.CanElevate && Repair.AdminOnly && !Repair.ManualOnly
-        ? "Windows asks for administrator permission."
+        ? Strings.Fixer_AdminNote
         : Repair.Kind is RepairKind.ResumeQueue or RepairKind.ClearWorkOffline && owner.CanElevate && !Repair.OnAnotherPc
-            ? "May ask for administrator permission if you didn't set this printer up."
+            ? Strings.Fixer_MayAskAdmin
             : null;
 
     public bool IsAlternative => Repair.IsAlternative;
@@ -325,6 +325,6 @@ public sealed partial class FixerRepairViewModel(Repair repair, OfflineFixerView
     {
         try { Cancellation?.Cancel(); }
         catch (ObjectDisposedException) { } // finished meanwhile
-        Message = "Stopping…";
+        Message = Strings.Fixer_Stopping;
     }
 }

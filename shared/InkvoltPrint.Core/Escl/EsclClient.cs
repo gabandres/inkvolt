@@ -29,7 +29,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
     public async Task<ScannerStatus> GetStatusAsync(CancellationToken ct = default)
     {
         var bytes = await GetBytesOrNullAsync(new Uri(Root, "ScannerStatus"), ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Scanner status not available");
+            ?? throw new InvalidOperationException(CoreStrings.Escl_StatusNotAvailable);
         return ScannerStatus.Parse(Load(bytes));
     }
 
@@ -40,11 +40,11 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
     /// </summary>
     public async IAsyncEnumerable<byte[]> ScanAsync(ScanRequest request, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var caps = await GetCapabilitiesAsync(ct).ConfigureAwait(false) ?? throw new InvalidOperationException("Not an eSCL scanner");
+        var caps = await GetCapabilitiesAsync(ct).ConfigureAwait(false) ?? throw new InvalidOperationException(CoreStrings.Escl_NotEscl);
         var input = caps.For(request.Source);
         var pdf = input is { PdfOnly: true };
         if (input is { OffersJpeg: false } && !pdf)
-            throw new ScanException("This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs.");
+            throw new ScanException(CoreStrings.Escl_NoJpegOrPdf);
         var status = await GetStatusAsync(ct).ConfigureAwait(false);
         if (status.Problem(feeder: request.Source != ScanSource.Platen) is { } problem) throw new ScanException(problem);
 
@@ -91,7 +91,7 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
             {
                 // The scanner may have created the job without answering; delete it so the next scan isn't "busy".
                 await DeleteRecentActiveJobsAsync().ConfigureAwait(false);
-                throw new ScanException("The scanner didn't answer in time. Try again.");
+                throw new ScanException(CoreStrings.Escl_Timeout);
             }
             using var _ = resp;
             if (resp.StatusCode == HttpStatusCode.ServiceUnavailable && attempt < 10)
@@ -99,9 +99,9 @@ public sealed class EsclClient(DeviceHttp http, Uri root) : IScanner
                 await Task.Delay(1000, ct).ConfigureAwait(false); // warming up / busy
                 continue;
             }
-            if (resp.StatusCode == HttpStatusCode.Conflict) throw new ScanException("Scanner is busy with another job.");
+            if (resp.StatusCode == HttpStatusCode.Conflict) throw new ScanException(CoreStrings.Escl_Busy);
             await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
-            var location = resp.Headers.Location ?? throw new ScanException("Scanner did not return a job location.");
+            var location = resp.Headers.Location ?? throw new ScanException(CoreStrings.Escl_NoJobLocation);
             // Resolve only the path against our base: Location often names the host by its .local name or another port.
             // AbsolutePath of the resolved URI: a relative "//other-host/x" can't move the job to another host.
             var path = (location.IsAbsoluteUri ? location : new Uri(Root, location)).AbsolutePath;

@@ -87,13 +87,18 @@ public partial class LocalizationTests
         foreach (var (key, en) in english)
         {
             var es = spanish[key];
-            if (string.IsNullOrWhiteSpace(en)) problems.Add($"{key}: empty in English");
-            if (string.IsNullOrWhiteSpace(es)) problems.Add($"{key}: empty in Spanish");
+            if (string.IsNullOrWhiteSpace(en) || string.IsNullOrWhiteSpace(es))
+            {
+                problems.Add($"{key}: empty in {(string.IsNullOrWhiteSpace(en) ? "English" : "Spanish")}");
+                continue;
+            }
             if (!Placeholders(en).SequenceEqual(Placeholders(es)))
                 problems.Add($"{key}: placeholders {string.Join(" ", Placeholders(en))} vs {string.Join(" ", Placeholders(es))}");
-            if (en != en.Trim() || es != es.Trim()) problems.Add($"{key}: leading or trailing space");
-            // string.Format must accept both with as many arguments as there are placeholders.
-            var args = Enumerable.Range(0, 10).Select(i => (object)i).ToArray();
+            // A separator (" and ", "  ·  last known") keeps its spaces in both languages.
+            if (char.IsWhiteSpace(en[0]) != char.IsWhiteSpace(es[0]) || char.IsWhiteSpace(en[^1]) != char.IsWhiteSpace(es[^1]))
+                problems.Add($"{key}: spaces at the ends differ between English and Spanish");
+            // string.Format must accept both, whatever their format specifiers ({0:t}, {0:N0}).
+            var args = Enumerable.Range(0, 10).Select(_ => (object)new AnyValue()).ToArray();
             foreach (var text in (string[])[en, es])
                 if (Placeholders(text).Count > 0)
                     try { _ = string.Format(CultureInfo.InvariantCulture, text, args); }
@@ -112,6 +117,13 @@ public partial class LocalizationTests
             Assert.Equal(names.Count, names.Distinct().Count());
             Assert.All(names, n => Assert.Matches("^[A-Za-z_][A-Za-z0-9_]*$", n));
         }
+    }
+
+    /// <summary>A value any format specifier accepts.</summary>
+    private sealed class AnyValue : IFormattable
+    {
+        public string ToString(string? format, IFormatProvider? formatProvider) => "x";
+        public override string ToString() => "x";
     }
 
     /// <summary>The placeholders a format string holds ({0}, {1:N0}…), sorted, escaped braces left out.</summary>

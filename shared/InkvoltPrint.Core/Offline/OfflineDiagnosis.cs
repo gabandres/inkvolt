@@ -28,8 +28,7 @@ public sealed record OfflineReport(
 
     /// <summary>The question for <see cref="AdoptDecision.Ask"/>.</summary>
     public string? AdoptionQuestion => Adoption == AdoptDecision.Ask
-        ? $"{OfflineDiagnosis.Caution(this)}Use {Found!.Address} for {Device.Name}? Choose this only if that's the printer's address " +
-          "(its control panel or a network configuration page shows it)."
+        ? OfflineDiagnosis.Caution(this) + string.Format(CoreStrings.Offline_AdoptQuestion, Found!.Address, Device.Name)
         : null;
 
     public bool Answers => Reach?.Answers == true;
@@ -40,34 +39,33 @@ public sealed record OfflineReport(
     /// <summary>A queue printer's queue couldn't be read this time.</summary>
     public bool QueueUnread { get; init; }
 
-    public string Headline => Spooler == SpoolerState.Stopped ? "The Print Spooler service isn't running"
-        : Repairs.Count(r => !r.IsAlternative) is var n and > 0 ? $"Found {(n == 1 ? "one thing" : $"{n} things")} to fix"
+    public string Headline => Spooler == SpoolerState.Stopped ? CoreStrings.Offline_SpoolerStopped
+        : Repairs.Count(r => !r.IsAlternative) is var n and > 0 ? Plural.Of(n, CoreStrings.Offline_FoundToFix_One, CoreStrings.Offline_FoundToFix_Many)
         : Device.QueueOnly ? QueueHeadline
-        : !Answers ? "The printer isn't answering"
-        : Queues.Count == 0 ? "The printer answers, but Windows has no printer for it"
-        : "No problems found";
+        : !Answers ? CoreStrings.Offline_NotAnswering
+        : Queues.Count == 0 ? CoreStrings.Offline_NoWindowsPrinter
+        : CoreStrings.Offline_NoProblems;
 
-    private string QueueHeadline => QueueGone ? "Windows no longer has this printer"
-        : QueueUnread ? "Windows didn't say how this printer is"
-        : Queues.Any(m => m.Queue.ReportsOffline) ? "Windows shows this printer offline"
-        : Queues.Any(m => m.Queue.ReportsError) ? "Windows shows an error on this printer"
-        : "No problems found";
+    private string QueueHeadline => QueueGone ? CoreStrings.Offline_QueueGoneHeadline
+        : QueueUnread ? CoreStrings.Offline_QueueUnreadHeadline
+        : Queues.Any(m => m.Queue.ReportsOffline) ? CoreStrings.Offline_QueueOfflineHeadline
+        : Queues.Any(m => m.Queue.ReportsError) ? CoreStrings.Offline_QueueErrorHeadline
+        : CoreStrings.Offline_NoProblems;
 
-    private string QueueAdvice => Repairs.Count > 0 ? "Fix each one below, then check again."
-        : QueueGone ? "It was probably removed or renamed in Settings › Printers & scanners. Inkvolt Print lists what Windows has."
-        : QueueUnread ? "Check again in a moment. If this printer is shared from another PC, check that the PC is on."
+    private string QueueAdvice => Repairs.Count > 0 ? CoreStrings.Offline_FixEach
+        : QueueGone ? CoreStrings.Offline_QueueGoneAdvice
+        : QueueUnread ? CoreStrings.Offline_QueueUnreadAdvice
         : Queues.Any(m => m.Queue.ReportsOffline || m.Queue.ReportsError)
-            ? "Check that it's turned on and connected: its USB cable, or the PC sharing it. Inkvolt Print can't reach this printer itself, only what Windows reports."
-            : "Windows' printer is ready, not paused and with no stuck jobs. If a job still won't print, turn the printer off and on, then try again.";
+            ? CoreStrings.Offline_QueueOfflineAdvice
+            : CoreStrings.Offline_QueueReadyAdvice;
 
-    public string Advice => Spooler == SpoolerState.Stopped ? "Nothing on this PC can print until Windows' printing service runs again."
+    public string Advice => Spooler == SpoolerState.Stopped ? CoreStrings.Offline_SpoolerStoppedAdvice
         : Device.QueueOnly ? QueueAdvice
-        : Repairs.Count > 0 && Answers ? "Fix each one below, then check again."
-        : Repairs.Count > 0 ? "Fix what's listed below. The printer itself isn't answering yet: check that it's on and connected to the same network as this PC."
-        : !Answers ? "Check that it's switched on and awake, and connected to the same Wi-Fi or network as this PC (its control panel or a " +
-                     "network configuration page shows its address). Turning the printer off and on, then the router, fixes most of these."
-        : Queues.Count == 0 ? "Use Set up at the top of the page so every app can print to it."
-        : "The printer answers and Windows' printer for it is ready. If a job still won't print, turn the printer off and on, then try again.";
+        : Repairs.Count > 0 && Answers ? CoreStrings.Offline_FixEach
+        : Repairs.Count > 0 ? CoreStrings.Offline_FixListedNotAnswering
+        : !Answers ? CoreStrings.Offline_NotAnsweringAdvice
+        : Queues.Count == 0 ? CoreStrings.Offline_SetUpAdvice
+        : CoreStrings.Offline_AllReadyAdvice;
 }
 
 public enum AdoptDecision { None, Adopt, Ask }
@@ -125,7 +123,7 @@ public static class OfflineDiagnosis
         Reachability? reach = null;
         if (address is null)
         {
-            Report(new(CheckKind.Connection, CheckState.Skipped, CheckResult.TitleOf(CheckKind.Connection), "Its address isn't known."));
+            Report(new(CheckKind.Connection, CheckState.Skipped, CheckResult.TitleOf(CheckKind.Connection), CoreStrings.Offline_AddressUnknown));
         }
         else
         {
@@ -138,7 +136,7 @@ public static class OfflineDiagnosis
         IReadOnlyList<MatchedQueue> matched = [];
         if (spooler == SpoolerState.Stopped)
         {
-            const string why = "Needs the Print Spooler service.";
+            var why = CoreStrings.Offline_NeedsSpooler;
             Report(new(CheckKind.Queues, CheckState.Skipped, CheckResult.TitleOf(CheckKind.Queues), why));
             Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState), why));
         }
@@ -151,7 +149,7 @@ public static class OfflineDiagnosis
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { queueError = ex.Message; }
             if (queues is null)
             {
-                Report(new(CheckKind.Queues, CheckState.Warning, CheckResult.TitleOf(CheckKind.Queues), $"Couldn't read Windows' printers: {queueError}"));
+                Report(new(CheckKind.Queues, CheckState.Warning, CheckResult.TitleOf(CheckKind.Queues), string.Format(CoreStrings.Offline_CouldntReadPrinters, queueError)));
                 Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState)));
             }
             else
@@ -194,7 +192,7 @@ public static class OfflineDiagnosis
         bool gone = false, unread = false;
         if (spooler == SpoolerState.Stopped)
         {
-            const string why = "Needs the Print Spooler service.";
+            var why = CoreStrings.Offline_NeedsSpooler;
             Report(new(CheckKind.Queues, CheckState.Skipped, CheckResult.TitleOf(CheckKind.Queues), why));
             Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState), why));
         }
@@ -204,18 +202,18 @@ public static class OfflineDiagnosis
             QueueFacts? queue = null;
             string? error = null;
             try { queue = await probes.QueueAsync(queueName, ct).WaitAsync(limit, ct).ConfigureAwait(false); }
-            catch (TimeoutException) { error = "Windows didn't answer in time."; }
+            catch (TimeoutException) { error = CoreStrings.Offline_WindowsNoAnswer; }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { error = ex.Message; }
             if (error is not null)
             {
                 unread = true;
-                Report(new(CheckKind.Queues, CheckState.Warning, CheckResult.TitleOf(CheckKind.Queues), $"Couldn't read “{queueName}”: {error}"));
+                Report(new(CheckKind.Queues, CheckState.Warning, CheckResult.TitleOf(CheckKind.Queues), string.Format(CoreStrings.Offline_CouldntReadQueue, queueName, error)));
                 Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState)));
             }
             else if (queue is null)
             {
                 gone = true;
-                Report(new(CheckKind.Queues, CheckState.Failed, CheckResult.TitleOf(CheckKind.Queues), $"Windows no longer has a printer called “{queueName}”."));
+                Report(new(CheckKind.Queues, CheckState.Failed, CheckResult.TitleOf(CheckKind.Queues), string.Format(CoreStrings.Offline_QueueGone, queueName)));
                 Report(new(CheckKind.QueueState, CheckState.Skipped, CheckResult.TitleOf(CheckKind.QueueState)));
             }
             else
@@ -240,8 +238,8 @@ public static class OfflineDiagnosis
         if (found is null) return "";
         var parts = "";
         if (found.IsAmbiguous)
-            parts += $"More than one device announces this printer's ID: {Reachability.Join(found.Addresses.Distinct(StringComparer.OrdinalIgnoreCase).ToList())}. ";
-        if (oldAnswers) parts += $"Something still answers at its old address, {device.Host}. ";
+            parts += string.Format(CoreStrings.Offline_CautionAmbiguous, Reachability.Join(found.Addresses.Distinct(StringComparer.OrdinalIgnoreCase).ToList())) + " ";
+        if (oldAnswers) parts += string.Format(CoreStrings.Offline_CautionOldAnswers, device.Host) + " ";
         return parts;
     }
 
@@ -258,10 +256,10 @@ public static class OfflineDiagnosis
         _ => CheckState.Warning,
     }, CheckResult.TitleOf(CheckKind.Spooler), s switch
     {
-        SpoolerState.Running => "Running.",
-        SpoolerState.Stopped => "Stopped: nothing on this PC can print until it runs.",
-        SpoolerState.Changing => "Starting or stopping right now.",
-        _ => "Couldn't check it.",
+        SpoolerState.Running => CoreStrings.Offline_SpoolerRunning,
+        SpoolerState.Stopped => CoreStrings.Offline_SpoolerStoppedDetail,
+        SpoolerState.Changing => CoreStrings.Offline_SpoolerChanging,
+        _ => CoreStrings.Offline_CouldntCheck,
     });
 
     private static CheckResult NetworkCheck(OfflineDevice device, Rediscovery? found, bool oldAnswers, string? error)
@@ -269,60 +267,64 @@ public static class OfflineDiagnosis
         var title = CheckResult.TitleOf(CheckKind.Network);
         if (found is null)
             return new(CheckKind.Network, CheckState.Warning, title, error is not null
-                ? $"Couldn't look for it: {error}"
-                : "It didn't announce itself on the network. It may be off or asleep, on another network, or not announce itself at all.");
+                ? string.Format(CoreStrings.Offline_CouldntLook, error)
+                : CoreStrings.Offline_NotAnnounced);
         if (device.Host is null || string.Equals(found.Address, device.Host, StringComparison.OrdinalIgnoreCase))
-            return new(CheckKind.Network, CheckState.Passed, title, $"Found at {found.Address}, the address Inkvolt Print uses.");
+            return new(CheckKind.Network, CheckState.Passed, title, string.Format(CoreStrings.Offline_FoundSame, found.Address));
         var caution = Caution(device, found, oldAnswers);
         if (caution.Length > 0)
             return new(CheckKind.Network, CheckState.Warning, title,
-                $"Found at {found.Address} (it was {device.Host}). {caution}Inkvolt Print asks before using the new address.");
+                string.Format(CoreStrings.Offline_FoundAsk, found.Address, device.Host, caution));
         return new(CheckKind.Network, CheckState.Warning, title,
-            $"Found at a new address, {found.Address} (it was {device.Host}). The router gave it a new one; Inkvolt Print uses the new address now.");
+            string.Format(CoreStrings.Offline_FoundNew, found.Address, device.Host));
     }
 
     private static CheckResult ConnectionCheck(Reachability r)
     {
         var title = CheckResult.TitleOf(CheckKind.Connection);
-        if (r.Answers) return new(CheckKind.Connection, CheckState.Passed, title, $"Answers at {r.Host}: {r.PortsText}.");
+        if (r.Answers) return new(CheckKind.Connection, CheckState.Passed, title, string.Format(CoreStrings.Offline_AnswersAt, r.Host, r.PortsText));
         if (r.Ping)
             return new(CheckKind.Connection, CheckState.Failed, title,
-                $"Something at {r.Host} answers ping, but no printing port is open. Another device may have that address now.");
+                string.Format(CoreStrings.Offline_PingOnly, r.Host));
         return new(CheckKind.Connection, CheckState.Failed, title,
-            $"No answer at {r.Host}. Check that it's switched on and awake, and on the same network as this PC.");
+            string.Format(CoreStrings.Offline_NoAnswerAt, r.Host));
     }
 
     private static CheckResult QueuesCheck(IReadOnlyList<MatchedQueue> matched)
     {
         var title = CheckResult.TitleOf(CheckKind.Queues);
         if (matched.Count == 0)
-            return new(CheckKind.Queues, CheckState.Warning, title, "None: Windows has no printer for this device yet.");
-        var lines = matched.Select(m => $"“{m.Queue.Name}”: {m.PortText}" +
-                                        (m.PortIsStale ? ", an old address" : "") +
-                                        (m.Reason == MatchReason.Name ? " (matched by its name)" : ""));
+            return new(CheckKind.Queues, CheckState.Warning, title, CoreStrings.Offline_NoQueues);
+        var lines = matched.Select(m => string.Format((m.PortIsStale, m.Reason == MatchReason.Name) switch
+        {
+            (false, false) => CoreStrings.Offline_QueueLine,
+            (true, false) => CoreStrings.Offline_QueueLineStale,
+            (false, true) => CoreStrings.Offline_QueueLineByName,
+            (true, true) => CoreStrings.Offline_QueueLineStaleByName,
+        }, m.Queue.Name, m.PortText));
         return new(CheckKind.Queues, matched.Any(m => m.PortIsStale) ? CheckState.Failed : CheckState.Passed, title, string.Join("\n", lines));
     }
 
     private static CheckResult QueueStateCheck(IReadOnlyList<MatchedQueue> matched, DateTime now)
     {
         var title = CheckResult.TitleOf(CheckKind.QueueState);
-        if (matched.Count == 0) return new(CheckKind.QueueState, CheckState.Skipped, title, "No Windows printer to check.");
+        if (matched.Count == 0) return new(CheckKind.QueueState, CheckState.Skipped, title, CoreStrings.Offline_NoQueueToCheck);
         var lines = new List<string>();
         var failed = false;
         foreach (var m in matched)
         {
             var q = m.Queue;
             var problems = new List<string>();
-            if (q.Paused) problems.Add("paused");
-            if (q.WorkOffline) problems.Add("set to Use Printer Offline");
+            if (q.Paused) problems.Add(CoreStrings.Offline_ProblemPaused);
+            if (q.WorkOffline) problems.Add(CoreStrings.Offline_ProblemWorkOffline);
             var stuck = StuckJobs(q).Count + DeletingJobs(q, now).Count;
-            if (stuck > 0) problems.Add(stuck == 1 ? "1 stuck job" : $"{stuck} stuck jobs");
+            if (stuck > 0) problems.Add(Plural.Of(stuck, CoreStrings.Offline_ProblemStuck_One, CoreStrings.Offline_ProblemStuck_Many));
             failed |= problems.Count > 0;
-            if (q.ReportsOffline && !q.WorkOffline) problems.Add("Windows shows it offline");
-            else if (q.ReportsError) problems.Add("Windows shows an error");
-            if (problems.Count > 0) lines.Add($"“{q.Name}”: {Reachability.Join(problems)}.");
+            if (q.ReportsOffline && !q.WorkOffline) problems.Add(CoreStrings.Offline_ProblemShowsOffline);
+            else if (q.ReportsError) problems.Add(CoreStrings.Offline_ProblemShowsError);
+            if (problems.Count > 0) lines.Add(string.Format(CoreStrings.Offline_QueueProblems, q.Name, Reachability.Join(problems)));
         }
-        if (lines.Count == 0) return new(CheckKind.QueueState, CheckState.Passed, title, "Not paused or offline, no stuck jobs.");
+        if (lines.Count == 0) return new(CheckKind.QueueState, CheckState.Passed, title, CoreStrings.Offline_QueueStateOk);
         return new(CheckKind.QueueState, failed ? CheckState.Failed : CheckState.Warning, title, string.Join("\n", lines));
     }
 
@@ -420,7 +422,7 @@ public static class OfflineDiagnosis
         var list = new List<Repair>();
         if (spooler == SpoolerState.Stopped)
         {
-            list.Add(new Repair(RepairKind.StartSpooler, "Start the Print Spooler service", "Windows' printing service isn't running, so nothing can print.")
+            list.Add(new Repair(RepairKind.StartSpooler, CoreStrings.Offline_StartSpooler, CoreStrings.Offline_StartSpoolerDetail)
             {
                 AdminOnly = true,
                 ManualSteps = ManualSteps.For(RepairKind.StartSpooler),
@@ -438,22 +440,22 @@ public static class OfflineDiagnosis
             var name = q.Name;
             var onAnotherPc = name.StartsWith(@"\\", StringComparison.Ordinal);
             if (q.Paused)
-                list.Add(new Repair(RepairKind.ResumeQueue, $"Resume “{name}”", "Printing is paused in Windows, so jobs wait in the queue.")
+                list.Add(new Repair(RepairKind.ResumeQueue, string.Format(CoreStrings.Offline_Resume, name), CoreStrings.Offline_ResumeDetail)
                 {
                     Queue = name,
                     OnAnotherPc = onAnotherPc,
-                    Question = $"Resume “{name}”? Jobs waiting in its queue start printing.",
-                    Confirm = "Resume",
+                    Question = string.Format(CoreStrings.Offline_ResumeQuestion, name),
+                    Confirm = CoreStrings.Offline_ResumeConfirm,
                     ManualSteps = ManualSteps.For(RepairKind.ResumeQueue, name),
                 });
             if (q.WorkOffline)
-                list.Add(new Repair(RepairKind.ClearWorkOffline, $"Turn off “Use Printer Offline” for “{name}”",
-                    "Windows was told to keep jobs for this printer instead of sending them.")
+                list.Add(new Repair(RepairKind.ClearWorkOffline, string.Format(CoreStrings.Offline_WorkOffline, name),
+                    CoreStrings.Offline_WorkOfflineDetail)
                 {
                     Queue = name,
                     OnAnotherPc = onAnotherPc,
-                    Question = $"Turn off “Use Printer Offline” for “{name}”? Jobs Windows is holding for it go to the printer.",
-                    Confirm = "Turn it off",
+                    Question = string.Format(CoreStrings.Offline_WorkOfflineQuestion, name),
+                    Confirm = CoreStrings.Offline_WorkOfflineConfirm,
                     ManualSteps = ManualSteps.For(RepairKind.ClearWorkOffline, name),
                 });
 
@@ -463,17 +465,17 @@ public static class OfflineDiagnosis
             {
                 // It answers, the port is right, yet Windows says offline.
                 if (q.Port.Kind == PortKind.DeviceId && device.CanPair)
-                    list.Add(new Repair(RepairKind.SetUpAgain, $"Set up “{name}” again",
-                        "The printer answers, but Windows still shows it offline. Removing it and setting it up again makes Windows find it afresh (about 30 seconds).")
+                    list.Add(new Repair(RepairKind.SetUpAgain, string.Format(CoreStrings.Offline_SetUpAgain, name),
+                        CoreStrings.Offline_SetUpAgainDetail)
                     {
                         Queue = name,
-                        Question = $"Remove “{name}” from Windows and set it up again? Its printing preferences go back to the defaults.",
-                        Confirm = "Set up again",
+                        Question = string.Format(CoreStrings.Offline_SetUpAgainQuestion, name),
+                        Confirm = CoreStrings.Offline_SetUpAgainConfirm,
                         ManualSteps = ManualSteps.For(RepairKind.SetUpAgain, name),
                     });
                 else if (q.Port is { Kind: PortKind.TcpIp, Snmp: true })
-                    list.Add(new Repair(RepairKind.TurnOffSnmp, $"Turn off SNMP status for “{name}”",
-                        "The printer answers, but Windows also asks it for its status over SNMP and shows it offline when that gets no reply.")
+                    list.Add(new Repair(RepairKind.TurnOffSnmp, string.Format(CoreStrings.Offline_TurnOffSnmp, name),
+                        CoreStrings.Offline_TurnOffSnmpDetail)
                     {
                         Queue = name,
                         ManualOnly = true,
@@ -486,28 +488,29 @@ public static class OfflineDiagnosis
             var stuck = StuckJobs(q);
             if (stuck.Count > 0)
             {
-                var what = stuck.Count == 1 ? $"“{stuck[0].Name}”" : $"{stuck.Count} jobs ({string.Join(", ", stuck.Take(3).Select(j => $"“{j.Name}”"))}{(stuck.Count > 3 ? "…" : "")})";
+                var what = stuck.Count == 1 ? $"“{stuck[0].Name}”"
+                    : string.Format(CoreStrings.Offline_StuckJobsNamed, stuck.Count, string.Join(", ", stuck.Take(3).Select(j => $"“{j.Name}”")) + (stuck.Count > 3 ? "…" : ""));
                 var ids = stuck.Select(j => j.Id).ToList();
-                list.Add(new Repair(RepairKind.CancelStuckJobs, stuck.Count == 1 ? $"Cancel the stuck job in “{name}”" : $"Cancel {stuck.Count} stuck jobs in “{name}”",
-                    stuck.Count == 1 ? $"{Capital(what)} is stuck and holds up everything after it." : $"{Capital(what)} are stuck and hold up everything after them.")
+                list.Add(new Repair(RepairKind.CancelStuckJobs, Plural.Of(stuck.Count, CoreStrings.Offline_CancelStuck_One, CoreStrings.Offline_CancelStuck_Many, name),
+                    Capital(string.Format(stuck.Count == 1 ? CoreStrings.Offline_StuckDetail_One : CoreStrings.Offline_StuckDetail_Many, what)))
                 {
                     Queue = name,
                     OnAnotherPc = onAnotherPc,
                     JobIds = ids,
-                    Question = $"Cancel {what} in “{name}”? {(stuck.Count == 1 ? "It" : "They")} won't print.",
-                    Confirm = stuck.Count == 1 ? "Cancel job" : "Cancel jobs",
+                    Question = string.Format(stuck.Count == 1 ? CoreStrings.Offline_CancelStuckQuestion_One : CoreStrings.Offline_CancelStuckQuestion_Many, what, name),
+                    Confirm = stuck.Count == 1 ? CoreStrings.Offline_CancelJob : CoreStrings.Offline_CancelJobs,
                     ManualSteps = ManualSteps.For(RepairKind.CancelStuckJobs, name),
                 });
                 if (answers || target is not null || device.QueueOnly) // a queue printer has nothing else to go by
-                    list.Add(new Repair(RepairKind.RestartStuckJobs, stuck.Count == 1 ? "Or print it again from the start" : "Or print them again from the start",
-                        "Sends the stuck job to the printer again from its first page.")
+                    list.Add(new Repair(RepairKind.RestartStuckJobs, stuck.Count == 1 ? CoreStrings.Offline_PrintAgainAlt_One : CoreStrings.Offline_PrintAgainAlt_Many,
+                        CoreStrings.Offline_PrintAgainDetail)
                     {
                         Queue = name,
                         OnAnotherPc = onAnotherPc,
                         JobIds = ids,
                         IsAlternative = true,
-                        Question = $"Print {what} in “{name}” again from the first page?",
-                        Confirm = "Print again",
+                        Question = string.Format(CoreStrings.Offline_PrintAgainQuestion, what, name),
+                        Confirm = CoreStrings.Offline_PrintAgainConfirm,
                         ManualSteps = ManualSteps.For(RepairKind.RestartStuckJobs, name),
                     });
             }
@@ -515,12 +518,12 @@ public static class OfflineDiagnosis
         }
 
         if (restartSpooler)
-            list.Add(new Repair(RepairKind.RestartSpooler, "Restart the Print Spooler service",
-                "Clears jobs stuck while cancelling and makes Windows check its printers again.")
+            list.Add(new Repair(RepairKind.RestartSpooler, CoreStrings.Offline_RestartSpooler,
+                CoreStrings.Offline_RestartSpoolerDetail)
             {
                 AdminOnly = true,
-                Question = "Restarting the Print Spooler stops anything printing on this PC right now, for every printer. Restart it?",
-                Confirm = "Restart",
+                Question = CoreStrings.Offline_RestartSpoolerQuestion,
+                Confirm = CoreStrings.Offline_RestartSpoolerConfirm,
                 ManualSteps = ManualSteps.For(RepairKind.RestartSpooler),
             });
         return list;
@@ -536,27 +539,26 @@ public static class OfflineDiagnosis
         var name = q.Name;
         var old = PortHost(q.Port);
         var byName = (m.Reason == MatchReason.Name
-            ? $"“{name}” has the same model name as this printer, but prints to {old}. Is it for this printer? "
+            ? string.Format(CoreStrings.Offline_SameModelName, name, old) + " "
             : "") + caution;
         if (q.Port.Kind == PortKind.IppUrl && q.Port.Url is { } url)
         {
             var newUrl = new UriBuilder(url) { Host = target }.Uri;
-            list.Add(new Repair(RepairKind.RecreateIppQueue, $"Set up “{name}” again at {target}",
-                $"It was added by address and still prints to {old}. Inkvolt Print adds it again at {newUrl.AbsoluteUri} with the same name, " +
-                "then removes the old one. Its printing preferences go back to the defaults.")
+            list.Add(new Repair(RepairKind.RecreateIppQueue, string.Format(CoreStrings.Offline_RecreateAt, name, target),
+                string.Format(CoreStrings.Offline_RecreateDetail, old, newUrl.AbsoluteUri))
             {
                 Queue = name,
                 TargetUrl = newUrl,
                 AdminOnly = true,
-                Question = byName + $"Set “{name}” up again at {newUrl.AbsoluteUri}?",
-                Confirm = "Set up again",
+                Question = byName + string.Format(CoreStrings.Offline_RecreateQuestion, name, newUrl.AbsoluteUri),
+                Confirm = CoreStrings.Offline_SetUpAgainConfirm,
                 ManualSteps = ManualSteps.For(RepairKind.RecreateIppQueue, name, url: newUrl),
             });
             return;
         }
 
-        list.Add(new Repair(RepairKind.PointPortAt, $"Point “{name}” at {target}",
-            $"Its port still sends jobs to {old}, the printer's old address. Inkvolt Print adds a port for {target} and switches the printer to it.")
+        list.Add(new Repair(RepairKind.PointPortAt, string.Format(CoreStrings.Offline_PointAt, name, target),
+            string.Format(CoreStrings.Offline_PointAtDetail, old, target))
         {
             Queue = name,
             Target = target,
@@ -564,19 +566,19 @@ public static class OfflineDiagnosis
             AdminOnly = true,
             // LPR ports need the printer's LPR queue name too; the wizard asks for it.
             ManualOnly = q.Port.Lpr,
-            Question = byName + $"Point “{name}” at {target}? Its print jobs go to {target} from now on.",
+            Question = byName + string.Format(CoreStrings.Offline_PointAtQuestion, name, target),
             ManualSteps = ManualSteps.For(RepairKind.PointPortAt, name, target),
         });
         if (hostName is { Length: > 0 } && !q.Port.Lpr)
-            list.Add(new Repair(RepairKind.PointPortAt, $"Or point it at {hostName}",
-                "The printer's network name, which follows it when the router gives it a new address.")
+            list.Add(new Repair(RepairKind.PointPortAt, string.Format(CoreStrings.Offline_PointAtNameAlt, hostName),
+                CoreStrings.Offline_PointAtNameDetail)
             {
                 Queue = name,
                 Target = hostName,
                 PortNumber = q.Port.PortNumber,
                 AdminOnly = true,
                 IsAlternative = true,
-                Question = byName + $"Point “{name}” at {hostName}? Its print jobs go to whichever address that name has.",
+                Question = byName + string.Format(CoreStrings.Offline_PointAtNameQuestion, name, hostName),
                 ManualSteps = ManualSteps.For(RepairKind.PointPortAt, name, hostName),
             });
     }

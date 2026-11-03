@@ -102,7 +102,7 @@ public sealed class ScanPresetLibrary
                 return Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             case PresetFolder.Custom when preset.FolderPath is { Length: > 0 } path:
                 if (Directory.Exists(path)) return path;
-                problem = $"The folder \"{path}\" isn't there any more. Choose another in Manage presets.";
+                problem = string.Format(Strings.Presets_FolderGone, path);
                 return null;
             default:
                 return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);

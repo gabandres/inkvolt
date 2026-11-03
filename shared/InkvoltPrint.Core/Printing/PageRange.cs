@@ -3,7 +3,7 @@ namespace InkvoltPrint.Core.Printing;
 /// <summary>Parses print-dialog page ranges such as "1-3, 5" or "4-" into sorted, distinct 1-based page numbers.</summary>
 public static class PageRange
 {
-    private const string Hint = "Use page numbers like 1-3, 5";
+    private static string Hint => CoreStrings.Batch_RangeHint;
 
     /// <summary>Empty text means all pages.</summary>
     public static bool TryParse(string? text, int pageCount, out IReadOnlyList<int> pages, out string? error)
@@ -39,8 +39,8 @@ public static class PageRange
                 else if (!int.TryParse(right, out to)) return Fail(Hint, out error);
             }
             if (from > to) (from, to) = (to, from);
-            if (from < 1) return Fail("Pages start at 1", out error);
-            if (to > pageCount) return Fail($"This document has {pageCount} page{(pageCount == 1 ? "" : "s")}", out error);
+            if (from < 1) return Fail(CoreStrings.Batch_RangeStartsAt1, out error);
+            if (to > pageCount) return Fail(Plural.Of(pageCount, CoreStrings.Batch_RangeDocHas_One, CoreStrings.Batch_RangeDocHas_Many), out error);
             for (var p = from; p <= to; p++) set.Add(p);
         }
         if (set.Count == 0) return Fail(Hint, out error);

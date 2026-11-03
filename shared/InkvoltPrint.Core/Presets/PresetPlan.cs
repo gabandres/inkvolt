@@ -21,14 +21,14 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
             PresetSource.Feeder => hasFeeder,
             _ => hasFeeder && (feederLoaded == true || !hasGlass),
         };
-        if (preset.Source == PresetSource.Glass && !hasGlass) notes.Add("This scanner has no glass: scanning from the document feeder.");
-        if (preset.Source == PresetSource.Feeder && !hasFeeder) notes.Add("This scanner has no document feeder: scanning from the glass.");
+        if (preset.Source == PresetSource.Glass && !hasGlass) notes.Add(CoreStrings.Preset_NoGlass);
+        if (preset.Source == PresetSource.Feeder && !hasFeeder) notes.Add(CoreStrings.Preset_NoFeeder);
 
         var source = ScanSource.Platen;
         if (useFeeder)
         {
             source = preset.TwoSided && caps.AdfDuplex ? ScanSource.AdfDuplex : ScanSource.Adf;
-            if (preset.TwoSided && !caps.AdfDuplex) notes.Add("This scanner's feeder scans one side only.");
+            if (preset.TwoSided && !caps.AdfDuplex) notes.Add(CoreStrings.Preset_OneSideOnly);
         }
 
         var colors = ScanChoices.Colors(caps, source);
@@ -44,11 +44,11 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
         var offered = ScanChoices.PageSizesFor(caps, source);
         var size = ScanChoices.DefaultPageSize(offered, preset.PageSize, metric);
         if (preset.PageSize is { } wanted && size.Key != wanted && ScanChoices.PageSizes.FirstOrDefault(p => p.Key == wanted) is { } missing)
-            notes.Add($"{missing.Label} doesn't fit this source: scanning {size.Label}.");
+            notes.Add(string.Format(CoreStrings.Preset_SizeDoesntFit, missing.Label, size.Label));
 
         var ocr = preset.FileType == PresetFileType.SearchablePdf && ocrAvailable;
         if (preset.FileType == PresetFileType.SearchablePdf && !ocrAvailable)
-            notes.Add("Text recognition isn't available on this PC: the PDF won't be searchable.");
+            notes.Add(CoreStrings.Preset_NoOcr);
 
         return new(ScanChoices.ToRequest(source, color, dpi, size), ocr, notes);
     }

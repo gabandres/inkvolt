@@ -69,13 +69,13 @@ public static class QueuePrinter
         for (var i = 0; i < options.Pages.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
-            progress.Report($"Preparing page {i + 1} of {options.Pages.Count}…");
+            progress.Report(string.Format(Strings.Print_PreparingPage, i + 1, options.Pages.Count));
             pages.Add(await pdf.RenderAsync(options.Pages[i], RenderDpi, ct: ct));
         }
         ct.ThrowIfCancellationRequested();
         // From here the job belongs to the spooler: aborting a half-written XPS job leaves it stuck in the queue.
         onSpooling?.Invoke();
-        progress.Report($"Sending {(pages.Count == 1 ? "the page" : $"{pages.Count} pages")} to the printer…");
+        progress.Report(Core.Plural.Of(pages.Count, Strings.Print_SendingPages_One, Strings.Print_SendingPages_Many));
         await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, (paper, images) => new RenderedPaginator(pages, paper, options.Sizing, images));
     }
 

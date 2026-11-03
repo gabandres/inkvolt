@@ -49,15 +49,15 @@ public sealed record FixAllReport(IReadOnlyList<FixAllStep> Steps, IReadOnlyList
         {
             if (Locked) return Pro.Locked(ProFeature.FleetExport);
             if (Stopped is { } why && Steps.Count == 0) return why;
-            if (Steps.Count == 0) return Left.Count > 0 ? "No safe repair to make. What's left needs each printer's own Fix it…" : "Every queue is fine: nothing to fix.";
+            if (Steps.Count == 0) return Left.Count > 0 ? CoreStrings.Fleet_FixAllNoSafe : CoreStrings.Fleet_FixAllAllFine;
             int Count(FixAllKind k) => Steps.Count(s => s.Kind == k);
             var parts = new List<string>();
-            if (Count(FixAllKind.Fixed) is var done and > 0) parts.Add($"Fixed {done}");
-            if (Count(FixAllKind.Declined) is var no and > 0) parts.Add($"{no} you said no to");
-            if (Count(FixAllKind.Manual) is var manual and > 0) parts.Add($"{manual} to do by hand");
-            if (Count(FixAllKind.Failed) + Count(FixAllKind.Unknown) is var failed and > 0) parts.Add($"{failed} didn't work");
-            if (Count(FixAllKind.Cancelled) is var cancelled and > 0) parts.Add($"{cancelled} cancelled");
-            if (Count(FixAllKind.Gone) + Count(FixAllKind.AlreadyFine) is var moot and > 0) parts.Add($"{moot} no longer needed");
+            if (Count(FixAllKind.Fixed) is var done and > 0) parts.Add(Plural.Of(done, CoreStrings.Fleet_FixAllFixed_One, CoreStrings.Fleet_FixAllFixed_Many));
+            if (Count(FixAllKind.Declined) is var no and > 0) parts.Add(Plural.Of(no, CoreStrings.Fleet_FixAllDeclined_One, CoreStrings.Fleet_FixAllDeclined_Many));
+            if (Count(FixAllKind.Manual) is var manual and > 0) parts.Add(Plural.Of(manual, CoreStrings.Fleet_FixAllManual_One, CoreStrings.Fleet_FixAllManual_Many));
+            if (Count(FixAllKind.Failed) + Count(FixAllKind.Unknown) is var failed and > 0) parts.Add(Plural.Of(failed, CoreStrings.Fleet_FixAllFailed_One, CoreStrings.Fleet_FixAllFailed_Many));
+            if (Count(FixAllKind.Cancelled) is var cancelled and > 0) parts.Add(Plural.Of(cancelled, CoreStrings.Fleet_FixAllCancelled_One, CoreStrings.Fleet_FixAllCancelled_Many));
+            if (Count(FixAllKind.Gone) + Count(FixAllKind.AlreadyFine) is var moot and > 0) parts.Add(Plural.Of(moot, CoreStrings.Fleet_FixAllMoot_One, CoreStrings.Fleet_FixAllMoot_Many));
             return string.Join(", ", parts) + "." + (Stopped is { } s ? $" {s}" : "");
         }
     }
@@ -85,7 +85,7 @@ public static class FleetFixAll
         try { spooler = await probes.SpoolerAsync(ct).WaitAsync(wait, ct).ConfigureAwait(false); }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { } // the queue reads will say
         if (spooler == SpoolerState.Stopped)
-            return new FixAllReport([], []) { Stopped = "The Print Spooler service isn't running. A printer's Fix it… can start it." };
+            return new FixAllReport([], []) { Stopped = CoreStrings.Fleet_FixAllSpoolerStopped };
 
         // What's wrong, first: nothing is asked while the rest is still being read.
         var safe = new List<Repair>();
@@ -105,7 +105,7 @@ public static class FleetFixAll
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                left.Add($"Couldn't read “{device.StoredQueueName ?? device.Name}”: {(ex is TimeoutException ? "Windows didn't answer in time." : ex.Message)}");
+                left.Add(string.Format(CoreStrings.Offline_CouldntReadQueue, device.StoredQueueName ?? device.Name, ex is TimeoutException ? CoreStrings.Offline_WindowsNoAnswer : ex.Message));
                 continue;
             }
             foreach (var match in own.Where(m => seen.Add(m.Queue.Name)))
@@ -119,9 +119,9 @@ public static class FleetFixAll
         var steps = new List<FixAllStep>();
         foreach (var repair in safe)
         {
-            if (ct.IsCancellationRequested) return new FixAllReport(steps, left) { Stopped = "Stopped: the rest wasn't changed." };
+            if (ct.IsCancellationRequested) return new FixAllReport(steps, left) { Stopped = CoreStrings.Fleet_FixAllStopped };
             var step = await OneAsync(repair, probes, repairs, canElevate, confirm, wait, ct).ConfigureAwait(false);
-            if (step is null) return new FixAllReport(steps, left) { Stopped = "Stopped: the rest wasn't changed." };
+            if (step is null) return new FixAllReport(steps, left) { Stopped = CoreStrings.Fleet_FixAllStopped };
             steps.Add(step);
             progress?.Report(step);
         }
@@ -134,18 +134,18 @@ public static class FleetFixAll
     {
         var queue = repair.Queue ?? "";
         if (!await confirm(repair).ConfigureAwait(false))
-            return ct.IsCancellationRequested ? null : new FixAllStep(queue, repair.Title, FixAllKind.Declined, "You said no: not changed.");
+            return ct.IsCancellationRequested ? null : new FixAllStep(queue, repair.Title, FixAllKind.Declined, CoreStrings.Fleet_FixAllSaidNo);
         if (ct.IsCancellationRequested) return null;
         try
         {
             var now = await probes.QueueAsync(queue, ct).WaitAsync(wait, ct).ConfigureAwait(false);
-            if (now is null) return new FixAllStep(queue, repair.Title, FixAllKind.Gone, $"Windows no longer has a printer called “{queue}”: nothing changed.");
+            if (now is null) return new FixAllStep(queue, repair.Title, FixAllKind.Gone, string.Format(CoreStrings.Fleet_FixAllGone, queue));
             if (repair.Kind == RepairKind.ResumeQueue ? !now.Paused : !now.WorkOffline)
-                return new FixAllStep(queue, repair.Title, FixAllKind.AlreadyFine, "Already fixed: nothing more to do.");
+                return new FixAllStep(queue, repair.Title, FixAllKind.AlreadyFine, CoreStrings.Fleet_FixAllAlreadyFine);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            return new FixAllStep(queue, repair.Title, FixAllKind.Failed, $"Couldn't check it first, so it wasn't changed: {(ex is TimeoutException ? "Windows didn't answer in time." : ex.Message)}");
+            return new FixAllStep(queue, repair.Title, FixAllKind.Failed, string.Format(CoreStrings.Fleet_FixAllCouldntCheck, ex is TimeoutException ? CoreStrings.Offline_WindowsNoAnswer : ex.Message));
         }
         catch (OperationCanceledException)
         {

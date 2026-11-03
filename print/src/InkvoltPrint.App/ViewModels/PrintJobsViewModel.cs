@@ -102,7 +102,7 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
             if (_gate.Failed(ticket))
             {
                 // Still failing: say so rather than keep the card hidden (or showing a list that's going stale).
-                LoadError = "Windows' print queue isn't answering. If the Print Spooler service is stopped, start it (or restart the PC); trying again every few seconds.";
+                LoadError = Strings.Jobs_QueueNotAnswering;
                 IsLoaded = true;
                 HasQueue = false;
                 Jobs.Clear();
@@ -157,7 +157,7 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         {
             // Finding the queue (PnP, spooler) can fail in its own ways; never let one reach the global error dialog.
             Log.Write($"Cancel print job failed: {ex}");
-            Message = $"\"{job.Name}\" couldn't be cancelled: {ex.Message}";
+            Message = string.Format(Strings.Jobs_JobNotCancelled, job.Name, ex.Message);
         }
         finally
         {
@@ -171,9 +171,9 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
         var mine = Jobs.Where(j => j.IsMine && !j.IsCancelling).ToList();
         if (mine.Count == 0) return;
         var others = Jobs.Count - mine.Count;
-        var question = mine.Count == 1 ? $"Cancel \"{mine[0].Name}\"?" : $"Cancel your {mine.Count} print jobs?";
-        if (others > 0) question += $" {(others == 1 ? "1 job" : $"{others} jobs")} from other people stay in the queue.";
-        if (!Prompt.Ask(question, "Cancel jobs")) return;
+        var question = mine.Count == 1 ? string.Format(Strings.Jobs_CancelOneQuestion, mine[0].Name) : string.Format(Strings.Jobs_CancelManyQuestion, mine.Count);
+        if (others > 0) question += " " + Core.Plural.Of(others, Strings.Jobs_OthersStay_One, Strings.Jobs_OthersStay_Many);
+        if (!Prompt.Ask(question, Strings.Jobs_CancelJobs)) return;
         Message = null;
         var failed = 0;
         try
@@ -183,12 +183,12 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
                 try { await source.CancelAsync(job.Id); }
                 catch (PrintJobCancelException) { failed++; }
             }
-            if (failed > 0) Message = $"{failed} of {mine.Count} jobs couldn't be cancelled. They may have just finished.";
+            if (failed > 0) Message = string.Format(Strings.Jobs_SomeNotCancelled, failed, mine.Count);
         }
         catch (Exception ex)
         {
             Log.Write($"Cancel all print jobs failed: {ex}");
-            Message = $"The jobs couldn't be cancelled: {ex.Message}";
+            Message = string.Format(Strings.Jobs_NotCancelled, ex.Message);
         }
         finally
         {
@@ -230,7 +230,7 @@ public sealed partial class PrintJobViewModel : ObservableObject
 
     public void Update(QueueJob job, DateTime now)
     {
-        Name = job.Name.Length > 0 ? job.Name : "Untitled";
+        Name = job.Name.Length > 0 ? job.Name : Strings.Jobs_Untitled;
         Status = QueueJobText.Status(job.Status);
         IsProblem = QueueJobText.IsProblem(job.Status);
         IsMine = QueueJobText.IsOwner(job.Owner, Environment.UserName);

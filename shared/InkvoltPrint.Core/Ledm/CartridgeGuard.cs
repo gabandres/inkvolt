@@ -35,29 +35,28 @@ public static class CartridgeGuard
     {
         if (settings.Mode == FirmwareUpdateMode.Off)
             return new(CartridgeGuardOutcome.AlreadyOff, FirmwareUpdateMode.Off,
-                "Automatic firmware updates are already off on this printer, so no update installs by itself. Nothing was changed.");
+                CoreStrings.Ledm_GuardAlreadyOff);
         if (!settings.CanChange || !settings.Choices.Contains(FirmwareUpdateMode.Off) || settings.ConfigPath is not { } path)
             return new(CartridgeGuardOutcome.CantChange, settings.Mode,
-                "This printer doesn't let apps change its automatic firmware updates. Turn them off on its web page, under the firmware update settings.");
+                CoreStrings.Ledm_GuardCantChange);
 
         await withAuth(() => ledm.PutPathAsync(path, settings.BuildPut(FirmwareUpdateMode.Off), ct)).ConfigureAwait(false);
         var back = await ledm.GetFirmwareUpdateAsync(ct).ConfigureAwait(false);
         return back?.Mode switch
         {
             FirmwareUpdateMode.Off => new(CartridgeGuardOutcome.Done, FirmwareUpdateMode.Off,
-                "Done: automatic firmware updates are off, and the printer confirms it. A firmware update now installs only if you " +
-                "install it yourself, from the printer's web page or its control panel."),
+                CoreStrings.Ledm_GuardDone),
             { } other => new(CartridgeGuardOutcome.NotKept, other,
-                $"The printer was asked to turn automatic updates off, but it reads back \"{Words(other)}\". Turn them off on its web page."),
+                string.Format(CoreStrings.Ledm_GuardNotKept, Words(other))),
             null => new(CartridgeGuardOutcome.NotKept, null,
-                "The printer took the change but didn't say what it kept. Check its firmware update settings on its web page."),
+                CoreStrings.Ledm_GuardNoReadBack),
         };
     }
 
     private static string Words(FirmwareUpdateMode mode) => mode switch
     {
-        FirmwareUpdateMode.Automatic => "install automatically",
-        FirmwareUpdateMode.Notify => "check, don't install",
-        _ => "off",
+        FirmwareUpdateMode.Automatic => CoreStrings.Ledm_GuardModeAutomatic,
+        FirmwareUpdateMode.Notify => CoreStrings.Ledm_GuardModeNotify,
+        _ => CoreStrings.Ledm_GuardModeOff,
     };
 }

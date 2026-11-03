@@ -221,7 +221,7 @@ public sealed partial class AlertTracker
     /// <summary>A printer's worst ongoing problem in a few words ("Paper jam", "Offline"), or null when there's none.</summary>
     public string? Problem(string uuid) =>
         Current(uuid).Where(t => AlertCondition.LevelOf(t.Kind) > AlertLevel.Ok).OrderByDescending(t => AlertCondition.LevelOf(t.Kind)).ThenBy(t => t.Kind)
-            .Select(t => t.Kind == AlertKind.Offline ? "Offline" : t.Condition!.Title).FirstOrDefault();
+            .Select(t => t.Kind == AlertKind.Offline ? CoreStrings.Queue_Offline : t.Condition!.Title).FirstOrDefault();
 
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>
     public Dictionary<string, IReadOnlyList<string>> Shown() =>
@@ -256,14 +256,14 @@ public static class TrayText
     /// <summary>"Inkvolt Print" then a line per printer, problems first, cut to fit with "+n more".</summary>
     public static string Tooltip(IReadOnlyList<PrinterLine> printers, bool paused)
     {
-        var text = paused ? "Inkvolt Print (alerts paused)" : "Inkvolt Print";
+        var text = paused ? CoreStrings.Alert_TrayPaused : "Inkvolt Print";
         var lines = printers.OrderByDescending(p => p.Level).Select(p => Cut($"{p.Name}: {p.Text}", 60)).ToList();
         for (var i = 0; i < lines.Count; i++)
         {
             var rest = lines.Count - i - 1;
-            var more = rest > 0 ? $"\n+{rest} more" : "";
+            var more = rest > 0 ? "\n" + string.Format(CoreStrings.Alert_TrayMore, rest) : "";
             if (text.Length + 1 + lines[i].Length + more.Length > MaxLength)
-                return text + $"\n+{lines.Count - i} more";
+                return text + "\n" + string.Format(CoreStrings.Alert_TrayMore, lines.Count - i);
             text += "\n" + lines[i];
         }
         return text;

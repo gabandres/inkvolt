@@ -15,7 +15,7 @@ public sealed record SupplyRow(DateOnly Day, string Supply, string? Color, int? 
     public static string KeyOf(string supply, string? color) => $"{supply}|{color}";
 
     /// <summary>The key a reading's supply is kept under.</summary>
-    public static string KeyOf(Consumable supply) => KeyOf(SupplyHistoryStore.Clean(supply.Name, SupplyHistoryStore.MaxName), SupplyHistoryStore.CleanColor(supply.ColorCode));
+    public static string KeyOf(Consumable supply) => KeyOf(SupplyHistoryStore.Clean(supply.Key, SupplyHistoryStore.MaxName), SupplyHistoryStore.CleanColor(supply.ColorCode));
 }
 
 /// <summary>
@@ -63,7 +63,7 @@ public sealed class SupplyHistoryStore(string? folder, Action<SupplyHistoryStore
             foreach (var s in supplies)
             {
                 if (s.IsWaste) continue;
-                var name = Clean(s.Name, MaxName);
+                var name = Clean(s.Key, MaxName); // English, whatever the interface's language: one history across a change of language
                 if (name.Length == 0) continue;
                 var row = new SupplyRow(today, name, CleanColor(s.ColorCode), InRange(s.PercentRemaining), Clean(s.State, MaxState), pages is >= 0 ? pages : null);
                 var at = rows.FindLastIndex(r => r.Day == today && r.Key == row.Key);

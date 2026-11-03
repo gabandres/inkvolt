@@ -149,7 +149,7 @@ public static class AlertText
 
     public const int MaxPrinter = 60;
 
-    public const string Untitled = "Untitled";
+    public static string Untitled => CoreStrings.Alert_Untitled;
 
     /// <summary>A job's document as a notification names it: a path or address is cut to its last part, which also keeps folders and links off the screen.</summary>
     public static string Document(string? name)
@@ -158,7 +158,7 @@ public static class AlertText
         return Cut(LastPart(text), MaxDocument) is { Length: > 0 } shown ? shown : Untitled;
     }
 
-    public static string Printer(string? name) => Clean(name, MaxPrinter) is { Length: > 0 } shown ? shown : "the printer";
+    public static string Printer(string? name) => Clean(name, MaxPrinter) is { Length: > 0 } shown ? shown : CoreStrings.Alert_ThePrinter;
 
     /// <summary>One line of visible characters: controls, invisible and private-use characters and broken pairs out, runs of space as one.</summary>
     public static string Clean(string? text, int max)

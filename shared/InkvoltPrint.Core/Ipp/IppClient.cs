@@ -96,10 +96,10 @@ public sealed class IppClient
                 alerts[a] = alerts[a] with { Message = string.Join(" ", list.Select(t => t.EndsWith('.') || t.EndsWith('!') ? t : t + ".")) };
         var (code, label) = r.Int("printer-state") switch
         {
-            3 => ("ready", "Ready"),
-            4 => ("processing", "Printing"),
-            5 => ("stopped", "Stopped"),
-            _ => ("unknown", "Unknown"),
+            3 => ("ready", CoreStrings.Status_Ready),
+            4 => ("processing", CoreStrings.Status_Printing),
+            5 => ("stopped", CoreStrings.Status_Stopped),
+            _ => ("unknown", CoreStrings.Status_Unknown),
         };
         var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : code == "stopped" ? Severity.Error : Severity.Info;
         var detail = alerts.Where(a => a.Severity == severity).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);

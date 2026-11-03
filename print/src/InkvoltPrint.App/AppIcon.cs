@@ -13,6 +13,12 @@ namespace InkvoltPrint.App;
 /// </summary>
 public static class AppIcon
 {
+    /// <summary>
+    /// The icon font, App.xaml's <c>Icons</c> resource (Segoe MDL2 Assets where Segoe Fluent Icons is missing). A font
+    /// name, set here rather than as XAML element text so the XAML holds no literal text (XamlTextTests).
+    /// </summary>
+    public static FontFamily Glyphs { get; } = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+
     private static readonly Lazy<BitmapFrame[]> Frames = new(() =>
     {
         var decoder = BitmapDecoder.Create(new Uri("pack://application:,,,/InkvoltPrint.ico"), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);

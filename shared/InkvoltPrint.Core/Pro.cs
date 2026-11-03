@@ -68,31 +68,31 @@ public static class Pro
     /// <summary>The feature's name as the window shows it.</summary>
     public static string Title(ProFeature feature) => feature switch
     {
-        ProFeature.SupplyHistoryExport => "Supply history export",
-        ProFeature.BatchPrintAutomation => "Batch print automation",
-        ProFeature.FleetExport => "Fleet export and command line",
-        ProFeature.ScannerSharing => "Scanner sharing",
+        ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport,
+        ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation,
+        ProFeature.FleetExport => CoreStrings.Pro_FleetExport,
+        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing,
         _ => "SNMPv3",
     };
 
     /// <summary>What the feature does, for a person who hasn't unlocked it.</summary>
     public static string Describe(ProFeature feature) => feature switch
     {
-        ProFeature.SupplyHistoryExport => "Export one CSV of every printer's ink and toner levels over time, with the pages each cartridge printed.",
-        ProFeature.BatchPrintAutomation => "Save a batch-print list, print a folder as files land in it, run a list from the command line, and keep the results as CSV.",
-        ProFeature.FleetExport => "Export the fleet page as CSV or JSON, read every printer from a script with inkvoltprint status --all, and fix every queue at once.",
-        ProFeature.ScannerSharing => "Share a USB or driver-only scanner on the network, so phones, Macs and other PCs scan from it.",
-        _ => "Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community.",
+        ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Describe,
+        ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Describe,
+        ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Describe,
+        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing_Describe,
+        _ => CoreStrings.Pro_Snmpv3_Describe,
     };
 
     /// <summary>What a person is told when a feature isn't unlocked.</summary>
     public static string Locked(ProFeature feature) => feature switch
     {
-        ProFeature.SupplyHistoryExport => "Exporting the supply history is part of Inkvolt Pro.",
-        ProFeature.BatchPrintAutomation => "Batch print lists, folders and the command line are part of Inkvolt Pro.",
-        ProFeature.FleetExport => "Fleet export, status --all and Fix all are part of Inkvolt Pro.",
-        ProFeature.ScannerSharing => "Scanner sharing is part of Inkvolt Pro.",
-        _ => "SNMPv3 is part of Inkvolt Pro.",
+        ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Locked,
+        ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Locked,
+        ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Locked,
+        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing_Locked,
+        _ => CoreStrings.Pro_Snmpv3_Locked,
     };
 
     /// <summary>Where to get a key and where to enter it (after <see cref="Locked"/> on the command line).</summary>

@@ -22,8 +22,8 @@ public static class FileNameTemplate
     public const int MaxNameLength = 120;
 
     private const string DefaultDate = "yyyy-MM-dd", DefaultTime = "HHmm";
-    private const string Fallback = "Scan";
-    private const string TokenList = "{date}, {time}, {preset}, {printer}, {n} or {pages}";
+    private static string Fallback => CoreStrings.Preset_FallbackFileName;
+    private const string TokenList = "{date}, {time}, {preset}, {printer}, {n}", LastToken = "{pages}";
 
     // Windows' reserved characters, whatever the OS these run on (Path.GetInvalidFileNameChars differs per platform).
     private static readonly char[] Reserved = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -54,16 +54,16 @@ public static class FileNameTemplate
                     if (part.Format is { } f)
                     {
                         try { _ = new DateTime(2026, 1, 2, 3, 4, 5).ToString(f, CultureInfo.InvariantCulture); }
-                        catch (FormatException) { return $"{{{part.Text}:{f}}} isn't a date or time format .NET understands."; }
+                        catch (FormatException) { return string.Format(CoreStrings.Preset_BadDateFormat, $"{{{part.Text}:{f}}}"); }
                     }
                     break;
                 case "n":
                     break;
                 case "preset" or "printer" or "pages":
-                    if (part.Format is not null) return $"{{{part.Text}}} takes no format.";
+                    if (part.Format is not null) return string.Format(CoreStrings.Preset_TokenNoFormat, $"{{{part.Text}}}");
                     break;
                 default:
-                    return $"Unknown token {{{part.Text}}}. Use {TokenList}.";
+                    return string.Format(CoreStrings.Preset_UnknownToken, $"{{{part.Text}}}", TokenList, LastToken);
             }
         }
         return error;
@@ -122,7 +122,7 @@ public static class FileNameTemplate
                 : Enumerable.Range(1, count).Select(i => Path.Combine(folder, $"{name} ({i}){extension}")).ToList();
             if (!set.Any(exists)) return set;
         }
-        throw new IOException($"Too many files called \"{stem}\" in {folder}.");
+        throw new IOException(string.Format(CoreStrings.Preset_TooManyFiles, stem, folder));
     }
 
     /// <summary>
@@ -142,9 +142,9 @@ public static class FileNameTemplate
             while (moved < temps.Count && tryMove(temps[moved], targets[moved])) moved++;
             if (moved == temps.Count) return targets;
             for (var i = moved - 1; i >= 0; i--)
-                if (!tryMove(targets[i], temps[i])) throw new IOException($"Couldn't put {targets[i]} back while picking another name.");
+                if (!tryMove(targets[i], temps[i])) throw new IOException(string.Format(CoreStrings.Preset_CouldntPutBack, targets[i]));
         }
-        throw new IOException($"Couldn't find a free name for \"{stem}\" in {folder}.");
+        throw new IOException(string.Format(CoreStrings.Preset_NoFreeName, stem, folder));
     }
 
     /// <summary>One safe Windows file or folder name: reserved and control characters become '-', no leading or trailing spaces, no trailing dots, no device names.</summary>
@@ -210,7 +210,7 @@ public static class FileNameTemplate
                 var end = template.IndexOf('}', i + 1);
                 if (end < 0)
                 {
-                    error ??= "A { has no closing }. Type {{ for a brace.";
+                    error ??= CoreStrings.Preset_NoClosingBrace;
                     text.Append(template[i..]);
                     break;
                 }
@@ -222,7 +222,7 @@ public static class FileNameTemplate
             }
             else if (c == '}')
             {
-                error ??= "A } has no opening {. Type }} for a brace.";
+                error ??= CoreStrings.Preset_NoOpeningBrace;
                 text.Append(c);
             }
             else if (c is '/' or '\\')

@@ -11,10 +11,10 @@ public partial class PasswordDialog : Window
     {
         // Trust on first use: the first encrypted connection decides which certificate this PC accepts from now on.
         var cert = fingerprint is { Length: >= 16 }
-            ? $" The printer's security certificate ({Format(fingerprint)}) is remembered by this PC; if it ever changes, Inkvolt Print warns you."
+            ? " " + string.Format(Strings.Password_CertRemembered, Format(fingerprint))
             : "";
-        var dlg = Create(owner, "Printer password", $"Enter the admin password for {printer}",
-            "It's the password for the printer's web page (user name \"admin\"). It's only sent to the printer, over an encrypted connection." + cert,
+        var dlg = Create(owner, Strings.Password_PrinterTitle, string.Format(Strings.Password_AdminHeading, printer),
+            Strings.Password_AdminPrompt + cert,
             rejected, showRemember: true);
         return dlg.ShowDialog() == true ? (dlg.Password.Password, dlg.Remember.IsChecked == true) : null;
     }
@@ -22,8 +22,8 @@ public partial class PasswordDialog : Window
     /// <summary>Password to open a protected PDF. Never stored.</summary>
     public static string? AskPdf(Window? owner, string fileName, bool wrong)
     {
-        var dlg = Create(owner, "Protected PDF", $"\"{fileName}\" is password protected",
-            "Enter the password to open it for printing.", wrong, showRemember: false);
+        var dlg = Create(owner, Strings.Password_PdfTitle, string.Format(Strings.Password_PdfHeading, fileName),
+            Strings.Password_PdfPrompt, wrong, showRemember: false);
         return dlg.ShowDialog() == true ? dlg.Password.Password : null;
     }
 

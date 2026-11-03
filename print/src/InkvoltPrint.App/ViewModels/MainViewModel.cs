@@ -180,7 +180,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         for (var i = 0; i < 120 && Selected?.Scan is null; i++) await Task.Delay(250);
         if (Selected is not { Scan: not null } printer)
         {
-            Prompt.Tell($"No scanner is connected yet, so \"{preset.Name}\" didn't scan. Try again when the printer shows up.");
+            Prompt.Tell(string.Format(Strings.Main_PresetNoScanner, preset.Name));
             return;
         }
         IsFleetShown = false; // the scan shows on the printer's page
@@ -232,8 +232,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool HasHpSoftware => HpApps.Count > 0 || HpLeftoversFound?.Any == true;
     public bool ShowHpBanner => HasHpSoftware || HpMessage is not null;
 
-    public string HpAppNames => string.Join(" and ", HpApps.Select(a => a.DisplayName)
-        .Concat(HpLeftoversFound?.Any == true ? ["HP's background services"] : []));
+    public string HpAppNames => HpApps.Select(a => a.DisplayName)
+        .Concat(HpLeftoversFound?.Any == true ? [Strings.Main_HpBackgroundServices] : [])
+        .Aggregate("", (list, name) => list.Length == 0 ? name : string.Format(Strings.Main_ListAnd, list, name));
 
     private async Task CheckHpSoftwareAsync()
     {
@@ -270,28 +271,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (!HasHpSoftware || !Features.HpCleanup) return;
         var removesPrintApp = HpApps.Any(a => a.IsPrintSupportApp);
-        if (!Prompt.Ask($"Remove {HpAppNames}?\n\nInkvolt Print does what they did for this printer, and printing keeps working " +
-                        "through Windows' own driver. HP's apps can be reinstalled from the Microsoft Store at any time." +
-                        "\n\nWindows will ask for administrator permission once, to remove HP's background services and to turn off " +
-                        "Windows' \"automatically download manufacturers' apps and custom icons\" for this PC (it's what re-installs " +
-                        "HP's print app; it applies to all devices). To turn it back on: Control Panel › Devices and Printers › " +
-                        "right-click this PC › Device installation settings." +
-                        (removesPrintApp ? "\n\nYour HP printers are then set up again in Windows (about 30 seconds each), so printing keeps working." : ""),
-                "Remove")) return;
+        if (!Prompt.Ask(string.Format(Strings.Main_HpRemoveAsk, HpAppNames) + "\n\n" + Strings.Main_HpRemoveKeepsWorking +
+                        "\n\n" + Strings.Main_HpRemoveAdmin +
+                        (removesPrintApp ? "\n\n" + Strings.Main_HpRemoveSetUpAgain : ""),
+                Strings.Common_Remove)) return;
         IsRemovingHp = true;
         var failures = new List<string>();
         try
         {
             foreach (var app in HpApps.ToList())
             {
-                HpMessage = $"Removing {app.DisplayName}…";
+                HpMessage = string.Format(Strings.Main_HpRemoving, app.DisplayName);
                 if (await HpSoftware.RemoveAsync(app) is { } error) failures.Add($"{app.DisplayName}: {error}");
             }
             // HP's print app leaves services and a virtual queue behind, and Windows would re-install it on the next
             // printer setup. One elevated step handles both.
             if ((await HpLeftovers.FindAsync()).Any || (removesPrintApp && !HpLeftovers.ManufacturerAppsBlocked()))
             {
-                HpMessage = "Removing HP's background services… approve the Windows permission prompt.";
+                HpMessage = Strings.Main_HpRemovingServices;
                 if (await HpLeftovers.RemoveAsync() is { } error) failures.Add(error);
             }
             // Queues created while HP's print app was attached keep handing every job to it; with the app gone,
@@ -299,7 +296,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (removesPrintApp)
                 foreach (var p in Printers.Where(p => p.QueueInstalled && p.PrintEndpointId is not null).ToList())
                 {
-                    HpMessage = $"Setting up {p.Name} again in Windows…";
+                    HpMessage = string.Format(Strings.Main_HpSettingUpAgain, p.Name);
                     if (await p.ReinstallQueueAsync() is { } error) failures.Add($"{p.Name}: {error}");
                 }
         }
@@ -309,8 +306,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         await CheckHpSoftwareAsync();
         HpMessage = failures.Count == 0
-            ? "HP software removed. If Windows adds HP's print app again, Inkvolt Print will tell you."
-            : $"Some HP software could not be removed. {string.Join(" ", failures)}";
+            ? Strings.Main_HpRemoved
+            : string.Format(Strings.Main_HpRemoveFailed, string.Join(" ", failures));
     }
 
     [RelayCommand]
@@ -344,10 +341,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "Export the supply history",
+            Title = Strings.Supplies_ExportTitle,
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            FileName = $"Supply history {DateTime.Now:yyyy-MM-dd}",
-            Filter = "CSV file (*.csv)|*.csv",
+            FileName = string.Format(Strings.Supplies_ExportFileName, DateTime.Now),
+            Filter = Strings.Supplies_CsvFilter,
             AddExtension = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -355,12 +352,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             // With a byte order mark, so Excel reads the names as UTF-8.
             System.IO.File.WriteAllText(dialog.FileName, csv, new System.Text.UTF8Encoding(true));
-            Prompt.Announce($"Saved {System.IO.Path.GetFileName(dialog.FileName)}");
+            Prompt.Announce(string.Format(Strings.Supplies_Saved, System.IO.Path.GetFileName(dialog.FileName)));
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
             Log.Write($"Supply history export failed: {ex.Message}");
-            Prompt.Tell($"Could not save the supply history: {ex.Message}");
+            Prompt.Tell(string.Format(Strings.Supplies_SaveFailed, ex.Message));
         }
     }
 
@@ -661,11 +658,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void Forget(PrinterViewModel? p)
     {
         if (p is null) return;
-        var warning = p.Scan?.HasUnsavedPages == true ? $"\n\nYou'll lose {p.Scan.PageCountText.ToLowerInvariant()} you scanned and haven't saved." : "";
+        var warning = p.Scan?.HasUnsavedPages == true ? "\n\n" + string.Format(Strings.Main_ForgetUnsaved, p.Scan.PageCountText.ToLowerInvariant()) : "";
         var again = !p.IsNetworkPrinter
-            ? "It stays hidden here while Windows has it; if it's removed from Windows and set up again, it shows again."
-            : "To see it again, open Add a printer: it's offered there while it's on the network.";
-        if (!Prompt.Ask($"Remove {p.Name} from Inkvolt Print?{warning}\n\nThis doesn't remove it from Windows. {again}", "Remove"))
+            ? Strings.Main_ForgetNotFromWindowsLocal
+            : Strings.Main_ForgetNotFromWindowsNetwork;
+        if (!Prompt.Ask(string.Format(Strings.Main_ForgetAsk, p.Name) + warning + "\n\n" + again, Strings.Common_Remove))
             return;
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
@@ -695,8 +692,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public Task OpenPdfAsync(string path)
     {
         if (Printer() is { } p) return p.OpenPdfAsync(path);
-        Prompt.Tell($"Inkvolt Print hasn't found a printer yet, so \"{System.IO.Path.GetFileName(path)}\" can't be printed. " +
-                    "Wait for your printer to appear (or add it by address), then open the file again.");
+        Prompt.Tell(string.Format(Strings.Main_NoPrinterForPdf, System.IO.Path.GetFileName(path)));
         return Task.CompletedTask;
     }
 
@@ -704,8 +700,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public Task OpenPhotosAsync(IReadOnlyList<string> paths)
     {
         if (Printer() is { } p) return p.OpenPhotosAsync(paths);
-        Prompt.Tell("Inkvolt Print hasn't found a printer yet, so the photos can't be printed. " +
-                    "Wait for your printer to appear (or add it by address), then open them again.");
+        Prompt.Tell(Strings.Main_NoPrinterForPhotos);
         return Task.CompletedTask;
     }
 

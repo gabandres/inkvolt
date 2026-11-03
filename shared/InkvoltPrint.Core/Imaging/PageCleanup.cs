@@ -58,10 +58,10 @@ public static class PageCleanup
     public static string Describe(PageFilters filters)
     {
         var parts = new List<string>();
-        if (filters.HasFlag(PageFilters.CropToPaper)) parts.Add("cropped to the paper");
-        if (filters.HasFlag(PageFilters.Whiten)) parts.Add("whitened");
-        if (filters.HasFlag(PageFilters.Descreen)) parts.Add("descreened");
-        if (filters.HasFlag(PageFilters.RestoreColors)) parts.Add("colors restored");
+        if (filters.HasFlag(PageFilters.CropToPaper)) parts.Add(CoreStrings.Imaging_Cropped);
+        if (filters.HasFlag(PageFilters.Whiten)) parts.Add(CoreStrings.Imaging_Whitened);
+        if (filters.HasFlag(PageFilters.Descreen)) parts.Add(CoreStrings.Imaging_Descreened);
+        if (filters.HasFlag(PageFilters.RestoreColors)) parts.Add(CoreStrings.Imaging_ColorsRestored);
         return string.Join(", ", parts);
     }
 }

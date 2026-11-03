@@ -9,22 +9,22 @@ namespace InkvoltPrint.App.Views;
 /// <summary>Help (F1, the sidebar's "Help and shortcuts"): the keyboard shortcuts, finding a printer, What's New, Report a problem, the log, Inkvolt Pro.</summary>
 public partial class HelpDialog : Window
 {
-    /// <summary>Key → what it does, as the Help window lists them.</summary>
-    public static readonly (string Keys, string Action)[] ShortcutList =
+    /// <summary>Key → what it does, as the Help window lists them (in the interface's language, read each time).</summary>
+    public static (string Keys, string Action)[] ShortcutList =>
     [
-        ("F1", "This help"),
-        ("Ctrl+K", "Commands: run any command, show a printer or scan with a preset by typing its name"),
-        ("Ctrl+1 … Ctrl+9", "Scan with the first nine scan presets"),
-        ("Shift+F10", "The menu of the printer or page in focus"),
-        ("Alt+Shift+arrows", "Scan review: move the page earlier or later"),
-        ("S", "Scan review: start a new file at this page"),
-        ("Delete", "Scan review, Photos, Batch: delete or remove the one in focus"),
-        ("Alt+Up, Alt+Down", "Batch: move the file in focus up or down the list"),
-        ("Ctrl+Z", "Scan review: undo the last change to the pages (a deleted page comes back)"),
-        ("Ctrl+R, Ctrl+L", "Scan review, Photos: turn right or left"),
-        ("Ctrl+S", "Scan review: save as PDF"),
-        ("+ and −", "Photos: one more or one fewer copy"),
-        ("Esc", "Close a dialog"),
+        ("F1", Strings.Help_KeyF1),
+        ("Ctrl+K", Strings.Help_KeyCommands),
+        ("Ctrl+1 … Ctrl+9", Strings.Help_KeyPresets),
+        ("Shift+F10", Strings.Help_KeyMenu),
+        (Strings.Help_KeysAltShiftArrows, Strings.Help_KeyMovePage),
+        ("S", Strings.Help_KeySplit),
+        ("Delete", Strings.Help_KeyDelete),
+        ("Alt+Up, Alt+Down", Strings.Help_KeyBatchMove),
+        ("Ctrl+Z", Strings.Help_KeyUndo),
+        ("Ctrl+R, Ctrl+L", Strings.Help_KeyTurn),
+        ("Ctrl+S", Strings.Help_KeySavePdf),
+        (Strings.Help_KeysPlusMinus, Strings.Help_KeyCopies),
+        ("Esc", Strings.Help_KeyEsc),
     ];
 
     private readonly MainViewModel _vm;

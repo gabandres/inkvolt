@@ -30,7 +30,7 @@ public sealed record Option<T>(T Value, string Label)
 public static class OcrLanguageChoices
 {
     public static IReadOnlyList<Option<string?>> List() =>
-        [new Option<string?>(null, "Windows' language"), .. WindowsRecognizer.Languages().Select(l => new Option<string?>(l.Tag, l.Name))];
+        [new Option<string?>(null, Strings.Scan_OcrWindowsLanguage), .. WindowsRecognizer.Languages().Select(l => new Option<string?>(l.Tag, l.Name))];
 }
 
 /// <summary>Scan area in 1/300 inch (eSCL units). Null size = the whole glass.</summary>
@@ -58,7 +58,8 @@ public sealed partial class ScanViewModel : ObservableObject
     private readonly Func<Task<string?>> _findQueue;
     private readonly PcEnvironment _pc;
 
-    private static readonly Option<ScanArea>[] AllPageSizes =
+    // Built when asked for, not once: the labels are in the interface's language.
+    private static Option<ScanArea>[] AllPageSizes =>
         [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
     public ScanViewModel(IScanner client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
@@ -78,10 +79,10 @@ public sealed partial class ScanViewModel : ObservableObject
         IReadOnlyList<int> offered = input.Resolutions.Count > 0 ? input.Resolutions : [150, 200, 300, 600];
         Resolutions = offered.Select(r => new Option<int>(r, r switch
         {
-            <= 150 => $"{r} dpi (draft)",
-            <= 200 => $"{r} dpi (screen)",
-            <= 300 => $"{r} dpi (documents)",
-            _ => $"{r} dpi (photos, slower)",
+            <= 150 => string.Format(Strings.Scan_ResolutionDraft, r),
+            <= 200 => string.Format(Strings.Scan_ResolutionScreen, r),
+            <= 300 => string.Format(Strings.Scan_ResolutionDocuments, r),
+            _ => string.Format(Strings.Scan_ResolutionPhotos, r),
         })).ToList();
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
 
@@ -235,7 +236,7 @@ public sealed partial class ScanViewModel : ObservableObject
     public UndoHistory History { get; } = new();
 
     /// <summary>The Undo button's tooltip: what it puts back.</summary>
-    public string UndoText => History.Next is { } next ? $"Undo {char.ToLowerInvariant(next[0])}{next[1..]} (Ctrl+Z)" : "Undo (Ctrl+Z)";
+    public string UndoText => History.Next is { } next ? string.Format(Strings.Scan_UndoWhat, $"{char.ToLowerInvariant(next[0])}{next[1..]}") : Strings.Scan_UndoNothing;
 
     private bool CanUndo() => !IsBusy && History.CanUndo;
 
@@ -248,7 +249,7 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelClean();
         if (History.Undo() is { } what)
         {
-            Message = $"Undone: {what}.";
+            Message = string.Format(Strings.Scan_Undone, what);
             Prompt.Announce(Message);
         }
     }
@@ -369,14 +370,13 @@ public sealed partial class ScanViewModel : ObservableObject
         get
         {
             if (PhotoPage is not { } page) return "";
-            if (EditedPhotos.Count == 0) return "No photos marked: the whole scan is saved as one picture. Drag over a photo to mark it.";
+            if (EditedPhotos.Count == 0) return Strings.Scan_PhotosNoneMarked;
             if (SelectedPhoto < 0 || SelectedPhoto >= EditedPhotos.Count)
-                return EditedPhotos.Count == 1 ? "1 photo, saved as its own picture." : $"{EditedPhotos.Count} photos, each saved as its own picture.";
+                return Plural.Of(EditedPhotos.Count, Strings.Scan_PhotosSaved_One, Strings.Scan_PhotosSaved_Many);
             var b = EditedPhotos[SelectedPhoto];
             var inches = page.WidthInches;
-            var turns = b.QuarterTurns % 4 == 0 ? "" : $", saved turned {90 * b.QuarterTurns}°";
-            return string.Create(CultureInfo.CurrentCulture,
-                $"Photo {SelectedPhoto + 1} of {EditedPhotos.Count}: {b.Width * inches:0.0} × {b.Height * inches:0.0} in, straightened by {b.Angle:0.#}°{turns}.");
+            return string.Format(CultureInfo.CurrentCulture, b.QuarterTurns % 4 == 0 ? Strings.Scan_PhotoStatus : Strings.Scan_PhotoStatusTurned,
+                SelectedPhoto + 1, EditedPhotos.Count, b.Width * inches, b.Height * inches, b.Angle, 90 * b.QuarterTurns);
         }
     }
 
@@ -398,7 +398,7 @@ public sealed partial class ScanViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Write($"Photo view failed: {ex}");
-            Message = $"Couldn't show the scan: {ex.Message}";
+            Message = string.Format(Strings.Scan_CouldntShowScan, ex.Message);
             PhotoPage = null;
         }
         OnPropertyChanged(nameof(PhotoStatus));
@@ -416,7 +416,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var aspect = page.HeightInches / page.WidthInches; // the scan's height in units of its width
         EditedPhotos.Add(new PhotoBox(0.5, aspect / 2, 0.4, 0.3, 0));
         SelectedPhoto = EditedPhotos.Count - 1;
-        Prompt.Announce($"Photo {EditedPhotos.Count} added in the middle. Arrow keys move it, Shift+arrows resize it.");
+        Prompt.Announce(string.Format(Strings.Scan_PhotoAdded, EditedPhotos.Count));
     }
 
     private bool HasSelectedPhoto() => SelectedPhoto >= 0 && SelectedPhoto < EditedPhotos.Count;
@@ -428,7 +428,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var removed = SelectedPhoto;
         EditedPhotos.RemoveAt(removed);
         SelectedPhoto = Math.Min(removed, EditedPhotos.Count - 1);
-        Prompt.Announce($"Photo {removed + 1} removed. {EditedPhotos.Count} left.");
+        Prompt.Announce(string.Format(Strings.Scan_PhotoRemoved, removed + 1, EditedPhotos.Count));
     }
 
     /// <summary>The selected photo is saved turned a further quarter clockwise (a portrait print laid on its side).</summary>
@@ -453,7 +453,7 @@ public sealed partial class ScanViewModel : ObservableObject
         foreach (var box in found) EditedPhotos.Add(box);
         SelectedPhoto = EditedPhotos.Count > 0 ? 0 : -1;
         OnPropertyChanged(nameof(PhotoStatus));
-        Prompt.Announce(found.Count == 1 ? "1 photo found" : $"{found.Count} photos found");
+        Prompt.Announce(Plural.Of(found.Count, Strings.Scan_PhotosFound_One, Strings.Scan_PhotosFound_Many));
     }
 
     [RelayCommand]
@@ -461,7 +461,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (PhotoPage is { } page)
         {
-            RecordLook($"Change the photos on page {page.Number}", page);
+            RecordLook(string.Format(Strings.Scan_UndoChangePhotos, page.Number), page);
             page.Photos = [.. EditedPhotos];
         }
         CancelPhotos();
@@ -498,22 +498,23 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             var files = Files();
             var kept = files.Sum(f => f.Count);
-            var text = kept switch { 0 => Pages.Count == 0 ? "No pages yet" : "No pages to save", 1 => "1 page", var n => $"{n} pages" };
-            if (files.Count > 1) text += $" in {files.Count} files";
+            var text = kept == 0 ? Pages.Count == 0 ? Strings.Scan_NoPagesYet : Strings.Scan_NoPagesToSave
+                : files.Count > 1 ? Plural.Of(kept, Strings.Scan_PagesInFiles_One, Strings.Scan_PagesInFiles_Many, files.Count)
+                : Plural.Of(kept, Strings.Scan_Pages_One, Strings.Scan_Pages_Many);
             var photos = files.Sum(f => f.Sum(p => p.HasPhotos ? p.Photos!.Count : 0));
-            if (photos > 0) text += $" ({(photos == 1 ? "1 photo" : $"{photos} photos")})";
+            if (photos > 0) text = string.Format(Strings.Scan_CountWithPhotos, text, Plural.Of(photos, Strings.Scan_Photos_One, Strings.Scan_Photos_Many));
             var skipped = Pages.Count(p => p.IsSkipped && !p.IsSeparator);
             var separators = _batchKeep ? 0 : Pages.Count(p => p.IsSeparator);
-            if (separators > 0) text += $"  ·  {separators} separator{(separators == 1 ? "" : "s")} left out";
-            return skipped == 0 ? text : $"{text}  ·  {skipped} blank left out";
+            if (separators > 0) text += "  ·  " + Plural.Of(separators, Strings.Scan_SeparatorsLeftOut_One, Strings.Scan_SeparatorsLeftOut_Many);
+            return skipped == 0 ? text : text + "  ·  " + Plural.Of(skipped, Strings.Scan_BlankLeftOut_One, Strings.Scan_BlankLeftOut_Many);
         }
     }
 
-    public string ScanButtonText => HasPages ? "Scan more pages" : "Scan";
+    public string ScanButtonText => HasPages ? Strings.Scan_ScanMorePages : Strings.Common_Scan;
 
     public string EmptyHint => Source?.Value == ScanSource.Platen || Source is null
-        ? "Put a page face down on the scanner glass, then press Scan."
-        : "Put the pages face up in the document feeder, then press Scan.";
+        ? Strings.Scan_EmptyHintGlass
+        : Strings.Scan_EmptyHintFeeder;
 
     partial void OnIsColorChanged(bool value) { _state.ScanColor = value; _state.Save(); }
     partial void OnUseOcrChanged(bool value) { _state.ScanOcr = value; _state.Save(); }
@@ -556,9 +557,9 @@ public sealed partial class ScanViewModel : ObservableObject
     private void ToggleFileStart(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || page.IsSeparator) return;
-        RecordRole(page.StartsFile ? $"Join page {page.Number} to the file before it" : $"Start a new file at page {page.Number}", page);
+        RecordRole(string.Format(page.StartsFile ? Strings.Scan_UndoJoinFile : Strings.Scan_UndoStartFile, page.Number), page);
         page.StartsFile = !page.StartsFile;
-        Prompt.Announce(page.FileStart > 0 ? $"Page {page.Number} starts file {page.FileStart}" : $"Page {page.Number} is in the same file as the page before it");
+        Prompt.Announce(page.FileStart > 0 ? string.Format(Strings.Scan_PageStartsFile, page.Number, page.FileStart) : string.Format(Strings.Scan_PageSameFile, page.Number));
     }
 
     /// <summary>A page taken for a separator sheet is an ordinary page again (the files on either side join).</summary>
@@ -566,10 +567,10 @@ public sealed partial class ScanViewModel : ObservableObject
     private void NotSeparator(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || !page.IsSeparator) return;
-        RecordRole($"Keep page {page.Number} as a page", page);
+        RecordRole(string.Format(Strings.Scan_UndoKeepAsPage, page.Number), page);
         page.Separator = SeparatorFound.None;
         _ = page.OcrAsync();
-        Prompt.Announce($"Page {page.Number} is a page again, not a separator");
+        Prompt.Announce(string.Format(Strings.Scan_PageNotSeparator, page.Number));
     }
 
     /// <summary>Any page as a separator sheet: a new file starts after it.</summary>
@@ -577,11 +578,11 @@ public sealed partial class ScanViewModel : ObservableObject
     private void MarkSeparator(ScanPageViewModel? page)
     {
         if (page is null || IsBusy || page.IsSeparator) return;
-        RecordRole($"Use page {page.Number} as a separator", page);
+        RecordRole(string.Format(Strings.Scan_UndoUseAsSeparator, page.Number), page);
         page.StartsFile = false;
         page.IsSkipped = false;
         page.Separator = new SeparatorFound(SeparatorKind.ByHand);
-        Prompt.Announce($"Page {page.Number} is a separator sheet");
+        Prompt.Announce(string.Format(Strings.Scan_PageIsSeparator, page.Number));
     }
 
     /// <summary>Saves a separator sheet (Patch T; Letter, or A4 by region) as a PDF and opens it, to print at actual size.</summary>
@@ -591,10 +592,10 @@ public sealed partial class ScanViewModel : ObservableObject
         var metric = RegionInfo.CurrentRegion.IsMetric;
         var dialog = new SaveFileDialog
         {
-            Title = "Save a separator sheet to print",
+            Title = Strings.Scan_SeparatorDialogTitle,
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            FileName = "Separator sheet (Patch T)",
-            Filter = "PDF document (*.pdf)|*.pdf",
+            FileName = Strings.Scan_SeparatorFileName,
+            Filter = Strings.Scan_PdfFilter,
             AddExtension = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -602,13 +603,13 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             using (var fs = File.Create(dialog.FileName))
                 SeparatorSheet.Write(fs, PatchCode.PatchT, metric ? 210 / 25.4 : 8.5, metric ? 297 / 25.4 : 11);
-            Message = $"Saved {Path.GetFileName(dialog.FileName)}. Print it at actual size (100%) and put a copy in front of each document in the feeder.";
+            Message = string.Format(Strings.Scan_SeparatorSaved, Path.GetFileName(dialog.FileName));
             Shell.Open(dialog.FileName);
         }
         catch (Exception ex)
         {
             Log.Write($"Separator sheet failed: {ex}");
-            Message = $"Could not save the separator sheet: {ex.Message}";
+            Message = string.Format(Strings.Scan_SeparatorSaveFailed, ex.Message);
         }
     }
 
@@ -634,7 +635,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>The line under the tab's settings for a scanner reached through Windows; null over eSCL.</summary>
     public string? ScannerNote => _client is Core.Wia.WiaScanner wia
-        ? $"Scanning through Windows with the scanner's own driver ({wia.Device.Name})."
+        ? string.Format(Strings.Scan_ViaWindowsNote, wia.Device.Name)
         : null;
 
     public void Rebind(IScanner client)
@@ -698,7 +699,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var checks = new List<Task>();
         try
         {
-            Message = "Scanning… (the first page takes longer if the printer was asleep)";
+            Message = Strings.Scan_Scanning;
             var job = await makeJob();
             var request = job.Request;
             var dpi = request.Resolution;
@@ -712,7 +713,7 @@ public sealed partial class ScanViewModel : ObservableObject
                 Pages.Add(page);
                 added.Add(page);
                 checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup)); // while the next page scans
-                Message = $"Scanned page {Pages.Count}. Scanning…";
+                Message = string.Format(Strings.Scan_ScannedPage, Pages.Count);
             }
             await Task.WhenAll(checks);
             if (request.Source == ScanSource.AdfDuplex) SeparatorBacks(added);
@@ -725,27 +726,27 @@ public sealed partial class ScanViewModel : ObservableObject
             var cleaned = RecordCleanup(added, job.Cleanup);
             var notes = string.Join(" ", new List<string>
             {
-                !findPhotos ? "" : photos == 0 ? "No photos were found on the glass: the whole scan is saved. Crop (or the photo view) marks them by hand."
-                    : $"{(photos == 1 ? "1 photo" : $"{photos} photos")} found, each saved as its own picture. Check the boxes with the crop button.",
-                separators == 0 ? job.Split == SplitAt.None ? "" : "No separator sheets were found: it's one file."
-                    : $"{(separators == 1 ? "1 separator sheet" : $"{separators} separator sheets")} found: {(files == 1 ? "1 file" : $"{files} files")}.",
-                blank == 0 ? "" : blank == 1 ? "1 blank page is left out (Keep puts it back)." : $"{blank} blank pages are left out (Keep puts them back).",
-                straightened == 0 ? "" : straightened == 1 ? "1 page was straightened." : $"{straightened} pages were straightened.",
+                !findPhotos ? "" : photos == 0 ? Strings.Scan_NoPhotosFound
+                    : Plural.Of(photos, Strings.Scan_PhotosFoundSaved_One, Strings.Scan_PhotosFoundSaved_Many),
+                separators == 0 ? job.Split == SplitAt.None ? "" : Strings.Scan_NoSeparatorsFound
+                    : Plural.Of(separators, Strings.Scan_SeparatorsFound_One, Strings.Scan_SeparatorsFound_Many, Plural.Of(files, Strings.Scan_Files_One, Strings.Scan_Files_Many)),
+                blank == 0 ? "" : Plural.Of(blank, Strings.Scan_BlankLeftOutNote_One, Strings.Scan_BlankLeftOutNote_Many),
+                straightened == 0 ? "" : Plural.Of(straightened, Strings.Scan_Straightened_One, Strings.Scan_Straightened_Many),
                 cleaned,
                 request.Source == ScanSource.AdfDuplex && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
-                    ? "Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better." : "",
+                    ? Strings.Scan_DuplexBlankNote : "",
                 PdfNote(added, request),
             }.Concat(job.Notes).Where(n => n.Length > 0));
             Message = added.Count == 0
-                ? "The scanner returned no pages."
+                ? Strings.Scan_NoPagesReturned
                 : (request.Source == ScanSource.Platen
-                    ? "Done. To add another page, put it on the glass and press Scan more pages."
-                    : $"Done: {added.Count} page{(added.Count == 1 ? "" : "s")} from the feeder.") + (notes.Length > 0 ? " " + notes : "");
+                    ? Strings.Scan_DoneGlass
+                    : Plural.Of(added.Count, Strings.Scan_DoneFeeder_One, Strings.Scan_DoneFeeder_Many)) + (notes.Length > 0 ? " " + notes : "");
             return added.Count;
         }
         catch (OperationCanceledException)
         {
-            Message = "Scan cancelled.";
+            Message = Strings.Scan_Cancelled;
         }
         catch (ScanException ex)
         {
@@ -754,7 +755,7 @@ public sealed partial class ScanViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Write($"Scan failed: {ex}");
-            Message = $"Scan failed: {ex.Message}";
+            Message = string.Format(Strings.Scan_Failed, ex.Message);
         }
         finally
         {
@@ -777,7 +778,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (changed.Count > 0)
         {
             var before = changed.Select(p => (Page: p, Edits: p.BeforeCleanup!)).ToList();
-            History.Record(changed.Count == 1 ? $"Clean up page {changed[0].Number}" : $"Clean up {changed.Count} pages", () =>
+            History.Record(changed.Count == 1 ? string.Format(Strings.Scan_CleanPage, changed[0].Number) : string.Format(Strings.Scan_UndoCleanPages_Many, changed.Count), () =>
             {
                 foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters };
             });
@@ -785,8 +786,8 @@ public sealed partial class ScanViewModel : ObservableObject
         // Every page the crop was tried on, not only those something else changed: with crop alone, one with no edge has no other change.
         var noEdge = cleanup.HasFlag(PageFilters.CropToPaper)
             ? added.Count(p => !p.LooksBlank && !p.IsSkipped && !p.IsSeparator && !p.HasPhotos && !p.FindsPhotos && !p.Edits.Filters.HasFlag(PageFilters.CropToPaper)) : 0;
-        var text = changed.Count == 0 ? "" : changed.Count == 1 ? "1 page was cleaned up (Undo puts it back)." : $"{changed.Count} pages were cleaned up (Undo puts them back).";
-        return noEdge == 0 ? text : $"{text} The paper's edge couldn't be told from the lid on {(noEdge == 1 ? "1 page" : $"{noEdge} pages")}: kept whole.".TrimStart();
+        var text = changed.Count == 0 ? "" : Plural.Of(changed.Count, Strings.Scan_CleanedUp_One, Strings.Scan_CleanedUp_Many);
+        return noEdge == 0 ? text : (text + " " + Plural.Of(noEdge, Strings.Scan_NoEdge_One, Strings.Scan_NoEdge_Many)).TrimStart();
     }
 
     /// <summary>
@@ -822,14 +823,14 @@ public sealed partial class ScanViewModel : ObservableObject
         if (CropPage == page) CancelCrop();
         var index = Pages.IndexOf(page);
         if (index < 0) return;
-        History.Record($"Delete page {page.Number}", () =>
+        History.Record(string.Format(Strings.Scan_UndoDeletePage, page.Number), () =>
         {
             page.PropertyChanged += PageChanged;
             Pages.Insert(Math.Min(index, Pages.Count), page);
         });
         page.PropertyChanged -= PageChanged;
         Pages.Remove(page);
-        Message = $"Deleted page {index + 1}. Undo (Ctrl+Z) puts it back.";
+        Message = string.Format(Strings.Scan_DeletedPage, index + 1);
     }
 
     [RelayCommand]
@@ -843,7 +844,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         var from = page is null || IsBusy ? -1 : Pages.IndexOf(page);
         if (from < 0 || index < 0 || index >= Pages.Count || index == from) return null;
-        History.Record($"Move page {from + 1}", () =>
+        History.Record(string.Format(Strings.Scan_UndoMovePage, from + 1), () =>
         {
             if (Pages.IndexOf(page!) is var at and >= 0 && from < Pages.Count) Pages.Move(at, from);
         });
@@ -851,7 +852,7 @@ public sealed partial class ScanViewModel : ObservableObject
         _dirty = true;
         _changes++;
         OnPropertyChanged(nameof(HasUnsavedPages));
-        return $"Moved to position {index + 1} of {Pages.Count}";
+        return string.Format(Strings.Scan_MovedTo, index + 1, Pages.Count);
     }
 
     /// <summary>Turns the page; a scan of photos on the glass turns every photo instead.</summary>
@@ -859,7 +860,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void RotateLeft(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
-        RecordLook($"Turn page {page.Number} left", page);
+        RecordLook(string.Format(Strings.Scan_UndoTurnLeft, page.Number), page);
         if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 3) % 4 })];
         else page.Edits = page.Edits.Turned(-1);
     }
@@ -868,7 +869,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void RotateRight(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
-        RecordLook($"Turn page {page.Number} right", page);
+        RecordLook(string.Format(Strings.Scan_UndoTurnRight, page.Number), page);
         if (page.HasPhotos) page.Photos = [.. page.Photos!.Select(b => b with { QuarterTurns = (b.QuarterTurns + 1) % 4 })];
         else page.Edits = page.Edits.Turned(1);
     }
@@ -878,7 +879,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void KeepPage(ScanPageViewModel? page)
     {
         if (page is null || IsBusy) return;
-        RecordRole($"Keep page {page.Number}", page);
+        RecordRole(string.Format(Strings.Scan_UndoKeepPage, page.Number), page);
         page.IsSkipped = false;
         _ = page.OcrAsync();
     }
@@ -923,7 +924,7 @@ public sealed partial class ScanViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Write($"Crop preview failed: {ex}");
-            Message = $"Couldn't show the page: {ex.Message}";
+            Message = string.Format(Strings.Scan_CouldntShowPage, ex.Message);
             CropPage = null;
         }
     }
@@ -933,7 +934,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (CropPage is { } page && page.Edits.WithShownCrop(CropBox) is var cropped && cropped != page.Edits)
         {
-            RecordLook($"Crop page {page.Number}", page);
+            RecordLook(string.Format(Strings.Scan_UndoCropPage, page.Number), page);
             page.Edits = cropped;
         }
         CancelCrop();
@@ -954,7 +955,7 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>A scan of photos is cleaned photo by photo: no paper to crop to, no background to whiten.</summary>
     public bool CleansWholePage => CleanPage is { HasPhotos: false };
 
-    public string CleanTitle => CleanPage is not { } page ? "" : page.HasPhotos ? $"Clean up the photos on page {page.Number} (photo 1 shown)" : $"Clean up page {page.Number}";
+    public string CleanTitle => CleanPage is not { } page ? "" : string.Format(page.HasPhotos ? Strings.Scan_CleanPhotosTitle : Strings.Scan_CleanPage, page.Number);
 
     [ObservableProperty] public partial BitmapSource? CleanImage { get; set; }
 
@@ -1009,7 +1010,7 @@ public sealed partial class ScanViewModel : ObservableObject
         _cleanCts?.Cancel();
         var cts = _cleanCts = new CancellationTokenSource();
         var choices = ShowOriginal ? PageFilters.None : CleanChoices;
-        CleanStatus = "Working…";
+        CleanStatus = Strings.Scan_Working;
         try
         {
             var edits = await page.EditsWithAsync(choices, cts.Token);
@@ -1019,7 +1020,7 @@ public sealed partial class ScanViewModel : ObservableObject
                 : ScanImaging.Render(page.Original, edits, 1600, page.Dpi, cts.Token), cts.Token);
             if (CleanPage != page || cts != _cleanCts) return;
             CleanImage = image;
-            CleanStatus = ShowOriginal ? "As scanned." : page.CleanNote(choices, edits);
+            CleanStatus = ShowOriginal ? Strings.Scan_AsScanned : page.CleanNote(choices, edits);
             Prompt.Announce(CleanStatus);
         }
         catch (OperationCanceledException)
@@ -1029,7 +1030,7 @@ public sealed partial class ScanViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Write($"Clean up preview failed: {ex}");
-            if (cts == _cleanCts) CleanStatus = $"Couldn't show the page: {ex.Message}";
+            if (cts == _cleanCts) CleanStatus = string.Format(Strings.Scan_CouldntShowPage, ex.Message);
         }
     }
 
@@ -1044,14 +1045,14 @@ public sealed partial class ScanViewModel : ObservableObject
             var edits = await page.EditsWithAsync(choices, default);
             if (edits != page.Edits)
             {
-                RecordLook($"Clean up page {page.Number}", page);
+                RecordLook(string.Format(Strings.Scan_CleanPage, page.Number), page);
                 page.Edits = edits;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Write($"Clean up failed: {ex}");
-            Message = $"Couldn't clean up page {page.Number}: {ex.Message}";
+            Message = string.Format(Strings.Scan_CouldntCleanPage, page.Number, ex.Message);
         }
         CancelClean();
     }
@@ -1063,7 +1064,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (CleanPage is null) return;
         var choices = CleanChoices;
         var targets = Pages.Where(p => !p.IsSeparator && !p.IsSkipped).ToList();
-        CleanStatus = "Working…";
+        CleanStatus = Strings.Scan_Working;
         var results = new List<(ScanPageViewModel Page, PageEdits Before, PageEdits After)>();
         foreach (var page in targets)
         {
@@ -1072,14 +1073,14 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         if (results.Count > 0)
         {
-            History.Record($"Clean up {results.Count} pages", () =>
+            History.Record(Plural.Of(results.Count, Strings.Scan_UndoCleanPages_One, Strings.Scan_UndoCleanPages_Many), () =>
             {
                 foreach (var (page, before, _) in results) page.Edits = before;
             });
             foreach (var (page, _, after) in results) page.Edits = after;
         }
         CancelClean();
-        Message = results.Count == 1 ? "1 page was cleaned up (Undo puts it back)." : $"{results.Count} pages were cleaned up (Undo puts them back).";
+        Message = Plural.Of(results.Count, Strings.Scan_CleanedUp_One, Strings.Scan_CleanedUp_Many);
         Prompt.Announce(Message);
     }
 
@@ -1104,7 +1105,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private void Clear()
     {
         using var hold = HoldRestore();
-        if (HasUnsavedPages && !Prompt.Ask($"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved?", "Discard")) return;
+        if (HasUnsavedPages && !Prompt.Ask(Plural.Of(Pages.Count, Strings.Scan_DiscardUnsaved_One, Strings.Scan_DiscardUnsaved_Many), Strings.Scan_Discard)) return;
         DropPages();
     }
 
@@ -1124,9 +1125,7 @@ public sealed partial class ScanViewModel : ObservableObject
             Pages.Add(page);
         }
         RefreshFiles();
-        Message = pages.Count == 1
-            ? "Restored 1 scanned page that wasn't saved when Inkvolt Print closed."
-            : $"Restored {pages.Count} scanned pages that weren't saved when Inkvolt Print closed.";
+        Message = Plural.Of(pages.Count, Strings.Recovery_Restored_One, Strings.Recovery_Restored_Many);
         Prompt.Announce(Message);
     }
 
@@ -1154,10 +1153,11 @@ public sealed partial class ScanViewModel : ObservableObject
         var files = Files();
         var dialog = new SaveFileDialog
         {
-            Title = files.Count > 1 ? $"Save scan as {files.Count} {(jpg ? "sets of images" : "PDFs")} (numbered)" : jpg ? "Save scan as images" : "Save scan as PDF",
+            Title = files.Count > 1 ? string.Format(jpg ? Strings.Scan_SaveAsImageSetsTitle : Strings.Scan_SaveAsPdfsTitle, files.Count)
+                : jpg ? Strings.Scan_SaveAsImagesTitle : Strings.Scan_SaveAsPdfTitle,
             InitialDirectory = folder,
-            FileName = $"Scan {DateTime.Now:yyyy-MM-dd HHmm}",
-            Filter = jpg ? "JPEG image (*.jpg)|*.jpg" : "PDF document (*.pdf)|*.pdf",
+            FileName = string.Format(Strings.Scan_DefaultFileName, DateTime.Now),
+            Filter = jpg ? Strings.Scan_JpegFilter : Strings.Scan_PdfFilter,
             AddExtension = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -1168,7 +1168,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var all = targets.SelectMany(t => t).ToList();
         // The dialog already asked about the name typed; numbered files (images, several PDFs) are siblings it never saw.
         if (all.Count > 1 && all.Where(t => t != dialog.FileName && File.Exists(t)).ToList() is { Count: > 0 } clobbered &&
-            !Prompt.Ask($"{clobbered.Count} file{(clobbered.Count == 1 ? "" : "s")} like \"{Path.GetFileName(clobbered[0])}\" already exist. Replace them?", "Replace"))
+            !Prompt.Ask(Plural.Of(clobbered.Count, Strings.Scan_ReplaceExisting_One, Strings.Scan_ReplaceExisting_Many, Path.GetFileName(clobbered[0])), Strings.Scan_Replace))
             return;
 
         CancelCrop();
@@ -1203,25 +1203,36 @@ public sealed partial class ScanViewModel : ObservableObject
             LastSavedPath = all[0];
             _savedPdfs = jpg ? [] : all;
             MarkSaved(changes);
-            Message = $"Saved {Path.GetFileName(LastSavedPath)}{(all.Count > 1 ? $" and {all.Count - 1} more" : "")}{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")}."
+            Message = SavedText(Path.GetFileName(LastSavedPath), all.Count, files.Count, jpg)
                       + (jpg ? "" : AsSentNote(files));
             RatingRequest.NoteSuccess(_state);
             if (!jpg && OpenInInkvoltPdf && InkvoltPdfInstalled) OpenSavedInInkvoltPdf();
         }
         catch (OperationCanceledException)
         {
-            Message = "Save cancelled.";
+            Message = Strings.Scan_SaveCancelled;
         }
         catch (Exception ex)
         {
             Log.Write($"Save failed: {ex}");
-            Message = $"Could not save: {ex.Message}";
+            Message = string.Format(Strings.Scan_SaveFailed, ex.Message);
         }
         finally
         {
             EndSave();
             IsBusy = false;
         }
+    }
+
+    /// <summary>"Saved Scan.pdf and 2 more (3 files) in C:\Scans." after a save; <paramref name="folder"/> null leaves the "in" out.</summary>
+    private static string SavedText(string name, int count, int files, bool jpg, string? folder = null)
+    {
+        var inFolder = folder is not null;
+        var text = count <= 1 ? (inFolder ? Strings.Scan_SavedIn : Strings.Scan_Saved)
+            : files <= 1 ? (inFolder ? Strings.Scan_SavedMoreIn : Strings.Scan_SavedMore)
+            : jpg ? (inFolder ? Strings.Scan_SavedMoreSetsIn : Strings.Scan_SavedMoreSets)
+            : inFolder ? Strings.Scan_SavedMoreFilesIn : Strings.Scan_SavedMoreFiles;
+        return string.Format(text, name, count - 1, files, folder);
     }
 
     private void BeginSave()
@@ -1247,7 +1258,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var plans = files.Select(ToSave).Where(f => f.Any(p => p.Origin is not null)).ToList();
         if (plans.Count == 0) return "";
         if (plans.All(f => ScannerPdf.KeepAsSent(f) is not null))
-            return plans.Count == 1 ? " It is the scanner's own PDF, as it sent it." : " They are the scanner's own PDFs, as it sent them.";
+            return " " + (plans.Count == 1 ? Strings.Scan_AsSentOne : Strings.Scan_AsSentMany);
         return " " + plans.Select(ScannerPdf.WhyNotAsSent).OfType<string>().First();
     }
 
@@ -1255,16 +1266,16 @@ public sealed partial class ScanViewModel : ObservableObject
     private static string PdfNote(List<ScanPageViewModel> added, ScanRequest request)
     {
         if (added.FirstOrDefault(p => p.FromPdf is not null)?.FromPdf is not { } origin) return "";
-        var from = request.Source == ScanSource.Platen ? "the glass" : "the feeder";
+        var glass = request.Source == ScanSource.Platen;
         return origin.Rendered
-            ? $"This scanner sends PDF from {from}: its pages were drawn as pictures at {request.Resolution} dpi for the review."
-            : $"This scanner sends PDF from {from}: its pictures were taken out as they came, so the review, text recognition and presets work as usual.";
+            ? string.Format(glass ? Strings.Scan_PdfNoteRenderedGlass : Strings.Scan_PdfNoteRenderedFeeder, request.Resolution)
+            : glass ? Strings.Scan_PdfNoteExtractedGlass : Strings.Scan_PdfNoteExtractedFeeder;
     }
 
     /// <summary>The PDF's pages: each page with its text layer, or for a scan of photos on the glass, each photo (no text).</summary>
     private async Task<List<PdfPage>> PdfPagesAsync(List<ScanPageViewModel> kept)
     {
-        if (kept.Any(p => !p.HasPhotos && !p.OcrAsync().IsCompleted)) Message = "Finishing text recognition…";
+        if (kept.Any(p => !p.HasPhotos && !p.OcrAsync().IsCompleted)) Message = Strings.Scan_FinishingOcr;
         var pages = new List<PdfPage>();
         foreach (var p in kept)
         {
@@ -1315,7 +1326,7 @@ public sealed partial class ScanViewModel : ObservableObject
         foreach (var pdf in _savedPdfs.Contains(LastSavedPath) ? _savedPdfs : [LastSavedPath])
             if (!InkvoltApps.Launch(InkvoltApps.InkvoltPdf, pdf))
             {
-                Message = "Inkvolt PDF couldn't be started.";
+                Message = Strings.Scan_InkvoltPdfNotStarted;
                 return;
             }
     }
@@ -1345,7 +1356,7 @@ public sealed partial class ScanViewModel : ObservableObject
     [RelayCommand]
     private void ManagePresets() => Prompt.EditPresets?.Invoke(_presets, _printerName);
 
-    public string SavePresetText => ActivePreset is { } p ? $"Save ({p.Name})" : "";
+    public string SavePresetText => ActivePreset is { } p ? string.Format(Strings.Scan_SaveWithPreset, p.Name) : "";
 
     /// <summary>The preset matched to this scanner; with Auto, asks whether the feeder holds pages (a short status read).</summary>
     private async Task<ScanJob> PlanAsync(ScanPreset preset)
@@ -1381,16 +1392,16 @@ public sealed partial class ScanViewModel : ObservableObject
         using (HoldRestore())
         {
             if (HasUnsavedPages && !Prompt.Ask(
-                    $"Discard {(Pages.Count == 1 ? "1 page" : $"{Pages.Count} pages")} you haven't saved and scan with \"{preset.Name}\"?", "Discard and scan"))
+                    Plural.Of(Pages.Count, Strings.Scan_DiscardAndScanQuestion_One, Strings.Scan_DiscardAndScanQuestion_Many, preset.Name), Strings.Scan_DiscardAndScan))
                 return;
             DropPages();
         }
         ActivePreset = preset;
-        Prompt.Announce($"Scanning with {preset.Name}");
+        Prompt.Announce(string.Format(Strings.Scan_ScanningWith, preset.Name));
         var added = await ScanPagesAsync(() => PlanAsync(preset));
         if (added <= 0) return;
         if (!preset.Review) await SaveWithPresetAsync();
-        else Message += $" Check the pages, then press {SavePresetText}.";
+        else Message += " " + string.Format(Strings.Scan_CheckThenSave, SavePresetText);
     }
 
     private bool CanSaveWithPreset() => ActivePreset is not null && !IsBusy;
@@ -1407,8 +1418,8 @@ public sealed partial class ScanViewModel : ObservableObject
         if (kept.Count == 0)
         {
             Message = Pages.Any(p => p.IsSeparator)
-                ? "No pages to save: every page was left out as blank or as a separator sheet."
-                : "No pages to save: every page was left out as blank. Keep puts a page back.";
+                ? Strings.Scan_NothingToSaveSeparators
+                : Strings.Scan_NothingToSaveBlank;
             return;
         }
         if (_presets.Folder(preset, out var problem) is not { } root)
@@ -1461,9 +1472,8 @@ public sealed partial class ScanViewModel : ObservableObject
             LastSavedPath = saved[0];
             _savedPdfs = jpg ? [] : saved;
             MarkSaved(changes);
-            Message = $"Saved {Path.GetFileName(saved[0])}{(saved.Count > 1 ? $" and {saved.Count - 1} more" : "")}"
-                + $"{(files.Count > 1 ? $" ({files.Count} {(jpg ? "sets" : "files")})" : "")} in {folder}."
-                + (before.Count == 0 ? "" : $" Already saved the first time, not written again: {string.Join(", ", before.Select(Path.GetFileName))}.")
+            Message = SavedText(Path.GetFileName(saved[0]), saved.Count, files.Count, jpg, folder)
+                + (before.Count == 0 ? "" : " " + string.Format(Strings.Scan_AlreadySaved, string.Join(", ", before.Select(Path.GetFileName))))
                 + (jpg ? "" : AsSentNote(files))
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
@@ -1471,15 +1481,14 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            Message = "Save cancelled.";
+            Message = Strings.Scan_SaveCancelled;
             return;
         }
         catch (Exception ex)
         {
             Log.Write($"Preset save failed: {ex}");
-            Message = saved.Count == 0 ? $"Could not save: {ex.Message}"
-                : $"Saved {done} of {files.Count} files ({string.Join(", ", saved.Select(Path.GetFileName))}), then could not save file {done + 1}: {ex.Message} "
-                  + "Save again saves only the files not saved yet.";
+            Message = saved.Count == 0 ? string.Format(Strings.Scan_SaveFailed, ex.Message)
+                : string.Format(Strings.Scan_PartSaveFailed, done, files.Count, string.Join(", ", saved.Select(Path.GetFileName)), done + 1, ex.Message);
             if (saved.Count > 0) LastSavedPath = saved[0];
             return;
         }
@@ -1558,8 +1567,8 @@ public sealed partial class ScanViewModel : ObservableObject
         var demo = !_pc.OpensOtherApps; // the made-up PC's scans only say what would happen
         if (!jpg && (preset.After == PresetAfter.OpenInInkvoltPdf || OpenInInkvoltPdf))
         {
-            if (demo) Message += " (Demo: nothing is opened in Inkvolt PDF.)";
-            else if (!InkvoltPdfInstalled) Message += " Inkvolt PDF isn't installed, so it wasn't opened.";
+            if (demo) Message += " " + Strings.Scan_DemoNoInkvoltPdf;
+            else if (!InkvoltPdfInstalled) Message += " " + Strings.Scan_InkvoltPdfNotInstalled;
             else OpenSavedInInkvoltPdf();
         }
         switch (preset.After)
@@ -1568,18 +1577,16 @@ public sealed partial class ScanViewModel : ObservableObject
                 await PrintCopyAsync(saved[0], kept);
                 break;
             case PresetAfter.Email when demo:
-                Message += " (Demo: in a real scan your mail app would open a new message with it attached.)";
+                Message += " " + Strings.Mail_DemoNote;
                 break;
             case PresetAfter.Email:
                 var before = Message;
-                var said = Message += " Opening a new message in your mail app…";
+                var said = Message += " " + Strings.Mail_Opening;
                 var note = await MailHandoff.SendAsync(saved, Path.GetFileNameWithoutExtension(saved[0])) switch
                 {
-                    MailHandoff.Result.Attached => " The file was attached to a new message in your mail app.",
-                    MailHandoff.Result.Cancelled => " The email was cancelled; the file is saved.",
-                    _ => saved.Count == 1
-                        ? " Your mail app can't take attachments from other apps, so a new message and the file's folder opened: attach the selected file to the message (drag it in)."
-                        : $" Your mail app can't take attachments from other apps, so a new message and the files' folder opened: attach the {saved.Count} files to the message (drag them in).",
+                    MailHandoff.Result.Attached => " " + Strings.Mail_Attached,
+                    MailHandoff.Result.Cancelled => " " + Strings.Mail_Cancelled,
+                    _ => " " + (saved.Count == 1 ? Strings.Mail_AttachByHandOne : string.Format(Strings.Mail_AttachByHandMany, saved.Count)),
                 };
                 // The tab may have moved on (another scan) while the message window was open: don't write over that.
                 if (Message == said) Message = before + note;
@@ -1594,14 +1601,14 @@ public sealed partial class ScanViewModel : ObservableObject
         if (_pc.MadeUpPrint is { } madeUp)
         {
             madeUp(name, kept.Sum(p => p.ImageCount));
-            Message += " A copy went to the (demo) print queue.";
+            Message += " " + Strings.Scan_DemoPrinted;
             return;
         }
         try
         {
             if (await _findQueue() is not { } queue)
             {
-                Message += " It wasn't printed: this printer isn't set up in Windows yet (Set up, at the top of the page).";
+                Message += " " + Strings.Scan_PrintNotSetUp;
                 return;
             }
             var pages = new List<RenderedPage>();
@@ -1613,12 +1620,12 @@ public sealed partial class ScanViewModel : ObservableObject
                     pages.Add(new RenderedPage(jpeg, wIn, hIn));
                 }
             await QueuePrinter.PrintPagesAsync(queue, pages, copies: 1, twoSided: false, name);
-            Message += " A copy is printing.";
+            Message += " " + Strings.Scan_CopyPrinting;
         }
         catch (Exception ex)
         {
             Log.Write($"Preset print failed: {ex}");
-            Message += $" It couldn't be printed: {ex.Message}";
+            Message += " " + string.Format(Strings.Scan_PrintFailed, ex.Message);
         }
     }
 }
@@ -1703,10 +1710,10 @@ public sealed partial class ScanPageViewModel : ObservableObject
     public string CleanNote(PageFilters wanted, PageEdits edits)
     {
         if (PageCleanup.TooLarge(_size.Width, _size.Height) && (wanted & PageFilters.PixelFilters) != 0)
-            return $"This page is too large to clean up ({(long)_size.Width * _size.Height / 1_000_000} million pixels): it is saved as scanned.";
+            return string.Format(Strings.Scan_TooLargeToClean, (long)_size.Width * _size.Height / 1_000_000);
         if (wanted.HasFlag(PageFilters.CropToPaper) && !edits.Filters.HasFlag(PageFilters.CropToPaper) && !HasPhotos)
-            return "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.";
-        return wanted == PageFilters.None ? "As scanned." : $"Shown {PageCleanup.Describe(wanted)}.";
+            return Strings.Scan_NoEdgeHere;
+        return wanted == PageFilters.None ? Strings.Scan_AsScanned : string.Format(Strings.Scan_Shown, PageCleanup.Describe(wanted));
     }
 
     [ObservableProperty] public partial BitmapSource Thumbnail { get; private set; }
@@ -1754,13 +1761,13 @@ public sealed partial class ScanPageViewModel : ObservableObject
     public bool LooksBlank { get; private set; }
 
     public bool ShowsFileStart => FileStart > 0;
-    public string FileStartText => $"File {FileStart}";
-    public string FileStartMenuText => StartsFile ? "Don't start a new file here" : "Start a new file here";
+    public string FileStartText => string.Format(Strings.Scan_FileNumber, FileStart);
+    public string FileStartMenuText => StartsFile ? Strings.Scan_DontStartFileHere : Strings.Scan_StartFileHere;
 
     /// <summary>"Separator: Patch T sheet" over the thumbnail.</summary>
-    public string SeparatorText => IsSeparator ? $"Separator: {Separator.Description}" : "";
+    public string SeparatorText => IsSeparator ? string.Format(Strings.Scan_SeparatorLabel, Separator.Description) : "";
 
-    public string SeparatorStatus => SeparatorKept ? "Kept: first page of the next file" : "Won't be saved";
+    public string SeparatorStatus => SeparatorKept ? Strings.Scan_SeparatorKeptStatus : Strings.Scan_SeparatorNotSavedStatus;
 
     public BatchPage AsBatchPage => new(IsSeparator, StartsFile, IsSkipped);
 
@@ -1775,7 +1782,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
     public bool HasPhotos => Photos is { Count: > 0 };
 
     /// <summary>The crop button's name: a scan of photos adjusts its photos instead.</summary>
-    public string CropText => FindsPhotos ? "Adjust photos" : "Crop page";
+    public string CropText => FindsPhotos ? Strings.Scan_AdjustPhotos : Strings.Scan_CropPage;
     public bool FindsPhotos => Photos is not null;
 
     /// <summary>The pictures this page saves as: one, or one per photo.</summary>
@@ -1816,19 +1823,21 @@ public sealed partial class ScanPageViewModel : ObservableObject
     {
         get
         {
-            var label = IsSeparator ? $"Page {Number}, separator: {Separator.Description}, {(SeparatorKept ? "kept" : "not saved")}"
-                : Note.Length == 0 ? $"Page {Number}" : $"Page {Number}, {Note.ToLowerInvariant()}";
-            return FileStart > 0 ? $"{label}, starts file {FileStart}" : label;
+            var label = IsSeparator ? string.Format(SeparatorKept ? Strings.Scan_LabelSeparatorKept : Strings.Scan_LabelSeparatorNotSaved, Number, Separator.Description)
+                : Note.Length == 0 ? string.Format(Strings.Scan_LabelPage, Number) : string.Format(Strings.Scan_LabelPageNote, Number, Note.ToLowerInvariant());
+            return FileStart > 0 ? string.Format(Strings.Scan_LabelStartsFile, label, FileStart) : label;
         }
     }
 
     /// <summary>What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", or nothing.</summary>
-    public string Note => IsSeparator ? (SeparatorKept ? "Separator, kept" : "Separator, not saved")
-        : IsSkipped ? "Blank, not saved"
-        : HasPhotos ? (Photos!.Count == 1 ? "1 photo" : $"{Photos.Count} photos") + (Edits.Filters != PageFilters.None ? $", {PageCleanup.Describe(Edits.Filters)}" : "")
-        : FindsPhotos ? "No photos found"
+    public string Note => IsSeparator ? (SeparatorKept ? Strings.Scan_NoteSeparatorKept : Strings.Scan_NoteSeparatorNotSaved)
+        : IsSkipped ? Strings.Scan_NoteBlank
+        : HasPhotos ? Edits.Filters != PageFilters.None
+            ? Plural.Of(Photos!.Count, Strings.Scan_PhotosCleaned_One, Strings.Scan_PhotosCleaned_Many, PageCleanup.Describe(Edits.Filters))
+            : Plural.Of(Photos!.Count, Strings.Scan_Photos_One, Strings.Scan_Photos_Many)
+        : FindsPhotos ? Strings.Scan_NoteNoPhotos
         : Edits.Filters != PageFilters.None ? Capitalized(PageCleanup.Describe(Edits.Filters))
-        : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? "Straightened" : IsEdited ? "Edited" : "";
+        : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? Strings.Scan_NoteStraightened : IsEdited ? Strings.Scan_NoteEdited : "";
 
     private static string Capitalized(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 

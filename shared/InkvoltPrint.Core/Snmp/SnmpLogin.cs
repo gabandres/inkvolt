@@ -35,11 +35,11 @@ public sealed record SnmpLogin
     /// </summary>
     public static SnmpLogin? ForUser(string? name, string? authPassphrase, string? privPassphrase, out string? error)
     {
-        error = string.IsNullOrWhiteSpace(name) ? "Enter the SNMPv3 user name."
-            : name.Length > SnmpV3User.MaxName || name.Any(char.IsControl) ? $"The user name is 1 to {SnmpV3User.MaxName} characters, without control characters."
-            : (authPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? $"The authentication passphrase has at least {SnmpV3User.MinPassphrase} characters."
-            : (privPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? $"The privacy passphrase has at least {SnmpV3User.MinPassphrase} characters."
-            : authPassphrase!.Any(char.IsControl) || privPassphrase!.Any(char.IsControl) ? "The passphrases can't have tabs, line breaks or other control characters."
+        error = string.IsNullOrWhiteSpace(name) ? CoreStrings.Snmp_EnterUserName
+            : name.Length > SnmpV3User.MaxName || name.Any(char.IsControl) ? string.Format(CoreStrings.Snmp_UserNameLength, SnmpV3User.MaxName)
+            : (authPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? string.Format(CoreStrings.Snmp_AuthPassphraseLength, SnmpV3User.MinPassphrase)
+            : (privPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? string.Format(CoreStrings.Snmp_PrivPassphraseLength, SnmpV3User.MinPassphrase)
+            : authPassphrase!.Any(char.IsControl) || privPassphrase!.Any(char.IsControl) ? CoreStrings.Snmp_PassphraseControlChars
             : null;
         return error is null ? new SnmpLogin("", new SnmpV3User(name!, authPassphrase!, privPassphrase!)) : null;
     }
@@ -52,8 +52,8 @@ public sealed record SnmpLogin
     {
         error = null;
         if (string.IsNullOrWhiteSpace(text)) return Public;
-        if (text.Any(char.IsControl)) error = "The community can't have tabs, line breaks or other control characters.";
-        else if (System.Text.Encoding.UTF8.GetByteCount(text) > MaxCommunity) error = $"The community can be at most {MaxCommunity} characters.";
+        if (text.Any(char.IsControl)) error = CoreStrings.Snmp_CommunityControlChars;
+        else if (System.Text.Encoding.UTF8.GetByteCount(text) > MaxCommunity) error = string.Format(CoreStrings.Snmp_CommunityLength, MaxCommunity);
         return error is null ? new SnmpLogin(text) : null;
     }
 

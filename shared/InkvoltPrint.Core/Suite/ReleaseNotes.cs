@@ -46,7 +46,7 @@ public static class ReleaseNotes
 
     public static string Format(IEnumerable<ReleaseNote> notes) =>
         string.Join(Environment.NewLine + Environment.NewLine,
-            notes.Select(n => string.Join(Environment.NewLine, n.Items.Select(i => "• " + i).Prepend($"Version {n.Version}"))));
+            notes.Select(n => string.Join(Environment.NewLine, n.Items.Select(i => "• " + i).Prepend(string.Format(CoreStrings.Suite_Version, n.Version)))));
 
     /// <summary>"1.0.3", "1.0.3.0" → 1.0.3 (the Store's fourth number is always 0).</summary>
     public static Version? Normalize(string? text) => Version.TryParse(text, out var v) ? Normalize(v) : null;

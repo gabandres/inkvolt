@@ -42,6 +42,16 @@ public sealed record Consumable(
     int? EstimatedPagesRemaining,
     DateOnly? Installed)
 {
+    private readonly string? _key;
+
+    /// <summary>
+    /// The supply's name in English, whatever the interface's language: what the supply history keeps it under and what
+    /// alerts are told apart by, so a change of language neither starts a new history nor alerts again. The name itself
+    /// (<see cref="Name"/>) is in the interface's language when Inkvolt Print writes it (LEDM, CDM); a printer's own names
+    /// (IPP, SNMP) are both.
+    /// </summary>
+    public string Key { get => _key ?? Name; init => _key = value; }
+
     /// <summary>Needs attention soon: low, empty, or (a waste box) almost full or full.</summary>
     public bool IsLow => State is "low" or "veryLow" or "out" or "almostFull" or "full" || (PercentRemaining is { } p && LowThreshold is { } t && p <= t);
 

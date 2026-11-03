@@ -3,7 +3,17 @@ using InkvoltPrint.Core.Printing;
 namespace InkvoltPrint.Core.Photos;
 
 /// <summary>A standard print size, short side first, in inches.</summary>
-public sealed record PhotoSize(string Name, double Width, double Height);
+public sealed record PhotoSize(string Name, double Width, double Height)
+{
+    private readonly string _name = Name;
+
+    /// <summary>The size's name; the wallet size's word is read in the interface's language at the moment of use.</summary>
+    public string Name
+    {
+        get => _name == PhotoSizes.WalletName ? CoreStrings.Photo_Wallet : _name;
+        init => _name = value;
+    }
+}
 
 public static class PhotoSizes
 {
@@ -12,7 +22,10 @@ public static class PhotoSizes
     public static readonly PhotoSize In8x10 = new("8 × 10 in", 8, 10);
     public static readonly PhotoSize Cm10x15 = new("10 × 15 cm", 100 / 25.4, 150 / 25.4);
     public static readonly PhotoSize Cm13x18 = new("13 × 18 cm", 130 / 25.4, 180 / 25.4);
-    public static readonly PhotoSize Wallet = new("Wallet (2.5 × 3.5 in)", 2.5, 3.5);
+    /// <summary>The wallet size's name as kept (shown as <see cref="CoreStrings.Photo_Wallet"/>).</summary>
+    internal const string WalletName = "Wallet (2.5 × 3.5 in)";
+
+    public static readonly PhotoSize Wallet = new(WalletName, 2.5, 3.5);
 
     public static IReadOnlyList<PhotoSize> All { get; } = [In4x6, In5x7, In8x10, Cm10x15, Cm13x18, Wallet];
 }

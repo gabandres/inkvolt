@@ -13,10 +13,10 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
     public static PrinterAddress Parse(string? typed)
     {
         var text = typed?.Trim() ?? "";
-        if (text.Length == 0) return Fail("Type the printer's IP address or name.");
+        if (text.Length == 0) return Fail(CoreStrings.Net_TypeAddress);
         if (text.Contains("://", StringComparison.Ordinal))
         {
-            if (!Uri.TryCreate(text, UriKind.Absolute, out var url) || url.Host.Length == 0) return Fail($"\"{text}\" is not a valid address.");
+            if (!Uri.TryCreate(text, UriKind.Absolute, out var url) || url.Host.Length == 0) return Fail(string.Format(CoreStrings.Net_NotValidAddress, text));
             return url.Scheme switch
             {
                 "ipp" => FromIpp(url, Uri.UriSchemeHttp),
@@ -24,12 +24,12 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
                 // The printer's web page: its host. On a port of its own, it's the IPP server there.
                 "http" or "https" when url.IsDefaultPort => new PrinterAddress(url.Host, null, null),
                 "http" or "https" => new PrinterAddress(url.Host, IppUrl(url.Scheme, url.Host, url.Port, url.AbsolutePath), null),
-                _ => Fail("Use the printer's IP address or name (or an http, https, ipp or ipps address)."),
+                _ => Fail(CoreStrings.Net_UseAddress),
             };
         }
         if (!Uri.TryCreate("http://" + text, UriKind.Absolute, out var hostPort) || hostPort.Host.Length == 0
             || hostPort.AbsolutePath != "/" || hostPort.Query.Length > 0 || Uri.CheckHostName(hostPort.Host) == UriHostNameType.Unknown)
-            return Fail($"\"{text}\" is not a valid address.");
+            return Fail(string.Format(CoreStrings.Net_NotValidAddress, text));
         // host:port names the printer's IPP server; a bare host keeps its spelling (Windows names are shown as typed).
         return hostPort.IsDefaultPort
             ? new PrinterAddress(text.StartsWith('[') ? hostPort.Host : text, null, null)

@@ -3,26 +3,26 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:InkvoltPrint.App.Views"
         xmlns:loc="clr-namespace:InkvoltPrint.App"
-        Title="Inkvolt Print settings" Icon="/InkvoltPrint.ico" Width="600" SizeToContent="Height" ResizeMode="NoResize"
+        Title="{x:Static loc:Strings.AppSettings_Title}" Icon="/InkvoltPrint.ico" Width="600" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <DockPanel>
         <Border DockPanel.Dock="Bottom" Padding="24,12,24,16" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Close" IsCancel="True" IsDefault="True" Click="Close_Click" MinWidth="96"
+                <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.Common_Close}" IsCancel="True" IsDefault="True" Click="Close_Click" MinWidth="96"
                         Style="{DynamicResource AccentButtonStyle}" />
-                <Button Content="Reset to defaults" Click="Reset_Click" HorizontalAlignment="Left"
-                        ToolTip="Theme, scan folder, Inkvolt PDF and the notification area back to how they start. Printers, presets and scans are kept." />
+                <Button Content="{x:Static loc:Strings.AppSettings_ResetDefaults}" Click="Reset_Click" HorizontalAlignment="Left"
+                        ToolTip="{x:Static loc:Strings.AppSettings_ResetTip}" />
             </DockPanel>
         </Border>
         <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="24,20,24,20">
-                <TextBlock Text="Appearance" Style="{StaticResource CardTitle}" />
-                <TextBlock Text="Theme" Margin="0,0,0,6" />
-                <StackPanel x:Name="ThemeChoices" AutomationProperties.Name="Theme">
-                    <RadioButton Content="Use Windows' setting" Tag="System" GroupName="theme" Checked="Theme_Checked" />
-                    <RadioButton Content="Light" Tag="Light" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
-                    <RadioButton Content="Dark" Tag="Dark" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
+                <TextBlock Text="{x:Static loc:Strings.AppSettings_Appearance}" Style="{StaticResource CardTitle}" />
+                <TextBlock Text="{x:Static loc:Strings.AppSettings_Theme}" Margin="0,0,0,6" />
+                <StackPanel x:Name="ThemeChoices" AutomationProperties.Name="{x:Static loc:Strings.AppSettings_Theme}">
+                    <RadioButton Content="{x:Static loc:Strings.AppSettings_ThemeWindows}" Tag="System" GroupName="theme" Checked="Theme_Checked" />
+                    <RadioButton Content="{x:Static loc:Strings.AppSettings_ThemeLight}" Tag="Light" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
+                    <RadioButton Content="{x:Static loc:Strings.AppSettings_ThemeDark}" Tag="Dark" GroupName="theme" Margin="0,6,0,0" Checked="Theme_Checked" />
                 </StackPanel>
                 <StackPanel x:Name="LanguageSection">
                     <TextBlock Text="{x:Static loc:Strings.Settings_Language}" Margin="0,16,0,6" />
@@ -37,26 +37,26 @@
                                Text="{x:Static loc:Strings.Settings_LanguageRestart}" />
                 </StackPanel>
 
-                <TextBlock Text="Scanning" Style="{StaticResource CardTitle}" Margin="0,24,0,8" />
-                <TextBlock Text="Save scans to" Margin="0,0,0,6" />
+                <TextBlock Text="{x:Static loc:Strings.AppSettings_Scanning}" Style="{StaticResource CardTitle}" Margin="0,24,0,8" />
+                <TextBlock Text="{x:Static loc:Strings.AppSettings_SaveScansTo}" Margin="0,0,0,6" />
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Change…" Click="ChangeFolder_Click" Margin="8,0,0,0"
-                            AutomationProperties.Name="Change the folder scans are saved to" />
-                    <TextBox x:Name="FolderText" IsReadOnly="True" AutomationProperties.Name="Folder scans are saved to" VerticalContentAlignment="Center" />
+                    <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.Common_Change}" Click="ChangeFolder_Click" Margin="8,0,0,0"
+                            AutomationProperties.Name="{x:Static loc:Strings.AppSettings_ChangeFolderName}" />
+                    <TextBox x:Name="FolderText" IsReadOnly="True" AutomationProperties.Name="{x:Static loc:Strings.AppSettings_FolderName}" VerticalContentAlignment="Center" />
                 </DockPanel>
                 <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Where Save opens; it follows the folder you last saved to. Presets save to their own folders." />
+                           Text="{x:Static loc:Strings.AppSettings_FolderNote}" />
                 <CheckBox x:Name="OpenInPdfBox" Margin="0,12,0,0" Checked="OpenInPdf_Changed" Unchecked="OpenInPdf_Changed"
-                          AutomationProperties.Name="Open scans in Inkvolt PDF" AutomationProperties.HelpText="Each PDF you save opens there automatically">
+                          AutomationProperties.Name="{x:Static loc:Strings.AppSettings_OpenInPdf}" AutomationProperties.HelpText="{x:Static loc:Strings.AppSettings_OpenInPdfNote}">
                     <StackPanel>
-                        <TextBlock Text="Open scans in Inkvolt PDF" />
-                        <TextBlock Text="Each PDF you save opens there automatically" Style="{StaticResource Caption}" FontSize="12" />
+                        <TextBlock Text="{x:Static loc:Strings.AppSettings_OpenInPdf}" />
+                        <TextBlock Text="{x:Static loc:Strings.AppSettings_OpenInPdfNote}" Style="{StaticResource Caption}" FontSize="12" />
                     </StackPanel>
                 </CheckBox>
-                <Button x:Name="PresetsButton" Content="Edit scan presets…" Click="Presets_Click" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                <Button x:Name="PresetsButton" Content="{x:Static loc:Strings.AppSettings_EditPresets}" Click="Presets_Click" HorizontalAlignment="Left" Margin="0,12,0,0" />
 
                 <StackPanel x:Name="AlertsSection">
-                    <TextBlock Text="Notification area and alerts" Style="{StaticResource CardTitle}" Margin="0,24,0,8" />
+                    <TextBlock Text="{x:Static loc:Strings.AppSettings_TrayAlerts}" Style="{StaticResource CardTitle}" Margin="0,24,0,8" />
                     <views:AlertSettingsPanel x:Name="Alerts" />
                 </StackPanel>
             </StackPanel>

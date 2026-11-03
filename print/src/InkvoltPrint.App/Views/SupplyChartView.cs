@@ -111,14 +111,14 @@ public sealed class SupplyChartView : FrameworkElement
         var parts = data.Lines.Select(l =>
         {
             var points = l.Segments.SelectMany(s => s).ToList();
-            var changes = l.Changes.Count switch
+            return l.Changes.Count switch
             {
-                0 => "",
-                1 => $", changed on {l.Changes[0].ToString("d MMM yyyy", CultureInfo.CurrentCulture)}",
-                var n => $", changed {n} times",
+                0 => string.Format(Strings.Chart_LineName, l.Supply, points[0].Percent, points[^1].Percent),
+                1 => string.Format(Strings.Chart_LineNameChangedOn, l.Supply, points[0].Percent, points[^1].Percent,
+                    l.Changes[0].ToString("d MMM yyyy", CultureInfo.CurrentCulture)),
+                var n => string.Format(Strings.Chart_LineNameChangedTimes, l.Supply, points[0].Percent, points[^1].Percent, n),
             };
-            return $"{l.Supply} from {points[0].Percent}% to {points[^1].Percent}%{changes}";
         });
-        AutomationProperties.SetName(this, $"Levels since {data.From.ToString("d MMM yyyy", CultureInfo.CurrentCulture)}: {string.Join("; ", parts)}");
+        AutomationProperties.SetName(this, string.Format(Strings.Chart_Name, data.From.ToString("d MMM yyyy", CultureInfo.CurrentCulture), string.Join("; ", parts)));
     }
 }

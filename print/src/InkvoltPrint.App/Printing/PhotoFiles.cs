@@ -41,15 +41,16 @@ public static class PhotoFiles
     {
         var ext = System.IO.Path.GetExtension(path);
         if (Heif.Contains(ext, StringComparer.OrdinalIgnoreCase) && !CanReadHeif)
-            return "HEIC photos need the HEIF Image Extensions from the Microsoft Store, which this PC doesn't have.";
+            return Strings.Photos_NeedHeif;
         if (Webp.Contains(ext, StringComparer.OrdinalIgnoreCase) && !CanReadWebp)
-            return "WebP pictures need the Webp Image Extensions from the Microsoft Store, which this PC doesn't have.";
+            return Strings.Photos_NeedWebp;
         return null;
     }
 
     /// <summary>The Open dialog's filter.</summary>
     public static string DialogFilter =>
-        $"Pictures ({string.Join(", ", Extensions.Select(e => "*" + e))})|{string.Join(";", Extensions.Select(e => "*" + e))}|All files (*.*)|*.*";
+        string.Format(Strings.Photos_FilterPictures, string.Join(", ", Extensions.Select(e => "*" + e))) + "|" + string.Join(";", Extensions.Select(e => "*" + e))
+        + "|" + Strings.Photos_FilterAll + "|*.*";
 
     /// <summary>What the Photos tab says about formats on this PC.</summary>
     public static string FormatsText
@@ -62,8 +63,13 @@ public static class PhotoFiles
             var missing = new List<string>();
             if (!CanReadHeif) missing.Add("HEIC");
             if (!CanReadWebp) missing.Add("WebP");
-            return $"JPEG, PNG, BMP, GIF, TIFF{string.Concat(extra.Select(e => ", " + e))}." +
-                   (missing.Count > 0 ? $" {string.Join(" and ", missing)} need Windows' image extension{(missing.Count > 1 ? "s" : "")} from the Microsoft Store." : "");
+            var formats = $"JPEG, PNG, BMP, GIF, TIFF{string.Concat(extra.Select(e => ", " + e))}.";
+            return missing.Count switch
+            {
+                0 => formats,
+                1 => formats + " " + string.Format(Strings.Photos_MissingOne, missing[0]),
+                _ => formats + " " + string.Format(Strings.Photos_MissingTwo, missing[0], missing[1]),
+            };
         }
     }
 
@@ -80,12 +86,12 @@ public static class PhotoFiles
         var isJpeg = decoder is JpegBitmapDecoder;
         // GIF frames are an animation: its first frame is the picture. TIFF pages are pictures of their own.
         var frames = decoder is TiffBitmapDecoder ? decoder.Frames.Count : 1;
-        if (frames > maxPages) throw new InvalidDataException($"The picture has {frames:N0} pages: a batch takes at most {maxPages:N0} per file.");
+        if (frames > maxPages) throw new InvalidDataException(string.Format(Strings.Photos_TooManyPages, frames, maxPages));
         var list = new List<PhotoSource>(frames);
         for (var i = 0; i < frames; i++)
         {
             var frame = decoder.Frames[i];
-            list.Add(new PhotoSource(path, i, frames > 1 ? $"{name}, page {i + 1}" : name, frame.PixelWidth, frame.PixelHeight, Orientation(frame), isJpeg));
+            list.Add(new PhotoSource(path, i, frames > 1 ? string.Format(Strings.Photos_FilePage, name, i + 1) : name, frame.PixelWidth, frame.PixelHeight, Orientation(frame), isJpeg));
         }
         return list;
     }

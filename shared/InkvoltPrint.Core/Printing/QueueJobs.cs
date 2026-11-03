@@ -39,18 +39,18 @@ public static class QueueJobText
     /// <summary>The most important state first: a job that is printing but out of paper is "Out of paper".</summary>
     public static string Status(JobStatus s) => s switch
     {
-        _ when s.HasFlag(JobStatus.Deleting) || s.HasFlag(JobStatus.Deleted) => "Cancelling",
-        _ when s.HasFlag(JobStatus.PaperOut) => "Out of paper",
-        _ when s.HasFlag(JobStatus.Offline) => "Printer offline",
-        _ when s.HasFlag(JobStatus.UserIntervention) => "Needs attention at the printer",
-        _ when s.HasFlag(JobStatus.Error) => "Error",
-        _ when s.HasFlag(JobStatus.Blocked) => "Blocked",
-        _ when s.HasFlag(JobStatus.Paused) => "Paused",
-        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) => "Printed",
-        _ when s.HasFlag(JobStatus.Printing) => "Printing", // before Retained: a real queue says Printing | Retained while it's still trying
-        _ when s.HasFlag(JobStatus.Retained) => "Printed",
-        _ when s.HasFlag(JobStatus.Spooling) => "Preparing",
-        _ => "Waiting",
+        _ when s.HasFlag(JobStatus.Deleting) || s.HasFlag(JobStatus.Deleted) => CoreStrings.Status_JobCancelling,
+        _ when s.HasFlag(JobStatus.PaperOut) => CoreStrings.Status_OutOfPaper,
+        _ when s.HasFlag(JobStatus.Offline) => CoreStrings.Status_JobPrinterOffline,
+        _ when s.HasFlag(JobStatus.UserIntervention) => CoreStrings.Status_JobNeedsAttention,
+        _ when s.HasFlag(JobStatus.Error) => CoreStrings.Status_JobError,
+        _ when s.HasFlag(JobStatus.Blocked) => CoreStrings.Status_JobBlocked,
+        _ when s.HasFlag(JobStatus.Paused) => CoreStrings.Status_JobPaused,
+        _ when s.HasFlag(JobStatus.Printed) || s.HasFlag(JobStatus.Completed) => CoreStrings.Status_JobPrinted,
+        _ when s.HasFlag(JobStatus.Printing) => CoreStrings.Status_JobPrinting, // before Retained: a real queue says Printing | Retained while it's still trying
+        _ when s.HasFlag(JobStatus.Retained) => CoreStrings.Status_JobPrinted,
+        _ when s.HasFlag(JobStatus.Spooling) => CoreStrings.Status_JobPreparing,
+        _ => CoreStrings.Status_JobWaiting,
     };
 
     /// <summary>A job that needs the user, not just patience.</summary>
@@ -61,8 +61,8 @@ public static class QueueJobText
     public static string Pages(int pages, int printed, JobStatus s)
     {
         if (pages <= 0) return "";
-        if (s.HasFlag(JobStatus.Printing) && printed > 0 && printed < pages) return $"Page {printed + 1} of {pages}";
-        return pages == 1 ? "1 page" : $"{pages} pages";
+        if (s.HasFlag(JobStatus.Printing) && printed > 0 && printed < pages) return string.Format(CoreStrings.Status_JobPageOf, printed + 1, pages);
+        return Plural.Of(pages, CoreStrings.Status_JobPages_One, CoreStrings.Status_JobPages_Many);
     }
 
     /// <summary>Submitted time: just the time for today's jobs, else the date too.</summary>
@@ -78,10 +78,11 @@ public static class QueueJobText
     /// <summary>One line under the card title: "2 jobs, 1 printing".</summary>
     public static string Summary(IReadOnlyCollection<QueueJob> jobs)
     {
-        if (jobs.Count == 0) return "Nothing waiting to print";
+        if (jobs.Count == 0) return CoreStrings.Status_JobsNone;
         var printing = jobs.Count(j => j.Status.HasFlag(JobStatus.Printing));
-        var what = jobs.Count == 1 ? "1 job" : $"{jobs.Count} jobs";
-        return printing > 0 && jobs.Count > 1 ? $"{what}, {printing} printing" : what;
+        return printing > 0 && jobs.Count > 1
+            ? string.Format(CoreStrings.Status_JobsPrinting, jobs.Count, printing)
+            : Plural.Of(jobs.Count, CoreStrings.Status_Jobs_One, CoreStrings.Status_Jobs_Many);
     }
 
     /// <summary>Oldest first, like the Windows queue window.</summary>

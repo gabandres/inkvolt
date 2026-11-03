@@ -29,7 +29,9 @@ public enum ToastAction
 public static class AlertToasts
 {
     public const string Group = "alerts";
-    public const string OpenPrinterText = "Open printer", PauseAlertsText = "Pause alerts", OpenQueueText = "Open the queue";
+    public static string OpenPrinterText => CoreStrings.Alert_OpenPrinter;
+    public static string PauseAlertsText => CoreStrings.Alert_PauseAlerts;
+    public static string OpenQueueText => CoreStrings.Alert_OpenQueue;
 
     /// <summary>More jobs than this from one printer at once share a toast: a dead printer doesn't fill the screen.</summary>
     public const int MaxJobToasts = 3;
@@ -56,10 +58,10 @@ public static class AlertToasts
     public static (string Title, string Text) Text(IReadOnlyList<AlertNotice> notices)
     {
         if (notices.Count == 1) return (notices[0].Title, notices[0].Body);
-        if (notices[0].JobKey is null) return ($"{notices.Count} alerts", string.Join("\n", notices.Select(n => n.Title)));
+        if (notices[0].JobKey is null) return (string.Format(CoreStrings.Alert_ToastAlerts, notices.Count), string.Join("\n", notices.Select(n => n.Title)));
         var lines = notices.Take(MaxJobToasts).Select(n => n.Title).ToList();
-        if (notices.Count > lines.Count) lines.Add($"and {notices.Count - lines.Count} more");
-        return ($"{notices.Count} print jobs need attention", string.Join("\n", lines));
+        if (notices.Count > lines.Count) lines.Add(string.Format(CoreStrings.Alert_ToastAndMore, notices.Count - lines.Count));
+        return (string.Format(CoreStrings.Alert_ToastJobs, notices.Count), string.Join("\n", lines));
     }
 
     /// <summary>

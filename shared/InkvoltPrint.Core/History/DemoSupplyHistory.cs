@@ -28,7 +28,7 @@ public static class DemoSupplyHistory
 
         foreach (var s in supplies.Where(s => !s.IsWaste && s.PercentRemaining is not null))
         {
-            var name = SupplyHistoryStore.Clean(s.Name, SupplyHistoryStore.MaxName);
+            var name = SupplyHistoryStore.Clean(s.Key, SupplyHistoryStore.MaxName);
             var color = SupplyHistoryStore.CleanColor(s.ColorCode);
             var perDay = 0.22 + random.NextDouble() * 0.28;
             var level = (double)s.PercentRemaining!.Value;

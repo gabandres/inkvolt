@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.Text;
+using InkvoltPrint.Core;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.Windows.Cleanup;
@@ -22,11 +23,20 @@ public static class HpLeftovers
     {
         public bool Any => Services.Count > 0 || Queue || Folder;
 
+        /// <summary>What was found, in English: also the fingerprint a dismissed banner is remembered by (state.json), so never translated.</summary>
         public override string ToString() => string.Join(", ", new[]
         {
             Services.Count > 0 ? $"{Services.Count} background service{(Services.Count == 1 ? "" : "s")}" : null,
             Queue ? "the \"HP Smart Printing\" printer" : null,
             Folder && Services.Count == 0 ? "leftover files" : null,
+        }.Where(s => s is not null));
+
+        /// <summary>What was found, in the interface's words.</summary>
+        public string Text => string.Join(", ", new[]
+        {
+            Services.Count > 0 ? Plural.Of(Services.Count, CoreStrings.Win_HpServices_One, CoreStrings.Win_HpServices_Many) : null,
+            Queue ? CoreStrings.Win_HpQueue : null,
+            Folder && Services.Count == 0 ? CoreStrings.Win_HpLeftoverFiles : null,
         }.Where(s => s is not null));
     }
 
@@ -77,18 +87,18 @@ public static class HpLeftovers
         var wrapped = "try { " + script + " } catch { exit 64 }";
         var code = await Elevated.RunAsync(wrapped,
             [$@"HKLM:\{MetadataKey}", Services[0], Services[1], Queue, Folder], TimeSpan.FromMinutes(2), ct);
-        if (code is Elevated.Cancelled or Elevated.StoppedWaiting) return "Cancelled: Windows needs administrator permission to remove HP's background services.";
-        if (code == Elevated.TimedOut) return "Windows did not finish removing HP's services in time.";
+        if (code is Elevated.Cancelled or Elevated.StoppedWaiting) return CoreStrings.Win_HpCancelled;
+        if (code == Elevated.TimedOut) return CoreStrings.Win_HpTimedOut;
 
-        if (code is 64 or 1) return "Windows couldn't run the clean-up. Nothing may have been removed; try again.";
+        if (code is 64 or 1) return CoreStrings.Win_HpCouldntRun;
         var problems = new List<string>();
-        if ((code & FailSetting) != 0) problems.Add("couldn't stop Windows from re-installing HP's print app");
-        if ((code & FailService) != 0) problems.Add("a service couldn't be removed");
-        if ((code & FailQueue) != 0) problems.Add("the \"HP Smart Printing\" printer couldn't be removed");
-        if ((code & FailFiles) != 0) problems.Add("some files couldn't be deleted");
-        if ((code & SkippedLinkedFolder) != 0) problems.Add($"{Folder} is a link, so it was left in place");
+        if ((code & FailSetting) != 0) problems.Add(CoreStrings.Win_HpFailSetting);
+        if ((code & FailService) != 0) problems.Add(CoreStrings.Win_HpFailService);
+        if ((code & FailQueue) != 0) problems.Add(CoreStrings.Win_HpFailQueue);
+        if ((code & FailFiles) != 0) problems.Add(CoreStrings.Win_HpFailFiles);
+        if ((code & SkippedLinkedFolder) != 0) problems.Add(string.Format(CoreStrings.Win_HpLinkedFolder, Folder));
         var still = await FindAsync();
-        if (still.Any) problems.Insert(0, $"still present: {still}");
+        if (still.Any) problems.Insert(0, string.Format(CoreStrings.Win_HpStillPresent, still.Text));
         return problems.Count == 0 ? null : char.ToUpperInvariant(problems[0][0]) + string.Join("; ", problems)[1..] + ".";
     }
 }

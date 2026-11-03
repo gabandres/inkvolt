@@ -43,7 +43,7 @@ public sealed record Repair(RepairKind Kind, string Title, string Detail)
     public string? Question { get; init; }
 
     /// <summary>Confirm-button wording for <see cref="Question"/>.</summary>
-    public string Confirm { get; init; } = "Fix it";
+    public string Confirm { get; init; } = CoreStrings.Offline_FixIt;
 
     /// <summary>Windows never lets a standard user do this (services, ports, adding printers by URL): go straight to elevation.</summary>
     public bool AdminOnly { get; init; }
@@ -72,41 +72,40 @@ public sealed record Repair(RepairKind Kind, string Title, string Detail)
 /// <summary>Manual steps for each repair, in Windows 11's wording, for packaged copies and anything Windows refuses.</summary>
 public static class ManualSteps
 {
-    private const string Printers = "Open Settings › Bluetooth & devices › Printers & scanners";
-
     public static IReadOnlyList<string> For(RepairKind kind, string? queue = null, string? target = null, Uri? url = null)
     {
-        var q = queue is null ? "the printer" : $"“{queue}”";
+        var q = queue is null ? CoreStrings.Offline_StepThePrinter : $"“{queue}”";
+        var openQueue = string.Format(CoreStrings.Offline_StepOpenQueue, q);
         return kind switch
         {
             RepairKind.StartSpooler or RepairKind.RestartSpooler =>
             [
-                "Press Windows+R, type services.msc and press Enter.",
-                $"Find Print Spooler, right-click it and choose {(kind == RepairKind.StartSpooler ? "Start" : "Restart")} (Windows asks for an administrator).",
+                CoreStrings.Offline_StepServices,
+                kind == RepairKind.StartSpooler ? CoreStrings.Offline_StepStartSpooler : CoreStrings.Offline_StepRestartSpooler,
             ],
-            RepairKind.ResumeQueue => [$"{Printers}, select {q}, then Open print queue.", "In the queue window, open the Printer menu and untick Pause Printing."],
-            RepairKind.ClearWorkOffline => [$"{Printers}, select {q}, then Open print queue.", "In the queue window, open the Printer menu and untick Use Printer Offline."],
+            RepairKind.ResumeQueue => [openQueue, CoreStrings.Offline_StepUntickPause],
+            RepairKind.ClearWorkOffline => [openQueue, CoreStrings.Offline_StepUntickOffline],
             RepairKind.PointPortAt =>
             [
-                $"{Printers}, select {q}, then Printer properties › Ports.",
-                "Choose Add Port… › Standard TCP/IP Port › New Port…, then Next.",
-                $"Enter {target ?? "the printer's address"} as the printer name or IP address and finish the wizard.",
-                "Back on the Ports tab, make sure the new port is ticked, then choose Apply.",
+                string.Format(CoreStrings.Offline_StepPorts, q),
+                CoreStrings.Offline_StepAddPort,
+                string.Format(CoreStrings.Offline_StepEnterAddress, target ?? CoreStrings.Offline_StepPrinterAddress),
+                CoreStrings.Offline_StepApplyPort,
             ],
             RepairKind.RecreateIppQueue =>
             [
-                $"{Printers}, select {q} and choose Remove.",
-                "Choose Add device, then Add manually › Add a printer using an IP address or hostname.",
-                $"Pick IPP Device and enter {url?.AbsoluteUri ?? "the printer's address"}.",
+                string.Format(CoreStrings.Offline_StepRemove, q),
+                CoreStrings.Offline_StepAddByAddress,
+                string.Format(CoreStrings.Offline_StepIppDevice, url?.AbsoluteUri ?? CoreStrings.Offline_StepPrinterAddress),
             ],
-            RepairKind.SetUpAgain => [$"{Printers}, select {q} and choose Remove.", "Back in Inkvolt Print, choose Set up."],
-            RepairKind.CancelStuckJobs => [$"{Printers}, select {q}, then Open print queue.", "Right-click each stuck job and choose Cancel. Other people's jobs need an administrator."],
-            RepairKind.RestartStuckJobs => [$"{Printers}, select {q}, then Open print queue.", "Right-click each stuck job and choose Restart."],
+            RepairKind.SetUpAgain => [string.Format(CoreStrings.Offline_StepRemove, q), CoreStrings.Offline_StepSetUp],
+            RepairKind.CancelStuckJobs => [openQueue, CoreStrings.Offline_StepCancelJobs],
+            RepairKind.RestartStuckJobs => [openQueue, CoreStrings.Offline_StepRestartJobs],
             RepairKind.TurnOffSnmp =>
             [
-                $"{Printers}, select {q}, then Printer properties › Ports.",
-                "Select the ticked port and choose Configure Port… (Windows asks for an administrator).",
-                "Untick SNMP Status Enabled, then choose OK and Apply.",
+                string.Format(CoreStrings.Offline_StepPorts, q),
+                CoreStrings.Offline_StepConfigurePort,
+                CoreStrings.Offline_StepUntickSnmp,
             ],
             _ => [],
         };
@@ -164,16 +163,16 @@ public static class RepairRunner
 {
     public static async Task<RepairOutcome> RunAsync(Repair repair, IOfflineRepairs repairs, bool canElevate, CancellationToken ct = default)
     {
-        if (repair.ManualOnly) return new(RepairOutcomeKind.Manual, "Do this in Windows:", repair.ManualSteps);
+        if (repair.ManualOnly) return new(RepairOutcomeKind.Manual, CoreStrings.Offline_DoThisInWindows, repair.ManualSteps);
         var doneAsUser = 0; // jobs the user-level pass already changed, before any permission prompt
         if (!repair.AdminOnly)
         {
             var user = await repairs.AsUserAsync(repair, ct).ConfigureAwait(false);
             switch (user.Result)
             {
-                case AttemptResult.Done: return RepairOutcome.Fixed("Done.");
-                case AttemptResult.Failed: return new(RepairOutcomeKind.Failed, user.Message ?? "Windows couldn't do it.", repair.ManualSteps);
-                case AttemptResult.Cancelled: return new(RepairOutcomeKind.Cancelled, user.Message ?? "Cancelled.", []);
+                case AttemptResult.Done: return RepairOutcome.Fixed(CoreStrings.Offline_Done);
+                case AttemptResult.Failed: return new(RepairOutcomeKind.Failed, user.Message ?? CoreStrings.Offline_WindowsCouldnt, repair.ManualSteps);
+                case AttemptResult.Cancelled: return new(RepairOutcomeKind.Cancelled, user.Message ?? CoreStrings.Offline_Cancelled, []);
                 case AttemptResult.Unknown: return Unknown;
             }
             // Jobs the user could change are done; only the refused ones go to the administrator.
@@ -185,11 +184,11 @@ public static class RepairRunner
         }
         if (repair.OnAnotherPc)
             return new(RepairOutcomeKind.Manual,
-                "Windows refused: the PC sharing this printer decides who may change it. Do it there, or ask whoever looks after it:",
+                CoreStrings.Offline_RefusedOtherPc,
                 repair.ManualSteps);
         if (!canElevate)
             return new(RepairOutcomeKind.Manual,
-                "Windows needs an administrator for this, and the Microsoft Store version of Inkvolt Print doesn't ask for that. Do it in Windows:",
+                CoreStrings.Offline_StoreNoAdmin,
                 repair.ManualSteps);
         Attempt admin;
         try
@@ -202,18 +201,19 @@ public static class RepairRunner
         }
         return admin.Result switch
         {
-            AttemptResult.Done => RepairOutcome.Fixed("Done."),
+            AttemptResult.Done => RepairOutcome.Fixed(CoreStrings.Offline_Done),
             AttemptResult.Cancelled => new(RepairOutcomeKind.Cancelled,
-                AlreadyDone(repair.Kind, doneAsUser) + "Cancelled: Windows needs administrator permission for " +
-                (doneAsUser > 0 ? $"the other {Jobs(repair.JobIds.Count)}." : "this."), []),
+                AlreadyDone(repair.Kind, doneAsUser) + (doneAsUser > 0
+                    ? Plural.Of(repair.JobIds.Count, CoreStrings.Offline_CancelledNeedAdminOther_One, CoreStrings.Offline_CancelledNeedAdminOther_Many)
+                    : CoreStrings.Offline_CancelledNeedAdmin), []),
             AttemptResult.Stopped => StoppedAfter(repair.Kind, doneAsUser, repair.JobIds.Count),
             AttemptResult.Unknown => Unknown,
-            _ => new(RepairOutcomeKind.Failed, admin.Message ?? "Windows couldn't do it.", repair.ManualSteps),
+            _ => new(RepairOutcomeKind.Failed, admin.Message ?? CoreStrings.Offline_WindowsCouldnt, repair.ManualSteps),
         };
     }
 
     /// <summary>The user stopped waiting (Cancel) while Windows' permission prompt was unanswered, before anything was done.</summary>
-    public static readonly RepairOutcome Stopped = StoppedAfter(RepairKind.CancelStuckJobs, 0, 0);
+    public static RepairOutcome Stopped => StoppedAfter(RepairKind.CancelStuckJobs, 0, 0);
 
     /// <summary>
     /// Stopped waiting for the prompt: says what the user-level pass already did (jobs Windows let the user cancel or restart),
@@ -221,19 +221,15 @@ public static class RepairRunner
     /// </summary>
     public static RepairOutcome StoppedAfter(RepairKind kind, int doneAsUser, int left) => new(RepairOutcomeKind.Stopped,
         doneAsUser == 0
-            ? "Stopped waiting for Windows' permission, so nothing was changed. If the prompt is still open, answering it now does nothing."
+            ? CoreStrings.Offline_StoppedNothingChanged
             : AlreadyDone(kind, doneAsUser) +
-              $"Stopped waiting for Windows' permission for the other {Jobs(left)}, so they weren't changed. If the prompt is still open, answering it now does nothing.",
+              Plural.Of(left, CoreStrings.Offline_StoppedOther_One, CoreStrings.Offline_StoppedOther_Many),
         []);
 
     private static string AlreadyDone(RepairKind kind, int n) =>
-        n == 0 ? "" : $"{Capital(Jobs(n))} {(n == 1 ? "was" : "were")} {(kind == RepairKind.RestartStuckJobs ? "restarted" : "cancelled")} " +
-                      "without administrator permission. ";
+        n == 0 ? "" : (kind == RepairKind.RestartStuckJobs
+            ? Plural.Of(n, CoreStrings.Offline_RestartedAsUser_One, CoreStrings.Offline_RestartedAsUser_Many)
+            : Plural.Of(n, CoreStrings.Offline_CancelledAsUser_One, CoreStrings.Offline_CancelledAsUser_Many)) + " ";
 
-    private static string Jobs(int n) => n == 1 ? "1 job" : $"{n} jobs";
-
-    private static string Capital(string s) => char.ToUpperInvariant(s[0]) + s[1..];
-
-    private static readonly RepairOutcome Unknown = new(RepairOutcomeKind.Unknown,
-        "Windows hasn't finished yet, so whether it worked isn't known. Checking again; if it still shows the problem, try again in a minute.", []);
+    private static RepairOutcome Unknown => new(RepairOutcomeKind.Unknown, CoreStrings.Offline_NotFinished, []);
 }

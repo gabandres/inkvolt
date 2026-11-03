@@ -9,7 +9,7 @@ public class BatchListException(string message) : Exception(message);
 
 /// <summary>The list points at files on other computers, which it can't open until someone agrees: reaching a server shares this PC's sign-in with it.</summary>
 public sealed class BatchListNetworkException(IReadOnlyList<string> servers)
-    : BatchListException($"This list points at files on other computers ({string.Join(", ", servers.Select(BatchPrintText.Clean))}).")
+    : BatchListException(string.Format(CoreStrings.Batch_ListNetwork, string.Join(", ", servers.Select(BatchPrintText.Clean))))
 {
     public IReadOnlyList<string> Servers { get; } = servers;
 }
@@ -93,41 +93,41 @@ public static class BatchPrintList
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists) throw new BatchListException($"There is no list file {BatchPrintText.Clean(path)}.");
-            if (info.Length > MaxFileBytes) throw new BatchListException("This list file is too large.");
+            if (!info.Exists) throw new BatchListException(string.Format(CoreStrings.Batch_ListMissing, BatchPrintText.Clean(path)));
+            if (info.Length > MaxFileBytes) throw new BatchListException(CoreStrings.Batch_ListTooLarge);
             bytes = File.ReadAllBytes(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            throw new BatchListException($"The list file can't be read: {ex.Message}");
+            throw new BatchListException(string.Format(CoreStrings.Batch_ListCantRead, ex.Message));
         }
 
         ListFile file;
         try
         {
-            file = JsonSerializer.Deserialize<ListFile>(WithoutByteOrderMark(bytes), Json) ?? throw new BatchListException("This isn't a batch list: it's empty.");
+            file = JsonSerializer.Deserialize<ListFile>(WithoutByteOrderMark(bytes), Json) ?? throw new BatchListException(CoreStrings.Batch_ListEmpty);
         }
         catch (JsonException)
         {
-            throw new BatchListException("This isn't a batch list, or it's damaged.");
+            throw new BatchListException(CoreStrings.Batch_ListDamaged);
         }
-        if (file.Version > Version) throw new BatchListException("This list was made by a newer Inkvolt Print: update it to open the list.");
-        if (file.Version < 1 || file.Files is null) throw new BatchListException("This isn't a batch list: it says no version or no files.");
-        if (file.Files.Count > BatchPrintLimits.MaxFiles) throw new BatchListException($"This list has {file.Files.Count:N0} lines: a batch takes at most {BatchPrintLimits.MaxFiles:N0} files.");
+        if (file.Version > Version) throw new BatchListException(CoreStrings.Batch_ListNewer);
+        if (file.Version < 1 || file.Files is null) throw new BatchListException(CoreStrings.Batch_ListNoVersion);
+        if (file.Files.Count > BatchPrintLimits.MaxFiles) throw new BatchListException(string.Format(CoreStrings.Batch_ListTooManyLines, file.Files.Count, BatchPrintLimits.MaxFiles));
 
         var folder = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
         var entries = new List<BatchListEntry>(file.Files.Count);
         var servers = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (line, n) in file.Files.Select((l, i) => (l, i + 1)))
         {
-            if (line is null) throw new BatchListException($"Line {n} of the list: it has no path, or too long a one.");
-            if (CheckPath(line.Path, folder, out var server, out var why) is not { } full) throw new BatchListException($"Line {n} of the list: {why}");
+            if (line is null) throw new BatchListException(string.Format(CoreStrings.Batch_ListLine, n, CoreStrings.Batch_PathNone));
+            if (CheckPath(line.Path, folder, out var server, out var why) is not { } full) throw new BatchListException(string.Format(CoreStrings.Batch_ListLine, n, why));
             if (server is not null) servers.Add(server);
             var copies = line.Copies ?? file.Defaults?.Copies ?? 1;
-            if (copies is < 1 or > BatchPrintLimits.MaxCopies) throw new BatchListException($"Line {n} of the list: copies must be 1 to {BatchPrintLimits.MaxCopies} ({copies} asked for).");
-            if (line.Range is { Length: > MaxRange }) throw new BatchListException($"Line {n} of the list: its pages are too long a text.");
+            if (copies is < 1 or > BatchPrintLimits.MaxCopies) throw new BatchListException(string.Format(CoreStrings.Batch_ListLine, n, string.Format(CoreStrings.Batch_ListCopies, BatchPrintLimits.MaxCopies, copies)));
+            if (line.Range is { Length: > MaxRange }) throw new BatchListException(string.Format(CoreStrings.Batch_ListLine, n, CoreStrings.Batch_ListPagesTooLong));
             var paper = line.Paper ?? file.Defaults?.Paper;
-            if (paper is { Length: > 200 }) throw new BatchListException($"Line {n} of the list: its paper is too long a text.");
+            if (paper is { Length: > 200 }) throw new BatchListException(string.Format(CoreStrings.Batch_ListLine, n, CoreStrings.Batch_ListPaperTooLong));
             entries.Add(new BatchListEntry(full, new BatchPrintSettings(copies, line.Range, line.TwoSided ?? file.Defaults?.TwoSided ?? false, paper)));
         }
         if (servers.Count > 0 && !allowNetwork) throw new BatchListNetworkException(servers.ToList());
@@ -155,8 +155,8 @@ public static class BatchPrintList
         {
             if (Directory.Exists(entry.Path)) files.AddRange(BatchPrintFiles.ListFolder(entry.Path, recursive: false).Select(f => entry with { Path = f }));
             else if (BatchPrintFiles.IsSupported(entry.Path)) files.Add(entry);
-            else throw new BatchListException($"The list names {BatchPrintText.Clean(entry.Path)}, which is neither a PDF, a picture nor a folder.");
-            if (files.Count > BatchPrintLimits.MaxFiles) throw new BatchListException($"This list comes to more than {BatchPrintLimits.MaxFiles:N0} files, the most a batch takes.");
+            else throw new BatchListException(string.Format(CoreStrings.Batch_ListNotPrintable, BatchPrintText.Clean(entry.Path)));
+            if (files.Count > BatchPrintLimits.MaxFiles) throw new BatchListException(string.Format(CoreStrings.Batch_ListTooManyFiles, BatchPrintLimits.MaxFiles));
         }
         return files;
     }
@@ -169,20 +169,20 @@ public static class BatchPrintList
     {
         server = null;
         why = null;
-        if (string.IsNullOrWhiteSpace(raw) || raw.Length > 4000) return Refuse("it has no path, or too long a one.", out why);
+        if (string.IsNullOrWhiteSpace(raw) || raw.Length > 4000) return Refuse(CoreStrings.Batch_PathNone, out why);
         var shown = BatchPrintText.Clean(raw);
         if (raw.Any(c => char.IsControl(c) || c is '<' or '>' or '"' or '|' or '?' or '*'))
         {
             // \\?\ and \\.\ reach devices and raw paths; the characters can't be in a file's name anyway.
-            return Refuse($"\"{shown}\" isn't a path a list may use.", out why);
+            return Refuse(string.Format(CoreStrings.Batch_PathNotAllowed, shown), out why);
         }
         var slashed = raw.Replace('/', '\\');
         var isUnc = slashed.StartsWith(@"\\", StringComparison.Ordinal);
         var hasDrive = slashed.Length >= 3 && char.IsAsciiLetter(slashed[0]) && slashed[1] == ':' && slashed[2] == '\\';
         var relative = !isUnc && !hasDrive && !slashed.StartsWith('\\') && !(slashed.Length >= 2 && slashed[1] == ':');
-        if (!isUnc && !hasDrive && !relative) return Refuse($"\"{shown}\" isn't a full path, or one from the list's folder.", out why);
+        if (!isUnc && !hasDrive && !relative) return Refuse(string.Format(CoreStrings.Batch_PathNotFull, shown), out why);
         // Past a drive's colon, a colon is a web address or an alternate data stream.
-        if (slashed.IndexOf(':', hasDrive ? 2 : 0) >= 0) return Refuse($"\"{shown}\" isn't a file on this PC.", out why);
+        if (slashed.IndexOf(':', hasDrive ? 2 : 0) >= 0) return Refuse(string.Format(CoreStrings.Batch_PathNotOnPc, shown), out why);
 
         string full;
         try
@@ -191,24 +191,24 @@ public static class BatchPrintList
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            return Refuse($"\"{shown}\" isn't a path a list may use.", out why);
+            return Refuse(string.Format(CoreStrings.Batch_PathNotAllowed, shown), out why);
         }
         foreach (var part in full.Split('\\', StringSplitOptions.RemoveEmptyEntries))
         {
             var stem = part.Split('.')[0].TrimEnd(' ');
             if (stem.ToUpperInvariant() is "CON" or "PRN" or "AUX" or "NUL" or "CONIN$" or "CONOUT$"
                 || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && (char.IsDigit(stem[3]) || stem[3] is '¹' or '²' or '³')))
-                return Refuse($"\"{shown}\" names a device.", out why);
+                return Refuse(string.Format(CoreStrings.Batch_PathDevice, shown), out why);
         }
         if (relative)
         {
             var below = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(listFolder)) + "\\";
-            if (!full.StartsWith(below, StringComparison.OrdinalIgnoreCase)) return Refuse($"\"{shown}\" leaves the list's folder: use a full path for that.", out why);
+            if (!full.StartsWith(below, StringComparison.OrdinalIgnoreCase)) return Refuse(string.Format(CoreStrings.Batch_PathLeavesFolder, shown), out why);
         }
         if (isUnc)
         {
             var name = full.TrimStart('\\').Split('\\')[0];
-            if (name is "." or "?" or "") return Refuse($"\"{shown}\" isn't a file on this PC.", out why);
+            if (name is "." or "?" or "") return Refuse(string.Format(CoreStrings.Batch_PathNotOnPc, shown), out why);
             server = name;
         }
         return full;

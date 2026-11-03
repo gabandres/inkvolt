@@ -91,20 +91,20 @@ public static class PrinterMib
     /// <summary>A name for a supply that has no description: "Toner", "Waste toner box", "Drum"…</summary>
     public static string SupplyName(int type) => type switch
     {
-        3 or 21 => "Toner",
-        35 => "Matte toner",
-        4 => "Waste toner box",
-        5 or 6 => "Ink",
-        36 => "Matte ink",
-        7 => "Ink ribbon",
-        8 => "Waste ink box",
-        9 => "Drum",
-        10 => "Developer",
-        15 => "Fuser",
-        18 => "Cleaner unit",
-        20 => "Transfer unit",
-        32 => "Staples",
-        _ => "Supply",
+        3 or 21 => CoreStrings.Snmp_Supply_Toner,
+        35 => CoreStrings.Snmp_Supply_MatteToner,
+        4 => CoreStrings.Snmp_Supply_WasteTonerBox,
+        5 or 6 => CoreStrings.Snmp_Supply_Ink,
+        36 => CoreStrings.Snmp_Supply_MatteInk,
+        7 => CoreStrings.Snmp_Supply_InkRibbon,
+        8 => CoreStrings.Snmp_Supply_WasteInkBox,
+        9 => CoreStrings.Snmp_Supply_Drum,
+        10 => CoreStrings.Snmp_Supply_Developer,
+        15 => CoreStrings.Snmp_Supply_Fuser,
+        18 => CoreStrings.Snmp_Supply_CleanerUnit,
+        20 => CoreStrings.Snmp_Supply_TransferUnit,
+        32 => CoreStrings.Snmp_Supply_Staples,
+        _ => CoreStrings.Snmp_Supply_Supply,
     };
 
     /// <summary>

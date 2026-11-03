@@ -11,12 +11,12 @@ public partial class WhatsNewDialog : Window
     {
         InitializeComponent();
         Scroller.MaxHeight = SystemParameters.WorkArea.Height * 0.6;
-        if (notes.Count == 0) Entries.Children.Add(new TextBlock { Text = "No release notes in this build.", TextWrapping = TextWrapping.Wrap });
+        if (notes.Count == 0) Entries.Children.Add(new TextBlock { Text = Strings.WhatsNew_NoNotes, TextWrapping = TextWrapping.Wrap });
         foreach (var note in notes)
         {
             Entries.Children.Add(new TextBlock
             {
-                Text = $"Version {note.Version}", Style = (Style)FindResource("CardTitle"),
+                Text = string.Format(Strings.About_Version, note.Version), Style = (Style)FindResource("CardTitle"),
                 Margin = new Thickness(0, Entries.Children.Count == 0 ? 0 : 16, 0, 6),
             });
             foreach (var item in note.Items)

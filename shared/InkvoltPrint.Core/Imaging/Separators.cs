@@ -16,10 +16,10 @@ public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code
     /// <summary>"Patch T sheet", "blank page", or "".</summary>
     public string Description => Kind switch
     {
-        SeparatorKind.PatchCode => $"{PatchCodes.Name(Code ?? Imaging.PatchCode.PatchT)} sheet",
-        SeparatorKind.BlankPage => "blank page",
-        SeparatorKind.ByHand => "marked by hand",
-        SeparatorKind.SheetBack => "back of the patch sheet",
+        SeparatorKind.PatchCode => string.Format(CoreStrings.Imaging_PatchSheet, PatchCodes.Name(Code ?? Imaging.PatchCode.PatchT)),
+        SeparatorKind.BlankPage => CoreStrings.Imaging_BlankPage,
+        SeparatorKind.ByHand => CoreStrings.Imaging_MarkedByHand,
+        SeparatorKind.SheetBack => CoreStrings.Imaging_SheetBack,
         _ => "",
     };
 }
@@ -38,10 +38,10 @@ public static class Separators
 
     public static string Label(SplitAt splitAt) => splitAt switch
     {
-        SplitAt.PatchCode => "Patch codes",
-        SplitAt.BlankPage => "Blank pages",
-        SplitAt.PatchCodeOrBlankPage => "Patch codes or blank pages",
-        _ => "Don't split",
+        SplitAt.PatchCode => CoreStrings.Imaging_SplitPatchCodes,
+        SplitAt.BlankPage => CoreStrings.Imaging_SplitBlankPages,
+        SplitAt.PatchCodeOrBlankPage => CoreStrings.Imaging_SplitPatchOrBlank,
+        _ => CoreStrings.Imaging_SplitNone,
     };
 }
 

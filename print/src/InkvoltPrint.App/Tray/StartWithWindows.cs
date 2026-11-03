@@ -28,9 +28,9 @@ public static class StartWithWindows
 
     /// <summary>Why it can't be offered here, or null when it can.</summary>
     public static string? Unavailable(bool demo) =>
-        demo ? "Not in demo mode."
+        demo ? Strings.Tray_StartupNotInDemo
         : AppPackage.IsPackaged ? null
-        : Environment.ProcessPath is not { } exe || exe.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase) ? "Only for installed copies."
+        : Environment.ProcessPath is not { } exe || exe.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase) ? Strings.Tray_StartupInstalledOnly
         : null;
 
     private static string Command => $"\"{Environment.ProcessPath}\" {Argument}";
@@ -73,8 +73,8 @@ public static class StartWithWindows
 
     /// <summary>A note for the settings: why the checkbox doesn't do what it says, or null.</summary>
     public static string? Note =>
-        TurnedOffInTaskManager ? "Turned off in Task Manager › Startup apps; turn it on there."
-        : _packaged == StartupTaskState.DisabledByPolicy ? "Turned off by a policy on this PC."
+        TurnedOffInTaskManager ? Strings.Tray_StartupOffInTaskManager
+        : _packaged == StartupTaskState.DisabledByPolicy ? Strings.Tray_StartupOffByPolicy
         : null;
 
     /// <summary>Reads Windows' own state (packaged: the startup task; else the Run value). The state as <see cref="IsOn"/> then says.</summary>

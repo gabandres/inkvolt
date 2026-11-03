@@ -86,7 +86,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         catch (Exception ex)
         {
             Log.Write($"Settings load failed: {ex}");
-            Fail($"Could not read settings: {ex.Message}");
+            Fail(string.Format(Strings.PrinterSettings_CouldNotRead, ex.Message));
         }
         finally
         {
@@ -100,7 +100,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         var ledm = _connection.Ledm;
         if (ledm is null) return;
         IsBusy = true;
-        Message = "Saving…";
+        Message = Strings.PrinterSettings_Saving;
         MessageIsError = false;
         try
         {
@@ -119,13 +119,13 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
             await LoadAsync(); // read back what the printer actually stored
             if (!MessageIsError)
             {
-                Message = firmwareNote?.Text ?? "Saved.";
+                Message = firmwareNote?.Text ?? Strings.PrinterSettings_Saved;
                 MessageIsError = firmwareNote?.IsError == true;
             }
         }
         catch (OperationCanceledException)
         {
-            Message = "Not saved.";
+            Message = Strings.PrinterSettings_NotSaved;
         }
         catch (LedmAuthRequiredException ex)
         {
@@ -134,13 +134,12 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         catch (HttpRequestException) when (_connection.Http.CertificateChanged)
         {
             CertificateChanged = true;
-            Fail("Not saved: the printer's security certificate changed since Inkvolt Print first connected. If you reset or " +
-                 "updated the printer, choose \"Trust the new certificate\". Otherwise another device may be impersonating it.");
+            Fail(Strings.PrinterSettings_CertChangedNotSaved);
         }
         catch (Exception ex)
         {
             Log.Write($"Settings save failed: {ex}");
-            Fail($"The printer did not accept the change: {ex.Message}");
+            Fail(string.Format(Strings.PrinterSettings_NotAccepted, ex.Message));
         }
         finally
         {
@@ -156,20 +155,18 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     {
         var ledm = _connection.Ledm;
         if (ledm is null || IsBusy) return;
-        var unsaved = HasChanges ? "\n\nChanges you haven't saved on this tab are undone." : "";
-        if (!Prompt.Ask($"Turn off automatic firmware updates on {printerName}?\n\nHP's updates have brought \"dynamic security\", which stops " +
-                        "cartridges with non-HP chips (many compatible and refilled ones) from working. With automatic updates off, an " +
-                        $"update installs only when you install it yourself.{unsaved}", "Turn off automatic updates"))
+        var unsaved = HasChanges ? "\n\n" + Strings.PrinterSettings_UnsavedUndone : "";
+        if (!Prompt.Ask(string.Format(Strings.PrinterSettings_KeepCartridgesQuestion, printerName) + unsaved, Strings.PrinterSettings_TurnOffAutoUpdates))
             return;
         IsBusy = true;
-        Message = "Turning off automatic updates…";
+        Message = Strings.PrinterSettings_TurningOffAutoUpdates;
         MessageIsError = false;
         try
         {
             // Read now, not the card's copy: the setting may have changed on the printer since the tab was opened.
             if (await ledm.GetFirmwareUpdateAsync() is not { } fw)
             {
-                Fail("This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page.");
+                Fail(Strings.PrinterSettings_FirmwareHidden);
                 return;
             }
             var result = await CartridgeGuard.KeepCartridgesWorkingAsync(ledm, fw, PutWithAuthAsync);
@@ -181,7 +178,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         }
         catch (OperationCanceledException)
         {
-            Message = "Not changed.";
+            Message = Strings.PrinterSettings_NotChanged;
         }
         catch (LedmAuthRequiredException ex)
         {
@@ -190,13 +187,12 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         catch (HttpRequestException) when (_connection.Http.CertificateChanged)
         {
             CertificateChanged = true;
-            Fail("Not changed: the printer's security certificate changed since Inkvolt Print first connected. If you reset or " +
-                 "updated the printer, choose \"Trust the new certificate\". Otherwise another device may be impersonating it.");
+            Fail(Strings.PrinterSettings_CertChangedNotChanged);
         }
         catch (Exception ex)
         {
             Log.Write($"Keep my cartridges working failed: {ex}");
-            Fail($"The printer did not accept the change: {ex.Message}");
+            Fail(string.Format(Strings.PrinterSettings_NotAccepted, ex.Message));
         }
         finally
         {
@@ -234,7 +230,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
         _connection.Http.ClearCredentials();
         _connection.Http.ResetCertificateChanged();
         CertificateChanged = false;
-        Message = "OK. Save again to trust the printer's current certificate; you'll be asked for the admin password.";
+        Message = Strings.PrinterSettings_TrustNewCertDone;
         MessageIsError = false;
     }
 
@@ -262,8 +258,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     {
         var notify = FirmwareViewModel.Label(FirmwareUpdateMode.Notify);
         if (await ReadBackFirmwareAsync(ledm) is not { } back)
-            return ("Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. " +
-                    "Check again in a moment (Reload from printer) or on its web page.", true);
+            return (Strings.PrinterSettings_SavedUnknown, true);
         switch (FirmwareUpdateSettings.Judge(chosen, back.Mode))
         {
             case FirmwareUpdateWriteResult.Kept:
@@ -272,9 +267,8 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
                 Log.Write("Firmware: the printer read back Automatic after Notify was written; setting it back and no longer offering Notify");
                 state.SetNoFirmwareNotify(uuid);
                 if (back.Mode == before.Mode || back.ConfigPath is not { } path)
-                    return ($"This printer can't check for updates without installing them, so \"{notify}\" is no longer offered for it.",
+                    return (string.Format(Strings.PrinterSettings_NotifyNoLongerOffered, notify),
                         back.Mode != before.Mode);
-                const string tied = "This printer can't check for updates without installing them: it turned on automatic installs";
                 try
                 {
                     await PutWithAuthAsync(() => ledm.PutPathAsync(path, back.BuildPut(before.Mode)));
@@ -282,18 +276,15 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
                 catch (Exception ex)
                 {
                     Log.Write($"Firmware: setting the previous mode back failed: {ex.Message}");
-                    return ($"{tied}. The printer kept automatic updates on (\"{FirmwareViewModel.Label(back.Mode)}\") and the previous setting " +
-                            $"(\"{FirmwareViewModel.Label(before.Mode)}\") couldn't be restored. Change it here or on its web page.", true);
+                    return (string.Format(Strings.PrinterSettings_TiedNotRestored, FirmwareViewModel.Label(back.Mode), FirmwareViewModel.Label(before.Mode)), true);
                 }
                 if (await ReadBackFirmwareAsync(ledm) is not { } restored)
-                    return ($"{tied}. The previous setting was sent back, but the printer didn't say whether it took it. Check it " +
-                            "in a moment (Reload from printer) or on its web page.", true);
+                    return (Strings.PrinterSettings_TiedSentBackUnknown, true);
                 if (restored.Mode != before.Mode)
-                    return ($"{tied}, and it didn't take the previous setting back. Check automatic updates on its web page.", true);
-                return ($"{tied}, so automatic updates were set back to \"{FirmwareViewModel.Label(before.Mode)}\". \"{notify}\" " +
-                        "is no longer offered for it.", false);
+                    return (Strings.PrinterSettings_TiedNotTakenBack, true);
+                return (string.Format(Strings.PrinterSettings_TiedSetBack, FirmwareViewModel.Label(before.Mode), notify), false);
             default:
-                return ($"Saved, but the printer reads back automatic updates as \"{FirmwareViewModel.Label(back.Mode)}\".", true);
+                return (string.Format(Strings.PrinterSettings_SavedReadsBack, FirmwareViewModel.Label(back.Mode)), true);
         }
     }
 
@@ -330,7 +321,7 @@ public sealed partial class SettingsViewModel(PrinterConnection connection, stri
     {
         passwords.Delete(uuid);
         _connection.Http.ClearCredentials();
-        Message = "Saved password removed.";
+        Message = Strings.PrinterSettings_PasswordRemoved;
         MessageIsError = false;
     }
 
@@ -385,10 +376,10 @@ public sealed partial class SettingItemViewModel : ObservableObject
     {
         Error = Setting.Def.Kind switch
         {
-            SettingKind.Integer when !int.TryParse(value, out var n) => "Enter a number",
+            SettingKind.Integer when !int.TryParse(value, out var n) => Strings.PrinterSettings_EnterNumber,
             SettingKind.Integer when int.TryParse(value, out var n) && (n < (Setting.Min ?? int.MinValue) || n > (Setting.Max ?? int.MaxValue))
-                => $"Between {Setting.Min} and {Setting.Max}",
-            SettingKind.Text when Setting.MaxLength is { } max && value.Length > max => $"At most {max} characters",
+                => string.Format(Strings.PrinterSettings_Between, Setting.Min, Setting.Max),
+            SettingKind.Text when Setting.MaxLength is { } max && value.Length > max => string.Format(Strings.PrinterSettings_AtMostChars, max),
             _ => null,
         };
         _changed?.Invoke();
@@ -411,7 +402,7 @@ public sealed partial class FirmwareViewModel : ObservableObject
     {
         _keepCartridges = keepCartridges;
         Settings = settings;
-        Version = version is { Length: > 0 } v ? v : "Not reported";
+        Version = version is { Length: > 0 } v ? v : Strings.PrinterSettings_NotReported;
         _changed = changed;
         _openWebPage = openWebPage;
         Choices = settings?.Choices.Select(m => new Option<FirmwareUpdateMode>(m, Label(m))).ToList() ?? [];
@@ -427,8 +418,8 @@ public sealed partial class FirmwareViewModel : ObservableObject
 
     /// <summary>The printer reports the setting but doesn't let apps change it (or doesn't report it at all).</summary>
     public string? ReadOnlyText => CanChange ? null
-        : Settings is { } s ? $"Automatic updates: {Label(s.Mode).ToLowerInvariant()}. This printer doesn't let apps change it; use its web page."
-        : "This printer doesn't let apps see or change its firmware updates. Its web page has the update settings.";
+        : Settings is { } s ? string.Format(Strings.PrinterSettings_AutoUpdatesReadOnly, Label(s.Mode).ToLowerInvariant())
+        : Strings.PrinterSettings_FirmwareNotShown;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDirty), nameof(ModeHint))]
@@ -438,9 +429,9 @@ public sealed partial class FirmwareViewModel : ObservableObject
 
     public string? ModeHint => Selected?.Value switch
     {
-        FirmwareUpdateMode.Automatic => "The printer installs HP's updates by itself, as soon as they're out.",
-        FirmwareUpdateMode.Notify => "The printer checks for updates; nothing installs until you install it from its web page.",
-        FirmwareUpdateMode.Off => "The printer never checks. You can still update it from its web page.",
+        FirmwareUpdateMode.Automatic => Strings.PrinterSettings_HintAutomatic,
+        FirmwareUpdateMode.Notify => Strings.PrinterSettings_HintNotify,
+        FirmwareUpdateMode.Off => Strings.PrinterSettings_HintOff,
         _ => null,
     };
 
@@ -456,8 +447,8 @@ public sealed partial class FirmwareViewModel : ObservableObject
 
     /// <summary>Under the button: what it does, or that it's done already.</summary>
     public string KeepCartridgesHint => Settings?.Mode == FirmwareUpdateMode.Off
-        ? "Automatic updates are off: no update installs by itself."
-        : "Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it.";
+        ? Strings.PrinterSettings_KeepHintOff
+        : Strings.PrinterSettings_KeepHint;
 
     [RelayCommand]
     private async Task KeepCartridgesWorkingAsync()
@@ -467,8 +458,8 @@ public sealed partial class FirmwareViewModel : ObservableObject
 
     internal static string Label(FirmwareUpdateMode m) => m switch
     {
-        FirmwareUpdateMode.Automatic => "Install automatically",
-        FirmwareUpdateMode.Notify => "Check, don't install",
-        _ => "Off",
+        FirmwareUpdateMode.Automatic => Strings.PrinterSettings_ModeAutomatic,
+        FirmwareUpdateMode.Notify => Strings.PrinterSettings_ModeNotify,
+        _ => Strings.PrinterSettings_ModeOff,
     };
 }

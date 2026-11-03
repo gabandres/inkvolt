@@ -114,13 +114,13 @@ public sealed record FirmwareUpdateSettings(
     public string? StatusMessage => Status switch
     {
         null or "idle" => null,
-        "available" => "A firmware update is available.",
-        "notAvailable" => "The firmware is up to date.",
-        "checkFailed" => "The printer's last update check failed.",
-        "checking" => "Checking for updates…",
-        "downloadPreparation" or "downloading" => "Downloading an update…",
-        "installing" => "Installing an update…",
-        "cancelling" => "Cancelling the update…",
+        "available" => CoreStrings.Ledm_FwAvailable,
+        "notAvailable" => CoreStrings.Ledm_FwUpToDate,
+        "checkFailed" => CoreStrings.Ledm_FwCheckFailed,
+        "checking" => CoreStrings.Ledm_FwChecking,
+        "downloadPreparation" or "downloading" => CoreStrings.Ledm_FwDownloading,
+        "installing" => CoreStrings.Ledm_FwInstalling,
+        "cancelling" => CoreStrings.Ledm_FwCancelling,
         _ => StatusText.Humanize(Status),
     };
 

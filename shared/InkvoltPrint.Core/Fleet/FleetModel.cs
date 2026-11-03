@@ -67,8 +67,8 @@ public sealed record FleetPrinter(string Id, string Name, FleetKind Kind, FleetT
     public static FleetPrinter Of(FleetFacts f)
     {
         var usable = f.Status is { IsUnavailable: false } ? f.Status : null;
-        return new FleetPrinter(f.Id, FleetText.Clean(f.Name, MaxText) ?? "Printer with no name", f.Kind, TroubleOf(f, usable),
-            FleetText.Clean(f.Status?.Message, MaxText) ?? "Status not available")
+        return new FleetPrinter(f.Id, FleetText.Clean(f.Name, MaxText) ?? CoreStrings.Fleet_NoName, f.Kind, TroubleOf(f, usable),
+            FleetText.Clean(f.Status?.Message, MaxText) ?? CoreStrings.Queue_StatusNotAvailable)
         {
             Model = FleetText.Clean(f.Model, MaxText),
             Connection = FleetText.Clean(f.Connection, MaxText),

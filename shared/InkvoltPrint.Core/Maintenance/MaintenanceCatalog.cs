@@ -60,7 +60,7 @@ public sealed record MaintenanceAction
     /// <summary>Button text: the title, with the maker's name when it's that maker's own feature.</summary>
     public string Label => Brand is null ? Title : $"{Title} ({Brand})";
 
-    public string ConfirmText => $"{Label}?\n\n{Uses}" + (PrintsPage ? "\n\nThe printer needs to be on and free, with plain paper loaded." : "");
+    public string ConfirmText => string.Format(PrintsPage ? CoreStrings.Maint_ConfirmWithPaper : CoreStrings.Maint_Confirm, Label, Uses);
 }
 
 /// <summary>Everything the maintenance card shows for one printer.</summary>
@@ -135,7 +135,7 @@ public static class MaintenanceCatalog
     public static MaintenanceOptions Detect(MaintenanceSources s)
     {
         var actions = new List<MaintenanceAction>();
-        var supply = s.Marking switch { Marking.Toner => "toner", Marking.Ink => "ink", _ => "ink or toner" };
+        var supply = s.Marking switch { Marking.Toner => CoreStrings.Maint_Toner, Marking.Ink => CoreStrings.Maint_Ink, _ => CoreStrings.Maint_InkOrToner };
         if (s.LedmJobTypes is { } jobs && s.LedmDynPath is { } dyn)
         {
             var listed = jobs.ToHashSet(StringComparer.Ordinal);
@@ -145,13 +145,13 @@ public static class MaintenanceCatalog
             for (var i = 0; i < levels.Count; i++)
                 actions.Add(Cleaning(levels[i], i + 1, s.Marking, dyn));
             if (listed.Contains("cleaningVerificationPage"))
-                actions.Add(Hp("cleaningVerificationPage", MaintenanceKind.CleaningCheck, "Print cleaning check page", dyn, "1 page · plain paper",
-                    $"Prints 1 page on plain paper with test patterns, to see whether a cleaning helped. Uses a little {supply}.",
-                    "Print", "Sent. The printer will print the cleaning check page."));
+                actions.Add(Hp("cleaningVerificationPage", MaintenanceKind.CleaningCheck, CoreStrings.Maint_CleaningCheck, dyn, CoreStrings.Maint_OnePagePlain,
+                    string.Format(CoreStrings.Maint_CleaningCheck_Uses, supply),
+                    CoreStrings.Maint_PrintButton, CoreStrings.Maint_CleaningCheck_Sent));
             if (listed.Contains("ribSmearCleaningPage") && s.Marking != Marking.Toner)
-                actions.Add(Hp("ribSmearCleaningPage", MaintenanceKind.SmearCleaning, "Clean page smears", dyn, "1 sheet · a few minutes · a little ink",
-                    "Feeds a sheet of plain paper through the printer to clean ink smears off the rollers. Takes a few minutes; uses a little ink.",
-                    "Clean", "Sent. The printer will feed a sheet to clean its rollers."));
+                actions.Add(Hp("ribSmearCleaningPage", MaintenanceKind.SmearCleaning, CoreStrings.Maint_Smear, dyn, CoreStrings.Maint_Smear_Summary,
+                    CoreStrings.Maint_Smear_Uses,
+                    CoreStrings.Maint_CleanButton, CoreStrings.Maint_Smear_Sent));
         }
         if (s.AlignmentMode is { } mode) actions.Add(Alignment(mode));
         if (s.Ipp is { } ipp && ipp.Ints("operations-supported").Contains(IppCodec.IdentifyPrinter))
@@ -161,14 +161,10 @@ public static class MaintenanceCatalog
         var hpActions = actions.Any(a => a.Brand is not null);
         string? note = (s.HasLedm, hpActions) switch
         {
-            (false, _) when s.HasCdm => "This newer HP printer uses HP's CDM interface, whose maintenance requests aren't publicly documented, so " +
-                                        "Inkvolt Print doesn't start them: use its control panel or its web page.",
-            (true, false) => "This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it " +
-                             "from its control panel or its web page.",
-            (false, _) when s.HasSnmp => "Inkvolt Print reads this printer over SNMP, which has no maintenance requests, so it can't start " +
-                                         "cleaning, nozzle checks or alignment: use its control panel or its web page.",
-            (false, _) => "Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start " +
-                          "them on this printer: use its control panel" + (supplyPage is null ? " or its web page." : " or its maintenance page."),
+            (false, _) when s.HasCdm => CoreStrings.Maint_NoteCdm,
+            (true, false) => CoreStrings.Maint_NoteLedmNone,
+            (false, _) when s.HasSnmp => CoreStrings.Maint_NoteSnmp,
+            (false, _) => supplyPage is null ? CoreStrings.Maint_NoteIppWebPage : CoreStrings.Maint_NoteIppMaintenancePage,
             _ => null,
         };
         return new MaintenanceOptions(actions, supplyPage, note);
@@ -176,21 +172,21 @@ public static class MaintenanceCatalog
 
     private static MaintenanceAction Report(string job, string supply, string dyn) => job switch
     {
-        "configurationPage" => Hp(job, MaintenanceKind.ConfigurationPage, "Print configuration page", dyn, $"1 or 2 pages · plain paper · a little {supply}",
-            $"Prints 1 or 2 pages on plain paper with the printer's settings, network address and supply status. Uses a little {supply}.",
-            "Print", "Sent. The printer will print its configuration page."),
-        "pqDiagnosticsPage" => Hp(job, MaintenanceKind.QualityReport, "Print quality report", dyn, $"1 page · plain paper · some {supply}",
-            $"Prints 1 page on plain paper with color blocks and patterns that show streaks, faded colors or misalignment. Uses some {supply}.",
-            "Print", "Sent. The printer will print its print quality report."),
-        "diagnosticsPage" => Hp(job, MaintenanceKind.DiagnosticsPage, "Print diagnostics page", dyn, "Usually 1 page · plain paper",
-            $"Prints the printer's diagnostics page on plain paper (usually 1 page). Uses a little {supply}.",
-            "Print", "Sent. The printer will print its diagnostics page."),
-        "networkSummary" => Hp(job, MaintenanceKind.NetworkPage, "Print network configuration page", dyn, "1 page · plain paper",
-            $"Prints 1 page on plain paper with the printer's network settings and addresses. Uses a little {supply}.",
-            "Print", "Sent. The printer will print its network configuration page."),
-        _ => Hp(job, MaintenanceKind.WirelessTest, "Print wireless test report", dyn, "Tests Wi-Fi · 1 page · plain paper",
-            $"The printer tests its Wi-Fi connection and prints the result on 1 page of plain paper. Uses a little {supply}.",
-            "Print", "Sent. The printer will test its Wi-Fi and print the report."),
+        "configurationPage" => Hp(job, MaintenanceKind.ConfigurationPage, CoreStrings.Maint_ConfigPage, dyn, string.Format(CoreStrings.Maint_ConfigPage_Summary, supply),
+            string.Format(CoreStrings.Maint_ConfigPage_Uses, supply),
+            CoreStrings.Maint_PrintButton, CoreStrings.Maint_ConfigPage_Sent),
+        "pqDiagnosticsPage" => Hp(job, MaintenanceKind.QualityReport, CoreStrings.Maint_QualityReport, dyn, string.Format(CoreStrings.Maint_QualityReport_Summary, supply),
+            string.Format(CoreStrings.Maint_QualityReport_Uses, supply),
+            CoreStrings.Maint_PrintButton, CoreStrings.Maint_QualityReport_Sent),
+        "diagnosticsPage" => Hp(job, MaintenanceKind.DiagnosticsPage, CoreStrings.Maint_DiagnosticsPage, dyn, CoreStrings.Maint_DiagnosticsPage_Summary,
+            string.Format(CoreStrings.Maint_DiagnosticsPage_Uses, supply),
+            CoreStrings.Maint_PrintButton, CoreStrings.Maint_DiagnosticsPage_Sent),
+        "networkSummary" => Hp(job, MaintenanceKind.NetworkPage, CoreStrings.Maint_NetworkPage, dyn, CoreStrings.Maint_OnePagePlain,
+            string.Format(CoreStrings.Maint_NetworkPage_Uses, supply),
+            CoreStrings.Maint_PrintButton, CoreStrings.Maint_NetworkPage_Sent),
+        _ => Hp(job, MaintenanceKind.WirelessTest, CoreStrings.Maint_WirelessTest, dyn, CoreStrings.Maint_WirelessTest_Summary,
+            string.Format(CoreStrings.Maint_WirelessTest_Uses, supply),
+            CoreStrings.Maint_PrintButton, CoreStrings.Maint_WirelessTest_Sent),
     };
 
     private static MaintenanceAction Cleaning(string job, int level, Marking marking, string dyn)
@@ -198,38 +194,31 @@ public static class MaintenanceCatalog
         if (marking == Marking.Toner)
         {
             // A LaserJet's cleaning page cleans the paper path (fuser), not a printhead.
-            return Hp(job, MaintenanceKind.Cleaning, level == 1 ? "Print cleaning page" : $"Print cleaning page, level {level}", dyn, "1 sheet · plain paper · a little toner",
-                "Runs the printer's cleaning page: feeds a sheet of plain paper through to clean the paper path. Uses a little toner " +
-                "and takes a minute or two.", "Print", "Sent. The printer will run its cleaning page.") with { Level = level };
+            return Hp(job, MaintenanceKind.Cleaning, level == 1 ? CoreStrings.Maint_CleaningPage : string.Format(CoreStrings.Maint_CleaningPageLevel, level), dyn,
+                CoreStrings.Maint_CleaningPage_Summary, CoreStrings.Maint_CleaningPage_Uses, CoreStrings.Maint_PrintButton, CoreStrings.Maint_CleaningPage_Sent)
+                with { Level = level };
         }
         var uses = level == 1
-            ? "Cleans the printhead's nozzles and may print a test page on plain paper. Uses some ink; try it when prints are " +
-              "streaky or a color is missing."
-            : $"A deeper cleaning than level {level - 1}; uses more ink. Try it only when level {level - 1} didn't fix the prints, " +
-              "and let the printer rest a few minutes in between.";
-        return Hp(job, MaintenanceKind.Cleaning, level == 1 ? "Clean printhead" : $"Clean printhead, level {level}", dyn,
-            level == 1 ? "A few minutes · uses some ink" : "Deeper · uses more ink", uses, "Clean", "Sent. The printer is cleaning its printhead; this takes a few minutes.") with { Level = level };
+            ? CoreStrings.Maint_CleanHead_Uses
+            : string.Format(CoreStrings.Maint_CleanHeadDeeper_Uses, level - 1);
+        return Hp(job, MaintenanceKind.Cleaning, level == 1 ? CoreStrings.Maint_CleanHead : string.Format(CoreStrings.Maint_CleanHeadLevel, level), dyn,
+            level == 1 ? CoreStrings.Maint_CleanHead_Summary : CoreStrings.Maint_CleanHeadDeeper_Summary, uses, CoreStrings.Maint_CleanButton,
+            CoreStrings.Maint_CleanHead_Sent) with { Level = level };
     }
 
     private static MaintenanceAction Alignment(string mode) => new()
     {
         Id = "ledm:align",
         Kind = MaintenanceKind.Alignment,
-        Title = "Align printhead",
+        Title = CoreStrings.Maint_Align,
         Brand = "HP",
         Target = MaintenanceRequests.CalibrationSessionPath,
         PrintsPage = true,
-        ConfirmButton = "Align",
-        Summary = mode == "semiAutomatic" ? "1 page · plain paper · then scanned on the glass" : "1 page · plain paper · a few minutes",
-        Uses = mode == "semiAutomatic"
-            ? "Prints an alignment page on plain paper (uses a little ink). Then place the page face down on the scanner glass and " +
-              "follow the printer's control panel to scan it."
-            : "Prints an alignment page on plain paper and adjusts the printhead from it. Uses a little ink and takes a few minutes.",
-        Sent = mode == "semiAutomatic"
-            ? "Sent. When the alignment page is out, put it face down on the scanner glass and follow the printer's control panel."
-            : "Sent. The printer will print its alignment page and adjust itself.",
-        Unavailable = mode is "automatic" or "semiAutomatic" ? null
-            : "This printer aligns by hand (choosing patterns): use its control panel or its web page.",
+        ConfirmButton = CoreStrings.Maint_AlignButton,
+        Summary = mode == "semiAutomatic" ? CoreStrings.Maint_AlignSemi_Summary : CoreStrings.Maint_Align_Summary,
+        Uses = mode == "semiAutomatic" ? CoreStrings.Maint_AlignSemi_Uses : CoreStrings.Maint_Align_Uses,
+        Sent = mode == "semiAutomatic" ? CoreStrings.Maint_AlignSemi_Sent : CoreStrings.Maint_Align_Sent,
+        Unavailable = mode is "automatic" or "semiAutomatic" ? null : CoreStrings.Maint_AlignByHand,
     };
 
     private static MaintenanceAction Identify(IppResponse ipp)
@@ -238,24 +227,24 @@ public static class MaintenanceCatalog
         var chosen = IdentifyOrder.Where(supported.Contains).ToList();
         var what = chosen.Select(a => a switch
         {
-            "flash" => "flashes its lights",
-            "sound" => "makes a sound",
-            _ => "shows a message on its control panel",
+            "flash" => CoreStrings.Maint_IdentifyFlashes,
+            "sound" => CoreStrings.Maint_IdentifySounds,
+            _ => CoreStrings.Maint_IdentifyShowsMessage,
         }).ToList();
-        var signal = chosen.Count == 0 ? "Its usual signal"
-            : string.Join(" and ", chosen.Select(a => a switch { "flash" => "lights", "sound" => "sound", _ => "a message" }));
+        var signal = chosen.Count == 0 ? CoreStrings.Maint_IdentifyUsualSignal
+            : string.Join(CoreStrings.Maint_ListAnd, chosen.Select(a => a switch { "flash" => CoreStrings.Maint_IdentifyLights, "sound" => CoreStrings.Maint_IdentifySound, _ => CoreStrings.Maint_IdentifyAMessage }));
         signal = char.ToUpperInvariant(signal[0]) + signal[1..];
-        var does = what.Count == 0 ? "shows where it is the way it's set to (lights, a sound or a message)"
-            : what.Count == 1 ? what[0] : string.Join(", ", what[..^1]) + " and " + what[^1];
+        var does = what.Count == 0 ? CoreStrings.Maint_IdentifyAsSet
+            : what.Count == 1 ? what[0] : string.Join(", ", what[..^1]) + CoreStrings.Maint_ListAnd + what[^1];
         return new MaintenanceAction
         {
             Id = "ipp:identify",
             Kind = MaintenanceKind.Identify,
-            Title = "Identify printer",
-            Uses = $"The printer {does}, so you can tell which one it is. Uses no paper, ink or toner.",
-            ConfirmButton = "Identify",
-            Summary = $"{signal} · no paper or ink",
-            Sent = $"Sent. The printer {does}.",
+            Title = CoreStrings.Maint_Identify,
+            Uses = string.Format(CoreStrings.Maint_Identify_Uses, does),
+            ConfirmButton = CoreStrings.Maint_IdentifyButton,
+            Summary = string.Format(CoreStrings.Maint_Identify_Summary, signal),
+            Sent = string.Format(CoreStrings.Maint_Identify_Sent, does),
             IdentifyActions = chosen,
         };
     }
@@ -288,12 +277,12 @@ public static class MaintenanceAvailability
     public static string? WhyNot(MaintenanceAction action, bool online, PrinterStatus? status, bool busy)
     {
         if (action.Unavailable is { } reason) return reason;
-        if (!online) return "The printer isn't answering.";
-        if (busy) return "Waiting for the printer to answer the last request.";
+        if (!online) return CoreStrings.Maint_NotAnswering;
+        if (busy) return CoreStrings.Maint_WaitingForLast;
         if (!action.PrintsPage || status is null) return null;
-        if (status.Severity == Severity.Error) return $"Fix this first: {status.Message.TrimEnd('.')}.";
-        if (status.Code is "processing" or "printing") return "The printer is printing; try again when it's done.";
-        if (Busy.Contains(status.Code)) return $"The printer is busy ({status.Message.TrimEnd('.')}); try again when it's ready.";
+        if (status.Severity == Severity.Error) return string.Format(CoreStrings.Maint_FixFirst, status.Message.TrimEnd('.'));
+        if (status.Code is "processing" or "printing") return CoreStrings.Maint_PrinterPrinting;
+        if (Busy.Contains(status.Code)) return string.Format(CoreStrings.Maint_PrinterBusy, status.Message.TrimEnd('.'));
         return null;
     }
 

@@ -23,7 +23,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     private const int MaxWatchLines = 200;
 
     /// <summary>The list's choice meaning no paper of its own.</summary>
-    public static readonly BatchPaper DefaultPaper = new("", "Printer's default paper");
+    public static BatchPaper DefaultPaper => new("", Strings.Batch_DefaultPaper);
 
     private BatchQueueInfo? _info;
     private bool _infoRead;
@@ -123,15 +123,21 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         {
             if (Rows.Count == 0) return "";
             var ready = Rows.Where(r => r.StillToSend && r.Line is { Problem: null }).ToList();
-            if (ready.Count == 0 && Rows.All(r => r.State == BatchPrintState.Sent)) return $"All {Rows.Count:N0} sent. Start over prints them again.";
-            var text = new StringBuilder($"{BatchPrintText.Count(ready.Count, "file")}, {BatchPrintText.Sheets(ready.Sum(r => r.Line!.Sheets))} in all.");
+            if (ready.Count == 0 && Rows.All(r => r.State == BatchPrintState.Sent)) return string.Format(Strings.Batch_AllSent, Rows.Count);
+            var text = new StringBuilder(string.Format(Strings.Batch_Estimate, Files(ready.Count), Sheets(ready.Sum(r => r.Line!.Sheets))));
             var leftOut = Rows.Count(r => r.StillToSend && r.Line is { Problem: not null });
-            if (leftOut > 0) text.Append($" {leftOut:N0} left out.");
+            if (leftOut > 0) text.Append(' ').Append(Plural.Of(leftOut, Strings.Batch_LeftOut_One, Strings.Batch_LeftOut_Many));
             var sent = Rows.Count(r => r.State == BatchPrintState.Sent);
-            if (sent > 0) text.Append($" {sent:N0} sent already.");
+            if (sent > 0) text.Append(' ').Append(Plural.Of(sent, Strings.Batch_SentAlready_One, Strings.Batch_SentAlready_Many));
             return text.ToString();
         }
     }
+
+    /// <summary>"1 file", "7 files".</summary>
+    internal static string Files(int n) => Plural.Of(n, Strings.Batch_Files_One, Strings.Batch_Files_Many);
+
+    /// <summary>"1 sheet", "14 sheets".</summary>
+    internal static string Sheets(int n) => Plural.Of(n, Strings.Batch_Sheets_One, Strings.Batch_Sheets_Many);
 
     internal void RowChanged()
     {
@@ -196,9 +202,9 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Add files to print",
+            Title = Strings.Batch_AddFiles,
             Multiselect = true,
-            Filter = "PDFs and pictures|*.pdf;*.jpg;*.jpeg;*.jpe;*.jfif;*.png;*.bmp;*.dib;*.gif;*.tif;*.tiff;*.heic;*.heif;*.hif;*.webp|All files (*.*)|*.*",
+            Filter = Strings.Batch_FilterPdfsPictures + "|*.pdf;*.jpg;*.jpeg;*.jpe;*.jfif;*.png;*.bmp;*.dib;*.gif;*.tif;*.tiff;*.heic;*.heif;*.hif;*.webp|" + Strings.Photos_FilterAll + "|*.*",
             InitialDirectory = StartFolder,
         };
         if (dialog.ShowDialog() == true) await AddAsync(dialog.FileNames);
@@ -207,7 +213,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     [RelayCommand(CanExecute = nameof(CanChange))]
     private async Task AddFolderAsync()
     {
-        var dialog = new OpenFolderDialog { Title = "Add a folder's PDFs and pictures", InitialDirectory = StartFolder };
+        var dialog = new OpenFolderDialog { Title = Strings.Batch_AddFolder, InitialDirectory = StartFolder };
         if (dialog.ShowDialog() == true) await AddAsync([dialog.FolderName]);
     }
 
@@ -216,7 +222,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     {
         if (IsSending)
         {
-            SetMessage("Still sending. Add more when it's done.", error: true);
+            SetMessage(Strings.Batch_StillSending, error: true);
             return;
         }
         Shown();
@@ -240,10 +246,10 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             }
         }
         var notes = new List<string>();
-        if (repeated > 0) notes.Add($"{repeated:N0} {(repeated == 1 ? "was" : "were")} on the list already");
-        if (leftOut > 0) notes.Add($"{leftOut:N0} {(leftOut == 1 ? "isn't a PDF or picture" : "aren't PDFs or pictures")}");
-        if (overLimit > 0) notes.Add($"{overLimit:N0} over the {BatchPrintLimits.MaxFiles:N0} a batch takes");
-        SetMessage(notes.Count > 0 ? $"Added {added:N0}; {string.Join(", ", notes)}." : null, error: overLimit > 0);
+        if (repeated > 0) notes.Add(Plural.Of(repeated, Strings.Batch_Repeated_One, Strings.Batch_Repeated_Many));
+        if (leftOut > 0) notes.Add(Plural.Of(leftOut, Strings.Batch_NotSupported_One, Strings.Batch_NotSupported_Many));
+        if (overLimit > 0) notes.Add(string.Format(Strings.Batch_OverLimit, overLimit, BatchPrintLimits.MaxFiles));
+        SetMessage(notes.Count > 0 ? string.Format(Strings.Batch_AddedNotes, added, string.Join(", ", notes)) : null, error: overLimit > 0);
         if (paths.Count > 0 && Path.GetDirectoryName(paths[0]) is { } folder) state.PrintFolder = folder;
         RowChanged();
         await EstimateAsync();
@@ -271,7 +277,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     private async Task StartOverAsync()
     {
         var done = Rows.Count(r => !r.StillToSend);
-        if (done > 0 && !Prompt.Ask($"Print {BatchPrintText.Count(done, "file")} that {(done == 1 ? "was" : "were")} sent already, or may have been, once more when you press Print?\nStart over", "Start over")) return;
+        if (done > 0 && !Prompt.Ask(Plural.Of(done, Strings.Batch_StartOverAsk_One, Strings.Batch_StartOverAsk_Many), Strings.Batch_StartOver)) return;
         foreach (var row in Rows) row.Forget();
         SetMessage(null);
         await EstimateAsync();
@@ -289,7 +295,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             await (_infoRead ? Task.CompletedTask : ReadQueueAsync());
             while (Rows.FirstOrDefault(r => r.Measure is null) is { } row)
             {
-                Progress = $"Looking at {BatchPrintText.Clean(row.Name)}…";
+                Progress = string.Format(Strings.Batch_LookingAt, BatchPrintText.Clean(row.Name));
                 try
                 {
                     var measure = await BatchMeasurer.MeasureAsync(row.Path, row.Password, documents, AskPasswordAsync, null, _estimate.Token);
@@ -363,7 +369,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         if (at < 0 || to < 0 || to >= Rows.Count) return;
         Rows.Move(at, to);
         Selected = row;
-        Prompt.Announce($"{row.Name} is now file {to + 1} of {Rows.Count}.");
+        Prompt.Announce(string.Format(Strings.Batch_Moved, row.Name, to + 1, Rows.Count));
     }
 
     [RelayCommand(CanExecute = nameof(CanMove))]
@@ -399,14 +405,14 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         var info = await ReadQueueAsync();
         if (info is null)
         {
-            SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.", error: true);
+            SetMessage(Strings.Print_NotSetUp, error: true);
             return;
         }
         var rows = Rows.Where(r => r.StillToSend && r.Measure is not null).ToList();
         foreach (var row in rows) row.Refresh(info);
         var sheets = rows.Sum(r => r.Line?.Sheets ?? 0);
         if (sheets > BatchPrintLimits.ConfirmSheets
-            && !Prompt.Ask($"Print {BatchPrintText.Sheets(sheets)}?\nThis batch uses {BatchPrintText.Sheets(sheets)} of paper on {BatchPrintText.Clean(info.Name)}. Is there enough in the tray?", "Print"))
+            && !Prompt.Ask(string.Format(Strings.Batch_ConfirmSheets, Sheets(sheets), BatchPrintText.Clean(info.Name)), Strings.Common_Print))
             return;
 
         IsSending = true;
@@ -421,7 +427,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
                 var row = rows[p.Index];
                 if (p.Result is { } result) row.Finished(result);
                 else row.Sending(p.Message);
-                Progress = p.Result is null ? $"File {p.Index + 1:N0} of {rows.Count:N0}: {BatchPrintText.Clean(row.Name)}. {p.Message}" : null;
+                Progress = p.Result is null ? string.Format(Strings.Batch_FileProgress, p.Index + 1, rows.Count, BatchPrintText.Clean(row.Name), p.Message) : null;
                 RowChanged();
             });
             var summary = await Task.Run(() => BatchPrintRunner.RunAsync(lines, queue, documents, null, progress, _run.Token));
@@ -434,7 +440,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         catch (Exception ex)
         {
             Log.Write($"Batch failed: {ex}");
-            SetMessage($"The batch stopped: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Batch_Stopped, ex.Message), error: true);
         }
         finally
         {
@@ -450,7 +456,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     private void Stop()
     {
         _run?.Cancel();
-        Progress = "Stopping: a file already handed to Windows finishes…";
+        Progress = Strings.Batch_Stopping;
     }
 
     [RelayCommand]
@@ -473,20 +479,20 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         if (!ProAllows()) return;
         var dialog = new SaveFileDialog
         {
-            Title = "Save this batch as a list",
-            FileName = "Batch" + BatchPrintList.Extension,
-            Filter = $"Inkvolt Print lists (*{BatchPrintList.Extension})|*{BatchPrintList.Extension}",
+            Title = Strings.Batch_SaveList,
+            FileName = Strings.Batch_ListFileName + BatchPrintList.Extension,
+            Filter = string.Format(Strings.Batch_ListFilter, BatchPrintList.Extension) + $"|*{BatchPrintList.Extension}",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
         if (dialog.ShowDialog() != true) return;
         try
         {
             BatchPrintList.Save(dialog.FileName, Rows.Select(r => new BatchListEntry(r.Path, r.Settings)));
-            SetMessage($"Saved the list as {Path.GetFileName(dialog.FileName)}. Passwords aren't kept in it.");
+            SetMessage(string.Format(Strings.Batch_ListSaved, Path.GetFileName(dialog.FileName)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetMessage($"The list wasn't saved: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Batch_ListNotSaved, ex.Message), error: true);
         }
     }
 
@@ -496,8 +502,8 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         if (!ProAllows()) return;
         var dialog = new OpenFileDialog
         {
-            Title = "Open a saved list",
-            Filter = $"Inkvolt Print lists (*{BatchPrintList.Extension})|*{BatchPrintList.Extension}|All files (*.*)|*.*",
+            Title = Strings.Batch_OpenList,
+            Filter = string.Format(Strings.Batch_ListFilter, BatchPrintList.Extension) + $"|*{BatchPrintList.Extension}|" + Strings.Photos_FilterAll + "|*.*",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
         if (dialog.ShowDialog() == true) await OpenListAsync(dialog.FileName);
@@ -515,11 +521,11 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             }
             catch (BatchListNetworkException ex)
             {
-                if (!Prompt.Ask($"Open files on other computers?\n{ex.Message} Opening them shares this PC's sign-in with those computers. Do this only for a list you trust.", "Open them")) return;
+                if (!Prompt.Ask(string.Format(Strings.Batch_NetworkAsk, ex.Message), Strings.Batch_OpenThem)) return;
                 entries = await Task.Run(() => BatchPrintList.Load(path, allowNetwork: true));
             }
             var files = await Task.Run(() => BatchPrintList.Expand(entries));
-            if (Rows.Count > 0 && !Prompt.Ask("Replace the list?\nThe files on the list now, and their results, make way for the saved list's.", "Replace")) return;
+            if (Rows.Count > 0 && !Prompt.Ask(Strings.Batch_ReplaceAsk, Strings.Batch_Replace)) return;
             Clear();
             foreach (var entry in files) AddRow(entry.Path, entry.Settings);
             RowChanged();
@@ -544,8 +550,8 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         }
         var dialog = new SaveFileDialog
         {
-            Title = "Save the results",
-            FileName = "Batch results.csv",
+            Title = Strings.Batch_SaveResults,
+            FileName = Strings.Batch_ResultsFileName + ".csv",
             Filter = "CSV (*.csv)|*.csv",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
@@ -553,11 +559,11 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         try
         {
             File.WriteAllText(dialog.FileName, csv, new UTF8Encoding(true)); // a spreadsheet reads the names right
-            SetMessage($"Saved the results as {Path.GetFileName(dialog.FileName)}.");
+            SetMessage(string.Format(Strings.Batch_ResultsSaved, Path.GetFileName(dialog.FileName)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetMessage($"The results weren't saved: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Batch_ResultsNotSaved, ex.Message), error: true);
         }
     }
 
@@ -567,7 +573,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     private async Task WatchFolderAsync()
     {
         if (!ProAllows()) return;
-        var dialog = new OpenFolderDialog { Title = "Choose a folder to print as it fills", InitialDirectory = StartFolder };
+        var dialog = new OpenFolderDialog { Title = Strings.Batch_ChooseWatchFolder, InitialDirectory = StartFolder };
         if (dialog.ShowDialog() == true) await WatchAsync(dialog.FolderName);
     }
 
@@ -589,7 +595,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             SetMessage(ex.Message, error: true);
             return;
         }
-        if (already > 0 && !Prompt.Ask($"Print {BatchPrintText.Count(already, "file")} already in this folder?\n{BatchPrintText.Clean(folder)} has {BatchPrintText.Count(already, "file")} that would print now. Choose an empty folder if not.", "Print them"))
+        if (already > 0 && !Prompt.Ask(Plural.Of(already, Strings.Batch_WatchAsk_One, Strings.Batch_WatchAsk_Many, BatchPrintText.Clean(folder)), Strings.Batch_PrintThem))
             return;
 
         _watch = new CancellationTokenSource();
@@ -598,13 +604,14 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         SetMessage(null);
         var progress = new Progress<BatchFolderProgress>(p =>
         {
-            if (p.Waiting is { } waiting) AddWatchLine($"Waiting: {waiting}");
+            if (p.Waiting is { } waiting) AddWatchLine(string.Format(Strings.Batch_Waiting, waiting));
             if (p.Finished is { } e) AddWatchLine($"{e.Time:HH:mm:ss} {BatchPrintText.Clean(e.FileName)}: {e.Message}");
         });
         try
         {
             var summary = await Task.Run(() => BatchPrintFolder.RunAsync(folder, queue, documents, new BatchFolderOptions { Settings = settings }, progress, _watch.Token));
-            SetMessage($"Stopped watching. {BatchPrintText.Count(summary.Sent, "file")} sent ({BatchPrintText.Sheets(summary.SheetsSent)}), {summary.Failed:N0} failed.{(summary.StopReason is { } why ? " " + why : "")}", error: summary.StopReason is not null);
+            SetMessage(Plural.Of(summary.Sent, Strings.Batch_StoppedWatching_One, Strings.Batch_StoppedWatching_Many, Sheets(summary.SheetsSent), summary.Failed)
+                + (summary.StopReason is { } why ? " " + why : ""), error: summary.StopReason is not null);
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
@@ -613,7 +620,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         catch (Exception ex)
         {
             Log.Write($"Batch folder failed: {ex}");
-            SetMessage($"Stopped watching: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Batch_StoppedWatchingError, ex.Message), error: true);
         }
         finally
         {
@@ -663,7 +670,7 @@ public sealed partial class BatchRowViewModel : ObservableObject
         _range = settings.Range ?? "";
         _twoSided = settings.TwoSided;
         _paperKey = settings.Paper;
-        _message = "Looking at it…";
+        _message = Strings.Batch_LookingAtIt;
     }
 
     private int _copies;
@@ -753,9 +760,9 @@ public sealed partial class BatchRowViewModel : ObservableObject
     [RelayCommand]
     private void FewerCopies() => Copies--;
 
-    public string PagesText => Measure is { State: BatchMeasureState.Ready } m ? BatchPrintText.Count(m.PageCount, "page") : "";
+    public string PagesText => Measure is { State: BatchMeasureState.Ready } m ? Plural.Of(m.PageCount, Strings.Batch_Pages_One, Strings.Batch_Pages_Many) : "";
 
-    public string SheetsText => Line is { Problem: null } line ? BatchPrintText.Sheets(line.Sheets) : "";
+    public string SheetsText => Line is { Problem: null } line ? BatchPrintViewModel.Sheets(line.Sheets) : "";
 
     /// <summary>What's happening or why not: the row's second line.</summary>
     public string Message => _message;
@@ -764,12 +771,12 @@ public sealed partial class BatchRowViewModel : ObservableObject
 
     public string StateText => State switch
     {
-        BatchPrintState.Sending => "Sending",
-        BatchPrintState.Sent => "Sent",
-        BatchPrintState.Failed => "Failed",
-        BatchPrintState.Stopped => "Not sent",
-        BatchPrintState.Skipped => "Left out",
-        _ => Measure is null ? "Looking" : Line is { Problem: not null } ? "Left out" : "Ready",
+        BatchPrintState.Sending => Strings.Batch_StateSending,
+        BatchPrintState.Sent => Strings.Batch_StateSent,
+        BatchPrintState.Failed => Strings.Batch_StateFailed,
+        BatchPrintState.Stopped => Strings.Batch_StateNotSent,
+        BatchPrintState.Skipped => Strings.Batch_StateLeftOut,
+        _ => Measure is null ? Strings.Batch_StateLooking : Line is { Problem: not null } ? Strings.Batch_StateLeftOut : Strings.Batch_StateReady,
     };
 
     /// <summary>What a screen reader says for the row.</summary>
@@ -802,7 +809,7 @@ public sealed partial class BatchRowViewModel : ObservableObject
     {
         _info = info;
         Line = Measure is null ? null : new BatchPrintLine(Path, Settings, Measure, info);
-        if (Result is null && State == BatchPrintState.Waiting) _message = Measure is null ? "Looking at it…" : Line?.Problem ?? "";
+        if (Result is null && State == BatchPrintState.Waiting) _message = Measure is null ? Strings.Batch_LookingAtIt : Line?.Problem ?? "";
         Notify();
     }
 
@@ -813,7 +820,7 @@ public sealed partial class BatchRowViewModel : ObservableObject
         Line = null;
         Result = null;
         State = BatchPrintState.Waiting;
-        _message = "Looking at it…";
+        _message = Strings.Batch_LookingAtIt;
         OnPropertyChanged(nameof(PagesText));
         OnPropertyChanged(nameof(NeedsPassword));
         Notify();

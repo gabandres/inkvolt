@@ -1,3 +1,4 @@
+using InkvoltPrint.Core;
 using Windows.Devices.Enumeration;
 
 namespace InkvoltPrint.Windows.Queues;
@@ -26,7 +27,7 @@ public static class QueueInstaller
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return new(InstallOutcome.Failed, "Windows did not finish setting it up in time. Try again, or use Windows Settings → Printers & scanners.");
+            return new(InstallOutcome.Failed, CoreStrings.Win_SetupTimedOut);
         }
     }
 
@@ -39,11 +40,11 @@ public static class QueueInstaller
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new(InstallOutcome.NotAvailable, "Windows no longer sees this printer on the network.");
+            return new(InstallOutcome.NotAvailable, CoreStrings.Win_NoLongerSeen);
         }
 
-        if (device.Pairing.IsPaired) return new(InstallOutcome.AlreadyInstalled, "Already installed in Windows.");
-        if (!device.Pairing.CanPair) return new(InstallOutcome.NotAvailable, "Windows cannot install this printer automatically.");
+        if (device.Pairing.IsPaired) return new(InstallOutcome.AlreadyInstalled, CoreStrings.Win_AlreadyInstalled);
+        if (!device.Pairing.CanPair) return new(InstallOutcome.NotAvailable, CoreStrings.Win_CannotInstallAuto);
 
         var custom = device.Pairing.Custom;
         void Accept(DeviceInformationCustomPairing _, DevicePairingRequestedEventArgs args) => args.Accept();
@@ -53,10 +54,10 @@ public static class QueueInstaller
             var result = await custom.PairAsync(DevicePairingKinds.ConfirmOnly).AsTask(ct);
             return result.Status switch
             {
-                DevicePairingResultStatus.Paired => new(InstallOutcome.Installed, "Installed."),
-                DevicePairingResultStatus.AlreadyPaired => new(InstallOutcome.AlreadyInstalled, "Already installed in Windows."),
-                DevicePairingResultStatus.OperationAlreadyInProgress => new(InstallOutcome.Failed, "Windows is already setting this device up. Give it a minute."),
-                _ => new(InstallOutcome.Failed, $"Windows could not install the printer ({Describe(result.Status)})."),
+                DevicePairingResultStatus.Paired => new(InstallOutcome.Installed, CoreStrings.Win_Installed),
+                DevicePairingResultStatus.AlreadyPaired => new(InstallOutcome.AlreadyInstalled, CoreStrings.Win_AlreadyInstalled),
+                DevicePairingResultStatus.OperationAlreadyInProgress => new(InstallOutcome.Failed, CoreStrings.Win_AlreadySettingUp),
+                _ => new(InstallOutcome.Failed, string.Format(CoreStrings.Win_InstallFailed, Describe(result.Status))),
             };
         }
         finally
@@ -75,11 +76,11 @@ public static class QueueInstaller
 
     private static string Describe(DevicePairingResultStatus s) => s switch
     {
-        DevicePairingResultStatus.NotReadyToPair => "printer not ready",
-        DevicePairingResultStatus.ConnectionRejected => "connection rejected",
-        DevicePairingResultStatus.AccessDenied => "access denied",
-        DevicePairingResultStatus.Failed => "failed",
-        DevicePairingResultStatus.RequiredHandlerNotRegistered or DevicePairingResultStatus.PairingCanceled => "needs confirmation in Settings",
+        DevicePairingResultStatus.NotReadyToPair => CoreStrings.Win_PairNotReady,
+        DevicePairingResultStatus.ConnectionRejected => CoreStrings.Win_PairRejected,
+        DevicePairingResultStatus.AccessDenied => CoreStrings.Win_PairAccessDenied,
+        DevicePairingResultStatus.Failed => CoreStrings.Win_PairFailed,
+        DevicePairingResultStatus.RequiredHandlerNotRegistered or DevicePairingResultStatus.PairingCanceled => CoreStrings.Win_PairNeedsConfirmation,
         _ => s.ToString(),
     };
 }

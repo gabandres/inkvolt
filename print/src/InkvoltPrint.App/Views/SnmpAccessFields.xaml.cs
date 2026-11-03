@@ -70,7 +70,7 @@ public partial class SnmpAccessFields : UserControl
         CommunityPanel.Visibility = v3 ? Visibility.Collapsed : Visibility.Visible;
         V3Panel.Visibility = v3 ? Visibility.Visible : Visibility.Collapsed;
         var locked = !Pro.Allows(ProFeature.SnmpV3);
-        ProNote.Text = locked ? $"{Pro.Locked(ProFeature.SnmpV3)} Help › Inkvolt Pro… enters a key." : "";
+        ProNote.Text = locked ? string.Format(Strings.Snmp_ProNote, Pro.Locked(ProFeature.SnmpV3)) : "";
         ProNote.Visibility = locked ? Visibility.Visible : Visibility.Collapsed;
         Error.Visibility = Visibility.Collapsed;
     }

@@ -24,7 +24,7 @@ public sealed class ProCheck(string product)
     private readonly Lock _gate = new();
     private IProStore _store = new MemoryProStore();
     private ProLicence? _licence;
-    private string? _problem;
+    private Func<string>? _problem; // read when asked: the words follow the interface's language
     private bool _loaded;
 
     /// <summary>"pdf" or "print" (<see cref="ProKeys.KnownProducts"/>): what a key must list to count here.</summary>
@@ -68,7 +68,7 @@ public sealed class ProCheck(string product)
             lock (_gate)
             {
                 Load();
-                return _problem;
+                return _problem?.Invoke();
             }
         }
     }
@@ -81,7 +81,7 @@ public sealed class ProCheck(string product)
     {
         var licence = ProKeys.Parse(key);
         if (!licence.Covers(Product))
-            throw new ProKeyException($"This key is for {Names(licence)}, not {ProductName}. A key for {ProductName} lists it.");
+            throw new ProKeyException(string.Format(CoreStrings.Suite_KeyOtherProduct, Names(licence), ProductName));
         lock (_gate)
         {
             _store.Write(ProKeys.Format(key));
@@ -115,13 +115,14 @@ public sealed class ProCheck(string product)
         {
             var licence = ProKeys.Parse(stored);
             if (licence.Covers(Product)) _licence = licence;
-            else _problem = $"The saved key is for {Names(licence)}, not {ProductName}.";
+            else _problem = () => string.Format(CoreStrings.Suite_SavedKeyOtherProduct, Names(licence), ProductName);
         }
         catch (ProKeyException ex)
         {
-            _problem = $"The saved key no longer checks out: {ex.Message}";
+            var why = ex.Message;
+            _problem = () => string.Format(CoreStrings.Suite_SavedKeyInvalid, why);
         }
     }
 
-    private static string Names(ProLicence licence) => string.Join(" and ", licence.Products.Select(ProKeys.ProductName));
+    private static string Names(ProLicence licence) => Offline.Reachability.Join(licence.Products.Select(ProKeys.ProductName).ToList());
 }

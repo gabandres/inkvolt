@@ -60,15 +60,15 @@ public static class AlertConditions
         var found = new List<AlertCondition>();
         if (!snap.Reachable)
         {
-            found.Add(new AlertCondition("Offline", AlertKind.Offline, $"{snap.Name} is offline",
-                "Inkvolt Print can't reach it. It may be turned off, asleep or off the network."));
+            found.Add(new AlertCondition("Offline", AlertKind.Offline, string.Format(CoreStrings.Alert_OfflineTitle, snap.Name),
+                CoreStrings.Alert_OfflineBody));
             return found;
         }
         if (snap.Status is { } status) AddStatus(found, snap.Name, status);
         foreach (var s in snap.Supplies ?? []) AddSupply(found, snap.Name, s, rules, isActive, snap.DaysLeft);
         if (snap.FirmwareChange is { } fw)
-            found.Add(new($"{AlertKind.FirmwareChanged}|{fw.Key}", AlertKind.FirmwareChanged, $"{snap.Name}: firmware changed",
-                $"{fw.Text} If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."));
+            found.Add(new($"{AlertKind.FirmwareChanged}|{fw.Key}", AlertKind.FirmwareChanged, string.Format(CoreStrings.Alert_FirmwareTitle, snap.Name),
+                string.Format(CoreStrings.Alert_FirmwareBody, fw.Text)));
         return found;
     }
 
@@ -108,24 +108,24 @@ public static class AlertConditions
 
     private static (AlertKind, string Title, string Body) Classify(string id, string message, string printer)
     {
-        if (Has(id, "jam")) return (AlertKind.PaperJam, "Paper jam", $"{printer}: clear the jam to keep printing.");
+        if (Has(id, "jam")) return (AlertKind.PaperJam, CoreStrings.Queue_PaperJam, string.Format(CoreStrings.Alert_ClearJam, printer));
         if (id is "media-empty" or "media-needed" or "trayEmptyOrOpen" or "mediaPrompt" or "input-tray-missing")
-            return (AlertKind.PaperOut, message, $"{printer}: load paper to keep printing.");
+            return (AlertKind.PaperOut, message, string.Format(CoreStrings.Alert_LoadPaper, printer));
         if (Has(id, "cover") || Has(id, "door") || id == "interlock-open")
-            return (AlertKind.CoverOpen, message, $"{printer}: close it to keep printing.");
-        return (AlertKind.Error, message, $"{printer}: check the printer.");
+            return (AlertKind.CoverOpen, message, string.Format(CoreStrings.Alert_CloseCover, printer));
+        return (AlertKind.Error, message, string.Format(CoreStrings.Alert_CheckPrinter, printer));
     }
 
     private static void AddSupply(List<AlertCondition> found, string printer, Consumable s, AlertRules rules, Func<string, bool> isActive,
         IReadOnlyDictionary<string, int>? daysLeft)
     {
-        var detail = $"{s.Name}|{s.ColorCode}";
+        var detail = $"{s.Key}|{s.ColorCode}"; // the English name: the same alert in any language
         if (s.IsWaste)
         {
             var full = s.State == "full";
-            if (full) found.Add(new($"{AlertKind.WasteFull}|{detail}", AlertKind.WasteFull, $"{s.Name} full", $"{printer}: replace it to keep printing."));
+            if (full) found.Add(new($"{AlertKind.WasteFull}|{detail}", AlertKind.WasteFull, string.Format(CoreStrings.Alert_WasteFull, s.Name), string.Format(CoreStrings.Alert_ReplaceToKeepPrinting, printer)));
             if (full || s.State == "almostFull")
-                found.Add(new($"{AlertKind.WasteAlmostFull}|{detail}", AlertKind.WasteAlmostFull, $"{s.Name} almost full", $"{printer}: replace it soon."));
+                found.Add(new($"{AlertKind.WasteAlmostFull}|{detail}", AlertKind.WasteAlmostFull, string.Format(CoreStrings.Alert_WasteAlmostFull, s.Name), string.Format(CoreStrings.Alert_ReplaceSoon, printer)));
             return;
         }
         var lowKey = $"{AlertKind.SupplyLow}|{detail}";
@@ -133,17 +133,15 @@ public static class AlertConditions
         var low = empty || (s.PercentRemaining is { } p
             ? p <= rules.LowPercent + (isActive(lowKey) ? rules.Hysteresis : 0)
             : s.State is "low" or "veryLow");
-        if (empty) found.Add(new($"{AlertKind.SupplyEmpty}|{detail}", AlertKind.SupplyEmpty, $"{s.Name} empty", $"{printer}: replace it to keep printing."));
+        if (empty) found.Add(new($"{AlertKind.SupplyEmpty}|{detail}", AlertKind.SupplyEmpty, string.Format(CoreStrings.Alert_SupplyEmpty, s.Name), string.Format(CoreStrings.Alert_ReplaceToKeepPrinting, printer)));
         if (!low) return;
-        var left = s.EstimatedPagesRemaining is { } pages and > 0 ? $"about {pages:N0} pages left" : null;
+        var left = s.EstimatedPagesRemaining is { } pages and > 0 ? string.Format(CoreStrings.Alert_PagesLeft, pages) : null;
         if (daysLeft is not null && daysLeft.TryGetValue(History.SupplyRow.KeyOf(s), out var days))
-        {
-            var word = days == 1 ? "day" : "days";
-            left = left is null ? $"about {days:N0} {word} left at this rate" : $"{left}, about {days:N0} {word} at this rate";
-        }
-        var part = Part(s) is { } number ? $"Replacement: {number}." : null;
-        var body = $"{printer}: {left ?? "running low"}." + (part is null ? "" : $" {part}");
-        found.Add(new(lowKey, AlertKind.SupplyLow, s.PercentRemaining is { } pct ? $"{s.Name} low ({pct}%)" : $"{s.Name} low", body));
+            left = left is null ? Plural.Of(days, CoreStrings.Alert_DaysLeft_One, CoreStrings.Alert_DaysLeft_Many)
+                : Plural.Of(days, CoreStrings.Alert_PagesAndDaysLeft_One, CoreStrings.Alert_PagesAndDaysLeft_Many, left);
+        var part = Part(s) is { } number ? string.Format(CoreStrings.Alert_Replacement, number) : null;
+        var body = string.Format(CoreStrings.Alert_LowBody, printer, left ?? CoreStrings.Alert_RunningLow) + (part is null ? "" : $" {part}");
+        found.Add(new(lowKey, AlertKind.SupplyLow, s.PercentRemaining is { } pct ? string.Format(CoreStrings.Alert_SupplyLowPercent, s.Name, pct) : string.Format(CoreStrings.Alert_SupplyLow, s.Name), body));
     }
 
     /// <summary>The cartridge number the supplies card already shows (HP's selectability number, then the product number).</summary>

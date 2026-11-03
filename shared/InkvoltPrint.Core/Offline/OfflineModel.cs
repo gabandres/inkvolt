@@ -83,16 +83,16 @@ public sealed record Reachability(string Host, bool Ping, IReadOnlyList<int> Ope
     public string PortsText => Join(OpenPorts.Select(p => p switch
     {
         631 => "IPP",
-        9100 => "raw printing (port 9100)",
-        80 or 443 => "its web page",
-        _ => $"port {p}",
+        9100 => CoreStrings.Offline_PortRaw,
+        80 or 443 => CoreStrings.Offline_PortWeb,
+        _ => string.Format(CoreLanguage.Culture, CoreStrings.Offline_Port, p),
     }).Distinct().ToList());
 
     internal static string Join(IReadOnlyList<string> parts) => parts.Count switch
     {
         0 => "",
         1 => parts[0],
-        _ => string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1],
+        _ => string.Format(CoreStrings.Offline_ListAnd, string.Join(", ", parts.Take(parts.Count - 1)), parts[^1]),
     };
 }
 
@@ -206,11 +206,11 @@ public sealed record CheckResult(CheckKind Kind, CheckState State, string Title,
 {
     public static string TitleOf(CheckKind kind) => kind switch
     {
-        CheckKind.Spooler => "Print Spooler service",
-        CheckKind.Network => "Printer on the network",
-        CheckKind.Connection => "Printer answers",
-        CheckKind.Queues => "Windows printers for this device",
-        _ => "Paused, offline or stuck jobs",
+        CheckKind.Spooler => CoreStrings.Offline_CheckSpooler,
+        CheckKind.Network => CoreStrings.Offline_CheckNetwork,
+        CheckKind.Connection => CoreStrings.Offline_CheckConnection,
+        CheckKind.Queues => CoreStrings.Offline_CheckQueues,
+        _ => CoreStrings.Offline_CheckQueueState,
     };
 
     public static CheckResult Waiting(CheckKind kind) => new(kind, CheckState.Waiting, TitleOf(kind));
@@ -224,9 +224,9 @@ public sealed record MatchedQueue(QueueFacts Queue, MatchReason Reason, bool Por
     /// <summary>"Standard TCP/IP port to 192.0.2.12", "WSD/IPP port (Windows finds it by its ID)".</summary>
     public string PortText => Queue.Port.Kind switch
     {
-        PortKind.TcpIp => $"Standard TCP/IP port to {Queue.Port.Host ?? Queue.Port.Name}{(Queue.Port.Lpr ? " (LPR)" : "")}",
-        PortKind.DeviceId => "WSD/IPP port (Windows finds the printer by its ID)",
-        PortKind.IppUrl => $"IPP port to {Queue.Port.Url?.Host ?? Queue.Port.Host ?? Queue.Port.Name}",
-        _ => $"port {Queue.Port.Name}",
+        PortKind.TcpIp => string.Format(Queue.Port.Lpr ? CoreStrings.Offline_PortTcpIpLpr : CoreStrings.Offline_PortTcpIp, Queue.Port.Host ?? Queue.Port.Name),
+        PortKind.DeviceId => CoreStrings.Offline_PortDeviceId,
+        PortKind.IppUrl => string.Format(CoreStrings.Offline_PortIpp, Queue.Port.Url?.Host ?? Queue.Port.Host ?? Queue.Port.Name),
+        _ => string.Format(CoreStrings.Offline_Port, Queue.Port.Name),
     };
 }

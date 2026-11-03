@@ -11,24 +11,24 @@ public sealed record QueueReading(PrinterStatus Status, bool Offline);
 /// </summary>
 public static class SpoolerStatus
 {
-    private static readonly (uint Bit, string Id, Severity Severity, string Message)[] Problems =
+    private static readonly (uint Bit, string Id, Severity Severity, Func<string> Message)[] Problems =
     [
-        (SpoolerFlags.StatusPaperJam, "media-jam", Severity.Error, "Paper jam"),
-        (SpoolerFlags.StatusPaperOut, "media-empty", Severity.Error, "Out of paper"),
-        (SpoolerFlags.StatusDoorOpen, "door-open", Severity.Error, "A door or cover is open"),
-        (SpoolerFlags.StatusNoToner, "no-toner", Severity.Error, "Out of toner or ink"),
-        (SpoolerFlags.StatusOutputBinFull, "output-bin-full", Severity.Error, "Output tray is full"),
-        (SpoolerFlags.StatusPaperProblem, "media-problem", Severity.Error, "Paper problem"),
-        (SpoolerFlags.StatusPagePunt, "page-punt", Severity.Error, "Can't print the current page"),
-        (SpoolerFlags.StatusOutOfMemory, "out-of-memory", Severity.Error, "The printer ran out of memory"),
-        (SpoolerFlags.StatusUserIntervention, "user-intervention", Severity.Error, "The printer needs attention"),
-        (SpoolerFlags.StatusManualFeed, "manual-feed", Severity.Warning, "Waiting for paper in the manual feed"),
-        (SpoolerFlags.StatusTonerLow, "toner-low", Severity.Warning, "Toner or ink is low (as the driver reports it)"),
-        (SpoolerFlags.StatusDriverUpdateNeeded, "driver-update", Severity.Warning, "Windows says the printer's driver needs an update"),
+        (SpoolerFlags.StatusPaperJam, "media-jam", Severity.Error, () => CoreStrings.Queue_PaperJam),
+        (SpoolerFlags.StatusPaperOut, "media-empty", Severity.Error, () => CoreStrings.Queue_PaperOut),
+        (SpoolerFlags.StatusDoorOpen, "door-open", Severity.Error, () => CoreStrings.Queue_DoorOpen),
+        (SpoolerFlags.StatusNoToner, "no-toner", Severity.Error, () => CoreStrings.Queue_NoToner),
+        (SpoolerFlags.StatusOutputBinFull, "output-bin-full", Severity.Error, () => CoreStrings.Queue_OutputBinFull),
+        (SpoolerFlags.StatusPaperProblem, "media-problem", Severity.Error, () => CoreStrings.Queue_PaperProblem),
+        (SpoolerFlags.StatusPagePunt, "page-punt", Severity.Error, () => CoreStrings.Queue_PagePunt),
+        (SpoolerFlags.StatusOutOfMemory, "out-of-memory", Severity.Error, () => CoreStrings.Queue_OutOfMemory),
+        (SpoolerFlags.StatusUserIntervention, "user-intervention", Severity.Error, () => CoreStrings.Queue_UserIntervention),
+        (SpoolerFlags.StatusManualFeed, "manual-feed", Severity.Warning, () => CoreStrings.Queue_ManualFeed),
+        (SpoolerFlags.StatusTonerLow, "toner-low", Severity.Warning, () => CoreStrings.Queue_TonerLow),
+        (SpoolerFlags.StatusDriverUpdateNeeded, "driver-update", Severity.Warning, () => CoreStrings.Queue_DriverUpdate),
     ];
 
     /// <summary>The headline while Windows' "Use Printer Offline" holds the jobs.</summary>
-    public const string UsePrinterOfflineMessage = "Use Printer Offline is on";
+    public static string UsePrinterOfflineMessage => CoreStrings.Queue_UsePrinterOffline;
 
     private const uint OfflineBits = SpoolerFlags.StatusOffline | SpoolerFlags.StatusNotAvailable | SpoolerFlags.StatusServerOffline
                                      | SpoolerFlags.StatusServerUnknown;
@@ -49,70 +49,70 @@ public static class SpoolerStatus
     /// </summary>
     public static QueueReading Unreadable(SpoolerQueue q, int win32Error)
     {
-        var server = QueueKinds.Connection(q) == QueueConnection.Shared ? QueueKinds.ServerOf(q.Name) ?? "another PC" : null;
+        var server = QueueKinds.Connection(q) == QueueConnection.Shared ? QueueKinds.ServerOf(q.Name) ?? CoreStrings.Queue_AnotherPc : null;
         if (win32Error == ErrorAccessDenied)
-            return new(new PrinterStatus("unknown", "Status not available", Severity.Warning, [], server is not null
-                ? $"The PC sharing this printer ({server}) doesn't let this PC read its status."
-                : "Windows doesn't let Inkvolt Print read this printer's status."), false);
+            return new(new PrinterStatus("unknown", CoreStrings.Queue_StatusNotAvailable, Severity.Warning, [], server is not null
+                ? string.Format(CoreStrings.Queue_SharedNoRead, server)
+                : CoreStrings.Queue_WindowsNoRead), false);
         return server is not null
-            ? new(new PrinterStatus("offline", "Can't reach the PC sharing it", Severity.Error, [],
-                $"Windows can't reach {server}, the PC sharing this printer. Check that it's on and on the same network as this PC."), true)
-            : new(new PrinterStatus("offline", "Windows isn't answering", Severity.Error, [],
-                "The Print Spooler isn't answering about this printer (it may be restarting). Inkvolt Print keeps asking."), true);
+            ? new(new PrinterStatus("offline", CoreStrings.Queue_CantReachSharingPc, Severity.Error, [],
+                string.Format(CoreStrings.Queue_CantReachSharingPcDetail, server)), true)
+            : new(new PrinterStatus("offline", CoreStrings.Queue_WindowsNotAnswering, Severity.Error, [],
+                CoreStrings.Queue_SpoolerNotAnswering), true);
     }
 
     public static QueueReading Describe(SpoolerQueue q)
     {
         var connection = QueueKinds.Connection(q);
-        var waiting = q.Jobs switch { 0 => "", 1 => " 1 job is waiting.", var n => $" {n} jobs are waiting." };
+        var waiting = q.Jobs == 0 ? "" : " " + Plural.Of(q.Jobs, CoreStrings.Queue_JobsWaiting_One, CoreStrings.Queue_JobsWaiting_Many);
         var workOffline = (q.Attributes & SpoolerFlags.AttributeWorkOffline) != 0;
         if (workOffline || (q.Status & OfflineBits) != 0)
         {
             var check = connection switch
             {
-                QueueConnection.Usb => "Check that it's turned on and its USB cable is plugged in.",
-                QueueConnection.Shared => "Check that the PC sharing it is on and the printer is turned on.",
-                QueueConnection.Network => "Check that it's turned on and on the same network as this PC.",
-                _ => "Check that it's turned on and connected.",
+                QueueConnection.Usb => CoreStrings.Queue_CheckUsb,
+                QueueConnection.Shared => CoreStrings.Queue_CheckShared,
+                QueueConnection.Network => CoreStrings.Queue_CheckNetwork,
+                _ => CoreStrings.Queue_CheckOther,
             };
             return workOffline
                 ? new(new PrinterStatus("offline", UsePrinterOfflineMessage, Severity.Error, [],
-                    $"Windows holds print jobs for this printer until it's turned off in the printer's queue (Open Windows queue › Printer).{waiting}"), true)
-                : new(new PrinterStatus("offline", "Offline", Severity.Error, [], $"Windows can't reach the printer. {check}{waiting}"), true);
+                    CoreStrings.Queue_WorkOfflineDetail + waiting), true)
+                : new(new PrinterStatus("offline", CoreStrings.Queue_Offline, Severity.Error, [], string.Format(CoreStrings.Queue_CantReachPrinter, check) + waiting), true);
         }
 
         if (q.DevicePresent == false)
         {
             var where = connection switch
             {
-                QueueConnection.Usb => "Windows doesn't see it on USB. Check that it's turned on and its USB cable is plugged in.",
-                _ => "Windows doesn't see it on the network. Check that it's turned on and on the same network as this PC.",
+                QueueConnection.Usb => CoreStrings.Queue_NotSeenUsb,
+                _ => CoreStrings.Queue_NotSeenNetwork,
             };
-            return new(new PrinterStatus("offline", "Not connected", Severity.Error, [], $"{where}{waiting}"), true);
+            return new(new PrinterStatus("offline", CoreStrings.Queue_NotConnected, Severity.Error, [], where + waiting), true);
         }
 
         if ((q.Status & SpoolerFlags.StatusPendingDeletion) != 0)
-            return new(new PrinterStatus("deleting", "Being removed from Windows", Severity.Warning, []), false);
+            return new(new PrinterStatus("deleting", CoreStrings.Queue_BeingRemoved, Severity.Warning, []), false);
 
-        var alerts = Problems.Where(p => (q.Status & p.Bit) != 0).Select(p => new PrinterAlert(p.Id, p.Severity, p.Message)).ToList();
+        var alerts = Problems.Where(p => (q.Status & p.Bit) != 0).Select(p => new PrinterAlert(p.Id, p.Severity, p.Message())).ToList();
         if ((q.Status & SpoolerFlags.StatusError) != 0 && !alerts.Any(a => a.Severity == Severity.Error))
-            alerts.Insert(0, new PrinterAlert("error", Severity.Error, "Printer error"));
+            alerts.Insert(0, new PrinterAlert("error", Severity.Error, CoreStrings.Queue_PrinterError));
         var worst = alerts.Select(a => a.Severity).DefaultIfEmpty(Severity.Info).Max();
 
         if (alerts.FirstOrDefault(a => a.Severity == Severity.Error) is { } error)
-            return new(new PrinterStatus("error", error.Message, Severity.Error, alerts, $"Windows and the printer's driver report this.{waiting}".TrimEnd()), false);
+            return new(new PrinterStatus("error", error.Message, Severity.Error, alerts, (CoreStrings.Queue_DriverReports + waiting).TrimEnd()), false);
 
         if ((q.Status & SpoolerFlags.StatusPaused) != 0)
-            return new(new PrinterStatus("paused", "Paused in Windows", Severity.Warning, alerts,
-                $"Windows holds print jobs until the queue is resumed (Open Windows queue › Printer › Pause Printing).{waiting}"), false);
+            return new(new PrinterStatus("paused", CoreStrings.Queue_PausedInWindows, Severity.Warning, alerts,
+                CoreStrings.Queue_PausedDetail + waiting), false);
 
         var (code, message) = q.Status switch
         {
-            var s when (s & (SpoolerFlags.StatusPrinting | SpoolerFlags.StatusProcessing)) != 0 => ("printing", "Printing"),
-            var s when (s & SpoolerFlags.StatusWarmingUp) != 0 => ("warmingUp", "Warming up"),
-            var s when (s & SpoolerFlags.StatusInitializing) != 0 => ("initializing", "Starting up"),
-            var s when (s & SpoolerFlags.StatusPowerSave) != 0 => ("inPowerSave", "Sleeping"),
-            _ => ("ready", "Ready"),
+            var s when (s & (SpoolerFlags.StatusPrinting | SpoolerFlags.StatusProcessing)) != 0 => ("printing", CoreStrings.Queue_Printing),
+            var s when (s & SpoolerFlags.StatusWarmingUp) != 0 => ("warmingUp", CoreStrings.Queue_WarmingUp),
+            var s when (s & SpoolerFlags.StatusInitializing) != 0 => ("initializing", CoreStrings.Queue_StartingUp),
+            var s when (s & SpoolerFlags.StatusPowerSave) != 0 => ("inPowerSave", CoreStrings.Queue_Sleeping),
+            _ => ("ready", CoreStrings.Queue_Ready),
         };
         return new(new PrinterStatus(code, message, worst, alerts, waiting.Length > 0 ? waiting.Trim() : null), false);
     }

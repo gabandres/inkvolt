@@ -134,14 +134,14 @@ public sealed record ScannerStatus(string State, string? AdfState, IReadOnlyList
         if (feeder && AdfState is not null && !AdfLoaded)
             return AdfState switch
             {
-                "ScannerAdfJam" => "The document feeder is jammed. Clear the paper and try again.",
-                "ScannerAdfDoorOpen" or "ScannerAdfHatchOpen" => "The document feeder's cover is open. Close it and try again.",
-                "ScannerAdfMispick" or "ScannerAdfMultipickDetected" => "The document feeder couldn't pick up a page. Straighten the stack and try again.",
-                "ScannerAdfInputTrayOverloaded" => "Too many pages in the document feeder. Take some out and try again.",
-                "ScannerAdfDuplexPageTooShort" or "ScannerAdfDuplexPageTooLong" => "This page size can't be scanned on both sides. Scan one side, or use the glass.",
-                _ => "Load the pages into the document feeder first.",
+                "ScannerAdfJam" => CoreStrings.Wia_FeederJam,
+                "ScannerAdfDoorOpen" or "ScannerAdfHatchOpen" => CoreStrings.Escl_FeederCoverOpen,
+                "ScannerAdfMispick" or "ScannerAdfMultipickDetected" => CoreStrings.Escl_FeederMispick,
+                "ScannerAdfInputTrayOverloaded" => CoreStrings.Escl_FeederOverloaded,
+                "ScannerAdfDuplexPageTooShort" or "ScannerAdfDuplexPageTooLong" => CoreStrings.Escl_DuplexSize,
+                _ => CoreStrings.Wia_LoadFeeder,
             };
-        return State is "Idle" or "Processing" or "Testing" ? null : $"Scanner is {State.ToLowerInvariant()}.";
+        return State is "Idle" or "Processing" or "Testing" ? null : string.Format(CoreStrings.Escl_ScannerState, State.ToLowerInvariant());
     }
 
     public static ScannerStatus Parse(XDocument doc)

@@ -15,7 +15,7 @@ public partial class ScanPresetsDialog : Window
         DataContext = vm;
         vm.PickFolder = start =>
         {
-            var dlg = new OpenFolderDialog { Title = "Save scans to", InitialDirectory = start is not null && Directory.Exists(start) ? start : "" };
+            var dlg = new OpenFolderDialog { Title = Strings.Presets_SaveScansTo, InitialDirectory = start is not null && Directory.Exists(start) ? start : "" };
             return dlg.ShowDialog(this) == true ? dlg.FolderName : null;
         };
         Loaded += (_, _) => List.Focus();

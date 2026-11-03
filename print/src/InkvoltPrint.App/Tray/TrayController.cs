@@ -158,7 +158,7 @@ public sealed class TrayController : IDisposable
     {
         if (_icon is null) return;
         _noticeUuid = null;
-        _icon.Notify("Something went wrong", $"Inkvolt Print is still running. {message} Details were saved to {Log.FilePath}", TrayIcons.Error);
+        _icon.Notify(Strings.Tray_ErrorTitle, string.Format(Strings.Tray_ErrorText, message, Log.FilePath), TrayIcons.Error);
     }
 
     // ---------------------------------------------------------------- printers and alerts
@@ -288,7 +288,7 @@ public sealed class TrayController : IDisposable
     public static (string Title, string Text) NoticeText(IReadOnlyList<AlertNotice> notices) =>
         notices.Count == 1
             ? (notices[0].Title, notices[0].Body)
-            : ($"{notices.Count} printer alerts", string.Join("\n", notices.Select(n => $"{n.PrinterName}: {n.Title}")));
+            : (string.Format(Strings.Tray_PrinterAlerts, notices.Count), string.Join("\n", notices.Select(n => $"{n.PrinterName}: {n.Title}")));
 
     /// <summary>A toast's body or button was clicked (also a toast clicked after the packaged app exited, at its next start).</summary>
     public void HandleToast(string? arguments)
@@ -409,9 +409,7 @@ public sealed class TrayController : IDisposable
             _settings.HintShown = true;
             _state.Save();
             _noticeUuid = null;
-            _icon.Notify("Inkvolt Print is still running",
-                "It checks your printers now and then and tells you about low supplies, jams and other problems. Quit from this icon's menu.",
-                TrayIcons.Ok);
+            _icon.Notify(Strings.Tray_StillRunning, Strings.Tray_StillRunningText, TrayIcons.Ok);
         }
     }
 
@@ -550,7 +548,7 @@ public sealed class TrayController : IDisposable
     {
         var menu = new ContextMenu();
         AutomationName(menu, "Inkvolt Print");
-        var open = Item("Open Inkvolt Print", () => ShowWindow());
+        var open = Item(Strings.Tray_Open, () => ShowWindow());
         open.FontWeight = FontWeights.SemiBold;
         menu.Items.Add(open);
         var lines = Lines();
@@ -560,13 +558,13 @@ public sealed class TrayController : IDisposable
             var uuid = printer.Uuid;
             var item = Item($"{line.Name}: {line.Text}", () => OpenPrinter(uuid));
             item.Icon = new Ellipse { Width = 10, Height = 10, Fill = DotBrush(line.Level) };
-            AutomationName(item, $"{line.Name}, {line.Text}. Open");
+            AutomationName(item, string.Format(Strings.Tray_PrinterItemName, line.Name, line.Text));
             menu.Items.Add(item);
         }
         menu.Items.Add(new Separator());
         if (_vm.Presets.Items.Count > 0 && _vm.Printers.Any(p => p.Scan is not null))
         {
-            var scan = new MenuItem { Header = "_Scan with" };
+            var scan = new MenuItem { Header = Strings.Tray_ScanWith };
             foreach (var preset in _vm.Presets.Items.Take(9))
             {
                 var id = preset.Id;
@@ -580,19 +578,19 @@ public sealed class TrayController : IDisposable
         }
         if (IsPaused)
         {
-            menu.Items.Add(Item($"_Resume alerts (paused until {PausedUntil!.Value.LocalDateTime:t})", ResumeAlerts));
+            menu.Items.Add(Item(string.Format(Strings.Tray_ResumeAlerts, PausedUntil!.Value.LocalDateTime), ResumeAlerts));
         }
         else
         {
-            var pause = new MenuItem { Header = "_Pause alerts", IsEnabled = _settings.Alerts };
-            pause.Items.Add(Item("For 1 hour", () => Pause(TimeSpan.FromHours(1))));
-            pause.Items.Add(Item("For 8 hours", () => Pause(TimeSpan.FromHours(8))));
-            pause.Items.Add(Item("Until tomorrow morning", () => Pause(null)));
+            var pause = new MenuItem { Header = Strings.Tray_PauseAlerts, IsEnabled = _settings.Alerts };
+            pause.Items.Add(Item(Strings.Tray_Pause1Hour, () => Pause(TimeSpan.FromHours(1))));
+            pause.Items.Add(Item(Strings.Tray_Pause8Hours, () => Pause(TimeSpan.FromHours(8))));
+            pause.Items.Add(Item(Strings.Tray_PauseTomorrow, () => Pause(null)));
             menu.Items.Add(pause);
         }
-        menu.Items.Add(Item("_Alert settings…", () => Views.SettingsWindow.Open(_app.MainWindow is { IsVisible: true } w ? w : null, _vm, this, alerts: true)));
+        menu.Items.Add(Item(Strings.Tray_AlertSettings, () => Views.SettingsWindow.Open(_app.MainWindow is { IsVisible: true } w ? w : null, _vm, this, alerts: true)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Item("_Quit Inkvolt Print", Quit));
+        menu.Items.Add(Item(Strings.Tray_Quit, Quit));
         return menu;
     }
 

@@ -98,7 +98,7 @@ public static class DemoFleet
 
     private sealed class MadeUpQueue(SpoolerQueue queue, Func<SpoolerQueue, SpoolerQueue>? current) : IQueueStatusSource
     {
-        public string Origin => "Windows and the printer's driver";
+        public string Origin => CoreStrings.Queue_OriginWindows;
         public bool HasSupplyLevels => false;
 
         public Task<QueueStatusRead?> ReadAsync(CancellationToken ct) =>

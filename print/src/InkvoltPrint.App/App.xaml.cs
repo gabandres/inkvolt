@@ -137,8 +137,8 @@ public partial class App : Application
         }
         if (tryDemo)
         {
-            MainWindow.Title = "Inkvolt Print (demo printer)";
-            ((MainWindow)MainWindow).AppName.Text = "Inkvolt Print · Demo";
+            MainWindow.Title = Strings.App_DemoTitle;
+            ((MainWindow)MainWindow).AppName.Text = Strings.App_DemoName;
         }
         if (DevSnapshot.Size(args) is var (width, height))
         {
@@ -334,8 +334,8 @@ public partial class App : Application
         {
             // Failed before the window was up: a windowless process would keep the single-instance lock and
             // silently swallow every later launch. Say so and exit instead.
-            MessageBox.Show($"Inkvolt Print couldn't start.\n\n{e.Exception.Message}\n\nDetails were saved to {Log.FilePath}",
-                "Inkvolt Print", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(string.Format(Strings.App_StartFailed, e.Exception.Message, Log.FilePath),
+                Strings.Common_InkvoltPrint, MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
         }
@@ -347,8 +347,8 @@ public partial class App : Application
             return;
         }
         MessageBox.Show(owner,
-            $"Something went wrong, but Inkvolt Print is still running and nothing you were working on was lost.\n\n{e.Exception.Message}\n\nDetails were saved to {Log.FilePath}",
-            "Inkvolt Print", MessageBoxButton.OK, MessageBoxImage.Warning);
+            string.Format(Strings.App_Crashed, e.Exception.Message, Log.FilePath),
+            Strings.Common_InkvoltPrint, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     protected override void OnExit(ExitEventArgs e)

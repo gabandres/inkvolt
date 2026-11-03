@@ -50,7 +50,7 @@ public sealed record WiaDeviceInfo(string Id, string Name, string? Manufacturer 
         null or "" => null,
         _ when Port.Contains("usb", StringComparison.OrdinalIgnoreCase) => "USB",
         _ when IsEscl || Port.Contains("WSD", StringComparison.OrdinalIgnoreCase)
-               || Port.StartsWith("http", StringComparison.OrdinalIgnoreCase) || Suite.QueueMatch.HostsIn(Port).Any(h => System.Net.IPAddress.TryParse(h, out _)) => "Network",
+               || Port.StartsWith("http", StringComparison.OrdinalIgnoreCase) || Suite.QueueMatch.HostsIn(Port).Any(h => System.Net.IPAddress.TryParse(h, out _)) => CoreStrings.Wia_Network,
         _ => null,
     };
 }
@@ -150,26 +150,23 @@ public static class WiaErrors
     /// <summary>In plain words; <paramref name="feeder"/>: the scan was from the document feeder.</summary>
     public static string Message(int hresult, bool feeder) => hresult switch
     {
-        PaperJam => feeder ? "The document feeder is jammed. Clear the paper and try again." : "The scanner reports a paper jam. Clear it and try again.",
-        PaperEmpty => feeder ? "Load the pages into the document feeder first." : "The scanner says there's no paper to scan.",
-        PaperProblem => "The scanner has a problem with the paper. Check the document feeder and try again.",
-        Offline or NoDeviceAvailable => "The scanner isn't answering. Check that it's on and connected (its cable or the network), then try again.",
-        Busy => "The scanner is busy with another job. Try again in a moment.",
-        WarmingUp => "The scanner is warming up. Try again in a moment.",
-        UserIntervention => "The scanner needs attention: check its panel or display, then try again.",
-        DeviceCommunication or ItemDeleted => "Windows lost contact with the scanner. Check its connection and try again.",
-        CoverOpen => "The scanner's cover is open. Close it and try again.",
-        LampOff => "The scanner's lamp is off. Turn the scanner off and on again, then try again.",
-        NotAnswering => "The scanner hasn't finished its last request (its driver may have stopped answering). Wait a moment and try " +
-                        "again; if it still doesn't answer, turn the scanner off and on, or close and reopen this app.",
-        RpcServerUnavailable or RpcCallFailed or RpcDisconnected =>
-            "Windows' scanning service stopped answering (it may have restarted). Try again: the scanner is connected again.",
-        AccessDenied => "Windows didn't allow this app to use the scanner. Close other scanning apps and try again.",
-        OutOfMemory => "There wasn't enough memory for this scan. Try a lower resolution or fewer pages.",
-        DeviceLocked => "The scanner is locked (some have a lock switch for moving them). Unlock it and try again.",
-        IncorrectHardwareSetting => "The scanner's settings or switches don't allow this scan. Check the scanner, or try other settings.",
-        InvalidCommand or ExceptionInDriver or InvalidDriverResponse =>
-            "The scanner's driver couldn't do this scan. Try other settings, or reinstall the scanner's driver.",
-        _ => $"The scanner's driver reported an error (0x{hresult:X8}).",
+        PaperJam => feeder ? CoreStrings.Wia_FeederJam : CoreStrings.Wia_PaperJam,
+        PaperEmpty => feeder ? CoreStrings.Wia_LoadFeeder : CoreStrings.Wia_NoPaper,
+        PaperProblem => CoreStrings.Wia_PaperProblem,
+        Offline or NoDeviceAvailable => CoreStrings.Wia_NotAnswering,
+        Busy => CoreStrings.Wia_Busy,
+        WarmingUp => CoreStrings.Wia_WarmingUp,
+        UserIntervention => CoreStrings.Wia_NeedsAttention,
+        DeviceCommunication or ItemDeleted => CoreStrings.Wia_LostContact,
+        CoverOpen => CoreStrings.Wia_CoverOpen,
+        LampOff => CoreStrings.Wia_LampOff,
+        NotAnswering => CoreStrings.Wia_LastRequestStuck,
+        RpcServerUnavailable or RpcCallFailed or RpcDisconnected => CoreStrings.Wia_ServiceRestarted,
+        AccessDenied => CoreStrings.Wia_AccessDenied,
+        OutOfMemory => CoreStrings.Wia_OutOfMemory,
+        DeviceLocked => CoreStrings.Wia_Locked,
+        IncorrectHardwareSetting => CoreStrings.Wia_HardwareSetting,
+        InvalidCommand or ExceptionInDriver or InvalidDriverResponse => CoreStrings.Wia_DriverFailed,
+        _ => string.Format(CoreStrings.Wia_DriverError, hresult),
     };
 }

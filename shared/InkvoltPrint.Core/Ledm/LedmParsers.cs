@@ -48,7 +48,7 @@ public static class LedmParsers
             var kind = ci.KidValue("ConsumableTypeEnum") ?? "supply";
             var station = ci.KidValue("ConsumableStation");
             return new Consumable(
-                Name: $"{ColorName(label)} {kind}".Trim(),
+                Name: SupplyNames.Name(ColorName(label, SupplyNames.Feminine(kind)), label is "K" or "C" or "M" or "Y" or "CMY", kind),
                 Kind: kind,
                 ColorCode: label,
                 PercentRemaining: ci.KidValue("ConsumablePercentageLevelRemaining").ToInt(),
@@ -57,7 +57,10 @@ public static class LedmParsers
                 SelectibilityNumber: ci.KidValue("ConsumableSelectibilityNumber"),
                 LowThreshold: ci.KidValue("ConsumableLowThreshold").ToInt(),
                 EstimatedPagesRemaining: station is not null ? pagesLeft.GetValueOrDefault(station) : null,
-                Installed: DateOnly.TryParse(ci.Kid("Installation")?.KidValue("Date"), CultureInfo.InvariantCulture, out var d) ? d : null);
+                Installed: DateOnly.TryParse(ci.Kid("Installation")?.KidValue("Date"), CultureInfo.InvariantCulture, out var d) ? d : null)
+            {
+                Key = SupplyNames.EnglishName(label, kind, capitalize: false),
+            };
         }).ToList();
     }
 
@@ -65,7 +68,7 @@ public static class LedmParsers
     {
         var info = doc.Root!.Kid("ProductInformation") ?? doc.Root!;
         return new ProductInfo(
-            MakeAndModel: info.KidValue("MakeAndModel") ?? "Unknown printer",
+            MakeAndModel: info.KidValue("MakeAndModel") ?? CoreStrings.Ledm_UnknownPrinter,
             Family: info.KidValue("MakeAndModelFamily"),
             SerialNumber: info.KidValue("SerialNumber"),
             ProductNumber: info.KidValue("ProductNumber"),
@@ -94,13 +97,13 @@ public static class LedmParsers
             e.Kid("Payload")?.KidValue("ResourceType"),
             e.Kid("Payload")?.KidValue("ResourceURI"))).ToList();
 
-    private static string ColorName(string? code) => code switch
+    private static string ColorName(string? code, bool feminine) => code switch
     {
-        "K" => "Black",
-        "C" => "Cyan",
-        "M" => "Magenta",
-        "Y" => "Yellow",
-        "CMY" => "Tri-color",
+        "K" => feminine ? CoreStrings.Supply_Black_Feminine : CoreStrings.Supply_Black,
+        "C" => CoreStrings.Supply_Cyan,
+        "M" => CoreStrings.Supply_Magenta,
+        "Y" => feminine ? CoreStrings.Supply_Yellow_Feminine : CoreStrings.Supply_Yellow,
+        "CMY" => CoreStrings.Supply_TriColor,
         null => "",
         _ => code,
     };

@@ -19,4 +19,3560 @@
   <data name="Settings_LanguageRestart" xml:space="preserve">
     <value>Se aplica la próxima vez que se inicie Inkvolt Print.</value>
   </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Common_OK" xml:space="preserve">
+    <value>Aceptar</value>
+  </data>
+  <data name="Common_Yes" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="Common_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="Common_Open" xml:space="preserve">
+    <value>Abrir</value>
+  </data>
+  <data name="Common_Remove" xml:space="preserve">
+    <value>Quitar</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="Common_Next" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>Listo</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Volver a intentar</value>
+  </data>
+  <data name="Common_Browse" xml:space="preserve">
+    <value>Examinar…</value>
+  </data>
+  <data name="Common_Change" xml:space="preserve">
+    <value>Cambiar…</value>
+  </data>
+  <data name="Common_Print" xml:space="preserve">
+    <value>Imprimir</value>
+  </data>
+  <data name="Common_Scan" xml:space="preserve">
+    <value>Escanear</value>
+  </data>
+  <data name="Common_Copy" xml:space="preserve">
+    <value>Copiar</value>
+  </data>
+  <data name="Common_Stop" xml:space="preserve">
+    <value>Detener</value>
+  </data>
+  <data name="Common_Undo" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="Common_Help" xml:space="preserve">
+    <value>Ayuda</value>
+  </data>
+  <data name="Common_Settings" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="Common_Reset" xml:space="preserve">
+    <value>Restablecer</value>
+  </data>
+  <data name="Common_InkvoltPrint" xml:space="preserve">
+    <value>Inkvolt Print</value>
+  </data>
+  <data name="Main_MenuReconnect" xml:space="preserve">
+    <value>Reconnect</value>
+  </data>
+  <data name="Main_MenuPrintPhotos" xml:space="preserve">
+    <value>Print photos…</value>
+  </data>
+  <data name="Main_FixPrintingProblemsMenu" xml:space="preserve">
+    <value>Fix printing problems…</value>
+  </data>
+  <data name="Main_MenuMaintenance" xml:space="preserve">
+    <value>Printer maintenance…</value>
+  </data>
+  <data name="Main_MenuSnmpAccess" xml:space="preserve">
+    <value>SNMP access…</value>
+  </data>
+  <data name="Main_MenuRemove" xml:space="preserve">
+    <value>Remove from Inkvolt Print…</value>
+  </data>
+  <data name="Overview_FixerCloseName" xml:space="preserve">
+    <value>Close the troubleshooter</value>
+  </data>
+  <data name="Overview_FixerTitle" xml:space="preserve">
+    <value>Fix printing problems</value>
+  </data>
+  <data name="Overview_FixerChecking" xml:space="preserve">
+    <value>Checking</value>
+  </data>
+  <data name="Overview_FixerWhatCanFix" xml:space="preserve">
+    <value>What Inkvolt Print can fix</value>
+  </data>
+  <data name="Overview_FixerAdminNote" xml:space="preserve">
+    <value>Windows only lets an administrator change some of these, and the Microsoft Store version of Inkvolt Print never asks for that: for those, it shows the steps to take in Windows.</value>
+  </data>
+  <data name="Overview_FixerSteps" xml:space="preserve">
+    <value>Steps</value>
+  </data>
+  <data name="Overview_OpenPrintersScanners" xml:space="preserve">
+    <value>Open Printers &amp; scanners</value>
+  </data>
+  <data name="Overview_CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="Overview_PrintersScannersSettings" xml:space="preserve">
+    <value>Printers &amp; scanners settings</value>
+  </data>
+  <data name="Overview_Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="Overview_DismissFirmwareName" xml:space="preserve">
+    <value>Dismiss the firmware notice</value>
+  </data>
+  <data name="Overview_FixIt" xml:space="preserve">
+    <value>Fix it…</value>
+  </data>
+  <data name="Overview_FixOfflineName" xml:space="preserve">
+    <value>Fix printer offline</value>
+  </data>
+  <data name="Overview_TryAgainNow" xml:space="preserve">
+    <value>Try again now</value>
+  </data>
+  <data name="Overview_ThisIsMyPrinter" xml:space="preserve">
+    <value>This is my printer…</value>
+  </data>
+  <data name="Overview_ThisIsMyPrinterHelp" xml:space="preserve">
+    <value>Accept the device that now answers at this address as this printer, after a repair or reset gave it a new ID</value>
+  </data>
+  <data name="Overview_AllScanOptions" xml:space="preserve">
+    <value>All scan options</value>
+  </data>
+  <data name="Overview_ScanPresetsName" xml:space="preserve">
+    <value>Scan presets</value>
+  </data>
+  <data name="Overview_NoPresets" xml:space="preserve">
+    <value>No presets yet. Manage presets adds one.</value>
+  </data>
+  <data name="Overview_ManagePresets" xml:space="preserve">
+    <value>Manage presets…</value>
+  </data>
+  <data name="Supplies_LevelsLastYear" xml:space="preserve">
+    <value>Levels over the last year</value>
+  </data>
+  <data name="Supplies_ExportHistory" xml:space="preserve">
+    <value>Export history…</value>
+  </data>
+  <data name="Supplies_ExportHistoryHelp" xml:space="preserve">
+    <value>Save the supply history of all printers as one CSV file (Inkvolt Pro)</value>
+  </data>
+  <data name="Overview_CancelAll" xml:space="preserve">
+    <value>Cancel all</value>
+  </data>
+  <data name="Overview_PrintQueue" xml:space="preserve">
+    <value>Print queue</value>
+  </data>
+  <data name="Overview_QueueEmpty" xml:space="preserve">
+    <value>Nothing is waiting to print. Jobs from any app on this PC show up here.</value>
+  </data>
+  <data name="Overview_QueueNotSetUp" xml:space="preserve">
+    <value>This printer isn't set up in Windows yet, so it has no print queue. Use Set up at the top of the page.</value>
+  </data>
+  <data name="Overview_OpenWindowsQueue" xml:space="preserve">
+    <value>Open Windows queue</value>
+  </data>
+  <data name="Overview_Maintenance" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="Overview_MaintenanceActionsName" xml:space="preserve">
+    <value>Maintenance actions</value>
+  </data>
+  <data name="Overview_MaintenancePage" xml:space="preserve">
+    <value>Maintenance page</value>
+  </data>
+  <data name="Overview_MaintenancePageHelp" xml:space="preserve">
+    <value>The printer's own page for supplies, alignment and test pages</value>
+  </data>
+  <data name="Overview_PrinterWebPage" xml:space="preserve">
+    <value>Printer web page</value>
+  </data>
+  <data name="Overview_Usage" xml:space="preserve">
+    <value>Usage</value>
+  </data>
+  <data name="Overview_WindowsPrinterSettings" xml:space="preserve">
+    <value>Windows printer settings</value>
+  </data>
+  <data name="ScanTab_OneClick" xml:space="preserve">
+    <value>One-click scans</value>
+  </data>
+  <data name="ScanTab_OneClickHelp" xml:space="preserve">
+    <value>Each button scans with that preset and saves the file. Ctrl+1 to Ctrl+9 run the first nine.</value>
+  </data>
+  <data name="ScanTab_Settings" xml:space="preserve">
+    <value>Scan settings</value>
+  </data>
+  <data name="ScanTab_Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="ScanTab_PageSize" xml:space="preserve">
+    <value>Page size</value>
+  </data>
+  <data name="ScanTab_Quality" xml:space="preserve">
+    <value>Quality</value>
+  </data>
+  <data name="ScanTab_Color" xml:space="preserve">
+    <value>Color</value>
+  </data>
+  <data name="ScanTab_Ocr" xml:space="preserve">
+    <value>Searchable text (OCR)</value>
+  </data>
+  <data name="ScanTab_OcrHelp" xml:space="preserve">
+    <value>Find and copy text in saved PDFs</value>
+  </data>
+  <data name="ScanTab_TextLanguage" xml:space="preserve">
+    <value>Text language</value>
+  </data>
+  <data name="ScanTab_TextLanguageHelp" xml:space="preserve">
+    <value>The language text recognition reads</value>
+  </data>
+  <data name="ScanTab_SkipBlank" xml:space="preserve">
+    <value>Skip blank pages</value>
+  </data>
+  <data name="ScanTab_SkipBlankHelp" xml:space="preserve">
+    <value>Left out when saving</value>
+  </data>
+  <data name="ScanTab_Straighten" xml:space="preserve">
+    <value>Straighten pages</value>
+  </data>
+  <data name="ScanTab_StraightenHelp" xml:space="preserve">
+    <value>Fixes pages scanned a little crooked</value>
+  </data>
+  <data name="ScanTab_SeveralPhotos" xml:space="preserve">
+    <value>Several photos on the glass</value>
+  </data>
+  <data name="ScanTab_SeveralPhotosHelp" xml:space="preserve">
+    <value>Each saved by itself, cut out straight</value>
+  </data>
+  <data name="ScanTab_CleanUp" xml:space="preserve">
+    <value>Clean up</value>
+  </data>
+  <data name="ScanTab_CropToPaper" xml:space="preserve">
+    <value>Crop to the paper</value>
+  </data>
+  <data name="ScanTab_CropToPaperHelp" xml:space="preserve">
+    <value>Takes off the lid around a sheet; a page it can't be sure of stays whole</value>
+  </data>
+  <data name="ScanTab_CropToPaperCaption" xml:space="preserve">
+    <value>Takes off the lid around a sheet</value>
+  </data>
+  <data name="ScanTab_Whiten" xml:space="preserve">
+    <value>Whiten the background</value>
+  </data>
+  <data name="ScanTab_WhitenHelp" xml:space="preserve">
+    <value>Evens grey or yellowed paper out to white and removes specks</value>
+  </data>
+  <data name="ScanTab_WhitenCaption" xml:space="preserve">
+    <value>And removes specks</value>
+  </data>
+  <data name="ScanTab_Descreen" xml:space="preserve">
+    <value>Descreen printed pictures</value>
+  </data>
+  <data name="ScanTab_DescreenHelp" xml:space="preserve">
+    <value>Takes the dots out of pictures from magazines and newspapers</value>
+  </data>
+  <data name="ScanTab_DescreenCaption" xml:space="preserve">
+    <value>Takes the dots out of magazine pictures</value>
+  </data>
+  <data name="ScanTab_RestoreColors" xml:space="preserve">
+    <value>Restore faded colors</value>
+  </data>
+  <data name="ScanTab_RestoreColorsHelp" xml:space="preserve">
+    <value>Brings back the blacks and colors of a faded print</value>
+  </data>
+  <data name="ScanTab_RestoreColorsCaption" xml:space="preserve">
+    <value>Brings back a faded print's blacks and colors</value>
+  </data>
+  <data name="ScanTab_SplitAt" xml:space="preserve">
+    <value>Split into files at</value>
+  </data>
+  <data name="ScanTab_SplitAtHelp" xml:space="preserve">
+    <value>Saves one feeder run as several files, a new one after each separator sheet</value>
+  </data>
+  <data name="ScanTab_KeepSeparators" xml:space="preserve">
+    <value>Keep separator sheets</value>
+  </data>
+  <data name="ScanTab_KeepSeparatorsHelp" xml:space="preserve">
+    <value>As the first page of the next file</value>
+  </data>
+  <data name="ScanTab_PrintSeparator" xml:space="preserve">
+    <value>Print a separator sheet…</value>
+  </data>
+  <data name="ScanTab_PrintSeparatorTip" xml:space="preserve">
+    <value>Saves a Patch T sheet as a PDF to print at actual size</value>
+  </data>
+  <data name="ScanTab_DragHint" xml:space="preserve">
+    <value>Drag pages to reorder. Right-click a page for more.</value>
+  </data>
+  <data name="ScanTab_Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="ScanTab_SaveAsImages" xml:space="preserve">
+    <value>Save as images</value>
+  </data>
+  <data name="ScanTab_SaveAsPdf" xml:space="preserve">
+    <value>Save as PDF</value>
+  </data>
+  <data name="ScanTab_OpenInPdf" xml:space="preserve">
+    <value>Open in Inkvolt PDF</value>
+  </data>
+  <data name="ScanTab_ShowInFolder" xml:space="preserve">
+    <value>Show in folder</value>
+  </data>
+  <data name="PrintTab_OnePdf" xml:space="preserve">
+    <value>One PDF</value>
+  </data>
+  <data name="PrintTab_Batch" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="PrintTab_BatchTip" xml:space="preserve">
+    <value>Many PDFs and pictures, or a folder: see the sheets before anything prints</value>
+  </data>
+  <data name="PrintTab_Document" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="PrintTab_ChoosePdf" xml:space="preserve">
+    <value>Choose a PDF…</value>
+  </data>
+  <data name="PrintTab_ChooseAnother" xml:space="preserve">
+    <value>Choose another</value>
+  </data>
+  <data name="PrintTab_Pages" xml:space="preserve">
+    <value>Pages</value>
+  </data>
+  <data name="PrintTab_Only" xml:space="preserve">
+    <value>Only</value>
+  </data>
+  <data name="PrintTab_PageRange" xml:space="preserve">
+    <value>Page range</value>
+  </data>
+  <data name="PrintTab_PageRangeTip" xml:space="preserve">
+    <value>For example 1-3, 5</value>
+  </data>
+  <data name="PrintTab_Copies" xml:space="preserve">
+    <value>Copies</value>
+  </data>
+  <data name="PrintTab_FewerCopies" xml:space="preserve">
+    <value>Fewer copies</value>
+  </data>
+  <data name="PrintTab_MoreCopies" xml:space="preserve">
+    <value>More copies</value>
+  </data>
+  <data name="PrintTab_Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="PrintTab_ActualSize" xml:space="preserve">
+    <value>Actual size</value>
+  </data>
+  <data name="PrintTab_ActualSizeTip" xml:space="preserve">
+    <value>Prints each page at its own size, like a 4 × 6 in label. Pages larger than the paper shrink to fit.</value>
+  </data>
+  <data name="PrintTab_FitToPaper" xml:space="preserve">
+    <value>Fit to paper</value>
+  </data>
+  <data name="PrintTab_FitToPaperTip" xml:space="preserve">
+    <value>Enlarges or shrinks each page to fill the paper</value>
+  </data>
+  <data name="PrintTab_BothSides" xml:space="preserve">
+    <value>Print on both sides</value>
+  </data>
+  <data name="PrintTab_DropPdf" xml:space="preserve">
+    <value>Drop a PDF here</value>
+  </data>
+  <data name="PrintTab_DropPdfHint" xml:space="preserve">
+    <value>or choose one. You'll see every page and how many there are before anything prints.</value>
+  </data>
+  <data name="Copy_IdCard" xml:space="preserve">
+    <value>ID card</value>
+  </data>
+  <data name="Copy_IdCardHelp" xml:space="preserve">
+    <value>Both sides on one page</value>
+  </data>
+  <data name="Copy_ActualSizeTip" xml:space="preserve">
+    <value>The copy is the size of the original. Pages larger than the paper shrink to fit.</value>
+  </data>
+  <data name="Copy_FitToPaperTip" xml:space="preserve">
+    <value>Enlarges or shrinks each page to fill the paper, such as a receipt made easier to read</value>
+  </data>
+  <data name="Copy_ColorCopy" xml:space="preserve">
+    <value>Color copy</value>
+  </data>
+  <data name="Copy_ColorCopyTip" xml:space="preserve">
+    <value>Scans in color. Black-and-white printers print it in shades of grey either way.</value>
+  </data>
+  <data name="Copy_TurnOver" xml:space="preserve">
+    <value>Turn the card over</value>
+  </data>
+  <data name="Copy_FrontScanned" xml:space="preserve">
+    <value>Front scanned. Put the card back in the same corner, face down, then scan the back.</value>
+  </data>
+  <data name="Copy_ScanBackPrint" xml:space="preserve">
+    <value>Scan back and print</value>
+  </data>
+  <data name="Copy_StartOver" xml:space="preserve">
+    <value>Start over</value>
+  </data>
+  <data name="Copy_PrintAgain" xml:space="preserve">
+    <value>Print again</value>
+  </data>
+  <data name="Copy_PreviewName" xml:space="preserve">
+    <value>Copy preview</value>
+  </data>
+  <data name="PhotosTab_Title" xml:space="preserve">
+    <value>Print photos</value>
+  </data>
+  <data name="PhotosTab_AddPhotos" xml:space="preserve">
+    <value>Add photos…</value>
+  </data>
+  <data name="PhotosTab_Layout" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="PhotosTab_PerContactSheet" xml:space="preserve">
+    <value>Photos per contact sheet</value>
+  </data>
+  <data name="PhotosTab_Fill" xml:space="preserve">
+    <value>Fill (crop to the shape)</value>
+  </data>
+  <data name="PhotosTab_FillTip" xml:space="preserve">
+    <value>Covers the whole print; drag a photo in the preview to choose what's cropped</value>
+  </data>
+  <data name="PhotosTab_Fit" xml:space="preserve">
+    <value>Fit (whole photo)</value>
+  </data>
+  <data name="PhotosTab_FitTip" xml:space="preserve">
+    <value>Shows the whole photo, with white bands where its shape differs</value>
+  </data>
+  <data name="PhotosTab_FillSheet" xml:space="preserve">
+    <value>Fill each sheet with one photo</value>
+  </data>
+  <data name="PhotosTab_FillSheetTip" xml:space="preserve">
+    <value>Every print on a sheet is the same photo; copies then count sheets</value>
+  </data>
+  <data name="PhotosTab_Paper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="PhotosTab_PaperSize" xml:space="preserve">
+    <value>Paper size</value>
+  </data>
+  <data name="PhotosTab_PaperType" xml:space="preserve">
+    <value>Paper type</value>
+  </data>
+  <data name="PhotosTab_PaperTypeTip" xml:space="preserve">
+    <value>Paper type: tells the printer how much ink the paper takes</value>
+  </data>
+  <data name="PhotosTab_Borderless" xml:space="preserve">
+    <value>Borderless</value>
+  </data>
+  <data name="PhotosTab_BorderlessTip" xml:space="preserve">
+    <value>Prints to the edges of the paper (the printer enlarges the photo a little past them)</value>
+  </data>
+  <data name="PhotosTab_PrintQuality" xml:space="preserve">
+    <value>Print quality</value>
+  </data>
+  <data name="PhotosTab_Reading" xml:space="preserve">
+    <value>Reading what this printer offers…</value>
+  </data>
+  <data name="PhotosTab_DropPhotos" xml:space="preserve">
+    <value>Drop photos here</value>
+  </data>
+  <data name="PhotosTab_DropPhotosHint" xml:space="preserve">
+    <value>or add them. You'll see every sheet as it will print before anything prints.</value>
+  </data>
+  <data name="PhotosTab_RemoveAll" xml:space="preserve">
+    <value>Remove all</value>
+  </data>
+  <data name="PhotosTab_Photos" xml:space="preserve">
+    <value>Photos</value>
+  </data>
+  <data name="PhotosTab_LowRes" xml:space="preserve">
+    <value>low res</value>
+  </data>
+  <data name="PhotosTab_Crop" xml:space="preserve">
+    <value>Crop</value>
+  </data>
+  <data name="PhotosTab_CropHelp" xml:space="preserve">
+    <value>Drag, or use the arrow keys, to choose the part that prints. Plus and minus zoom, Home resets.</value>
+  </data>
+  <data name="PhotosTab_TurnLeftTip" xml:space="preserve">
+    <value>Turn left (Ctrl+L)</value>
+  </data>
+  <data name="PhotosTab_TurnLeft" xml:space="preserve">
+    <value>Turn left</value>
+  </data>
+  <data name="PhotosTab_TurnRightTip" xml:space="preserve">
+    <value>Turn right (Ctrl+R)</value>
+  </data>
+  <data name="PhotosTab_TurnRight" xml:space="preserve">
+    <value>Turn right</value>
+  </data>
+  <data name="PhotosTab_FewerCopiesTip" xml:space="preserve">
+    <value>Fewer copies (−)</value>
+  </data>
+  <data name="PhotosTab_MoreCopiesTip" xml:space="preserve">
+    <value>More copies (+)</value>
+  </data>
+  <data name="PhotosTab_CopiesOfPhoto" xml:space="preserve">
+    <value>Copies of this photo</value>
+  </data>
+  <data name="PhotosTab_RemoveTip" xml:space="preserve">
+    <value>Remove from the job (Del)</value>
+  </data>
+  <data name="PhotosTab_Zoom" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="PhotosTab_ResetTip" xml:space="preserve">
+    <value>Back to the centre, no zoom (Home in the crop)</value>
+  </data>
+  <data name="PhotosTab_DragHint" xml:space="preserve">
+    <value>Drag the photo, here or on a sheet, to choose what prints.</value>
+  </data>
+  <data name="PrinterTab_SaveChanges" xml:space="preserve">
+    <value>Save changes</value>
+  </data>
+  <data name="PrinterTab_Reload" xml:space="preserve">
+    <value>Reload from printer</value>
+  </data>
+  <data name="PrinterTab_TrustCertificate" xml:space="preserve">
+    <value>Trust the new certificate</value>
+  </data>
+  <data name="PrinterTab_ForgetPassword" xml:space="preserve">
+    <value>Forget saved admin password</value>
+  </data>
+  <data name="PrinterTab_ChangedTip" xml:space="preserve">
+    <value>Changed, not saved yet</value>
+  </data>
+  <data name="PrinterTab_Firmware" xml:space="preserve">
+    <value>Firmware</value>
+  </data>
+  <data name="PrinterTab_Version" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="PrinterTab_FirmwareVersion" xml:space="preserve">
+    <value>Firmware version</value>
+  </data>
+  <data name="PrinterTab_AutoUpdates" xml:space="preserve">
+    <value>Automatic updates</value>
+  </data>
+  <data name="PrinterTab_AutoFirmwareUpdates" xml:space="preserve">
+    <value>Automatic firmware updates</value>
+  </data>
+  <data name="PrinterTab_DynamicSecurity" xml:space="preserve">
+    <value>HP firmware updates can include “dynamic security”, which stops toner cartridges with non-HP chips (many compatible and refilled ones) from working. If you use them, keep automatic installs off and read HP's release notes before updating.</value>
+  </data>
+  <data name="PrinterTab_KeepCartridges" xml:space="preserve">
+    <value>Keep my cartridges working</value>
+  </data>
+  <data name="Nav_FleetName" xml:space="preserve">
+    <value>Fleet: every printer at once</value>
+  </data>
+  <data name="Nav_FleetTip" xml:space="preserve">
+    <value>Every printer's state, supplies, pages and firmware, most trouble first</value>
+  </data>
+  <data name="Nav_Fleet" xml:space="preserve">
+    <value>Fleet</value>
+  </data>
+  <data name="Nav_Printers" xml:space="preserve">
+    <value>Printers</value>
+  </data>
+  <data name="Nav_AddPrinterName" xml:space="preserve">
+    <value>Add a printer</value>
+  </data>
+  <data name="Nav_AddPrinterTip" xml:space="preserve">
+    <value>Search your network, add a USB printer, or one by its address</value>
+  </data>
+  <data name="Nav_AddPrinter" xml:space="preserve">
+    <value>Add a printer…</value>
+  </data>
+  <data name="Nav_SettingsTip" xml:space="preserve">
+    <value>Light or dark, where scans are saved, the notification area and alerts</value>
+  </data>
+  <data name="Nav_Help" xml:space="preserve">
+    <value>Help and shortcuts</value>
+  </data>
+  <data name="Nav_HelpTip" xml:space="preserve">
+    <value>Keyboard shortcuts, what's new, report a problem (F1)</value>
+  </data>
+  <data name="Nav_About" xml:space="preserve">
+    <value>About Inkvolt Print</value>
+  </data>
+  <data name="Nav_Looking" xml:space="preserve">
+    <value>Looking for printers on your network…</value>
+  </data>
+  <data name="Nav_NoneFound" xml:space="preserve">
+    <value>No printers found</value>
+  </data>
+  <data name="Nav_NoneFoundHint" xml:space="preserve">
+    <value>Make sure the printer is on and connected to the same Wi-Fi or network as this PC.</value>
+  </data>
+  <data name="Nav_StillNothing" xml:space="preserve">
+    <value>Still nothing? A VPN, a firewall or another network (a guest Wi-Fi) can hide it. Add a printer looks harder, and takes a USB printer or an address.</value>
+  </data>
+  <data name="Nav_SearchAgain" xml:space="preserve">
+    <value>Search again</value>
+  </data>
+  <data name="Nav_TryDemo" xml:space="preserve">
+    <value>No printer here? Try a demo printer</value>
+  </data>
+  <data name="Nav_TryDemoTip" xml:space="preserve">
+    <value>Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere.</value>
+  </data>
+  <data name="Nav_PrintersTip" xml:space="preserve">
+    <value>Printers, Add a printer, Settings and Help</value>
+  </data>
+  <data name="Main_NotNow" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Main_RemoveHp" xml:space="preserve">
+    <value>Remove HP software</value>
+  </data>
+  <data name="Main_EmptyTitle" xml:space="preserve">
+    <value>Your printers will show up here</value>
+  </data>
+  <data name="Main_PrintPdf" xml:space="preserve">
+    <value>Print a PDF</value>
+  </data>
+  <data name="Main_SetUp" xml:space="preserve">
+    <value>Set up</value>
+  </data>
+  <data name="Main_NotSetUp" xml:space="preserve">
+    <value>Not set up in Windows yet</value>
+  </data>
+  <data name="Main_SetUpAdmin" xml:space="preserve">
+    <value>Windows will ask for administrator permission, because this printer was added by address.</value>
+  </data>
+  <data name="Main_SetUpSettings" xml:space="preserve">
+    <value>This printer was added by address, so Windows adds it in Settings. Set up copies the address and opens Settings.</value>
+  </data>
+  <data name="Main_TabOverview" xml:space="preserve">
+    <value>Overview</value>
+  </data>
+  <data name="Main_TabPrinterSettings" xml:space="preserve">
+    <value>Printer settings</value>
+  </data>
+  <data name="Palette_Placeholder" xml:space="preserve">
+    <value>Type a command, a printer or a scan preset</value>
+  </data>
+  <data name="Palette_Hint" xml:space="preserve">
+    <value>↑↓ to choose · Enter to run · Esc to close</value>
+  </data>
+  <data name="Palette_Commands" xml:space="preserve">
+    <value>Commands</value>
+  </data>
+  <data name="Overview_StopWaitingName" xml:space="preserve">
+    <value>Stop waiting: {0}</value>
+  </data>
+  <data name="Overview_ScanWithName" xml:space="preserve">
+    <value>Scan with {0}</value>
+  </data>
+  <data name="Overview_CancelJobName" xml:space="preserve">
+    <value>Cancel {0}</value>
+  </data>
+  <data name="Overview_OnlyOwnerCancels" xml:space="preserve">
+    <value>Only {0} or an administrator can cancel it.</value>
+  </data>
+  <data name="Main_PageNumber" xml:space="preserve">
+    <value>Page {0}</value>
+  </data>
+  <data name="Copy_ScannedImage" xml:space="preserve">
+    <value>Scanned image</value>
+  </data>
+  <data name="Main_HpStillInstalled" xml:space="preserve">
+    <value>{0} still installed</value>
+  </data>
+  <data name="Main_HpBannerDefault" xml:space="preserve">
+    <value>HP's print app runs on every job you print to this printer. Inkvolt Print doesn't need either one.</value>
+  </data>
+  <data name="Main_SetupDefault" xml:space="preserve">
+    <value>One click lets every app print to it. No driver download or account needed.</value>
+  </data>
+  <data name="Main_CloseUnsaved_One" xml:space="preserve">
+    <value>You have {0} scanned page that you haven't saved. Close Inkvolt Print anyway?</value>
+  </data>
+  <data name="Main_CloseUnsaved_Many" xml:space="preserve">
+    <value>You have {0} scanned pages that you haven't saved. Close Inkvolt Print anyway?</value>
+  </data>
+  <data name="Main_CloseWithoutSaving" xml:space="preserve">
+    <value>Close without saving</value>
+  </data>
+  <data name="Main_PresetNoScanner" xml:space="preserve">
+    <value>No scanner is connected yet, so "{0}" didn't scan. Try again when the printer shows up.</value>
+  </data>
+  <data name="Main_HpBackgroundServices" xml:space="preserve">
+    <value>HP's background services</value>
+  </data>
+  <data name="Main_ListAnd" xml:space="preserve">
+    <value>{0} and {1}</value>
+  </data>
+  <data name="Main_HpRemoveAsk" xml:space="preserve">
+    <value>Remove {0}?</value>
+  </data>
+  <data name="Main_HpRemoveKeepsWorking" xml:space="preserve">
+    <value>Inkvolt Print does what they did for this printer, and printing keeps working through Windows' own driver. HP's apps can be reinstalled from the Microsoft Store at any time.</value>
+  </data>
+  <data name="Main_HpRemoveAdmin" xml:space="preserve">
+    <value>Windows will ask for administrator permission once, to remove HP's background services and to turn off Windows' "automatically download manufacturers' apps and custom icons" for this PC (it's what re-installs HP's print app; it applies to all devices). To turn it back on: Control Panel › Devices and Printers › right-click this PC › Device installation settings.</value>
+  </data>
+  <data name="Main_HpRemoveSetUpAgain" xml:space="preserve">
+    <value>Your HP printers are then set up again in Windows (about 30 seconds each), so printing keeps working.</value>
+  </data>
+  <data name="Main_HpRemoving" xml:space="preserve">
+    <value>Removing {0}…</value>
+  </data>
+  <data name="Main_HpRemovingServices" xml:space="preserve">
+    <value>Removing HP's background services… approve the Windows permission prompt.</value>
+  </data>
+  <data name="Main_HpSettingUpAgain" xml:space="preserve">
+    <value>Setting up {0} again in Windows…</value>
+  </data>
+  <data name="Main_HpRemoved" xml:space="preserve">
+    <value>HP software removed. If Windows adds HP's print app again, Inkvolt Print will tell you.</value>
+  </data>
+  <data name="Main_HpRemoveFailed" xml:space="preserve">
+    <value>Some HP software could not be removed. {0}</value>
+  </data>
+  <data name="Supplies_ExportTitle" xml:space="preserve">
+    <value>Export the supply history</value>
+  </data>
+  <data name="Supplies_ExportFileName" xml:space="preserve">
+    <value>Supply history {0:yyyy-MM-dd}</value>
+  </data>
+  <data name="Supplies_CsvFilter" xml:space="preserve">
+    <value>CSV file (*.csv)|*.csv</value>
+  </data>
+  <data name="Supplies_Saved" xml:space="preserve">
+    <value>Saved {0}</value>
+  </data>
+  <data name="Supplies_SaveFailed" xml:space="preserve">
+    <value>Could not save the supply history: {0}</value>
+  </data>
+  <data name="Main_ForgetAsk" xml:space="preserve">
+    <value>Remove {0} from Inkvolt Print?</value>
+  </data>
+  <data name="Main_ForgetUnsaved" xml:space="preserve">
+    <value>You'll lose {0} you scanned and haven't saved.</value>
+  </data>
+  <data name="Main_ForgetNotFromWindowsLocal" xml:space="preserve">
+    <value>This doesn't remove it from Windows. It stays hidden here while Windows has it; if it's removed from Windows and set up again, it shows again.</value>
+  </data>
+  <data name="Main_ForgetNotFromWindowsNetwork" xml:space="preserve">
+    <value>This doesn't remove it from Windows. To see it again, open Add a printer: it's offered there while it's on the network.</value>
+  </data>
+  <data name="Main_NoPrinterForPdf" xml:space="preserve">
+    <value>Inkvolt Print hasn't found a printer yet, so "{0}" can't be printed. Wait for your printer to appear (or add it by address), then open the file again.</value>
+  </data>
+  <data name="Main_NoPrinterForPhotos" xml:space="preserve">
+    <value>Inkvolt Print hasn't found a printer yet, so the photos can't be printed. Wait for your printer to appear (or add it by address), then open them again.</value>
+  </data>
+  <data name="Copy_Connecting" xml:space="preserve">
+    <value>Connecting to the printer…</value>
+  </data>
+  <data name="Copy_NoScanner" xml:space="preserve">
+    <value>This printer has no scanner, so it can't copy. You can still print PDFs.</value>
+  </data>
+  <data name="Copy_NoQueue" xml:space="preserve">
+    <value>Copies print through this printer's Windows queue, and it isn't set up in Windows yet. Use Set up at the top of the page.</value>
+  </data>
+  <data name="Copy_CopyIdCard" xml:space="preserve">
+    <value>Copy ID card</value>
+  </data>
+  <data name="Copy_HintIdCard" xml:space="preserve">
+    <value>Put the card face down in the corner of the scanner glass (by the arrow mark), then press Copy ID card. You'll turn it over halfway.</value>
+  </data>
+  <data name="Copy_HintFeeder" xml:space="preserve">
+    <value>Put the pages face up in the document feeder, then press Copy.</value>
+  </data>
+  <data name="Copy_HintGlass" xml:space="preserve">
+    <value>Put the page face down on the scanner glass, then press Copy.</value>
+  </data>
+  <data name="Copy_SummaryIdCard" xml:space="preserve">
+    <value>Front and back on one sheet, actual size.</value>
+  </data>
+  <data name="Copy_SummaryIdCardCopies" xml:space="preserve">
+    <value>Front and back on one sheet, {0} copies, actual size.</value>
+  </data>
+  <data name="Copy_Copies_One" xml:space="preserve">
+    <value>{0} copy</value>
+  </data>
+  <data name="Copy_Copies_Many" xml:space="preserve">
+    <value>{0} copies</value>
+  </data>
+  <data name="Copy_SummaryFit" xml:space="preserve">
+    <value>fit to the paper</value>
+  </data>
+  <data name="Copy_SummaryActual" xml:space="preserve">
+    <value>actual size</value>
+  </data>
+  <data name="Copy_SummaryBothSides" xml:space="preserve">
+    <value>both sides of the paper</value>
+  </data>
+  <data name="Copy_Summary" xml:space="preserve">
+    <value>{0}, {1}.</value>
+  </data>
+  <data name="Copy_SummaryTwoSided" xml:space="preserve">
+    <value>{0}, {1}, {2}.</value>
+  </data>
+  <data name="Copy_WhatPages_One" xml:space="preserve">
+    <value>{0} page</value>
+  </data>
+  <data name="Copy_WhatPages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="Copy_WhatPagesCopies_One" xml:space="preserve">
+    <value>{0} page × {1} copies</value>
+  </data>
+  <data name="Copy_WhatPagesCopies_Many" xml:space="preserve">
+    <value>{0} pages × {1} copies</value>
+  </data>
+  <data name="Copy_WhatCard" xml:space="preserve">
+    <value>the card, both sides on one page</value>
+  </data>
+  <data name="Copy_WhatCardCopies" xml:space="preserve">
+    <value>the card × {0} copies</value>
+  </data>
+  <data name="Copy_Scanning" xml:space="preserve">
+    <value>Scanning… (the first page takes longer if the printer was asleep)</value>
+  </data>
+  <data name="Copy_ScannedPage" xml:space="preserve">
+    <value>Scanned page {0}…</value>
+  </data>
+  <data name="Copy_NoPages" xml:space="preserve">
+    <value>The scanner returned no pages.</value>
+  </data>
+  <data name="Copy_Cancelled" xml:space="preserve">
+    <value>Copy cancelled.</value>
+  </data>
+  <data name="Copy_ScanFailed" xml:space="preserve">
+    <value>Scan failed: {0}</value>
+  </data>
+  <data name="Copy_SentDemo" xml:space="preserve">
+    <value>Sent to the demo printer: {0}. Nothing really prints; the job is in the print queue on the Overview.</value>
+  </data>
+  <data name="Copy_NotSetUp" xml:space="preserve">
+    <value>This printer isn't set up in Windows yet. Press Set up at the top of the page, then Print again.</value>
+  </data>
+  <data name="Copy_Sending" xml:space="preserve">
+    <value>Sending the copy to the printer…</value>
+  </data>
+  <data name="Copy_Sent" xml:space="preserve">
+    <value>Sent to the printer: {0}.</value>
+  </data>
+  <data name="Copy_PrintFailed" xml:space="preserve">
+    <value>Could not print the copy: {0}</value>
+  </data>
+  <data name="Copy_Front" xml:space="preserve">
+    <value>Front</value>
+  </data>
+  <data name="Copy_BackTurnOver" xml:space="preserve">
+    <value>Back: turn the card over</value>
+  </data>
+  <data name="App_DemoTitle" xml:space="preserve">
+    <value>Inkvolt Print (demo printer)</value>
+  </data>
+  <data name="App_DemoName" xml:space="preserve">
+    <value>Inkvolt Print · Demo</value>
+  </data>
+  <data name="App_StartFailed" xml:space="preserve">
+    <value>Inkvolt Print couldn't start.
+
+{0}
+
+Details were saved to {1}</value>
+  </data>
+  <data name="App_Crashed" xml:space="preserve">
+    <value>Something went wrong, but Inkvolt Print is still running and nothing you were working on was lost.
+
+{0}
+
+Details were saved to {1}</value>
+  </data>
+  <data name="Chart_Name" xml:space="preserve">
+    <value>Levels since {0}: {1}</value>
+  </data>
+  <data name="Chart_LineName" xml:space="preserve">
+    <value>{0} from {1}% to {2}%</value>
+  </data>
+  <data name="Chart_LineNameChangedOn" xml:space="preserve">
+    <value>{0} from {1}% to {2}%, changed on {3}</value>
+  </data>
+  <data name="Chart_LineNameChangedTimes" xml:space="preserve">
+    <value>{0} from {1}% to {2}%, changed {3} times</value>
+  </data>
+  <data name="Scan_OcrWindowsLanguage" xml:space="preserve">
+    <value>Windows' language</value>
+  </data>
+  <data name="Scan_ResolutionDraft" xml:space="preserve">
+    <value>{0} dpi (draft)</value>
+  </data>
+  <data name="Scan_ResolutionScreen" xml:space="preserve">
+    <value>{0} dpi (screen)</value>
+  </data>
+  <data name="Scan_ResolutionDocuments" xml:space="preserve">
+    <value>{0} dpi (documents)</value>
+  </data>
+  <data name="Scan_ResolutionPhotos" xml:space="preserve">
+    <value>{0} dpi (photos, slower)</value>
+  </data>
+  <data name="Scan_UndoWhat" xml:space="preserve">
+    <value>Undo {0} (Ctrl+Z)</value>
+  </data>
+  <data name="Scan_UndoNothing" xml:space="preserve">
+    <value>Undo (Ctrl+Z)</value>
+  </data>
+  <data name="Scan_Undone" xml:space="preserve">
+    <value>Undone: {0}.</value>
+  </data>
+  <data name="Scan_PhotosNoneMarked" xml:space="preserve">
+    <value>No photos marked: the whole scan is saved as one picture. Drag over a photo to mark it.</value>
+  </data>
+  <data name="Scan_PhotosSaved_One" xml:space="preserve">
+    <value>{0} photo, saved as its own picture.</value>
+  </data>
+  <data name="Scan_PhotosSaved_Many" xml:space="preserve">
+    <value>{0} photos, each saved as its own picture.</value>
+  </data>
+  <data name="Scan_PhotoStatus" xml:space="preserve">
+    <value>Photo {0} of {1}: {2:0.0} × {3:0.0} in, straightened by {4:0.#}°.</value>
+  </data>
+  <data name="Scan_PhotoStatusTurned" xml:space="preserve">
+    <value>Photo {0} of {1}: {2:0.0} × {3:0.0} in, straightened by {4:0.#}°, saved turned {5}°.</value>
+  </data>
+  <data name="Scan_CouldntShowScan" xml:space="preserve">
+    <value>Couldn't show the scan: {0}</value>
+  </data>
+  <data name="Scan_PhotoAdded" xml:space="preserve">
+    <value>Photo {0} added in the middle. Arrow keys move it, Shift+arrows resize it.</value>
+  </data>
+  <data name="Scan_PhotoRemoved" xml:space="preserve">
+    <value>Photo {0} removed. {1} left.</value>
+  </data>
+  <data name="Scan_PhotosFound_One" xml:space="preserve">
+    <value>{0} photo found</value>
+  </data>
+  <data name="Scan_PhotosFound_Many" xml:space="preserve">
+    <value>{0} photos found</value>
+  </data>
+  <data name="Scan_UndoChangePhotos" xml:space="preserve">
+    <value>Change the photos on page {0}</value>
+  </data>
+  <data name="Scan_NoPagesYet" xml:space="preserve">
+    <value>No pages yet</value>
+  </data>
+  <data name="Scan_NoPagesToSave" xml:space="preserve">
+    <value>No pages to save</value>
+  </data>
+  <data name="Scan_Pages_One" xml:space="preserve">
+    <value>{0} page</value>
+  </data>
+  <data name="Scan_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="Scan_PagesInFiles_One" xml:space="preserve">
+    <value>{0} page in {1} files</value>
+  </data>
+  <data name="Scan_PagesInFiles_Many" xml:space="preserve">
+    <value>{0} pages in {1} files</value>
+  </data>
+  <data name="Scan_CountWithPhotos" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Scan_Photos_One" xml:space="preserve">
+    <value>{0} photo</value>
+  </data>
+  <data name="Scan_Photos_Many" xml:space="preserve">
+    <value>{0} photos</value>
+  </data>
+  <data name="Scan_SeparatorsLeftOut_One" xml:space="preserve">
+    <value>{0} separator left out</value>
+  </data>
+  <data name="Scan_SeparatorsLeftOut_Many" xml:space="preserve">
+    <value>{0} separators left out</value>
+  </data>
+  <data name="Scan_BlankLeftOut_One" xml:space="preserve">
+    <value>{0} blank left out</value>
+  </data>
+  <data name="Scan_BlankLeftOut_Many" xml:space="preserve">
+    <value>{0} blank left out</value>
+  </data>
+  <data name="Scan_ScanMorePages" xml:space="preserve">
+    <value>Scan more pages</value>
+  </data>
+  <data name="Scan_EmptyHintGlass" xml:space="preserve">
+    <value>Put a page face down on the scanner glass, then press Scan.</value>
+  </data>
+  <data name="Scan_EmptyHintFeeder" xml:space="preserve">
+    <value>Put the pages face up in the document feeder, then press Scan.</value>
+  </data>
+  <data name="Scan_UndoJoinFile" xml:space="preserve">
+    <value>Join page {0} to the file before it</value>
+  </data>
+  <data name="Scan_UndoStartFile" xml:space="preserve">
+    <value>Start a new file at page {0}</value>
+  </data>
+  <data name="Scan_PageStartsFile" xml:space="preserve">
+    <value>Page {0} starts file {1}</value>
+  </data>
+  <data name="Scan_PageSameFile" xml:space="preserve">
+    <value>Page {0} is in the same file as the page before it</value>
+  </data>
+  <data name="Scan_UndoKeepAsPage" xml:space="preserve">
+    <value>Keep page {0} as a page</value>
+  </data>
+  <data name="Scan_PageNotSeparator" xml:space="preserve">
+    <value>Page {0} is a page again, not a separator</value>
+  </data>
+  <data name="Scan_UndoUseAsSeparator" xml:space="preserve">
+    <value>Use page {0} as a separator</value>
+  </data>
+  <data name="Scan_PageIsSeparator" xml:space="preserve">
+    <value>Page {0} is a separator sheet</value>
+  </data>
+  <data name="Scan_SeparatorDialogTitle" xml:space="preserve">
+    <value>Save a separator sheet to print</value>
+  </data>
+  <data name="Scan_SeparatorFileName" xml:space="preserve">
+    <value>Separator sheet (Patch T)</value>
+  </data>
+  <data name="Scan_PdfFilter" xml:space="preserve">
+    <value>PDF document (*.pdf)|*.pdf</value>
+  </data>
+  <data name="Scan_SeparatorSaved" xml:space="preserve">
+    <value>Saved {0}. Print it at actual size (100%) and put a copy in front of each document in the feeder.</value>
+  </data>
+  <data name="Scan_SeparatorSaveFailed" xml:space="preserve">
+    <value>Could not save the separator sheet: {0}</value>
+  </data>
+  <data name="Scan_ViaWindowsNote" xml:space="preserve">
+    <value>Scanning through Windows with the scanner's own driver ({0}).</value>
+  </data>
+  <data name="Scan_Scanning" xml:space="preserve">
+    <value>Scanning… (the first page takes longer if the printer was asleep)</value>
+  </data>
+  <data name="Scan_ScannedPage" xml:space="preserve">
+    <value>Scanned page {0}. Scanning…</value>
+  </data>
+  <data name="Scan_NoPhotosFound" xml:space="preserve">
+    <value>No photos were found on the glass: the whole scan is saved. Crop (or the photo view) marks them by hand.</value>
+  </data>
+  <data name="Scan_PhotosFoundSaved_One" xml:space="preserve">
+    <value>{0} photo found, each saved as its own picture. Check the boxes with the crop button.</value>
+  </data>
+  <data name="Scan_PhotosFoundSaved_Many" xml:space="preserve">
+    <value>{0} photos found, each saved as its own picture. Check the boxes with the crop button.</value>
+  </data>
+  <data name="Scan_NoSeparatorsFound" xml:space="preserve">
+    <value>No separator sheets were found: it's one file.</value>
+  </data>
+  <data name="Scan_SeparatorsFound_One" xml:space="preserve">
+    <value>{0} separator sheet found: {1}.</value>
+  </data>
+  <data name="Scan_SeparatorsFound_Many" xml:space="preserve">
+    <value>{0} separator sheets found: {1}.</value>
+  </data>
+  <data name="Scan_Files_One" xml:space="preserve">
+    <value>{0} file</value>
+  </data>
+  <data name="Scan_Files_Many" xml:space="preserve">
+    <value>{0} files</value>
+  </data>
+  <data name="Scan_BlankLeftOutNote_One" xml:space="preserve">
+    <value>{0} blank page is left out (Keep puts it back).</value>
+  </data>
+  <data name="Scan_BlankLeftOutNote_Many" xml:space="preserve">
+    <value>{0} blank pages are left out (Keep puts them back).</value>
+  </data>
+  <data name="Scan_Straightened_One" xml:space="preserve">
+    <value>{0} page was straightened.</value>
+  </data>
+  <data name="Scan_Straightened_Many" xml:space="preserve">
+    <value>{0} pages were straightened.</value>
+  </data>
+  <data name="Scan_DuplexBlankNote" xml:space="preserve">
+    <value>Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better.</value>
+  </data>
+  <data name="Scan_NoPagesReturned" xml:space="preserve">
+    <value>The scanner returned no pages.</value>
+  </data>
+  <data name="Scan_DoneGlass" xml:space="preserve">
+    <value>Done. To add another page, put it on the glass and press Scan more pages.</value>
+  </data>
+  <data name="Scan_DoneFeeder_One" xml:space="preserve">
+    <value>Done: {0} page from the feeder.</value>
+  </data>
+  <data name="Scan_DoneFeeder_Many" xml:space="preserve">
+    <value>Done: {0} pages from the feeder.</value>
+  </data>
+  <data name="Scan_Cancelled" xml:space="preserve">
+    <value>Scan cancelled.</value>
+  </data>
+  <data name="Scan_Failed" xml:space="preserve">
+    <value>Scan failed: {0}</value>
+  </data>
+  <data name="Scan_CleanPage" xml:space="preserve">
+    <value>Clean up page {0}</value>
+  </data>
+  <data name="Scan_UndoCleanPages_One" xml:space="preserve">
+    <value>Clean up {0} pages</value>
+  </data>
+  <data name="Scan_UndoCleanPages_Many" xml:space="preserve">
+    <value>Clean up {0} pages</value>
+  </data>
+  <data name="Scan_CleanedUp_One" xml:space="preserve">
+    <value>{0} page was cleaned up (Undo puts it back).</value>
+  </data>
+  <data name="Scan_CleanedUp_Many" xml:space="preserve">
+    <value>{0} pages were cleaned up (Undo puts them back).</value>
+  </data>
+  <data name="Scan_NoEdge_One" xml:space="preserve">
+    <value>The paper's edge couldn't be told from the lid on {0} page: kept whole.</value>
+  </data>
+  <data name="Scan_NoEdge_Many" xml:space="preserve">
+    <value>The paper's edge couldn't be told from the lid on {0} pages: kept whole.</value>
+  </data>
+  <data name="Scan_UndoDeletePage" xml:space="preserve">
+    <value>Delete page {0}</value>
+  </data>
+  <data name="Scan_DeletedPage" xml:space="preserve">
+    <value>Deleted page {0}. Undo (Ctrl+Z) puts it back.</value>
+  </data>
+  <data name="Scan_UndoMovePage" xml:space="preserve">
+    <value>Move page {0}</value>
+  </data>
+  <data name="Scan_MovedTo" xml:space="preserve">
+    <value>Moved to position {0} of {1}</value>
+  </data>
+  <data name="Scan_UndoTurnLeft" xml:space="preserve">
+    <value>Turn page {0} left</value>
+  </data>
+  <data name="Scan_UndoTurnRight" xml:space="preserve">
+    <value>Turn page {0} right</value>
+  </data>
+  <data name="Scan_UndoKeepPage" xml:space="preserve">
+    <value>Keep page {0}</value>
+  </data>
+  <data name="Scan_CouldntShowPage" xml:space="preserve">
+    <value>Couldn't show the page: {0}</value>
+  </data>
+  <data name="Scan_UndoCropPage" xml:space="preserve">
+    <value>Crop page {0}</value>
+  </data>
+  <data name="Scan_CleanPhotosTitle" xml:space="preserve">
+    <value>Clean up the photos on page {0} (photo 1 shown)</value>
+  </data>
+  <data name="Scan_Working" xml:space="preserve">
+    <value>Working…</value>
+  </data>
+  <data name="Scan_AsScanned" xml:space="preserve">
+    <value>As scanned.</value>
+  </data>
+  <data name="Scan_CouldntCleanPage" xml:space="preserve">
+    <value>Couldn't clean up page {0}: {1}</value>
+  </data>
+  <data name="Scan_DiscardUnsaved_One" xml:space="preserve">
+    <value>Discard {0} page you haven't saved?</value>
+  </data>
+  <data name="Scan_DiscardUnsaved_Many" xml:space="preserve">
+    <value>Discard {0} pages you haven't saved?</value>
+  </data>
+  <data name="Scan_Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Recovery_Restored_One" xml:space="preserve">
+    <value>Restored {0} scanned page that wasn't saved when Inkvolt Print closed.</value>
+  </data>
+  <data name="Recovery_Restored_Many" xml:space="preserve">
+    <value>Restored {0} scanned pages that weren't saved when Inkvolt Print closed.</value>
+  </data>
+  <data name="Scan_SaveAsImageSetsTitle" xml:space="preserve">
+    <value>Save scan as {0} sets of images (numbered)</value>
+  </data>
+  <data name="Scan_SaveAsPdfsTitle" xml:space="preserve">
+    <value>Save scan as {0} PDFs (numbered)</value>
+  </data>
+  <data name="Scan_SaveAsImagesTitle" xml:space="preserve">
+    <value>Save scan as images</value>
+  </data>
+  <data name="Scan_SaveAsPdfTitle" xml:space="preserve">
+    <value>Save scan as PDF</value>
+  </data>
+  <data name="Scan_DefaultFileName" xml:space="preserve">
+    <value>Scan {0:yyyy-MM-dd HHmm}</value>
+  </data>
+  <data name="Scan_JpegFilter" xml:space="preserve">
+    <value>JPEG image (*.jpg)|*.jpg</value>
+  </data>
+  <data name="Scan_ReplaceExisting_One" xml:space="preserve">
+    <value>{0} file like "{1}" already exist. Replace them?</value>
+  </data>
+  <data name="Scan_ReplaceExisting_Many" xml:space="preserve">
+    <value>{0} files like "{1}" already exist. Replace them?</value>
+  </data>
+  <data name="Scan_Replace" xml:space="preserve">
+    <value>Replace</value>
+  </data>
+  <data name="Scan_Saved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="Scan_SavedMore" xml:space="preserve">
+    <value>Saved {0} and {1} more.</value>
+  </data>
+  <data name="Scan_SavedMoreFiles" xml:space="preserve">
+    <value>Saved {0} and {1} more ({2} files).</value>
+  </data>
+  <data name="Scan_SavedMoreSets" xml:space="preserve">
+    <value>Saved {0} and {1} more ({2} sets).</value>
+  </data>
+  <data name="Scan_SavedIn" xml:space="preserve">
+    <value>Saved {0} in {3}.</value>
+  </data>
+  <data name="Scan_SavedMoreIn" xml:space="preserve">
+    <value>Saved {0} and {1} more in {3}.</value>
+  </data>
+  <data name="Scan_SavedMoreFilesIn" xml:space="preserve">
+    <value>Saved {0} and {1} more ({2} files) in {3}.</value>
+  </data>
+  <data name="Scan_SavedMoreSetsIn" xml:space="preserve">
+    <value>Saved {0} and {1} more ({2} sets) in {3}.</value>
+  </data>
+  <data name="Scan_SaveCancelled" xml:space="preserve">
+    <value>Save cancelled.</value>
+  </data>
+  <data name="Scan_SaveFailed" xml:space="preserve">
+    <value>Could not save: {0}</value>
+  </data>
+  <data name="Scan_AsSentOne" xml:space="preserve">
+    <value>It is the scanner's own PDF, as it sent it.</value>
+  </data>
+  <data name="Scan_AsSentMany" xml:space="preserve">
+    <value>They are the scanner's own PDFs, as it sent them.</value>
+  </data>
+  <data name="Scan_PdfNoteRenderedGlass" xml:space="preserve">
+    <value>This scanner sends PDF from the glass: its pages were drawn as pictures at {0} dpi for the review.</value>
+  </data>
+  <data name="Scan_PdfNoteRenderedFeeder" xml:space="preserve">
+    <value>This scanner sends PDF from the feeder: its pages were drawn as pictures at {0} dpi for the review.</value>
+  </data>
+  <data name="Scan_PdfNoteExtractedGlass" xml:space="preserve">
+    <value>This scanner sends PDF from the glass: its pictures were taken out as they came, so the review, text recognition and presets work as usual.</value>
+  </data>
+  <data name="Scan_PdfNoteExtractedFeeder" xml:space="preserve">
+    <value>This scanner sends PDF from the feeder: its pictures were taken out as they came, so the review, text recognition and presets work as usual.</value>
+  </data>
+  <data name="Scan_FinishingOcr" xml:space="preserve">
+    <value>Finishing text recognition…</value>
+  </data>
+  <data name="Scan_InkvoltPdfNotStarted" xml:space="preserve">
+    <value>Inkvolt PDF couldn't be started.</value>
+  </data>
+  <data name="Scan_SaveWithPreset" xml:space="preserve">
+    <value>Save ({0})</value>
+  </data>
+  <data name="Scan_DiscardAndScanQuestion_One" xml:space="preserve">
+    <value>Discard {0} page you haven't saved and scan with "{1}"?</value>
+  </data>
+  <data name="Scan_DiscardAndScanQuestion_Many" xml:space="preserve">
+    <value>Discard {0} pages you haven't saved and scan with "{1}"?</value>
+  </data>
+  <data name="Scan_DiscardAndScan" xml:space="preserve">
+    <value>Discard and scan</value>
+  </data>
+  <data name="Scan_ScanningWith" xml:space="preserve">
+    <value>Scanning with {0}</value>
+  </data>
+  <data name="Scan_CheckThenSave" xml:space="preserve">
+    <value>Check the pages, then press {0}.</value>
+  </data>
+  <data name="Scan_NothingToSaveSeparators" xml:space="preserve">
+    <value>No pages to save: every page was left out as blank or as a separator sheet.</value>
+  </data>
+  <data name="Scan_NothingToSaveBlank" xml:space="preserve">
+    <value>No pages to save: every page was left out as blank. Keep puts a page back.</value>
+  </data>
+  <data name="Scan_AlreadySaved" xml:space="preserve">
+    <value>Already saved the first time, not written again: {0}.</value>
+  </data>
+  <data name="Scan_PartSaveFailed" xml:space="preserve">
+    <value>Saved {0} of {1} files ({2}), then could not save file {3}: {4} Save again saves only the files not saved yet.</value>
+  </data>
+  <data name="Scan_DemoNoInkvoltPdf" xml:space="preserve">
+    <value>(Demo: nothing is opened in Inkvolt PDF.)</value>
+  </data>
+  <data name="Scan_InkvoltPdfNotInstalled" xml:space="preserve">
+    <value>Inkvolt PDF isn't installed, so it wasn't opened.</value>
+  </data>
+  <data name="Mail_DemoNote" xml:space="preserve">
+    <value>(Demo: in a real scan your mail app would open a new message with it attached.)</value>
+  </data>
+  <data name="Mail_Opening" xml:space="preserve">
+    <value>Opening a new message in your mail app…</value>
+  </data>
+  <data name="Mail_Attached" xml:space="preserve">
+    <value>The file was attached to a new message in your mail app.</value>
+  </data>
+  <data name="Mail_Cancelled" xml:space="preserve">
+    <value>The email was cancelled; the file is saved.</value>
+  </data>
+  <data name="Mail_AttachByHandOne" xml:space="preserve">
+    <value>Your mail app can't take attachments from other apps, so a new message and the file's folder opened: attach the selected file to the message (drag it in).</value>
+  </data>
+  <data name="Mail_AttachByHandMany" xml:space="preserve">
+    <value>Your mail app can't take attachments from other apps, so a new message and the files' folder opened: attach the {0} files to the message (drag them in).</value>
+  </data>
+  <data name="Scan_DemoPrinted" xml:space="preserve">
+    <value>A copy went to the (demo) print queue.</value>
+  </data>
+  <data name="Scan_PrintNotSetUp" xml:space="preserve">
+    <value>It wasn't printed: this printer isn't set up in Windows yet (Set up, at the top of the page).</value>
+  </data>
+  <data name="Scan_CopyPrinting" xml:space="preserve">
+    <value>A copy is printing.</value>
+  </data>
+  <data name="Scan_PrintFailed" xml:space="preserve">
+    <value>It couldn't be printed: {0}</value>
+  </data>
+  <data name="Scan_TooLargeToClean" xml:space="preserve">
+    <value>This page is too large to clean up ({0} million pixels): it is saved as scanned.</value>
+  </data>
+  <data name="Scan_NoEdgeHere" xml:space="preserve">
+    <value>The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.</value>
+  </data>
+  <data name="Scan_Shown" xml:space="preserve">
+    <value>Shown {0}.</value>
+  </data>
+  <data name="Scan_FileNumber" xml:space="preserve">
+    <value>File {0}</value>
+  </data>
+  <data name="Scan_DontStartFileHere" xml:space="preserve">
+    <value>Don't start a new file here</value>
+  </data>
+  <data name="Scan_StartFileHere" xml:space="preserve">
+    <value>Start a new file here</value>
+  </data>
+  <data name="Scan_SeparatorLabel" xml:space="preserve">
+    <value>Separator: {0}</value>
+  </data>
+  <data name="Scan_SeparatorKeptStatus" xml:space="preserve">
+    <value>Kept: first page of the next file</value>
+  </data>
+  <data name="Scan_SeparatorNotSavedStatus" xml:space="preserve">
+    <value>Won't be saved</value>
+  </data>
+  <data name="Scan_AdjustPhotos" xml:space="preserve">
+    <value>Adjust photos</value>
+  </data>
+  <data name="Scan_CropPage" xml:space="preserve">
+    <value>Crop page</value>
+  </data>
+  <data name="Scan_LabelSeparatorKept" xml:space="preserve">
+    <value>Page {0}, separator: {1}, kept</value>
+  </data>
+  <data name="Scan_LabelSeparatorNotSaved" xml:space="preserve">
+    <value>Page {0}, separator: {1}, not saved</value>
+  </data>
+  <data name="Scan_LabelPage" xml:space="preserve">
+    <value>Page {0}</value>
+  </data>
+  <data name="Scan_LabelPageNote" xml:space="preserve">
+    <value>Page {0}, {1}</value>
+  </data>
+  <data name="Scan_LabelStartsFile" xml:space="preserve">
+    <value>{0}, starts file {1}</value>
+  </data>
+  <data name="Scan_NoteSeparatorKept" xml:space="preserve">
+    <value>Separator, kept</value>
+  </data>
+  <data name="Scan_NoteSeparatorNotSaved" xml:space="preserve">
+    <value>Separator, not saved</value>
+  </data>
+  <data name="Scan_NoteBlank" xml:space="preserve">
+    <value>Blank, not saved</value>
+  </data>
+  <data name="Scan_PhotosCleaned_One" xml:space="preserve">
+    <value>{0} photo, {1}</value>
+  </data>
+  <data name="Scan_PhotosCleaned_Many" xml:space="preserve">
+    <value>{0} photos, {1}</value>
+  </data>
+  <data name="Scan_NoteNoPhotos" xml:space="preserve">
+    <value>No photos found</value>
+  </data>
+  <data name="Scan_NoteStraightened" xml:space="preserve">
+    <value>Straightened</value>
+  </data>
+  <data name="Scan_NoteEdited" xml:space="preserve">
+    <value>Edited</value>
+  </data>
+  <data name="Scan_TurnLeft" xml:space="preserve">
+    <value>Turn left</value>
+  </data>
+  <data name="Scan_TurnRight" xml:space="preserve">
+    <value>Turn right</value>
+  </data>
+  <data name="Scan_CropMenu" xml:space="preserve">
+    <value>Crop…</value>
+  </data>
+  <data name="Scan_PhotosMenu" xml:space="preserve">
+    <value>Photos…</value>
+  </data>
+  <data name="Scan_CleanUpMenu" xml:space="preserve">
+    <value>Clean up…</value>
+  </data>
+  <data name="Scan_MoveEarlier" xml:space="preserve">
+    <value>Move earlier</value>
+  </data>
+  <data name="Scan_MoveLater" xml:space="preserve">
+    <value>Move later</value>
+  </data>
+  <data name="Scan_ShortcutStartFile" xml:space="preserve">
+    <value>S</value>
+  </data>
+  <data name="Scan_UseAsSeparator" xml:space="preserve">
+    <value>Use as a separator sheet</value>
+  </data>
+  <data name="Scan_NotSeparatorMenu" xml:space="preserve">
+    <value>Not a separator (keep as a page)</value>
+  </data>
+  <data name="Scan_KeepThisPage" xml:space="preserve">
+    <value>Keep this page</value>
+  </data>
+  <data name="Scan_ShortcutDel" xml:space="preserve">
+    <value>Del</value>
+  </data>
+  <data name="Scan_ScannedPages" xml:space="preserve">
+    <value>Scanned pages</value>
+  </data>
+  <data name="Scan_PagesHelp" xml:space="preserve">
+    <value>Alt+Shift+arrow keys move the selected page. Ctrl+R and Ctrl+L turn it. Delete removes it; Ctrl+Z puts it back. S starts a new file at it. Shift+F10 for more.</value>
+  </data>
+  <data name="Scan_BlankWontBeSaved" xml:space="preserve">
+    <value>Blank: won't be saved</value>
+  </data>
+  <data name="Scan_NotSeparator" xml:space="preserve">
+    <value>Not a separator</value>
+  </data>
+  <data name="Scan_DeletePageTip" xml:space="preserve">
+    <value>Delete page (Del)</value>
+  </data>
+  <data name="Scan_DeletePage" xml:space="preserve">
+    <value>Delete page</value>
+  </data>
+  <data name="Scan_CleanUpTip" xml:space="preserve">
+    <value>Clean up: crop to the paper, whiten, descreen, restore colors</value>
+  </data>
+  <data name="Scan_CleanUpPage" xml:space="preserve">
+    <value>Clean up page</value>
+  </data>
+  <data name="Scan_TurnRightTip" xml:space="preserve">
+    <value>Turn right (Ctrl+R)</value>
+  </data>
+  <data name="Scan_TurnPageRight" xml:space="preserve">
+    <value>Turn page right</value>
+  </data>
+  <data name="Scan_TurnLeftTip" xml:space="preserve">
+    <value>Turn left (Ctrl+L)</value>
+  </data>
+  <data name="Scan_TurnPageLeft" xml:space="preserve">
+    <value>Turn page left</value>
+  </data>
+  <data name="Scan_PhotosHelp" xml:space="preserve">
+    <value>Each box is saved as its own picture. Drag a box, its corners, or its round handle (the photo's top) to turn it; drag on the glass to mark a photo. Tab picks a box; arrows move it, Shift+arrows resize, Ctrl+arrows turn, Delete removes.</value>
+  </data>
+  <data name="Scan_AddPhoto" xml:space="preserve">
+    <value>Add photo</value>
+  </data>
+  <data name="Scan_RemovePhoto" xml:space="preserve">
+    <value>Remove photo</value>
+  </data>
+  <data name="Scan_TurnSavedPhoto" xml:space="preserve">
+    <value>Turn saved photo</value>
+  </data>
+  <data name="Scan_TurnSavedPhotoTip" xml:space="preserve">
+    <value>Saves the selected photo turned a quarter clockwise</value>
+  </data>
+  <data name="Scan_FindAgain" xml:space="preserve">
+    <value>Find again</value>
+  </data>
+  <data name="Scan_FindAgainTip" xml:space="preserve">
+    <value>Looks for the photos again, dropping the changes made here</value>
+  </data>
+  <data name="Scan_LoadingScan" xml:space="preserve">
+    <value>Loading the scan…</value>
+  </data>
+  <data name="Scan_PhotosOnGlass" xml:space="preserve">
+    <value>Photos on the glass</value>
+  </data>
+  <data name="Scan_PhotoBoxesHelp" xml:space="preserve">
+    <value>Tab picks a photo. Arrow keys move it, Shift+arrow keys resize it, Ctrl+arrow keys turn it, Delete removes it.</value>
+  </data>
+  <data name="Scan_CropHelp" xml:space="preserve">
+    <value>Drag over the part to keep, or drag the box and its corners. Arrow keys move it; Shift+arrows resize it.</value>
+  </data>
+  <data name="Scan_WholePage" xml:space="preserve">
+    <value>Whole page</value>
+  </data>
+  <data name="Scan_Crop" xml:space="preserve">
+    <value>Crop</value>
+  </data>
+  <data name="Scan_LoadingPage" xml:space="preserve">
+    <value>Loading the page…</value>
+  </data>
+  <data name="Scan_CropBox" xml:space="preserve">
+    <value>Crop box</value>
+  </data>
+  <data name="Scan_CropBoxHelp" xml:space="preserve">
+    <value>Arrow keys move the box; Shift+arrow keys resize it.</value>
+  </data>
+  <data name="Scan_CropToPaper" xml:space="preserve">
+    <value>Crop to the paper</value>
+  </data>
+  <data name="Scan_CropToPaperTip" xml:space="preserve">
+    <value>Takes off the lid around the sheet; a page it can't be sure of stays whole</value>
+  </data>
+  <data name="Scan_Whiten" xml:space="preserve">
+    <value>Whiten the background</value>
+  </data>
+  <data name="Scan_WhitenTip" xml:space="preserve">
+    <value>Evens grey or yellowed paper out to white and removes specks; faint writing stays</value>
+  </data>
+  <data name="Scan_Descreen" xml:space="preserve">
+    <value>Descreen printed pictures</value>
+  </data>
+  <data name="Scan_DescreenTip" xml:space="preserve">
+    <value>Takes the dots out of pictures from magazines and newspapers</value>
+  </data>
+  <data name="Scan_RestoreColors" xml:space="preserve">
+    <value>Restore faded colors</value>
+  </data>
+  <data name="Scan_RestoreColorsTip" xml:space="preserve">
+    <value>Brings back the blacks and colors of a faded print</value>
+  </data>
+  <data name="Scan_ShowAsScanned" xml:space="preserve">
+    <value>Show as scanned</value>
+  </data>
+  <data name="Scan_ShowAsScannedTip" xml:space="preserve">
+    <value>Shows the page without the filters, to compare</value>
+  </data>
+  <data name="Scan_AllPages" xml:space="preserve">
+    <value>All pages</value>
+  </data>
+  <data name="Scan_AllPagesTip" xml:space="preserve">
+    <value>Gives every page these choices</value>
+  </data>
+  <data name="Scan_ApplyToAllPages" xml:space="preserve">
+    <value>Apply to all pages</value>
+  </data>
+  <data name="Scan_PageAsSaved" xml:space="preserve">
+    <value>The page as it will be saved</value>
+  </data>
+  <data name="Scan_PhotosOnPage" xml:space="preserve">
+    <value>Photos on page {0}</value>
+  </data>
+  <data name="Scan_AlreadyFirst" xml:space="preserve">
+    <value>Already the first page</value>
+  </data>
+  <data name="Scan_AlreadyLast" xml:space="preserve">
+    <value>Already the last page</value>
+  </data>
+  <data name="Scan_TurnedRight" xml:space="preserve">
+    <value>Page {0} turned right</value>
+  </data>
+  <data name="Scan_TurnedLeft" xml:space="preserve">
+    <value>Page {0} turned left</value>
+  </data>
+  <data name="Scan_DeletedNoneLeft" xml:space="preserve">
+    <value>Page deleted. No pages left. Ctrl+Z puts it back</value>
+  </data>
+  <data name="Scan_Deleted" xml:space="preserve">
+    <value>Page deleted. Ctrl+Z puts it back</value>
+  </data>
+  <data name="Presets_Documents" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="Presets_Pictures" xml:space="preserve">
+    <value>Pictures</value>
+  </data>
+  <data name="Presets_OtherFolder" xml:space="preserve">
+    <value>Other folder…</value>
+  </data>
+  <data name="Presets_SourceAuto" xml:space="preserve">
+    <value>Feeder if it has pages, else glass</value>
+  </data>
+  <data name="Presets_SourceGlass" xml:space="preserve">
+    <value>Scanner glass</value>
+  </data>
+  <data name="Presets_SourceFeeder" xml:space="preserve">
+    <value>Document feeder</value>
+  </data>
+  <data name="Presets_FileSearchablePdf" xml:space="preserve">
+    <value>PDF, searchable (text recognition)</value>
+  </data>
+  <data name="Presets_FileJpeg" xml:space="preserve">
+    <value>JPEG images (one per page)</value>
+  </data>
+  <data name="Presets_ResolutionSlowest" xml:space="preserve">
+    <value>{0} dpi (slowest)</value>
+  </data>
+  <data name="Presets_PageSizeByRegion" xml:space="preserve">
+    <value>Letter or A4 (by region)</value>
+  </data>
+  <data name="Presets_AfterNothing" xml:space="preserve">
+    <value>Nothing else</value>
+  </data>
+  <data name="Presets_AfterOpenPdf" xml:space="preserve">
+    <value>Open it in Inkvolt PDF</value>
+  </data>
+  <data name="Presets_AfterPrint" xml:space="preserve">
+    <value>Print a copy</value>
+  </data>
+  <data name="Presets_AfterEmail" xml:space="preserve">
+    <value>Email it (opens your mail app)</value>
+  </data>
+  <data name="Presets_Added" xml:space="preserve">
+    <value>Added {0}</value>
+  </data>
+  <data name="Presets_DeleteQuestion" xml:space="preserve">
+    <value>Delete the preset "{0}"? Files it saved stay where they are.</value>
+  </data>
+  <data name="Presets_Deleted" xml:space="preserve">
+    <value>Deleted {0}</value>
+  </data>
+  <data name="Presets_ExampleName" xml:space="preserve">
+    <value>Preset</value>
+  </data>
+  <data name="Presets_ExampleSplit" xml:space="preserve">
+    <value>(one per file, each with its own {n})</value>
+  </data>
+  <data name="Presets_NoteJpegNoPdf" xml:space="preserve">
+    <value>Inkvolt PDF opens PDFs: JPEG scans are only saved.</value>
+  </data>
+  <data name="Presets_NoteEmail" xml:space="preserve">
+    <value>Inkvolt Print sends nothing itself: your mail app opens a new message with the file attached, for you to address and send.</value>
+  </data>
+  <data name="Presets_NoteNoOcr" xml:space="preserve">
+    <value>Text recognition isn't available on this PC: PDFs won't be searchable.</value>
+  </data>
+  <data name="Presets_FileNameProblem" xml:space="preserve">
+    <value>File name: {0}</value>
+  </data>
+  <data name="Presets_SubfolderProblem" xml:space="preserve">
+    <value>Subfolder: {0}</value>
+  </data>
+  <data name="Presets_ChooseFolder" xml:space="preserve">
+    <value>Choose a folder to save into.</value>
+  </data>
+  <data name="Presets_Title" xml:space="preserve">
+    <value>Scan presets</value>
+  </data>
+  <data name="Presets_NewerVersion" xml:space="preserve">
+    <value>These presets were saved by a newer version of Inkvolt Print. This version can scan with them but doesn't change them, so nothing is lost when you update again.</value>
+  </data>
+  <data name="Presets_Intro" xml:space="preserve">
+    <value>A preset scans with its own settings and saves the file by itself: one click on the Scan tab or the Overview, or Ctrl+1 to Ctrl+9 for the first nine. Each scanner gets the closest it can do.</value>
+  </data>
+  <data name="Presets_New" xml:space="preserve">
+    <value>New</value>
+  </data>
+  <data name="Presets_Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="Presets_MoveUpTip" xml:space="preserve">
+    <value>Move up (Alt+Up)</value>
+  </data>
+  <data name="Presets_MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="Presets_MoveDownTip" xml:space="preserve">
+    <value>Move down (Alt+Down)</value>
+  </data>
+  <data name="Presets_MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="Presets_List" xml:space="preserve">
+    <value>Presets</value>
+  </data>
+  <data name="Presets_ListHelp" xml:space="preserve">
+    <value>Alt+Up and Alt+Down move the selected preset.</value>
+  </data>
+  <data name="Presets_None" xml:space="preserve">
+    <value>No presets. New adds one.</value>
+  </data>
+  <data name="Presets_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Presets_PresetName" xml:space="preserve">
+    <value>Preset name</value>
+  </data>
+  <data name="Presets_Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Presets_BothSides" xml:space="preserve">
+    <value>Both sides (two-sided feeder)</value>
+  </data>
+  <data name="Presets_PageSize" xml:space="preserve">
+    <value>Page size</value>
+  </data>
+  <data name="Presets_Quality" xml:space="preserve">
+    <value>Quality</value>
+  </data>
+  <data name="Presets_Color" xml:space="preserve">
+    <value>Color</value>
+  </data>
+  <data name="Presets_FileType" xml:space="preserve">
+    <value>File type</value>
+  </data>
+  <data name="Presets_Review" xml:space="preserve">
+    <value>Review before saving</value>
+  </data>
+  <data name="Presets_ReviewHelp" xml:space="preserve">
+    <value>Turn, crop or reorder first</value>
+  </data>
+  <data name="Presets_SkipBlank" xml:space="preserve">
+    <value>Skip blank pages</value>
+  </data>
+  <data name="Presets_SkipBlankHelp" xml:space="preserve">
+    <value>Left out when saving</value>
+  </data>
+  <data name="Presets_Straighten" xml:space="preserve">
+    <value>Straighten pages</value>
+  </data>
+  <data name="Presets_StraightenHelp" xml:space="preserve">
+    <value>Fixes pages scanned a little crooked</value>
+  </data>
+  <data name="Presets_CleanUp" xml:space="preserve">
+    <value>Clean up each page</value>
+  </data>
+  <data name="Presets_CropToPaperTip" xml:space="preserve">
+    <value>Takes off the lid around a sheet; a page it can't be sure of stays whole</value>
+  </data>
+  <data name="Presets_WhitenTip" xml:space="preserve">
+    <value>Evens grey or yellowed paper out to white and removes specks</value>
+  </data>
+  <data name="Presets_TextLanguage" xml:space="preserve">
+    <value>Text language</value>
+  </data>
+  <data name="Presets_TextLanguageHelp" xml:space="preserve">
+    <value>The language text recognition reads</value>
+  </data>
+  <data name="Presets_SplitAt" xml:space="preserve">
+    <value>Split into files at</value>
+  </data>
+  <data name="Presets_SplitAtHelp" xml:space="preserve">
+    <value>Saves one feeder run as several files, a new one after each separator sheet</value>
+  </data>
+  <data name="Presets_KeepSeparators" xml:space="preserve">
+    <value>Keep separator sheets</value>
+  </data>
+  <data name="Presets_KeepSeparatorsHelp" xml:space="preserve">
+    <value>As the first page of the next file</value>
+  </data>
+  <data name="Presets_SeveralPhotos" xml:space="preserve">
+    <value>Several photos on the glass</value>
+  </data>
+  <data name="Presets_SeveralPhotosHelp" xml:space="preserve">
+    <value>Each photo saved by itself, cut out straight (glass scans only)</value>
+  </data>
+  <data name="Presets_SaveTo" xml:space="preserve">
+    <value>Save to</value>
+  </data>
+  <data name="Presets_SaveToHelp" xml:space="preserve">
+    <value>Documents, Pictures, OneDrive or Dropbox folders on this PC, or another folder</value>
+  </data>
+  <data name="Presets_SubfolderOptional" xml:space="preserve">
+    <value>Subfolder (optional)</value>
+  </data>
+  <data name="Presets_Subfolder" xml:space="preserve">
+    <value>Subfolder</value>
+  </data>
+  <data name="Presets_FileName" xml:space="preserve">
+    <value>File name</value>
+  </data>
+  <data name="Presets_Tokens" xml:space="preserve">
+    <value>Tokens:</value>
+  </data>
+  <data name="Presets_NextFile" xml:space="preserve">
+    <value>Next file:</value>
+  </data>
+  <data name="Presets_AfterSaving" xml:space="preserve">
+    <value>After saving</value>
+  </data>
+  <data name="Presets_CounterHelp" xml:space="preserve">
+    <value>{n} counts up with every scan saved with this preset. A name already taken gets -2, -3 at the end: nothing is overwritten.</value>
+  </data>
+  <data name="Presets_SaveScansTo" xml:space="preserve">
+    <value>Save scans to</value>
+  </data>
+  <data name="JumpList_ScanWith" xml:space="preserve">
+    <value>Scan: {0}</value>
+  </data>
+  <data name="Presets_FolderGone" xml:space="preserve">
+    <value>The folder "{0}" isn't there any more. Choose another in Manage presets.</value>
+  </data>
+  <data name="Printer_AboutWindowsPrinter" xml:space="preserve">
+    <value>Windows printer</value>
+  </data>
+  <data name="Printer_AboutDriver" xml:space="preserve">
+    <value>Driver</value>
+  </data>
+  <data name="Printer_AboutConnectedVia" xml:space="preserve">
+    <value>Connected via</value>
+  </data>
+  <data name="Printer_AboutLocation" xml:space="preserve">
+    <value>Location</value>
+  </data>
+  <data name="Printer_AboutComment" xml:space="preserve">
+    <value>Comment</value>
+  </data>
+  <data name="Printer_AboutWindowsScanner" xml:space="preserve">
+    <value>Windows scanner</value>
+  </data>
+  <data name="Printer_AboutDriverFrom" xml:space="preserve">
+    <value>Driver from</value>
+  </data>
+  <data name="Printer_AboutViaWindowsEscl" xml:space="preserve">
+    <value>{0} (Windows' eSCL driver)</value>
+  </data>
+  <data name="Printer_AboutThisScanner" xml:space="preserve">
+    <value>About this scanner</value>
+  </data>
+  <data name="Printer_AboutThisPrinter" xml:space="preserve">
+    <value>About this printer</value>
+  </data>
+  <data name="Printer_AboutModel" xml:space="preserve">
+    <value>Model</value>
+  </data>
+  <data name="Printer_AboutIpAddress" xml:space="preserve">
+    <value>IP address</value>
+  </data>
+  <data name="Printer_AboutSerialNumber" xml:space="preserve">
+    <value>Serial number</value>
+  </data>
+  <data name="Printer_AboutProductNumber" xml:space="preserve">
+    <value>Product number</value>
+  </data>
+  <data name="Printer_AboutFirmware" xml:space="preserve">
+    <value>Firmware</value>
+  </data>
+  <data name="Printer_SourceWiaScanner" xml:space="preserve">
+    <value>A scanner Windows has a driver for: Inkvolt Print scans with it through Windows (WIA). Scanners report no status this way, so a problem (no paper in the feeder, a jam) shows when you scan.</value>
+  </data>
+  <data name="Printer_SourceSuppliesNoScan" xml:space="preserve">
+    <value>Status and supply levels from {0}. No settings or maintenance for this printer here, and no scanning.</value>
+  </data>
+  <data name="Printer_SourceSuppliesScansViaWindows" xml:space="preserve">
+    <value>Status and supply levels from {0}. No settings or maintenance for this printer here; it scans through Windows.</value>
+  </data>
+  <data name="Printer_SourceStatusOnly" xml:space="preserve">
+    <value>Status from {0}. That's less than Inkvolt Print reads from a printer it reaches over the network: no ink or toner levels, and problems only as the driver reports them.</value>
+  </data>
+  <data name="Printer_SourceStatusOnlyScansViaWindows" xml:space="preserve">
+    <value>Status from {0}. That's less than Inkvolt Print reads from a printer it reaches over the network: no ink or toner levels, and problems only as the driver reports them. Scanning goes through Windows too.</value>
+  </data>
+  <data name="Printer_SnmpCommunityNotKept" xml:space="preserve">
+    <value>The community couldn't be kept in Windows Credential Manager, so it isn't used. Try again, or restart Windows.</value>
+  </data>
+  <data name="Printer_NoteSnmpOnly" xml:space="preserve">
+    <value>This printer answers only SNMP (the standard printer management protocol), so Inkvolt Print reads its status, alerts and supply levels, but can't scan with it or change its settings. Change settings on the printer's web page or its control panel.</value>
+  </data>
+  <data name="Printer_NoteCdm" xml:space="preserve">
+    <value>This newer HP printer uses HP's CDM interface: Inkvolt Print reads its status, supplies and details, but its settings, firmware updates and page counts aren't supported yet. Change settings on the printer's web page or its control panel.</value>
+  </data>
+  <data name="Printer_NoteNonHp" xml:space="preserve">
+    <value>Printer settings, firmware updates and page counts use HP's own interface, so they're HP only. Change settings on the printer's web page or its control panel.</value>
+  </data>
+  <data name="Printer_Supplies" xml:space="preserve">
+    <value>Supplies</value>
+  </data>
+  <data name="Printer_Toner" xml:space="preserve">
+    <value>Toner</value>
+  </data>
+  <data name="Printer_Ink" xml:space="preserve">
+    <value>Ink</value>
+  </data>
+  <data name="Printer_Connecting" xml:space="preserve">
+    <value>Connecting…</value>
+  </data>
+  <data name="Printer_StaleSuffix" xml:space="preserve">
+    <value>  ·  last known</value>
+  </data>
+  <data name="Printer_ReadyToPrint" xml:space="preserve">
+    <value>Ready to print from any app.</value>
+  </data>
+  <data name="Printer_NotFoundInWindows" xml:space="preserve">
+    <value>Not found in Windows</value>
+  </data>
+  <data name="Printer_NotFoundInWindowsDetail" xml:space="preserve">
+    <value>Windows no longer has this printer: it was probably removed or renamed in Settings.</value>
+  </data>
+  <data name="Printer_ElsewhereBlocked" xml:space="preserve">
+    <value>Another device now answers at this printer's address, so Inkvolt Print doesn't scan or copy with it.</value>
+  </data>
+  <data name="Printer_ElsewhereTitle" xml:space="preserve">
+    <value>A different device answers at this address</value>
+  </data>
+  <data name="Printer_ElsewhereDetail" xml:space="preserve">
+    <value>Another device now has {0}, so its status isn't shown here. The printer probably got a new address: Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset and this really is it, choose This is my printer.</value>
+  </data>
+  <data name="Printer_AcceptDeviceQuestion" xml:space="preserve">
+    <value>Use the device that now answers at {0} as {1}?
+
+Only do this if it really is this printer, for example after a repair, a reset or a new network board gave it a new ID. Otherwise it's another device that took the printer's address, and Fix it… can find the printer.</value>
+  </data>
+  <data name="Printer_ThisIsMyPrinter" xml:space="preserve">
+    <value>This is my printer</value>
+  </data>
+  <data name="Printer_ScannerNotConnected" xml:space="preserve">
+    <value>The scanner isn't connected now. Check that it's on and connected, then try again.</value>
+  </data>
+  <data name="Printer_ReadyToScan" xml:space="preserve">
+    <value>Ready to scan</value>
+  </data>
+  <data name="Printer_ScannerNotAnswering" xml:space="preserve">
+    <value>Scanner not answering</value>
+  </data>
+  <data name="Printer_ScannerRetries" xml:space="preserve">
+    <value>{0} Inkvolt Print tries again every 30 seconds.</value>
+  </data>
+  <data name="Printer_ScannerNoAnswerInTime" xml:space="preserve">
+    <value>The scanner didn't answer in time.</value>
+  </data>
+  <data name="Printer_StatPagesPrinted" xml:space="preserve">
+    <value>pages printed</value>
+  </data>
+  <data name="Printer_StatTwoSidedSheets" xml:space="preserve">
+    <value>two-sided sheets</value>
+  </data>
+  <data name="Printer_StatPagesScanned" xml:space="preserve">
+    <value>pages scanned</value>
+  </data>
+  <data name="Printer_StatPaperJams" xml:space="preserve">
+    <value>paper jams</value>
+  </data>
+  <data name="Printer_FirmwareHintHp" xml:space="preserve">
+    <value>If it came from HP, cartridges with non-HP chips may stop working. Keep my cartridges working, on the Printer settings tab, turns automatic updates off.</value>
+  </data>
+  <data name="Printer_FirmwareHintOther" xml:space="preserve">
+    <value>Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings.</value>
+  </data>
+  <data name="Printer_FirmwareSettings" xml:space="preserve">
+    <value>Firmware settings</value>
+  </data>
+  <data name="Printer_WebPage" xml:space="preserve">
+    <value>Printer web page</value>
+  </data>
+  <data name="Printer_CantReach" xml:space="preserve">
+    <value>Can't reach the printer</value>
+  </data>
+  <data name="Printer_CantReachDetail" xml:space="preserve">
+    <value>Make sure it's turned on and connected to the same network as this PC. Inkvolt Print keeps trying in the background.</value>
+  </data>
+  <data name="Printer_CantReachDetailHost" xml:space="preserve">
+    <value>Make sure it's turned on and connected to the same network as this PC ({0}). Inkvolt Print keeps trying in the background.</value>
+  </data>
+  <data name="Printer_SetupInSettings" xml:space="preserve">
+    <value>In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. Pick “IPP Device” and paste {0} (it’s on the clipboard). Inkvolt Print notices the printer when it’s added.</value>
+  </data>
+  <data name="Printer_SettingUpAdmin" xml:space="preserve">
+    <value>Setting up… approve the Windows permission prompt to add the printer.</value>
+  </data>
+  <data name="Printer_SettingUp" xml:space="preserve">
+    <value>Setting up… Windows is adding the printer (about 30 seconds).</value>
+  </data>
+  <data name="Printer_SetupFailed" xml:space="preserve">
+    <value>Setup failed: {0}</value>
+  </data>
+  <data name="Printer_ReinstallNotDiscovered" xml:space="preserve">
+    <value>not discovered on the network, so it can't be set up again automatically</value>
+  </data>
+  <data name="Printer_ReinstallNotReachable" xml:space="preserve">
+    <value>the printer isn't reachable right now. Turn it on, then use Set up</value>
+  </data>
+  <data name="Printer_ReinstallBusy" xml:space="preserve">
+    <value>a print job is being sent. Try again when it's done</value>
+  </data>
+  <data name="Printer_ReinstallNotRemoved" xml:space="preserve">
+    <value>Windows didn't remove the old printer</value>
+  </data>
+  <data name="Printer_ReinstallFailed" xml:space="preserve">
+    <value>{0} Use Set up on this printer to add it again.</value>
+  </data>
+  <data name="Printer_PresetElsewhere" xml:space="preserve">
+    <value>Another device now answers at {0}'s address, so "{1}" didn't scan. Use Fix it… on its Overview to find the printer.</value>
+  </data>
+  <data name="Printer_SupplyMissingInstall" xml:space="preserve">
+    <value>Missing — install it</value>
+  </data>
+  <data name="Printer_SupplyReplaceNow" xml:space="preserve">
+    <value>Replace now</value>
+  </data>
+  <data name="Printer_SupplyReplaceSoon" xml:space="preserve">
+    <value>Replace soon</value>
+  </data>
+  <data name="Printer_SupplyEmptyReplace" xml:space="preserve">
+    <value>Empty — replace now</value>
+  </data>
+  <data name="Printer_SupplyPagesLeft" xml:space="preserve">
+    <value>About {0:N0} pages left</value>
+  </data>
+  <data name="Printer_SupplyRunningLow" xml:space="preserve">
+    <value>Running low</value>
+  </data>
+  <data name="Printer_SupplyOk" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Printer_SupplyReplacement" xml:space="preserve">
+    <value>Replacement: {0}</value>
+  </data>
+  <data name="Printer_SupplyFull" xml:space="preserve">
+    <value>Full</value>
+  </data>
+  <data name="Printer_SupplyAlmostFull" xml:space="preserve">
+    <value>Almost full</value>
+  </data>
+  <data name="Printer_SupplyEmpty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="Printer_SupplyMissing" xml:space="preserve">
+    <value>Missing</value>
+  </data>
+  <data name="PrinterSettings_CouldNotRead" xml:space="preserve">
+    <value>Could not read settings: {0}</value>
+  </data>
+  <data name="PrinterSettings_Saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="PrinterSettings_Saved" xml:space="preserve">
+    <value>Saved.</value>
+  </data>
+  <data name="PrinterSettings_NotSaved" xml:space="preserve">
+    <value>Not saved.</value>
+  </data>
+  <data name="PrinterSettings_CertChangedNotSaved" xml:space="preserve">
+    <value>Not saved: the printer's security certificate changed since Inkvolt Print first connected. If you reset or updated the printer, choose "Trust the new certificate". Otherwise another device may be impersonating it.</value>
+  </data>
+  <data name="PrinterSettings_CertChangedNotChanged" xml:space="preserve">
+    <value>Not changed: the printer's security certificate changed since Inkvolt Print first connected. If you reset or updated the printer, choose "Trust the new certificate". Otherwise another device may be impersonating it.</value>
+  </data>
+  <data name="PrinterSettings_NotAccepted" xml:space="preserve">
+    <value>The printer did not accept the change: {0}</value>
+  </data>
+  <data name="PrinterSettings_UnsavedUndone" xml:space="preserve">
+    <value>Changes you haven't saved on this tab are undone.</value>
+  </data>
+  <data name="PrinterSettings_KeepCartridgesQuestion" xml:space="preserve">
+    <value>Turn off automatic firmware updates on {0}?
+
+HP's updates have brought "dynamic security", which stops cartridges with non-HP chips (many compatible and refilled ones) from working. With automatic updates off, an update installs only when you install it yourself.</value>
+  </data>
+  <data name="PrinterSettings_TurnOffAutoUpdates" xml:space="preserve">
+    <value>Turn off automatic updates</value>
+  </data>
+  <data name="PrinterSettings_TurningOffAutoUpdates" xml:space="preserve">
+    <value>Turning off automatic updates…</value>
+  </data>
+  <data name="PrinterSettings_FirmwareHidden" xml:space="preserve">
+    <value>This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page.</value>
+  </data>
+  <data name="PrinterSettings_NotChanged" xml:space="preserve">
+    <value>Not changed.</value>
+  </data>
+  <data name="PrinterSettings_TrustNewCertDone" xml:space="preserve">
+    <value>OK. Save again to trust the printer's current certificate; you'll be asked for the admin password.</value>
+  </data>
+  <data name="PrinterSettings_SavedUnknown" xml:space="preserve">
+    <value>Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. Check again in a moment (Reload from printer) or on its web page.</value>
+  </data>
+  <data name="PrinterSettings_NotifyNoLongerOffered" xml:space="preserve">
+    <value>This printer can't check for updates without installing them, so "{0}" is no longer offered for it.</value>
+  </data>
+  <data name="PrinterSettings_TiedNotRestored" xml:space="preserve">
+    <value>This printer can't check for updates without installing them: it turned on automatic installs. The printer kept automatic updates on ("{0}") and the previous setting ("{1}") couldn't be restored. Change it here or on its web page.</value>
+  </data>
+  <data name="PrinterSettings_TiedSentBackUnknown" xml:space="preserve">
+    <value>This printer can't check for updates without installing them: it turned on automatic installs. The previous setting was sent back, but the printer didn't say whether it took it. Check it in a moment (Reload from printer) or on its web page.</value>
+  </data>
+  <data name="PrinterSettings_TiedNotTakenBack" xml:space="preserve">
+    <value>This printer can't check for updates without installing them: it turned on automatic installs, and it didn't take the previous setting back. Check automatic updates on its web page.</value>
+  </data>
+  <data name="PrinterSettings_TiedSetBack" xml:space="preserve">
+    <value>This printer can't check for updates without installing them: it turned on automatic installs, so automatic updates were set back to "{0}". "{1}" is no longer offered for it.</value>
+  </data>
+  <data name="PrinterSettings_SavedReadsBack" xml:space="preserve">
+    <value>Saved, but the printer reads back automatic updates as "{0}".</value>
+  </data>
+  <data name="PrinterSettings_PasswordRemoved" xml:space="preserve">
+    <value>Saved password removed.</value>
+  </data>
+  <data name="PrinterSettings_EnterNumber" xml:space="preserve">
+    <value>Enter a number</value>
+  </data>
+  <data name="PrinterSettings_Between" xml:space="preserve">
+    <value>Between {0} and {1}</value>
+  </data>
+  <data name="PrinterSettings_AtMostChars" xml:space="preserve">
+    <value>At most {0} characters</value>
+  </data>
+  <data name="PrinterSettings_NotReported" xml:space="preserve">
+    <value>Not reported</value>
+  </data>
+  <data name="PrinterSettings_AutoUpdatesReadOnly" xml:space="preserve">
+    <value>Automatic updates: {0}. This printer doesn't let apps change it; use its web page.</value>
+  </data>
+  <data name="PrinterSettings_FirmwareNotShown" xml:space="preserve">
+    <value>This printer doesn't let apps see or change its firmware updates. Its web page has the update settings.</value>
+  </data>
+  <data name="PrinterSettings_HintAutomatic" xml:space="preserve">
+    <value>The printer installs HP's updates by itself, as soon as they're out.</value>
+  </data>
+  <data name="PrinterSettings_HintNotify" xml:space="preserve">
+    <value>The printer checks for updates; nothing installs until you install it from its web page.</value>
+  </data>
+  <data name="PrinterSettings_HintOff" xml:space="preserve">
+    <value>The printer never checks. You can still update it from its web page.</value>
+  </data>
+  <data name="PrinterSettings_KeepHintOff" xml:space="preserve">
+    <value>Automatic updates are off: no update installs by itself.</value>
+  </data>
+  <data name="PrinterSettings_KeepHint" xml:space="preserve">
+    <value>Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it.</value>
+  </data>
+  <data name="PrinterSettings_ModeAutomatic" xml:space="preserve">
+    <value>Install automatically</value>
+  </data>
+  <data name="PrinterSettings_ModeNotify" xml:space="preserve">
+    <value>Check, don't install</value>
+  </data>
+  <data name="PrinterSettings_ModeOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Maint_NotSentBecause" xml:space="preserve">
+    <value>Not sent: {0}</value>
+  </data>
+  <data name="Maint_Sending" xml:space="preserve">
+    <value>Sending to the printer: {0}…</value>
+  </data>
+  <data name="Maint_NotSent" xml:space="preserve">
+    <value>Not sent.</value>
+  </data>
+  <data name="Maint_Failed" xml:space="preserve">
+    <value>Something went wrong ({0}); the request may have reached the printer. Check it before trying again.</value>
+  </data>
+  <data name="Maint_NotAvailable" xml:space="preserve">
+    <value>{0}. Not available: {1}</value>
+  </data>
+  <data name="Fixer_Checking" xml:space="preserve">
+    <value>Checking…</value>
+  </data>
+  <data name="Fixer_UseAddress" xml:space="preserve">
+    <value>Use {0}</value>
+  </data>
+  <data name="Fixer_CheckDidntFinish" xml:space="preserve">
+    <value>The check didn't finish</value>
+  </data>
+  <data name="Fixer_WaitingForPermission" xml:space="preserve">
+    <value>Waiting for permission… Approve the Windows prompt, or Cancel.</value>
+  </data>
+  <data name="Fixer_Working" xml:space="preserve">
+    <value>Working…</value>
+  </data>
+  <data name="Fixer_Done" xml:space="preserve">
+    <value>Done: {0}.</value>
+  </data>
+  <data name="Fixer_StateOk" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Fixer_StateWarning" xml:space="preserve">
+    <value>warning</value>
+  </data>
+  <data name="Fixer_StateProblem" xml:space="preserve">
+    <value>problem</value>
+  </data>
+  <data name="Fixer_StateChecking" xml:space="preserve">
+    <value>checking</value>
+  </data>
+  <data name="Fixer_StateSkipped" xml:space="preserve">
+    <value>skipped</value>
+  </data>
+  <data name="Fixer_StateWaiting" xml:space="preserve">
+    <value>waiting</value>
+  </data>
+  <data name="Fixer_ShowMeHow" xml:space="preserve">
+    <value>Show me how</value>
+  </data>
+  <data name="Fixer_CancelJob" xml:space="preserve">
+    <value>Cancel job</value>
+  </data>
+  <data name="Fixer_CancelJobs" xml:space="preserve">
+    <value>Cancel jobs</value>
+  </data>
+  <data name="Fixer_PrintAgain" xml:space="preserve">
+    <value>Print again</value>
+  </data>
+  <data name="Fixer_StartIt" xml:space="preserve">
+    <value>Start it</value>
+  </data>
+  <data name="Fixer_RestartIt" xml:space="preserve">
+    <value>Restart it</value>
+  </data>
+  <data name="Fixer_SetUpAgain" xml:space="preserve">
+    <value>Set up again</value>
+  </data>
+  <data name="Fixer_FixIt" xml:space="preserve">
+    <value>Fix it</value>
+  </data>
+  <data name="Fixer_AdminNote" xml:space="preserve">
+    <value>Windows asks for administrator permission.</value>
+  </data>
+  <data name="Fixer_MayAskAdmin" xml:space="preserve">
+    <value>May ask for administrator permission if you didn't set this printer up.</value>
+  </data>
+  <data name="Fixer_Stopping" xml:space="preserve">
+    <value>Stopping…</value>
+  </data>
+  <data name="AddPrinter_AddName" xml:space="preserve">
+    <value>Add {0}</value>
+  </data>
+  <data name="AddPrinter_ShowName" xml:space="preserve">
+    <value>Show {0} in the list</value>
+  </data>
+  <data name="AddPrinter_RemovedEarlier" xml:space="preserve">
+    <value>{0} · Removed from your list earlier</value>
+  </data>
+  <data name="AddPrinter_Looking" xml:space="preserve">
+    <value>Looking for printers on your network…</value>
+  </data>
+  <data name="AddPrinter_LookingProgress" xml:space="preserve">
+    <value>Looking for printers on your network… {0} of {1} addresses</value>
+  </data>
+  <data name="AddPrinter_CheckingAnswers" xml:space="preserve">
+    <value>Checking what answered…</value>
+  </data>
+  <data name="AddPrinter_SearchStopped" xml:space="preserve">
+    <value>Search stopped.</value>
+  </data>
+  <data name="AddPrinter_SearchFailed" xml:space="preserve">
+    <value>The search didn't work. You can still add a printer by its address.</value>
+  </data>
+  <data name="AddPrinter_NoNetwork" xml:space="preserve">
+    <value>This PC isn't on a home or office network that can be searched.</value>
+  </data>
+  <data name="AddPrinter_NoneAnswered" xml:space="preserve">
+    <value>No printers answered on your network.</value>
+  </data>
+  <data name="AddPrinter_OneListedAlready" xml:space="preserve">
+    <value>The printer that answered is in your list already.</value>
+  </data>
+  <data name="AddPrinter_ManyListedAlready" xml:space="preserve">
+    <value>The {0} printers that answered are in your list already.</value>
+  </data>
+  <data name="AddPrinter_FoundOne" xml:space="preserve">
+    <value>Found a printer you can add.</value>
+  </data>
+  <data name="AddPrinter_FoundMany" xml:space="preserve">
+    <value>Found {0} printers you can add.</value>
+  </data>
+  <data name="AddPrinter_CouldntAddIt" xml:space="preserve">
+    <value>Couldn't add it: {0}</value>
+  </data>
+  <data name="AddPrinter_CheckSnmpBelow" xml:space="preserve">
+    <value>Check SNMP access below.</value>
+  </data>
+  <data name="AddPrinter_SnmpRefused" xml:space="preserve">
+    <value>{0} Check SNMP access below.</value>
+  </data>
+  <data name="AddPrinter_NoAnswerSnmpHint" xml:space="preserve">
+    <value>No printer answered at {0}. Check the address, and that the printer is on and on this network. A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below.</value>
+  </data>
+  <data name="AddPrinter_NoAnswerCheckUser" xml:space="preserve">
+    <value>No printer answered at {0}. Check the address, and that the printer is on and on this network. Check the SNMPv3 user name and passphrases too.</value>
+  </data>
+  <data name="AddPrinter_NoAnswerCheckCommunity" xml:space="preserve">
+    <value>No printer answered at {0}. Check the address, and that the printer is on and on this network. Check the SNMP community too.</value>
+  </data>
+  <data name="AddPrinter_CouldntAdd" xml:space="preserve">
+    <value>Couldn't add {0}: {1}</value>
+  </data>
+  <data name="AddPrinter_Title" xml:space="preserve">
+    <value>Add a printer</value>
+  </data>
+  <data name="AddPrinter_Intro" xml:space="preserve">
+    <value>Printers on your network and the ones set up in Windows show up in your list by themselves. Not seeing yours? Try these.</value>
+  </data>
+  <data name="AddPrinter_StopSearching" xml:space="preserve">
+    <value>Stop searching</value>
+  </data>
+  <data name="AddPrinter_SearchAgain" xml:space="preserve">
+    <value>Search again</value>
+  </data>
+  <data name="AddPrinter_OnYourNetwork" xml:space="preserve">
+    <value>On your network</value>
+  </data>
+  <data name="AddPrinter_SearchProgress" xml:space="preserve">
+    <value>Search progress</value>
+  </data>
+  <data name="AddPrinter_PrintersFound" xml:space="preserve">
+    <value>Printers found</value>
+  </data>
+  <data name="AddPrinter_Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="AddPrinter_Adding" xml:space="preserve">
+    <value>Adding</value>
+  </data>
+  <data name="AddPrinter_InYourList" xml:space="preserve">
+    <value>In your list</value>
+  </data>
+  <data name="AddPrinter_Show" xml:space="preserve">
+    <value>Show</value>
+  </data>
+  <data name="AddPrinter_Added" xml:space="preserve">
+    <value>Added</value>
+  </data>
+  <data name="AddPrinter_NothingFoundHint" xml:space="preserve">
+    <value>A printer that's off or asleep, on another network (a guest Wi-Fi, another floor), or behind a VPN or firewall can't be found this way. Wake it up and search again, or enter its address below.</value>
+  </data>
+  <data name="AddPrinter_PrivacyNote" xml:space="preserve">
+    <value>Only devices on this PC's own network are asked whether they print. Nothing is sent anywhere else.</value>
+  </data>
+  <data name="AddPrinter_UsbTitle" xml:space="preserve">
+    <value>Connected with a cable?</value>
+  </data>
+  <data name="AddPrinter_UsbText" xml:space="preserve">
+    <value>Plug it in and turn it on. Windows sets it up, and it shows in your list a moment later. If it doesn't, add it in Windows' settings.</value>
+  </data>
+  <data name="AddPrinter_OpenPrintersSettingsName" xml:space="preserve">
+    <value>Open Windows' Printers and scanners settings</value>
+  </data>
+  <data name="AddPrinter_OpenPrintersScanners" xml:space="preserve">
+    <value>Open Printers &amp; scanners</value>
+  </data>
+  <data name="AddPrinter_AddressTitle" xml:space="preserve">
+    <value>Know its address?</value>
+  </data>
+  <data name="AddPrinter_AddressLabel" xml:space="preserve">
+    <value>IP address, name or printer URL</value>
+  </data>
+  <data name="AddPrinter_AddressPlaceholder" xml:space="preserve">
+    <value>192.168.1.40, printer.local or ipp://…</value>
+  </data>
+  <data name="AddPrinter_AddAtAddress" xml:space="preserve">
+    <value>Add the printer at this address</value>
+  </data>
+  <data name="AddPrinter_AddressHint" xml:space="preserve">
+    <value>It's on the printer's screen (network or Wi-Fi settings) or on a network report it prints. For example 192.168.1.40, printer.local or ipp://printer.local/ipp/print.</value>
+  </data>
+  <data name="AddPrinter_SnmpExpander" xml:space="preserve">
+    <value>SNMP access (printers that answer only SNMP)</value>
+  </data>
+  <data name="Fleet_ExportTitle" xml:space="preserve">
+    <value>Export the fleet</value>
+  </data>
+  <data name="Fleet_ExportFileName" xml:space="preserve">
+    <value>Fleet {0:yyyy-MM-dd}</value>
+  </data>
+  <data name="Fleet_ExportFilter" xml:space="preserve">
+    <value>CSV file (*.csv)|*.csv|JSON file (*.json)|*.json</value>
+  </data>
+  <data name="Fleet_Saved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="Fleet_CouldNotSave" xml:space="preserve">
+    <value>Could not save the fleet: {0}</value>
+  </data>
+  <data name="Fleet_LookingAtQueues" xml:space="preserve">
+    <value>Looking at every queue…</value>
+  </data>
+  <data name="Fleet_NoSetUpAgain" xml:space="preserve">
+    <value>Fix all doesn't set printers up again.</value>
+  </data>
+  <data name="Fleet_Stopped" xml:space="preserve">
+    <value>Stopped: the rest wasn't changed.</value>
+  </data>
+  <data name="Fleet_FixAllFailed" xml:space="preserve">
+    <value>Fix all didn't finish: {0}</value>
+  </data>
+  <data name="Fleet_OpenName" xml:space="preserve">
+    <value>Open {0}</value>
+  </data>
+  <data name="Fleet_FixName" xml:space="preserve">
+    <value>Fix {0}</value>
+  </data>
+  <data name="Fleet_StopFixAll" xml:space="preserve">
+    <value>Stop Fix all</value>
+  </data>
+  <data name="Fleet_FixAll" xml:space="preserve">
+    <value>Fix all…</value>
+  </data>
+  <data name="Fleet_FixAllHelp" xml:space="preserve">
+    <value>Resumes paused queues and turns off Use Printer Offline, asking about each one</value>
+  </data>
+  <data name="Fleet_FixAllTip" xml:space="preserve">
+    <value>Resume paused queues and turn off Use Printer Offline, asking about each one (Inkvolt Pro)</value>
+  </data>
+  <data name="Fleet_Export" xml:space="preserve">
+    <value>Export…</value>
+  </data>
+  <data name="Fleet_ExportHelp" xml:space="preserve">
+    <value>Saves this list as a CSV or JSON file</value>
+  </data>
+  <data name="Fleet_ExportTip" xml:space="preserve">
+    <value>Save this list as a CSV or JSON file (Inkvolt Pro)</value>
+  </data>
+  <data name="Fleet_Title" xml:space="preserve">
+    <value>Fleet</value>
+  </data>
+  <data name="Fleet_LeftForFixer" xml:space="preserve">
+    <value>Left for the printer's own Fix it…: </value>
+  </data>
+  <data name="Fleet_RowsName" xml:space="preserve">
+    <value>Printers, most trouble first</value>
+  </data>
+  <data name="Fleet_FixIt" xml:space="preserve">
+    <value>Fix it…</value>
+  </data>
+  <data name="Jobs_QueueNotAnswering" xml:space="preserve">
+    <value>Windows' print queue isn't answering. If the Print Spooler service is stopped, start it (or restart the PC); trying again every few seconds.</value>
+  </data>
+  <data name="Jobs_JobNotCancelled" xml:space="preserve">
+    <value>"{0}" couldn't be cancelled: {1}</value>
+  </data>
+  <data name="Jobs_CancelOneQuestion" xml:space="preserve">
+    <value>Cancel "{0}"?</value>
+  </data>
+  <data name="Jobs_CancelManyQuestion" xml:space="preserve">
+    <value>Cancel your {0} print jobs?</value>
+  </data>
+  <data name="Jobs_OthersStay_One" xml:space="preserve">
+    <value>{0} job from other people stay in the queue.</value>
+  </data>
+  <data name="Jobs_OthersStay_Many" xml:space="preserve">
+    <value>{0} jobs from other people stay in the queue.</value>
+  </data>
+  <data name="Jobs_CancelJobs" xml:space="preserve">
+    <value>Cancel jobs</value>
+  </data>
+  <data name="Jobs_SomeNotCancelled" xml:space="preserve">
+    <value>{0} of {1} jobs couldn't be cancelled. They may have just finished.</value>
+  </data>
+  <data name="Jobs_NotCancelled" xml:space="preserve">
+    <value>The jobs couldn't be cancelled: {0}</value>
+  </data>
+  <data name="Jobs_Untitled" xml:space="preserve">
+    <value>Untitled</value>
+  </data>
+  <data name="Snmp_Title" xml:space="preserve">
+    <value>SNMP access</value>
+  </data>
+  <data name="Snmp_Heading" xml:space="preserve">
+    <value>SNMP access for {0}</value>
+  </data>
+  <data name="Snmp_Intro" xml:space="preserve">
+    <value>Inkvolt Print reads this printer's status and supplies over SNMP, with the read community or SNMPv3 user the printer's administrator set.</value>
+  </data>
+  <data name="Snmp_Community" xml:space="preserve">
+    <value>Community</value>
+  </data>
+  <data name="Snmp_V3User" xml:space="preserve">
+    <value>SNMPv3 user</value>
+  </data>
+  <data name="Snmp_PublicPlaceholder" xml:space="preserve">
+    <value>public</value>
+  </data>
+  <data name="Snmp_BlankIsPublic" xml:space="preserve">
+    <value>Leave it blank for public, the community most printers ship with.</value>
+  </data>
+  <data name="Snmp_UserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="Snmp_AuthPassphrase" xml:space="preserve">
+    <value>Authentication passphrase (SHA-256)</value>
+  </data>
+  <data name="Snmp_PrivPassphrase" xml:space="preserve">
+    <value>Privacy passphrase (AES-128)</value>
+  </data>
+  <data name="Snmp_V3Note" xml:space="preserve">
+    <value>The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads.</value>
+  </data>
+  <data name="Snmp_KeptNote" xml:space="preserve">
+    <value>Kept in Windows Credential Manager for this printer, used only to read it, and never changes anything on it.</value>
+  </data>
+  <data name="Snmp_ProNote" xml:space="preserve">
+    <value>{0} Help › Inkvolt Pro… enters a key.</value>
+  </data>
+  <data name="Password_Title" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Password_Rejected" xml:space="preserve">
+    <value>That password didn't work. Try again.</value>
+  </data>
+  <data name="Password_Remember" xml:space="preserve">
+    <value>Remember on this PC (stored in Windows Credential Manager)</value>
+  </data>
+  <data name="Password_CertRemembered" xml:space="preserve">
+    <value>The printer's security certificate ({0}) is remembered by this PC; if it ever changes, Inkvolt Print warns you.</value>
+  </data>
+  <data name="Password_PrinterTitle" xml:space="preserve">
+    <value>Printer password</value>
+  </data>
+  <data name="Password_AdminHeading" xml:space="preserve">
+    <value>Enter the admin password for {0}</value>
+  </data>
+  <data name="Password_AdminPrompt" xml:space="preserve">
+    <value>It's the password for the printer's web page (user name "admin"). It's only sent to the printer, over an encrypted connection.</value>
+  </data>
+  <data name="Password_PdfTitle" xml:space="preserve">
+    <value>Protected PDF</value>
+  </data>
+  <data name="Password_PdfHeading" xml:space="preserve">
+    <value>"{0}" is password protected</value>
+  </data>
+  <data name="Password_PdfPrompt" xml:space="preserve">
+    <value>Enter the password to open it for printing.</value>
+  </data>
+  <data name="About_Copyright" xml:space="preserve">
+    <value>Copyright (c) 2026 Bermudez Systems LLC. Free software under the MIT License.</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="About_Notices" xml:space="preserve">
+    <value>Third-party notices</value>
+  </data>
+  <data name="About_Packaged" xml:space="preserve">
+    <value>Installed as an app package; Windows keeps it up to date.</value>
+  </data>
+  <data name="About_SourceCode" xml:space="preserve">
+    <value>Source code (GitHub)</value>
+  </data>
+  <data name="About_Summary" xml:space="preserve">
+    <value>Status, scanning and printing for network printers: HP, plus Canon, Epson, Brother and other IPP Everywhere and Mopria printers. No account, no cloud, no telemetry.</value>
+  </data>
+  <data name="About_TextNotLoaded" xml:space="preserve">
+    <value>The text could not be loaded: {0}</value>
+  </data>
+  <data name="About_Title" xml:space="preserve">
+    <value>About Inkvolt Print</value>
+  </data>
+  <data name="About_Trademarks" xml:space="preserve">
+    <value>Inkvolt Print is an independent project, not affiliated with or endorsed by HP Inc., Canon Inc., Seiko Epson Corporation or Brother Industries, Ltd. HP, LaserJet and HP Smart are trademarks of HP Inc.; Canon, Epson and Brother are trademarks of their owners. They are used only to describe the printers Inkvolt Print works with.</value>
+  </data>
+  <data name="About_Version" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="Alerts_From" xml:space="preserve">
+    <value>From</value>
+  </data>
+  <data name="Alerts_Jobs" xml:space="preserve">
+    <value>Tell me when my own print job fails or gets stuck</value>
+  </data>
+  <data name="Alerts_JobsNote" xml:space="preserve">
+    <value>Naming the document and the printer: Windows reports a problem with the job, or it hasn't moved for {0:0} minutes while the printer is ready, or {1:0} minutes while the printer says it's printing (a big job on a driver that counts no pages can raise this by mistake). A stuck job is told again only after real progress, at most {2} times. Other people's jobs never raise one. The notification shows the document's name, also on the lock screen if Windows shows notifications there; Inkvolt Print doesn't keep it or log it.</value>
+  </data>
+  <data name="Alerts_KeepInTray" xml:space="preserve">
+    <value>Keep Inkvolt Print in the notification area</value>
+  </data>
+  <data name="Alerts_KeepInTrayNote" xml:space="preserve">
+    <value>Its icon shows how your printers are doing. Closing the window leaves Inkvolt Print running there: it reads each printer every 5 minutes (every 15 on battery or a metered network, less often when one doesn't answer). Quit from the icon's menu. Off: Inkvolt Print runs only while its window is open.</value>
+  </data>
+  <data name="Alerts_LowAt" xml:space="preserve">
+    <value>Low supply at</value>
+  </data>
+  <data name="Alerts_LowAtName" xml:space="preserve">
+    <value>Low supply alert at percent</value>
+  </data>
+  <data name="Alerts_Offline" xml:space="preserve">
+    <value>Tell me when a printer stops answering for 15 minutes</value>
+  </data>
+  <data name="Alerts_OrLess" xml:space="preserve">
+    <value>or less</value>
+  </data>
+  <data name="Alerts_PausedUntil" xml:space="preserve">
+    <value>Alerts are paused until {0:t}.</value>
+  </data>
+  <data name="Alerts_PausedUntilTomorrow" xml:space="preserve">
+    <value>Alerts are paused until {0:t} tomorrow.</value>
+  </data>
+  <data name="Alerts_QuietFromName" xml:space="preserve">
+    <value>Quiet hours from</value>
+  </data>
+  <data name="Alerts_QuietHours" xml:space="preserve">
+    <value>Quiet hours</value>
+  </data>
+  <data name="Alerts_QuietNote" xml:space="preserve">
+    <value>Alerts that come up meanwhile wait until quiet hours end, if the problem is still there.</value>
+  </data>
+  <data name="Alerts_QuietToName" xml:space="preserve">
+    <value>Quiet hours to</value>
+  </data>
+  <data name="Alerts_Resume" xml:space="preserve">
+    <value>Resume alerts</value>
+  </data>
+  <data name="Alerts_StartWithWindows" xml:space="preserve">
+    <value>Start with Windows, in the notification area</value>
+  </data>
+  <data name="Alerts_TellMe" xml:space="preserve">
+    <value>Tell me about low supplies and printer problems</value>
+  </data>
+  <data name="Alerts_TellMeNote" xml:space="preserve">
+    <value>Once per problem, as a Windows notification: a supply low or empty, a waste box almost full or full, a paper jam, no paper, an open cover or another printer error lasting a minute. Click it to see the printer. No ads, no shop links.</value>
+  </data>
+  <data name="Alerts_Title" xml:space="preserve">
+    <value>Alerts</value>
+  </data>
+  <data name="Alerts_To" xml:space="preserve">
+    <value>to</value>
+  </data>
+  <data name="AppSettings_Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="AppSettings_ChangeFolderName" xml:space="preserve">
+    <value>Change the folder scans are saved to</value>
+  </data>
+  <data name="AppSettings_EditPresets" xml:space="preserve">
+    <value>Edit scan presets…</value>
+  </data>
+  <data name="AppSettings_FolderName" xml:space="preserve">
+    <value>Folder scans are saved to</value>
+  </data>
+  <data name="AppSettings_FolderNote" xml:space="preserve">
+    <value>Where Save opens; it follows the folder you last saved to. Presets save to their own folders.</value>
+  </data>
+  <data name="AppSettings_OpenInPdf" xml:space="preserve">
+    <value>Open scans in Inkvolt PDF</value>
+  </data>
+  <data name="AppSettings_OpenInPdfNote" xml:space="preserve">
+    <value>Each PDF you save opens there automatically</value>
+  </data>
+  <data name="AppSettings_ResetDefaults" xml:space="preserve">
+    <value>Reset to defaults</value>
+  </data>
+  <data name="AppSettings_ResetQuestion" xml:space="preserve">
+    <value>Put the theme, the scan folder, Inkvolt PDF and the notification area and alerts back to how they start? Your printers, presets and scans are kept.</value>
+  </data>
+  <data name="AppSettings_ResetTip" xml:space="preserve">
+    <value>Theme, scan folder, Inkvolt PDF and the notification area back to how they start. Printers, presets and scans are kept.</value>
+  </data>
+  <data name="AppSettings_SaveScansTo" xml:space="preserve">
+    <value>Save scans to</value>
+  </data>
+  <data name="AppSettings_Scanning" xml:space="preserve">
+    <value>Scanning</value>
+  </data>
+  <data name="AppSettings_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="AppSettings_ThemeDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="AppSettings_ThemeLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="AppSettings_ThemeWindows" xml:space="preserve">
+    <value>Use Windows' setting</value>
+  </data>
+  <data name="AppSettings_ThisPrinter" xml:space="preserve">
+    <value>this printer</value>
+  </data>
+  <data name="AppSettings_Title" xml:space="preserve">
+    <value>Inkvolt Print settings</value>
+  </data>
+  <data name="AppSettings_TrayAlerts" xml:space="preserve">
+    <value>Notification area and alerts</value>
+  </data>
+  <data name="Batch_AddFiles" xml:space="preserve">
+    <value>Add files to print</value>
+  </data>
+  <data name="Batch_AddFilesButton" xml:space="preserve">
+    <value>Add files…</value>
+  </data>
+  <data name="Batch_AddFolder" xml:space="preserve">
+    <value>Add a folder's PDFs and pictures</value>
+  </data>
+  <data name="Batch_AddFolderButton" xml:space="preserve">
+    <value>Add a folder…</value>
+  </data>
+  <data name="Batch_AddedNotes" xml:space="preserve">
+    <value>Added {0:N0}; {1}.</value>
+  </data>
+  <data name="Batch_AllPages" xml:space="preserve">
+    <value>All pages</value>
+  </data>
+  <data name="Batch_AllSent" xml:space="preserve">
+    <value>All {0:N0} sent. Start over prints them again.</value>
+  </data>
+  <data name="Batch_BothSides" xml:space="preserve">
+    <value>Both sides</value>
+  </data>
+  <data name="Batch_BothSidesAll" xml:space="preserve">
+    <value>Print on both sides</value>
+  </data>
+  <data name="Batch_BothSidesAllName" xml:space="preserve">
+    <value>Print every file on both sides</value>
+  </data>
+  <data name="Batch_BothSidesName" xml:space="preserve">
+    <value>Print {0} on both sides</value>
+  </data>
+  <data name="Batch_CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="Batch_CheckAgainTip" xml:space="preserve">
+    <value>Look at every file again, after one changed or came back</value>
+  </data>
+  <data name="Batch_ChooseWatchFolder" xml:space="preserve">
+    <value>Choose a folder to print as it fills</value>
+  </data>
+  <data name="Batch_ConfirmSheets" xml:space="preserve">
+    <value>Print {0}?
+This batch uses {0} of paper on {1}. Is there enough in the tray?</value>
+  </data>
+  <data name="Batch_Copies" xml:space="preserve">
+    <value>Copies</value>
+  </data>
+  <data name="Batch_CopiesAll" xml:space="preserve">
+    <value>Copies of every file</value>
+  </data>
+  <data name="Batch_CopiesName" xml:space="preserve">
+    <value>Copies of {0}</value>
+  </data>
+  <data name="Batch_DefaultPaper" xml:space="preserve">
+    <value>Printer's default paper</value>
+  </data>
+  <data name="Batch_DropHere" xml:space="preserve">
+    <value>Drop PDFs, pictures or a folder here</value>
+  </data>
+  <data name="Batch_DropHint" xml:space="preserve">
+    <value>You'll see how many sheets each one takes, and set its copies, pages, sides and paper, before anything prints.</value>
+  </data>
+  <data name="Batch_EnterPassword" xml:space="preserve">
+    <value>Enter password…</value>
+  </data>
+  <data name="Batch_Estimate" xml:space="preserve">
+    <value>{0}, {1} in all.</value>
+  </data>
+  <data name="Batch_Fewer" xml:space="preserve">
+    <value>Fewer copies</value>
+  </data>
+  <data name="Batch_FewerAll" xml:space="preserve">
+    <value>Fewer copies of every file</value>
+  </data>
+  <data name="Batch_FewerName" xml:space="preserve">
+    <value>Fewer copies of {0}</value>
+  </data>
+  <data name="Batch_FileProgress" xml:space="preserve">
+    <value>File {0:N0} of {1:N0}: {2}. {3}</value>
+  </data>
+  <data name="Batch_Files_Many" xml:space="preserve">
+    <value>{0:N0} files</value>
+  </data>
+  <data name="Batch_Files_One" xml:space="preserve">
+    <value>{0:N0} file</value>
+  </data>
+  <data name="Batch_FilterPdfsPictures" xml:space="preserve">
+    <value>PDFs and pictures</value>
+  </data>
+  <data name="Batch_ForAllFiles" xml:space="preserve">
+    <value>For all files</value>
+  </data>
+  <data name="Batch_ForRegularJobs" xml:space="preserve">
+    <value>For regular jobs</value>
+  </data>
+  <data name="Batch_KeysTip" xml:space="preserve">
+    <value>Delete removes the file in focus; Alt+Up and Alt+Down move it</value>
+  </data>
+  <data name="Batch_LeftOut_Many" xml:space="preserve">
+    <value>{0:N0} left out.</value>
+  </data>
+  <data name="Batch_LeftOut_One" xml:space="preserve">
+    <value>{0:N0} left out.</value>
+  </data>
+  <data name="Batch_ListFileName" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="Batch_ListFilter" xml:space="preserve">
+    <value>Inkvolt Print lists (*{0})</value>
+  </data>
+  <data name="Batch_ListName" xml:space="preserve">
+    <value>Files to print, in order</value>
+  </data>
+  <data name="Batch_ListNotSaved" xml:space="preserve">
+    <value>The list wasn't saved: {0}</value>
+  </data>
+  <data name="Batch_ListSaved" xml:space="preserve">
+    <value>Saved the list as {0}. Passwords aren't kept in it.</value>
+  </data>
+  <data name="Batch_LookingAt" xml:space="preserve">
+    <value>Looking at {0}…</value>
+  </data>
+  <data name="Batch_LookingAtIt" xml:space="preserve">
+    <value>Looking at it…</value>
+  </data>
+  <data name="Batch_More" xml:space="preserve">
+    <value>More copies</value>
+  </data>
+  <data name="Batch_MoreAll" xml:space="preserve">
+    <value>More copies of every file</value>
+  </data>
+  <data name="Batch_MoreName" xml:space="preserve">
+    <value>More copies of {0}</value>
+  </data>
+  <data name="Batch_MoveDownName" xml:space="preserve">
+    <value>Move {0} down</value>
+  </data>
+  <data name="Batch_MoveDownTip" xml:space="preserve">
+    <value>Move down (Alt+Down)</value>
+  </data>
+  <data name="Batch_MoveUpName" xml:space="preserve">
+    <value>Move {0} up</value>
+  </data>
+  <data name="Batch_MoveUpTip" xml:space="preserve">
+    <value>Move up (Alt+Up)</value>
+  </data>
+  <data name="Batch_Moved" xml:space="preserve">
+    <value>{0} is now file {1} of {2}.</value>
+  </data>
+  <data name="Batch_NetworkAsk" xml:space="preserve">
+    <value>Open files on other computers?
+{0} Opening them shares this PC's sign-in with those computers. Do this only for a list you trust.</value>
+  </data>
+  <data name="Batch_NotSupported_Many" xml:space="preserve">
+    <value>{0:N0} aren't PDFs or pictures</value>
+  </data>
+  <data name="Batch_NotSupported_One" xml:space="preserve">
+    <value>{0:N0} isn't a PDF or picture</value>
+  </data>
+  <data name="Batch_OpenList" xml:space="preserve">
+    <value>Open a saved list</value>
+  </data>
+  <data name="Batch_OpenListButton" xml:space="preserve">
+    <value>Open a saved list…</value>
+  </data>
+  <data name="Batch_OpenQueue" xml:space="preserve">
+    <value>Open the queue</value>
+  </data>
+  <data name="Batch_OpenThem" xml:space="preserve">
+    <value>Open them</value>
+  </data>
+  <data name="Batch_OverLimit" xml:space="preserve">
+    <value>{0:N0} over the {1:N0} a batch takes</value>
+  </data>
+  <data name="Batch_PagesHelp" xml:space="preserve">
+    <value>Empty prints every page.</value>
+  </data>
+  <data name="Batch_PagesName" xml:space="preserve">
+    <value>Pages of {0}: like 1-3 and 5; empty prints them all</value>
+  </data>
+  <data name="Batch_PagesTip" xml:space="preserve">
+    <value>Which pages, like 1-3, 5. Empty prints them all.</value>
+  </data>
+  <data name="Batch_Pages_Many" xml:space="preserve">
+    <value>{0:N0} pages</value>
+  </data>
+  <data name="Batch_Pages_One" xml:space="preserve">
+    <value>{0:N0} page</value>
+  </data>
+  <data name="Batch_Paper" xml:space="preserve">
+    <value>Paper</value>
+  </data>
+  <data name="Batch_PaperAll" xml:space="preserve">
+    <value>Paper for every file</value>
+  </data>
+  <data name="Batch_PaperName" xml:space="preserve">
+    <value>Paper for {0}</value>
+  </data>
+  <data name="Batch_PasswordName" xml:space="preserve">
+    <value>Enter the password of {0}</value>
+  </data>
+  <data name="Batch_PrintName" xml:space="preserve">
+    <value>Print the batch</value>
+  </data>
+  <data name="Batch_PrintThem" xml:space="preserve">
+    <value>Print them</value>
+  </data>
+  <data name="Batch_ProNote" xml:space="preserve">
+    <value>Inkvolt Pro. The command line: inkvoltprint print --help</value>
+  </data>
+  <data name="Batch_RemoveAll" xml:space="preserve">
+    <value>Remove all</value>
+  </data>
+  <data name="Batch_RemoveName" xml:space="preserve">
+    <value>Remove {0} from the list</value>
+  </data>
+  <data name="Batch_RemoveTip" xml:space="preserve">
+    <value>Remove from the list (Delete)</value>
+  </data>
+  <data name="Batch_Repeated_Many" xml:space="preserve">
+    <value>{0:N0} were on the list already</value>
+  </data>
+  <data name="Batch_Repeated_One" xml:space="preserve">
+    <value>{0:N0} was on the list already</value>
+  </data>
+  <data name="Batch_Replace" xml:space="preserve">
+    <value>Replace</value>
+  </data>
+  <data name="Batch_ReplaceAsk" xml:space="preserve">
+    <value>Replace the list?
+The files on the list now, and their results, make way for the saved list's.</value>
+  </data>
+  <data name="Batch_ResultsFileName" xml:space="preserve">
+    <value>Batch results</value>
+  </data>
+  <data name="Batch_ResultsNotSaved" xml:space="preserve">
+    <value>The results weren't saved: {0}</value>
+  </data>
+  <data name="Batch_ResultsSaved" xml:space="preserve">
+    <value>Saved the results as {0}.</value>
+  </data>
+  <data name="Batch_SaveList" xml:space="preserve">
+    <value>Save this batch as a list</value>
+  </data>
+  <data name="Batch_SaveListButton" xml:space="preserve">
+    <value>Save this list…</value>
+  </data>
+  <data name="Batch_SaveResults" xml:space="preserve">
+    <value>Save the results</value>
+  </data>
+  <data name="Batch_SaveResultsButton" xml:space="preserve">
+    <value>Save the results as CSV…</value>
+  </data>
+  <data name="Batch_SentAlready_Many" xml:space="preserve">
+    <value>{0:N0} sent already.</value>
+  </data>
+  <data name="Batch_SentAlready_One" xml:space="preserve">
+    <value>{0:N0} sent already.</value>
+  </data>
+  <data name="Batch_Sheets_Many" xml:space="preserve">
+    <value>{0:N0} sheets</value>
+  </data>
+  <data name="Batch_Sheets_One" xml:space="preserve">
+    <value>{0:N0} sheet</value>
+  </data>
+  <data name="Batch_StartOver" xml:space="preserve">
+    <value>Start over</value>
+  </data>
+  <data name="Batch_StartOverAsk_Many" xml:space="preserve">
+    <value>Print {0:N0} files that were sent already, or may have been, once more when you press Print?
+Start over</value>
+  </data>
+  <data name="Batch_StartOverAsk_One" xml:space="preserve">
+    <value>Print {0:N0} file that was sent already, or may have been, once more when you press Print?
+Start over</value>
+  </data>
+  <data name="Batch_StartOverTip" xml:space="preserve">
+    <value>Forget the results, so Print sends every file again</value>
+  </data>
+  <data name="Batch_StateFailed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Batch_StateLeftOut" xml:space="preserve">
+    <value>Left out</value>
+  </data>
+  <data name="Batch_StateLooking" xml:space="preserve">
+    <value>Looking</value>
+  </data>
+  <data name="Batch_StateNotSent" xml:space="preserve">
+    <value>Not sent</value>
+  </data>
+  <data name="Batch_StateReady" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="Batch_StateSending" xml:space="preserve">
+    <value>Sending</value>
+  </data>
+  <data name="Batch_StateSent" xml:space="preserve">
+    <value>Sent</value>
+  </data>
+  <data name="Batch_StillSending" xml:space="preserve">
+    <value>Still sending. Add more when it's done.</value>
+  </data>
+  <data name="Batch_StopName" xml:space="preserve">
+    <value>Stop the batch</value>
+  </data>
+  <data name="Batch_StopWatching" xml:space="preserve">
+    <value>Stop watching</value>
+  </data>
+  <data name="Batch_Stopped" xml:space="preserve">
+    <value>The batch stopped: {0}</value>
+  </data>
+  <data name="Batch_StoppedWatchingError" xml:space="preserve">
+    <value>Stopped watching: {0}</value>
+  </data>
+  <data name="Batch_StoppedWatching_Many" xml:space="preserve">
+    <value>Stopped watching. {0:N0} files sent ({1}), {2:N0} failed.</value>
+  </data>
+  <data name="Batch_StoppedWatching_One" xml:space="preserve">
+    <value>Stopped watching. {0:N0} file sent ({1}), {2:N0} failed.</value>
+  </data>
+  <data name="Batch_Stopping" xml:space="preserve">
+    <value>Stopping: a file already handed to Windows finishes…</value>
+  </data>
+  <data name="Batch_Title" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="Batch_TopDown" xml:space="preserve">
+    <value>Prints from the top down</value>
+  </data>
+  <data name="Batch_Waiting" xml:space="preserve">
+    <value>Waiting: {0}</value>
+  </data>
+  <data name="Batch_WatchAsk_Many" xml:space="preserve">
+    <value>Print {0:N0} files already in this folder?
+{1} has {0:N0} files that would print now. Choose an empty folder if not.</value>
+  </data>
+  <data name="Batch_WatchAsk_One" xml:space="preserve">
+    <value>Print {0:N0} file already in this folder?
+{1} has {0:N0} file that would print now. Choose an empty folder if not.</value>
+  </data>
+  <data name="Batch_WatchButton" xml:space="preserve">
+    <value>Print a folder as it fills…</value>
+  </data>
+  <data name="Batch_WatchLinesName" xml:space="preserve">
+    <value>What the folder printed</value>
+  </data>
+  <data name="Batch_WatchTip" xml:space="preserve">
+    <value>Each file that lands in the folder prints once with the settings above, then moves to done or failed below it</value>
+  </data>
+  <data name="Batch_WatchingFolder" xml:space="preserve">
+    <value>Printing what lands in {0}</value>
+  </data>
+  <data name="Help_CantFind" xml:space="preserve">
+    <value>Can't find a printer?</value>
+  </data>
+  <data name="Help_CantFindText" xml:space="preserve">
+    <value>Inkvolt Print finds printers on the same network as this PC. A VPN, a firewall that blocks finding devices, or a printer on another network (a guest Wi-Fi, another subnet) can hide one. Add a printer, under the printer list, searches your network for printers that don't announce themselves, and takes a printer's IP address from its screen or network report.</value>
+  </data>
+  <data name="Help_KeyBatchMove" xml:space="preserve">
+    <value>Batch: move the file in focus up or down the list</value>
+  </data>
+  <data name="Help_KeyCommands" xml:space="preserve">
+    <value>Commands: run any command, show a printer or scan with a preset by typing its name</value>
+  </data>
+  <data name="Help_KeyCopies" xml:space="preserve">
+    <value>Photos: one more or one fewer copy</value>
+  </data>
+  <data name="Help_KeyDelete" xml:space="preserve">
+    <value>Scan review, Photos, Batch: delete or remove the one in focus</value>
+  </data>
+  <data name="Help_KeyEsc" xml:space="preserve">
+    <value>Close a dialog</value>
+  </data>
+  <data name="Help_KeyF1" xml:space="preserve">
+    <value>This help</value>
+  </data>
+  <data name="Help_KeyMenu" xml:space="preserve">
+    <value>The menu of the printer or page in focus</value>
+  </data>
+  <data name="Help_KeyMovePage" xml:space="preserve">
+    <value>Scan review: move the page earlier or later</value>
+  </data>
+  <data name="Help_KeyPresets" xml:space="preserve">
+    <value>Scan with the first nine scan presets</value>
+  </data>
+  <data name="Help_KeySavePdf" xml:space="preserve">
+    <value>Scan review: save as PDF</value>
+  </data>
+  <data name="Help_KeySplit" xml:space="preserve">
+    <value>Scan review: start a new file at this page</value>
+  </data>
+  <data name="Help_KeyTurn" xml:space="preserve">
+    <value>Scan review, Photos: turn right or left</value>
+  </data>
+  <data name="Help_KeyUndo" xml:space="preserve">
+    <value>Scan review: undo the last change to the pages (a deleted page comes back)</value>
+  </data>
+  <data name="Help_KeysAltShiftArrows" xml:space="preserve">
+    <value>Alt+Shift+arrows</value>
+  </data>
+  <data name="Help_KeysPlusMinus" xml:space="preserve">
+    <value>+ and −</value>
+  </data>
+  <data name="Help_LogFolder" xml:space="preserve">
+    <value>Open log folder</value>
+  </data>
+  <data name="Help_Pro" xml:space="preserve">
+    <value>Inkvolt Pro…</value>
+  </data>
+  <data name="Help_ProTip" xml:space="preserve">
+    <value>Enter or remove an Inkvolt Pro licence key (one key for Inkvolt Print and Inkvolt PDF). Everything is free while the apps launch.</value>
+  </data>
+  <data name="Help_Report" xml:space="preserve">
+    <value>Report a problem…</value>
+  </data>
+  <data name="Help_ReportTip" xml:space="preserve">
+    <value>Copy the details a report needs, then open a GitHub issue to paste them in. Nothing is sent by Inkvolt Print.</value>
+  </data>
+  <data name="Help_Shortcuts" xml:space="preserve">
+    <value>Keyboard shortcuts</value>
+  </data>
+  <data name="Help_Title" xml:space="preserve">
+    <value>Inkvolt Print help</value>
+  </data>
+  <data name="Help_WhatsNew" xml:space="preserve">
+    <value>What's new</value>
+  </data>
+  <data name="Photos_Added_Many" xml:space="preserve">
+    <value>Added {0} photos.</value>
+  </data>
+  <data name="Photos_Added_One" xml:space="preserve">
+    <value>Added {0} photo.</value>
+  </data>
+  <data name="Photos_Choose" xml:space="preserve">
+    <value>Choose photos to print</value>
+  </data>
+  <data name="Photos_ChooseLarger" xml:space="preserve">
+    <value>Choose larger paper.</value>
+  </data>
+  <data name="Photos_ContactSheet" xml:space="preserve">
+    <value>Contact sheet</value>
+  </data>
+  <data name="Photos_Copies_Many" xml:space="preserve">
+    <value>{0} copies</value>
+  </data>
+  <data name="Photos_Copies_One" xml:space="preserve">
+    <value>{0} copy</value>
+  </data>
+  <data name="Photos_CouldNotPrint" xml:space="preserve">
+    <value>Could not print the photos: {0}</value>
+  </data>
+  <data name="Photos_CouldntAdd" xml:space="preserve">
+    <value>Couldn't add {0}.</value>
+  </data>
+  <data name="Photos_CouldntAddMore" xml:space="preserve">
+    <value>Couldn't add {0} and {1} more.</value>
+  </data>
+  <data name="Photos_Dpi" xml:space="preserve">
+    <value>Prints at about {0:0} dpi</value>
+  </data>
+  <data name="Photos_DpiSoft" xml:space="preserve">
+    <value>Prints at about {0:0} dpi: may look soft</value>
+  </data>
+  <data name="Photos_FilePage" xml:space="preserve">
+    <value>{0}, page {1}</value>
+  </data>
+  <data name="Photos_FilterAll" xml:space="preserve">
+    <value>All files (*.*)</value>
+  </data>
+  <data name="Photos_FilterPictures" xml:space="preserve">
+    <value>Pictures ({0})</value>
+  </data>
+  <data name="Photos_FullPage" xml:space="preserve">
+    <value>Full page</value>
+  </data>
+  <data name="Photos_ItemNameLowRes" xml:space="preserve">
+    <value>{0}, {1}, low resolution</value>
+  </data>
+  <data name="Photos_MissingOne" xml:space="preserve">
+    <value>{0} need Windows' image extension from the Microsoft Store.</value>
+  </data>
+  <data name="Photos_MissingTwo" xml:space="preserve">
+    <value>{0} and {1} need Windows' image extensions from the Microsoft Store.</value>
+  </data>
+  <data name="Photos_MoreSheets_Many" xml:space="preserve">
+    <value>+ {0} more sheets</value>
+  </data>
+  <data name="Photos_MoreSheets_One" xml:space="preserve">
+    <value>+ {0} more sheets</value>
+  </data>
+  <data name="Photos_NeedHeif" xml:space="preserve">
+    <value>HEIC photos need the HEIF Image Extensions from the Microsoft Store, which this PC doesn't have.</value>
+  </data>
+  <data name="Photos_NeedWebp" xml:space="preserve">
+    <value>WebP pictures need the Webp Image Extensions from the Microsoft Store, which this PC doesn't have.</value>
+  </data>
+  <data name="Photos_NoBorderless" xml:space="preserve">
+    <value>This printer prints with margins on this paper (no borderless option).</value>
+  </data>
+  <data name="Photos_OnlyFit" xml:space="preserve">
+    <value>only {0} photos fit in one job</value>
+  </data>
+  <data name="Photos_OpeningFile" xml:space="preserve">
+    <value>Opening {0}…</value>
+  </data>
+  <data name="Photos_OpeningFiles" xml:space="preserve">
+    <value>Opening {0} files…</value>
+  </data>
+  <data name="Photos_PerSheet" xml:space="preserve">
+    <value>{0} per sheet</value>
+  </data>
+  <data name="Photos_Photos_Many" xml:space="preserve">
+    <value>{0} photos</value>
+  </data>
+  <data name="Photos_Photos_One" xml:space="preserve">
+    <value>{0} photo</value>
+  </data>
+  <data name="Photos_Prints_Many" xml:space="preserve">
+    <value>{0} prints</value>
+  </data>
+  <data name="Photos_Prints_One" xml:space="preserve">
+    <value>{0} print</value>
+  </data>
+  <data name="Photos_ReasonDamaged" xml:space="preserve">
+    <value>the file is damaged or not a picture</value>
+  </data>
+  <data name="Photos_ReasonHevc" xml:space="preserve">
+    <value>Windows couldn't decode it (HEIC photos also need the HEVC Video Extensions from the Microsoft Store)</value>
+  </data>
+  <data name="Photos_ReasonNoPermission" xml:space="preserve">
+    <value>no permission to read it</value>
+  </data>
+  <data name="Photos_ReasonNotPicture" xml:space="preserve">
+    <value>not a picture Windows can open</value>
+  </data>
+  <data name="Photos_Removed" xml:space="preserve">
+    <value>Removed {0}.</value>
+  </data>
+  <data name="Photos_Sending" xml:space="preserve">
+    <value>Sending the photos to the printer…</value>
+  </data>
+  <data name="Photos_Sent" xml:space="preserve">
+    <value>Sent to the printer: {0}.</value>
+  </data>
+  <data name="Photos_SentDemo" xml:space="preserve">
+    <value>Sent to the demo printer: {0}. Nothing really prints; the job is in the print queue on the Overview.</value>
+  </data>
+  <data name="Photos_SheetOf" xml:space="preserve">
+    <value>Sheet {0} of {1}</value>
+  </data>
+  <data name="Photos_Sheets_Many" xml:space="preserve">
+    <value>{0} sheets</value>
+  </data>
+  <data name="Photos_Sheets_One" xml:space="preserve">
+    <value>{0} sheet</value>
+  </data>
+  <data name="Photos_SizeShrunk" xml:space="preserve">
+    <value>{0} doesn't fit inside this paper's printable area, so it prints a little smaller.</value>
+  </data>
+  <data name="Photos_SoftMany" xml:space="preserve">
+    <value>{0} photos print below {1:0} dpi and may look soft (marked in the list).</value>
+  </data>
+  <data name="Photos_SoftOne" xml:space="preserve">
+    <value>{0} prints at about {1:0} dpi, so it may look soft. A smaller size prints it sharper.</value>
+  </data>
+  <data name="Photos_StillSending" xml:space="preserve">
+    <value>Still sending the photos to the printer. Add more when it's done.</value>
+  </data>
+  <data name="Photos_SummaryContact" xml:space="preserve">
+    <value>{0} on {1} of {2}, {3} per sheet with their file names.</value>
+  </data>
+  <data name="Photos_SummaryPrints" xml:space="preserve">
+    <value>{0}, {1} on {2} of {3}.</value>
+  </data>
+  <data name="Photos_TooManyPages" xml:space="preserve">
+    <value>The picture has {0:N0} pages: a batch takes at most {1:N0} per file.</value>
+  </data>
+  <data name="Photos_TurnOnBorderless" xml:space="preserve">
+    <value>Turn on Borderless or choose larger paper.</value>
+  </data>
+  <data name="Photos_TurnedLeft" xml:space="preserve">
+    <value>{0} turned left.</value>
+  </data>
+  <data name="Photos_TurnedRight" xml:space="preserve">
+    <value>{0} turned right.</value>
+  </data>
+  <data name="Print_AllPages_Many" xml:space="preserve">
+    <value>All {0} pages</value>
+  </data>
+  <data name="Print_AllPages_One" xml:space="preserve">
+    <value>The page</value>
+  </data>
+  <data name="Print_CancelDenied" xml:space="preserve">
+    <value>Windows didn't allow it: only the person who printed it, or an administrator, can cancel it.</value>
+  </data>
+  <data name="Print_CancelFailed" xml:space="preserve">
+    <value>The job couldn't be cancelled. It may have just finished.</value>
+  </data>
+  <data name="Print_Cancelled" xml:space="preserve">
+    <value>Printing cancelled.</value>
+  </data>
+  <data name="Print_ChoosePdf" xml:space="preserve">
+    <value>Choose a PDF to print</value>
+  </data>
+  <data name="Print_CouldNotOpen" xml:space="preserve">
+    <value>Could not open the PDF: {0}</value>
+  </data>
+  <data name="Print_CouldNotPrint" xml:space="preserve">
+    <value>Could not print: {0}</value>
+  </data>
+  <data name="Print_FewerPages" xml:space="preserve">
+    <value>Fewer pages were drawn than the estimate.</value>
+  </data>
+  <data name="Print_MorePages_Many" xml:space="preserve">
+    <value>+ {0} more pages</value>
+  </data>
+  <data name="Print_MorePages_One" xml:space="preserve">
+    <value>+ {0} more pages</value>
+  </data>
+  <data name="Print_NoDiskSpace" xml:space="preserve">
+    <value>There isn't enough free disk space to prepare this file.</value>
+  </data>
+  <data name="Print_NoQueueAnyMore" xml:space="preserve">
+    <value>This printer has no Windows queue any more.</value>
+  </data>
+  <data name="Print_NoQueueNow" xml:space="preserve">
+    <value>This printer has no Windows queue now.</value>
+  </data>
+  <data name="Print_NotSetUp" xml:space="preserve">
+    <value>This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.</value>
+  </data>
+  <data name="Print_PagesTimesCopies" xml:space="preserve">
+    <value>{0} × {1} copies</value>
+  </data>
+  <data name="Print_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="Print_Pages_One" xml:space="preserve">
+    <value>{0} page</value>
+  </data>
+  <data name="Print_PaperInches" xml:space="preserve">
+    <value>{0:0.#} × {1:0.#} in</value>
+  </data>
+  <data name="Print_PaperLandscape" xml:space="preserve">
+    <value>{0}, landscape</value>
+  </data>
+  <data name="Print_PaperLegal" xml:space="preserve">
+    <value>Legal</value>
+  </data>
+  <data name="Print_PaperLetter" xml:space="preserve">
+    <value>Letter</value>
+  </data>
+  <data name="Print_PaperNotOffered" xml:space="preserve">
+    <value>{0} doesn't offer this paper now.</value>
+  </data>
+  <data name="Print_PasswordNotEntered" xml:space="preserve">
+    <value>This PDF is password protected and no password was entered.</value>
+  </data>
+  <data name="Print_PdfFilter" xml:space="preserve">
+    <value>PDF documents (*.pdf)</value>
+  </data>
+  <data name="Print_PdfPageNotDrawn" xml:space="preserve">
+    <value>Page {0} can't be drawn: the PDF may be damaged.</value>
+  </data>
+  <data name="Print_PdfUnreadable" xml:space="preserve">
+    <value>Windows can't read this PDF: it may be damaged.</value>
+  </data>
+  <data name="Print_PictureNotDrawn" xml:space="preserve">
+    <value>The picture can't be drawn: it may be damaged.</value>
+  </data>
+  <data name="Print_PicturePageNotDrawn" xml:space="preserve">
+    <value>Page {0} can't be drawn: the picture may be damaged.</value>
+  </data>
+  <data name="Print_PictureUnreadable" xml:space="preserve">
+    <value>Windows can't read this picture: it may be damaged, or not a picture at all.</value>
+  </data>
+  <data name="Print_PreparingPage" xml:space="preserve">
+    <value>Preparing page {0} of {1}…</value>
+  </data>
+  <data name="Print_QueueFailed" xml:space="preserve">
+    <value>Windows' queue failed: {0}</value>
+  </data>
+  <data name="Print_QueueGone" xml:space="preserve">
+    <value>Windows no longer has this printer's queue.</value>
+  </data>
+  <data name="Print_QueueUnusable" xml:space="preserve">
+    <value>Windows' queue can't be used: {0}</value>
+  </data>
+  <data name="Print_SendingIt" xml:space="preserve">
+    <value>Sending it to the printer…</value>
+  </data>
+  <data name="Print_SendingPages_Many" xml:space="preserve">
+    <value>Sending {0} pages to the printer…</value>
+  </data>
+  <data name="Print_SendingPages_One" xml:space="preserve">
+    <value>Sending the page to the printer…</value>
+  </data>
+  <data name="Print_Sent" xml:space="preserve">
+    <value>Sent to the printer: {0} ({1:0.0} s).</value>
+  </data>
+  <data name="Print_SheetsBothSides_Many" xml:space="preserve">
+    <value>{0} sheets of paper, both sides</value>
+  </data>
+  <data name="Print_SheetsBothSides_One" xml:space="preserve">
+    <value>{0} sheet of paper, both sides</value>
+  </data>
+  <data name="Print_Sheets_Many" xml:space="preserve">
+    <value>{0} sheets of paper</value>
+  </data>
+  <data name="Print_Sheets_One" xml:space="preserve">
+    <value>{0} sheet of paper</value>
+  </data>
+  <data name="Print_StillSending" xml:space="preserve">
+    <value>Still sending the current job. Open "{0}" again when it's done.</value>
+  </data>
+  <data name="Print_Summary" xml:space="preserve">
+    <value>Prints {0} on {1}.</value>
+  </data>
+  <data name="Pro_EnterKey" xml:space="preserve">
+    <value>Enter Key</value>
+  </data>
+  <data name="Pro_Free" xml:space="preserve">
+    <value>Free</value>
+  </data>
+  <data name="Pro_FreeWhileLaunching" xml:space="preserve">
+    <value>Everything is free while Inkvolt Print launches</value>
+  </data>
+  <data name="Pro_FreeWhileLaunchingLicensed" xml:space="preserve">
+    <value>Everything in Inkvolt Print is free while it launches; your licence will keep the Pro features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3) when they start asking for a key.</value>
+  </data>
+  <data name="Pro_FreeWhileLaunchingNote" xml:space="preserve">
+    <value>That includes the Pro features to come: supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3. Inkvolt Pro ({0}, one time, no account, one key for Inkvolt Print and Inkvolt PDF) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac.</value>
+  </data>
+  <data name="Pro_Get" xml:space="preserve">
+    <value>Get Inkvolt Pro ({0})</value>
+  </data>
+  <data name="Pro_HaveKey" xml:space="preserve">
+    <value>Have a key? Paste it here</value>
+  </data>
+  <data name="Pro_KeyFor" xml:space="preserve">
+    <value>Key for {0}, issued {1:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Thank you for supporting Inkvolt Print.</value>
+  </data>
+  <data name="Pro_KeyForWithPdf" xml:space="preserve">
+    <value>Key for {0}, issued {1:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling; Inkvolt PDF on this PC finds it too. Thank you for supporting Inkvolt Print.</value>
+  </data>
+  <data name="Pro_LicenceKey" xml:space="preserve">
+    <value>Licence key</value>
+  </data>
+  <data name="Pro_LicensedTo" xml:space="preserve">
+    <value>Pro licensed to {0}</value>
+  </data>
+  <data name="Pro_RemoveLicence" xml:space="preserve">
+    <value>Remove Licence</value>
+  </data>
+  <data name="Pro_RemoveQuestion" xml:space="preserve">
+    <value>Remove the Inkvolt Pro licence from this PC? Files the Pro features made stay as they are, and you can enter the key again any time.</value>
+  </data>
+  <data name="Pro_Unlocks" xml:space="preserve">
+    <value>Inkvolt Pro unlocks the office features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3): a one-time {0}, no account, one key for Inkvolt Print and Inkvolt PDF. The key is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt Print is free and stays free.</value>
+  </data>
+  <data name="Report_ClipboardBusy" xml:space="preserve">
+    <value>The clipboard is busy; try again, or select the text and press Ctrl+C.</value>
+  </data>
+  <data name="Report_Copied" xml:space="preserve">
+    <value>Copied.</value>
+  </data>
+  <data name="Report_CopiedIssue" xml:space="preserve">
+    <value>Copied. Paste the details into the issue under Details, then submit it.</value>
+  </data>
+  <data name="Report_CopyAndIssue" xml:space="preserve">
+    <value>Copy and open a GitHub issue</value>
+  </data>
+  <data name="Report_CopyAndIssueTip" xml:space="preserve">
+    <value>Copies the details, then opens a new issue on GitHub in your browser to paste them in</value>
+  </data>
+  <data name="Report_DetailsName" xml:space="preserve">
+    <value>Details to report</value>
+  </data>
+  <data name="Report_Intro" xml:space="preserve">
+    <value>These details help find the problem: the version, Windows, a few settings and the end of Inkvolt Print's log. IP addresses, printer IDs and serial numbers, file paths and your names are masked. Nothing is sent: copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share.</value>
+  </data>
+  <data name="Report_Record" xml:space="preserve">
+    <value>Record this printer</value>
+  </data>
+  <data name="Report_RecordHint" xml:space="preserve">
+    <value>Also useful: record {0}. Every reply Inkvolt Print reads from it, read only, with serial numbers, addresses and names taken out, saved as a .zip file for you to read and attach. It can take a minute or two.</value>
+  </data>
+  <data name="Report_RecordNoAddress" xml:space="preserve">
+    <value>{0} has no network address, so there's nothing to record.</value>
+  </data>
+  <data name="Report_RecordNoPrinter" xml:space="preserve">
+    <value>To record a printer, show it first and come back here.</value>
+  </data>
+  <data name="Report_RecordSaved" xml:space="preserve">
+    <value>Saved as {0} in {1}. Read it before you share it, then attach it to the issue.</value>
+  </data>
+  <data name="Report_RecordSavedDemo" xml:space="preserve">
+    <value>Demo: saved as {0} in {1}, from the made-up printer.</value>
+  </data>
+  <data name="Report_RecordTip" xml:space="preserve">
+    <value>Asks the printer shown for everything Inkvolt Print reads from it, read only, and saves the replies with what identifies it taken out</value>
+  </data>
+  <data name="Report_Recording" xml:space="preserve">
+    <value>Recording {0}. Close this window to stop.</value>
+  </data>
+  <data name="Report_ShowFile" xml:space="preserve">
+    <value>Show the file</value>
+  </data>
+  <data name="Report_Title" xml:space="preserve">
+    <value>Report a problem</value>
+  </data>
+  <data name="Tray_AlertSettings" xml:space="preserve">
+    <value>_Alert settings…</value>
+  </data>
+  <data name="Tray_ErrorText" xml:space="preserve">
+    <value>Inkvolt Print is still running. {0} Details were saved to {1}</value>
+  </data>
+  <data name="Tray_ErrorTitle" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="Tray_Open" xml:space="preserve">
+    <value>Open Inkvolt Print</value>
+  </data>
+  <data name="Tray_Pause1Hour" xml:space="preserve">
+    <value>For 1 hour</value>
+  </data>
+  <data name="Tray_Pause8Hours" xml:space="preserve">
+    <value>For 8 hours</value>
+  </data>
+  <data name="Tray_PauseAlerts" xml:space="preserve">
+    <value>_Pause alerts</value>
+  </data>
+  <data name="Tray_PauseTomorrow" xml:space="preserve">
+    <value>Until tomorrow morning</value>
+  </data>
+  <data name="Tray_PrinterAlerts" xml:space="preserve">
+    <value>{0} printer alerts</value>
+  </data>
+  <data name="Tray_PrinterItemName" xml:space="preserve">
+    <value>{0}, {1}. Open</value>
+  </data>
+  <data name="Tray_Quit" xml:space="preserve">
+    <value>_Quit Inkvolt Print</value>
+  </data>
+  <data name="Tray_ResumeAlerts" xml:space="preserve">
+    <value>_Resume alerts (paused until {0:t})</value>
+  </data>
+  <data name="Tray_ScanWith" xml:space="preserve">
+    <value>_Scan with</value>
+  </data>
+  <data name="Tray_StartupInstalledOnly" xml:space="preserve">
+    <value>Only for installed copies.</value>
+  </data>
+  <data name="Tray_StartupNotInDemo" xml:space="preserve">
+    <value>Not in demo mode.</value>
+  </data>
+  <data name="Tray_StartupOffByPolicy" xml:space="preserve">
+    <value>Turned off by a policy on this PC.</value>
+  </data>
+  <data name="Tray_StartupOffInTaskManager" xml:space="preserve">
+    <value>Turned off in Task Manager › Startup apps; turn it on there.</value>
+  </data>
+  <data name="Tray_StillRunning" xml:space="preserve">
+    <value>Inkvolt Print is still running</value>
+  </data>
+  <data name="Tray_StillRunningText" xml:space="preserve">
+    <value>It checks your printers now and then and tells you about low supplies, jams and other problems. Quit from this icon's menu.</value>
+  </data>
+  <data name="WhatsNew_NoNotes" xml:space="preserve">
+    <value>No release notes in this build.</value>
+  </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>What's new in Inkvolt Print</value>
+  </data>
 </root>

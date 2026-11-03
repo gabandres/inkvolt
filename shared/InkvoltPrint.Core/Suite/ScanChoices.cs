@@ -11,12 +11,13 @@ public sealed record ScanPageSize(string Key, string Label, int? Width, int? Hei
 /// </summary>
 public static class ScanChoices
 {
-    public static readonly IReadOnlyList<ScanPageSize> PageSizes =
+    /// <summary>The sizes offered, labelled in the interface's language (a new list each time: the labels are read when asked).</summary>
+    public static IReadOnlyList<ScanPageSize> PageSizes =>
     [
-        new("letter", "Letter (8.5 × 11 in)", 2550, 3300),
-        new("a4", "A4 (210 × 297 mm)", 2480, 3508),
-        new("legal", "Legal (8.5 × 14 in)", 2550, 4200),
-        new("full", "Whole scanning area", null, null),
+        new("letter", CoreStrings.Suite_PageLetter, 2550, 3300),
+        new("a4", CoreStrings.Suite_PageA4, 2480, 3508),
+        new("legal", CoreStrings.Suite_PageLegal, 2550, 4200),
+        new("full", CoreStrings.Suite_PageWhole, null, null),
     ];
 
     /// <summary>Document resolutions offered by Inkvolt PDF: enough for text and OCR, small files.</summary>
@@ -24,9 +25,9 @@ public static class ScanChoices
 
     public static string SourceLabel(ScanSource s) => s switch
     {
-        ScanSource.Platen => "Scanner glass",
-        ScanSource.Adf => "Document feeder",
-        _ => "Document feeder (both sides)",
+        ScanSource.Platen => CoreStrings.Suite_SourceGlass,
+        ScanSource.Adf => CoreStrings.Suite_SourceFeeder,
+        _ => CoreStrings.Suite_SourceFeederDuplex,
     };
 
     public static IReadOnlyList<ScanSource> Sources(ScannerCapabilities caps) => caps.Sources.ToList();
@@ -48,9 +49,9 @@ public static class ScanChoices
 
     public static string ColorLabel(ScanColor c) => c switch
     {
-        ScanColor.Color => "Color",
-        ScanColor.Grayscale => "Grayscale",
-        _ => "Black and white",
+        ScanColor.Color => CoreStrings.Suite_ColorColor,
+        ScanColor.Grayscale => CoreStrings.Suite_ColorGrayscale,
+        _ => CoreStrings.Suite_ColorBlackAndWhite,
     };
 
     /// <summary>

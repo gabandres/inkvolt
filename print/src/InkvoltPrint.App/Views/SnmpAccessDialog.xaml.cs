@@ -23,7 +23,7 @@ public partial class SnmpAccessDialog : Window
     public static SnmpAccessDialog Create(string printer, SnmpLogin current)
     {
         var dlg = new SnmpAccessDialog();
-        dlg.Heading.Text = $"SNMP access for {printer}";
+        dlg.Heading.Text = string.Format(Strings.Snmp_Heading, printer);
         dlg.Fields.Show(current);
         dlg.Loaded += (_, _) => dlg.Fields.FocusFirst();
         return dlg;

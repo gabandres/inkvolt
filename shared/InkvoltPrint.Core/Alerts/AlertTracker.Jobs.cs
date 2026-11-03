@@ -129,7 +129,8 @@ public sealed partial class AlertTracker
             if (now - t.FailedSince >= Rules.ErrorHold)
             {
                 t.Due = AlertKind.JobFailed;
-                t.Reason = QueueJobText.Status(job.Status) is var said && said == "Error" ? "Windows reports an error with this job" : said;
+                // Compared with the word Status gives a plain error, so it holds in any language.
+                t.Reason = QueueJobText.Status(job.Status) is var said && said == QueueJobText.Status(JobStatus.Error) ? CoreStrings.Alert_JobErrorReason : said;
             }
         }
 
@@ -229,12 +230,11 @@ public sealed partial class AlertTracker
     {
         var document = AlertText.Document(t.Name);
         var printer = AlertText.Printer(t.PrinterName);
-        const string next = "Open the queue to cancel it or print it again.";
         var (title, body) = t.Due == AlertKind.JobFailed
-            ? ($"“{document}” didn't print", $"{printer}: {t.Reason}. {next}")
+            ? (string.Format(CoreStrings.Alert_JobFailedTitle, document), string.Format(CoreStrings.Alert_JobFailedBody, printer, t.Reason))
             : t.DueWhilePrinting
-                ? ($"“{document}” may be stuck", $"{printer} says it's printing, but this job hasn't moved for {Rules.JobHungAfter.TotalMinutes:0} minutes and may be stuck. {next}")
-                : ($"“{document}” isn't moving", $"{printer} is ready, but this job hasn't moved for {Rules.JobStuckAfter.TotalMinutes:0} minutes. {next}");
+                ? (string.Format(CoreStrings.Alert_JobHungTitle, document), string.Format(CoreStrings.Alert_JobHungBody, printer, Rules.JobHungAfter.TotalMinutes))
+                : (string.Format(CoreStrings.Alert_JobStuckTitle, document), string.Format(CoreStrings.Alert_JobStuckBody, printer, Rules.JobStuckAfter.TotalMinutes));
         return new AlertNotice(uuid, printer, t.Due!.Value, title, body) { JobKey = t.Key };
     }
 

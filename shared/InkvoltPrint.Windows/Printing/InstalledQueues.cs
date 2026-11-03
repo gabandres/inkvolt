@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using InkvoltPrint.Core;
 using InkvoltPrint.Core.Queues;
 using InkvoltPrint.Windows.Offline;
 using Windows.Devices.Enumeration;
@@ -146,7 +147,7 @@ public static class InstalledQueues
 /// </summary>
 public sealed class SpoolerStatusSource(SpoolerQueue listed) : IQueueStatusSource
 {
-    public string Origin => "Windows and the printer's driver";
+    public string Origin => CoreStrings.Queue_OriginWindows;
 
     public bool HasSupplyLevels => false;
 

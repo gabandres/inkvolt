@@ -116,7 +116,7 @@ public partial class ScanPages : UserControl
         finally { _dragging = false; }
         if (Vm is { } vm && vm.Pages.IndexOf(page) is var to and >= 0 && to != from)
         {
-            Announce($"Moved to position {to + 1} of {vm.Pages.Count}");
+            Announce(string.Format(Strings.Scan_MovedTo, to + 1, vm.Pages.Count));
             Select(page);
         }
     }
@@ -143,7 +143,7 @@ public partial class ScanPages : UserControl
         if (Keyboard.Modifiers == (ModifierKeys.Alt | ModifierKeys.Shift) && key is Key.Left or Key.Up or Key.Right or Key.Down)
         {
             var index = vm.Pages.IndexOf(page) + (key is Key.Left or Key.Up ? -1 : 1);
-            Announce(vm.MovePage(page, index) ?? (index < 0 ? "Already the first page" : "Already the last page"));
+            Announce(vm.MovePage(page, index) ?? (index < 0 ? Strings.Scan_AlreadyFirst : Strings.Scan_AlreadyLast));
             Select(page);
             e.Handled = true;
         }
@@ -155,7 +155,7 @@ public partial class ScanPages : UserControl
         else if (key is Key.R or Key.L && Keyboard.Modifiers == ModifierKeys.Control)
         {
             (key == Key.R ? vm.RotateRightCommand : vm.RotateLeftCommand).Execute(page);
-            Announce(key == Key.R ? $"Page {page.Number} turned right" : $"Page {page.Number} turned left");
+            Announce(string.Format(key == Key.R ? Strings.Scan_TurnedRight : Strings.Scan_TurnedLeft, page.Number));
             e.Handled = true;
         }
         else if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
@@ -163,7 +163,7 @@ public partial class ScanPages : UserControl
             var index = vm.Pages.IndexOf(page);
             vm.RemovePageCommand.Execute(page);
             if (vm.Pages.Count > 0) Select(vm.Pages[Math.Min(index, vm.Pages.Count - 1)]);
-            Announce(vm.Pages.Count == 0 ? "Page deleted. No pages left. Ctrl+Z puts it back" : "Page deleted. Ctrl+Z puts it back");
+            Announce(vm.Pages.Count == 0 ? Strings.Scan_DeletedNoneLeft : Strings.Scan_Deleted);
             e.Handled = true;
         }
     }

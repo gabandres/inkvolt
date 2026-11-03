@@ -173,7 +173,7 @@ public sealed class LedmClient(DeviceHttp http)
 }
 
 public sealed class LedmAuthRequiredException(bool credentialsWereSent)
-    : Exception(credentialsWereSent ? "The printer rejected the admin password." : "The printer requires its admin password.")
+    : Exception(credentialsWereSent ? CoreStrings.Ledm_PasswordRejected : CoreStrings.Ledm_PasswordRequired)
 {
     public bool CredentialsWereSent { get; } = credentialsWereSent;
 }

@@ -31,8 +31,8 @@ public sealed partial class FoundPrinter : ObservableObject
     /// <summary>The list's entry for it, once it's there.</summary>
     public PrinterViewModel? Printer { get; set; }
 
-    public string AddName => $"Add {Name}";
-    public string ShowName => $"Show {Name} in the list";
+    public string AddName => string.Format(Strings.AddPrinter_AddName, Name);
+    public string ShowName => string.Format(Strings.AddPrinter_ShowName, Name);
 }
 
 /// <summary>
@@ -93,7 +93,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         foreach (var d in main.RemovedNearby())
         {
             _seen.Add(d.Host!);
-            Insert(new FoundPrinter { Name = d.Name, Host = d.Host!, Detail = $"{d.Host} · Removed from your list earlier", Removed = d });
+            Insert(new FoundPrinter { Name = d.Name, Host = d.Host!, Detail = string.Format(Strings.AddPrinter_RemovedEarlier, d.Host), Removed = d });
         }
         if (main.AddPrinterOff is { } off)
         {
@@ -114,7 +114,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         IsSearching = true;
         NothingFound = false;
         Progress = 0;
-        Status = "Looking for printers on your network…";
+        Status = Strings.AddPrinter_Looking;
         var total = 0;
         var identifying = new List<Task>();
         var ui = Application.Current.Dispatcher;
@@ -122,7 +122,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         {
             total = p.Total;
             Progress = (double)p.Checked / p.Total;
-            if (IsSearching) Status = $"Looking for printers on your network… {p.Checked} of {p.Total} addresses";
+            if (IsSearching) Status = string.Format(Strings.AddPrinter_LookingProgress, p.Checked, p.Total);
         });
         try
         {
@@ -131,18 +131,18 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
                 if (_seen.Add(host)) identifying.Add(IdentifyAsync(host, ct));
             }), progress, ct);
             await ui.InvokeAsync(() => { }); // the last addresses reported are queued: count them in
-            Status = "Checking what answered…";
+            Status = Strings.AddPrinter_CheckingAnswers;
             await Task.WhenAll(identifying);
             Done(total);
         }
         catch (OperationCanceledException)
         {
-            Status = "Search stopped.";
+            Status = Strings.AddPrinter_SearchStopped;
         }
         catch (Exception ex)
         {
             Log.Write($"Network search failed: {ex}");
-            Status = "The search didn't work. You can still add a printer by its address.";
+            Status = Strings.AddPrinter_SearchFailed;
         }
         finally
         {
@@ -157,14 +157,14 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         var others = Found.Count - listed;
         NothingFound = others == 0;
         Status = total == 0
-            ? "This PC isn't on a home or office network that can be searched."
+            ? Strings.AddPrinter_NoNetwork
             : (others, listed) switch
             {
-                (0, 0) => "No printers answered on your network.",
-                (0, 1) => "The printer that answered is in your list already.",
-                (0, _) => $"The {listed} printers that answered are in your list already.",
-                (1, _) => "Found a printer you can add.",
-                _ => $"Found {others} printers you can add.",
+                (0, 0) => Strings.AddPrinter_NoneAnswered,
+                (0, 1) => Strings.AddPrinter_OneListedAlready,
+                (0, _) => string.Format(Strings.AddPrinter_ManyListedAlready, listed),
+                (1, _) => Strings.AddPrinter_FoundOne,
+                _ => string.Format(Strings.AddPrinter_FoundMany, others),
             };
     }
 
@@ -223,7 +223,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         catch (Exception ex)
         {
             Log.Write($"Adding {f.Host} failed: {ex}");
-            f.Error = $"Couldn't add it: {ex.Message}";
+            f.Error = string.Format(Strings.AddPrinter_CouldntAddIt, ex.Message);
             f.State = FoundState.CanAdd;
         }
     }
@@ -260,7 +260,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         var login = ShowsSnmp && ReadSnmpAccess is { } read ? read() : Core.Snmp.SnmpLogin.Public;
         if (login is null)
         {
-            AddressError = "Check SNMP access below.";
+            AddressError = Strings.AddPrinter_CheckSnmpBelow;
             return;
         }
         IsAddingAddress = true;
@@ -270,10 +270,9 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
             if (!probe.Reachable)
             {
                 AddressError = probe.SnmpRefused is { } refused
-                    ? $"{new Core.Snmp.SnmpAccessException(refused).Message} Check SNMP access below."
-                    : $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network."
-                      + (login.IsDefault ? " A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below."
-                          : login.User is not null ? " Check the SNMPv3 user name and passphrases too." : " Check the SNMP community too.");
+                    ? string.Format(Strings.AddPrinter_SnmpRefused, new Core.Snmp.SnmpAccessException(refused).Message)
+                    : string.Format(login.IsDefault ? Strings.AddPrinter_NoAnswerSnmpHint
+                        : login.User is not null ? Strings.AddPrinter_NoAnswerCheckUser : Strings.AddPrinter_NoAnswerCheckCommunity, a.Host);
                 return;
             }
             if (main.Listed(probe, a.Host!) is { } listed)
@@ -288,7 +287,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         catch (Exception ex)
         {
             Log.Write($"Add by address failed: {ex}");
-            AddressError = $"Couldn't add {a.Host}: {ex.Message}";
+            AddressError = string.Format(Strings.AddPrinter_CouldntAdd, a.Host, ex.Message);
         }
         finally
         {

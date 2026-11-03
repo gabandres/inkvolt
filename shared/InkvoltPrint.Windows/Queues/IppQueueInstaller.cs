@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using InkvoltPrint.Core;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.Windows.Queues;
@@ -20,7 +21,7 @@ public static partial class IppQueueInstaller
 
         // Decide "already there" by looking, not by parsing (localised) PowerShell error text, and before elevating.
         if ((await QueueFinder.ListAsync()).Any(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase)))
-            return new(InstallOutcome.AlreadyInstalled, "Already installed in Windows.");
+            return new(InstallOutcome.AlreadyInstalled, CoreStrings.Win_AlreadyInstalled);
 
         const string script = "try { Add-Printer -Name $v0 -IppURL $v1; exit 0 } catch { exit 1 }";
         var code = await Elevated.RunAsync(script, [name, url.AbsoluteUri], TimeSpan.FromMinutes(2), ct);
@@ -28,17 +29,17 @@ public static partial class IppQueueInstaller
         switch (code)
         {
             case Elevated.Cancelled or Elevated.StoppedWaiting:
-                return new(InstallOutcome.Failed, "Setup was cancelled. Windows needs administrator permission to add a printer by address.");
+                return new(InstallOutcome.Failed, CoreStrings.Win_SetupCancelled);
             case Elevated.TimedOut:
-                return new(InstallOutcome.Failed, "Windows did not finish adding the printer in time.");
+                return new(InstallOutcome.Failed, CoreStrings.Win_AddTimedOut);
         }
         // Trust the outcome, not just the exit code.
         var queues = await QueueFinder.ListAsync();
         if (code == ExitOk && queues.Any(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase)))
-            return new(InstallOutcome.Installed, "Installed.");
+            return new(InstallOutcome.Installed, CoreStrings.Win_Installed);
         return new(InstallOutcome.Failed, code is ExitFailed or ExitOk
-            ? "Windows could not add the printer at that address. Check that it's on and that the address is right."
-            : $"Windows could not add the printer (code {code}).");
+            ? CoreStrings.Win_AddFailedAddress
+            : string.Format(CoreStrings.Win_AddFailedCode, code));
     }
 
     /// <summary>The http(s) form Windows' <c>Add-Printer -IppURL</c> takes: ipp → http, ipps → https, on 631 unless another port is given.</summary>

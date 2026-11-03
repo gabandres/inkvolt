@@ -92,13 +92,13 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
         Refresh();
         if (item.Reason is { } changed)
         {
-            Message = $"Not sent: {changed}";
+            Message = string.Format(Strings.Maint_NotSentBecause, changed);
             MessageIsError = true;
             Prompt.Announce(Message);
             return;
         }
         IsBusy = true;
-        Message = $"Sending to the printer: {item.Action.Label}…";
+        Message = string.Format(Strings.Maint_Sending, item.Action.Label);
         MessageIsError = false;
         try
         {
@@ -108,7 +108,7 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
         }
         catch (OperationCanceledException)
         {
-            Message = "Not sent.";
+            Message = Strings.Maint_NotSent;
             MessageIsError = false;
         }
         catch (LedmAuthRequiredException ex)
@@ -120,7 +120,7 @@ public sealed partial class MaintenanceViewModel(string uuid, string printerName
         {
             Log.Write($"[{printerName}] maintenance {item.Action.Id} failed: {ex}");
             // Unknown failure: it may have happened after the request left, so don't invite a second one.
-            Message = $"Something went wrong ({ex.Message}); the request may have reached the printer. Check it before trying again.";
+            Message = string.Format(Strings.Maint_Failed, ex.Message);
             MessageIsError = true;
         }
         finally
@@ -182,7 +182,7 @@ public sealed partial class MaintenanceItemViewModel(MaintenanceAction action, M
     };
 
     /// <summary>Screen readers: the label plus what it uses, or why it can't run now.</summary>
-    public string AccessibleText => Reason is null ? $"{Label}. {Action.Uses}" : $"{Label}. Not available: {Reason}";
+    public string AccessibleText => Reason is null ? $"{Label}. {Action.Uses}" : string.Format(Strings.Maint_NotAvailable, Label, Reason);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAvailable), nameof(AccessibleText))]

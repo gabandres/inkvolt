@@ -42,7 +42,7 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
     /// <summary>The printer answered SNMP on the last read.</summary>
     public bool Answers => _last is not null;
 
-    public string Origin => Answers ? "the printer over SNMP, with Windows for the print queue" : windows.Origin;
+    public string Origin => Answers ? CoreStrings.Queue_OriginSnmp : windows.Origin;
 
     public bool HasSupplyLevels => Answers;
 
@@ -113,8 +113,8 @@ public static class QueueSnmp
     {
         if (HeldByWindows(windows.Status)) return windows;
         var waiting = IsOrdinary(windows.Status) && windows.Status.Detail is { Length: > 0 } d ? " " + d : "";
-        return new QueueStatusRead(new PrinterStatus("offline", "Can't reach the printer", Severity.Error, [],
-            $"It doesn't answer on the network ({host}). Check that it's turned on and on the same network as this PC.{waiting}"), true, []);
+        return new QueueStatusRead(new PrinterStatus("offline", CoreStrings.Queue_CantReachPrinterTitle, Severity.Error, [],
+            string.Format(CoreStrings.Queue_NoAnswerOnNetwork, host) + waiting), true, []);
     }
 
     private static bool HeldByWindows(PrinterStatus w) =>

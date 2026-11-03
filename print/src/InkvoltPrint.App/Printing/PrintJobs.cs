@@ -111,7 +111,7 @@ public sealed class WindowsPrintJobs(Func<Task<string?>> findQueue) : IPrintJobs
 
     public async Task CancelAsync(int jobId)
     {
-        if (await NameAsync() is not { } name) throw new PrintJobCancelException("This printer has no Windows queue any more.", false);
+        if (await NameAsync() is not { } name) throw new PrintJobCancelException(Strings.Print_NoQueueAnyMore, false);
         await Task.Run(() =>
         {
             try
@@ -125,8 +125,7 @@ public sealed class WindowsPrintJobs(Func<Task<string?>> findQueue) : IPrintJobs
             {
                 var denied = ex is UnauthorizedAccessException || ex.HResult == AccessDeniedHResult
                              || ex.InnerException?.HResult == AccessDeniedHResult;
-                throw new PrintJobCancelException(denied ? "Windows didn't allow it: only the person who printed it, or an administrator, can cancel it."
-                    : "The job couldn't be cancelled. It may have just finished.", denied);
+                throw new PrintJobCancelException(denied ? Strings.Print_CancelDenied : Strings.Print_CancelFailed, denied);
             }
         });
     }

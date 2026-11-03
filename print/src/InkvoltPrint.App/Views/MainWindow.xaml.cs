@@ -331,8 +331,8 @@ public partial class MainWindow : Window
         if (Application.Current is not App { SigningOut: true, KeepsScans: true } && Vm?.PrintersWithUnsavedScans is { Count: > 0 } printers)
         {
             var pages = printers.Sum(p => p.Scan!.Pages.Count);
-            if (!ConfirmDialog.Ask(this, $"You have {pages} scanned page{(pages == 1 ? "" : "s")} that you haven't saved. Close Inkvolt Print anyway?",
-                    "Close without saving"))
+            if (!ConfirmDialog.Ask(this, Core.Plural.Of(pages, Strings.Main_CloseUnsaved_One, Strings.Main_CloseUnsaved_Many),
+                    Strings.Main_CloseWithoutSaving))
             {
                 e.Cancel = true;
                 if (Vm.Selected is { Scan: not null } sel && sel.Scan.HasUnsavedPages) sel.SelectedSection = PrinterViewModel.ScanSection;

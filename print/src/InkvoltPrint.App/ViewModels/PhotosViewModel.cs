@@ -12,8 +12,16 @@ using InkvoltPrint.Core.Printing;
 namespace InkvoltPrint.App.ViewModels;
 
 /// <summary>A layout in the Photos tab's list: full page, a standard print size, or a contact sheet.</summary>
-public sealed record PhotoLayoutChoice(string Key, string Label, PhotoLayoutKind Kind, PhotoSize? Size = null)
+public sealed record PhotoLayoutChoice(string Key, PhotoLayoutKind Kind, PhotoSize? Size = null)
 {
+    /// <summary>In the interface's language, read each time.</summary>
+    public string Label => Kind switch
+    {
+        PhotoLayoutKind.FullPage => Strings.Photos_FullPage,
+        PhotoLayoutKind.ContactSheet => Strings.Photos_ContactSheet,
+        _ => Size?.Name ?? Key,
+    };
+
     public override string ToString() => Label;
 }
 
@@ -38,21 +46,22 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
     private static readonly bool Metric = RegionInfo.CurrentRegion.IsMetric;
 
     /// <summary>Until the queue says otherwise: Letter or A4 by region, ¼ in margins.</summary>
-    private static readonly PaperChoice FallbackPaper = Metric
+    private static PaperChoice FallbackPaper => Metric
         ? new PaperChoice("ISOA4", PhotoPaperText.Paper(null, 210 / 25.4, 297 / 25.4), 210 / 25.4, 297 / 25.4, null)
         : new PaperChoice("NorthAmericaLetter", PhotoPaperText.Paper(null, 8.5, 11), 8.5, 11, null);
 
     public static IReadOnlyList<PhotoLayoutChoice> Layouts { get; } =
     [
-        new("full", "Full page", PhotoLayoutKind.FullPage),
-        .. PhotoSizes.All.Select(s => new PhotoLayoutChoice(SizeKey(s), s.Name, PhotoLayoutKind.PrintSize, s)),
-        new("contact", "Contact sheet", PhotoLayoutKind.ContactSheet),
+        new("full", PhotoLayoutKind.FullPage),
+        .. PhotoSizes.All.Select(s => new PhotoLayoutChoice(SizeKey(s), PhotoLayoutKind.PrintSize, s)),
+        new("contact", PhotoLayoutKind.ContactSheet),
     ];
 
     private static string SizeKey(PhotoSize s) => s == PhotoSizes.Wallet ? "wallet" : s.Name.Replace(" ", "").Replace("×", "x");
 
-    public static IReadOnlyList<Option<int>> ContactCounts { get; } =
-        [.. new[] { 6, 12, 20, 30, 48 }.Select(n => new Option<int>(n, $"{n} per sheet"))];
+    /// <summary>Made on each read (the labels are in the interface's language); options are equal by value.</summary>
+    public static IReadOnlyList<Option<int>> ContactCounts =>
+        [.. new[] { 6, 12, 20, 30, 48 }.Select(n => new Option<int>(n, string.Format(Strings.Photos_PerSheet, n)))];
 
     private PaperSetup? _setup;
     private int _sheetCount;
@@ -133,7 +142,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
     [ObservableProperty] public partial bool Borderless { get; set; }
 
     /// <summary>Said under the paper choices when the queue has no borderless printing for this paper.</summary>
-    public string? BorderlessNote => CanBorderless || _setup is null ? null : "This printer prints with margins on this paper (no borderless option).";
+    public string? BorderlessNote => CanBorderless || _setup is null ? null : Strings.Photos_NoBorderless;
 
     /// <summary>The queue's options are being read (the driver can take a few seconds).</summary>
     [ObservableProperty] public partial bool IsReadingOptions { get; set; }
@@ -182,7 +191,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Choose photos to print",
+            Title = Strings.Photos_Choose,
             Filter = PhotoFiles.DialogFilter,
             Multiselect = true,
             InitialDirectory = state.PhotoFolder is { } f && Directory.Exists(f) ? f : Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
@@ -196,7 +205,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         if (paths.Count == 0) return Task.CompletedTask;
         if (IsBusy)
         {
-            SetMessage("Still sending the photos to the printer. Add more when it's done.", error: true);
+            SetMessage(Strings.Photos_StillSending, error: true);
             return Task.CompletedTask;
         }
         // "Open with" on several files starts one launch per file: each is added after the one before.
@@ -214,7 +223,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
     {
         await previous; // never throws: see below
         IsAdding = true;
-        SetMessage(paths.Count == 1 ? $"Opening {Path.GetFileName(paths[0])}…" : $"Opening {paths.Count} files…");
+        SetMessage(paths.Count == 1 ? string.Format(Strings.Photos_OpeningFile, Path.GetFileName(paths[0])) : string.Format(Strings.Photos_OpeningFiles, paths.Count));
         var problems = new List<string>();
         var added = 0;
         try
@@ -223,7 +232,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
             {
                 if (Photos.Count >= MaxPhotos)
                 {
-                    problems.Add($"only {MaxPhotos} photos fit in one job");
+                    problems.Add(string.Format(Strings.Photos_OnlyFit, MaxPhotos));
                     break;
                 }
                 if (PhotoFiles.MissingCodec(path) is { } missing)
@@ -267,10 +276,14 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         OnPropertyChanged(nameof(HasPhotos));
         Relayout();
         if (problems.Count > 0)
-            SetMessage($"{(added > 0 ? $"Added {Count(added, "photo")}. " : "")}Couldn't add {string.Join("; ", problems.Take(3))}" +
-                       $"{(problems.Count > 3 ? $" and {problems.Count - 3} more" : "")}.", error: true);
+        {
+            var couldnt = problems.Count > 3
+                ? string.Format(Strings.Photos_CouldntAddMore, string.Join("; ", problems.Take(3)), problems.Count - 3)
+                : string.Format(Strings.Photos_CouldntAdd, string.Join("; ", problems));
+            SetMessage(added > 0 ? Added(added) + " " + couldnt : couldnt, error: true);
+        }
         else SetMessage(null);
-        if (added > 0) Prompt.Announce($"Added {Count(added, "photo")}. {Summary}");
+        if (added > 0) Prompt.Announce(Added(added) + " " + Summary);
         if (!_optionsRead) _ = ReadOptionsAsync();
     }
 
@@ -278,10 +291,10 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
     {
         // The HEIF extension reads the file, but most HEIC photos are HEVC inside, a separate Windows extension.
         _ when Path.GetExtension(path).ToLowerInvariant() is ".heic" or ".heif" or ".hif" =>
-            "Windows couldn't decode it (HEIC photos also need the HEVC Video Extensions from the Microsoft Store)",
-        NotSupportedException => "not a picture Windows can open",
-        FileFormatException => "the file is damaged or not a picture",
-        UnauthorizedAccessException => "no permission to read it",
+            Strings.Photos_ReasonHevc,
+        NotSupportedException => Strings.Photos_ReasonNotPicture,
+        FileFormatException => Strings.Photos_ReasonDamaged,
+        UnauthorizedAccessException => Strings.Photos_ReasonNoPermission,
         _ => ex.Message,
     };
 
@@ -296,7 +309,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         Selected = Photos.Count == 0 ? null : Photos[Math.Min(index, Photos.Count - 1)];
         OnPropertyChanged(nameof(HasPhotos));
         Relayout();
-        Prompt.Announce($"Removed {item.Name}.");
+        Prompt.Announce(string.Format(Strings.Photos_Removed, item.Name));
     }
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
@@ -471,8 +484,8 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         while (Sheets.Count > shown) Sheets.RemoveAt(Sheets.Count - 1);
         while (Sheets.Count < shown) Sheets.Add(new PhotoSheetPreview(this));
         for (var i = 0; i < shown; i++)
-            Sheets[i].Set(sheets[i], paper, photos, thumbs, $"Sheet {i + 1} of {sheets.Count}", PreviewHeight * paper.Width / paper.Height, PreviewHeight);
-        MoreSheetsText = sheets.Count > MaxPreviews ? $"+ {sheets.Count - MaxPreviews} more sheets" : null;
+            Sheets[i].Set(sheets[i], paper, photos, thumbs, string.Format(Strings.Photos_SheetOf, i + 1, sheets.Count), PreviewHeight * paper.Width / paper.Height, PreviewHeight);
+        MoreSheetsText = sheets.Count > MaxPreviews ? Core.Plural.Of(sheets.Count - MaxPreviews, Strings.Photos_MoreSheets_One, Strings.Photos_MoreSheets_Many) : null;
 
         // Resolution each photo prints at (its smallest print), and the warnings that go with it.
         foreach (var item in Photos) item.Dpi = null;
@@ -487,16 +500,17 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         var paperName = (Paper ?? FallbackPaper).Label;
         var prints = sheets.Sum(s => s.Cells.Count);
         Summary = Photos.Count == 0 ? null
-            : IsContactSheet ? $"{Count(Photos.Count, "photo")} on {Count(sheets.Count, "sheet")} of {paperName}, {PerSheet.Value} per sheet with their file names."
-            : $"{Count(Photos.Count, "photo")}, {Count(prints, "print")} on {Count(sheets.Count, "sheet")} of {paperName}.";
+            : IsContactSheet ? string.Format(Strings.Photos_SummaryContact, PhotoCount(Photos.Count), SheetCount(sheets.Count), paperName, PerSheet.Value)
+            : string.Format(Strings.Photos_SummaryPrints, PhotoCount(Photos.Count), Core.Plural.Of(prints, Strings.Photos_Prints_One, Strings.Photos_Prints_Many),
+                SheetCount(sheets.Count), paperName);
         var warnings = new List<string>();
         if (grid.Shrunk && Layout.Size is { } size)
-            warnings.Add($"{size.Name} doesn't fit inside this paper's printable area, so it prints a little smaller." +
-                         (CanBorderless && !Borderless ? " Turn on Borderless or choose larger paper." : " Choose larger paper."));
+            warnings.Add(string.Format(Strings.Photos_SizeShrunk, size.Name) + " " +
+                         (CanBorderless && !Borderless ? Strings.Photos_TurnOnBorderless : Strings.Photos_ChooseLarger));
         if (!IsContactSheet && Photos.Where(p => p.IsLowResolution).ToList() is { Count: > 0 } soft)
             warnings.Add(soft.Count == 1
-                ? $"{soft[0].Name} prints at about {soft[0].Dpi:0} dpi, so it may look soft. A smaller size prints it sharper."
-                : $"{soft.Count} photos print below {PhotoLayout.LowDpi:0} dpi and may look soft (marked in the list).");
+                ? string.Format(Strings.Photos_SoftOne, soft[0].Name, soft[0].Dpi)
+                : string.Format(Strings.Photos_SoftMany, soft.Count, PhotoLayout.LowDpi));
         Warning = warnings.Count > 0 ? string.Join(" ", warnings) : null;
         PrintCommand.NotifyCanExecuteChanged();
         UpdateSelectedCell();
@@ -508,7 +522,9 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         SelectedCell = index < 0 ? null : Sheets.SelectMany(s => s.Sheet.Cells).FirstOrDefault(c => c.Photo == index);
     }
 
-    private static string Count(int n, string what) => n == 1 ? $"1 {what}" : $"{n} {what}s";
+    private static string PhotoCount(int n) => Core.Plural.Of(n, Strings.Photos_Photos_One, Strings.Photos_Photos_Many);
+    private static string SheetCount(int n) => Core.Plural.Of(n, Strings.Photos_Sheets_One, Strings.Photos_Sheets_Many);
+    private static string Added(int n) => Core.Plural.Of(n, Strings.Photos_Added_One, Strings.Photos_Added_Many);
 
     // ---------------- Printing ----------------
 
@@ -539,24 +555,24 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
             if (demo is not null)
             {
                 demo.Print("Photos", sheets);
-                SetMessage($"Sent to the demo printer: {Count(sheets, "sheet")}. Nothing really prints; the job is in the print queue on the Overview.");
+                SetMessage(string.Format(Strings.Photos_SentDemo, SheetCount(sheets)));
                 return;
             }
             if (await findQueue() is not { } queue)
             {
-                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then print again.", error: true);
+                SetMessage(Strings.Print_NotSetUp, error: true);
                 return;
             }
-            SetMessage("Sending the photos to the printer…");
+            SetMessage(Strings.Photos_Sending);
             var sent = await PhotoPrinting.PrintAsync(queue, settings, photos, layout, "Photos");
-            SetMessage($"Sent to the printer: {Count(sent, "sheet")}.");
+            SetMessage(string.Format(Strings.Photos_Sent, SheetCount(sent)));
             RatingRequest.NoteSuccess(state);
         }
         catch (Exception ex)
         {
             // Spooler/driver/serializer errors come in many types; never let one escape the command.
             Log.Write($"Photo print failed: {ex}");
-            SetMessage($"Could not print the photos: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Photos_CouldNotPrint, ex.Message), error: true);
         }
         finally
         {
@@ -622,7 +638,7 @@ public sealed partial class PhotoItemViewModel(PhotoSource source, BitmapSource 
     public partial double? Dpi { get; set; }
 
     public bool IsLowResolution => Dpi is { } d and > 0 && d < PhotoLayout.LowDpi;
-    public string? DpiText => Dpi is { } d and > 0 ? $"Prints at about {d:0} dpi{(IsLowResolution ? ": may look soft" : "")}" : null;
+    public string? DpiText => Dpi is { } d and > 0 ? string.Format(IsLowResolution ? Strings.Photos_DpiSoft : Strings.Photos_Dpi, d) : null;
 
     public int Turns => ExifOrientation.Turns(Source.Orientation, UserTurns);
     public bool Mirror => ExifOrientation.Transform(Source.Orientation).Mirror;
@@ -631,8 +647,8 @@ public sealed partial class PhotoItemViewModel(PhotoSource source, BitmapSource 
     public double ThumbnailAngle => Turns * 90;
     public double ThumbnailScaleX => Mirror ? -1 : 1;
 
-    public string CopiesText => Copies == 1 ? "1 copy" : $"{Copies} copies";
-    public string AccessibleText => $"{Name}, {CopiesText}{(IsLowResolution ? ", low resolution" : "")}";
+    public string CopiesText => Core.Plural.Of(Copies, Strings.Photos_Copies_One, Strings.Photos_Copies_Many);
+    public string AccessibleText => IsLowResolution ? string.Format(Strings.Photos_ItemNameLowRes, Name, CopiesText) : $"{Name}, {CopiesText}";
 
     public PhotoJobPhoto Job => new(Source, UserTurns, Copies, Crop);
 
@@ -648,7 +664,7 @@ public sealed partial class PhotoItemViewModel(PhotoSource source, BitmapSource 
         UserTurns = ((UserTurns + quarters) % 4 + 4) % 4;
         Crop = PhotoCrop.None; // the old crop was for the other shape
         owner.PhotoChanged();
-        Prompt.Announce($"{Name} turned {(quarters < 0 ? "left" : "right")}.");
+        Prompt.Announce(string.Format(quarters < 0 ? Strings.Photos_TurnedLeft : Strings.Photos_TurnedRight, Name));
     }
 
     public void SetCopies(int copies)

@@ -38,7 +38,7 @@ public sealed class WindowsBatchDocuments : IBatchDocuments
                 }
                 catch (PdfOpenException ex)
                 {
-                    throw new BatchFileException(ex.IsUnsupportedLock ? ex.Message : "Windows can't read this PDF: it may be damaged.");
+                    throw new BatchFileException(ex.IsUnsupportedLock ? ex.Message : Strings.Print_PdfUnreadable);
                 }
             }
             if (PhotoFiles.MissingCodec(path) is { } missing) throw new BatchFileException(missing);
@@ -54,7 +54,7 @@ public sealed class WindowsBatchDocuments : IBatchDocuments
                 }
                 catch (Exception ex) when (ex is not BatchFileException)
                 {
-                    throw new BatchFileException("Windows can't read this picture: it may be damaged, or not a picture at all.");
+                    throw new BatchFileException(Strings.Print_PictureUnreadable);
                 }
             }).ConfigureAwait(false);
             foreach (var picture in pictures)
@@ -94,7 +94,7 @@ public sealed class WindowsBatchDocuments : IBatchDocuments
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Log.Write($"Batch: a page wasn't drawn: {ex.Message}");
-                throw new BatchFileException($"Page {page} can't be drawn: the PDF may be damaged.");
+                throw new BatchFileException(string.Format(Strings.Print_PdfPageNotDrawn, page));
             }
         }
 
@@ -124,7 +124,7 @@ public sealed class WindowsBatchDocuments : IBatchDocuments
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Log.Write($"Batch: a picture wasn't drawn: {ex.Message}");
-                throw new BatchFileException(pictures.Count > 1 ? $"Page {page} can't be drawn: the picture may be damaged." : "The picture can't be drawn: it may be damaged.");
+                throw new BatchFileException(pictures.Count > 1 ? string.Format(Strings.Print_PicturePageNotDrawn, page) : Strings.Print_PictureNotDrawn);
             }
         }
 
@@ -184,16 +184,16 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
 
     public async Task<string?> ProblemAsync(CancellationToken ct)
     {
-        if (await findQueue().ConfigureAwait(false) is not { } name) return "This printer has no Windows queue now.";
+        if (await findQueue().ConfigureAwait(false) is not { } name) return Strings.Print_NoQueueNow;
         var queue = (await InstalledQueues.ListAsync().ConfigureAwait(false)).FirstOrDefault(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (queue is null) return "Windows no longer has this printer's queue.";
+        if (queue is null) return Strings.Print_QueueGone;
         var reading = SpoolerStatus.Describe(queue);
         return reading.Offline || reading.Status.Severity == Core.Model.Severity.Error ? $"{reading.Status.Message}." : null;
     }
 
     public async Task<BatchReceipt> SendAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, Action? onSpooling, CancellationToken ct)
     {
-        if (await findQueue().ConfigureAwait(false) is not { } name) throw new BatchQueueException("This printer has no Windows queue now.", mayHaveSent: false);
+        if (await findQueue().ConfigureAwait(false) is not { } name) throw new BatchQueueException(Strings.Print_NoQueueNow, mayHaveSent: false);
         var paper = job.Paper is null ? null : await PaperAsync(name, job.Paper, ct).ConfigureAwait(false);
         try
         {
@@ -206,23 +206,23 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
         }
         catch (Exception ex) when (ex is PrintSystemException or PrintQueueException)
         {
-            throw new BatchQueueException($"Windows' queue can't be used: {ex.Message}", mayHaveSent: false);
+            throw new BatchQueueException(string.Format(Strings.Print_QueueUnusable, ex.Message), mayHaveSent: false);
         }
 
         using var pages = new DiskPages();
-        if (!pages.HasRoomFor(job.Pages.Count)) throw new BatchFileException("There isn't enough free disk space to prepare this file.");
+        if (!pages.HasRoomFor(job.Pages.Count)) throw new BatchFileException(Strings.Print_NoDiskSpace);
         for (var i = 0; i < job.Pages.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
-            progress?.Report($"Preparing page {i + 1} of {job.Pages.Count}…");
+            progress?.Report(string.Format(Strings.Print_PreparingPage, i + 1, job.Pages.Count));
             pages.Add(await document.RenderAsync(job.Pages[i], ct).ConfigureAwait(false));
         }
         ct.ThrowIfCancellationRequested();
-        if (pages.Count != job.Pages.Count) throw new BatchFileException("Fewer pages were drawn than the estimate.");
+        if (pages.Count != job.Pages.Count) throw new BatchFileException(Strings.Print_FewerPages);
 
         // From here the job belongs to the spooler.
         onSpooling?.Invoke();
-        progress?.Report("Sending it to the printer…");
+        progress?.Report(Strings.Print_SendingIt);
         try
         {
             await QueuePrinter.PrintPagesAsync(name, pages, job.Name, document.Sizing, queue => Ticket(queue, job, paper)).ConfigureAwait(false);
@@ -234,7 +234,7 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
         catch (Exception ex)
         {
             Log.Write($"Batch: spooling failed: {ex}");
-            throw new BatchQueueException($"Windows' queue failed: {ex.Message}", mayHaveSent: true);
+            throw new BatchQueueException(string.Format(Strings.Print_QueueFailed, ex.Message), mayHaveSent: true);
         }
         return new BatchReceipt(pages.Count, BatchPrintSettings.Sheets(pages.Count, job.Copies, job.TwoSided));
     }
@@ -243,7 +243,7 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
     {
         PaperChoice? Find() => _papers.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
         if (Find() is null) await ReadAsync(ct).ConfigureAwait(false);
-        return Find() ?? throw new BatchSettingRefusedException($"{name} doesn't offer this paper now.");
+        return Find() ?? throw new BatchSettingRefusedException(string.Format(Strings.Print_PaperNotOffered, name));
     }
 
     /// <summary>The job's ticket as the driver validated it. Refuses one that didn't keep what was asked.</summary>

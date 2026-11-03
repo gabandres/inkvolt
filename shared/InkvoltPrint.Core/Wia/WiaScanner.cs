@@ -140,7 +140,7 @@ public sealed class WiaScanner : IScanner
             throw new ScanException(WiaErrors.Message(ex.Code, settings.Feeder));
         }
         if (jpeg is not null) return (jpeg, false);
-        if (first) throw new ScanException(settings.Feeder ? WiaErrors.Message(WiaErrors.PaperEmpty, true) : "The scanner returned no image.");
+        if (first) throw new ScanException(settings.Feeder ? WiaErrors.Message(WiaErrors.PaperEmpty, true) : CoreStrings.Wia_NoImage);
         return (null, true);
     }
 
@@ -164,8 +164,7 @@ public sealed class WiaScanner : IScanner
 /// </summary>
 public static class WiaFeeder
 {
-    public const string NotTakenMessage = "The scanner's driver didn't switch to the document feeder, so nothing was scanned. " +
-                                          "Scan from the glass, or use the scanner's own app.";
+    public static string NotTakenMessage => CoreStrings.Wia_FeederNotTaken;
 
     /// <summary>
     /// The driver took the feeder (read back after setting it), or the job is from the glass, or the driver has no document handling

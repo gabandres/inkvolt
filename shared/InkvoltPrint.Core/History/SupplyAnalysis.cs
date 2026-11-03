@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace InkvoltPrint.Core.History;
 
 public enum ForecastState
@@ -24,18 +22,16 @@ public sealed record SupplyForecast(ForecastState State, int? DaysLeft = null, i
 {
     public string? Text => State switch
     {
-        ForecastState.NotEnoughData => $"Not enough history for days left yet (about {MoreDays} more {Days(MoreDays)})",
-        ForecastState.Steady => "Level steady, so no estimate of days left",
+        ForecastState.NotEnoughData => Plural.Of(MoreDays, CoreStrings.History_NotEnough_One, CoreStrings.History_NotEnough_Many),
+        ForecastState.Steady => CoreStrings.History_Steady,
         ForecastState.Estimate => DaysLeft switch
         {
-            null => "More than two years left",
-            0 => "Could run out any day",
-            { } n => $"About {n.ToString("N0", CultureInfo.CurrentCulture)} {Days(n)} left",
+            null => CoreStrings.History_MoreThanTwoYears,
+            0 => CoreStrings.History_AnyDay,
+            { } n => Plural.Of(n, CoreStrings.History_DaysLeft_One, CoreStrings.History_DaysLeft_Many),
         },
         _ => null,
     };
-
-    private static string Days(int n) => n == 1 ? "day" : "days";
 }
 
 /// <summary>One cartridge as the history saw it.</summary>
@@ -62,7 +58,9 @@ public sealed record SupplySummary(string Supply, string? Color, IReadOnlyList<C
         get
         {
             var pages = PagesOnCurrent is { } n
-                ? $"{n.ToString("N0", CultureInfo.CurrentCulture)} {(n == 1 ? "page" : "pages")} since {(Cartridges[^1].SeenGoingIn ? "this cartridge went in" : "Inkvolt Print started keeping track")}"
+                ? Cartridges[^1].SeenGoingIn
+                    ? Plural.Of(n, CoreStrings.History_PagesSinceCartridge_One, CoreStrings.History_PagesSinceCartridge_Many)
+                    : Plural.Of(n, CoreStrings.History_PagesSinceTracking_One, CoreStrings.History_PagesSinceTracking_Many)
                 : null;
             return string.Join(" · ", new[] { Forecast.Text, pages }.OfType<string>()) is { Length: > 0 } line ? line : null;
         }

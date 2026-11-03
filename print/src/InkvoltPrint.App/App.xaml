@@ -17,7 +17,7 @@
         <local:PresetGlyphConverter x:Key="PresetGlyph" />
         <local:PresetShortcutConverter x:Key="PresetShortcut" />
 
-        <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <x:Static x:Key="Icons" Member="local:AppIcon.Glyphs" />
 
         <!-- Typography -->
         <Style x:Key="Caption" TargetType="TextBlock">

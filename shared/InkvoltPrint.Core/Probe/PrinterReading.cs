@@ -78,11 +78,11 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
             // comes from whichever interface gives it. Usage counters are extra: their failure ends nothing either.
             if (c.Result.Offline) need &= ~ReadParts.Supplies;
         }
-        if (status is null && offline) return new PrinterReading(PrinterStatus.Offline("Printer is not responding"), null, null); // nothing else counts
+        if (status is null && offline) return new PrinterReading(PrinterStatus.Offline(CoreStrings.Probe_NotResponding), null, null); // nothing else counts
         return new PrinterReading(
-            status ?? (offline ? PrinterStatus.Offline("Printer is not responding")
-                : statusMissed ? PrinterStatus.Unavailable("The printer is busy; status will update shortly")
-                : new PrinterStatus("unknown", "Status not available", Severity.Info, [])),
+            status ?? (offline ? PrinterStatus.Offline(CoreStrings.Probe_NotResponding)
+                : statusMissed ? PrinterStatus.Unavailable(CoreStrings.Probe_BusyUpdateShortly)
+                : new PrinterStatus("unknown", CoreStrings.Status_NotAvailable, Severity.Info, [])),
             supplies ?? (offline || suppliesMissed ? null : []),
             usage);
     }

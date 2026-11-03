@@ -1,32 +1,33 @@
 <UserControl x:Class="InkvoltPrint.App.Views.SnmpAccessFields"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:InkvoltPrint.App">
+             xmlns:local="clr-namespace:InkvoltPrint.App"
+             xmlns:loc="clr-namespace:InkvoltPrint.App">
     <!-- How a printer that answers only SNMP is read: its community, or (Inkvolt Pro) an SNMPv3 user. -->
     <StackPanel>
         <StackPanel Orientation="Horizontal">
-            <RadioButton x:Name="UseCommunity" Content="Community" IsChecked="True" GroupName="SnmpKind" Margin="0,0,24,0" Checked="Kind_Changed" />
-            <RadioButton x:Name="UseV3" Content="SNMPv3 user" GroupName="SnmpKind" Checked="Kind_Changed" />
+            <RadioButton x:Name="UseCommunity" Content="{x:Static loc:Strings.Snmp_Community}" IsChecked="True" GroupName="SnmpKind" Margin="0,0,24,0" Checked="Kind_Changed" />
+            <RadioButton x:Name="UseV3" Content="{x:Static loc:Strings.Snmp_V3User}" GroupName="SnmpKind" Checked="Kind_Changed" />
         </StackPanel>
         <StackPanel x:Name="CommunityPanel" Margin="0,10,0,0">
-            <TextBlock x:Name="CommunityLabel" Text="Community" Margin="0,0,0,6" />
-            <TextBox x:Name="CommunityBox" MaxLength="255" local:Placeholder.Text="public"
+            <TextBlock x:Name="CommunityLabel" Text="{x:Static loc:Strings.Snmp_Community}" Margin="0,0,0,6" />
+            <TextBox x:Name="CommunityBox" MaxLength="255" local:Placeholder.Text="{x:Static loc:Strings.Snmp_PublicPlaceholder}"
                      AutomationProperties.LabeledBy="{Binding ElementName=CommunityLabel}" TextChanged="Field_Changed" />
-            <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" Text="Leave it blank for public, the community most printers ship with." />
+            <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" Text="{x:Static loc:Strings.Snmp_BlankIsPublic}" />
         </StackPanel>
         <StackPanel x:Name="V3Panel" Margin="0,10,0,0" Visibility="Collapsed">
-            <TextBlock x:Name="UserLabel" Text="User name" Margin="0,0,0,6" />
+            <TextBlock x:Name="UserLabel" Text="{x:Static loc:Strings.Snmp_UserName}" Margin="0,0,0,6" />
             <TextBox x:Name="UserBox" MaxLength="32" AutomationProperties.LabeledBy="{Binding ElementName=UserLabel}" TextChanged="Field_Changed" />
-            <TextBlock x:Name="AuthLabel" Text="Authentication passphrase (SHA-256)" Margin="0,10,0,6" />
+            <TextBlock x:Name="AuthLabel" Text="{x:Static loc:Strings.Snmp_AuthPassphrase}" Margin="0,10,0,6" />
             <PasswordBox x:Name="AuthBox" AutomationProperties.LabeledBy="{Binding ElementName=AuthLabel}" PasswordChanged="Field_Changed" />
-            <TextBlock x:Name="PrivLabel" Text="Privacy passphrase (AES-128)" Margin="0,10,0,6" />
+            <TextBlock x:Name="PrivLabel" Text="{x:Static loc:Strings.Snmp_PrivPassphrase}" Margin="0,10,0,6" />
             <PasswordBox x:Name="PrivBox" AutomationProperties.LabeledBy="{Binding ElementName=PrivLabel}" PasswordChanged="Field_Changed" />
             <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0"
-                       Text="The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads." />
+                       Text="{x:Static loc:Strings.Snmp_V3Note}" />
             <TextBlock x:Name="ProNote" Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" Visibility="Collapsed" />
         </StackPanel>
         <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,8,0,0"
-                   Text="Kept in Windows Credential Manager for this printer, used only to read it, and never changes anything on it." />
+                   Text="{x:Static loc:Strings.Snmp_KeptNote}" />
         <TextBlock x:Name="Error" Margin="0,8,0,0" Visibility="Collapsed" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive"
                    Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
     </StackPanel>

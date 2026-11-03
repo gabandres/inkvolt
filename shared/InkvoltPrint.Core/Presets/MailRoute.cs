@@ -37,5 +37,5 @@ public static class MailRoute
     public static string MailtoUri(string subject, IReadOnlyList<string> fileNames) =>
         $"mailto:?subject={Uri.EscapeDataString(subject)}&body={Uri.EscapeDataString(AttachLine(fileNames))}";
 
-    public static string AttachLine(IReadOnlyList<string> fileNames) => $"Attached: {string.Join(", ", fileNames)}";
+    public static string AttachLine(IReadOnlyList<string> fileNames) => string.Format(CoreStrings.Preset_Attached, string.Join(", ", fileNames));
 }

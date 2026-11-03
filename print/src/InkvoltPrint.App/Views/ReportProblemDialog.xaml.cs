@@ -24,9 +24,9 @@ public partial class ReportProblemDialog : Window
         _printer = printer;
         Closed += (_, _) => _closing.Cancel(); // a recording under way stops, and leaves nothing behind
         RecordButton.IsEnabled = printer?.RecordHost is not null;
-        RecordNote.Text = printer is null ? "To record a printer, show it first and come back here."
-            : printer.RecordHost is null ? $"{printer.Name} has no network address, so there's nothing to record."
-            : $"Also useful: record {printer.Name}. Every reply Inkvolt Print reads from it, read only, with serial numbers, addresses and names taken out, saved as a .zip file for you to read and attach. It can take a minute or two.";
+        RecordNote.Text = printer is null ? Strings.Report_RecordNoPrinter
+            : printer.RecordHost is null ? string.Format(Strings.Report_RecordNoAddress, printer.Name)
+            : string.Format(Strings.Report_RecordHint, printer.Name);
     }
 
     public static ReportProblemDialog Create(string details, PrinterViewModel? printer) => new(details, printer);
@@ -43,13 +43,13 @@ public partial class ReportProblemDialog : Window
         try
         {
             Clipboard.SetText(Details.Text);
-            Say("Copied.");
+            Say(Strings.Report_Copied);
             return true;
         }
         catch (COMException ex) // another app holds the clipboard
         {
             Log.Write($"Diagnostics not copied: {ex.Message}");
-            Say("The clipboard is busy; try again, or select the text and press Ctrl+C.");
+            Say(Strings.Report_ClipboardBusy);
             return false;
         }
     }
@@ -70,7 +70,7 @@ public partial class ReportProblemDialog : Window
         var who = Diagnostics.Identity.Current;
         RecordButton.IsEnabled = false;
         ShowRecording.Visibility = Visibility.Collapsed;
-        Say($"Recording {_printer.Name}. Close this window to stop.");
+        Say(string.Format(Strings.Report_Recording, _printer.Name));
         try
         {
             var done = await _printer.RecordForReportAsync(ct);
@@ -78,8 +78,8 @@ public partial class ReportProblemDialog : Window
             _recording = done.Zip;
             Details.Text = Details.Text.TrimEnd() + Environment.NewLine + Environment.NewLine + ReportRecording.ReportLine(done, who) + Environment.NewLine;
             Say(_printer.OpensOtherApps
-                ? $"Saved as {Path.GetFileName(done.Zip)} in {Path.GetDirectoryName(done.Zip)}. Read it before you share it, then attach it to the issue."
-                : $"Demo: saved as {Path.GetFileName(done.Zip)} in {Path.GetDirectoryName(done.Zip)}, from the made-up printer.");
+                ? string.Format(Strings.Report_RecordSaved, Path.GetFileName(done.Zip), Path.GetDirectoryName(done.Zip))
+                : string.Format(Strings.Report_RecordSavedDemo, Path.GetFileName(done.Zip), Path.GetDirectoryName(done.Zip)));
             ShowRecording.Visibility = _printer.OpensOtherApps ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { } // closed: nothing left to say it in
@@ -105,6 +105,6 @@ public partial class ReportProblemDialog : Window
     {
         if (!Copy()) return;
         Shell.Open(AppHelp.IssueUrl());
-        Say("Copied. Paste the details into the issue under Details, then submit it.");
+        Say(Strings.Report_CopiedIssue);
     }
 }

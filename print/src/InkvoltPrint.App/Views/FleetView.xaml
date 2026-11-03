@@ -4,23 +4,24 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels"
+             xmlns:loc="clr-namespace:InkvoltPrint.App"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:FleetViewModel}"
              Focusable="False">
     <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,0,16,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                <Button Content="Stop" Command="{Binding StopFixingCommand}" Margin="0,0,8,0" Padding="14,6"
-                        AutomationProperties.Name="Stop Fix all"
+                <Button Content="{x:Static loc:Strings.Common_Stop}" Command="{Binding StopFixingCommand}" Margin="0,0,8,0" Padding="14,6"
+                        AutomationProperties.Name="{x:Static loc:Strings.Fleet_StopFixAll}"
                         Visibility="{Binding IsFixing, Converter={StaticResource VisibleWhen}}" />
-                <Button Content="Fix all…" Command="{Binding FixAllCommand}" Margin="0,0,8,0" Padding="14,6"
-                        AutomationProperties.HelpText="Resumes paused queues and turns off Use Printer Offline, asking about each one"
-                        ToolTip="Resume paused queues and turn off Use Printer Offline, asking about each one (Inkvolt Pro)" />
-                <Button Content="Export…" Command="{Binding ExportCommand}" Padding="14,6"
-                        AutomationProperties.HelpText="Saves this list as a CSV or JSON file"
-                        ToolTip="Save this list as a CSV or JSON file (Inkvolt Pro)" />
+                <Button Content="{x:Static loc:Strings.Fleet_FixAll}" Command="{Binding FixAllCommand}" Margin="0,0,8,0" Padding="14,6"
+                        AutomationProperties.HelpText="{x:Static loc:Strings.Fleet_FixAllHelp}"
+                        ToolTip="{x:Static loc:Strings.Fleet_FixAllTip}" />
+                <Button Content="{x:Static loc:Strings.Fleet_Export}" Command="{Binding ExportCommand}" Padding="14,6"
+                        AutomationProperties.HelpText="{x:Static loc:Strings.Fleet_ExportHelp}"
+                        ToolTip="{x:Static loc:Strings.Fleet_ExportTip}" />
             </StackPanel>
             <StackPanel Margin="0,0,16,0">
-                <TextBlock Text="Fleet" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock Text="{x:Static loc:Strings.Fleet_Title}" FontSize="24" FontWeight="SemiBold" />
                 <TextBlock x:Name="SummaryLine" Text="{Binding Summary}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
                            AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="{Binding ExportMessage}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
@@ -46,7 +47,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0">
-                                <Run Text="Left for the printer's own Fix it…: " /><Run Text="{Binding Mode=OneWay}" />
+                                <Run Text="{x:Static loc:Strings.Fleet_LeftForFixer}" /><Run Text="{Binding Mode=OneWay}" />
                             </TextBlock>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -56,7 +57,7 @@
 
         <!-- The rows: a list a keyboard moves through (arrows), each read whole by a screen reader; Tab reaches its buttons -->
         <ListBox x:Name="Rows" ItemsSource="{Binding Rows}" BorderThickness="0" Background="Transparent" Padding="0,0,12,12"
-                 AutomationProperties.Name="Printers, most trouble first"
+                 AutomationProperties.Name="{x:Static loc:Strings.Fleet_RowsName}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                  KeyboardNavigation.TabNavigation="Continue" HorizontalContentAlignment="Stretch">
             <ListBox.ItemContainerStyle>
@@ -72,10 +73,10 @@
                 <DataTemplate DataType="{x:Type vm:FleetRowViewModel}">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
-                            <Button Content="Fix it…" Command="{Binding FixCommand}" Margin="0,0,8,0" Padding="12,4"
+                            <Button Content="{x:Static loc:Strings.Fleet_FixIt}" Command="{Binding FixCommand}" Margin="0,0,8,0" Padding="12,4"
                                     AutomationProperties.Name="{Binding FixName}"
                                     Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
-                            <Button Content="Open" Command="{Binding OpenCommand}" Padding="12,4" AutomationProperties.Name="{Binding OpenName}" />
+                            <Button Content="{x:Static loc:Strings.Common_Open}" Command="{Binding OpenCommand}" Padding="12,4" AutomationProperties.Name="{Binding OpenName}" />
                         </StackPanel>
                         <Ellipse DockPanel.Dock="Left" Width="11" Height="11" Margin="0,5,10,0" VerticalAlignment="Top"
                                  Fill="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />

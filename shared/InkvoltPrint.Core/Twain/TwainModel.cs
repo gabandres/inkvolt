@@ -142,7 +142,7 @@ public static class Dib
     public static byte[] ToBmp(ReadOnlySpan<byte> dib)
     {
         var length = Length(dib);
-        if (length == 0 || length > dib.Length) throw new FormatException("The scanner's driver sent an image that can't be read.");
+        if (length == 0 || length > dib.Length) throw new FormatException(CoreStrings.Wia_UnreadableImage);
         var headerSize = BinaryPrimitives.ReadInt32LittleEndian(dib);
         if (BinaryPrimitives.ReadInt32LittleEndian(dib[16..]) == 3 && headerSize == 40) headerSize += 12;
         var bmp = new byte[FileHeaderSize + length];

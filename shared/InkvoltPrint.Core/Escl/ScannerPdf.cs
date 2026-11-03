@@ -48,17 +48,17 @@ public static partial class ScannerPdf
         if (pages is null)
         {
             if (Renderer is null)
-                throw new ScanException("This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.");
+                throw new ScanException(CoreStrings.Escl_PdfPictures);
             try
             {
                 pages = await Renderer.RenderAsync(pdf, dpi, ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not ScanException)
             {
-                throw new ScanException($"The scanner's PDF couldn't be opened: {ex.Message}");
+                throw new ScanException(string.Format(CoreStrings.Escl_PdfCantOpen, ex.Message));
             }
         }
-        if (pages.Count == 0) throw new ScanException("The scanner sent a PDF without pages.");
+        if (pages.Count == 0) throw new ScanException(CoreStrings.Escl_PdfNoPages);
         for (var i = 0; i < pages.Count; i++) Origins.AddOrUpdate(pages[i], new PdfOrigin(pdf, i, pages.Count, rendered));
         return pages;
     }
@@ -79,8 +79,7 @@ public static partial class ScannerPdf
     public static string? WhyNotAsSent(IReadOnlyList<PageToSave> pages)
     {
         if (pages.All(p => p.Origin is null) || KeepAsSent(pages) is not null) return null;
-        return pages.Any(p => p.Changed) ? "Your changes (or the text layer) are in it, so it was made from the scanner's pages, pictures unchanged."
-            : "Pages were added, left out, moved or split into files, so it was made from the scanner's pages, pictures unchanged.";
+        return pages.Any(p => p.Changed) ? CoreStrings.Escl_RebuiltChanged : CoreStrings.Escl_RebuiltPages;
     }
 
     // ------------------------------------------------------------------------------------------------ taking pictures out

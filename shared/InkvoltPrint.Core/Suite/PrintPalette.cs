@@ -16,25 +16,37 @@ public static class PrintPalette
         bool CanFix, bool IsNetwork, bool SnmpAccess = false);
 
     /// <summary>The sections, in the tabs' order (the indexes are PrinterViewModel's).</summary>
-    public static readonly IReadOnlyList<string> Sections = ["Overview", "Print", "Scan", "Copy", "Photos", "Printer settings"];
+    public static IReadOnlyList<string> Sections =>
+        [CoreStrings.Palette_Overview, CoreStrings.Palette_Print, CoreStrings.Palette_Scan, CoreStrings.Palette_Copy, CoreStrings.Palette_Photos, CoreStrings.Palette_PrinterSettings];
+
+    /// <summary>"Go to …" for each of <see cref="Sections"/>.</summary>
+    private static string GoTo(int section) => section switch
+    {
+        0 => CoreStrings.Palette_GoToOverview,
+        1 => CoreStrings.Palette_GoToPrint,
+        2 => CoreStrings.Palette_GoToScan,
+        3 => CoreStrings.Palette_GoToCopy,
+        4 => CoreStrings.Palette_GoToPhotos,
+        _ => CoreStrings.Palette_GoToPrinterSettings,
+    };
 
     /// <summary>The printer menu's commands, in its order, as far as <paramref name="p"/> offers them: (id after "printer:", name, glyph).</summary>
     private static IEnumerable<(string Id, string Name, string Glyph)> Menu(Printer p)
     {
-        yield return ("reconnect", "Reconnect", "\uE72C");
-        if (p.CanPrint) yield return ("photos", "Print photos…", "\uEB9F");
-        if (p.CanPrint) yield return ("batch", "Batch print: many files…", "\uE8A9");
-        if (p.CanFix) yield return ("fix", "Fix printing problems…", "\uE90F");
-        if (p.IsNetwork) yield return ("maintenance", "Printer maintenance…", "\uE90F");
-        if (p.SnmpAccess) yield return ("snmp", "SNMP access…", "\uE72E");
-        yield return ("remove", "Remove from Inkvolt Print…", "\uE74D");
+        yield return ("reconnect", CoreStrings.Palette_Reconnect, "\uE72C");
+        if (p.CanPrint) yield return ("photos", CoreStrings.Palette_PrintPhotos, "\uEB9F");
+        if (p.CanPrint) yield return ("batch", CoreStrings.Palette_BatchPrint, "\uE8A9");
+        if (p.CanFix) yield return ("fix", CoreStrings.Palette_FixProblems, "\uE90F");
+        if (p.IsNetwork) yield return ("maintenance", CoreStrings.Palette_Maintenance, "\uE90F");
+        if (p.SnmpAccess) yield return ("snmp", CoreStrings.Palette_SnmpAccess, "\uE72E");
+        yield return ("remove", CoreStrings.Palette_Remove, "\uE74D");
     }
 
     /// <summary>Every command the printer menu can have (the ids after "printer:").</summary>
     public static readonly IReadOnlySet<string> MenuIds = new HashSet<string> { "reconnect", "photos", "batch", "fix", "maintenance", "snmp", "remove" };
 
     /// <summary>The category of another printer's menu commands ("Name: command" entries, id "on:index:command").</summary>
-    public const string OtherPrinters = "Other printers";
+    public static string OtherPrinters => CoreStrings.Palette_OtherPrinters;
 
     /// <summary>
     /// The palette's entries: the selected printer's (<paramref name="selectedIndex"/> in <paramref name="printers"/>, -1 for none), the app's, the other
@@ -49,24 +61,24 @@ public static class PrintPalette
         if (selected is { } p)
         {
             var category = p.Name;
-            if (p.CanPrint) list.Add(new("printer:print", "Print a PDF…", category, "", "\uE749"));
-            if (p.CanScan) list.Add(new("printer:scan", "Scan", category, "", "\uE8FE"));
-            if (p.NeedsSetup) list.Add(new("printer:setup", "Set up in Windows", category, "", "\uE946"));
+            if (p.CanPrint) list.Add(new("printer:print", CoreStrings.Palette_PrintPdf, category, "", "\uE749"));
+            if (p.CanScan) list.Add(new("printer:scan", CoreStrings.Palette_Scan, category, "", "\uE8FE"));
+            if (p.NeedsSetup) list.Add(new("printer:setup", CoreStrings.Palette_SetUpInWindows, category, "", "\uE946"));
             bool[] has = [true, p.CanPrint, p.CanScan, p.CanCopy, p.CanPrint, p.HasSettings];
             for (var i = 0; i < Sections.Count; i++)
-                if (has[i]) list.Add(new($"section:{i}", $"Go to {Sections[i]}", category, "", "\uE8A7"));
+                if (has[i]) list.Add(new($"section:{i}", GoTo(i), category, "", "\uE8A7"));
             foreach (var (id, name, glyph) in Menu(p)) list.Add(new($"printer:{id}", name, category, "", glyph));
         }
-        list.Add(new("app:add", "Add a printer…", "", "", "\uE710"));
-        list.Add(new("app:fleet", "Show the Fleet page (every printer)", "", "", "\uE8A9"));
-        list.Add(new("app:search", "Search again for printers", "", "", "\uE72C"));
-        list.Add(new("app:settings", "Settings", "", "", "\uE713"));
-        list.Add(new("app:help", "Help and shortcuts", "", "F1", "\uE897"));
-        list.Add(new("app:whatsnew", "What's new", "", "", "\uE789"));
-        list.Add(new("app:report", "Report a problem…", "", "", "\uE8BD"));
-        list.Add(new("app:about", "About Inkvolt Print", "", "", "\uE946"));
+        list.Add(new("app:add", CoreStrings.Palette_AddPrinter, "", "", "\uE710"));
+        list.Add(new("app:fleet", CoreStrings.Palette_Fleet, "", "", "\uE8A9"));
+        list.Add(new("app:search", CoreStrings.Palette_SearchAgain, "", "", "\uE72C"));
+        list.Add(new("app:settings", CoreStrings.Palette_Settings, "", "", "\uE713"));
+        list.Add(new("app:help", CoreStrings.Palette_Help, "", "F1", "\uE897"));
+        list.Add(new("app:whatsnew", CoreStrings.Palette_WhatsNew, "", "", "\uE789"));
+        list.Add(new("app:report", CoreStrings.Palette_ReportProblem, "", "", "\uE8BD"));
+        list.Add(new("app:about", CoreStrings.Palette_About, "", "", "\uE946"));
         for (var i = 0; i < printers.Count; i++)
-            if (i != selectedIndex) list.Add(new($"show:{i}", $"Show {printers[i]}", "Printers", "", "\uE749"));
+            if (i != selectedIndex) list.Add(new($"show:{i}", string.Format(CoreStrings.Palette_Show, printers[i]), CoreStrings.Palette_Printers, "", "\uE749"));
         if (every is not null)
             for (var i = 0; i < every.Count; i++)
                 if (i != selectedIndex)
@@ -74,7 +86,7 @@ public static class PrintPalette
                         list.Add(new($"on:{i}:{id}", $"{every[i].Name}: {name}", OtherPrinters, "", glyph));
         if (selected is { CanScan: true })
             for (var i = 0; i < presets.Count; i++)
-                list.Add(new($"preset:{i}", $"Scan with {presets[i]}", "Scan presets", i < 9 ? $"Ctrl+{i + 1}" : "", "\uE8FE"));
+                list.Add(new($"preset:{i}", string.Format(CoreStrings.Palette_ScanWith, presets[i]), CoreStrings.Palette_ScanPresets, i < 9 ? $"Ctrl+{i + 1}" : "", "\uE8FE"));
         return list;
     }
 
@@ -93,6 +105,6 @@ public static class PrintPalette
     {
         var q = query.Trim();
         var shown = q.Length > 40 ? q[..40] + "…" : q;
-        return $"Nothing matches “{shown}”. Try another word, a printer's name or a scan preset.";
+        return string.Format(CoreStrings.Palette_NoMatch, shown);
     }
 }

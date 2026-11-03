@@ -80,7 +80,7 @@ public sealed class VisibleWhenConverter : IValueConverter
 
 public sealed class PlusOneConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is int i ? $"Page {i + 1}" : "";
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is int i ? string.Format(Strings.Main_PageNumber, i + 1) : "";
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 

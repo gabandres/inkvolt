@@ -92,11 +92,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         WindowsQueue = queue;
         Sync(About, new InfoRow?[]
         {
-            new("Windows printer", queue.Name),
-            queue.DriverName is { Length: > 0 } driver ? new("Driver", driver) : null,
-            new("Connected via", QueueKinds.ConnectionDetail(queue)),
-            queue.Location is { Length: > 0 } where ? new("Location", where) : null,
-            queue.Comment is { Length: > 0 } comment ? new("Comment", comment) : null,
+            new(Strings.Printer_AboutWindowsPrinter, queue.Name),
+            queue.DriverName is { Length: > 0 } driver ? new(Strings.Printer_AboutDriver, driver) : null,
+            new(Strings.Printer_AboutConnectedVia, QueueKinds.ConnectionDetail(queue)),
+            queue.Location is { Length: > 0 } where ? new(Strings.Printer_AboutLocation, where) : null,
+            queue.Comment is { Length: > 0 } comment ? new(Strings.Printer_AboutComment, comment) : null,
         }.OfType<InfoRow>().ToList());
     }
 
@@ -115,9 +115,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Jobs.CanFix = false;
         Sync(About, new InfoRow?[]
         {
-            new("Windows scanner", scanner.Name),
-            scanner.Manufacturer is { Length: > 0 } maker ? new("Driver from", maker) : null,
-            scanner.ConnectionText is { } via ? new("Connected via", scanner.IsEscl ? $"{via} (Windows' eSCL driver)" : via) : null,
+            new(Strings.Printer_AboutWindowsScanner, scanner.Name),
+            scanner.Manufacturer is { Length: > 0 } maker ? new(Strings.Printer_AboutDriverFrom, maker) : null,
+            scanner.ConnectionText is { } via ? new(Strings.Printer_AboutConnectedVia, scanner.IsEscl ? string.Format(Strings.Printer_AboutViaWindowsEscl, via) : via) : null,
         }.OfType<InfoRow>().ToList());
     }
 
@@ -133,7 +133,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The icon when there's no product photo: a printer, or a scanner for a scanner on its own (Segoe Fluent Icons).</summary>
     public string Glyph => IsScannerOnly ? "" : "";
 
-    public string AboutTitle => IsScannerOnly ? "About this scanner" : "About this printer";
+    public string AboutTitle => IsScannerOnly ? Strings.Printer_AboutThisScanner : Strings.Printer_AboutThisPrinter;
 
     /// <summary>Print a PDF, Print photos and the print queue: every printer, not a scanner on its own.</summary>
     public bool CanPrint => !IsScannerOnly;
@@ -155,14 +155,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
     public string? StatusSourceNote => IsScannerOnly
-        ? "A scanner Windows has a driver for: Inkvolt Print scans with it through Windows (WIA). Scanners report no status " +
-          "this way, so a problem (no paper in the feeder, a jam) shows when you scan."
+        ? Strings.Printer_SourceWiaScanner
         : _queueSource is not { } source ? null
         : source.HasSupplyLevels
-        ? $"Status and supply levels from {source.Origin}. No settings or maintenance for this printer here" +
-          (_wia is null ? ", and no scanning." : "; it scans through Windows.")
-        : $"Status from {source.Origin}. That's less than Inkvolt Print reads from a printer it reaches over the network: " +
-          "no ink or toner levels, and problems only as the driver reports them." + (_wia is null ? "" : " Scanning goes through Windows too.");
+        ? string.Format(_wia is null ? Strings.Printer_SourceSuppliesNoScan : Strings.Printer_SourceSuppliesScansViaWindows, source.Origin)
+        : string.Format(_wia is null ? Strings.Printer_SourceStatusOnly : Strings.Printer_SourceStatusOnlyScansViaWindows, source.Origin);
 
     /// <summary>The address on the header: the network address, or for a queue printer how the PC reaches it ("USB").</summary>
     public string? Where => Host ?? (WindowsQueue is { } q ? QueueKinds.ConnectionText(q) : ScannerDevice?.ConnectionText);
@@ -334,7 +331,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             Log.Write($"[{Name}] the SNMP community couldn't be kept in Credential Manager: {ex.GetType().Name}");
-            Prompt.Tell("The community couldn't be kept in Windows Credential Manager, so it isn't used. Try again, or restart Windows.");
+            Prompt.Tell(Strings.Printer_SnmpCommunityNotKept);
             return;
         }
         Log.Write($"[{Name}] SNMP access changed ({chosen}); connecting again");
@@ -347,14 +344,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public partial bool IsSnmp { get; set; }
 
     public string? HpOnlyNote => IsSnmp
-        ? "This printer answers only SNMP (the standard printer management protocol), so Inkvolt Print reads its status, alerts and " +
-          "supply levels, but can't scan with it or change its settings. Change settings on the printer's web page or its control panel."
+        ? Strings.Printer_NoteSnmpOnly
         : IsCdm
-        ? "This newer HP printer uses HP's CDM interface: Inkvolt Print reads its status, supplies and details, but its settings, " +
-          "firmware updates and page counts aren't supported yet. Change settings on the printer's web page or its control panel."
+        ? Strings.Printer_NoteCdm
         : IsNonHp
-        ? "Printer settings, firmware updates and page counts use HP's own interface, so they're HP only. " +
-          "Change settings on the printer's web page or its control panel."
+        ? Strings.Printer_NoteNonHp
         : null;
 
     /// <summary>"Toner", "Ink", or "Supplies" when the printer reports a mix (drums, waste boxes…).</summary>
@@ -363,12 +357,12 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         get
         {
             if (Supplies.Count == 0 || Supplies.Any(s => s.Supply.IsWaste && s.Supply.Kind.Contains("toner", StringComparison.OrdinalIgnoreCase)))
-                return "Supplies";
+                return Strings.Printer_Supplies;
             var kinds = Supplies.Where(s => !s.Supply.IsWaste).Select(s => s.Supply.Kind).ToList();
             if (kinds.Count > 0 && kinds.All(k => k.Contains("toner", StringComparison.OrdinalIgnoreCase)) && kinds.Count == Supplies.Count)
-                return "Toner";
-            if (kinds.Count > 0 && kinds.All(k => k.Contains("ink", StringComparison.OrdinalIgnoreCase))) return "Ink";
-            return "Supplies";
+                return Strings.Printer_Toner;
+            if (kinds.Count > 0 && kinds.All(k => k.Contains("ink", StringComparison.OrdinalIgnoreCase))) return Strings.Printer_Ink;
+            return Strings.Printer_Supplies;
         }
     }
 
@@ -398,7 +392,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ListStatus))]
-    public partial string StatusMessage { get; set; } = "Connecting…";
+    public partial string StatusMessage { get; set; } = Strings.Printer_Connecting;
 
     /// <summary>The printer list's line: the state and, for a warning or error, its reason ("Ready · Yellow ink is low").</summary>
     public string ListStatus => IsOnline ? PrinterStatus.ListLine(StatusMessage, StatusSeverity, Alerts) : StatusMessage;
@@ -420,7 +414,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Toner and usage figures on screen are from before the printer went offline.</summary>
     public bool IsStale => !IsOnline && (Supplies.Count > 0 || Stats.Count > 0);
 
-    public string StaleSuffix => IsStale ? "  ·  last known" : "";
+    public string StaleSuffix => IsStale ? Strings.Printer_StaleSuffix : "";
 
     public ObservableCollection<PrinterAlert> Alerts { get; } = [];
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
@@ -682,7 +676,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             }
             if (QueueInstalled)
             {
-                SetupMessage = "Ready to print from any app.";
+                SetupMessage = Strings.Printer_ReadyToPrint;
                 Print.QueueChanged();
                 Copy.QueueChanged();
                 Photos.QueueChanged();
@@ -791,7 +785,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var read = await _queueSource!.ReadAsync(ct);
         if (read is null)
         {
-            SetOffline("Not found in Windows", "Windows no longer has this printer: it was probably removed or renamed in Settings.");
+            SetOffline(Strings.Printer_NotFoundInWindows, Strings.Printer_NotFoundInWindowsDetail);
             QueueMissing?.Invoke();
             return;
         }
@@ -867,15 +861,12 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Log.Write($"[{Name}] a different device answers at its address; not connecting"); // never the UUIDs or serial numbers themselves
         _foreignUuids = elsewhere.Uuids;
         _foreignSnmp = elsewhere.Snmp;
-        const string blocked = "Another device now answers at this printer's address, so Inkvolt Print doesn't scan or copy with it.";
+        var blocked = Strings.Printer_ElsewhereBlocked;
         Scan?.Detach(blocked);
         Copy.Detach(blocked);
         Settings = null;
         IsElsewhere = true;
-        SetOffline("A different device answers at this address",
-            $"Another device now has {Host}, so its status isn't shown here. The printer probably got a new address: " +
-            "Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset " +
-            "and this really is it, choose This is my printer.");
+        SetOffline(Strings.Printer_ElsewhereTitle, string.Format(Strings.Printer_ElsewhereDetail, Host));
     }
 
     /// <summary>"This is my printer": the device at the address is accepted as this printer from now on (its UUIDs remembered).</summary>
@@ -883,9 +874,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private void AcceptDevice()
     {
         if (!IsElsewhere || (_foreignUuids.Count == 0 && _foreignSnmp is null)) return;
-        if (!Prompt.Ask($"Use the device that now answers at {Host} as {Name}?\n\nOnly do this if it really is this printer, for example " +
-                        "after a repair, a reset or a new network board gave it a new ID. Otherwise it's another device that took the " +
-                        "printer's address, and Fix it… can find the printer.", "This is my printer"))
+        if (!Prompt.Ask(string.Format(Strings.Printer_AcceptDeviceQuestion, Host, Name), Strings.Printer_ThisIsMyPrinter))
             return;
         if (_foreignUuids.Count > 0) _state.AcceptUuids(Uuid, _foreignUuids);
         if (_foreignSnmp is { } snmp) SnmpDevice = SnmpDevice.From(snmp); // remembered when it connects (Attach)
@@ -909,13 +898,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _webPage = p.WebPage;
         Sync(About, new InfoRow?[]
         {
-            new("Model", p.Model ?? Model ?? Name),
-            new("IP address", Host ?? "—"),
-            p.Location is { } where ? new("Location", where) : null,
-            p.SerialNumber is { } sn ? new("Serial number", sn) : null,
-            p.Product?.ProductNumber is { } pn ? new("Product number", pn) : null,
-            p.Firmware is { } fw ? new("Firmware", fw.Display) : null,
-            new("Connected via", string.Join(", ", p.Interfaces)),
+            new(Strings.Printer_AboutModel, p.Model ?? Model ?? Name),
+            new(Strings.Printer_AboutIpAddress, Host ?? "—"),
+            p.Location is { } where ? new(Strings.Printer_AboutLocation, where) : null,
+            p.SerialNumber is { } sn ? new(Strings.Printer_AboutSerialNumber, sn) : null,
+            p.Product?.ProductNumber is { } pn ? new(Strings.Printer_AboutProductNumber, pn) : null,
+            p.Firmware is { } fw ? new(Strings.Printer_AboutFirmware, fw.Display) : null,
+            new(Strings.Printer_AboutConnectedVia, string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
         WatchFirmware(p.Firmware?.Display);
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
@@ -952,7 +941,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(StatusSourceNote));
         if (scanner is null || caps is null)
         {
-            Scan?.Detach("The scanner isn't connected now. Check that it's on and connected, then try again.");
+            Scan?.Detach(Strings.Printer_ScannerNotConnected);
             return;
         }
         if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
@@ -989,7 +978,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 IsConnecting = false;
                 IsOnline = true;
                 StatusSeverity = Severity.Info;
-                StatusMessage = "Ready to scan";
+                StatusMessage = Strings.Printer_ReadyToScan;
                 StatusDetail = null;
                 _lastReading = DateTimeOffset.Now;
             }
@@ -1003,9 +992,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 IsConnecting = false;
                 IsOnline = false;
                 StatusSeverity = Severity.Info;
-                StatusMessage = "Scanner not answering";
-                StatusDetail = (ex is OperationCanceledException ? "The scanner didn't answer in time." : WiaErrors.Message(WiaErrors.From(ex).Code, false)) +
-                               " Inkvolt Print tries again every 30 seconds.";
+                StatusMessage = Strings.Printer_ScannerNotAnswering;
+                StatusDetail = string.Format(Strings.Printer_ScannerRetries,
+                    ex is OperationCanceledException ? Strings.Printer_ScannerNoAnswerInTime : WiaErrors.Message(WiaErrors.From(ex).Code, false));
             }
         }
         finally
@@ -1067,10 +1056,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (reading.Usage is { } u)
             Sync(Stats, new InfoRow?[]
             {
-                u.TotalImpressions is { } t ? new($"{t:N0}", "pages printed") : null,
-                u.DuplexSheets is { } d ? new($"{d:N0}", "two-sided sheets") : null,
-                u.ScanImages is { } sc ? new($"{sc:N0}", "pages scanned") : null,
-                u.JamEvents is { } j ? new($"{j:N0}", "paper jams") : null,
+                u.TotalImpressions is { } t ? new($"{t:N0}", Strings.Printer_StatPagesPrinted) : null,
+                u.DuplexSheets is { } d ? new($"{d:N0}", Strings.Printer_StatTwoSidedSheets) : null,
+                u.ScanImages is { } sc ? new($"{sc:N0}", Strings.Printer_StatPagesScanned) : null,
+                u.JamEvents is { } j ? new($"{j:N0}", Strings.Printer_StatPaperJams) : null,
             }.OfType<InfoRow>().ToList());
         OnPropertyChanged(nameof(IsStale));
         OnPropertyChanged(nameof(StaleSuffix));
@@ -1086,13 +1075,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Under the notice: why it matters, and where to act on it.</summary>
     public string? FirmwareNoticeHint => FirmwareNotice is null ? null
         : Settings is not null
-            ? "If it came from HP, cartridges with non-HP chips may stop working. Keep my cartridges working, on the Printer settings tab, turns automatic updates off."
-            : "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings.";
+            ? Strings.Printer_FirmwareHintHp
+            : Strings.Printer_FirmwareHintOther;
 
     /// <summary>The notice's button: the Firmware card for an HP printer whose settings Inkvolt Print writes, else the web page.</summary>
     public string? FirmwareNoticeAction => FirmwareNotice is null ? null
-        : Settings is not null ? "Firmware settings"
-        : _pc.Browser is not null && Host is not null ? "Printer web page"
+        : Settings is not null ? Strings.Printer_FirmwareSettings
+        : _pc.Browser is not null && Host is not null ? Strings.Printer_WebPage
         : null;
 
     partial void OnSettingsChanged(SettingsViewModel? oldValue, SettingsViewModel? newValue)
@@ -1157,8 +1146,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SuppliesTitle));
     }
 
-    private void SetOffline() => SetOffline("Can't reach the printer",
-        $"Make sure it's turned on and connected to the same network as this PC{(Host is null ? "" : $" ({Host})")}. Inkvolt Print keeps trying in the background.");
+    private void SetOffline() => SetOffline(Strings.Printer_CantReach,
+        Host is null ? Strings.Printer_CantReachDetail : string.Format(Strings.Printer_CantReachDetailHost, Host));
 
     private void SetOffline(string message, string detail)
     {
@@ -1230,8 +1219,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             try { System.Windows.Clipboard.SetText(url); }
             catch (Exception ex) { Trace.WriteLine($"[{Name}] clipboard: {ex.Message}"); } // the message shows the address too
             Shell.Open("ms-settings:printers");
-            SetupMessage = "In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. " +
-                $"Pick “IPP Device” and paste {url} (it’s on the clipboard). Inkvolt Print notices the printer when it’s added.";
+            SetupMessage = string.Format(Strings.Printer_SetupInSettings, url);
             _watch?.Cancel();
             _watch = new CancellationTokenSource();
             _ = WatchForQueueAsync(_watch.Token);
@@ -1239,8 +1227,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         IsInstalling = true;
         SetupMessage = SetupNeedsAdmin
-            ? "Setting up… approve the Windows permission prompt to add the printer."
-            : "Setting up… Windows is adding the printer (about 30 seconds).";
+            ? Strings.Printer_SettingUpAdmin
+            : Strings.Printer_SettingUp;
         try
         {
             InstallResult print;
@@ -1260,7 +1248,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             {
                 _windowsQueue = true;
                 QueueInstalled = true;
-                SetupMessage = "Ready to print from any app.";
+                SetupMessage = Strings.Printer_ReadyToPrint;
                 Print.QueueChanged();
                 Copy.QueueChanged();
                 Photos.QueueChanged();
@@ -1276,7 +1264,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             Log.Write($"[{Name}] setup failed: {ex}");
-            SetupMessage = $"Setup failed: {ex.Message}";
+            SetupMessage = string.Format(Strings.Printer_SetupFailed, ex.Message);
         }
         finally
         {
@@ -1287,16 +1275,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Removes and re-creates this printer's Windows queue (pairing). Returns null on success.</summary>
     public async Task<string?> ReinstallQueueAsync()
     {
-        if (PrintEndpointId is not { } endpoint) return "not discovered on the network, so it can't be set up again automatically";
+        if (PrintEndpointId is not { } endpoint) return Strings.Printer_ReinstallNotDiscovered;
         // Removing the queue only to fail re-adding it would leave every app unable to print: only start when the
         // printer is awake and answering, and nothing is printing through Inkvolt Print.
-        if (!IsOnline) return "the printer isn't reachable right now. Turn it on, then use Set up";
-        if (Print.IsBusy) return "a print job is being sent. Try again when it's done";
+        if (!IsOnline) return Strings.Printer_ReinstallNotReachable;
+        if (Print.IsBusy) return Strings.Printer_ReinstallBusy;
         IsInstalling = true;
         Print.QueueBusy = Photos.QueueBusy = true; // no new jobs while the queue is being re-created
         try
         {
-            if (!await QueueInstaller.UninstallAsync(endpoint)) return "Windows didn't remove the old printer";
+            if (!await QueueInstaller.UninstallAsync(endpoint)) return Strings.Printer_ReinstallNotRemoved;
             InstallResult result = new(InstallOutcome.Failed, "not attempted");
             for (var attempt = 0; attempt < 3; attempt++)
             {
@@ -1310,7 +1298,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             Copy.QueueChanged();
             Photos.QueueChanged();
             Jobs.QueueChanged();
-            return _windowsQueue ? null : $"{result.Message} Use Set up on this printer to add it again.";
+            return _windowsQueue ? null : string.Format(Strings.Printer_ReinstallFailed, result.Message);
         }
         catch (Exception ex)
         {
@@ -1346,7 +1334,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         if (Scan is not { } scan || preset is null) return;
         if (IsElsewhere)
         {
-            Prompt.Tell($"Another device now answers at {Name}'s address, so \"{preset.Name}\" didn't scan. Use Fix it… on its Overview to find the printer.");
+            Prompt.Tell(string.Format(Strings.Printer_PresetElsewhere, Name, preset.Name));
             return;
         }
         SelectedSection = ScanSection;
@@ -1416,14 +1404,14 @@ public sealed record SupplyViewModel(Consumable Supply)
     /// <summary>"About 100 pages left", or the state when no estimate is available; null for a waste box with room left.</summary>
     public string? Headline => Supply.State switch
     {
-        "missing" => "Missing — install it",
-        "full" => "Replace now",
-        "almostFull" => "Replace soon",
-        "out" => "Empty — replace now",
+        "missing" => Strings.Printer_SupplyMissingInstall,
+        "full" => Strings.Printer_SupplyReplaceNow,
+        "almostFull" => Strings.Printer_SupplyReplaceSoon,
+        "out" => Strings.Printer_SupplyEmptyReplace,
         _ when Supply.IsWaste => null,
-        _ when Supply.EstimatedPagesRemaining is { } pages => $"About {pages:N0} pages left",
-        _ when Supply.IsLow => "Running low",
-        _ => "OK",
+        _ when Supply.EstimatedPagesRemaining is { } pages => string.Format(Strings.Printer_SupplyPagesLeft, pages),
+        _ when Supply.IsLow => Strings.Printer_SupplyRunningLow,
+        _ => Strings.Printer_SupplyOk,
     };
 
     /// <summary>From the supply history: days left and pages on this cartridge, or why there's no estimate yet; null: nothing to say.</summary>
@@ -1433,7 +1421,7 @@ public sealed record SupplyViewModel(Consumable Supply)
     {
         Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
         Supply.ProductNumber,
-    }.Where(s => s is not null)) is { Length: > 0 } c ? $"Replacement: {c}" : null;
+    }.Where(s => s is not null)) is { Length: > 0 } c ? string.Format(Strings.Printer_SupplyReplacement, c) : null;
 
     public string Level => Supply.State is "out" or "full" or "missing" ? "empty" : IsLow ? "low" : "ok";
 
@@ -1446,11 +1434,11 @@ public sealed record SupplyViewModel(Consumable Supply)
     /// <summary>The big figure: "45%", or for supplies without a level their state ("OK", "Almost full", "Full", "—").</summary>
     public string PercentText => Supply.PercentRemaining is { } p ? $"{p}%" : Supply.State switch
     {
-        "full" => "Full",
-        "almostFull" => "Almost full",
-        "out" => "Empty",
-        "missing" => "Missing",
-        "ok" => "OK",
+        "full" => Strings.Printer_SupplyFull,
+        "almostFull" => Strings.Printer_SupplyAlmostFull,
+        "out" => Strings.Printer_SupplyEmpty,
+        "missing" => Strings.Printer_SupplyMissing,
+        "ok" => Strings.Printer_SupplyOk,
         _ => "—",
     };
 

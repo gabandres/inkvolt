@@ -17,6 +17,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Using Include="System.Net.Http" />
+    <!-- Counts in sentences (Plural.Of, the shared library's): one and many from two resource strings -->
+    <Using Include="InkvoltPrint.Core.Plural" Alias="Plural" />
   </ItemGroup>
   <ItemGroup>
     <!-- The interface's text: Strings.resx in English (the neutral resources), Strings.es.resx in Spanish (a satellite,

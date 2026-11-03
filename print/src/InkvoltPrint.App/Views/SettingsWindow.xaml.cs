@@ -105,7 +105,7 @@ public partial class SettingsWindow : Window
 
     private void ChangeFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Save scans to", InitialDirectory = FolderText.Text };
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Strings.AppSettings_SaveScansTo, InitialDirectory = FolderText.Text };
         if (dialog.ShowDialog(this) != true) return;
         _vm.State.ScanFolder = FolderText.Text = dialog.FolderName;
         _vm.State.Save();
@@ -119,12 +119,11 @@ public partial class SettingsWindow : Window
     }
 
     private void Presets_Click(object sender, RoutedEventArgs e) =>
-        ScanPresetsDialog.Open(this, _vm.Presets, _vm.Selected?.Name ?? "this printer");
+        ScanPresetsDialog.Open(this, _vm.Presets, _vm.Selected?.Name ?? Strings.AppSettings_ThisPrinter);
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmDialog.Ask(this, "Put the theme, the scan folder, Inkvolt PDF and the notification area and alerts back to how they start? "
-                                     + "Your printers, presets and scans are kept.", "Reset")) return;
+        if (!ConfirmDialog.Ask(this, Strings.AppSettings_ResetQuestion, Strings.Common_Reset)) return;
         _vm.State.ResetPreferences();
         WindowFrame.ApplyTheme(null);
         if (_tray is not null)

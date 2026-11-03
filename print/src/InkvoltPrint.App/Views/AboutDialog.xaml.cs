@@ -15,7 +15,7 @@ public partial class AboutDialog : Window
     private AboutDialog()
     {
         InitializeComponent();
-        VersionText.Text = $"Version {AppVersion}";
+        VersionText.Text = string.Format(Strings.About_Version, AppVersion);
         if (AppPackage.IsPackaged) PackagedNote.Visibility = Visibility.Visible;
     }
 
@@ -39,9 +39,9 @@ public partial class AboutDialog : Window
 
     private void Source_Click(object sender, RoutedEventArgs e) => Shell.Open(SourceUrl);
 
-    private void License_Click(object sender, RoutedEventArgs e) => ShowText("License", "LICENSE");
+    private void License_Click(object sender, RoutedEventArgs e) => ShowText(Strings.About_License, "LICENSE");
 
-    private void Notices_Click(object sender, RoutedEventArgs e) => ShowText("Third-party notices", "THIRD-PARTY-NOTICES.md");
+    private void Notices_Click(object sender, RoutedEventArgs e) => ShowText(Strings.About_Notices, "THIRD-PARTY-NOTICES.md");
 
     private void ShowText(string title, string resource)
     {
@@ -54,7 +54,7 @@ public partial class AboutDialog : Window
         }
         catch (IOException ex)
         {
-            text = $"The text could not be loaded: {ex.Message}";
+            text = string.Format(Strings.About_TextNotLoaded, ex.Message);
         }
         var box = new TextBox
         {

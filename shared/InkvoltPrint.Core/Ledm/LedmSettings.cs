@@ -11,14 +11,19 @@ public enum SettingKind { Choice, Text, Integer }
 /// </summary>
 public sealed record LedmSettingDef(
     string Key,
-    string Label,
-    string Group,
     string DynResource,
     string CapResource,
     string[] Path,
     string CapElement,
     SettingKind Kind,
-    string[]? KeySiblings = null);
+    string[]? KeySiblings = null)
+{
+    /// <summary>The setting's name as shown (read at the moment of use: the interface's language is chosen at start-up).</summary>
+    public string Label => SettingText.Label(Key);
+
+    /// <summary>The heading the setting is shown under.</summary>
+    public string Group => SettingText.Group(Key);
+}
 
 public sealed record LedmSetting(LedmSettingDef Def, string Value, IReadOnlyList<string> Choices, int? MaxLength, int? Min, int? Max)
 {
@@ -33,19 +38,19 @@ public static class LedmSettingCatalog
 
     public static readonly IReadOnlyList<LedmSettingDef> All =
     [
-        new("FriendlyName", "Printer name", "General", Pc, PcCap, ["ProductSettings", "FriendlyName"], "FriendlyName", SettingKind.Text),
-        new("DeviceLocation", "Location", "General", Pc, PcCap, ["ProductSettings", "DeviceInformation", "DeviceLocation"], "DeviceLocation", SettingKind.Text),
-        new("PowerSaveTimeout", "Sleep after", "Power", Pc, PcCap, ["ProductSettings", "PowerSaveTimeout"], "PowerSaveTimerSupport", SettingKind.Choice),
-        new("ShutDownDelay", "Turn off after", "Power", Pc, PcCap, ["ProductSettings", "ShutDownDelay"], "ShutDownDelaySupport", SettingKind.Choice),
-        new("ShutDownDelayApply", "Delay turn-off while ports are active", "Power", Pc, PcCap, ["ProductSettings", "ShutDownDelayApply"], "ShutDownDelayApplySupport", SettingKind.Choice),
-        new("Duplex", "Print on both sides by default", "Printing", Pc, PcCap, ["ProductSettings", "Duplex"], "DuplexSupport", SettingKind.Choice),
-        new("DuplexBindingOption", "Two-sided binding", "Printing", Pc, PcCap, ["ProductSettings", "DuplexBindingOption"], "DuplexBindingOptionSupport", SettingKind.Choice),
-        new("ManualFeed", "Manual feed", "Printing", Pc, PcCap, ["ProductSettings", "ManualFeed"], "ManualFeedSupport", SettingKind.Choice),
-        new("DefaultPrintCopies", "Default copies", "Printing", Pr, PrCap, ["DefaultPrintCopies"], "DefaultPrintCopies", SettingKind.Integer),
-        new("AutoContinue", "Continue automatically after errors", "Printing", Pr, PrCap, ["AutoContinue"], "PrintOptionAutoContinueSupport", SettingKind.Choice),
-        new("MediaSizeName", "Tray paper size", "Paper", Mh, MhCap, ["InputTray", "MediaSizeName"], "MediaSizeNameSupport", SettingKind.Choice, ["InputBin"]),
-        new("MediaType", "Tray paper type", "Paper", Mh, MhCap, ["InputTray", "MediaType"], "MediaTypeSupport", SettingKind.Choice, ["InputBin"]),
-        new("MediaOutActionType", "When paper runs out", "Paper", Mh, MhCap, ["MediaHandlingInfo", "MediaOutActionType"], "MediaOutActionTypeSupport", SettingKind.Choice),
+        new("FriendlyName", Pc, PcCap, ["ProductSettings", "FriendlyName"], "FriendlyName", SettingKind.Text),
+        new("DeviceLocation", Pc, PcCap, ["ProductSettings", "DeviceInformation", "DeviceLocation"], "DeviceLocation", SettingKind.Text),
+        new("PowerSaveTimeout", Pc, PcCap, ["ProductSettings", "PowerSaveTimeout"], "PowerSaveTimerSupport", SettingKind.Choice),
+        new("ShutDownDelay", Pc, PcCap, ["ProductSettings", "ShutDownDelay"], "ShutDownDelaySupport", SettingKind.Choice),
+        new("ShutDownDelayApply", Pc, PcCap, ["ProductSettings", "ShutDownDelayApply"], "ShutDownDelayApplySupport", SettingKind.Choice),
+        new("Duplex", Pc, PcCap, ["ProductSettings", "Duplex"], "DuplexSupport", SettingKind.Choice),
+        new("DuplexBindingOption", Pc, PcCap, ["ProductSettings", "DuplexBindingOption"], "DuplexBindingOptionSupport", SettingKind.Choice),
+        new("ManualFeed", Pc, PcCap, ["ProductSettings", "ManualFeed"], "ManualFeedSupport", SettingKind.Choice),
+        new("DefaultPrintCopies", Pr, PrCap, ["DefaultPrintCopies"], "DefaultPrintCopies", SettingKind.Integer),
+        new("AutoContinue", Pr, PrCap, ["AutoContinue"], "PrintOptionAutoContinueSupport", SettingKind.Choice),
+        new("MediaSizeName", Mh, MhCap, ["InputTray", "MediaSizeName"], "MediaSizeNameSupport", SettingKind.Choice, ["InputBin"]),
+        new("MediaType", Mh, MhCap, ["InputTray", "MediaType"], "MediaTypeSupport", SettingKind.Choice, ["InputBin"]),
+        new("MediaOutActionType", Mh, MhCap, ["MediaHandlingInfo", "MediaOutActionType"], "MediaOutActionTypeSupport", SettingKind.Choice),
     ];
 
     /// <summary>Settings present in <paramref name="dyn"/> and marked readWrite in <paramref name="cap"/>.</summary>
@@ -113,15 +118,51 @@ public static class LedmSettingCatalog
 
 public static class SettingText
 {
+    public static string Label(string key) => key switch
+    {
+        "FriendlyName" => CoreStrings.Ledm_Setting_PrinterName,
+        "DeviceLocation" => CoreStrings.Ledm_Setting_Location,
+        "PowerSaveTimeout" => CoreStrings.Ledm_Setting_SleepAfter,
+        "ShutDownDelay" => CoreStrings.Ledm_Setting_TurnOffAfter,
+        "ShutDownDelayApply" => CoreStrings.Ledm_Setting_DelayTurnOff,
+        "Duplex" => CoreStrings.Ledm_Setting_DuplexDefault,
+        "DuplexBindingOption" => CoreStrings.Ledm_Setting_TwoSidedBinding,
+        "ManualFeed" => CoreStrings.Ledm_Setting_ManualFeed,
+        "DefaultPrintCopies" => CoreStrings.Ledm_Setting_DefaultCopies,
+        "AutoContinue" => CoreStrings.Ledm_Setting_AutoContinue,
+        "MediaSizeName" => CoreStrings.Ledm_Setting_TrayPaperSize,
+        "MediaType" => CoreStrings.Ledm_Setting_TrayPaperType,
+        "MediaOutActionType" => CoreStrings.Ledm_Setting_PaperRunsOut,
+        _ => key,
+    };
+
+    public static string Group(string key) => key switch
+    {
+        "FriendlyName" => CoreStrings.Ledm_Group_General,
+        "DeviceLocation" => CoreStrings.Ledm_Group_General,
+        "PowerSaveTimeout" => CoreStrings.Ledm_Group_Power,
+        "ShutDownDelay" => CoreStrings.Ledm_Group_Power,
+        "ShutDownDelayApply" => CoreStrings.Ledm_Group_Power,
+        "Duplex" => CoreStrings.Ledm_Group_Printing,
+        "DuplexBindingOption" => CoreStrings.Ledm_Group_Printing,
+        "ManualFeed" => CoreStrings.Ledm_Group_Printing,
+        "DefaultPrintCopies" => CoreStrings.Ledm_Group_Printing,
+        "AutoContinue" => CoreStrings.Ledm_Group_Printing,
+        "MediaSizeName" => CoreStrings.Ledm_Group_Paper,
+        "MediaType" => CoreStrings.Ledm_Group_Paper,
+        "MediaOutActionType" => CoreStrings.Ledm_Group_Paper,
+        _ => "",
+    };
+
     public static string Display(string key, string value) => (key, value) switch
     {
-        (_, "enabled" or "on" or "true") => "On",
-        (_, "disabled" or "off" or "false") => "Off",
-        (_, "never") => "Never",
-        (_, "longEdge") => "Long edge",
-        (_, "shortEdge") => "Short edge",
-        (_, "any") => "Any size",
-        (_, "auto") => "Automatic",
+        (_, "enabled" or "on" or "true") => CoreStrings.Ledm_On,
+        (_, "disabled" or "off" or "false") => CoreStrings.Ledm_Off,
+        (_, "never") => CoreStrings.Ledm_Never,
+        (_, "longEdge") => CoreStrings.Ledm_LongEdge,
+        (_, "shortEdge") => CoreStrings.Ledm_ShortEdge,
+        (_, "any") => CoreStrings.Ledm_AnySize,
+        (_, "auto") => CoreStrings.Ledm_Automatic,
         ("MediaSizeName", _) => MediaSize(value),
         _ => Duration(value) ?? StatusText.Humanize(value),
     };
@@ -134,7 +175,17 @@ public static class SettingText
         while (i < t.Length && char.IsDigit(t[i])) i++;
         if (i == 0 || i == t.Length) return null;
         var unit = t[i..].Trim();
-        return unit is "minute" or "minutes" or "hour" or "hours" or "second" or "seconds" ? $"{t[..i]} {unit}" : null;
+        var format = unit switch
+        {
+            "minute" => CoreStrings.Ledm_Minute,
+            "minutes" => CoreStrings.Ledm_Minutes,
+            "hour" => CoreStrings.Ledm_Hour,
+            "hours" => CoreStrings.Ledm_Hours,
+            "second" => CoreStrings.Ledm_Second,
+            "seconds" => CoreStrings.Ledm_Seconds,
+            _ => null,
+        };
+        return format is null ? null : string.Format(format, t[..i]);
     }
 
     // PWG self-describing names: "na_letter_8.5x11in" → "Letter (8.5x11in)"

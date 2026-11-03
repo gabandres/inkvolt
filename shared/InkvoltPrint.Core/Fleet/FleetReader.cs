@@ -74,9 +74,9 @@ public static class FleetReader
         using var gate = new SemaphoreSlim(AtOnce);
         var reads = new List<Task<FleetPrinter>>();
         foreach (var p in remembered.Printers)
-            reads.Add(BoundedAsync(() => Silent(p, pc, "It didn't answer in time"), c => ReadNetworkAsync(p, pc, now, c), gate, each, ct));
+            reads.Add(BoundedAsync(() => Silent(p, pc, CoreStrings.Fleet_NoAnswerInTime), c => ReadNetworkAsync(p, pc, now, c), gate, each, ct));
         foreach (var q in change.AddedQueues)
-            reads.Add(BoundedAsync(() => SilentQueue(q, "It didn't answer in time"), c => ReadQueueAsync(q, pc, now, c), gate, each, ct));
+            reads.Add(BoundedAsync(() => SilentQueue(q, CoreStrings.Fleet_NoAnswerInTime), c => ReadQueueAsync(q, pc, now, c), gate, each, ct));
         foreach (var d in change.AddedScanners)
             reads.Add(BoundedAsync(() => SilentScanner(d), c => ReadScannerAsync(d, pc, now, c), gate, each, ct));
         return new FleetRead(FleetOrder.Sort(await Task.WhenAll(reads).ConfigureAwait(false)), notes);
@@ -112,7 +112,7 @@ public static class FleetReader
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return FleetPrinter.Of(silent() with { Status = PrinterStatus.Offline("Inkvolt Print couldn't read it") });
+            return FleetPrinter.Of(silent() with { Status = PrinterStatus.Offline(CoreStrings.Fleet_CouldntRead) });
         }
         finally
         {
@@ -127,9 +127,9 @@ public static class FleetReader
         var where = new PrinterWhere(p.Host, p.EsclRoot, p.IppUri, p.Snmp);
         var step = await session.ConnectAsync(where, ct).ConfigureAwait(false);
         if (step is SessionStep.Elsewhere) return Elsewhere(p);
-        if (step is not SessionStep.Connected { Connection: var conn }) return Silent(p, pc, "Can't reach the printer");
+        if (step is not SessionStep.Connected { Connection: var conn }) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         if (await session.ReadAsync(where, ct).ConfigureAwait(false) is not SessionStep.Read { Reading: var reading }) return Elsewhere(p);
-        if (reading.IsOffline) return Silent(p, pc, "Can't reach the printer");
+        if (reading.IsOffline) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         var known = reading.Supplies is null || reading.Usage is null ? Known(p.Uuid, pc) : null;
         return new FleetFacts(p.Uuid, conn.Probe.Product?.MakeAndModel ?? p.Name, FleetKind.Network)
         {
@@ -151,7 +151,7 @@ public static class FleetReader
     {
         Model = p.Model,
         Reachable = false,
-        Status = PrinterStatus.Offline("A different device answers at this address"),
+        Status = PrinterStatus.Offline(CoreStrings.Fleet_DifferentDevice),
     };
 
     private static FleetFacts Silent(InkvoltPrinter p, IFleetPc pc, string why)
@@ -175,7 +175,7 @@ public static class FleetReader
     private static async Task<FleetFacts> ReadQueueAsync(SpoolerQueue q, IFleetPc pc, DateTimeOffset now, CancellationToken ct)
     {
         var read = await pc.QueueStatus(q).ReadAsync(ct).ConfigureAwait(false);
-        if (read is null) return SilentQueue(q, "Not found in Windows");
+        if (read is null) return SilentQueue(q, CoreStrings.Fleet_NotFoundInWindows);
         return Queue(q) with
         {
             Reachable = !read.Offline,
@@ -215,10 +215,10 @@ public static class FleetReader
         {
             return SilentScanner(d);
         }
-        return Scanner(d) with { Reachable = true, Status = new PrinterStatus("ready", "Ready to scan", Severity.Info, []), LastReading = now };
+        return Scanner(d) with { Reachable = true, Status = new PrinterStatus("ready", CoreStrings.Fleet_ReadyToScan, Severity.Info, []), LastReading = now };
     }
 
-    private static FleetFacts SilentScanner(WiaDeviceInfo d) => Scanner(d) with { Reachable = false, Status = PrinterStatus.Offline("Scanner not answering") };
+    private static FleetFacts SilentScanner(WiaDeviceInfo d) => Scanner(d) with { Reachable = false, Status = PrinterStatus.Offline(CoreStrings.Fleet_ScannerNotAnswering) };
 
     private static FleetFacts Scanner(WiaDeviceInfo d) => new(PrinterList.ScannerIdFor(d.Id), d.Name, FleetKind.Scanner)
     {

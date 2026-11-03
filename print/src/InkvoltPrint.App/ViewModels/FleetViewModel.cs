@@ -135,10 +135,10 @@ public sealed partial class FleetViewModel : ObservableObject
         }
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "Export the fleet",
+            Title = Strings.Fleet_ExportTitle,
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            FileName = $"Fleet {DateTime.Now:yyyy-MM-dd}",
-            Filter = "CSV file (*.csv)|*.csv|JSON file (*.json)|*.json",
+            FileName = string.Format(Strings.Fleet_ExportFileName, DateTime.Now),
+            Filter = Strings.Fleet_ExportFilter,
             AddExtension = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -161,14 +161,14 @@ public sealed partial class FleetViewModel : ObservableObject
                 if (json) File.WriteAllText(path, FleetExport.Json(printers, [], now, who), new UTF8Encoding(false));
                 else File.WriteAllText(path, FleetExport.Csv(printers, now, who), new UTF8Encoding(true));
             });
-            ExportMessage = $"Saved {Path.GetFileName(path)}.";
+            ExportMessage = string.Format(Strings.Fleet_Saved, Path.GetFileName(path));
             Prompt.Announce(ExportMessage);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Fleet export failed: {ex.Message}");
             ExportMessage = null;
-            Prompt.Tell($"Could not save the fleet: {ex.Message}");
+            Prompt.Tell(string.Format(Strings.Fleet_CouldNotSave, ex.Message));
         }
     }
 
@@ -186,12 +186,12 @@ public sealed partial class FleetViewModel : ObservableObject
         IsFixing = true;
         FixSteps.Clear();
         FixLeft.Clear();
-        FixSummary = "Looking at every queue…";
+        FixSummary = Strings.Fleet_LookingAtQueues;
         using var stop = _fixing = new CancellationTokenSource();
         var dispatcher = Dispatcher.CurrentDispatcher;
         var devices = _main.Printers.Select(p => p.FleetFixDevice).OfType<OfflineDevice>().ToList();
         var probes = _pc.OfflineProbes;
-        var repairs = _pc.OfflineRepairs(() => Task.FromResult<string?>("Fix all doesn't set printers up again.")); // not a safe repair: never asked for
+        var repairs = _pc.OfflineRepairs(() => Task.FromResult<string?>(Strings.Fleet_NoSetUpAgain)); // not a safe repair: never asked for
         var progress = new Progress<FixAllStep>(FixSteps.Add);
         try
         {
@@ -203,12 +203,12 @@ public sealed partial class FleetViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            FixSummary = "Stopped: the rest wasn't changed.";
+            FixSummary = Strings.Fleet_Stopped;
         }
         catch (Exception ex)
         {
             Log.Write($"Fix all: {ex}");
-            FixSummary = $"Fix all didn't finish: {ex.Message}";
+            FixSummary = string.Format(Strings.Fleet_FixAllFailed, ex.Message);
         }
         finally
         {
@@ -257,8 +257,8 @@ public sealed partial class FleetRowViewModel(string id, FleetRow row, FleetView
     public bool CanFix => (Row.Printer.Trouble is FleetTrouble.Error or FleetTrouble.Offline
                            || (Row.Printer.Trouble == FleetTrouble.Warning && Row.Printer.Kind == FleetKind.Queue)) && owner.CanFix(Id);
 
-    public string OpenName => $"Open {Row.Printer.Name}";
-    public string FixName => $"Fix {Row.Printer.Name}";
+    public string OpenName => string.Format(Strings.Fleet_OpenName, Row.Printer.Name);
+    public string FixName => string.Format(Strings.Fleet_FixName, Row.Printer.Name);
 
     [RelayCommand]
     private void Open() => owner.Open(Id);

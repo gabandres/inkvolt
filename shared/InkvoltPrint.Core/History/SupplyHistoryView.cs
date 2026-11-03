@@ -31,6 +31,6 @@ public sealed record SupplyHistoryView(SupplyChartData Chart, IReadOnlyDictionar
     public string? ChartNote(IReadOnlyList<Consumable> supplies) =>
         Chart.HasEnoughToDraw ? null
         : supplies.Any(s => !s.IsWaste && s.PercentRemaining is >= 0 and <= 100)
-            ? "The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this PC."
+            ? CoreStrings.History_ChartNote
             : null;
 }

@@ -54,7 +54,7 @@ public sealed record BatchFolderSummary(int Sent, int Failed, int SheetsSent, st
 
 /// <summary>The folder is watched already (by the app or a command line): two watchers would race for its files.</summary>
 public sealed class BatchFolderBusyException(string folder)
-    : IOException($"{BatchPrintText.Clean(folder)} is already watched (by Inkvolt Print or Inkvolt PDF, the app or a command line). Stop that one first.");
+    : IOException(string.Format(CoreStrings.Batch_FolderWatched, BatchPrintText.Clean(folder)));
 
 /// <summary>
 /// A folder printed as it fills: each PDF or picture that lands at its top is printed once when it's complete, then the original
@@ -71,8 +71,8 @@ public static class BatchPrintFolder
     /// <summary>What is wrong with watching this folder, or null.</summary>
     public static string? Validate(string folder)
     {
-        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return "Choose the folder to watch.";
-        return Directory.Exists(folder) ? null : $"There is no folder {BatchPrintText.Clean(folder)}.";
+        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return CoreStrings.Batch_ChooseFolder;
+        return Directory.Exists(folder) ? null : string.Format(CoreStrings.Batch_NoFolder, BatchPrintText.Clean(folder));
     }
 
     /// <summary>The printable files already at the top of the folder: those would print as soon as the watch starts.</summary>
@@ -101,7 +101,7 @@ public static class BatchPrintFolder
         foreach (var left in Directory.EnumerateFiles(working).Order(NaturalOrder.Instance))
         {
             var entry = Finish(folder, left, Path.GetFileName(left), BatchPrintState.Failed,
-                "Interrupted: Inkvolt Print closed while sending it, so it may have printed. Put it back in the folder to print it again.", 0);
+                CoreStrings.Batch_Interrupted, 0);
             progress?.Report(new BatchFolderProgress(entry));
             failed++;
         }
@@ -126,7 +126,7 @@ public static class BatchPrintFolder
                 }
                 catch (TimeoutException)
                 {
-                    problem = "Windows doesn't answer about the printer.";
+                    problem = CoreStrings.Batch_WindowsNoAnswer;
                 }
                 catch (OperationCanceledException)
                 {
@@ -155,7 +155,7 @@ public static class BatchPrintFolder
                         if (cutOff)
                         {
                             var entry = Finish(folder, moved, Path.GetFileName(path), BatchPrintState.Failed,
-                                "It reads as cut off and hasn't changed since. Not printed: if it is whole, print it from Print > Batch.", 0);
+                                CoreStrings.Batch_CutOff, 0);
                             progress?.Report(new BatchFolderProgress(entry));
                             failed++;
                             continue;
@@ -206,15 +206,15 @@ public static class BatchPrintFolder
         {
             var info = await queue.ReadAsync(cancel).ConfigureAwait(false);
             if (info is null)
-                return (Finish(folder, path, name, BatchPrintState.Stopped, "Not sent: this printer has no queue now. It's back in the folder.", 0, back: true), new Halt("This printer has no queue now.", true));
+                return (Finish(folder, path, name, BatchPrintState.Stopped, CoreStrings.Batch_NoQueueBack, 0, back: true), new Halt(CoreStrings.Batch_NoQueue, true));
             var measure = await BatchMeasurer.MeasureAsync(path, options.Password, documents, null, options.Print, cancel).ConfigureAwait(false);
             var line = new BatchPrintLine(path, options.Settings, measure, info);
             if (line.Problem is null && line.Sheets > options.MaxSheets)
-                return (Finish(folder, path, name, BatchPrintState.Failed, $"It would print {BatchPrintText.Sheets(line.Sheets)}, more than the {options.MaxSheets:N0} a run may send. Not printed.", 0), null);
+                return (Finish(folder, path, name, BatchPrintState.Failed, string.Format(CoreStrings.Batch_OverRunLimit, BatchPrintText.Sheets(line.Sheets), options.MaxSheets), 0), null);
             if (line.Problem is null && sheetsSoFar + line.Sheets > options.MaxSheets)
             {
-                var why = $"This run has sent {BatchPrintText.Sheets(sheetsSoFar)}, and the next file would pass the {options.MaxSheets:N0} it may send.";
-                return (Finish(folder, path, name, BatchPrintState.Stopped, "Not sent: the run's limit of sheets. It's back in the folder.", 0, back: true), new Halt(why, true));
+                var why = string.Format(CoreStrings.Batch_RunLimitReached, BatchPrintText.Sheets(sheetsSoFar), options.MaxSheets);
+                return (Finish(folder, path, name, BatchPrintState.Stopped, CoreStrings.Batch_RunLimitBack, 0, back: true), new Halt(why, true));
             }
             var summary = await BatchPrintRunner.RunAsync([line], queue, documents, options.Print, null, cancel).ConfigureAwait(false);
             result = summary.Items[0];
@@ -224,15 +224,15 @@ public static class BatchPrintFolder
         }
         catch (OperationCanceledException)
         {
-            return (Finish(folder, path, name, BatchPrintState.Stopped, "Stopped before it was sent: it's back in the folder for next time.", 0, back: true), null);
+            return (Finish(folder, path, name, BatchPrintState.Stopped, CoreStrings.Batch_StoppedBack, 0, back: true), null);
         }
         catch (Exception ex)
         {
             // Asking the printer what it takes failed: nothing was sent.
-            return (Finish(folder, path, name, BatchPrintState.Stopped, "Not sent: the printer can't be read. It's back in the folder for next time.", 0, back: true), new Halt(ex.Message, false));
+            return (Finish(folder, path, name, BatchPrintState.Stopped, CoreStrings.Batch_CantReadPrinterBack, 0, back: true), new Halt(ex.Message, false));
         }
         if (back)
-            return (Finish(folder, path, name, BatchPrintState.Stopped, $"Not sent: {stopReason} It's back in the folder for next time.", 0, back: true),
+            return (Finish(folder, path, name, BatchPrintState.Stopped, string.Format(CoreStrings.Batch_NotSentBack, stopReason), 0, back: true),
                 stopReason is null ? null : new Halt(stopReason, false));
         var state = result.State == BatchPrintState.Sent ? BatchPrintState.Sent : BatchPrintState.Failed;
         return (Finish(folder, path, name, state, result.Message, result.SheetsSent),
@@ -244,7 +244,7 @@ public static class BatchPrintFolder
     {
         var target = back ? folder : Path.Combine(folder, state == BatchPrintState.Sent ? DropFolder.DoneFolder : DropFolder.FailedFolder);
         var moved = DropFolder.MoveTo(path, target, name);
-        if (moved is null && File.Exists(path)) message += $" (the original stays in {DropFolder.WorkingFolder}: it couldn't be moved)";
+        if (moved is null && File.Exists(path)) message = string.Format(CoreStrings.Batch_OriginalStays, message, DropFolder.WorkingFolder);
         var entry = new BatchFolderEntry(DateTime.Now, name, state, message, sheets, moved);
         DropFolder.AppendLog(Path.Combine(folder, LogName), entry.LogLine);
         return entry;

@@ -9,63 +9,66 @@ namespace InkvoltPrint.Core.Ipp;
 /// </summary>
 public static class IppStatusText
 {
-    private static readonly Dictionary<string, string> Known = new(StringComparer.Ordinal)
+    // Read at the moment of use: the interface's language is chosen at start-up.
+    private static string? KnownText(string reason) => reason switch
     {
-        ["media-empty"] = "Out of paper",
-        ["media-needed"] = "Load paper",
-        ["media-low"] = "Paper low",
-        ["media-jam"] = "Paper jam",
-        ["media-path-jam"] = "Paper jam",
-        ["input-tray-missing"] = "Paper tray missing",
-        ["output-tray-missing"] = "Output tray missing",
-        ["output-area-almost-full"] = "Output tray almost full",
-        ["output-area-full"] = "Output tray full",
-        ["cover-open"] = "A cover is open",
-        ["door-open"] = "A door is open",
-        ["interlock-open"] = "A cover is open",
-        ["toner-low"] = "Toner low",
-        ["toner-empty"] = "Toner empty",
-        ["marker-supply-low"] = "Ink or toner low",
-        ["marker-supply-empty"] = "Ink or toner empty",
-        ["marker-supply-missing"] = "Cartridge missing",
-        ["marker-waste-almost-full"] = "Waste ink or toner box almost full",
-        ["marker-waste-full"] = "Waste ink or toner box full",
-        ["marker-waste-ink-receptacle-almost-full"] = "Maintenance box almost full",
-        ["marker-waste-ink-receptacle-full"] = "Maintenance box full",
-        ["marker-waste-toner-receptacle-almost-full"] = "Waste toner box almost full",
-        ["marker-waste-toner-receptacle-full"] = "Waste toner box full",
-        ["developer-low"] = "Developer low",
-        ["developer-empty"] = "Developer empty",
-        ["opc-near-eol"] = "Drum nearly worn out",
-        ["opc-life-over"] = "Replace the drum",
-        ["fuser-over-temp"] = "Fuser too hot",
-        ["fuser-under-temp"] = "Fuser warming up",
-        ["paused"] = "Paused",
-        ["moving-to-paused"] = "Pausing",
-        ["shutdown"] = "Shutting down",
-        ["stopping"] = "Stopping",
-        ["stopped-partly"] = "Partly stopped",
-        ["spool-area-full"] = "Printer memory full",
-        ["interpreter-resource-unavailable"] = "Printer resource unavailable",
-        ["timed-out"] = "Timed out",
-        ["connecting-to-device"] = "Connecting",
-        ["identify-printer-requested"] = "Identifying itself",
-        ["offline"] = "Offline",
-        ["deactivated"] = "Turned off by an administrator",
+        "media-empty" => CoreStrings.Status_OutOfPaper,
+        "media-needed" => CoreStrings.Status_LoadPaper,
+        "media-low" => CoreStrings.Status_PaperLow,
+        "media-jam" => CoreStrings.Status_PaperJam,
+        "media-path-jam" => CoreStrings.Status_PaperJam,
+        "input-tray-missing" => CoreStrings.Status_PaperTrayMissing,
+        "output-tray-missing" => CoreStrings.Status_OutputTrayMissing,
+        "output-area-almost-full" => CoreStrings.Status_OutputTrayAlmostFull,
+        "output-area-full" => CoreStrings.Status_OutputTrayFull,
+        "cover-open" => CoreStrings.Status_CoverOpen,
+        "door-open" => CoreStrings.Status_DoorOpen,
+        "interlock-open" => CoreStrings.Status_CoverOpen,
+        "toner-low" => CoreStrings.Status_TonerLow,
+        "toner-empty" => CoreStrings.Status_TonerEmpty,
+        "marker-supply-low" => CoreStrings.Status_InkOrTonerLow,
+        "marker-supply-empty" => CoreStrings.Status_InkOrTonerEmpty,
+        "marker-supply-missing" => CoreStrings.Status_CartridgeMissing,
+        "marker-waste-almost-full" => CoreStrings.Status_WasteBoxAlmostFull,
+        "marker-waste-full" => CoreStrings.Status_WasteBoxFull,
+        "marker-waste-ink-receptacle-almost-full" => CoreStrings.Status_MaintenanceBoxAlmostFull,
+        "marker-waste-ink-receptacle-full" => CoreStrings.Status_MaintenanceBoxFull,
+        "marker-waste-toner-receptacle-almost-full" => CoreStrings.Status_WasteTonerBoxAlmostFull,
+        "marker-waste-toner-receptacle-full" => CoreStrings.Status_WasteTonerBoxFull,
+        "developer-low" => CoreStrings.Status_DeveloperLow,
+        "developer-empty" => CoreStrings.Status_DeveloperEmpty,
+        "opc-near-eol" => CoreStrings.Status_DrumNearlyWornOut,
+        "opc-life-over" => CoreStrings.Status_ReplaceDrum,
+        "fuser-over-temp" => CoreStrings.Status_FuserTooHot,
+        "fuser-under-temp" => CoreStrings.Status_FuserWarmingUp,
+        "paused" => CoreStrings.Status_Paused,
+        "moving-to-paused" => CoreStrings.Status_Pausing,
+        "shutdown" => CoreStrings.Status_ShuttingDown,
+        "stopping" => CoreStrings.Status_Stopping,
+        "stopped-partly" => CoreStrings.Status_PartlyStopped,
+        "spool-area-full" => CoreStrings.Status_PrinterMemoryFull,
+        "interpreter-resource-unavailable" => CoreStrings.Status_PrinterResourceUnavailable,
+        "timed-out" => CoreStrings.Status_TimedOut,
+        "connecting-to-device" => CoreStrings.Status_Connecting,
+        "identify-printer-requested" => CoreStrings.Status_IdentifyingItself,
+        "offline" => CoreStrings.Status_Offline,
+        "deactivated" => CoreStrings.Status_Deactivated,
+        _ => null,
     };
 
-    private static readonly Dictionary<string, string> Details = new(StringComparer.Ordinal)
+    private static string? Details(string reason) => reason switch
     {
-        ["media-empty"] = "Load paper into the tray.",
-        ["media-needed"] = "Load the paper the printer asks for, then press OK on the printer if it asks.",
-        ["media-jam"] = "Open the covers the printer's screen points to and gently pull out the jammed paper.",
-        ["cover-open"] = "Close it to continue.",
-        ["door-open"] = "Close it to continue.",
-        ["toner-empty"] = "Replace the toner cartridge to keep printing.",
-        ["marker-supply-empty"] = "Replace or refill the empty cartridge or ink tank to keep printing.",
-        ["marker-waste-full"] = "Replace the waste ink or toner box (on inkjets: the maintenance box) to keep printing.",
-        ["marker-waste-ink-receptacle-full"] = "Replace the maintenance box to keep printing.",
-        ["opc-life-over"] = "The drum unit has reached the end of its life. Replace it to keep printing well.",
+        "media-empty" => CoreStrings.Status_MediaEmpty_Detail,
+        "media-needed" => CoreStrings.Status_MediaNeeded_Detail,
+        "media-jam" => CoreStrings.Status_MediaJam_Detail,
+        "cover-open" => CoreStrings.Status_CloseItToContinue,
+        "door-open" => CoreStrings.Status_CloseItToContinue,
+        "toner-empty" => CoreStrings.Status_TonerEmpty_Detail,
+        "marker-supply-empty" => CoreStrings.Status_SupplyEmpty_Detail,
+        "marker-waste-full" => CoreStrings.Status_WasteFull_Detail,
+        "marker-waste-ink-receptacle-full" => CoreStrings.Status_MaintenanceBoxFull_Detail,
+        "opc-life-over" => CoreStrings.Status_ReplaceDrum_Detail,
+        _ => null,
     };
 
     /// <summary>Reasons that are warnings by nature: a reason sent without a severity suffix is an error per RFC 8011, except these.</summary>
@@ -110,10 +113,10 @@ public static class IppStatusText
         ["interpreterResourceUnavailable"] = "interpreter-resource-unavailable",
     };
 
-    public static string Describe(string reason) => Known.TryGetValue(reason, out var t) ? t : Ledm.StatusText.Humanize(reason);
+    public static string Describe(string reason) => KnownText(reason) ?? Ledm.StatusText.Humanize(reason);
 
     /// <summary>One plain sentence on what to do; null when the title says it all.</summary>
-    public static string? Explain(string reason) => Details.GetValueOrDefault(reason);
+    public static string? Explain(string reason) => Details(reason);
 
     /// <summary>Severity of a reason keyword without its suffix.</summary>
     public static Severity DefaultSeverity(string reason) => Warnings.Contains(reason) ? Severity.Warning : Severity.Error;

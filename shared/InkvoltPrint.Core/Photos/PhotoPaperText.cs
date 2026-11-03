@@ -9,25 +9,26 @@ namespace InkvoltPrint.Core.Photos;
 /// </summary>
 public static class PhotoPaperText
 {
-    private static readonly (double W, double H, string Name)[] Known =
+    // The names are read at the moment of use (the interface's language is chosen at start-up).
+    private static readonly (double W, double H, Func<string> Name)[] Known =
     [
-        (8.5, 11, "Letter (8.5 × 11 in)"),
-        (8.5, 14, "Legal (8.5 × 14 in)"),
-        (11, 17, "Tabloid (11 × 17 in)"),
-        (7.25, 10.5, "Executive (7.25 × 10.5 in)"),
-        (210 / 25.4, 297 / 25.4, "A4 (21 × 29.7 cm)"),
-        (148 / 25.4, 210 / 25.4, "A5 (14.8 × 21 cm)"),
-        (105 / 25.4, 148 / 25.4, "A6 (10.5 × 14.8 cm)"),
-        (297 / 25.4, 420 / 25.4, "A3 (29.7 × 42 cm)"),
-        (182 / 25.4, 257 / 25.4, "B5 (18.2 × 25.7 cm)"),
-        (100 / 25.4, 148 / 25.4, "Hagaki postcard (10 × 14.8 cm)"),
-        (3.5, 5, "3.5 × 5 in photo"),
-        (4, 6, "4 × 6 in photo"),
-        (5, 7, "5 × 7 in photo"),
-        (8, 10, "8 × 10 in photo"),
-        (100 / 25.4, 150 / 25.4, "10 × 15 cm photo"),
-        (130 / 25.4, 180 / 25.4, "13 × 18 cm photo"),
-        (5, 8, "5 × 8 in"),
+        (8.5, 11, () => CoreStrings.Photo_PaperLetter),
+        (8.5, 14, () => CoreStrings.Photo_PaperLegal),
+        (11, 17, () => CoreStrings.Photo_PaperTabloid),
+        (7.25, 10.5, () => CoreStrings.Photo_PaperExecutive),
+        (210 / 25.4, 297 / 25.4, () => "A4 (21 × 29.7 cm)"),
+        (148 / 25.4, 210 / 25.4, () => "A5 (14.8 × 21 cm)"),
+        (105 / 25.4, 148 / 25.4, () => "A6 (10.5 × 14.8 cm)"),
+        (297 / 25.4, 420 / 25.4, () => "A3 (29.7 × 42 cm)"),
+        (182 / 25.4, 257 / 25.4, () => "B5 (18.2 × 25.7 cm)"),
+        (100 / 25.4, 148 / 25.4, () => CoreStrings.Photo_PaperHagaki),
+        (3.5, 5, () => CoreStrings.Photo_Paper3x5),
+        (4, 6, () => CoreStrings.Photo_Paper4x6),
+        (5, 7, () => CoreStrings.Photo_Paper5x7),
+        (8, 10, () => CoreStrings.Photo_Paper8x10),
+        (100 / 25.4, 150 / 25.4, () => CoreStrings.Photo_Paper10x15),
+        (130 / 25.4, 180 / 25.4, () => CoreStrings.Photo_Paper13x18),
+        (5, 8, () => "5 × 8 in"),
     ];
 
     /// <summary>"Letter (8.5 × 11 in)", "4 × 6 in photo"; otherwise its size in inches. <paramref name="name"/> is the driver's (unused for now: sizes are what count).</summary>
@@ -35,22 +36,26 @@ public static class PhotoPaperText
     {
         var (a, b) = (Math.Min(widthIn, heightIn), Math.Max(widthIn, heightIn));
         foreach (var (w, h, label) in Known)
-            if (Math.Abs(a - w) < 0.04 && Math.Abs(b - h) < 0.04) return label;
+            if (Math.Abs(a - w) < 0.04 && Math.Abs(b - h) < 0.04) return label();
         return string.Create(CultureInfo.InvariantCulture, $"{a:0.##} × {b:0.##} in");
     }
 
     /// <summary>Print Schema media type → "Photo paper, glossy", "Plain paper"…</summary>
     public static string MediaType(string name) => name switch
     {
-        "Plain" => "Plain paper",
-        "AutoSelect" => "Let the printer choose",
-        "Photographic" => "Photo paper",
-        "PhotographicGlossy" => "Photo paper, glossy",
-        "PhotographicHighGloss" => "Photo paper, high gloss",
-        "PhotographicSemiGloss" => "Photo paper, semi-gloss",
-        "PhotographicMatte" => "Photo paper, matte",
-        "PhotographicSatin" => "Photo paper, satin",
-        "PhotographicFilm" => "Photo film",
+        "Plain" => CoreStrings.Photo_MediaPlain,
+        "AutoSelect" => CoreStrings.Photo_MediaAuto,
+        "Photographic" => CoreStrings.Photo_MediaPhoto,
+        "PhotographicGlossy" => CoreStrings.Photo_MediaGlossy,
+        "PhotographicHighGloss" => CoreStrings.Photo_MediaHighGloss,
+        "PhotographicSemiGloss" => CoreStrings.Photo_MediaSemiGloss,
+        "PhotographicMatte" => CoreStrings.Photo_MediaMatte,
+        "PhotographicSatin" => CoreStrings.Photo_MediaSatin,
+        "PhotographicFilm" => CoreStrings.Photo_MediaFilm,
+        "Label" => CoreStrings.Photo_MediaLabel,
+        "CardStock" => CoreStrings.Photo_MediaCardStock,
+        "Transparency" => CoreStrings.Photo_MediaTransparency,
+        "Envelope" => CoreStrings.Photo_MediaEnvelope,
         _ => Words(name),
     };
 
@@ -59,15 +64,19 @@ public static class PhotoPaperText
     /// <summary>Print Schema output quality → a plain word.</summary>
     public static string Quality(string name) => name switch
     {
-        "Photographic" => "Photo (best)",
+        "Photographic" => CoreStrings.Photo_QualityBest,
+        "Draft" => CoreStrings.Photo_QualityDraft,
+        "Normal" => CoreStrings.Photo_QualityNormal,
+        "High" => CoreStrings.Photo_QualityHigh,
         _ => Words(name),
     };
 
     /// <summary>Print Schema output color → a plain word.</summary>
     public static string Color(string name) => name switch
     {
-        "Grayscale" => "Shades of grey",
-        "Monochrome" => "Black and white",
+        "Grayscale" => CoreStrings.Photo_ColorGrey,
+        "Monochrome" => CoreStrings.Photo_ColorBlackWhite,
+        "Color" => CoreStrings.Photo_ColorColor,
         _ => Words(name),
     };
 

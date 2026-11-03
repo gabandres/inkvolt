@@ -54,11 +54,11 @@ public static partial class QueueKinds
     public static string ConnectionText(SpoolerQueue q) => Connection(q) switch
     {
         QueueConnection.Usb => "USB",
-        QueueConnection.Network => "Network",
-        QueueConnection.Shared => ServerOf(q.Name) is { } server ? $"Shared from {server}" : "Shared from another PC",
-        QueueConnection.Parallel => "Parallel port",
-        QueueConnection.Serial => "Serial port",
-        _ => "Windows printer",
+        QueueConnection.Network => CoreStrings.Queue_ConnNetwork,
+        QueueConnection.Shared => ServerOf(q.Name) is { } server ? string.Format(CoreStrings.Queue_ConnSharedFrom, server) : CoreStrings.Queue_ConnSharedFromAnotherPc,
+        QueueConnection.Parallel => CoreStrings.Queue_ConnParallel,
+        QueueConnection.Serial => CoreStrings.Queue_ConnSerial,
+        _ => CoreStrings.Queue_ConnWindowsPrinter,
     };
 
     /// <summary>
@@ -76,7 +76,7 @@ public static partial class QueueKinds
 
     /// <summary>The name to show: the queue's, or for a printer shared from another PC "Front desk on print-server", as Windows says it.</summary>
     public static string DisplayName(SpoolerQueue q) =>
-        q.Name.StartsWith(@"\\", StringComparison.Ordinal) && q.Name[2..].Split('\\') is [{ Length: > 0 } server, { Length: > 0 } share] ? $"{share} on {server}" : q.Name;
+        q.Name.StartsWith(@"\\", StringComparison.Ordinal) && q.Name[2..].Split('\\') is [{ Length: > 0 } server, { Length: > 0 } share] ? string.Format(CoreStrings.Queue_ShareOnServer, share, server) : q.Name;
 
     /// <summary>"USB (USB001)", "Network (192.0.2.40)", "Network (WSD)": the connection with the port, for "About this printer".</summary>
     public static string ConnectionDetail(SpoolerQueue q)

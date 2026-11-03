@@ -90,17 +90,17 @@ public static class ProKeys
     public static ProLicence Parse(string key, byte[] publicKey)
     {
         var compact = Compact(key);
-        if (compact.Length == 0) throw new ProKeyException("Paste the key you were sent.");
+        if (compact.Length == 0) throw new ProKeyException(CoreStrings.Suite_KeyEmpty);
         var prefix = Compact(Prefix);
         if (!compact.StartsWith(prefix, StringComparison.Ordinal))
-            throw new ProKeyException($"That isn't an Inkvolt Pro key: a key starts with {Prefix}.");
+            throw new ProKeyException(string.Format(CoreStrings.Suite_KeyNotPro, Prefix));
         var body = compact[prefix.Length..];
         if (body.Any(c => !Alphabet.Contains(c)))
-            throw new ProKeyException("The key has a character that doesn't belong in it (a key uses the letters A to Z and the digits 2 to 7). Paste it exactly as it was sent.");
+            throw new ProKeyException(CoreStrings.Suite_KeyBadCharacter);
         var bytes = FromBase32(body);
-        if (bytes.Length < 1 + SignatureLength + 4) throw new ProKeyException("The key is incomplete: paste all of it.");
+        if (bytes.Length < 1 + SignatureLength + 4) throw new ProKeyException(CoreStrings.Suite_KeyIncomplete);
         if (bytes[0] != Version)
-            throw new ProKeyException("This key was made for a newer version of the Inkvolt apps. Update the app, then enter it again.");
+            throw new ProKeyException(CoreStrings.Suite_KeyNewerVersion);
         var payload = bytes[..^SignatureLength];
         var signature = bytes[^SignatureLength..];
         if (publicKey.Length != 65 || publicKey[0] != 4) throw new ArgumentException("The public key must be an uncompressed P-256 point (65 bytes).", nameof(publicKey));
@@ -110,7 +110,7 @@ public static class ProKeys
             Q = new ECPoint { X = publicKey[1..33], Y = publicKey[33..65] },
         });
         if (!ecdsa.VerifyData(payload, signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation))
-            throw new ProKeyException("This key has been altered or didn't paste whole. Paste it exactly as it was sent, or ask for it again.");
+            throw new ProKeyException(CoreStrings.Suite_KeyAltered);
         string text;
         try
         {
@@ -118,11 +118,11 @@ public static class ProKeys
         }
         catch (DecoderFallbackException)
         {
-            throw new ProKeyException("The key's contents can't be read. Ask for it again.");
+            throw new ProKeyException(CoreStrings.Suite_KeyUnreadable);
         }
         var lines = text.Split('\n');
         if (lines.Length != 4 || !DateOnly.TryParseExact(lines[2], "yyyy-MM-dd", out var issued))
-            throw new ProKeyException("The key's contents can't be read. Ask for it again.");
+            throw new ProKeyException(CoreStrings.Suite_KeyUnreadable);
         var products = lines[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return new ProLicence(lines[0], lines[1], issued, products);
     }

@@ -53,13 +53,13 @@ public static class SeparatorSheet
         var name = PatchCodes.Name(code);
         var top = bars[0].Y * 72;               // points from the top: text stays an inch clear of the bars
         var bottom = (bars[0].Y + BarLength) * 72;
-        Text(content, w, h - 72, 26, "Separator sheet");
+        Text(content, w, h - 72, 26, CoreStrings.Pdf_SeparatorTitle);
         Text(content, w, h - 104, 18, name);
-        Text(content, w, h - Math.Min(top - 72, 150), 11, "Inkvolt Print starts a new file at this sheet.");
-        Text(content, w, 72 * 2.1, 11, "Put a copy in front of each document in the feeder, face up like the pages.");
-        Text(content, w, 72 * 2.1 - 16, 11, "On the Scan tab, choose \"Split into files at: Patch codes\".");
-        Text(content, w, 72 * 2.1 - 40, 9, "Print at actual size (100%, not \"fit to page\"), in black. Keep the area around the bars clean.");
-        Text(content, w, 72 * 2.1 - 54, 9, "Reuse the sheet rather than copying it: copiers widen bars. Scanned sheets are left out unless you keep them.");
+        Text(content, w, h - Math.Min(top - 72, 150), 11, CoreStrings.Pdf_SeparatorStarts);
+        Text(content, w, 72 * 2.1, 11, CoreStrings.Pdf_SeparatorPutCopy);
+        Text(content, w, 72 * 2.1 - 16, 11, CoreStrings.Pdf_SeparatorChoose);
+        Text(content, w, 72 * 2.1 - 40, 9, CoreStrings.Pdf_SeparatorActualSize);
+        Text(content, w, 72 * 2.1 - 54, 9, CoreStrings.Pdf_SeparatorReuse);
         if (h - bottom < 72 * 2.1 + 72) throw new ArgumentException("Sheet too short for the patch and its text", nameof(heightIn));
 
         PdfWriter.WriteDrawing(output, w, h, content.ToString(), $"Separator sheet ({name})");

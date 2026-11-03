@@ -23,7 +23,7 @@ public partial class ConfirmDialog : Window
     public static void Tell(Window? owner, string message)
     {
         var dlg = Create(owner, message);
-        dlg.Confirm.Content = "Close";
+        dlg.Confirm.Content = Strings.Common_Close;
         dlg.Confirm.IsDefault = true;
         dlg.Cancel.IsDefault = false;
         dlg.Cancel.Visibility = Visibility.Collapsed; // Esc still closes it (IsCancel)
@@ -43,7 +43,7 @@ public partial class ConfirmDialog : Window
         var dlg = new ConfirmDialog { Owner = owner is { IsLoaded: true } ? owner : null };
         if (dlg.Owner is null) dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         var (heading, body) = DialogText.Split(message);
-        dlg.Title = heading.Length > 0 ? heading : "Inkvolt Print";
+        dlg.Title = heading.Length > 0 ? heading : Strings.Common_InkvoltPrint;
         dlg.Heading.Text = heading;
         dlg.Message.Text = body ?? "";
         dlg.Message.Visibility = body is null ? Visibility.Collapsed : Visibility.Visible;

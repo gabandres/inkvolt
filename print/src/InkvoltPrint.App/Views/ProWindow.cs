@@ -65,13 +65,13 @@ public sealed class ProWindow : Window
         ShowInTaskbar = false;
         WindowStartupLocation = Owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner;
         _caption = (Style)Application.Current.FindResource("Caption");
-        AutomationProperties.SetName(_key, "Licence key");
+        AutomationProperties.SetName(_key, Strings.Pro_LicenceKey);
         _error.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
 
         var body = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
         body.Children.Add(new TextBlock { Text = "Inkvolt Pro", FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
         body.Children.Add(_body);
-        var close = new Button { Content = "Close", MinWidth = 96, IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        var close = new Button { Content = Strings.Common_Close, MinWidth = 96, IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         close.SetResourceReference(StyleProperty, "AccentButtonStyle");
         close.Click += (_, _) => Close();
         body.Children.Add(close);
@@ -98,14 +98,14 @@ public sealed class ProWindow : Window
 
         if (licence is not null)
         {
-            _body.Children.Add(new TextBlock { Text = $"Pro licensed to {licence.Name}", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Key for {licence.Email}, issued {licence.Issued:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling{(licence.Covers(ProKeys.ProductPdf) ? "; Inkvolt PDF on this PC finds it too" : "")}. Thank you for supporting Inkvolt Print."));
+            _body.Children.Add(new TextBlock { Text = string.Format(Strings.Pro_LicensedTo, licence.Name), FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(string.Format(licence.Covers(ProKeys.ProductPdf) ? Strings.Pro_KeyForWithPdf : Strings.Pro_KeyFor, licence.Email, licence.Issued)));
             if (!Pro.Enforced)
-                _body.Children.Add(Caption("Everything in Inkvolt Print is free while it launches; your licence will keep the Pro features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3) when they start asking for a key."));
-            var remove = new Button { Content = "Remove Licence", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+                _body.Children.Add(Caption(Strings.Pro_FreeWhileLaunchingLicensed));
+            var remove = new Button { Content = Strings.Pro_RemoveLicence, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             remove.Click += (_, _) =>
             {
-                if (!ConfirmDialog.Ask(this, "Remove the Inkvolt Pro licence from this PC? Files the Pro features made stay as they are, and you can enter the key again any time.", "Remove")) return;
+                if (!ConfirmDialog.Ask(this, Strings.Pro_RemoveQuestion, Strings.Common_Remove)) return;
                 Pro.Remove();
                 Log.Write("Inkvolt Pro licence removed");
                 Refresh();
@@ -116,13 +116,13 @@ public sealed class ProWindow : Window
 
         if (Pro.Enforced)
         {
-            _body.Children.Add(new TextBlock { Text = "Free", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Inkvolt Pro unlocks the office features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3): a one-time {Pro.PriceText}, no account, one key for Inkvolt Print and Inkvolt PDF. The key is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt Print is free and stays free."));
+            _body.Children.Add(new TextBlock { Text = Strings.Pro_Free, FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(string.Format(Strings.Pro_Unlocks, Pro.PriceText)));
         }
         else
         {
-            _body.Children.Add(new TextBlock { Text = "Everything is free while Inkvolt Print launches", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"That includes the Pro features to come: supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3. Inkvolt Pro ({Pro.PriceText}, one time, no account, one key for Inkvolt Print and Inkvolt PDF) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."));
+            _body.Children.Add(new TextBlock { Text = Strings.Pro_FreeWhileLaunching, FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(string.Format(Strings.Pro_FreeWhileLaunchingNote, Pro.PriceText)));
         }
         if (Pro.Problem is { } problem)
         {
@@ -130,15 +130,15 @@ public sealed class ProWindow : Window
             text.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
             _body.Children.Add(text);
         }
-        var get = new Button { Content = $"Get Inkvolt Pro ({Pro.PriceText})", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        var get = new Button { Content = string.Format(Strings.Pro_Get, Pro.PriceText), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
         get.SetResourceReference(StyleProperty, "AccentButtonStyle");
         get.Click += (_, _) => Shell.Open(Pro.BuyUrl);
         _body.Children.Add(get);
 
-        _body.Children.Add(new TextBlock { Text = "Have a key? Paste it here", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 4) });
+        _body.Children.Add(new TextBlock { Text = Strings.Pro_HaveKey, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 4) });
         _body.Children.Add(_key);
         _body.Children.Add(_error);
-        var enter = new Button { Content = "Enter Key", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), IsDefault = true };
+        var enter = new Button { Content = Strings.Pro_EnterKey, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), IsDefault = true };
         enter.Click += (_, _) => Enter(_key.Text);
         _body.Children.Add(enter);
     }

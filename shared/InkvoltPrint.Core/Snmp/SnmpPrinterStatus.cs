@@ -31,23 +31,23 @@ public sealed record SnmpReading(
 public static class SnmpPrinterStatus
 {
     /// <summary>hrPrinterDetectedErrorState bits, numbered from the first byte's most significant bit (RFC 2790).</summary>
-    private static readonly (int Bit, string Id, Severity Severity, string Message)[] ErrorBits =
+    private static readonly (int Bit, string Id, Severity Severity, Func<string> Message)[] ErrorBits =
     [
-        (0, "media-low", Severity.Warning, "Paper low"),
-        (1, "media-empty", Severity.Error, "Out of paper"),
-        (2, "toner-low", Severity.Warning, "Toner low"),
-        (3, "toner-empty", Severity.Error, "Toner empty"),
-        (4, "door-open", Severity.Error, "A door is open"),
-        (5, "media-jam", Severity.Error, "Paper jam"),
-        (6, "offline", Severity.Error, "The printer is offline"),
-        (7, "service-requested", Severity.Error, "The printer needs attention"),
-        (8, "input-tray-missing", Severity.Error, "Paper tray missing"),
-        (9, "output-tray-missing", Severity.Error, "Output tray missing"),
-        (10, "marker-supply-missing", Severity.Error, "Cartridge missing"),
-        (11, "output-area-almost-full", Severity.Warning, "Output tray almost full"),
-        (12, "output-area-full", Severity.Error, "Output tray full"),
-        (13, "input-tray-empty", Severity.Warning, "A paper tray is empty"),
-        (14, "maintenance-overdue", Severity.Warning, "Maintenance is overdue"),
+        (0, "media-low", Severity.Warning, () => CoreStrings.Status_PaperLow),
+        (1, "media-empty", Severity.Error, () => CoreStrings.Status_OutOfPaper),
+        (2, "toner-low", Severity.Warning, () => CoreStrings.Status_TonerLow),
+        (3, "toner-empty", Severity.Error, () => CoreStrings.Status_TonerEmpty),
+        (4, "door-open", Severity.Error, () => CoreStrings.Status_DoorOpen),
+        (5, "media-jam", Severity.Error, () => CoreStrings.Status_PaperJam),
+        (6, "offline", Severity.Error, () => CoreStrings.Status_PrinterIsOffline),
+        (7, "service-requested", Severity.Error, () => CoreStrings.Status_NeedsAttention),
+        (8, "input-tray-missing", Severity.Error, () => CoreStrings.Status_PaperTrayMissing),
+        (9, "output-tray-missing", Severity.Error, () => CoreStrings.Status_OutputTrayMissing),
+        (10, "marker-supply-missing", Severity.Error, () => CoreStrings.Status_CartridgeMissing),
+        (11, "output-area-almost-full", Severity.Warning, () => CoreStrings.Status_OutputTrayAlmostFull),
+        (12, "output-area-full", Severity.Error, () => CoreStrings.Status_OutputTrayFull),
+        (13, "input-tray-empty", Severity.Warning, () => CoreStrings.Status_PaperTrayEmpty),
+        (14, "maintenance-overdue", Severity.Warning, () => CoreStrings.Status_MaintenanceOverdue),
     ];
 
     /// <summary>Reasons that say the same thing, so an error bit doesn't repeat an alert in other words.</summary>
@@ -87,7 +87,7 @@ public static class SnmpPrinterStatus
         {
             if (Classify(a, r.Supplies) is not { } x) continue;
             var existing = alerts.FindIndex(p => p.Id == x.Id);
-            if (existing < 0) alerts.Add(new PrinterAlert(x.Id, x.Severity, x.Id is "other" or "unknown" ? "The printer reports a problem" : IppStatusText.Describe(x.Id)));
+            if (existing < 0) alerts.Add(new PrinterAlert(x.Id, x.Severity, x.Id is "other" or "unknown" ? CoreStrings.Status_ReportsAProblem : IppStatusText.Describe(x.Id)));
             else if (x.Severity > alerts[existing].Severity) alerts[existing] = alerts[existing] with { Severity = x.Severity };
             if (Words(a.Description) is { } d)
             {
@@ -104,21 +104,21 @@ public static class SnmpPrinterStatus
         {
             if (!IsSet(r.DetectedErrorState, bit) || Covered(alerts, id)) continue;
             if (id == "service-requested" && alerts.Count > 0) continue; // set alongside the real problem (a jam, low toner…)
-            alerts.Add(new PrinterAlert(id, severity, message));
+            alerts.Add(new PrinterAlert(id, severity, message()));
         }
 
         var offline = IsSet(r.DetectedErrorState, 6);
         var (code, label) = (r.DeviceStatus, r.PrinterStatus) switch
         {
-            (_, _) when offline => ("stopped", "Offline"),
-            (_, PrinterMib.PrinterPrinting) => ("processing", "Printing"),
-            (_, PrinterMib.PrinterWarmup) => ("warmingUp", "Warming up"),
-            (PrinterMib.DeviceDown, _) => ("stopped", "Stopped"),
-            (_, PrinterMib.PrinterIdle) => ("ready", "Ready"),
-            (PrinterMib.DeviceRunning, PrinterMib.PrinterOther) => ("inPowerSave", "Sleeping"), // RFC 3805's "Standby"
-            (PrinterMib.DeviceRunning or PrinterMib.DeviceWarning, _) => ("ready", "Ready"),
-            (PrinterMib.DeviceTesting, _) => ("processing", "Testing"),
-            _ => ("unknown", "Unknown"),
+            (_, _) when offline => ("stopped", CoreStrings.Status_Offline),
+            (_, PrinterMib.PrinterPrinting) => ("processing", CoreStrings.Status_Printing),
+            (_, PrinterMib.PrinterWarmup) => ("warmingUp", CoreStrings.Status_WarmingUp),
+            (PrinterMib.DeviceDown, _) => ("stopped", CoreStrings.Status_Stopped),
+            (_, PrinterMib.PrinterIdle) => ("ready", CoreStrings.Status_Ready),
+            (PrinterMib.DeviceRunning, PrinterMib.PrinterOther) => ("inPowerSave", CoreStrings.Status_Sleeping), // RFC 3805's "Standby"
+            (PrinterMib.DeviceRunning or PrinterMib.DeviceWarning, _) => ("ready", CoreStrings.Status_Ready),
+            (PrinterMib.DeviceTesting, _) => ("processing", CoreStrings.Status_Testing),
+            _ => ("unknown", CoreStrings.Status_Unknown),
         };
         var severityAll = alerts.Count > 0 ? alerts.Max(a => a.Severity)
             : code == "stopped" ? Severity.Error : r.DeviceStatus == PrinterMib.DeviceWarning ? Severity.Warning : Severity.Info;

@@ -36,7 +36,7 @@ public static class PresetJumpList
             foreach (var p in top)
                 list.JumpItems.Add(new JumpTask
                 {
-                    Title = $"Scan: {p.Name}",
+                    Title = string.Format(Strings.JumpList_ScanWith, p.Name),
                     Description = ScanPresetText.Summary(p),
                     ApplicationPath = exe,
                     IconResourcePath = exe,

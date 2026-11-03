@@ -82,7 +82,8 @@ public static class CdmParsers
             };
             var code = Str(e, "supplyColorCode");
             var level = Int(e, "percentLifeDisplay");
-            var name = $"{ColorName(code)} {kind}".Trim();
+            var color = ColorName(code);
+            var name = SupplyNames.Name(color, IsKnownColor(code), kind);
             supplies.Add((new Consumable(
                 Name: char.ToUpperInvariant(name[0]) + name[1..],
                 Kind: kind,
@@ -93,7 +94,10 @@ public static class CdmParsers
                 SelectibilityNumber: Str(e, "selectabilityNumber") ?? Str(e, "orderSelectabilityNumber"),
                 LowThreshold: null,
                 EstimatedPagesRemaining: Int(e, "approximatePagesRemainingDisplay") is >= 0 and var pages ? pages : null,
-                Installed: null), kind == "printhead"));
+                Installed: null)
+            {
+                Key = SupplyNames.EnglishName(code, kind, capitalize: true),
+            }, kind == "printhead"));
         }
         return [.. supplies.Where(s => !s.Printhead).Concat(supplies.Where(s => s.Printhead)).Select(s => s.Supply)];
     }
@@ -108,30 +112,33 @@ public static class CdmParsers
 
     private static string ColorName(string? code) => code switch
     {
-        "K" => "Black",
-        "C" => "Cyan",
-        "M" => "Magenta",
-        "Y" => "Yellow",
-        "CMY" => "Tri-color",
-        "pK" => "Photo black",
-        "mK" => "Matte black",
-        "G" => "Gray",
+        "K" => CoreStrings.Supply_Black,
+        "C" => CoreStrings.Supply_Cyan,
+        "M" => CoreStrings.Supply_Magenta,
+        "Y" => CoreStrings.Supply_Yellow,
+        "CMY" => CoreStrings.Supply_TriColor,
+        "pK" => CoreStrings.Supply_PhotoBlack,
+        "mK" => CoreStrings.Supply_MatteBlack,
+        "G" => CoreStrings.Supply_Gray,
         null => "",
         _ => code,
     };
 
+    private static bool IsKnownColor(string? code) => code is "K" or "C" or "M" or "Y" or "CMY" or "pK" or "mK" or "G";
+
     // ---- Status ----
 
-    private static readonly Dictionary<string, (string Text, Severity Severity, string? Detail)> Alerts = new(StringComparer.Ordinal)
+    // The words are read at the moment of use (the interface's language is chosen at start-up).
+    private static readonly Dictionary<string, (Func<string> Text, Severity Severity, Func<string> Detail)> Alerts = new(StringComparer.Ordinal)
     {
-        ["doorOpen"] = ("Door open", Severity.Error, "A door or cover is open. Close it to continue."),
-        ["trayEmpty"] = ("Load paper", Severity.Error, "Load paper into the tray and push it all the way in."),
-        ["trayOpen"] = ("Tray open", Severity.Error, "Push the paper tray all the way in."),
-        ["cartridgeLow"] = ("Cartridge low", Severity.Warning, "Printing goes on; have a replacement ready."),
-        ["cartridgeVeryLow"] = ("Cartridge very low", Severity.Warning, "Print quality may drop soon; replace the cartridge."),
-        ["cartridgeOut"] = ("Cartridge empty", Severity.Error, "Replace the cartridge to keep printing."),
-        ["cartridgeMissing"] = ("Cartridge missing", Severity.Error, "Put the cartridge back in and close the door."),
-        ["jam"] = ("Paper jam", Severity.Error, "Open the doors the printer shows, gently pull out the jammed paper, and close them."),
+        ["doorOpen"] = (() => CoreStrings.Status_DoorOpenShort, Severity.Error, () => CoreStrings.Status_CloseDoorOrCover_Detail),
+        ["trayEmpty"] = (() => CoreStrings.Status_LoadPaper, Severity.Error, () => CoreStrings.Status_TrayEmptyOrOpen_Detail),
+        ["trayOpen"] = (() => CoreStrings.Status_TrayOpen, Severity.Error, () => CoreStrings.Status_TrayOpen_Detail),
+        ["cartridgeLow"] = (() => CoreStrings.Status_CartridgeLow, Severity.Warning, () => CoreStrings.Status_CartridgeLow_Detail),
+        ["cartridgeVeryLow"] = (() => CoreStrings.Status_CartridgeVeryLow, Severity.Warning, () => CoreStrings.Status_CartridgeVeryLow_Detail),
+        ["cartridgeOut"] = (() => CoreStrings.Status_CartridgeEmpty, Severity.Error, () => CoreStrings.Status_CartridgeEmpty_Detail),
+        ["cartridgeMissing"] = (() => CoreStrings.Status_CartridgeMissing, Severity.Error, () => CoreStrings.Status_CartridgeMissing_Detail),
+        ["jam"] = (() => CoreStrings.Status_PaperJam, Severity.Error, () => CoreStrings.Status_CdmJam_Detail),
     };
 
     /// <summary>
@@ -165,13 +172,13 @@ public static class CdmParsers
                     _ => known ? k.Severity : Severity.Warning,
                 };
                 if (severity is not { } sev) continue;
-                var text = known ? k.Text : StatusText.Humanize(category);
+                var text = known ? k.Text() : StatusText.Humanize(category);
                 if (Color(a) is { } color) text = $"{text} ({color})";
-                alerts.Add((new PrinterAlert(category, sev, text), known ? k.Detail : null));
+                alerts.Add((new PrinterAlert(category, sev, text), known ? k.Detail() : null));
             }
         }
 
-        if (code is null && alerts.Count == 0) return new PrinterStatus("unknown", "Status not available", Severity.Info, []);
+        if (code is null && alerts.Count == 0) return new PrinterStatus("unknown", CoreStrings.Status_NotAvailable, Severity.Info, []);
         code ??= "unknown";
         var severityOverall = alerts.Count > 0 ? alerts.Max(a => a.Alert.Severity) : StatusText.SeverityOf(code);
         var error = alerts.FirstOrDefault(a => a.Alert.Severity == Severity.Error);

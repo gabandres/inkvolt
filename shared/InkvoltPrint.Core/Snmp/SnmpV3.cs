@@ -118,10 +118,10 @@ public sealed class SnmpAccessException(SnmpRefusal reason) : Exception(Words(re
 
     private static string Words(SnmpRefusal reason) => reason switch
     {
-        SnmpRefusal.UnknownUser => "The printer doesn't know this SNMPv3 user name.",
-        SnmpRefusal.WrongAuthKey => "The printer refused the SNMPv3 authentication passphrase.",
-        SnmpRefusal.WrongPrivKey => "The printer couldn't read the request: check the SNMPv3 privacy passphrase.",
-        _ => "The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.",
+        SnmpRefusal.UnknownUser => CoreStrings.Snmp_UnknownUser,
+        SnmpRefusal.WrongAuthKey => CoreStrings.Snmp_WrongAuthKey,
+        SnmpRefusal.WrongPrivKey => CoreStrings.Snmp_WrongPrivKey,
+        _ => CoreStrings.Snmp_SecurityLevel,
     };
 }
 

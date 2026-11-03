@@ -109,19 +109,19 @@ public static partial class ScanPresets
     [
         new()
         {
-            Id = "document", Name = "Document to PDF", Source = PresetSource.Auto, Color = false, Resolution = 300,
-            FileType = PresetFileType.SearchablePdf, Subfolder = "Scans", FileName = "Document {date} {time}",
+            Id = "document", Name = CoreStrings.Preset_DocumentName, Source = PresetSource.Auto, Color = false, Resolution = 300,
+            FileType = PresetFileType.SearchablePdf, Subfolder = CoreStrings.Preset_ScansFolder, FileName = CoreStrings.Preset_DocumentFileName,
         },
         new()
         {
-            Id = "photo", Name = "Photo", Source = PresetSource.Glass, Color = true, Resolution = 600, PageSize = "full",
+            Id = "photo", Name = CoreStrings.Preset_PhotoName, Source = PresetSource.Glass, Color = true, Resolution = 600, PageSize = "full",
             FileType = PresetFileType.Jpeg, Review = true, SkipBlank = false, Straighten = false, Folder = PresetFolder.Pictures,
-            Subfolder = "Scans", FileName = "Photo {date} {time}",
+            Subfolder = CoreStrings.Preset_ScansFolder, FileName = CoreStrings.Preset_PhotoFileName,
         },
         new()
         {
-            Id = "receipt", Name = "Receipt", Source = PresetSource.Glass, Color = false, Resolution = 300, PageSize = "full",
-            FileType = PresetFileType.SearchablePdf, Subfolder = @"Scans\Receipts\{date:yyyy}", FileName = "Receipt {date} {n:000}",
+            Id = "receipt", Name = CoreStrings.Preset_ReceiptName, Source = PresetSource.Glass, Color = false, Resolution = 300, PageSize = "full",
+            FileType = PresetFileType.SearchablePdf, Subfolder = CoreStrings.Preset_ReceiptsFolder, FileName = CoreStrings.Preset_ReceiptFileName,
         },
     ];
 
@@ -140,7 +140,7 @@ public static partial class ScanPresets
             var p = raw with
             {
                 Id = !IsValidId(raw.Id) || ids.Contains(raw.Id) ? NewId() : raw.Id,
-                Name = string.IsNullOrWhiteSpace(raw.Name) ? "Scan preset" : Cut(raw.Name.Trim()),
+                Name = string.IsNullOrWhiteSpace(raw.Name) ? CoreStrings.Preset_DefaultName : Cut(raw.Name.Trim()),
                 Source = Enum.IsDefined(raw.Source) ? raw.Source : PresetSource.Auto,
                 FileType = Enum.IsDefined(raw.FileType) ? raw.FileType : PresetFileType.Pdf,
                 After = Enum.IsDefined(raw.After) ? raw.After : PresetAfter.None,
@@ -216,20 +216,20 @@ public static partial class ScanPresets
     };
 
     public static ScanPreset Create(IEnumerable<ScanPreset> existing) =>
-        new() { Id = NewId(), Name = UniqueName(existing.Select(p => p.Name), "New preset") };
+        new() { Id = NewId(), Name = UniqueName(existing.Select(p => p.Name), CoreStrings.Preset_NewName) };
 
     /// <summary>A copy under a new id and name ("Receipt copy"), with its own counter.</summary>
     public static ScanPreset Duplicate(IEnumerable<ScanPreset> existing, ScanPreset preset) =>
-        preset with { Id = NewId(), Name = UniqueName(existing.Select(p => p.Name), $"{preset.Name} copy"), NextNumber = 1 };
+        preset with { Id = NewId(), Name = UniqueName(existing.Select(p => p.Name), string.Format(CoreStrings.Preset_CopyName, preset.Name)), NextNumber = 1 };
 
     /// <summary>Why <paramref name="name"/> can't be the name of preset <paramref name="id"/>; null when it can.</summary>
     public static string? NameProblem(IEnumerable<ScanPreset> existing, string id, string? name)
     {
         var trimmed = name?.Trim() ?? "";
-        if (trimmed.Length == 0) return "Give the preset a name.";
-        if (trimmed.Length > MaxNameLength) return $"Names can be up to {MaxNameLength} characters.";
+        if (trimmed.Length == 0) return CoreStrings.Preset_NameEmpty;
+        if (trimmed.Length > MaxNameLength) return string.Format(CoreStrings.Preset_NameTooLong, MaxNameLength);
         return existing.FirstOrDefault(p => p.Id != id && string.Equals(p.Name.Trim(), trimmed, StringComparison.OrdinalIgnoreCase)) is { } other
-            ? $"Another preset is already called \"{other.Name}\"." : null;
+            ? string.Format(CoreStrings.Preset_NameTaken, other.Name) : null;
     }
 
     /// <summary>Moves the item at <paramref name="from"/> to <paramref name="to"/>; false when either is out of range or they're equal.</summary>
@@ -261,24 +261,24 @@ public static class ScanPresetText
 {
     public static string FileType(PresetFileType t) => t switch
     {
-        PresetFileType.SearchablePdf => "Searchable PDF",
-        PresetFileType.Jpeg => "JPEG images",
+        PresetFileType.SearchablePdf => CoreStrings.Preset_SearchablePdf,
+        PresetFileType.Jpeg => CoreStrings.Preset_JpegImages,
         _ => "PDF",
     };
 
     public static string Source(PresetSource s, bool twoSided) => s switch
     {
-        PresetSource.Glass => "glass",
-        PresetSource.Feeder => twoSided ? "feeder, both sides" : "feeder",
-        _ => twoSided ? "feeder (both sides) or glass" : "feeder or glass",
+        PresetSource.Glass => CoreStrings.Preset_SourceGlass,
+        PresetSource.Feeder => twoSided ? CoreStrings.Preset_SourceFeederBoth : CoreStrings.Preset_SourceFeeder,
+        _ => twoSided ? CoreStrings.Preset_SourceAutoBoth : CoreStrings.Preset_SourceAuto,
     };
 
     public static string After(PresetAfter a) => a switch
     {
-        PresetAfter.OpenInInkvoltPdf => "open in Inkvolt PDF",
-        PresetAfter.Print => "print a copy",
-        PresetAfter.Email => "email it",
-        _ => "nothing else",
+        PresetAfter.OpenInInkvoltPdf => CoreStrings.Preset_AfterOpenPdf,
+        PresetAfter.Print => CoreStrings.Preset_AfterPrint,
+        PresetAfter.Email => CoreStrings.Preset_AfterEmail,
+        _ => CoreStrings.Preset_AfterNothing,
     };
 
     /// <summary>The folder as the user knows it: Documents, Pictures, or the chosen folder's name; then the subfolder template.</summary>
@@ -286,9 +286,9 @@ public static class ScanPresetText
     {
         var root = p.Folder switch
         {
-            PresetFolder.Pictures => "Pictures",
+            PresetFolder.Pictures => CoreStrings.Preset_FolderPictures,
             PresetFolder.Custom when p.FolderPath is { Length: > 0 } path => System.IO.Path.GetFileName(path.TrimEnd('\\', '/')) is { Length: > 0 } leaf ? leaf : path,
-            _ => "Documents",
+            _ => CoreStrings.Preset_FolderDocuments,
         };
         return string.IsNullOrWhiteSpace(p.Subfolder) ? root : $"{root}\\{p.Subfolder.Trim('\\', '/', ' ')}";
     }
@@ -296,9 +296,9 @@ public static class ScanPresetText
     /// <summary>"patch code sheet", "blank page", "patch code sheet or blank page".</summary>
     public static string SplitText(SplitAt s) => s switch
     {
-        SplitAt.BlankPage => "blank page",
-        SplitAt.PatchCodeOrBlankPage => "patch code sheet or blank page",
-        _ => "patch code sheet",
+        SplitAt.BlankPage => CoreStrings.Preset_SplitBlank,
+        SplitAt.PatchCodeOrBlankPage => CoreStrings.Preset_SplitPatchOrBlank,
+        _ => CoreStrings.Preset_SplitPatch,
     };
 
     /// <summary>"Searchable PDF · feeder or glass · grey, 300 dpi · Documents\Scans", plus the review step and what happens after saving.</summary>
@@ -308,14 +308,14 @@ public static class ScanPresetText
         {
             FileType(p.FileType),
             Source(p.Source, p.TwoSided),
-            $"{(p.Color ? "color" : "grey")}, {p.Resolution} dpi",
+            string.Format(p.Color ? CoreStrings.Preset_ColorDpi : CoreStrings.Preset_GreyDpi, p.Resolution),
             Folder(p),
         };
-        if (p.SplitAt != SplitAt.None) parts.Add($"a new file at each {SplitText(p.SplitAt)}");
-        if (p.FindPhotos) parts.Add("each photo on the glass by itself");
+        if (p.SplitAt != SplitAt.None) parts.Add(string.Format(CoreStrings.Preset_NewFileAtEach, SplitText(p.SplitAt)));
+        if (p.FindPhotos) parts.Add(CoreStrings.Preset_EachPhoto);
         if (PageCleanup.Describe(p.Cleanup) is { Length: > 0 } cleanup) parts.Add(cleanup);
-        if (p.Review) parts.Add("review first");
-        if (p.After != PresetAfter.None) parts.Add($"then {After(p.After)}");
+        if (p.Review) parts.Add(CoreStrings.Preset_ReviewFirst);
+        if (p.After != PresetAfter.None) parts.Add(string.Format(CoreStrings.Preset_Then, After(p.After)));
         return string.Join(" · ", parts);
     }
 }

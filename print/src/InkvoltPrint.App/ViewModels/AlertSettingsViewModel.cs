@@ -112,10 +112,7 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
     public string JobAlertsNote { get; } = NoteOf(new Core.Alerts.AlertRules());
 
     private static string NoteOf(Core.Alerts.AlertRules r) =>
-        $"Naming the document and the printer: Windows reports a problem with the job, or it hasn't moved for {r.JobStuckAfter.TotalMinutes:0} minutes while the printer is ready, " +
-        $"or {r.JobHungAfter.TotalMinutes:0} minutes while the printer says it's printing (a big job on a driver that counts no pages can raise this by mistake). " +
-        $"A stuck job is told again only after real progress, at most {r.JobMaxStuckAlerts} times. Other people's jobs never raise one. " +
-        "The notification shows the document's name, also on the lock screen if Windows shows notifications there; Inkvolt Print doesn't keep it or log it.";
+        string.Format(Strings.Alerts_JobsNote, r.JobStuckAfter.TotalMinutes, r.JobHungAfter.TotalMinutes, r.JobMaxStuckAlerts);
 
     public bool QuietHours
     {
@@ -139,7 +136,9 @@ public sealed partial class AlertSettingsViewModel : ObservableObject
 
     public bool IsPaused => _tray.IsPaused;
 
-    public string? PauseText => _tray.PausedUntil is { } until ? $"Alerts are paused until {until.LocalDateTime:t}{(until.Date > DateTime.Today ? " tomorrow" : "")}." : null;
+    public string? PauseText => _tray.PausedUntil is { } until
+        ? string.Format(until.Date > DateTime.Today ? Strings.Alerts_PausedUntilTomorrow : Strings.Alerts_PausedUntil, until.LocalDateTime)
+        : null;
 
     [RelayCommand]
     private void ResumeAlerts() => _tray.ResumeAlerts();

@@ -68,9 +68,9 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
 
     public string? UnavailableReason =>
         Blocked is { } blocked ? blocked
-        : !ScannerChecked ? "Connecting to the printer…"
-        : !HasScanner ? "This printer has no scanner, so it can't copy. You can still print PDFs."
-        : !HasQueue && demoPrint is null ? "Copies print through this printer's Windows queue, and it isn't set up in Windows yet. Use Set up at the top of the page."
+        : !ScannerChecked ? Strings.Copy_Connecting
+        : !HasScanner ? Strings.Copy_NoScanner
+        : !HasQueue && demoPrint is null ? Strings.Copy_NoQueue
         : null;
 
     public bool IsAvailable => UnavailableReason is null;
@@ -131,17 +131,21 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [NotifyCanExecuteChangedFor(nameof(PrintAgainCommand))]
     public partial bool CanPrintAgain { get; set; }
 
-    public string CopyButtonText => IdCard ? "Copy ID card" : "Copy";
+    public string CopyButtonText => IdCard ? Strings.Copy_CopyIdCard : Strings.Common_Copy;
 
     public string EmptyHint => IdCard
-        ? "Put the card face down in the corner of the scanner glass (by the arrow mark), then press Copy ID card. You'll turn it over halfway."
+        ? Strings.Copy_HintIdCard
         : Source?.Value is ScanSource.Adf or ScanSource.AdfDuplex
-            ? "Put the pages face up in the document feeder, then press Copy."
-            : "Put the page face down on the scanner glass, then press Copy.";
+            ? Strings.Copy_HintFeeder
+            : Strings.Copy_HintGlass;
 
     public string Summary => IdCard
-        ? $"Front and back on one sheet{(Copies > 1 ? $", {Copies} copies" : "")}, actual size."
-        : $"{(Copies == 1 ? "1 copy" : $"{Copies} copies")}, {(FitToPaper ? "fit to the paper" : "actual size")}{(TwoSided && CanTwoSided ? ", both sides of the paper" : "")}.";
+        ? Copies > 1 ? string.Format(Strings.Copy_SummaryIdCardCopies, Copies) : Strings.Copy_SummaryIdCard
+        : TwoSided && CanTwoSided
+            ? string.Format(Strings.Copy_SummaryTwoSided, Core.Plural.Of(Copies, Strings.Copy_Copies_One, Strings.Copy_Copies_Many),
+                FitToPaper ? Strings.Copy_SummaryFit : Strings.Copy_SummaryActual, Strings.Copy_SummaryBothSides)
+            : string.Format(Strings.Copy_Summary, Core.Plural.Of(Copies, Strings.Copy_Copies_One, Strings.Copy_Copies_Many),
+                FitToPaper ? Strings.Copy_SummaryFit : Strings.Copy_SummaryActual);
 
     partial void OnIdCardChanged(bool value)
     {
@@ -209,7 +213,8 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var twoSided = TwoSided && CanTwoSided;
         var sheets = (twoSided ? (pages.Count + 1) / 2 : pages.Count) * copies;
         await PrintAsync("Copy", sheets, queue => QueuePrinter.PrintPagesAsync(queue, pages, copies, twoSided, "Copy", sizing),
-            $"{(pages.Count == 1 ? "1 page" : $"{pages.Count} pages")}{(copies > 1 ? $" × {copies} copies" : "")}");
+            copies > 1 ? Core.Plural.Of(pages.Count, Strings.Copy_WhatPagesCopies_One, Strings.Copy_WhatPagesCopies_Many, copies)
+                : Core.Plural.Of(pages.Count, Strings.Copy_WhatPages_One, Strings.Copy_WhatPages_Many));
     }
 
     private async Task ScanFrontAsync()
@@ -236,7 +241,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         _front = null;
         var copies = Copies;
         await PrintAsync("ID card copy", copies, queue => QueuePrinter.PrintIdCardAsync(queue, front, back, copies, "ID card copy"),
-            copies > 1 ? $"the card × {copies} copies" : "the card, both sides on one page");
+            copies > 1 ? string.Format(Strings.Copy_WhatCardCopies, copies) : Strings.Copy_WhatCard);
     }
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
@@ -277,7 +282,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var pages = new List<RenderedPage>();
         try
         {
-            SetMessage("Scanning… (the first page takes longer if the printer was asleep)");
+            SetMessage(Strings.Copy_Scanning);
             await foreach (var jpeg in _client.ScanAsync(request, _cts.Token))
             {
                 var (w, h, _) = PdfWriter.JpegInfo(jpeg);
@@ -285,14 +290,14 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
                 var page = new RenderedPage(jpeg, wIn, hIn);
                 pages.Add(page);
                 added?.Invoke(page);
-                SetMessage($"Scanned page {pages.Count}…");
+                SetMessage(string.Format(Strings.Copy_ScannedPage, pages.Count));
             }
-            if (pages.Count == 0) SetMessage("The scanner returned no pages.", error: true);
+            if (pages.Count == 0) SetMessage(Strings.Copy_NoPages, error: true);
             return pages.Count > 0 ? pages : null;
         }
         catch (OperationCanceledException)
         {
-            SetMessage("Copy cancelled.");
+            SetMessage(Strings.Copy_Cancelled);
         }
         catch (ScanException ex)
         {
@@ -301,7 +306,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         catch (Exception ex)
         {
             Log.Write($"Copy scan failed: {ex}");
-            SetMessage($"Scan failed: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Copy_ScanFailed, ex.Message), error: true);
         }
         finally
         {
@@ -323,25 +328,25 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
             if (demoPrint is not null)
             {
                 demoPrint(jobName, sheets);
-                SetMessage($"Sent to the demo printer: {what}. Nothing really prints; the job is in the print queue on the Overview.");
+                SetMessage(string.Format(Strings.Copy_SentDemo, what));
                 return;
             }
             if (await findQueue() is not { } queue)
             {
-                SetMessage("This printer isn't set up in Windows yet. Press Set up at the top of the page, then Print again.", error: true);
+                SetMessage(Strings.Copy_NotSetUp, error: true);
                 KeepForPrintAgain();
                 return;
             }
-            SetMessage("Sending the copy to the printer…");
+            SetMessage(Strings.Copy_Sending);
             await print(queue);
-            SetMessage($"Sent to the printer: {what}.");
+            SetMessage(string.Format(Strings.Copy_Sent, what));
             RatingRequest.NoteSuccess(state);
         }
         catch (Exception ex)
         {
             // Spooler/driver/serializer errors come in many types; never let one escape the command.
             Log.Write($"Copy print failed: {ex}");
-            SetMessage($"Could not print the copy: {ex.Message}", error: true);
+            SetMessage(string.Format(Strings.Copy_PrintFailed, ex.Message), error: true);
             KeepForPrintAgain();
         }
         finally
@@ -397,8 +402,8 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         Sheets.Clear();
         Sheets.Add(new CopySheet(PreviewPaper.W, PreviewPaper.H, PreviewHeight * PreviewPaper.W / PreviewPaper.H, PreviewHeight,
         [
-            new CopyImage(Thumbnail(front.Image), top, "Front"),
-            new CopyImage(back is null ? null : Thumbnail(back.Image), bottom, "Back: turn the card over"),
+            new CopyImage(Thumbnail(front.Image), top, Strings.Copy_Front),
+            new CopyImage(back is null ? null : Thumbnail(back.Image), bottom, Strings.Copy_BackTurnOver),
         ]));
     }
 
