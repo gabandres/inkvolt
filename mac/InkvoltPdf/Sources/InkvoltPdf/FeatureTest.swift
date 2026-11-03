@@ -372,6 +372,41 @@ struct FeatureTest {
 
     // MARK: Edit Text & Images
 
+    /// The selected picture resized by its top-left handle (drawn in, so there is room: 8 and 6 points), then moved by the
+    /// arrow keys (→ three times, then ⇧↓: 3 and 10 points), written as one step once the keys rest.
+    private mutating func resizeAndNudge(_ page: Int) async {
+        let content = controller.content!
+        guard let sel = content.selectedImage, sel.box.width > 30, sel.box.height > 30 else {
+            let size = content.selectedImage.map { "\(Int($0.box.width)) × \(Int($0.box.height)) pt" } ?? "none selected"
+            return skip("resize a picture: \(size)")
+        }
+        let b = sel.box
+        await press(page, [PointD(b.x, b.y), PointD(b.x + 4, b.y + 3), PointD(b.x + 8, b.y + 6)])
+        await content.settle()
+        let now = await content.ensure(page).images
+        let sized = now.first { abs($0.box.right - b.right) < 1 && abs($0.box.bottom - b.bottom) < 1 }
+        let resized = sized.map { abs($0.box.x - b.x - 8) < 1 && abs($0.box.y - b.y - 6) < 1 } ?? false
+        let undoSized = controller.window?.undoManager?.undoMenuItemTitle ?? ""
+        func box(_ r: RectD) -> String { "\(Int(r.x)),\(Int(r.y)) \(Int(r.width))×\(Int(r.height))" }
+        check(resized && content.selectedImage != nil, "picture resized by its top-left handle (8 × 6 points in; “\(undoSized)”; "
+              + "\(box(b)) → \(now.map { box($0.box) }.joined(separator: "; ")), still selected: \(content.selectedImage != nil))")
+
+        guard let start = content.selectedImage?.box else { return }
+        let steps = controller.editor.finishedEdits
+        controller.window?.makeFirstResponder(pages)
+        let right = String(UnicodeScalar(NSRightArrowFunctionKey)!), down = String(UnicodeScalar(NSDownArrowFunctionKey)!)
+        for _ in 0..<3 { pages.keyDown(with: key(right, code: 124)) }
+        pages.keyDown(with: key(down, code: 125, shift: true))
+        let waiting = content.hasPendingNudge && controller.editor.finishedEdits == steps
+        try? await Task.sleep(for: .milliseconds(700))
+        await content.settle()
+        let g = controller.engine.page(page)
+        let wantX = min(start.x + 3, g.width - start.width), wantY = min(start.y + 10, g.height - start.height)
+        let moved = await content.ensure(page).images.contains { abs($0.box.x - wantX) < 1 && abs($0.box.y - wantY) < 1 }
+        check(waiting && moved && controller.editor.finishedEdits == steps + 1,
+              "arrow keys moved the picture (→ ×3, ⇧↓), written as one step once the keys rested")
+    }
+
     private mutating func editContent() async {
         let content = controller.content!
         pages.tool = .editContent
@@ -431,8 +466,11 @@ struct FeatureTest {
             let shifted = after.images.contains { abs($0.box.x - image.box.x - dx) < 1 && abs($0.box.y - image.box.y - dy) < 1 }
             check(shifted, "picture on page \(page + 1) dragged by (\(Int(dx)), \(Int(dy))) (\(c.images.count) pictures on the page)")
             await settle()
-            let before = after.images.count
+            await content.settle()
             if content.selectedImage == nil, let m = after.images.first(where: { abs($0.box.x - image.box.x - dx) < 1 }) { content.select(m) }
+            await resizeAndNudge(page)
+            let before = after.images.count
+            if content.selectedImage == nil, let m = await content.ensure(page).images.last { content.select(m) }
             controller.window?.makeFirstResponder(pages)
             pages.keyDown(with: key("\u{7f}", code: 51))
             await settle()

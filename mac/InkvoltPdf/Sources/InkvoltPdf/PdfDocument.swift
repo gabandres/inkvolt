@@ -121,19 +121,24 @@ final class PdfDocument: NSDocument {
     /// Closing a window (or tab) or quitting with unsaved changes: AppKit's question (Save, Don't Save, Cancel; quitting
     /// with several such documents first offers to review them, then asks this for each). The self-test answers it from
     /// `testCloseAnswer` through the same callback AppKit's sheet uses.
-    /// An arrow-key move in Prepare Form still waiting for the keys to rest is written first (⌘W within 0.45 s would lose
-    /// it), so the question sees it and Save writes it.
+    /// An arrow-key move in Prepare Form or Edit Text & Images still waiting for the keys to rest is written first (⌘W
+    /// within 0.45 s would lose it), so the question sees it and Save writes it.
     override func canClose(withDelegate delegate: Any, shouldClose shouldCloseSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
-        let design = MainActor.assumeIsolated { () -> PrepareForm? in
-            guard let d = (windowControllers.first as? DocumentWindowController)?.madeDesign, d.hasPendingNudge else { return nil }
-            d.flushNudge()
-            return d
+        let waiting = MainActor.assumeIsolated { () -> (PrepareForm?, ContentEditing?)? in
+            let c = windowControllers.first as? DocumentWindowController
+            let design = c?.madeDesign.flatMap { $0.hasPendingNudge ? $0 : nil }
+            let content = c?.content.flatMap { $0.hasPendingNudge ? $0 : nil }
+            if design == nil && content == nil { return nil }
+            design?.flushNudge()
+            content?.flushNudge()
+            return (design, content)
         }
-        guard let design else { return decideClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo) }
+        guard let waiting else { return decideClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo) }
         nonisolated(unsafe) let target = delegate
         nonisolated(unsafe) let info = contextInfo
         Task { @MainActor in
-            await design.settle()
+            await waiting.0?.settle()
+            await waiting.1?.settle()
             self.decideClose(withDelegate: target, shouldClose: shouldCloseSelector, contextInfo: info)
         }
     }

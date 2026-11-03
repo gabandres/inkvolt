@@ -159,6 +159,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case ink(page: Int, points: [PointD])
         /// A picture of the page's own content dragged with Edit Text & Images.
         case contentMove(page: Int, start: PointD, box: RectD, by: PointD)
+        /// One of the selected picture's handles dragged (Shift keeps its proportions).
+        case contentResize(page: Int, handle: Int, box: RectD, now: RectD)
         /// A press on one of the document's links (followed on release, unless the mouse moved away).
         case link(PageLink, page: Int, start: NSPoint)
 
@@ -166,7 +168,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             switch self {
             case .text, .pan, .link: nil
             case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
-                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _): p
+                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _), .contentResize(let p, _, _, _): p
             }
         }
     }
@@ -778,6 +780,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             outline(rect, px)
         case .contentMove(_, _, let box, let by):
             outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
+        case .contentResize(_, _, _, let now):
+            outline(viewRect(now, r), px)
         case .move(let id, _, _, let frame, let by):
             let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
             outline(viewRect(moved, r), px)
@@ -1160,6 +1164,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     private func contentDown(_ page: Int, _ p: PointD) {
         guard let content else { return }
         select(nil)
+        // The selected picture's handles first (they reach a little outside it).
+        if let handle = content.handle(page: page, p, reach: Double(6 * onePixel)) {
+            content.flushNudge()
+            if let image = content.selectedImage {
+                let box = content.shownBox(image)
+                drag = .contentResize(page: page, handle: handle, box: box, now: box)
+                return
+            }
+        }
+        content.flushNudge()
         let image = content.image(page: page, p)
         if let run = content.run(page: page, p), !content.isSelected(image) {
             content.select(nil)
@@ -1264,6 +1278,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let g = engine.page(page)
             let d = DrawingGeometry.clampMove(box, p.x - start.x, p.y - start.y, g.width, g.height)
             drag = .contentMove(page: page, start: start, box: box, by: PointD(d.dx, d.dy))
+        case .contentResize(let page, let handle, let box, _):
+            let p = pagePoint(point, on: page)
+            drag = .contentResize(page: page, handle: handle, box: box, now: DrawingGeometry.resize(box, handle, p, minSize: 4, keepAspect: shiftDown))
         }
         autoscroll(with: event)
     }
@@ -1322,6 +1339,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard abs(by.x) + abs(by.y) >= 0.5, let image = content?.selectedImage else { return }
             ghost = finished
             content?.move(image, to: RectD(box.x + by.x, box.y + by.y, box.width, box.height))
+        case .contentResize(_, _, let box, let now):
+            let changed = abs(now.x - box.x) + abs(now.y - box.y) + abs(now.width - box.width) + abs(now.height - box.height)
+            guard changed >= 0.5, let image = content?.selectedImage else { return }
+            ghost = finished
+            content?.move(image, to: now)
         case .move(let id, let page, _, let frame, let by):
             guard abs(by.x) + abs(by.y) >= 0.5 else { return }
             ghost = finished
@@ -1821,12 +1843,17 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
     }
 
-    /// Edit Text & Images: Delete removes the selected picture, Esc lets go of it.
+    /// Edit Text & Images: Delete removes the selected picture, the arrow keys move it (Shift: 10 pt), Esc lets go of it.
     private func handleContentKey(_ event: NSEvent) -> Bool {
-        guard tool == .editContent, let content, content.selectedImage != nil else { return false }
+        guard tool == .editContent, let content, let image = content.selectedImage else { return false }
         switch event.specialKey {
         case .delete, .deleteForward, .backspace:
             content.deleteSelected(nil)
+            return true
+        case .leftArrow, .rightArrow, .upArrow, .downArrow:
+            let step = event.modifierFlags.contains(.shift) ? 10.0 : 1.0
+            let (dx, dy) = arrowStep(event.specialKey, step, page: image.pageIndex)
+            content.nudgeSelected(dx, dy)
             return true
         default:
             if event.keyCode == 53 {

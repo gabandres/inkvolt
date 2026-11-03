@@ -41,7 +41,7 @@ One agent, cheapest first, one commit each, in this order:
 
 ### Inkvolt PDF for Mac: other gaps, not scheduled
 
-- Small, each with Windows tests to port: resizing pictures and moving them with the arrow keys in Edit Text & Images; Compare's zoom and start-page card;
+- Small, each with Windows tests to port: Compare's zoom and start-page card;
   export with the layers shown.
 - No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's printer
   settings when printing, the Snapshot tool.

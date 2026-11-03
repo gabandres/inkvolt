@@ -612,6 +612,12 @@ Mac differences for the PDF app (so far):
   password, again after a wrong one, and opens it with it as a new unsaved document; Cancel opens nothing (Windows'
   `OpenAttachment`). Windows has no test for it (app code); AttachmentsLayersTest checks it with a protected PDF attached
   there.
+- Resizing and nudging pictures in Edit Text & Images (2026-11-03): the selected picture shows eight handles; dragging
+  one resizes it (Shift keeps its proportions), the arrow keys move it (Shift: 10 points; the moves add up and are
+  written as one step once the keys rest for 0.45 s, before anything else acts on the picture, and before the window
+  closes), as Windows' `PageViewer.EditContent`. `ContentEditor.moveImage` (any box) and its tests were already ported.
+  Fixed on the way: after a move the selection was dropped (the document's own change notice read the page again and
+  looked for the picture where it had been); it is now found where it went. FeatureTest checks the handle and the keys.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -895,6 +901,8 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   address).
 - Document Properties (File menu, ⇧⌘I): the sheet's rows and their wrapping (a long location, a long producer), the four
   fields, Save Changes, Cancel and What's in This PDF…, on a protected and a signed file.
+- Edit Text & Images' pictures: the eight handles and their reach at several zooms, Shift keeping the proportions, the
+  arrow keys' moves shown before they are written, on a turned view.
 - An attached PDF with its own password: the password question naming the attached file, a wrong password asked again.
 - Form fields' hover actions: a real form whose fields change on hover (a button's look, a help text set by its
   script) with a mouse and a trackpad; nothing flickering while the pointer crosses fields quickly.

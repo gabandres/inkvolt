@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Edit Text & Images: resize a picture by its handles (Shift keeps its proportions) and move it with the arrow keys (Shift: 10 points).
 - An attached PDF that has a password of its own now opens: Inkvolt PDF asks for its password.
 - Forms whose fields react when the pointer moves over them (a help text, a changed look) now do.
 - Extract Pages… can make a new document, one file or a file per page, and delete the pages after. Split Document… (Pages menu) splits a PDF into files by a number of pages, by page ranges or at its bookmarks.
