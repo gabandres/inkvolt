@@ -249,6 +249,17 @@ struct PrepareFormTest {
         await design.settle()
         r = field("Full name")?.rect
         check(editor.finishedEdits == moves + 1 && r?.x.rounded() == 93 && r?.y.rounded() == 91, "then write one move (1 up, 1 right, 10 right)")
+        // Closing (⌘W) before the keys rest writes the move first, so the unsaved-changes question covers it.
+        moves = editor.finishedEdits
+        await press(125) // down
+        let probe = CloseProbe()
+        controller.pdf.testCloseAnswer = .cancel
+        controller.pdf.canClose(withDelegate: probe, shouldClose: #selector(CloseProbe.document(_:shouldClose:contextInfo:)), contextInfo: nil)
+        for _ in 0..<100 where probe.shouldClose == nil { try? await Task.sleep(for: .milliseconds(20)) }
+        controller.pdf.testCloseAnswer = nil
+        r = field("Full name")?.rect
+        check(probe.shouldClose == false && editor.finishedEdits == moves + 1 && r?.y.rounded() == 92 && controller.pdf.isDocumentEdited,
+              "closing within the nudge's wait writes it before the unsaved-changes question")
         let selected = design.model.selectedId
         await press(48)
         check(design.model.selectedId != selected && design.model.selectedId != nil, "Tab goes to the next field")

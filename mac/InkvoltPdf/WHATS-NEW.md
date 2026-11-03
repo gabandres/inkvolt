@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Prepare Form: closing a document right after moving a field with the arrow keys keeps the move (it was lost).
 
 ## 1.5.0
 - Find is several times faster on long documents (it reads pages on all but one of the Mac's cores, and remembers them for your next search), and a new search stops the one before it. Large files take about half the memory they did.

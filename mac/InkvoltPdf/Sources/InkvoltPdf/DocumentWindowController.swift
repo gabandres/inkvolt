@@ -24,7 +24,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let ai = AiState()
     var aiSummaryAlert: (alert: NSAlert, field: NSTextField)?
     /// Prepare Form's bar, panel and fields.
-    private(set) lazy var design = PrepareForm(controller: self)
+    var design: PrepareForm {
+        if let made = madeDesign { return made }
+        let made = PrepareForm(controller: self)
+        madeDesign = made
+        return made
+    }
+    /// Prepare Form if it was ever opened (closing asks it for an arrow-key move not yet written).
+    private(set) var madeDesign: PrepareForm?
     /// Read Aloud and its bar (ReadAloud.swift).
     private(set) lazy var readAloud = ReadAloud(controller: self)
     /// The Reading Order and Alt Text pane (ReadingOrder.swift).

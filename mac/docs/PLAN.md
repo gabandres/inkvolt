@@ -381,7 +381,11 @@ As for Print: each step ports the module's .NET tests first, under the same name
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
 command line runs (it was set only in `applicationDidFinishLaunching`, after `--batch` and `--watch` had exited), and
 `AppDelegate` sets it again after `Report.startIfAsked`, so the self-test still reads its own settings suite; no unit test
-reaches the app target, checked by building on `ignia-mac` and by the self-test.
+reaches the app target, checked by building on `ignia-mac` and by the self-test. Prepare Form's arrow-key move, which
+waits 0.45 s for the keys to rest, is written when the document is asked to close (`PdfDocument.canClose` flushes it and
+waits for the edit before deciding), so ⌘W saves or asks about it instead of losing it; Windows writes it on its own
+timer and closes a tab after `FlushPendingEditsAsync`, which doesn't flush it either (a Mac addition). PrepareFormTest's
+new check (47, all pass on `ignia-mac`).
 
 ### Parity with Windows
 

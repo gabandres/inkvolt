@@ -266,6 +266,9 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         }
     }
 
+    /// Arrow-key moves made and not yet written (they wait 0.45 s for the keys to rest).
+    var hasPendingNudge: Bool { nudgeTimer != nil }
+
     /// Writes the arrow-key moves made so far.
     func flushNudge() {
         nudgeTimer?.invalidate()
