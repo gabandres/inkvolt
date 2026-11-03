@@ -339,6 +339,8 @@ public sealed class AppSettings
 
     /// <summary>"System", "Light" or "Dark".</summary>
     public string Theme { get; set; } = "System";
+    /// <summary>The interface's language: null follows Windows' display language, "en" or "es" (AppLanguage, at the next start).</summary>
+    public string? Language { get; set; }
     /// <summary>The version this was last run as ("1.0.3"): What's New after an update shows what came since (<see cref="AppHelp"/>).</summary>
     public string LastVersionSeen { get; set; } = "";
     /// <summary>No settings file when this run started: a new install, with nothing new to tell about.</summary>

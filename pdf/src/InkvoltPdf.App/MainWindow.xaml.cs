@@ -2217,16 +2217,30 @@ public partial class MainWindow : Window
     {
         var s = AppSettings.Current;
         static string ThemeOf(string? t) => t is "Light" or "Dark" ? t : "System";
+        // "" follows Windows' display language (saved as nothing), "en", "es".
+        static string LanguageOf(string? l) => InkvoltPrint.Core.Suite.UiLanguage.Save(InkvoltPrint.Core.Suite.UiLanguage.Parse(l)) ?? "";
         var session = new SettingsSession(new Dictionary<string, object?>
         {
             ["Theme"] = ThemeOf(s.Theme), ["RestorePosition"] = s.RestorePosition, ["ReopenTabs"] = s.ReopenTabs,
             ["KeepRecoveryCopies"] = s.KeepRecoveryCopies, ["DarkPages"] = s.DarkPages, ["CheckForUpdates"] = s.CheckForUpdates,
             ["AuthorName"] = s.AuthorName ?? "",
+            ["Language"] = LanguageOf(s.Language),
         });
         var dlg = new FormDialog(this, "Settings", "Close", 460);
         dlg.HideCancel();
         string[] themes = ["System", "Light", "Dark"];
         var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], Array.IndexOf(themes, ThemeOf(s.Theme)));
+        // The interface's language, at the next start (AppLanguage reads it once, before the first window). Hidden until the
+        // Spanish is complete (AppLanguage.SpanishReady).
+        string[] languages = ["", "en", "es"];
+        ComboBox? language = null;
+        if (AppLanguage.SpanishReady)
+        {
+            language = dlg.AddChoice(Strings.Settings_Language,
+                [Strings.Settings_LanguageWindows, Strings.Settings_LanguageEnglish, Strings.Settings_LanguageSpanish],
+                Math.Max(0, Array.IndexOf(languages, LanguageOf(s.Language))));
+            dlg.AddNote(Strings.Settings_LanguageRestart);
+        }
         var restore = dlg.AddCheck("Reopen each file at the page where I left off", s.RestorePosition);
         var reopen = dlg.AddCheck("Reopen the files I had open when I closed Inkvolt PDF", s.ReopenTabs);
         var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes", s.KeepRecoveryCopies);
@@ -2264,6 +2278,7 @@ public partial class MainWindow : Window
             switch (key)
             {
                 case "Theme": theme.SelectedIndex = Array.IndexOf(themes, (string)value!); break;
+                case "Language": if (language is not null) language.SelectedIndex = Math.Max(0, Array.IndexOf(languages, (string)value!)); break;
                 case "RestorePosition": restore.IsChecked = (bool)value!; break;
                 case "ReopenTabs": reopen.IsChecked = (bool)value!; break;
                 case "KeepRecoveryCopies": recovery.IsChecked = (bool)value!; break;
@@ -2278,6 +2293,7 @@ public partial class MainWindow : Window
             switch (key)
             {
                 case "Theme": s.Theme = (string)value!; break;
+                case "Language": s.Language = (string)value! is { Length: > 0 } l ? l : null; break;
                 case "RestorePosition": s.RestorePosition = (bool)value!; break;
                 case "ReopenTabs": s.ReopenTabs = (bool)value!; break;
                 case "KeepRecoveryCopies": s.KeepRecoveryCopies = (bool)value!; break;
@@ -2303,6 +2319,7 @@ public partial class MainWindow : Window
             Done();
         }
         theme.SelectionChanged += (_, _) => Changed("Theme", themes[Math.Max(0, theme.SelectedIndex)]);
+        if (language is not null) language.SelectionChanged += (_, _) => Changed("Language", languages[Math.Max(0, language.SelectedIndex)]);
         void Toggles(CheckBox box, string key)
         {
             box.Checked += (_, _) => Changed(key, true);

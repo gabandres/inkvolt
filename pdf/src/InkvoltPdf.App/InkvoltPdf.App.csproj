@@ -13,8 +13,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- ThemeMode (Fluent) is marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
-    <!-- The UI is English only: skip the framework's translated resource assemblies (~8 MB) -->
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- The interface is in English and Spanish (Strings.es.resx): keep only those of the packages' translated resource
+         assemblies (the rest would add ~8 MB) -->
+    <SatelliteResourceLanguages>en;es</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
@@ -22,6 +23,27 @@
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The interface's text: Strings.resx in English (the neutral resources), Strings.es.resx in Spanish (a satellite,
+         es\InkvoltPdf.resources.dll). MSBuild writes the strongly-typed Strings class from it at build time; XAML reads it
+         with {x:Static loc:Strings.Key}. AppLanguage picks the language at start-up. -->
+    <EmbeddedResource Update="Strings.resx">
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>InkvoltPdf.App</StronglyTypedNamespace>
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <PublicClass>true</PublicClass>
+    </EmbeddedResource>
+  </ItemGroup>
+  <!-- WPF compiles XAML's code-behind a first time in a temporary project (<name>_wpftmp) that doesn't run ResGen: write the
+       Strings class before XAML is compiled, and hand it to that project. -->
+  <Target Name="StringsBeforeXaml" BeforeTargets="MarkupCompilePass1" DependsOnTargets="PrepareResourceNames;ResGen"
+          Condition="!$(MSBuildProjectName.EndsWith('_wpftmp'))" />
+  <Target Name="StringsInWpfTempProject" BeforeTargets="CoreCompile" Condition="$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)Strings.Designer.cs" />
+    </ItemGroup>
+  </Target>
   <!-- Publish: our own symbols are embedded (Directory.Build.props); packages' loose .pdb files (e.g. libHarfBuzzSharp.pdb,
        23 MB) would land next to the single-file exe, so leave every .pdb out of the publish output. -->
   <Target Name="DropPdbsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">

@@ -23,6 +23,18 @@
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The text Inkvolt PDF's interface shows from here (the accessibility checker's and the redaction check's findings,
+         Batch's steps, messages the app shows): PdfStrings.resx in English, PdfStrings.es.resx in Spanish. Internal, and
+         English unless the app opts in (PdfLanguage.Use): the command line (inkvoltpdf with batch, watch or fill), whose
+         output scripts read, stays English. -->
+    <EmbeddedResource Update="PdfStrings.resx">
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>InkvoltPdf.Core</StronglyTypedNamespace>
+      <StronglyTypedClassName>PdfStrings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)PdfStrings.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
     <!-- The app's dev script flips Pro.Enforced to show the locked views -->
     <InternalsVisibleTo Include="InkvoltPdf" />

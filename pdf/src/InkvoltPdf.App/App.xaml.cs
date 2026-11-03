@@ -19,6 +19,7 @@ public partial class App : Application
             Log.Write($"Unobserved task exception: {args.Exception}");
             args.SetObserved();
         };
+        AppLanguage.UseEnglish(); // until the command line is ruled out (below): its output stays English
         TextScale.Start(this); // Windows' Text size, for every window from here on
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
         // The Pro check reads the key from the file both Inkvolt apps share, then from the settings, in the window and on the command line.
@@ -37,6 +38,9 @@ public partial class App : Application
             _ = RunCommandLineAsync(args);
             return;
         }
+        // The interface's language, before any window asks for text; a dev aid's --lang isn't a file to open.
+        AppLanguage.Apply(AppSettings.Current.Language, args);
+        args = AppLanguage.WithoutLanguageArgument(args);
         var script = Array.IndexOf(args, "--script");
         if (script >= 0 && script + 1 < args.Length)
         {
