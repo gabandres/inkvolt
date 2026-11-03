@@ -1,16 +1,55 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.App;
 
 /// <summary>
 /// The look Inkvolt PDF has too: the theme chosen in Settings (System follows Windows), a title bar drawn dark when the app
-/// is (Windows draws it, not WPF) with Mica behind it, and the main window put back where it was, on a monitor that's
-/// still there.
+/// is (Windows draws it, not WPF) with Mica behind it on Windows 11 (an opaque themed background and Segoe MDL2 Assets icons on
+/// Windows 10), and every window kept on its screen: the main window put back where it was, on a monitor that's still there.
 /// </summary>
 internal static class WindowFrame
 {
+    /// <summary>The Windows build the app acts on, read once (<see cref="WindowsLook.FakeWindows10Variable"/> pretends 19045).</summary>
+    public static readonly int Build = WindowsLook.Effective(Environment.OSVersion.Version.Build,
+        Environment.GetEnvironmentVariable(WindowsLook.FakeWindows10Variable));
+
+    /// <summary>False while a snapshot sets the window's size itself (<c>--size</c>): that size wins.</summary>
+    public static bool KeepsOnScreen { get; set; } = true;
+
+    /// <summary>
+    /// <see cref="WindowsLook.FakeWindows10Variable"/>: WPF reads the build once, for its Fluent theme's Windows 10 path
+    /// (opaque window background, no backdrop); this makes it read 19045 too. Runs before any WPF code.
+    /// </summary>
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void FakeWindows10()
+    {
+        if (!WindowsLook.IsOn(Environment.GetEnvironmentVariable(WindowsLook.FakeWindows10Variable))) return;
+        typeof(Environment).GetField("s_osVersion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?.SetValue(null, new OperatingSystem(PlatformID.Win32NT, new Version(10, 0, WindowsLook.Windows10Build, 0)));
+    }
+
+    /// <summary>
+    /// Before Windows 11 the icons come from Segoe MDL2 Assets alone (Windows 10 has no Segoe Fluent Icons; every glyph the
+    /// app uses is in both, IconGlyphTests): the app's and the Fluent theme's own (SymbolThemeFontFamily). Before any window loads.
+    /// </summary>
+    public static void UseWindowsIcons(Application app)
+    {
+        if (WindowsLook.IsWindows11(Build)) return;
+        var icons = new FontFamily(WindowsLook.IconFont(Build));
+        app.Resources["Icons"] = icons;
+        app.Resources["SymbolThemeFontFamily"] = icons;
+        if (app.Resources["Icon"] is Style icon)
+        {
+            var style = new Style(typeof(TextBlock), icon);
+            style.Setters.Add(new Setter(TextBlock.FontFamilyProperty, icons));
+            app.Resources["Icon"] = style;
+        }
+    }
     public static readonly string[] Themes = ["System", "Light", "Dark"];
 
     /// <summary>The theme in force: "System", "Light" or "Dark".</summary>
@@ -31,7 +70,11 @@ internal static class WindowFrame
 
     /// <summary>Every window, dialogs included, gets the frame when it's shown.</summary>
     public static void FollowAllWindows() =>
-        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, _) => ApplyFrame((Window)s)));
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, _) =>
+        {
+            ApplyFrame((Window)s);
+            KeepOnScreen((Window)s);
+        }));
 
     /// <summary>True when the app shows dark: an explicit choice, or Windows' app mode when following the system.</summary>
     public static bool IsDark => Theme switch
@@ -44,16 +87,74 @@ internal static class WindowFrame
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
-    /// <summary>Title bar and caption buttons follow the app's theme (also when it differs from Windows'), with Mica behind them.</summary>
+    /// <summary>
+    /// Title bar and caption buttons follow the app's theme (also when it differs from Windows'), with Mica behind them on
+    /// Windows 11 22H2 and later. Before it the window gets the theme's opaque background: WPF's Fluent style leaves it
+    /// transparent from build 22000 on, which shows black without Mica (Windows 11 21H2).
+    /// </summary>
     public static void ApplyFrame(Window window)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero) return;
-        var dark = IsDark ? 1 : 0;
-        DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
-        var mica = 2;
-        DwmSetWindowAttribute(hwnd, 38, ref mica, sizeof(int)); // DWMWA_SYSTEMBACKDROP_TYPE = Mica (Windows 11; ignored before)
+        if (WindowsLook.HasDarkTitleBar(Build))
+        {
+            var dark = IsDark ? 1 : 0;
+            DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+        }
+        if (WindowsLook.HasMica(Build))
+        {
+            var mica = 2;
+            DwmSetWindowAttribute(hwnd, 38, ref mica, sizeof(int)); // DWMWA_SYSTEMBACKDROP_TYPE = Mica
+        }
+        else if (window.ReadLocalValue(Control.BackgroundProperty) == DependencyProperty.UnsetValue)
+            window.SetResourceReference(Control.BackgroundProperty, "WindowBackground");
     }
+
+    /// <summary>
+    /// Before the main window shows: no larger than the primary monitor's working area, its minimum size too, so it opens
+    /// centred with its title bar on screen (1180 x 800 doesn't fit a 1366 x 768 laptop, nor 1920 x 1080 at 175 %).
+    /// </summary>
+    public static void FitBeforeShow(Window window)
+    {
+        if (!KeepsOnScreen) return;
+        var work = PrimaryWorkArea();
+        window.MinWidth = ScreenFit.Minimum(window.MinWidth, work.Width);
+        window.MinHeight = ScreenFit.Minimum(window.MinHeight, work.Height);
+        window.Width = Math.Min(window.Width, work.Width);
+        window.Height = Math.Min(window.Height, work.Height);
+    }
+
+    /// <summary>A window shown larger than its monitor's working area, or partly off it, is shrunk and moved onto it (ScreenFit).</summary>
+    public static void KeepOnScreen(Window window)
+    {
+        if (!KeepsOnScreen || window.WindowState != WindowState.Normal || double.IsNaN(window.Left) || double.IsNaN(window.Top)) return;
+        var bounds = new ScreenRect(window.Left, window.Top, window.ActualWidth, window.ActualHeight);
+        if (bounds.Width <= 0 || bounds.Height <= 0 || bounds.Left < -10000) return; // not laid out, or parked off screen on purpose
+        if (ScreenFit.Best(bounds, MonitorWorkAreas()) is not { } work || work.Contains(bounds)) return;
+        var fit = ScreenFit.Fit(bounds, work);
+        window.MinWidth = ScreenFit.Minimum(window.MinWidth, work.Width);
+        window.MinHeight = ScreenFit.Minimum(window.MinHeight, work.Height);
+        if (fit.Width < bounds.Width) window.Width = fit.Width;
+        if (fit.Height < bounds.Height)
+        {
+            if (window.SizeToContent.HasFlag(SizeToContent.Height)) window.MaxHeight = fit.Height;
+            else window.Height = fit.Height;
+        }
+        window.Left = fit.Left;
+        window.Top = fit.Top;
+        Log.Write($"Window kept on screen: {bounds} in {work} -> {fit}");
+    }
+
+    private static ScreenRect PrimaryWorkArea() => FakeWorkArea()
+        ?? new ScreenRect(SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Top, SystemParameters.WorkArea.Width, SystemParameters.WorkArea.Height);
+
+    /// <summary>
+    /// A dev aid: <c>INKVOLT_FAKE_WORKAREA=1092x582</c> makes the primary monitor's working area that size (DIPs, from its
+    /// top-left corner), as on a 1366 x 768 laptop at 125 %, to see a window kept on a small screen.
+    /// </summary>
+    private static ScreenRect? FakeWorkArea() =>
+        ScreenFit.ParseSize(Environment.GetEnvironmentVariable(ScreenFit.FakeWorkAreaVariable)) is var (width, height)
+            ? new ScreenRect(SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Top, width, height) : null;
 
     /// <summary>Puts the window where <paramref name="saved"/> says, when its title bar still lands on a monitor; else it stays centred.</summary>
     public static void Restore(Window window, WindowPlacement? saved)
@@ -85,8 +186,9 @@ internal static class WindowFrame
     {
         Rect? best = null;
         var bestArea = 0.0;
-        foreach (var work in MonitorWorkAreas())
+        foreach (var screen in MonitorWorkAreas())
         {
+            var work = new Rect(screen.Left, screen.Top, screen.Width, screen.Height);
             var caption = Rect.Intersect(new Rect(saved.Left, saved.Top, saved.Width, 40), work);
             if (caption.IsEmpty || caption.Width < 100 || caption.Height < 20) continue;
             var overlap = Rect.Intersect(saved, work);
@@ -126,16 +228,17 @@ internal static class WindowFrame
     }
 
     /// <summary>Each monitor's working area (without the taskbar) in DIPs at that monitor's own scale.</summary>
-    private static List<Rect> MonitorWorkAreas()
+    private static List<ScreenRect> MonitorWorkAreas()
     {
-        var areas = new List<Rect>();
+        if (FakeWorkArea() is { } fake) return [fake];
+        var areas = new List<ScreenRect>();
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr monitor, IntPtr _, ref RECT _, IntPtr _) =>
         {
             var info = new MONITORINFO { Size = Marshal.SizeOf<MONITORINFO>() };
             if (!GetMonitorInfo(monitor, ref info)) return true;
             var scale = GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0 ? dpi / 96.0 : 1.0; // MDT_EFFECTIVE_DPI
             var r = info.Work;
-            areas.Add(new Rect(r.Left / scale, r.Top / scale, (r.Right - r.Left) / scale, (r.Bottom - r.Top) / scale));
+            areas.Add(new ScreenRect(r.Left / scale, r.Top / scale, (r.Right - r.Left) / scale, (r.Bottom - r.Top) / scale));
             return true;
         }, IntPtr.Zero);
         return areas;

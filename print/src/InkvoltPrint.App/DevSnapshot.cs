@@ -650,3 +650,95 @@ internal static class DevAutoPrint
         Application.Current.Shutdown();
     }
 }
+
+/// <summary>
+/// Developer aid and end-to-end check: <c>InkvoltPrint.exe --demo --sample-pdf --size 860 560 --press-print report.txt</c>
+/// opens a made-up three-page PDF in the first demo printer's Print section (as Choose a PDF… does), checks the Print button
+/// is on screen, whole and at least 24 × 24 (no ancestor cuts it off), presses it like a person would (its automation peer,
+/// so a hidden or disabled button can't be pressed) and writes what happened to <c>report.txt</c>, then exits (PrintFlowTests).
+/// </summary>
+internal static class DevPressPrint
+{
+    /// <summary>The made-up PDF <c>--sample-pdf</c> opens, under %TEMP%.</summary>
+    public static string SamplePdf()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "Inkvolt Print demo sample.pdf");
+        File.WriteAllBytes(path, Core.Printing.BatchPrintSamples.Pdf(3, "Sample"));
+        return path;
+    }
+
+    /// <summary><c>--sample-pdf [--printer n]</c>: the made-up PDF opened in the n-th demo printer's Print section (else the selected one's).</summary>
+    public static async Task OpenSampleAsync(ViewModels.MainViewModel vm, int printer)
+    {
+        for (var i = 0; i < 80 && vm.Printers.Count < Math.Max(1, printer); i++) await Task.Delay(250);
+        if (printer > 0 && printer <= vm.Printers.Count) vm.Selected = vm.Printers[printer - 1];
+        if (vm.Selected is { } selected) await selected.OpenPdfAsync(SamplePdf());
+    }
+
+    public static async Task RunAsync(Window window, ViewModels.MainViewModel vm, string reportPath)
+    {
+        var report = new List<string> { $"window: {window.ActualWidth:0} x {window.ActualHeight:0}" };
+        try
+        {
+            ViewModels.PrintViewModel? print = null;
+            for (var i = 0; i < 120 && !((print = vm.Selected?.Print) is { HasDocument: true } && print.PrintCommand.CanExecute(null)); i++)
+                await Task.Delay(250);
+            if (print is not { HasDocument: true })
+            {
+                report.Add("result: no document loaded");
+                return;
+            }
+            await Task.Delay(1000); // the section shown and laid out
+            window.UpdateLayout();
+            var button = Descendants(window).OfType<Button>().FirstOrDefault(b => b.Command == print.PrintCommand && b.IsVisible);
+            if (button is null)
+            {
+                report.Add("print button: not shown");
+                return;
+            }
+            var box = button.TransformToAncestor(window).TransformBounds(new Rect(button.RenderSize));
+            var cutBy = CutBy(button);
+            report.Add($"print button: {box.Width:0} x {box.Height:0} at {box.Left:0},{box.Top:0}");
+            report.Add(cutBy is null && box.Width >= 24 && box.Height >= 24 ? "print button: in sight" : $"print button: cut off by {cutBy ?? "its size"}");
+            if (cutBy is not null) return;
+            var before = Demo.PrintJobs.Current().Count;
+            var peer = new System.Windows.Automation.Peers.ButtonAutomationPeer(button);
+            ((System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();
+            for (var i = 0; i < 120 && (print.IsBusy || print.Message is null); i++) await Task.Delay(250);
+            report.Add($"pressed: {print.Message} (error={print.MessageIsError})");
+            report.Add($"jobs added: {Demo.PrintJobs.Current().Count - before}");
+        }
+        catch (Exception e)
+        {
+            report.Add($"result: {e.GetType().Name}: {e.Message}");
+        }
+        finally
+        {
+            await File.WriteAllLinesAsync(reportPath, report);
+            Application.Current.Shutdown();
+        }
+    }
+
+    /// <summary>The first ancestor (or the window) whose bounds don't hold the element whole, by type name; null when none.</summary>
+    private static string? CutBy(FrameworkElement element)
+    {
+        for (var parent = VisualTreeHelper.GetParent(element); parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is not FrameworkElement fe) continue;
+            var box = element.TransformToAncestor(fe).TransformBounds(new Rect(element.RenderSize));
+            if (box.Left < -0.5 || box.Top < -0.5 || box.Right > fe.ActualWidth + 0.5 || box.Bottom > fe.ActualHeight + 0.5)
+                return fe.GetType().Name + (string.IsNullOrEmpty(fe.Name) ? "" : $" {fe.Name}");
+        }
+        return null;
+    }
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var d in Descendants(child)) yield return d;
+        }
+    }
+}

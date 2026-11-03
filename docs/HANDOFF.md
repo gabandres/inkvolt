@@ -135,6 +135,12 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
   never while a scan or save shows progress, `ReviewMotion`).
 - Hardware, both platforms: 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, batch print on paper, a real jam for job
   alerts. No physical printer has printed a page, and neither stuck-job rule has fired on a real spooler.
+- Small screens and Windows 10 FIXED (2026-11-03, for Print 1.3.0.0; `docs/ux-review/small-screens/README.md`): the One
+  PDF Print button was clipped with no scroll (even at 1180 × 800); now the options scroll and Print is pinned. Windows
+  larger than the screen opened with the title bar off the top (`ScreenFit`; PDF's restored size too). Windows 10 path:
+  no Mica request below 22621, opaque background, MDL2 icons; dev aids `INKVOLT_FAKE_WIN10=1`, `INKVOLT_FAKE_WORKAREA=WxH`,
+  `--demo --sample-pdf [--printer n] --press-print report.txt`. **A person must still run it on the real Windows 10 PC**
+  (the test zip from that session, or the next Store build): frame, caption buttons, icons, Choose a PDF → Print.
 
 ### Only a person
 

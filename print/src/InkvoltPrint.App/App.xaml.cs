@@ -124,9 +124,12 @@ public partial class App : Application
         // The Pro check reads the key from the file both Inkvolt apps share, then from state.json (demo: memory only).
         Core.Pro.Store = demo ? new Core.Suite.MemoryProStore()
             : new Core.Suite.SharedProStore(new StateProStore(_vm.State), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        WindowFrame.UseWindowsIcons(this);
         WindowFrame.FollowAllWindows();
         WindowFrame.ApplyTheme(Array.IndexOf(args, "--theme") is var t and >= 0 && t + 1 < args.Length ? args[t + 1] : _vm.State.Theme);
         MainWindow = new MainWindow { DataContext = _vm };
+        if (DevSnapshot.Size(args) is not null) WindowFrame.KeepsOnScreen = false;
+        WindowFrame.FitBeforeShow(MainWindow); // a small screen: the title bar on it (WindowFrame.KeepOnScreen keeps it there)
         if (!devRun)
         {
             WindowFrame.Restore(MainWindow, _vm.State.Window);
@@ -191,6 +194,8 @@ public partial class App : Application
 
         // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
         if (FirstPdf(args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
+        else if (demo && args.Contains("--sample-pdf")) // a made-up PDF, on the --printer n (DevPressPrint)
+            _ = DevPressPrint.OpenSampleAsync(_vm, int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var sp) ? sp : 0);
         // InkvoltPrint.exe photo.jpg … ("Open with" on pictures) → Photos for the last-used printer.
         else if (Pictures(args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
         // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.
@@ -203,6 +208,8 @@ public partial class App : Application
             _ = DevAutoPrint.RunAsync(_vm, args[ap + 1],
                 copies: int.TryParse(args.SkipWhile(x => x != "--copies").Skip(1).FirstOrDefault(), out var c) ? c : 1,
                 twoSided: args.Contains("--two-sided"));
+        if (demo && Array.IndexOf(args, "--press-print") is var pp and >= 0 && pp + 1 < args.Length)
+            _ = DevPressPrint.RunAsync(MainWindow, _vm, args[pp + 1]);
         if (args.Contains("--simulate-alerts") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
         if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))

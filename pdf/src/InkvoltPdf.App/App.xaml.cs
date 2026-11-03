@@ -73,6 +73,7 @@ public partial class App : Application
         base.OnStartup(e);
         ApplyTheme();
         var window = new MainWindow();
+        FitToScreen(window);
         MainWindow = window;
         window.Show();
         if (_instance.IsOwner)
@@ -152,6 +153,25 @@ public partial class App : Application
 
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>
+    /// A small screen (1366 x 768, or 1920 x 1080 at 175 %): the window no larger than the primary monitor's working area,
+    /// its minimum size too, and centred, so its caption buttons aren't off the right edge (ScreenFit, as Inkvolt Print).
+    /// INKVOLT_FAKE_WORKAREA=1092x582 pretends that working area (a dev aid).
+    /// </summary>
+    private static void FitToScreen(Window window)
+    {
+        var area = SystemParameters.WorkArea;
+        var work = InkvoltPrint.Core.Suite.ScreenFit.ParseSize(Environment.GetEnvironmentVariable(InkvoltPrint.Core.Suite.ScreenFit.FakeWorkAreaVariable)) is var (w, h)
+            ? new InkvoltPrint.Core.Suite.ScreenRect(area.Left, area.Top, w, h)
+            : new InkvoltPrint.Core.Suite.ScreenRect(area.Left, area.Top, area.Width, area.Height);
+        if (window.Width <= work.Width && window.Height <= work.Height) return; // fits: Windows places it, as always
+        window.MinWidth = InkvoltPrint.Core.Suite.ScreenFit.Minimum(window.MinWidth, work.Width);
+        window.MinHeight = InkvoltPrint.Core.Suite.ScreenFit.Minimum(window.MinHeight, work.Height);
+        var fit = InkvoltPrint.Core.Suite.ScreenFit.Centre(window.Width, window.Height, work);
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        (window.Left, window.Top, window.Width, window.Height) = (fit.Left, fit.Top, fit.Width, fit.Height);
+    }
 
     /// <summary>
     /// Makes the window frame, caption buttons and Mica follow the app theme (also when it differs from Windows'),

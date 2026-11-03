@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Print a PDF works on any screen: the Print button stays in sight under the options, which scroll when the window is short. On smaller screens it could be cut off with no way to reach it.
+- On a small or scaled laptop screen the window fits: its title bar with Minimize and Close was above the top of the screen.
+- Windows 10: the window has a solid background and every icon shows.
 - Scan review: a page you put back with Undo, the page taking a deleted one's place and a page you move now ease into place. Nothing moves while a scan or save is running, or when Windows' animation effects are off.
 - Ctrl+K reaches every printer's menu: type a printer's name and a command ("front desk fix") to run it on that printer straight away, without showing it first.
 - Printers that answer only SNMP can have their own community: enter it under SNMP access when you add the printer by its address, or change it later from the printer's menu (SNMP access…). It's kept in Windows Credential Manager and used only to read the printer.

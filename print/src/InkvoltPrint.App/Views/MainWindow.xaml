@@ -803,6 +803,13 @@
 
                 <!-- Options -->
                 <Border Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
+                    <!-- The options scroll; Print and the message stay at the bottom, in sight at any window height -->
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                    <ScrollViewer x:Name="PrintOptions" VerticalScrollBarVisibility="Auto" Margin="0,0,-14,0" Padding="0,0,14,0">
                     <StackPanel>
                         <TextBlock Text="Document" Style="{StaticResource CardTitle}" />
                         <Button AutomationProperties.Name="Choose a PDF…" Command="{Binding BrowseCommand}" HorizontalAlignment="Stretch" Padding="0,8"
@@ -862,7 +869,11 @@
                                       Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
 
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
-
+                        </StackPanel>
+                    </StackPanel>
+                    </ScrollViewer>
+                    <StackPanel Grid.Row="1">
+                        <StackPanel Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
                             <Button AutomationProperties.Name="Print" Command="{Binding PrintCommand}" Style="{DynamicResource AccentButtonStyle}"
                                     HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
                                 <StackPanel Orientation="Horizontal">
@@ -889,13 +900,16 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Preview -->
                 <Border Grid.Column="1" Style="{StaticResource Card}" Padding="0">
                     <Grid>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="340"
-                                    Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <!-- Scrolls when the window is too short for it (Choose a PDF… stays reachable) -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="340">
                             <TextBlock Style="{StaticResource Icon}" Text="&#xE8B5;" FontSize="48" HorizontalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             <TextBlock Text="Drop a PDF here" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,4" />
@@ -903,6 +917,7 @@
                                        Style="{StaticResource Caption}" TextAlignment="Center" />
                             <Button Content="Choose a PDF…" Command="{Binding BrowseCommand}" HorizontalAlignment="Center" Margin="0,16,0,0" />
                         </StackPanel>
+                        </ScrollViewer>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12"
                                       Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
                             <StackPanel>
