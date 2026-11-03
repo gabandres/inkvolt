@@ -100,20 +100,35 @@ public struct PageDestination: Equatable, Sendable {
 
 /// Document-level navigation features (the Windows app's `DocumentFeatures`): page labels and destinations.
 public enum DocumentFeatures {
+    /// The longest page label made: a hostile /P prefix is cut to it (it repeats on every page of its range).
+    public static let maxLabelLength = 200
+
     /// Each page's label from the /PageLabels number tree (e.g. "i", "ii", "1", "A-1"), or nil when the file has none.
     public static func pageLabels(_ data: [UInt8], _ password: String?) throws -> [String]? {
         let doc = try PdfEdit.openToRead(data, password)
         guard let tree = doc.catalog.dict("PageLabels") else { return nil }
         let ranges = PdfStructure.numberTree(tree).filter { $0.key >= 0 }.sorted { $0.key < $1.key }
         if ranges.isEmpty { return nil }
+        // The pages go up, so the range in force only moves forward: one pass, not a search of every range per page
+        // (a hostile file can have a range per page). Each range's prefix is read once and cut to `maxLabelLength`.
+        var idx = -1
+        var prefix = "", style: String?, first = 1
         return try (0..<doc.pageCount()).map { i in
-            guard let idx = ranges.lastIndex(where: { $0.key <= i }) else { return String(i + 1) }
-            let (start, value) = ranges[idx]
-            let d = value.flatMap { $0.isDict ? $0 : nil }
-            // A hostile /St (or start key) must not overflow, nor make Roman or letter labels huge.
-            let first = min(max(d?.int("St") ?? 1, 1), 1_000_000_000)
-            let n = min(max(first + i - start, Int(Int32.min)), Int(Int32.max))
-            return (d?.text("P") ?? "") + formatNumber(n, d?.name("S"))
+            var moved = false
+            while idx + 1 < ranges.count && ranges[idx + 1].key <= i {
+                idx += 1
+                moved = true
+            }
+            guard idx >= 0 else { return String(i + 1) }
+            if moved {
+                let d = ranges[idx].value.flatMap { $0.isDict ? $0 : nil }
+                prefix = String((d?.text("P") ?? "").prefix(maxLabelLength))
+                style = d?.name("S")
+                // A hostile /St (or start key) must not overflow, nor make Roman or letter labels huge.
+                first = min(max(d?.int("St") ?? 1, 1), 1_000_000_000)
+            }
+            let n = min(max(first + i - ranges[idx].key, Int(Int32.min)), Int(Int32.max))
+            return String((prefix + formatNumber(n, style)).prefix(maxLabelLength))
         }
     }
 

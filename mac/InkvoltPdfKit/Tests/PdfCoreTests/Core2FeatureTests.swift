@@ -235,3 +235,23 @@ extension Core2FeatureTests {
         #expect(DocumentFeatures.formatNumber(Int(Int32.max), "R") == "2147483647")
     }
 }
+
+// Review of 1.6.0 (hostile input): Go to Page reads every page's label on the main thread.
+extension Core2FeatureTests {
+    @Test func manyPageLabelRangesAndLongPrefixesStayCheap() throws {
+        let pages = 20_000
+        let prefix = String(repeating: "P", count: 20_000)
+        // One range per page (each label read must not scan them all), and a huge prefix on the last range.
+        var nums = (0..<(pages - 1)).map { "\($0) << /S /D >>" }.joined(separator: " ")
+        nums += " \(pages - 1) << /S /D /P (\(prefix)) >>"
+        let data = TestPdf.make(pages, catalogExtra: "/PageLabels << /Nums [\(nums)] >> ")
+        let clock = ContinuousClock()
+        var labels: [String]?
+        let took = try clock.measure { labels = try DocumentFeatures.pageLabels(data, nil) }
+        let got = try #require(labels)
+        #expect(got.count == pages)
+        #expect(got[0] == "1" && got[pages - 2] == "1")
+        #expect(got[pages - 1].count <= DocumentFeatures.maxLabelLength, "\(got[pages - 1].count)")
+        #expect(took < .seconds(3), "\(took)")
+    }
+}

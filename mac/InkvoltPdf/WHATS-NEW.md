@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Go to Page no longer hangs on a PDF with thousands of page-number styles or a very long page-label prefix.
 
 ## 1.6.0
 - Simpler dialogs: the choices most people need are in sight, the rest under More Options (it remembers). Signing, headers and footers, watermarks, text recognition, Redact by Pattern, Reduce File Size and Batch got shorter, in plainer words.
