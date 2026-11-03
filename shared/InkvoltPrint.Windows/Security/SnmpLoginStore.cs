@@ -30,8 +30,8 @@ public sealed class SnmpLoginStore : ISnmpLogins
 
     public void Save(string printerId, SnmpLogin login)
     {
-        Delete(printerId);
-        if (!login.IsDefault) new PasswordVault().Add(new PasswordCredential(Resource, printerId, login.ToSecret()));
+        if (login.IsDefault) Delete(printerId);
+        else new PasswordVault().Add(new PasswordCredential(Resource, printerId, login.ToSecret())); // replaces what's kept; if refused, that stays
     }
 
     public void Delete(string printerId)

@@ -2382,6 +2382,9 @@
     <value>The privacy passphrase has at least {0} characters.</value>
     <comment>{0} = 8</comment>
   </data>
+  <data name="Snmp_PassphraseTooLong" xml:space="preserve">
+    <value>A passphrase can have at most {0} characters.</value>
+  </data>
   <data name="Snmp_PassphraseControlChars" xml:space="preserve">
     <value>The passphrases can't have tabs, line breaks or other control characters.</value>
   </data>

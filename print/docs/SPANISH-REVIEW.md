@@ -1,6 +1,6 @@
 # Inkvolt Print in Spanish: wording review
 
-For the owner, to review the wording quickly. The app's text is in `print/src/InkvoltPrint.App/Strings.es.resx` and `shared/InkvoltPrint.Core/CoreStrings.es.resx` (2,209 strings in all); change a value there, keep its `{0}`, `{1}` (`LocalizationTests` checks them). Shots of the screens: [`docs/ux-review/spanish/`](../../docs/ux-review/spanish/).
+For the owner, to review the wording quickly. The app's text is in `print/src/InkvoltPrint.App/Strings.es.resx` and `shared/InkvoltPrint.Core/CoreStrings.es.resx` (2,210 strings in all); change a value there, keep its `{0}`, `{1}` (`LocalizationTests` checks them). Shots of the screens: [`docs/ux-review/spanish/`](../../docs/ux-review/spanish/).
 
 The voice is the Store listing's: plain, neutral Spanish for every market, informal *tú*, sentence case. Names of products and protocols, shortcuts (key names included) and whatever the printer itself sends stay as they are, so a demo printer's "Yellow ink is low" is correct.
 

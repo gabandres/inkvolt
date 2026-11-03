@@ -31,6 +31,30 @@ public class SnmpLoginTests
         Assert.Null(SnmpLogin.FromSecret(null));
     }
 
+    [Fact]
+    public void A_passphrase_too_long_for_Credential_Manager_is_refused_when_typed()
+    {
+        var fine = new string('p', SnmpV3User.MaxPassphrase);
+        var pasted = new string('p', SnmpV3User.MaxPassphrase + 1);
+
+        Assert.NotNull(SnmpLogin.ForUser("reader", fine, fine, out _));
+        Assert.Null(SnmpLogin.ForUser("reader", pasted, fine, out var auth));
+        Assert.Contains($"{SnmpV3User.MaxPassphrase}", auth);
+        Assert.Null(SnmpLogin.ForUser("reader", fine, pasted, out var priv));
+        Assert.Contains($"{SnmpV3User.MaxPassphrase}", priv);
+        // The longest login it takes fits: 4,000 characters was fine in the vault on the PC this was tried on, 20,000 wasn't.
+        var longest = SnmpLogin.ForUser(new string('é', SnmpV3User.MaxName / 2), new string('€', SnmpV3User.MaxPassphrase), new string('€', SnmpV3User.MaxPassphrase), out _)!;
+        Assert.True(longest.ToSecret().Length < 2560, $"{longest.ToSecret().Length}");
+    }
+
+    [Fact]
+    public void A_user_name_is_measured_as_the_agent_does_in_bytes()
+    {
+        Assert.NotNull(SnmpLogin.ForUser(new string('a', SnmpV3User.MaxName), "authpassphrase", "privpassphrase", out _));
+        Assert.Null(SnmpLogin.ForUser(new string('é', SnmpV3User.MaxName), "authpassphrase", "privpassphrase", out var error)); // 64 bytes
+        Assert.NotNull(error);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

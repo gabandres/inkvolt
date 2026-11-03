@@ -36,9 +36,10 @@ public sealed record SnmpLogin
     public static SnmpLogin? ForUser(string? name, string? authPassphrase, string? privPassphrase, out string? error)
     {
         error = string.IsNullOrWhiteSpace(name) ? CoreStrings.Snmp_EnterUserName
-            : name.Length > SnmpV3User.MaxName || name.Any(char.IsControl) ? string.Format(CoreStrings.Snmp_UserNameLength, SnmpV3User.MaxName)
+            : System.Text.Encoding.UTF8.GetByteCount(name) > SnmpV3User.MaxName || name.Any(char.IsControl) ? string.Format(CoreStrings.Snmp_UserNameLength, SnmpV3User.MaxName)
             : (authPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? string.Format(CoreStrings.Snmp_AuthPassphraseLength, SnmpV3User.MinPassphrase)
             : (privPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? string.Format(CoreStrings.Snmp_PrivPassphraseLength, SnmpV3User.MinPassphrase)
+            : authPassphrase!.Length > SnmpV3User.MaxPassphrase || privPassphrase!.Length > SnmpV3User.MaxPassphrase ? string.Format(CoreStrings.Snmp_PassphraseTooLong, SnmpV3User.MaxPassphrase)
             : authPassphrase!.Any(char.IsControl) || privPassphrase!.Any(char.IsControl) ? CoreStrings.Snmp_PassphraseControlChars
             : null;
         return error is null ? new SnmpLogin("", new SnmpV3User(name!, authPassphrase!, privPassphrase!)) : null;

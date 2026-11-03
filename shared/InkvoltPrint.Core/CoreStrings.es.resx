@@ -1873,6 +1873,9 @@
   <data name="Snmp_PrivPassphraseLength" xml:space="preserve">
     <value>La frase de contraseña de privacidad tiene al menos {0} caracteres.</value>
   </data>
+  <data name="Snmp_PassphraseTooLong" xml:space="preserve">
+    <value>Una frase de contraseña puede tener como máximo {0} caracteres.</value>
+  </data>
   <data name="Snmp_PassphraseControlChars" xml:space="preserve">
     <value>Las frases de contraseña no pueden tener tabulaciones, saltos de línea ni otros caracteres de control.</value>
   </data>

@@ -13,7 +13,10 @@ public sealed record SnmpV3User(string Name, string AuthPassphrase, string PrivP
     /// <summary>RFC 3414 §11.2: shorter passphrases make weak keys; net-snmp refuses them too.</summary>
     public const int MinPassphrase = 8;
 
-    /// <summary>The longest user name (RFC 3414 usmUserName: SnmpAdminString (SIZE(1..32))).</summary>
+    /// <summary>The longest passphrase taken, so a login always fits Credential Manager (4,000 characters did on the PC this was tried on, 20,000 didn't).</summary>
+    public const int MaxPassphrase = 256;
+
+    /// <summary>The longest user name in bytes of UTF-8 (RFC 3414 usmUserName: SnmpAdminString (SIZE(1..32))).</summary>
     public const int MaxName = 32;
 
     public override string ToString() => $"SNMPv3 user {Name} (SHA-256, AES-128; keys kept)";
