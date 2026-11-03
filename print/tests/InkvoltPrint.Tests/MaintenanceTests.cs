@@ -629,14 +629,15 @@ public class MaintenanceTests
         // so nothing it sends is ever resent, whatever .NET's rules become.
         using var server = new DroppingServer();
         using var http = new DeviceHttp("127.0.0.1");
-        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"))).Dispose();
-        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetAsync(server.Url("/drop"), TimeSpan.FromSeconds(5)));
+        var limit = Timing.Limit(TimeSpan.FromSeconds(15)); // a cap: the 5 s default ran out on a loaded runner, on a server on this machine
+        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"), limit)).Dispose();
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.GetAsync(server.Url("/drop"), limit));
         var pooled = server.Dropped;
         Assert.True(pooled >= 2, $"sent {pooled} times"); // pooled: sent again
 
-        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"))).Dispose();
+        (await http.GetAsync(server.Url("/DevMgmt/ProductStatusDyn.xml"), limit)).Dispose();
         using var once = new HttpRequestMessage(HttpMethod.Get, server.Url("/drop"));
-        await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(once, TimeSpan.FromSeconds(5)));
+        await Assert.ThrowsAsync<HttpRequestException>(() => http.SendOnceAsync(once, limit));
         await Task.Delay(200);
         Assert.Equal(pooled + 1, server.Dropped); // one use: sent once
     }
