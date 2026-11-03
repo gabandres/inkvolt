@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Compare Files: zoom in and out (⌘= and ⌘-, ⌘0 fits the window), and a Compare files card on the start page.
 - Exports to Word, Excel, text, PowerPoint and HTML follow the layers you show or hide in the Layers pane, as printing does.
 - Edit Text & Images: resize a picture by its handles (Shift keeps its proportions) and move it with the arrow keys (Shift: 10 points).
 - An attached PDF that has a password of its own now opens: Inkvolt PDF asks for its password.

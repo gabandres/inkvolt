@@ -12,7 +12,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     /// A Tools card: what it says and what it does.
     enum ToolCard: Int, CaseIterable {
-        case fillSign, editContent, exportWord, combine, protect, ocr, organize, create, batch
+        case fillSign, editContent, exportWord, combine, compare, protect, ocr, organize, create, batch
 
         var title: String {
             switch self {
@@ -20,6 +20,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .editContent: "Edit text & images"
             case .exportWord: "Export to Word"
             case .combine: "Combine files"
+            case .compare: "Compare files"
             case .protect: "Protect"
             case .ocr: "Recognize text (OCR)"
             case .organize: "Organize pages"
@@ -34,6 +35,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .editContent: "Change the words and pictures already on a page"
             case .exportWord: "Turn a PDF into an editable .docx"
             case .combine: "Merge several files into one PDF, in your order"
+            case .compare: "See what changed between two versions"
             case .protect: "Require a password to open, print or change it"
             case .ocr: "Make a scan searchable and its text copyable"
             case .organize: "Reorder, rotate, delete, insert or extract pages"
@@ -48,6 +50,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .editContent: "pencil.line"
             case .exportWord: "doc.richtext"
             case .combine: "doc.on.doc"
+            case .compare: "doc.on.doc.fill"
             case .protect: "lock"
             case .ocr: "text.viewfinder"
             case .organize: "square.grid.2x2"
@@ -66,7 +69,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             case .protect: controller.protectDocument(nil)
             case .ocr: controller.recognizeText(nil)
             case .organize: if !controller.organizerShown { controller.toggleOrganizer(nil) }
-            case .combine, .create, .batch: break
+            case .combine, .compare, .create, .batch: break
             }
         }
 
@@ -361,6 +364,8 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         switch card {
         case .combine:
             _ = CombineWindowController.show()
+        case .compare:
+            CompareWindowController.pick()
         case .batch:
             BatchWindowController.show()
         case .create:

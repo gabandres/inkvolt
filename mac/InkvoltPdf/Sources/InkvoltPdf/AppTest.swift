@@ -111,7 +111,14 @@ struct AppTest {
         document(at: a)?.close()
 
         // Each card that works on a PDF: pick one, it opens straight in that tool.
-        for card in StartWindowController.ToolCard.allCases where card != .combine && card != .create && card != .batch {
+        // The Compare files card asks for the two versions (Compare Files…; not shown while the self-test runs).
+        StartWindowController.show()
+        let asked = CompareWindowController.picksAsked
+        start.cards[StartWindowController.ToolCard.compare.rawValue].performClick(nil)
+        check(CompareWindowController.picksAsked == asked + 1 && start.cards[StartWindowController.ToolCard.compare.rawValue].title.contains("Compare"),
+              "start page › Compare files: asks for the original and the changed version, as File › Compare Files…")
+
+        for card in StartWindowController.ToolCard.allCases where card != .combine && card != .compare && card != .create && card != .batch {
             guard let file = copy("Tool \(card.rawValue).pdf") else { continue }
             StartWindowController.show()
             StartWindowController.testPicks = [[file]]
@@ -127,7 +134,7 @@ struct AppTest {
             case .exportWord, .ocr: started = window?.attachedSheet != nil
             case .protect: started = c?.protectSheet != nil
             case .organize: started = c?.organizerShown == true
-            case .combine, .create, .batch: break
+            case .combine, .compare, .create, .batch: break
             }
             check(ready && started, "start page › \(card.title): a PDF picked, opened straight in the tool")
             if let sheet = window?.attachedSheet { window?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }

@@ -56,6 +56,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     let copyButton = NSButton(title: "Annotated Copy", target: nil, action: nil)
     private let position = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
+    /// Zoom out, Fit and zoom in (Windows' Compare window: Ctrl+-, Ctrl+0, Ctrl+=); the pages fit the width at first.
+    let zoomOut = NSButton(title: "−", target: nil, action: nil)
+    let zoomFit = NSButton(title: "Fit", target: nil, action: nil)
+    let zoomIn = NSButton(title: "+", target: nil, action: nil)
+    static let minZoom = 0.1, maxZoom = 8.0
 
     @discardableResult
     static func show(old: CompareSide, new: CompareSide) -> CompareWindowController {
@@ -97,6 +102,18 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             b.bezelStyle = .rounded
             b.isEnabled = false
         }
+        for (b, action, key, tip) in [(zoomOut, #selector(zoomOutClicked), "-", "Zoom out (⌘-)"), (zoomFit, #selector(zoomFitClicked), "0", "Fit the pages to the window (⌘0)"),
+                                      (zoomIn, #selector(zoomInClicked), "=", "Zoom in (⌘=)")] {
+            b.target = self
+            b.action = action
+            b.bezelStyle = .rounded
+            b.keyEquivalent = key
+            b.keyEquivalentModifierMask = .command
+            b.toolTip = tip
+        }
+        zoomOut.setAccessibilityLabel("Zoom out")
+        zoomIn.setAccessibilityLabel("Zoom in")
+        zoomFit.setAccessibilityLabel("Fit to window")
         previous.keyEquivalent = "["
         previous.keyEquivalentModifierMask = .command
         next.keyEquivalent = "]"
@@ -112,7 +129,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         legend.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         legend.textColor = .secondaryLabelColor
         legend.lineBreakMode = .byTruncatingMiddle
-        let bar = NSStackView(views: [progress, summary, mode, previous, position, next, copyButton])
+        let bar = NSStackView(views: [progress, summary, mode, zoomOut, zoomFit, zoomIn, previous, position, next, copyButton])
         bar.spacing = 10
         bar.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 4, right: 12)
 
@@ -132,7 +149,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
         scroll.documentView = rowsView
         scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = false
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
         scroll.backgroundColor = .underPageBackgroundColor
         scroll.drawsBackground = true
         rowsView.onPick = { [weak self] change in self?.select(change: change, scroll: false) }
@@ -245,6 +263,31 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     private func relayout() {
         rowsView.layoutRows(width: scroll.contentView.bounds.width)
+    }
+
+    @objc func zoomInClicked() { zoom(by: 1.25) }
+    @objc func zoomOutClicked() { zoom(by: 1 / 1.25) }
+    @objc func zoomFitClicked() { setZoom(0) }
+
+    /// From the zoom shown (Fit: the scale of the first row in view), by `factor`, within 10 % to 800 %.
+    func zoom(by factor: Double) {
+        let current = rowsView.zoom > 0 ? rowsView.zoom : rowsView.scale(at: scroll.contentView.bounds.minY)
+        setZoom(min(max(current * factor, Self.minZoom), Self.maxZoom))
+    }
+
+    /// 0 fits the pages to the window's width; else points to the screen's points. The row in view stays in view.
+    func setZoom(_ zoom: Double) {
+        let y = scroll.contentView.bounds.minY
+        let anchor = rowsView.place(at: y)
+        rowsView.zoom = zoom
+        relayout()
+        zoomFit.title = zoom > 0 ? "\(Int((zoom * 100).rounded())) %" : "Fit"
+        zoomOut.isEnabled = zoom == 0 || zoom > Self.minZoom + 0.0001
+        zoomIn.isEnabled = zoom == 0 || zoom < Self.maxZoom - 0.0001
+        if let anchor {
+            let top = rowsView.top(row: anchor.row, within: anchor.within)
+            rowsView.scroll(NSPoint(x: scroll.contentView.bounds.minX, y: top))
+        }
     }
 
     @objc private func modeChanged() { setVisual(mode.selectedSegment == 1) }
@@ -371,7 +414,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     // MARK: Picking the files
 
     /// File › Compare Files…: the original and the changed version, each an open document or a file; Swap.
+    /// How many times Compare Files' question was asked while the self-test ran (it isn't shown then).
+    private(set) static var picksAsked = 0
+
     static func pick() {
+        if Report.isRunning { return picksAsked += 1 }
         let documents = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0.session != nil }
         let alert = NSAlert()
         alert.messageText = "Compare Files"
@@ -512,6 +559,8 @@ final class CompareRowsView: NSView {
     }
 
     var visual = false
+    /// 0: the pages fit the width given; else the scale, the view as wide as the pages need.
+    var zoom = 0.0
     var selected: Int? { didSet { needsDisplay = true } }
     var onPick: ((Int) -> Void)?
     private var result: CompareResult?
@@ -560,22 +609,32 @@ final class CompareRowsView: NSView {
 
     func stop() { token.cancel() }
 
-    func layoutRows(width: Double) {
+    func layoutRows(width viewWidth: Double) {
         guard let result, let old, let new else { return }
         let side = Self.side, gap = Self.gap
         var top = 10.0
+        // Zoomed: wide enough for the widest row at that scale (side by side, or one page in Visual), never narrower.
+        var width = viewWidth
+        if zoom > 0 {
+            var maxWidth = 1.0
+            for row in result.rows {
+                maxWidth = max(maxWidth, row.oldPage.map { old.page($0).width } ?? 0, row.newPage.map { new.page($0).width } ?? 0)
+            }
+            let needed = visual ? 2 * side + maxWidth * zoom : 2 * side + gap + 2 * maxWidth * zoom
+            width = max(viewWidth, needed)
+        }
         layouts = result.rows.map { row in
             let og = row.oldPage.map { old.page($0) }, ng = row.newPage.map { new.page($0) }
             let widest = max(og?.width ?? 0, ng?.width ?? 0, 1)
             let l: RowLayout
             if visual && og != nil && ng != nil {
-                let scale = max(0.05, min(2, (width - 2 * side) / widest))
+                let scale = zoom > 0 ? zoom : max(0.05, min(2, (width - 2 * side) / widest))
                 let h = max(og?.height ?? 0, ng?.height ?? 0) * scale
                 let w = widest * scale
                 l = RowLayout(top: top, height: Self.header + h + Self.bottom, scale: scale, overlayBox: NSRect(x: (width - w) / 2, y: top + Self.header, width: w, height: h))
             } else {
-                let half = (width - 2 * side - gap) / 2
-                let scale = max(0.05, min(2, half / widest))
+                let half = zoom > 0 ? widest * zoom : (width - 2 * side - gap) / 2
+                let scale = zoom > 0 ? zoom : max(0.05, min(2, half / widest))
                 let h = max(og?.height ?? 0, ng?.height ?? 0) * scale
                 let ob = og.map { NSRect(x: side, y: top + Self.header, width: $0.width * scale, height: $0.height * scale) }
                 let nb = ng.map { NSRect(x: side + half + gap, y: top + Self.header, width: $0.width * scale, height: $0.height * scale) }
@@ -590,6 +649,20 @@ final class CompareRowsView: NSView {
         }
         setFrameSize(NSSize(width: width, height: top + 10))
         needsDisplay = true
+    }
+
+    /// The scale of the row at `y` (the first one in view), 1 when there are none.
+    func scale(at y: Double) -> Double { place(at: y).map { layouts[$0.row].scale } ?? 1 }
+
+    /// The row at `y` and how far down it `y` is (0...1), to keep it in view across a zoom.
+    func place(at y: Double) -> (row: Int, within: Double)? {
+        guard let i = layouts.lastIndex(where: { $0.top <= y }) ?? (layouts.isEmpty ? nil : 0) else { return nil }
+        return (i, max(0, min(1, (y - layouts[i].top) / max(1, layouts[i].height))))
+    }
+
+    func top(row: Int, within: Double) -> Double {
+        guard layouts.indices.contains(row) else { return 0 }
+        return layouts[row].top + within * layouts[row].height
     }
 
     /// Where a change is shown (view coordinates), else its row.

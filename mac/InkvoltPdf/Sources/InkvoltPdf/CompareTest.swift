@@ -3,7 +3,7 @@ import PdfCore
 
 /// The self-test's scenario for E3 (`--edit`, after `SignTest`, once): two versions of a small contract made here (a
 /// changed amount, a drawing that moved, an inserted page) compared in the Compare window: the summary and the list,
-/// the pages drawn, stepping through the changes, Visual with its regions, the Annotated Copy opened as a new document
+/// the pages drawn, stepping through the changes, Visual with its regions, zoom (+, −, Fit), the Annotated Copy opened as a new document
 /// with the changes as comments. Only counts are written.
 @MainActor
 struct CompareTest {
@@ -80,6 +80,19 @@ struct CompareTest {
         check(first, "Visual: the changed amount is boxed on page 1 (\(c.rowsView.overlayRegions[0]?.count ?? -1) regions)")
         check(drawing, "Visual: the drawing's moved box is boxed (\(c.rowsView.overlayRegions[2]?.count ?? -1) regions)")
         c.setVisual(false)
+        // Zoom: + from Fit (the first row's scale × 1.25), the rows wider than the window; − back; Fit (⌘0) fits again.
+        let viewWidth = Double(c.rowsView.enclosingScrollView?.contentView.bounds.width ?? 900)
+        let fitScale = c.rowsView.scale(at: 0)
+        c.zoomIn.performClick(nil)
+        let zoomed = abs(c.rowsView.zoom - fitScale * 1.25) < 0.001 && c.zoomFit.title.hasSuffix("%")
+        c.setZoom(2)
+        let wide = Double(c.rowsView.frame.width) > viewWidth + 1 && abs(c.rowsView.scale(at: 0) - 2) < 0.001
+        c.zoomOut.performClick(nil)
+        let out = abs(c.rowsView.zoom - 1.6) < 0.001
+        c.zoomFit.performClick(nil)
+        let fits = c.rowsView.zoom == 0 && abs(Double(c.rowsView.frame.width) - viewWidth) < 1 && c.zoomFit.title == "Fit"
+        check(zoomed && wide && out && fits && c.zoomIn.keyEquivalent == "=" && c.zoomFit.keyEquivalent == "0",
+              "zoom: + from Fit (×1.25), 200 % wider than the window, − (160 %), Fit (⌘0) back to the window's width")
         let copy = c.makeAnnotatedCopy()
         let notes = (copy?.session?.data).flatMap { try? Annotations.read($0, nil) } ?? []
         check(notes.contains { $0.kind == .highlight && $0.contents.contains("“100”") } && notes.contains { $0.kind == .text },
