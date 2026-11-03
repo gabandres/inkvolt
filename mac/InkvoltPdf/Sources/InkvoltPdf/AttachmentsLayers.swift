@@ -476,7 +476,7 @@ extension DocumentWindowController {
 
     private static func askAttachmentPassword(_ file: String, wrong: Bool) -> String? {
         attachmentPasswordAsked += 1
-        if Report.isRunning { return testAttachmentPasswords.isEmpty ? nil : testAttachmentPasswords.removeFirst() }
+        if Report.skipsDialogs { return testAttachmentPasswords.isEmpty ? nil : testAttachmentPasswords.removeFirst() }
         return PasswordPrompt.ask(file: file, wrong: wrong)
     }
 
@@ -500,7 +500,7 @@ extension DocumentWindowController {
     private func presentProblem(_ title: String, _ error: Error) {
         let text = (error as? PdfEditError)?.message ?? error.localizedDescription
         Report.progress("problem: \(title): \(text.prefix(160))")
-        if Report.isRunning {
+        if Report.skipsDialogs {
             lastProblem = title
             return
         }

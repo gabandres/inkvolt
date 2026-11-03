@@ -29,7 +29,9 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         outline.outlineTableColumn = column
         outline.headerView = nil
         outline.style = .sourceList
-        outline.rowSizeStyle = .custom
+        // The system's sidebar size (Appearance › Sidebar icon size; Accessibility › Display › Text size for app
+        // sidebars) sets the rows' text (UX review, round 2: it was always 11 points).
+        outline.rowSizeStyle = .default
         outline.usesAutomaticRowHeights = true
         outline.dataSource = self
         outline.delegate = self
@@ -216,6 +218,7 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         guard let c = (item as? CommentItem)?.info else { return nil }
         let cell = outlineView.makeView(withIdentifier: CommentCell.id, owner: nil) as? CommentCell ?? CommentCell()
+        cell.size(outlineView.effectiveRowSizeStyle)
         cell.show(c)
         return cell
     }
@@ -290,6 +293,15 @@ final class CommentCell: NSTableCellView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// The text at the sidebar's size.
+    func size(_ style: NSTableView.RowSizeStyle) {
+        let mode = style == .small ? 1 : style == .large ? 3 : 2
+        let points = SidebarText.points(sizeMode: mode)
+        title.font = .systemFont(ofSize: points.title, weight: .semibold)
+        detail.font = .systemFont(ofSize: points.detail)
+        icon.symbolConfiguration = .init(pointSize: points.title + 1, weight: .regular)
+    }
 
     func show(_ c: AnnotationInfo) {
         icon.image = NSImage(systemSymbolName: DocumentEditor.symbol(c), accessibilityDescription: nil)

@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
+        DialogNames.start()
         Report.startIfAsked()
         // The Inkvolt Pro licence key lives in the settings: again here, after Report.startIfAsked, so the self-test reads
         // its own suite (main.swift set it first, for the command line).
@@ -111,6 +112,8 @@ enum MainMenu {
     private static func item(_ title: String, _ action: Selector?, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = modifiers
+        // The jargon the Windows names keep, said plainly on the item (UX review, round 2; renames are proposed).
+        item.toolTip = PlainWords.note(for: title)
         return item
     }
 

@@ -260,7 +260,7 @@ final class InventorySheet: NSWindowController {
             guard let panel = window else { return false }
             let alert = NSAlert()
             alert.messageText = "The report couldn't be saved."
-            alert.informativeText = error.localizedDescription
+            alert.informativeText = NSAlert.plainText(error)
             alert.beginSheetModal(for: panel)
             return false
         }

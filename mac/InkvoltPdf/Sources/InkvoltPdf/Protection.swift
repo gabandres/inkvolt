@@ -95,6 +95,8 @@ final class ProtectSheet: NSWindowController {
     let problem = NSTextField(labelWithString: "")
     private var openRows: [NSView] = []
     private var restrictRows: [NSView] = []
+    private var encryptionRow: NSView?
+    let protectButton = NSButton(title: "Protect", target: nil, action: nil)
     var done: ((ProtectionChoice?) -> Void)?
 
     init(current: SecurityInfo?) {
@@ -128,7 +130,7 @@ final class ProtectSheet: NSWindowController {
         annotate.state = perms.annotate ? .on : .off
         fill.state = perms.fillForms ? .on : .off
         assemble.state = perms.assemble ? .on : .off
-        method.addItems(withTitles: ["AES-256 (Acrobat X and later, recommended)", "AES-128 (for Acrobat 7-9 and older readers)"])
+        method.addItems(withTitles: ["Strong (AES-256, recommended)", "For older PDF readers (AES-128)"])
         method.selectItem(at: current?.method == .aes128 ? 1 : 0)
         method.setAccessibilityLabel("Encryption")
         problem.textColor = .systemRed
@@ -156,14 +158,18 @@ final class ProtectSheet: NSWindowController {
         strengthRow.edgeInsets = NSEdgeInsets(top: 0, left: 168, bottom: 0, right: 0)
         openRows = [openRow, openConfirmRow, strengthRow]
         restrictRows = [ownerRow, ownerConfirmRow, printRow, allow]
-        let protect = NSButton(title: "Protect", target: self, action: #selector(protectClicked))
+        let protect = protectButton
+        protect.target = self
+        protect.action = #selector(protectClicked)
         protect.keyEquivalent = "\r"
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [spacer, cancel, protect])
-        let stack = NSStackView(views: [title, note, needOpen] + openRows + [restrict] + restrictRows + [row("Encryption:", method), problem, buttons])
+        let encryption = row("Encryption:", method)
+        encryptionRow = encryption
+        let stack = NSStackView(views: [title, note, needOpen] + openRows + [restrict] + restrictRows + [encryption, problem, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -180,6 +186,10 @@ final class ProtectSheet: NSWindowController {
     @objc private func sync() {
         for v in openRows { v.isHidden = needOpen.state != .on }
         for v in restrictRows { v.isHidden = restrict.state != .on }
+        // Nothing chosen, nothing to protect with: Protect waits, and how it encrypts shows once it matters.
+        let any = needOpen.state == .on || restrict.state == .on
+        encryptionRow?.isHidden = !any
+        protectButton.isEnabled = any
         window?.layoutIfNeeded()
         if let window, let content = window.contentView { window.setContentSize(content.fittingSize) }
     }

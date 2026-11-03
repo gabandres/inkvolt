@@ -5,6 +5,13 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Simpler dialogs: the choices most people need are in sight, the rest under More Options (it remembers). Signing, headers and footers, watermarks, text recognition, Redact by Pattern, Reduce File Size and Batch got shorter, in plainer words.
+- The markup tools sit right under the toolbar, in the same glass, as in Preview; the color is the Mac's own color picker.
+- The window's subtitle shows the zoom next to the page number (Page 2 of 14 · 125%).
+- Error messages say what happened in plain words, and Go to Page tells you which pages there are.
+- Sanitize Document lists only what your document actually holds; Batch tells you what to add when its lists are empty.
+- Every control in the dialogs has a name VoiceOver can read.
+- The comment list in the sidebar follows the Mac's sidebar text size.
 - A calmer window: a toolbar like Preview's (sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search), and the markup tools in a bar of their own that comes when you want it (the Markup button, View › Show Markup Toolbar ⇧⌘A, or any tool you pick). Add or remove buttons with View › Customize Toolbar….
 - The Tools menu is grouped by what you're doing: Annotate, Fill & Sign, Redact, Forms, Measure, Accessibility, AI Assistant. Every tool keeps its key.
 - The start page shows your recent files first and four tools; Show All Tools has the rest.

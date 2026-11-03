@@ -520,11 +520,13 @@ struct SendableHost: @unchecked Sendable {
 struct AppPrompts: EditPrompts {
     func askOwnerPassword(wrong: Bool) -> String? {
         ask {
-            if Report.isRunning { return nil }
+            if Report.skipsDialogs { return nil }
             let alert = NSAlert()
             alert.messageText = wrong ? "That isn't the permissions password." : "This change needs the document's permissions password."
             alert.informativeText = "The file was protected against changes. Type its permissions (owner) password to edit it."
             let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            field.setAccessibleName("Password")
+        field.setAccessibleName("Password")
             alert.accessoryView = field
             alert.addButton(withTitle: "Edit")
             alert.addButton(withTitle: "Cancel")
@@ -535,7 +537,7 @@ struct AppPrompts: EditPrompts {
 
     func confirmSignatureRewrite(label: String, signatures: Int, reason: String) -> Bool {
         ask {
-            if Report.isRunning { return false }
+            if Report.skipsDialogs { return false }
             let alert = NSAlert()
             alert.messageText = "“\(label)” would invalidate \(signatures == 1 ? "the signature" : "\(signatures) signatures")."
             alert.informativeText = "This change can't be added to the signed file without rewriting it, so its digital signatures would no longer verify."
@@ -548,7 +550,7 @@ struct AppPrompts: EditPrompts {
 
     func confirmBreakingEdit(label: String, broken: [SignatureInfo]) -> Bool {
         ask {
-            if Report.isRunning { return false }
+            if Report.skipsDialogs { return false }
             let alert = NSAlert()
             let who = broken.count == 1 ? "the signature of \(broken[0].signerName ?? broken[0].fieldName)" : "\(broken.count) signatures"
             alert.messageText = "\(label) invalidates \(who)."

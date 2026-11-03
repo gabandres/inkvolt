@@ -1,0 +1,506 @@
+# Inkvolt PDF self-test, 2026-11-03 17:52:36 +0000
+NOTE ERROR The document couldn't be saved. NSError
+NOTE ERROR The document couldn't be saved. NSError
+== UX shots
+MENU File (25 items)
+    New Window  ⌘N
+    Open…  ⌘O
+    Open Recent
+        Clear Menu
+    —
+    New PDF
+        New PDF from Images…
+        New PDF from Clipboard  ⌥⌘N
+        New PDF from Office File…
+        New PDF from Web Page…
+    Combine Files…
+    Compare Files…
+    Scan…
+    —
+    Close  ⌘W
+    Close All  ⌥⌘W
+    Save  ⌘S
+    Save As…  ⇧⌘S
+    Save as PDF/A
+        Save as PDF/A-2b…
+        Save as PDF/A-2a (Accessible Archive)…
+    Revert to Saved
+    Reload from Disk  ⌥⌘R
+    —
+    Export To
+        Word…
+        Excel (Tables)…
+        Plain Text…
+        PowerPoint Presentation…
+        HTML Web Page…
+    Form Data
+        Reset Form…
+        Import Form Data…
+        Export Form Data…
+    —
+    Share…
+    —
+    Protect with Password…
+    Remove Password Protection…
+    Reduce File Size…
+    —
+    Batch…  ⇧⌘B
+    Watched Folders…
+    —
+    Document Properties…  ⇧⌘I
+    —
+    Page Setup…  ⇧⌘P
+    Print…  ⌘P
+MENU Edit (12 items)
+    Undo  ⌘Z
+    Redo  ⇧⌘Z
+    —
+    Cut  ⌘X
+    Copy  ⌘C
+    Paste  ⌘V
+    Delete
+    Select All  ⌘A
+    —
+    Find
+        Find…  ⌘F
+        Find Next  ⌘G
+        Find Previous  ⇧⌘G
+    —
+    Writing Tools
+        Show Writing Tools
+        —
+        Proofread
+        Rewrite
+        —
+        Make Friendly
+        Make Professional
+        Make Concise
+        —
+        Summarize
+        Create Key Points
+        Make List
+        Make Table
+        —
+        Compose…
+    —
+    AutoFill
+        Contact…
+        Passwords…
+        Credit Card…
+    Start Dictation…  🎤
+    Emoji & Symbols  ⌘ 
+MENU View (23 items)
+    Actual Size  ⌘0
+    Zoom to Width  ⌘9
+    Zoom to Page  ⌥⌘9
+    Zoom In  ⌘+
+    Zoom Out  ⌘-
+    —
+    Single Page  ⌘4
+    Continuous  ⌘5
+    Two Pages  ⌘6
+    Two Pages with Cover  ⌘7
+    —
+    Rotate View Clockwise  ⇧⌘R
+    Rotate View Counterclockwise  ⇧⌘L
+    Dark Pages (Night Reading)
+    —
+    Hide Sidebar  ⌃⌘S
+    Show Markup Toolbar  ⇧⌘A
+    Hide Toolbar  ⌥⌘T
+    Customize Toolbar…
+    Show Comments  ⌥⌘3
+    Show Signatures  ⌥⌘4
+    Show Attachments  ⌥⌘5
+    Show Layers  ⌥⌘6
+    —
+    Split View
+        Split Top and Bottom
+        Split Side by Side
+        Remove Split
+        —
+        Switch Pane  ⌘'
+    —
+    Read Aloud  ⇧⌘Y
+    Enter Full Screen  F
+MENU Go (7 items)
+    Next Page  ⌥⌘
+    Previous Page  ⌥⌘
+    First Page  
+    Last Page  
+    Go to Page…  ⌥⌘G
+    —
+    Next Comment  ⌥⌘]
+    Previous Comment  ⌥⌘[
+MENU Pages (19 items)
+    Organize Pages  ⌥⌘O
+    —
+    Rotate Left  ⌘L
+    Rotate Right  ⌘R
+    Duplicate Pages
+    Reverse Page Order
+    Delete Pages  ⌥⌘
+    —
+    Insert Pages from File…  ⌥⌘I
+    Insert from Scanner…
+    Insert Blank Page
+    Extract Pages…
+    Split Document…
+    Crop Pages…
+    —
+    Add Header & Footer…
+    Remove Header & Footer
+    Add Watermark…
+    Remove Watermark
+    Flatten…
+    —
+    Add Bookmark  ⌘D
+    Show Bookmarks  ⌥⌘2
+MENU Tools (14 items)
+    Hand  H
+    Select Text  T
+    —
+    Annotate
+        Highlight  Y
+        Underline  U
+        Strike Out  K
+        Note  O
+        Text Box  B
+        Callout  Q
+        —
+        Pen  P
+        Highlighter Pen  M
+        Rectangle  R
+        Ellipse  E
+        Line  L
+        Arrow  W
+        Polygon  V
+        Polyline  Z
+        —
+        Stamp  S
+        Image  I
+        Link  N
+        Picture from File…
+        Picture from Clipboard
+        —
+        Highlight Selected Text  ⌃⌘H
+        Underline Selected Text  ⌃⌘U
+        Strike Out Selected Text  ⌃⌘X
+        Link Selected Text…  ⌘K
+        —
+        Reply to Comment…  ⌃⌘R
+    Fill & Sign
+        Add Text  A
+        Check Mark  C
+        Cross  X
+        Date  D
+        Signature  G
+        —
+        Draw Signature…
+        Type Signature…
+        Draw Initials…
+        Type Initials…
+        Place Saved Signature
+        —
+        Sign Digitally…
+    Edit Text & Images  J
+    Redact
+        Redact  F
+        Redact Selected Text
+        Redact Search Matches
+        Redact by Pattern…
+        —
+        Apply Redactions…
+        Clear Redaction Marks
+        —
+        Check Redaction…
+        Sanitize Document…
+        What's in This PDF…
+    —
+    Recognize Text (OCR)…
+    Review Suspect Words
+    Forms
+        Prepare Form  ⌥⌘F
+        Detect Form Fields
+    Measure
+        Measure Distance
+        Measure Perimeter
+        Measure Area
+        Calibrate Scale from a Known Length
+        —
+        Set Measuring Scale…
+    Accessibility
+        Accessibility Check…
+        Make Accessible (Tag)…
+        Reading Order and Alt Text
+    AI Assistant
+        Summarize with AI…
+        Ask AI about This Document
+        Explain Selection with AI
+        —
+        AI Assistant Settings…
+    —
+    Show Inspector  ⌘I
+    Command Palette…  ⇧⌘K
+MENU Window (5 items)
+    Minimize  ⌘M
+    Zoom
+    —
+    Bring All to Front
+    —
+    Synthetic Form.pdf (Page 1 of 1 · 134%)
+    Synthetic.pdf (Page 1 of 3 · 134%)
+MENU Help (4 items)
+    What's New in Inkvolt PDF
+    Inkvolt Pro…
+    Inkvolt PDF on GitHub
+    Report a Problem…
+MENUS: 203 items in all
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+AUDIT document window: 17 controls, 0 without a name
+window frame: 640 x 680 (asked 640 x 600, tabs: 2, full screen: false)
+PASS shot doc-narrow-light: 640 x 680 pt (NSThemeFrame, window 640, content 640)
+  narrow: DiskBar (hidden) fits in 174 pt
+  narrow: NoticeBar (hidden) fits in 127 pt
+  narrow: RedactBar (hidden) fits in 321 pt
+  narrow: FindBar (hidden) fits in 396 pt
+  narrow: PrepareFormBar (hidden) fits in 618 pt
+  narrow: ReadAloudBar (hidden) fits in 486 pt
+  narrow: PaneSplitView fits in 0 pt
+  narrow: the sidebar fits in 234 pt
+  narrow: content stack 618, window min 560, content min 560, frame view fits 624
+  narrow: split item SidebarController collapsed false min 200 fits 234 hidden false
+  narrow: split item NSViewController collapsed false min -1 fits 618 hidden false
+  narrow: split item NSViewController collapsed true min 260 fits 339 hidden false
+  narrow: split item NSViewController collapsed true min 280 fits 257 hidden false
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-markup-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+AUDIT document window with the markup toolbar: 46 controls, 0 without a name
+PASS shot doc-find-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+PASS shot start-light: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot start-more-light: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+AUDIT start page: 8 controls, 0 without a name
+PASS shot settings-light: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+AUDIT Settings: 9 controls, 0 without a name
+PASS shot palette-light: 560 x 380 pt (NSThemeFrame, window 560, content 560)
+AUDIT command palette: 2 controls, 0 without a name
+PASS shot go-to-page-light: 260 x 194 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-light: "" 260 x 194 pt, buttons: Cancel | Go; Return: Go, Esc: Cancel
+AUDIT go-to-page-light: 3 controls, 0 without a name
+PASS shot go-to-page-error-light: 260 x 178 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-error-light: "" 260 x 178 pt, buttons: Cancel | Go; Return: Go, Esc: Cancel
+AUDIT go-to-page-error-light: 3 controls, 0 without a name
+PASS shot properties-light: 451 x 470 pt (NSGlassContentFrameView, window 451, content 451)
+  properties-light: "" 451 x 470 pt, buttons: What's in This PDF… | Save Changes | Cancel; Return: Save Changes, Esc: Cancel
+AUDIT properties-light: 7 controls, 0 without a name
+PASS shot protect-light: 412 x 197 pt (NSThemeFrame, window 412, content 412)
+  protect-light: "" 412 x 197 pt, buttons: Require a password to open the document | Restrict printing, copying and editing | Copy text and images | Change the document | Add comments | Fill in form fields and sign | Insert, delete and rotate pages | Cancel | Protect; Return: Protect, Esc: Cancel
+AUDIT protect-light: 4 controls, 0 without a name
+PASS shot reduce-light: 466 x 202 pt (NSGlassContentFrameView, window 466, content 466)
+  reduce-light: "" 466 x 202 pt, buttons: Cancel | Reduce; Return: Reduce, Esc: Cancel
+AUDIT reduce-light: 4 controls, 0 without a name
+PASS shot reduce-more-light: 466 x 274 pt (NSGlassContentFrameView, window 466, content 466)
+  reduce-more-light: "" 466 x 274 pt, buttons: Remove page thumbnails saved in the file | Remove other apps' private data | Remove extra document details (the title and author stay) | Cancel | Reduce; Return: Reduce, Esc: Cancel
+AUDIT reduce-more-light: 7 controls, 0 without a name
+PASS shot flatten-light: 411 x 222 pt (NSGlassContentFrameView, window 411, content 411)
+  flatten-light: "" 411 x 222 pt, buttons: Comments and drawings | Form fields (the form can't be filled in afterwards) | Cancel | Flatten; Return: Flatten, Esc: Cancel
+AUDIT flatten-light: 5 controls, 0 without a name
+PASS shot flatten-more-light: 411 x 306 pt (NSGlassContentFrameView, window 411, content 411)
+  flatten-more-light: "" 411 x 306 pt, buttons: Comments and drawings | Form fields (the form can't be filled in afterwards) | Links (they stop working) | Only what prints | Cancel | Flatten; Return: Flatten, Esc: Cancel
+AUDIT flatten-more-light: 7 controls, 0 without a name
+PASS shot header-footer-light: 525 x 320 pt (NSGlassContentFrameView, window 525, content 525)
+  header-footer-light: "" 525 x 320 pt, buttons: Cancel | Add; Return: Add, Esc: Cancel
+AUDIT header-footer-light: 10 controls, 0 without a name
+PASS shot header-footer-more-light: 525 x 514 pt (NSGlassContentFrameView, window 525, content 525)
+  header-footer-more-light: "" 525 x 514 pt, buttons: Number the pages for legal use (Bates) | Cancel | Add; Return: Add, Esc: Cancel
+AUDIT header-footer-more-light: 20 controls, 0 without a name
+PASS shot watermark-light: 344 x 359 pt (NSGlassContentFrameView, window 344, content 344)
+  watermark-light: "" 344 x 359 pt, buttons: Choose Picture… | Cancel | Add; Return: Add, Esc: Cancel
+AUDIT watermark-light: 9 controls, 0 without a name
+PASS shot watermark-more-light: 344 x 478 pt (NSGlassContentFrameView, window 344, content 344)
+  watermark-more-light: "" 344 x 478 pt, buttons: Choose Picture… | Behind the page's content | Cancel | Add; Return: Add, Esc: Cancel
+AUDIT watermark-more-light: 13 controls, 0 without a name
+PASS shot crop-light: 372 x 274 pt (NSGlassContentFrameView, window 372, content 372)
+  crop-light: "" 372 x 274 pt, buttons: Remove crop instead (show the whole page again) | Cancel | Crop; Return: Crop, Esc: Cancel
+AUDIT crop-light: 8 controls, 0 without a name
+PASS shot extract-light: 378 x 183 pt (NSGlassContentFrameView, window 378, content 378)
+  extract-light: "" 378 x 183 pt, buttons: Delete the pages from this document after extracting | Cancel | Extract; Return: Extract, Esc: Cancel
+AUDIT extract-light: 5 controls, 0 without a name
+PASS shot split-light: 452 x 245 pt (NSGlassContentFrameView, window 452, content 452)
+  split-light: "" 452 x 245 pt, buttons: Choose… | Cancel | Split; Return: Split, Esc: Cancel
+AUDIT split-light: 7 controls, 0 without a name
+PASS shot split-more-light: 452 x 304 pt (NSGlassContentFrameView, window 452, content 452)
+  split-more-light: "" 452 x 304 pt, buttons: Choose… | Cancel | Split; Return: Split, Esc: Cancel
+AUDIT split-more-light: 8 controls, 0 without a name
+PASS shot redact-pattern-light: 560 x 520 pt (NSThemeFrame, window 560, content 560)
+  redact-pattern-light: "" 560 x 520 pt, buttons: US Social Security numbers | Phone numbers | Email addresses | Payment card numbers | Dates | Bank account numbers (IBAN) | IP addresses | US ZIP codes | All pages | Pages: | Whole words only | Match case | Cancel | Find and Mark; Return: Find and Mark, Esc: Cancel
+AUDIT redact-pattern-light: 15 controls, 0 without a name
+PASS shot redact-pattern-more-light: 520 x 571 pt (NSThemeFrame, window 520, content 520)
+  redact-pattern-more-light: "" 520 x 571 pt, buttons: US Social Security numbers | Phone numbers | Email addresses | Payment card numbers | Dates | Bank account numbers (IBAN) | IP addresses | US ZIP codes | All pages | Pages: | Whole words only | Match case | Cancel | Find and Mark; Return: Find and Mark, Esc: Cancel
+AUDIT redact-pattern-more-light: 18 controls, 0 without a name
+PASS shot sanitize-light: 520 x 215 pt (NSThemeFrame, window 520, content 520)
+  sanitize-light: "" 520 x 215 pt, buttons: See What's in It… | Cancel | Sanitize; Return: Sanitize, Esc: Cancel
+AUDIT sanitize-light: 3 controls, 0 without a name
+PASS shot ocr-light: 409 x 268 pt (NSGlassContentFrameView, window 409, content 409)
+  ocr-light: "" 409 x 268 pt, buttons: Cancel | Recognize; Return: Recognize, Esc: Cancel
+AUDIT ocr-light: 5 controls, 0 without a name
+PASS shot ocr-more-light: 409 x 412 pt (NSGlassContentFrameView, window 409, content 409)
+  ocr-more-light: "" 409 x 412 pt, buttons: Straighten and clean the pages first | Keep the cleaned pages (instead of the scans) | List the words to check | Cancel | Recognize; Return: Recognize, Esc: Cancel
+AUDIT ocr-more-light: 8 controls, 0 without a name
+PASS shot export-word-light: 320 x 238 pt (NSGlassContentFrameView, window 320, content 320)
+  export-word-light: "" 320 x 238 pt, buttons: Read the text of scanned pages too | Open the file when done | Cancel | Export…; Return: Export…, Esc: Cancel
+AUDIT export-word-light: 5 controls, 0 without a name
+PASS shot export-text-light: 320 x 222 pt (NSGlassContentFrameView, window 320, content 320)
+  export-text-light: "" 320 x 222 pt, buttons: Read the text of scanned pages too | Open the file when done | Cancel | Export…; Return: Export…, Esc: Cancel
+AUDIT export-text-light: 5 controls, 0 without a name
+PASS shot signature-draw-light: 460 x 300 pt (NSThemeFrame, window 460, content 460)
+  signature-draw-light: "" 460 x 300 pt, buttons: Clear | Cancel | Use; Return: Use, Esc: Cancel
+AUDIT signature-draw-light: 5 controls, 0 without a name
+PASS shot signature-type-light: 460 x 300 pt (NSThemeFrame, window 460, content 460)
+  signature-type-light: "" 460 x 300 pt, buttons: Clear | Cancel | Use; Return: Use, Esc: Cancel
+AUDIT signature-type-light: 6 controls, 0 without a name
+PASS shot sign-digitally-light: 457 x 399 pt (NSGlassContentFrameView, window 457, content 457)
+  sign-digitally-light: "" 457 x 399 pt, buttons: Show the signature on the page | Cancel | Sign; Return: Sign, Esc: Cancel
+AUDIT sign-digitally-light: 7 controls, 0 without a name
+PASS shot sign-digitally-more-light: 457 x 623 pt (NSGlassContentFrameView, window 457, content 457)
+  sign-digitally-more-light: "" 457 x 623 pt, buttons: Show the signature on the page | Show the date | Show the reason | Show the signer's full certificate name | Add a trusted timestamp | Cancel | Sign; Return: Sign, Esc: Cancel
+AUDIT sign-digitally-more-light: 14 controls, 0 without a name
+PASS shot ai-settings-light: 600 x 374 pt (NSThemeFrame, window 600, content 600)
+  ai-settings-light: "AI assistant" 600 x 374 pt, buttons: Use an AI assistant: Summarize, Ask about this document, Explain selection | Test Connection | Cancel | Save; Return: Save, Esc: Cancel
+AUDIT ai-settings-light: 7 controls, 0 without a name
+PASS shot ai-summarize-not-set-up-light: 600 x 398 pt (NSThemeFrame, window 600, content 600)
+  ai-summarize-not-set-up-light: "AI assistant" 600 x 398 pt, buttons: Use an AI assistant: Summarize, Ask about this document, Explain selection | Test Connection | Cancel | Save; Return: Save, Esc: Cancel
+AUDIT ai-summarize-not-set-up-light: 7 controls, 0 without a name
+PASS shot scanner-light: 600 x 548 pt (NSThemeFrame, window 600, content 600)
+  scanner-light: "Insert from Scanner" 600 x 548 pt, buttons: Make the text searchable (OCR) | Remove Last Page | Scan | Insert Pages | Cancel; Return: Scan, Esc: Cancel
+AUDIT scanner-light: 11 controls, 0 without a name
+PASS shot compare-light: 397 x 322 pt (NSGlassContentFrameView, window 397, content 397)
+  compare-light: "" 397 x 322 pt, buttons: Swap | Cancel | Compare; Return: Compare, Esc: Cancel
+AUDIT compare-light: 5 controls, 0 without a name
+PASS shot batch-light: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-light: "Batch" 860 x 728 pt, buttons: Add Files… | Add Folder… | Remove | Clear | Edit… | Move Up | Move Down | Remove | Choose… | Save Preset… | Export… | Import… | Watched Folders… | Stop | Run; Return: Run, Esc: none
+AUDIT batch-light: 22 controls, 0 without a name
+PASS shot batch-more-light: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-more-light: "Batch" 860 x 728 pt, buttons: Add Files… | Add Folder… | Remove | Clear | Edit… | Move Up | Move Down | Remove | Choose… | Never replace a file (a taken name gets a number) | Keep subfolders below the results folder | Save Preset… | Export… | Import… | Watched Folders… | Stop | Run; Return: Run, Esc: none
+AUDIT batch-more-light: 27 controls, 0 without a name
+PASS shot combine-empty-light: 520 x 408 pt (NSThemeFrame, window 520, content 520)
+  combine-empty-light: "Combine Files" 520 x 408 pt, buttons: Add Files… | Move Up | Move Down | Remove | Add a bookmark for each file | Cancel | Combine; Return: Combine, Esc: Cancel
+AUDIT combine-empty-light: 8 controls, 0 without a name
+PASS shot report-problem-light: 640 x 548 pt (NSThemeFrame, window 640, content 640)
+  report-problem-light: "Report a Problem" 640 x 548 pt, buttons: Copy and Open a GitHub Issue | Copy | Close; Return: none, Esc: Close
+AUDIT report-problem-light: 4 controls, 0 without a name
+PASS shot web-page-light: 475 x 415 pt (NSGlassContentFrameView, window 475, content 475)
+  web-page-light: "" 475 x 415 pt, buttons: Browse… | Background colors and pictures | Header and footer (title, address, date, page numbers) | Cancel | Create PDF; Return: Create PDF, Esc: Cancel
+AUDIT web-page-light: 9 controls, 0 without a name
+PASS shot password-open-light: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-open-light: "" 292 x 258 pt, buttons: Cancel | Open; Return: Open, Esc: Cancel
+AUDIT password-open-light: 3 controls, 0 without a name
+PASS shot password-wrong-light: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-wrong-light: "" 292 x 258 pt, buttons: Cancel | Open; Return: Open, Esc: Cancel
+AUDIT password-wrong-light: 3 controls, 0 without a name
+PASS shot password-permissions-light: 292 x 290 pt (NSGlassContentFrameView, window 292, content 292)
+  password-permissions-light: "" 292 x 290 pt, buttons: Cancel | Edit; Return: Edit, Esc: Cancel
+AUDIT password-permissions-light: 3 controls, 0 without a name
+PASS shot error-save-light: 260 x 186 pt (NSGlassContentFrameView, window 260, content 260)
+  error-save-light: "" 260 x 186 pt, buttons: OK; Return: OK, Esc: none
+AUDIT error-save-light: 1 controls, 0 without a name
+PASS shot progress-light: 420 x 132 pt (NSThemeFrame, window 420, content 420)
+  progress-light: "" 420 x 132 pt, buttons: Cancel; Return: none, Esc: Cancel
+AUDIT progress-light: 1 controls, 0 without a name
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-dark: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+window frame: 640 x 680 (asked 640 x 600, tabs: 2, full screen: false)
+PASS shot doc-narrow-dark: 640 x 680 pt (NSThemeFrame, window 640, content 640)
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot start-dark: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot settings-dark: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+PASS shot palette-dark: 560 x 380 pt (NSThemeFrame, window 560, content 560)
+PASS shot go-to-page-dark: 260 x 194 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-dark: "" 260 x 194 pt, buttons: Cancel | Go; Return: Go, Esc: Cancel
+PASS shot go-to-page-error-dark: 260 x 178 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-error-dark: "" 260 x 178 pt, buttons: Cancel | Go; Return: Go, Esc: Cancel
+PASS shot properties-dark: 451 x 470 pt (NSGlassContentFrameView, window 451, content 451)
+  properties-dark: "" 451 x 470 pt, buttons: What's in This PDF… | Save Changes | Cancel; Return: Save Changes, Esc: Cancel
+PASS shot protect-dark: 412 x 197 pt (NSThemeFrame, window 412, content 412)
+  protect-dark: "" 412 x 197 pt, buttons: Require a password to open the document | Restrict printing, copying and editing | Copy text and images | Change the document | Add comments | Fill in form fields and sign | Insert, delete and rotate pages | Cancel | Protect; Return: Protect, Esc: Cancel
+PASS shot reduce-dark: 466 x 202 pt (NSGlassContentFrameView, window 466, content 466)
+  reduce-dark: "" 466 x 202 pt, buttons: Cancel | Reduce; Return: Reduce, Esc: Cancel
+PASS shot reduce-more-dark: 466 x 274 pt (NSGlassContentFrameView, window 466, content 466)
+  reduce-more-dark: "" 466 x 274 pt, buttons: Remove page thumbnails saved in the file | Remove other apps' private data | Remove extra document details (the title and author stay) | Cancel | Reduce; Return: Reduce, Esc: Cancel
+PASS shot flatten-dark: 411 x 222 pt (NSGlassContentFrameView, window 411, content 411)
+  flatten-dark: "" 411 x 222 pt, buttons: Comments and drawings | Form fields (the form can't be filled in afterwards) | Cancel | Flatten; Return: Flatten, Esc: Cancel
+PASS shot flatten-more-dark: 411 x 306 pt (NSGlassContentFrameView, window 411, content 411)
+  flatten-more-dark: "" 411 x 306 pt, buttons: Comments and drawings | Form fields (the form can't be filled in afterwards) | Links (they stop working) | Only what prints | Cancel | Flatten; Return: Flatten, Esc: Cancel
+PASS shot header-footer-dark: 525 x 320 pt (NSGlassContentFrameView, window 525, content 525)
+  header-footer-dark: "" 525 x 320 pt, buttons: Cancel | Add; Return: Add, Esc: Cancel
+PASS shot header-footer-more-dark: 525 x 514 pt (NSGlassContentFrameView, window 525, content 525)
+  header-footer-more-dark: "" 525 x 514 pt, buttons: Number the pages for legal use (Bates) | Cancel | Add; Return: Add, Esc: Cancel
+PASS shot watermark-dark: 344 x 359 pt (NSGlassContentFrameView, window 344, content 344)
+  watermark-dark: "" 344 x 359 pt, buttons: Choose Picture… | Cancel | Add; Return: Add, Esc: Cancel
+PASS shot watermark-more-dark: 344 x 478 pt (NSGlassContentFrameView, window 344, content 344)
+  watermark-more-dark: "" 344 x 478 pt, buttons: Choose Picture… | Behind the page's content | Cancel | Add; Return: Add, Esc: Cancel
+PASS shot crop-dark: 372 x 274 pt (NSGlassContentFrameView, window 372, content 372)
+  crop-dark: "" 372 x 274 pt, buttons: Remove crop instead (show the whole page again) | Cancel | Crop; Return: Crop, Esc: Cancel
+PASS shot extract-dark: 378 x 183 pt (NSGlassContentFrameView, window 378, content 378)
+  extract-dark: "" 378 x 183 pt, buttons: Delete the pages from this document after extracting | Cancel | Extract; Return: Extract, Esc: Cancel
+PASS shot split-dark: 452 x 245 pt (NSGlassContentFrameView, window 452, content 452)
+  split-dark: "" 452 x 245 pt, buttons: Choose… | Cancel | Split; Return: Split, Esc: Cancel
+PASS shot split-more-dark: 452 x 304 pt (NSGlassContentFrameView, window 452, content 452)
+  split-more-dark: "" 452 x 304 pt, buttons: Choose… | Cancel | Split; Return: Split, Esc: Cancel
+PASS shot redact-pattern-dark: 560 x 520 pt (NSThemeFrame, window 560, content 560)
+  redact-pattern-dark: "" 560 x 520 pt, buttons: US Social Security numbers | Phone numbers | Email addresses | Payment card numbers | Dates | Bank account numbers (IBAN) | IP addresses | US ZIP codes | All pages | Pages: | Whole words only | Match case | Cancel | Find and Mark; Return: Find and Mark, Esc: Cancel
+PASS shot redact-pattern-more-dark: 520 x 571 pt (NSThemeFrame, window 520, content 520)
+  redact-pattern-more-dark: "" 520 x 571 pt, buttons: US Social Security numbers | Phone numbers | Email addresses | Payment card numbers | Dates | Bank account numbers (IBAN) | IP addresses | US ZIP codes | All pages | Pages: | Whole words only | Match case | Cancel | Find and Mark; Return: Find and Mark, Esc: Cancel
+PASS shot sanitize-dark: 520 x 215 pt (NSThemeFrame, window 520, content 520)
+  sanitize-dark: "" 520 x 215 pt, buttons: See What's in It… | Cancel | Sanitize; Return: Sanitize, Esc: Cancel
+PASS shot ocr-dark: 409 x 268 pt (NSGlassContentFrameView, window 409, content 409)
+  ocr-dark: "" 409 x 268 pt, buttons: Cancel | Recognize; Return: Recognize, Esc: Cancel
+PASS shot ocr-more-dark: 409 x 412 pt (NSGlassContentFrameView, window 409, content 409)
+  ocr-more-dark: "" 409 x 412 pt, buttons: Straighten and clean the pages first | Keep the cleaned pages (instead of the scans) | List the words to check | Cancel | Recognize; Return: Recognize, Esc: Cancel
+PASS shot export-word-dark: 320 x 238 pt (NSGlassContentFrameView, window 320, content 320)
+  export-word-dark: "" 320 x 238 pt, buttons: Read the text of scanned pages too | Open the file when done | Cancel | Export…; Return: Export…, Esc: Cancel
+PASS shot export-text-dark: 320 x 222 pt (NSGlassContentFrameView, window 320, content 320)
+  export-text-dark: "" 320 x 222 pt, buttons: Read the text of scanned pages too | Open the file when done | Cancel | Export…; Return: Export…, Esc: Cancel
+PASS shot signature-draw-dark: 460 x 300 pt (NSThemeFrame, window 460, content 460)
+  signature-draw-dark: "" 460 x 300 pt, buttons: Clear | Cancel | Use; Return: Use, Esc: Cancel
+PASS shot signature-type-dark: 460 x 300 pt (NSThemeFrame, window 460, content 460)
+  signature-type-dark: "" 460 x 300 pt, buttons: Clear | Cancel | Use; Return: Use, Esc: Cancel
+PASS shot sign-digitally-dark: 457 x 399 pt (NSGlassContentFrameView, window 457, content 457)
+  sign-digitally-dark: "" 457 x 399 pt, buttons: Show the signature on the page | Cancel | Sign; Return: Sign, Esc: Cancel
+PASS shot sign-digitally-more-dark: 457 x 623 pt (NSGlassContentFrameView, window 457, content 457)
+  sign-digitally-more-dark: "" 457 x 623 pt, buttons: Show the signature on the page | Show the date | Show the reason | Show the signer's full certificate name | Add a trusted timestamp | Cancel | Sign; Return: Sign, Esc: Cancel
+PASS shot ai-settings-dark: 600 x 374 pt (NSThemeFrame, window 600, content 600)
+  ai-settings-dark: "AI assistant" 600 x 374 pt, buttons: Use an AI assistant: Summarize, Ask about this document, Explain selection | Test Connection | Cancel | Save; Return: Save, Esc: Cancel
+PASS shot ai-summarize-not-set-up-dark: 600 x 398 pt (NSThemeFrame, window 600, content 600)
+  ai-summarize-not-set-up-dark: "AI assistant" 600 x 398 pt, buttons: Use an AI assistant: Summarize, Ask about this document, Explain selection | Test Connection | Cancel | Save; Return: Save, Esc: Cancel
+PASS shot scanner-dark: 600 x 548 pt (NSThemeFrame, window 600, content 600)
+  scanner-dark: "Insert from Scanner" 600 x 548 pt, buttons: Make the text searchable (OCR) | Remove Last Page | Scan | Insert Pages | Cancel; Return: Scan, Esc: Cancel
+PASS shot compare-dark: 397 x 322 pt (NSGlassContentFrameView, window 397, content 397)
+  compare-dark: "" 397 x 322 pt, buttons: Swap | Cancel | Compare; Return: Compare, Esc: Cancel
+PASS shot batch-dark: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-dark: "Batch" 860 x 728 pt, buttons: Add Files… | Add Folder… | Remove | Clear | Edit… | Move Up | Move Down | Remove | Choose… | Save Preset… | Export… | Import… | Watched Folders… | Stop | Run; Return: Run, Esc: none
+PASS shot batch-more-dark: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-more-dark: "Batch" 860 x 728 pt, buttons: Add Files… | Add Folder… | Remove | Clear | Edit… | Move Up | Move Down | Remove | Choose… | Never replace a file (a taken name gets a number) | Keep subfolders below the results folder | Save Preset… | Export… | Import… | Watched Folders… | Stop | Run; Return: Run, Esc: none
+PASS shot combine-empty-dark: 520 x 408 pt (NSThemeFrame, window 520, content 520)
+  combine-empty-dark: "Combine Files" 520 x 408 pt, buttons: Add Files… | Move Up | Move Down | Remove | Add a bookmark for each file | Cancel | Combine; Return: Combine, Esc: Cancel
+PASS shot report-problem-dark: 640 x 548 pt (NSThemeFrame, window 640, content 640)
+  report-problem-dark: "Report a Problem" 640 x 548 pt, buttons: Copy and Open a GitHub Issue | Copy | Close; Return: none, Esc: Close
+PASS shot web-page-dark: 475 x 415 pt (NSGlassContentFrameView, window 475, content 475)
+  web-page-dark: "" 475 x 415 pt, buttons: Browse… | Background colors and pictures | Header and footer (title, address, date, page numbers) | Cancel | Create PDF; Return: Create PDF, Esc: Cancel
+PASS shot password-open-dark: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-open-dark: "" 292 x 258 pt, buttons: Cancel | Open; Return: Open, Esc: Cancel
+PASS shot password-wrong-dark: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-wrong-dark: "" 292 x 258 pt, buttons: Cancel | Open; Return: Open, Esc: Cancel
+PASS shot password-permissions-dark: 292 x 290 pt (NSGlassContentFrameView, window 292, content 292)
+  password-permissions-dark: "" 292 x 290 pt, buttons: Cancel | Edit; Return: Edit, Esc: Cancel
+PASS shot error-save-dark: 260 x 186 pt (NSGlassContentFrameView, window 260, content 260)
+  error-save-dark: "" 260 x 186 pt, buttons: OK; Return: OK, Esc: none
+PASS shot progress-dark: 420 x 132 pt (NSThemeFrame, window 420, content 420)
+  progress-dark: "" 420 x 132 pt, buttons: Cancel; Return: none, Esc: Cancel
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-contrast: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+PASS shot start-contrast: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot settings-contrast: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+RESULT: PASS (98 shots, 0 audit findings, 0 failed)
+QUIT: 1 of 1 documents finished

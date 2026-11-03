@@ -894,6 +894,21 @@ Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; M
 - `--ux-shots` (with `--self-test`, `--snapshots` and `--synthetic`): the review's shots, menu listing and AX audit
   (`AxAudit` in PdfCore).
 
+Decided 2026-11-03 in the Mac UX review's round 2 (`docs/UX-REVIEW.md`, branch `mac-ux-2`; Mac differences from Windows):
+- The markup toolbar is a titlebar accessory under the window's toolbar (Preview's place), its color the system's
+  color well; Windows keeps its style bar's eight swatches.
+- Dialogs keep their advanced choices behind a More Options triangle that remembers per dialog (`SheetForm`): Sign
+  Digitally, Add Header & Footer, Add Watermark, Recognize Text, Redact by Pattern, Reduce File Size, Flatten, Split
+  Document, Batch's result options. Windows' dialogs show every option.
+- Sanitize Document's sheet lists only the kinds the document holds; the others are one line. Windows lists all.
+- The window's subtitle shows the zoom ("Page 1 of 3 · 134%", only off 100%); Windows shows it in its zoom box.
+- The commands named in jargon (PDF/A-2b, Flatten, Sanitize Document, Suspect Words) show a plain note as their
+  tooltip; the names are Windows' until both apps rename (proposals in UX-REVIEW.md).
+- Text size: only the sidebar's lists follow macOS's size (AppKit has no Dynamic Type); Windows follows its Text size
+  everywhere.
+- `--ux-shots` also opens, shoots, audits and cancels every sheet and alert of the document window (`UxDialogs`);
+  `--ux-main` leaves them out. `DialogNames` names a dialog's controls for VoiceOver from the labels beside them.
+
 ### What a person must look at (unattended run, 2026-11-03)
 
 Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each needs a person at the Mac:
@@ -943,6 +958,12 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   them; Increase Contrast and VoiceOver over the toolbar and the markup bar.
 - Go to Page (Go menu, ⌥⌘G): the sheet's field taking focus, Return going there, a label typed in a file with page
   labels (the self-test's document has none), and the sheet asked again with the range.
+- The UX review's round 2 (branch `mac-ux-2`): the markup toolbar under the toolbar in Liquid Glass (light, dark,
+  Increase Contrast, full screen, a narrow window, several tabs), the color well's popover and Show Colors…, the width
+  pop-up; More Options opening and closing on a sheet that is already showing (the shots were taken after it settled),
+  in Sign Digitally, Header & Footer, Watermark, Recognize Text, Redact by Pattern, Reduce File Size, Split and Batch;
+  the subtitle's zoom while pinching; the comment list at the Large sidebar size; VoiceOver reading the dialogs' controls
+  by their labels; the tooltips on Save as PDF/A, Flatten, Sanitize Document and Review Suspect Words.
 
 ## Open decisions
 

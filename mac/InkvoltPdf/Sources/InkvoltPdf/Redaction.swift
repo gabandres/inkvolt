@@ -79,7 +79,7 @@ extension DocumentWindowController {
 
     /// Says something that needs reading in an alert over the window (in the bar during the self-test).
     func inform(_ title: String, _ text: String) {
-        if Report.isRunning {
+        if Report.skipsDialogs {
             notify("\(title): \(text)")
             return
         }
@@ -478,6 +478,8 @@ final class RedactPatternSheet: NSWindowController {
     let somePages = NSButton(radioButtonWithTitle: "Pages:", target: nil, action: nil)
     let range = NSTextField()
     let problem = NSTextField(wrappingLabelWithString: "")
+    let more = NSButton()
+    private var advanced: [NSView] = []
     private let pageCount: Int
     private static let hint = #"For example CASE-\d{4} finds CASE-0412. Line breaks read as spaces."#
     var done: ((RedactionPatternOptions?) -> Void)?
@@ -488,8 +490,7 @@ final class RedactPatternSheet: NSWindowController {
         super.init(window: panel)
         let title = NSTextField(labelWithString: "Redact by Pattern")
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        let note = Self.wrapped("Finds text by its pattern and marks every match for redaction. Nothing is removed yet: check the marks, "
-            + "click any you want to keep to unmark it, then apply them.")
+        let note = Self.wrapped("Marks every match for redaction. Nothing is removed yet: you check the marks, then apply them.")
 
         let grid = NSGridView(numberOfColumns: 2, rows: 0)
         grid.rowSpacing = 6
@@ -562,17 +563,33 @@ final class RedactPatternSheet: NSWindowController {
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [spacer, cancel, find])
 
-        let stack = NSStackView(views: [title, note, Self.heading("Look for"), grid, kindsNote, Self.heading("Your words and phrases (one per line)"),
-                                        phrasesScroll, Self.heading("Your own pattern (a regular expression; optional)"), expression, expressionNote,
-                                        options, Self.heading("Pages"), pagesRow, problem, buttons])
+        // Your own pattern, whole words and case behind More Options (UX review, round 2: the sheet showed every choice).
+        more.bezelStyle = .disclosure
+        more.setButtonType(.pushOnPushOff)
+        more.title = ""
+        more.setAccessibilityLabel("More Options")
+        more.target = self
+        more.action = #selector(moreToggled)
+        more.state = AppSettings.defaults.bool(forKey: "MoreOptions.RedactPattern") || !(current.expression ?? "").isEmpty
+            || current.matchCase || !current.wholeWord ? .on : .off
+        let moreLabel = NSTextField(labelWithString: "More Options")
+        moreLabel.textColor = .secondaryLabelColor
+        let moreRow = NSStackView(views: [more, moreLabel])
+        moreRow.spacing = 4
+        advanced = [kindsNote, Self.heading("Your own pattern (a regular expression)"), expression, expressionNote, options]
+
+        let stack = NSStackView(views: [title, note, Self.heading("Look for"), grid, Self.heading("Your words and phrases (one per line)"),
+                                        phrasesScroll, Self.heading("Pages"), pagesRow, moreRow] + advanced + [problem, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
-        stack.setCustomSpacing(14, after: kindsNote)
-        stack.setCustomSpacing(14, after: expressionNote)
+        stack.setCustomSpacing(14, after: grid)
+        stack.setCustomSpacing(14, after: phrasesScroll)
+        stack.setCustomSpacing(14, after: pagesRow)
         stack.setCustomSpacing(14, after: options)
         stack.setCustomSpacing(16, after: problem)
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 16, right: 20)
+        for v in advanced { v.isHidden = more.state != .on }
         buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         panel.contentView = stack
     }
@@ -597,6 +614,19 @@ final class RedactPatternSheet: NSWindowController {
         let f = NSTextField(labelWithString: text)
         f.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         return f
+    }
+
+    @objc private func moreToggled() {
+        AppSettings.defaults.set(more.state == .on, forKey: "MoreOptions.RedactPattern")
+        for v in advanced { v.isHidden = more.state != .on }
+        fit()
+    }
+
+    /// The sheet at the size of what it shows.
+    func fit() {
+        guard let window, let content = window.contentView else { return }
+        content.layoutSubtreeIfNeeded()
+        window.setContentSize(content.fittingSize)
     }
 
     @objc private func expressionChanged() {
@@ -824,7 +854,7 @@ final class RedactionReportSheet: NSWindowController {
 @MainActor
 final class SanitizeSheet: NSWindowController {
     static let kinds: [(item: SanitizeItem, label: String, group: String?)] = [
-        (.metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Metadata"),
+        (.metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Document details"),
         (.hiddenLayers, "Hidden layers, with what they draw", "Hidden data"),
         (.hiddenAnnotations, "Hidden comments and form fields", nil),
         (.comments, "Comments, markup, stamps and drawings", nil),
@@ -836,6 +866,28 @@ final class SanitizeSheet: NSWindowController {
         (.embeddedFiles, "Attached files", "Attachments"),
         (.signatures, "Digital signatures (the signature fields stay, empty)", "Signatures"),
     ]
+
+    /// A kind in the one line of what the document doesn't hold.
+    static func absentName(_ item: SanitizeItem) -> String {
+        switch item {
+        case .metadata: "document details"
+        case .hiddenLayers: "hidden layers"
+        case .hiddenAnnotations: "hidden comments or fields"
+        case .comments: "comments or drawings"
+        case .formValues: "form values"
+        case .bookmarks: "bookmarks"
+        case .thumbnails: "page thumbnails"
+        case .activeContent: "scripts or actions"
+        case .externalLinks: "links to other files or the web"
+        case .embeddedFiles: "attachments"
+        case .signatures: "digital signatures"
+        }
+    }
+
+    /// The checkbox's words: the metadata line without "XMP" (plain words, UX review round 2).
+    static func plainLabel(_ item: SanitizeItem, _ label: String) -> String {
+        item == .metadata ? "Document details: title, author, comment authors and dates, other apps' private data" : label
+    }
 
     static func lower(_ s: String) -> String { s.isEmpty ? s : s.prefix(1).lowercased() + s.dropFirst() }
 
@@ -853,33 +905,47 @@ final class SanitizeSheet: NSWindowController {
         super.init(window: panel)
         let title = NSTextField(labelWithString: "Sanitize Document")
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        var rewrite: [String] = []
-        if found.earlierRevisions > 0 {
-            rewrite.append((found.earlierRevisions == 1 ? "1 earlier version" : "\(found.earlierRevisions) earlier versions") + " kept by incremental saves")
-        }
-        if found.unusedObjects > 0 { rewrite.append(found.unusedObjects == 1 ? "1 unused object" : "\(found.unusedObjects) unused objects") }
-        var views: [NSView] = [title, Self.note("Removes what the document carries besides its pages. The file is rewritten as a single version"
-            + (rewrite.isEmpty ? ", so nothing of earlier versions is left in it" : ", which also drops \(rewrite.joined(separator: " and "))")
-            + ". You can undo this until you save.")]
+        var views: [NSView] = [title, Self.note("Removes what the file carries besides its pages: hidden information, scripts, attachments, "
+            + "authors and dates. You can undo this until you save.")]
         if found[.signatures] > 0 {
             views.append(Self.note("This document is digitally signed. Sanitizing rewrites it, so its signatures will no longer verify. Removing them "
                 + "takes the signers' names and certificates out too; kept, they show as invalid. To keep the signed original, save the result "
                 + "as a copy (Save As)."))
         }
+        // Only what this document holds gets a checkbox; the rest is one line (UX review, round 2: eleven greyed-out
+        // "(none found)" boxes in five groups on a plain file).
+        var absent: [String] = []
+        var lastGroup: String?
         for (item, label, group) in Self.kinds {
             let n = found[item]
-            if item == .signatures && n == 0 { continue } // not signed: nothing to say
-            if let group { views.append(RedactPatternSheet.heading(group)) }
-            let box = NSButton(checkboxWithTitle: n > 0 ? "\(label) (\(n))" : "\(label) (none found)", target: nil, action: nil)
+            if let group { lastGroup = group }
+            let box = NSButton(checkboxWithTitle: "\(Self.plainLabel(item, label)) (\(n))", target: nil, action: nil)
             box.state = n > 0 ? .on : .off
             box.isEnabled = n > 0
             box.setAccessibilityLabel(n > 0 ? "\(label): \(n) found" : "\(label): none found")
             checks.append((item, box))
+            guard n > 0 else {
+                if item != .signatures { absent.append(Self.absentName(item)) }
+                continue
+            }
+            if let g = lastGroup {
+                views.append(RedactPatternSheet.heading(g))
+                lastGroup = nil
+            }
             views.append(box)
         }
+        if checks.allSatisfy({ found[$0.item] == 0 }) {
+            views.append(RedactPatternSheet.heading("Nothing hidden found"))
+        }
+        if !absent.isEmpty { views.append(Self.note("Not in this document: " + absent.joined(separator: ", ") + ".")) }
+        var rewrite: [String] = []
+        if found.earlierRevisions > 0 {
+            rewrite.append(found.earlierRevisions == 1 ? "1 earlier version of the file" : "\(found.earlierRevisions) earlier versions of the file")
+        }
+        if found.unusedObjects > 0 { rewrite.append("leftover pieces of earlier edits") }
+        if !rewrite.isEmpty { views.append(Self.note("Saving it afresh also drops " + rewrite.joined(separator: " and ") + ".")) }
         for n in found.notes { views.append(Self.note(n)) }
-        views.append(Self.note("Text drawn in white or outside the page isn't removed here (it can't be told reliably from text that shows): "
-            + "See What's in It lists it, and redacting its area removes it."))
+        views.append(Self.note("Text drawn in white or outside the page stays: See What's in It… lists it, and redacting its area removes it."))
         problem.textColor = .systemRed
         problem.preferredMaxLayoutWidth = 500
         problem.isHidden = true
@@ -901,6 +967,9 @@ final class SanitizeSheet: NSWindowController {
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 16, right: 20)
         buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         panel.contentView = stack
+        // As tall as what it lists (a fixed 520 points left a blank half on a plain file).
+        stack.layoutSubtreeIfNeeded()
+        panel.setContentSize(stack.fittingSize)
     }
 
     @available(*, unavailable)

@@ -140,13 +140,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
         let content = NSViewController()
         paneSplit.addPane(scrollView)
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit])
+        let stack = NSStackView(views: [diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
         // Just under required: a bar, shown or hidden, never sets the window's minimum width (Prepare Form's bar held
         // every document window at 850 points or more, the markup strip at 1,300; UX review, 2026-11-03).
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] {
+        for v in [diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] {
             let same = v.widthAnchor.constraint(equalTo: stack.widthAnchor)
             same.priority = v === paneSplit ? .required : .init(999)
             same.isActive = true
@@ -446,7 +446,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     private func problemAlert(_ message: String, _ detail: String) {
-        if Report.isRunning { return notify("\(message). \(detail)") }
+        if Report.skipsDialogs { return notify("\(message). \(detail)") }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
@@ -1027,6 +1027,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             view.needsDisplay = true
             view.requestVisible()
         }
+        updateSubtitle()
     }
 
     // MARK: Pages
@@ -1088,7 +1089,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func updateSubtitle() {
-        window?.subtitle = engine.pageCount == 0 ? "No pages" : "Page \(activePages.currentPage + 1) of \(engine.pageCount)"
+        // The zoom beside the page, as a percentage, only when it isn't 100% (UX review, round 2: it showed nowhere).
+        let text = WindowStatus.subtitle(page: activePages.currentPage + 1, pageCount: engine.pageCount, zoom: Double(activeScroll.magnification))
+        if window?.subtitle != text { window?.subtitle = text }
     }
 
     // MARK: Find

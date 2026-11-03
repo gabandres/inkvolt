@@ -17,6 +17,10 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
         window.toolbarStyle = .unified
+        // The markup toolbar sits under the toolbar, in its material, as Preview's (UX review, round 2).
+        if !window.titlebarAccessoryViewControllers.contains(toolStrip.accessory) {
+            window.addTitlebarAccessoryViewController(toolStrip.accessory)
+        }
         showMarkup(AppSettings.markupShown, remember: false)
     }
 

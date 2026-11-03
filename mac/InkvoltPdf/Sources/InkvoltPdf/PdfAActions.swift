@@ -80,7 +80,7 @@ extension DocumentWindowController {
                 return nil
             case .failure(let error):
                 Report.progress("PDF/A failed: \(type(of: error))")
-                let message = (error as? PdfEditError)?.message ?? "\(error)"
+                let message = NSAlert.plainText(error)
                 sheet.end()
                 await PdfAState.show(self, "Can't save as \(conformance.name)", message, isError: true)
                 return nil
@@ -141,7 +141,7 @@ enum PdfAState {
     static func show(_ controller: DocumentWindowController, _ title: String, _ message: String, isError: Bool = false, openButton: Bool = false) async -> Bool {
         lastTitle = title
         lastMessage = message
-        if Report.isRunning { return false }
+        if Report.skipsDialogs { return false }
         let alert = NSAlert()
         alert.messageText = title
         alert.alertStyle = isError ? .critical : .informational
@@ -184,7 +184,7 @@ enum PdfAState {
     /// The permissions password, asked for the copy (nil: cancelled).
     static func askOwnerPassword(_ controller: DocumentWindowController, _ name: String, wrong: Bool) async -> String? {
         let question = wrong ? "That password is incorrect. Try again." : "Permissions password required"
-        if Report.isRunning {
+        if Report.skipsDialogs {
             ownerPasswordQuestions.append(question)
             return testOwnerPasswords.isEmpty ? nil : testOwnerPasswords.removeFirst()
         }
@@ -192,6 +192,7 @@ enum PdfAState {
         alert.messageText = question
         alert.informativeText = "A PDF/A copy can't be password protected, so making one of “\(name)” needs its permissions (owner) password."
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.setAccessibleName("Password")
         alert.accessoryView = field
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")

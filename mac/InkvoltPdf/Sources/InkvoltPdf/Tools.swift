@@ -252,12 +252,15 @@ final class ToolStyles {
     func set(_ tool: Tool, _ style: AnnotStyle) { styles[tool] = style }
 }
 
-/// The tools strip over the pages (as Preview's markup bar): the tools in groups, the color and line width for the
-/// current tool, and the stamp in use. Every control has a VoiceOver label and a tooltip with its key.
+/// The markup toolbar (as Preview's): the tools in groups, the color and line width for the current tool, and the stamp in
+/// use, under the window's toolbar as a titlebar accessory, so it shares the toolbar's material (Liquid Glass) and the
+/// system draws its background and edge (UX review, round 2: it was a strip of its own over the pages, painted with the
+/// window's background). The color is the system's color well (its swatches and Show Colors…), the width a standard
+/// pop-up. Every control has a VoiceOver label and a tooltip with its key.
 @MainActor
 final class ToolStrip: NSView {
     private var controls: [NSSegmentedControl] = []
-    let colorButton = NSPopUpButton(frame: .zero, pullsDown: true)
+    let colorWell = NSColorWell(style: .minimal)
     let widthButton = NSPopUpButton(frame: .zero, pullsDown: false)
     let stampLabel = NSTextField(labelWithString: "")
     var onTool: ((Tool) -> Void)?
@@ -268,24 +271,27 @@ final class ToolStrip: NSView {
     var onImageMenu: ((NSView, NSRect) -> Void)?
     var onSignatureMenu: ((NSView, NSRect) -> Void)?
     static let widths: [Double] = [0.5, 1, 2, 3, 5, 8, 14]
+    /// The titlebar accessory that holds the strip under the toolbar.
+    let accessory = NSTitlebarAccessoryViewController()
+    private var showing: NSColor?
 
     init() {
         super.init(frame: .zero)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
-        setAccessibilityLabel("Tools")
+        setAccessibilityLabel("Markup")
         var views: [NSView] = []
         for (g, group) in Tool.groups.enumerated() {
             let control = NSSegmentedControl()
             control.segmentCount = group.count
             control.trackingMode = .selectOne
-            control.segmentStyle = .texturedRounded
+            control.segmentStyle = .automatic
             control.tag = g
             for (i, tool) in group.enumerated() {
                 let image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: tool.title)
                 control.setImage(image, forSegment: i)
                 control.setImageScaling(.scaleProportionallyDown, forSegment: i)
-                control.setWidth(30, forSegment: i)
+                control.setWidth(28, forSegment: i)
                 control.setToolTip("\(tool.help) (\(tool.key.uppercased()))", forSegment: i)
                 if tool == .stamp || tool == .image || tool == .signature { control.setShowsMenuIndicator(true, forSegment: i) }
             }
@@ -297,25 +303,14 @@ final class ToolStrip: NSView {
             views.append(control)
         }
 
-        colorButton.bezelStyle = .texturedRounded
-        colorButton.setAccessibleName("Color")
-        colorButton.toolTip = "Color for the current tool or the selected comment"
-        let colorMenu = NSMenu()
-        colorMenu.addItem(withTitle: "", action: nil, keyEquivalent: "") // the pull-down's own title item
-        for (i, entry) in Palette.colors.enumerated() {
-            let item = NSMenuItem(title: entry.name, action: #selector(colorPicked(_:)), keyEquivalent: "")
-            item.image = Palette.swatch(entry.color)
-            item.tag = i
-            item.target = self
-            colorMenu.addItem(item)
-        }
-        colorMenu.addItem(.separator())
-        let other = NSMenuItem(title: "Other Color…", action: #selector(otherColor(_:)), keyEquivalent: "")
-        other.target = self
-        colorMenu.addItem(other)
-        colorButton.menu = colorMenu
+        colorWell.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        colorWell.setAccessibleName("Color")
+        colorWell.toolTip = "Color for the current tool or the selected comment"
+        colorWell.supportsAlpha = false
+        colorWell.isContinuous = false // one edit per color chosen, not one per drag
+        colorWell.target = self
+        colorWell.action = #selector(colorChanged(_:))
 
-        widthButton.bezelStyle = .texturedRounded
         widthButton.setAccessibleName("Line width")
         widthButton.toolTip = "Line width for the current tool or the selected comment"
         for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? "\(w) pt" : "\(Int(w)) pt") }
@@ -328,41 +323,40 @@ final class ToolStrip: NSView {
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let stack = NSStackView(views: views + [colorButton, widthButton, stampLabel, spacer])
-        stack.spacing = 10
+        let stack = NSStackView(views: views + [colorWell, widthButton, stampLabel, spacer])
+        stack.spacing = 8
         stack.setCustomSpacing(16, after: controls[controls.count - 1])
         // A narrow window drops the stamp's name, then the width and color, then the tool groups from the right (each
         // tool stays in the Tools menu with its key). Before, the strip's full width was the window's minimum: about
         // 1,300 points with the sidebar, so a document window could never be narrower (UX review, 2026-11-03).
         stack.setVisibilityPriority(.detachOnlyIfNecessary, for: stampLabel)
         stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: 600), for: widthButton)
-        stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: 700), for: colorButton)
+        stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: 700), for: colorWell)
         for (g, control) in controls.enumerated() where g > 0 {
             stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: Float(800 - g * 10)), for: control)
         }
         stack.setClippingResistancePriority(.defaultLow, for: .horizontal)
-        stack.edgeInsets = NSEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
+        stack.setHuggingPriority(.defaultLow, for: .horizontal)
+        stack.edgeInsets = NSEdgeInsets(top: 2, left: 12, bottom: 6, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(separator)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: separator.topAnchor),
-            separator.leadingAnchor.constraint(equalTo: leadingAnchor), separator.trailingAnchor.constraint(equalTo: trailingAnchor),
-            separator.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        frame.size = NSSize(width: 600, height: stack.fittingSize.height)
+        accessory.view = self
+        accessory.layoutAttribute = .bottom
+        accessory.automaticallyAdjustsSize = true
+    }
+
+    /// Shown and hidden with its accessory (the window's toolbar area grows and shrinks with it).
+    override var isHidden: Bool {
+        didSet { if accessory.isHidden != isHidden { accessory.isHidden = isHidden } }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
-
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor.windowBackgroundColor.setFill()
-        dirtyRect.fill()
-    }
 
     /// Shows `tool` as the chosen one, with its color and width.
     func show(_ tool: Tool, style: AnnotStyle, stamp: String?) {
@@ -378,10 +372,13 @@ final class ToolStrip: NSView {
 
     func showStyle(_ style: AnnotStyle, usesWidth: Bool, usesColor: Bool) {
         let color = style.color ?? style.textColor
-        colorButton.item(at: 0)?.image = Palette.swatch(color, size: 16)
-        colorButton.item(at: 0)?.title = ""
-        colorButton.setAccessibilityValue(Palette.name(color))
-        colorButton.isEnabled = usesColor
+        let ns = Palette.ns(color)
+        if showing != ns {
+            showing = ns
+            colorWell.color = ns
+        }
+        colorWell.setAccessibilityValue(Palette.name(color))
+        colorWell.isEnabled = usesColor
         let nearest = Self.widths.enumerated().min { abs($0.element - style.width) < abs($1.element - style.width) }?.offset ?? 2
         widthButton.selectItem(at: nearest)
         widthButton.isEnabled = usesWidth
@@ -412,18 +409,11 @@ final class ToolStrip: NSView {
         }
     }
 
-    @objc private func colorPicked(_ sender: NSMenuItem) { onColor?(Palette.colors[sender.tag].color) }
-
-    @objc private func otherColor(_ sender: Any?) {
-        let panel = NSColorPanel.shared
-        panel.setTarget(self)
-        panel.setAction(#selector(panelColor(_:)))
-        panel.showsAlpha = false
-        panel.isContinuous = false // one edit per color chosen, not one per drag
-        panel.orderFront(nil)
+    @objc private func colorChanged(_ sender: NSColorWell) {
+        guard sender.color != showing else { return }
+        showing = sender.color
+        onColor?(Palette.annot(sender.color))
     }
-
-    @objc private func panelColor(_ sender: NSColorPanel) { onColor?(Palette.annot(sender.color)) }
 
     @objc private func widthPicked() { onWidth?(Self.widths[max(widthButton.indexOfSelectedItem, 0)]) }
 }

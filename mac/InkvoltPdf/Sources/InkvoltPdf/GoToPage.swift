@@ -19,7 +19,7 @@ extension DocumentWindowController {
         guard let window, engine.pageCount > 0 else { return }
         if organizerShown { showOrganizer(false) }
         let range = "Enter a page from 1 to \(engine.pageCount)."
-        if Report.isRunning {
+        if Report.skipsDialogs {
             guard let answer = GoToPageState.testAnswer else { return }
             if let page = findPage(answer) {
                 GoToPageState.lastProblem = nil
@@ -37,7 +37,7 @@ extension DocumentWindowController {
         while true {
             let alert = NSAlert()
             alert.messageText = "Go to Page"
-            alert.informativeText = problem ?? "A page number, or the page's label as the document shows it (such as iv)."
+            alert.informativeText = problem ?? GoToPageWords.prompt
             alert.addButton(withTitle: "Go")
             alert.addButton(withTitle: "Cancel")
             alert.accessoryView = field
@@ -48,7 +48,8 @@ extension DocumentWindowController {
                 window.makeFirstResponder(activePages)
                 return
             }
-            problem = range
+            problem = GoToPageWords.problem(typed: field.stringValue, pageCount: engine.pageCount)
+            field.selectText(nil)
         }
     }
 }

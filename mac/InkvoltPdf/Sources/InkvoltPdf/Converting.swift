@@ -59,7 +59,7 @@ enum Converting {
     }
 
     private static func confirmInternet(_ name: String) -> Bool {
-        if Report.isRunning { return testConfirmsInternet ?? false }
+        if Report.skipsDialogs { return testConfirmsInternet ?? false }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "\(name) came from the internet"
@@ -73,7 +73,7 @@ enum Converting {
     private static func tell(_ title: String, _ text: String) {
         lastMessage = (title, text)
         Report.note("message: \(title): \(text.prefix(200))")
-        guard !Report.isRunning else { return }
+        guard !Report.skipsDialogs else { return }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = text

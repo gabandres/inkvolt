@@ -42,7 +42,7 @@ extension DocumentWindowController {
             return problemNote("Couldn't read the document's properties", "Its information dictionary is damaged or missing.")
         }
         var answer: (title: String, author: String, subject: String, keywords: String)
-        if Report.isRunning {
+        if Report.skipsDialogs {
             DocumentPropertiesState.lastRows = rows
             guard let test = DocumentPropertiesState.testAnswer else { return }
             answer = test
@@ -56,11 +56,22 @@ extension DocumentWindowController {
             var grid: [[NSView]] = rows.map { r in
                 let value = NSTextField(wrappingLabelWithString: r.value)
                 value.isSelectable = true
+                if r.label == "Location" {
+                    // One line, the folder's end in sight; the whole path in the tooltip.
+                    value.maximumNumberOfLines = 1
+                    value.lineBreakMode = .byTruncatingHead
+                    value.toolTip = r.value
+                    value.widthAnchor.constraint(lessThanOrEqualToConstant: 340).isActive = true
+                }
                 value.setAccessibilityLabel(r.label)
                 value.preferredMaxLayoutWidth = 340
                 return [Self.caption(r.label), value]
             }
             grid += zip(names, fields).map { [Self.caption($0), $1] }
+            // A third alert button stacks all three in a column; What's in This PDF… sits with the details instead.
+            let contents = NSButton(title: "What's in This PDF…", target: nil, action: nil)
+            contents.bezelStyle = .push
+            grid.append([NSGridCell.emptyContentView, contents])
             let view = NSGridView(views: grid)
             view.column(at: 0).xPlacement = .trailing
             view.rowSpacing = 6
@@ -68,9 +79,13 @@ extension DocumentWindowController {
             view.frame.size = view.fittingSize
             let alert = NSAlert()
             alert.messageText = "Document Properties"
+            alert.informativeText = "The title, author, subject and keywords can be changed; the rest comes from the file."
             alert.addButton(withTitle: "Save Changes")
             alert.addButton(withTitle: "Cancel")
-            alert.addButton(withTitle: "What's in This PDF…")
+            _ = ControlAction(contents) { [weak alert] in
+                guard let sheet = alert?.window else { return }
+                window.endSheet(sheet, returnCode: .alertThirdButtonReturn)
+            }
             alert.accessoryView = view
             alert.window.initialFirstResponder = fields[0]
             switch await alert.beginSheetModal(for: window) {
@@ -92,7 +107,7 @@ extension DocumentWindowController {
     }
 
     private func problemNote(_ message: String, _ detail: String) {
-        if Report.isRunning { return notify("\(message). \(detail)") }
+        if Report.skipsDialogs { return notify("\(message). \(detail)") }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail

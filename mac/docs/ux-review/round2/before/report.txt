@@ -1,0 +1,503 @@
+# Inkvolt PDF self-test, 2026-11-03 17:16:16 +0000
+NOTE ERROR The document couldn't be saved. NSError
+NOTE ERROR The document couldn't be saved. NSError
+== UX shots
+MENU File (25 items)
+    New Window  ⌘N
+    Open…  ⌘O
+    Open Recent
+        Clear Menu
+    —
+    New PDF
+        New PDF from Images…
+        New PDF from Clipboard  ⌥⌘N
+        New PDF from Office File…
+        New PDF from Web Page…
+    Combine Files…
+    Compare Files…
+    Scan…
+    —
+    Close  ⌘W
+    Close All  ⌥⌘W
+    Save  ⌘S
+    Save As…  ⇧⌘S
+    Save as PDF/A
+        Save as PDF/A-2b…
+        Save as PDF/A-2a (Accessible Archive)…
+    Revert to Saved
+    Reload from Disk  ⌥⌘R
+    —
+    Export To
+        Word…
+        Excel (Tables)…
+        Plain Text…
+        PowerPoint Presentation…
+        HTML Web Page…
+    Form Data
+        Reset Form…
+        Import Form Data…
+        Export Form Data…
+    —
+    Share…
+    —
+    Protect with Password…
+    Remove Password Protection…
+    Reduce File Size…
+    —
+    Batch…  ⇧⌘B
+    Watched Folders…
+    —
+    Document Properties…  ⇧⌘I
+    —
+    Page Setup…  ⇧⌘P
+    Print…  ⌘P
+MENU Edit (12 items)
+    Undo  ⌘Z
+    Redo  ⇧⌘Z
+    —
+    Cut  ⌘X
+    Copy  ⌘C
+    Paste  ⌘V
+    Delete
+    Select All  ⌘A
+    —
+    Find
+        Find…  ⌘F
+        Find Next  ⌘G
+        Find Previous  ⇧⌘G
+    —
+    Writing Tools
+        Show Writing Tools
+        —
+        Proofread
+        Rewrite
+        —
+        Make Friendly
+        Make Professional
+        Make Concise
+        —
+        Summarize
+        Create Key Points
+        Make List
+        Make Table
+        —
+        Compose…
+    —
+    AutoFill
+        Contact…
+        Passwords…
+        Credit Card…
+    Start Dictation…  🎤
+    Emoji & Symbols  ⌘ 
+MENU View (23 items)
+    Actual Size  ⌘0
+    Zoom to Width  ⌘9
+    Zoom to Page  ⌥⌘9
+    Zoom In  ⌘+
+    Zoom Out  ⌘-
+    —
+    Single Page  ⌘4
+    Continuous  ⌘5
+    Two Pages  ⌘6
+    Two Pages with Cover  ⌘7
+    —
+    Rotate View Clockwise  ⇧⌘R
+    Rotate View Counterclockwise  ⇧⌘L
+    Dark Pages (Night Reading)
+    —
+    Hide Sidebar  ⌃⌘S
+    Show Markup Toolbar  ⇧⌘A
+    Hide Toolbar  ⌥⌘T
+    Customize Toolbar…
+    Show Comments  ⌥⌘3
+    Show Signatures  ⌥⌘4
+    Show Attachments  ⌥⌘5
+    Show Layers  ⌥⌘6
+    —
+    Split View
+        Split Top and Bottom
+        Split Side by Side
+        Remove Split
+        —
+        Switch Pane  ⌘'
+    —
+    Read Aloud  ⇧⌘Y
+    Enter Full Screen  F
+MENU Go (7 items)
+    Next Page  ⌥⌘
+    Previous Page  ⌥⌘
+    First Page  
+    Last Page  
+    Go to Page…  ⌥⌘G
+    —
+    Next Comment  ⌥⌘]
+    Previous Comment  ⌥⌘[
+MENU Pages (19 items)
+    Organize Pages  ⌥⌘O
+    —
+    Rotate Left  ⌘L
+    Rotate Right  ⌘R
+    Duplicate Pages
+    Reverse Page Order
+    Delete Pages  ⌥⌘
+    —
+    Insert Pages from File…  ⌥⌘I
+    Insert from Scanner…
+    Insert Blank Page
+    Extract Pages…
+    Split Document…
+    Crop Pages…
+    —
+    Add Header & Footer…
+    Remove Header & Footer
+    Add Watermark…
+    Remove Watermark
+    Flatten…
+    —
+    Add Bookmark  ⌘D
+    Show Bookmarks  ⌥⌘2
+MENU Tools (14 items)
+    Hand  H
+    Select Text  T
+    —
+    Annotate
+        Highlight  Y
+        Underline  U
+        Strike Out  K
+        Note  O
+        Text Box  B
+        Callout  Q
+        —
+        Pen  P
+        Highlighter Pen  M
+        Rectangle  R
+        Ellipse  E
+        Line  L
+        Arrow  W
+        Polygon  V
+        Polyline  Z
+        —
+        Stamp  S
+        Image  I
+        Link  N
+        Picture from File…
+        Picture from Clipboard
+        —
+        Highlight Selected Text  ⌃⌘H
+        Underline Selected Text  ⌃⌘U
+        Strike Out Selected Text  ⌃⌘X
+        Link Selected Text…  ⌘K
+        —
+        Reply to Comment…  ⌃⌘R
+    Fill & Sign
+        Add Text  A
+        Check Mark  C
+        Cross  X
+        Date  D
+        Signature  G
+        —
+        Draw Signature…
+        Type Signature…
+        Draw Initials…
+        Type Initials…
+        Place Saved Signature
+        —
+        Sign Digitally…
+    Edit Text & Images  J
+    Redact
+        Redact  F
+        Redact Selected Text
+        Redact Search Matches
+        Redact by Pattern…
+        —
+        Apply Redactions…
+        Clear Redaction Marks
+        —
+        Check Redaction…
+        Sanitize Document…
+        What's in This PDF…
+    —
+    Recognize Text (OCR)…
+    Review Suspect Words
+    Forms
+        Prepare Form  ⌥⌘F
+        Detect Form Fields
+    Measure
+        Measure Distance
+        Measure Perimeter
+        Measure Area
+        Calibrate Scale from a Known Length
+        —
+        Set Measuring Scale…
+    Accessibility
+        Accessibility Check…
+        Make Accessible (Tag)…
+        Reading Order and Alt Text
+    AI Assistant
+        Summarize with AI…
+        Ask AI about This Document
+        Explain Selection with AI
+        —
+        AI Assistant Settings…
+    —
+    Show Inspector  ⌘I
+    Command Palette…  ⇧⌘K
+MENU Window (5 items)
+    Minimize  ⌘M
+    Zoom
+    —
+    Bring All to Front
+    —
+    Synthetic Form.pdf (Page 1 of 1)
+    Synthetic.pdf (Page 1 of 3)
+MENU Help (4 items)
+    What's New in Inkvolt PDF
+    Inkvolt Pro…
+    Inkvolt PDF on GitHub
+    Report a Problem…
+MENUS: 203 items in all
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+AUDIT document window: 17 controls, 0 without a name
+window frame: 640 x 680 (asked 640 x 600, tabs: 2, full screen: false)
+PASS shot doc-narrow-light: 640 x 680 pt (NSThemeFrame, window 640, content 640)
+  narrow: ToolStrip (hidden) fits in 312 pt
+  narrow: DiskBar (hidden) fits in 174 pt
+  narrow: NoticeBar (hidden) fits in 127 pt
+  narrow: RedactBar (hidden) fits in 321 pt
+  narrow: FindBar (hidden) fits in 396 pt
+  narrow: PrepareFormBar (hidden) fits in 618 pt
+  narrow: ReadAloudBar (hidden) fits in 486 pt
+  narrow: PaneSplitView fits in 0 pt
+  narrow: the sidebar fits in 234 pt
+  narrow: content stack 618, window min 560, content min 560, frame view fits 624
+  narrow: split item SidebarController collapsed false min 200 fits 234 hidden false
+  narrow: split item NSViewController collapsed false min -1 fits 618 hidden false
+  narrow: split item NSViewController collapsed true min 260 fits 339 hidden false
+  narrow: split item NSViewController collapsed true min 280 fits 257 hidden false
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-markup-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+AUDIT document window with the markup toolbar: 42 controls, 0 without a name
+PASS shot doc-find-light: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+PASS shot start-light: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot start-more-light: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+AUDIT start page: 8 controls, 0 without a name
+PASS shot settings-light: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+AUDIT Settings: 9 controls, 0 without a name
+PASS shot palette-light: 560 x 380 pt (NSThemeFrame, window 560, content 560)
+AUDIT command palette: 2 controls, 0 without a name
+PASS shot go-to-page-light: 260 x 194 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-light: "" 260 x 194 pt, buttons: Cancel | Go
+AUDIT go-to-page-light: 3 controls, 1 without a name
+  FINDING go-to-page-light: AXTextField NSTextFieldCell in NSTextField under NSView: no name
+PASS shot go-to-page-error-light: 260 x 162 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-error-light: "" 260 x 162 pt, buttons: Cancel | Go
+AUDIT go-to-page-error-light: 3 controls, 1 without a name
+  FINDING go-to-page-error-light: AXTextField NSTextFieldCell in NSTextField under NSView: no name
+PASS shot properties-light: 451 x 452 pt (NSGlassContentFrameView, window 451, content 451)
+  properties-light: "" 451 x 452 pt, buttons: Save Changes | What's in This PDF… | Cancel
+AUDIT properties-light: 7 controls, 4 without a name
+  FINDING properties-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+PASS shot protect-light: 499 x 225 pt (NSThemeFrame, window 499, content 499)
+  protect-light: "" 499 x 225 pt, buttons: High resolution | AES-256 (Acrobat X and later, recommended)
+AUDIT protect-light: 5 controls, 1 without a name
+  FINDING protect-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+PASS shot reduce-light: 392 x 312 pt (NSGlassContentFrameView, window 392, content 392)
+  reduce-light: "" 392 x 312 pt, buttons: Medium (150 dpi) | Cancel | Reduce
+AUDIT reduce-light: 6 controls, 1 without a name
+  FINDING reduce-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+PASS shot flatten-light: 412 x 254 pt (NSGlassContentFrameView, window 412, content 412)
+  flatten-light: "" 412 x 254 pt, buttons: Cancel | Flatten
+AUDIT flatten-light: 6 controls, 0 without a name
+PASS shot header-footer-light: 652 x 384 pt (NSGlassContentFrameView, window 652, content 652)
+  header-footer-light: "" 652 x 384 pt, buttons: All pages | Cancel | Add
+AUDIT header-footer-light: 20 controls, 17 without a name
+  FINDING header-footer-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING header-footer-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+  FINDING header-footer-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot watermark-light: 552 x 384 pt (NSGlassContentFrameView, window 552, content 552)
+  watermark-light: "" 552 x 384 pt, buttons: Gray | Once, in the middle | All pages | Cancel | Add
+AUDIT watermark-light: 13 controls, 9 without a name
+  FINDING watermark-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING watermark-light: AXSlider NSSliderCell in NSSlider under NSStackView: no name
+  FINDING watermark-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+  FINDING watermark-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot crop-light: 372 x 274 pt (NSGlassContentFrameView, window 372, content 372)
+  crop-light: "" 372 x 274 pt, buttons: Inches | Cancel | Crop
+AUDIT crop-light: 8 controls, 5 without a name
+  FINDING crop-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING crop-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+PASS shot extract-light: 378 x 183 pt (NSGlassContentFrameView, window 378, content 378)
+  extract-light: "" 378 x 183 pt, buttons: A new document (opens in a window) | Cancel | Extract
+AUDIT extract-light: 5 controls, 2 without a name
+  FINDING extract-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING extract-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+PASS shot split-light: 426 x 348 pt (NSGlassContentFrameView, window 426, content 426)
+  split-light: "" 426 x 348 pt, buttons: Number of pages | Cancel | Split
+AUDIT split-light: 8 controls, 5 without a name
+  FINDING split-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING split-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+PASS shot redact-pattern-light: 560 x 541 pt (NSThemeFrame, window 560, content 560)
+  redact-pattern-light: "" 560 x 541 pt, buttons: 
+AUDIT redact-pattern-light: 17 controls, 2 without a name
+  FINDING redact-pattern-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot sanitize-light: 659 x 520 pt (NSThemeFrame, window 659, content 659)
+  sanitize-light: "" 659 x 520 pt, buttons: 
+AUDIT sanitize-light: 13 controls, 0 without a name
+PASS shot ocr-light: 392 x 374 pt (NSGlassContentFrameView, window 392, content 392)
+  ocr-light: "" 392 x 374 pt, buttons: All pages without text | Detect the language | Cancel | Recognize
+AUDIT ocr-light: 8 controls, 3 without a name
+  FINDING ocr-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView tip "The language of the text. Vision detects": no name
+  FINDING ocr-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING ocr-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot export-word-light: 372 x 302 pt (NSGlassContentFrameView, window 372, content 372)
+  export-word-light: "" 372 x 302 pt, buttons: All pages | Cancel | Export…
+AUDIT export-word-light: 6 controls, 2 without a name
+  FINDING export-word-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING export-word-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot export-text-light: 372 x 270 pt (NSGlassContentFrameView, window 372, content 372)
+  export-text-light: "" 372 x 270 pt, buttons: All pages | Cancel | Export…
+AUDIT export-text-light: 6 controls, 2 without a name
+  FINDING export-text-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING export-text-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot signature-draw-light: 460 x 300 pt (NSThemeFrame, window 460, content 460)
+  signature-draw-light: "" 460 x 300 pt, buttons: 
+AUDIT signature-draw-light: 5 controls, 0 without a name
+FAIL signature-type-light: no dialog showed
+PASS shot sign-digitally-light: 491 x 516 pt (NSGlassContentFrameView, window 491, content 491)
+  sign-digitally-light: "" 491 x 516 pt, buttons: No digital ID in the keychain | No image | Don't certify (approval signature) | Cancel | Sign
+AUDIT sign-digitally-light: 13 controls, 6 without a name
+  FINDING sign-digitally-light: AXComboBox NSComboBoxCell in NSComboBox under NSGridView: no name
+  FINDING sign-digitally-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING sign-digitally-light: AXTextField NSTextFieldCell in NSTextField under NSGridView: no name
+PASS shot ai-settings-light: 600 x 374 pt (NSThemeFrame, window 600, content 600)
+  ai-settings-light: "AI assistant" 600 x 374 pt, buttons: Ollama (on this Mac)
+AUDIT ai-settings-light: 7 controls, 3 without a name
+  FINDING ai-settings-light: AXComboBox NSComboBoxCell in NSComboBox under NSStackView tip "Pick one of the endpoint's models (Test ": no name
+  FINDING ai-settings-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING ai-settings-light: AXTextField NSSecureTextFieldCell in NSSecureTextField under NSStackView: no name
+PASS shot ai-summarize-not-set-up-light: 600 x 398 pt (NSThemeFrame, window 600, content 600)
+  ai-summarize-not-set-up-light: "AI assistant" 600 x 398 pt, buttons: Ollama (on this Mac)
+AUDIT ai-summarize-not-set-up-light: 7 controls, 3 without a name
+  FINDING ai-summarize-not-set-up-light: AXComboBox NSComboBoxCell in NSComboBox under NSStackView tip "Pick one of the endpoint's models (Test ": no name
+  FINDING ai-summarize-not-set-up-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING ai-summarize-not-set-up-light: AXTextField NSSecureTextFieldCell in NSSecureTextField under NSStackView: no name
+PASS shot scanner-light: 600 x 548 pt (NSThemeFrame, window 600, content 600)
+  scanner-light: "Insert from Scanner" 600 x 548 pt, buttons: Demo Laser 2100 | Scanner glass | Color | 300 dpi | Letter (8.5 × 11 in) | After page 1
+AUDIT scanner-light: 11 controls, 6 without a name
+  FINDING scanner-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING scanner-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+PASS shot compare-light: 397 x 322 pt (NSGlassContentFrameView, window 397, content 397)
+  compare-light: "" 397 x 322 pt, buttons: Synthetic.pdf | Synthetic Form.pdf | Cancel | Compare
+AUDIT compare-light: 5 controls, 2 without a name
+  FINDING compare-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+PASS shot batch-light: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-light: "Batch" 860 x 728 pt, buttons: Add Action | Leave signed files as they are (exports still read them) | Ask for passwords as files need them | Images on pages their own size | Choose a preset…
+AUDIT batch-light: 26 controls, 6 without a name
+  FINDING batch-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING batch-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING batch-light: AXTextField NSTextFieldCell in NSTextField under NSGridView tip "<<name>> the file's name, <<n>> or <<n:3": no name
+  FINDING batch-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot combine-empty-light: 520 x 408 pt (NSThemeFrame, window 520, content 520)
+  combine-empty-light: "Combine Files" 520 x 408 pt, buttons: 
+AUDIT combine-empty-light: 8 controls, 0 without a name
+PASS shot report-problem-light: 640 x 548 pt (NSThemeFrame, window 640, content 640)
+  report-problem-light: "Report a Problem" 640 x 548 pt, buttons: 
+AUDIT report-problem-light: 4 controls, 0 without a name
+PASS shot web-page-light: 475 x 415 pt (NSGlassContentFrameView, window 475, content 475)
+  web-page-light: "" 475 x 415 pt, buttons: Letter | Portrait | Normal (0.4 in) | Cancel | Create PDF
+AUDIT web-page-light: 9 controls, 4 without a name
+  FINDING web-page-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSGridView: no name
+  FINDING web-page-light: AXPopUpButton NSPopUpButtonCell in NSPopUpButton under NSStackView: no name
+  FINDING web-page-light: AXTextField NSTextFieldCell in NSTextField under NSStackView: no name
+PASS shot password-open-light: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-open-light: "" 292 x 258 pt, buttons: Cancel | Open
+AUDIT password-open-light: 3 controls, 1 without a name
+  FINDING password-open-light: AXTextField NSSecureTextFieldCell in NSSecureTextField under NSView: no name
+PASS shot password-wrong-light: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-wrong-light: "" 292 x 258 pt, buttons: Cancel | Open
+AUDIT password-wrong-light: 3 controls, 1 without a name
+  FINDING password-wrong-light: AXTextField NSSecureTextFieldCell in NSSecureTextField under NSView: no name
+PASS shot password-permissions-light: 292 x 290 pt (NSGlassContentFrameView, window 292, content 292)
+  password-permissions-light: "" 292 x 290 pt, buttons: Cancel | Edit
+AUDIT password-permissions-light: 3 controls, 1 without a name
+  FINDING password-permissions-light: AXTextField NSSecureTextFieldCell in NSSecureTextField under NSView: no name
+PASS shot error-save-light: 260 x 186 pt (NSGlassContentFrameView, window 260, content 260)
+  error-save-light: "" 260 x 186 pt, buttons: OK
+AUDIT error-save-light: 1 controls, 0 without a name
+PASS shot progress-light: 420 x 132 pt (NSThemeFrame, window 420, content 420)
+  progress-light: "" 420 x 132 pt, buttons: 
+AUDIT progress-light: 1 controls, 0 without a name
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-dark: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+window frame: 640 x 680 (asked 640 x 600, tabs: 2, full screen: false)
+PASS shot doc-narrow-dark: 640 x 680 pt (NSThemeFrame, window 640, content 640)
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot start-dark: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot settings-dark: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+PASS shot palette-dark: 560 x 380 pt (NSThemeFrame, window 560, content 560)
+PASS shot go-to-page-dark: 260 x 194 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-dark: "" 260 x 194 pt, buttons: Cancel | Go
+PASS shot go-to-page-error-dark: 260 x 162 pt (NSGlassContentFrameView, window 260, content 260)
+  go-to-page-error-dark: "" 260 x 162 pt, buttons: Cancel | Go
+PASS shot properties-dark: 451 x 452 pt (NSGlassContentFrameView, window 451, content 451)
+  properties-dark: "" 451 x 452 pt, buttons: Save Changes | What's in This PDF… | Cancel
+FAIL protect-dark: no dialog showed
+PASS shot reduce-dark: 392 x 312 pt (NSGlassContentFrameView, window 392, content 392)
+  reduce-dark: "" 392 x 312 pt, buttons: Medium (150 dpi) | Cancel | Reduce
+PASS shot flatten-dark: 412 x 254 pt (NSGlassContentFrameView, window 412, content 412)
+  flatten-dark: "" 412 x 254 pt, buttons: Cancel | Flatten
+PASS shot header-footer-dark: 652 x 384 pt (NSGlassContentFrameView, window 652, content 652)
+  header-footer-dark: "" 652 x 384 pt, buttons: All pages | Cancel | Add
+PASS shot watermark-dark: 552 x 384 pt (NSGlassContentFrameView, window 552, content 552)
+  watermark-dark: "" 552 x 384 pt, buttons: Gray | Once, in the middle | All pages | Cancel | Add
+PASS shot crop-dark: 372 x 274 pt (NSGlassContentFrameView, window 372, content 372)
+  crop-dark: "" 372 x 274 pt, buttons: Inches | Cancel | Crop
+PASS shot extract-dark: 378 x 183 pt (NSGlassContentFrameView, window 378, content 378)
+  extract-dark: "" 378 x 183 pt, buttons: A new document (opens in a window) | Cancel | Extract
+PASS shot split-dark: 426 x 348 pt (NSGlassContentFrameView, window 426, content 426)
+  split-dark: "" 426 x 348 pt, buttons: Number of pages | Cancel | Split
+FAIL redact-pattern-dark: no dialog showed
+FAIL sanitize-dark: no dialog showed
+PASS shot ocr-dark: 392 x 374 pt (NSGlassContentFrameView, window 392, content 392)
+  ocr-dark: "" 392 x 374 pt, buttons: All pages without text | Detect the language | Cancel | Recognize
+PASS shot export-word-dark: 372 x 302 pt (NSGlassContentFrameView, window 372, content 372)
+  export-word-dark: "" 372 x 302 pt, buttons: All pages | Cancel | Export…
+PASS shot export-text-dark: 372 x 270 pt (NSGlassContentFrameView, window 372, content 372)
+  export-text-dark: "" 372 x 270 pt, buttons: All pages | Cancel | Export…
+FAIL signature-draw-dark: no dialog showed
+FAIL signature-type-dark: no dialog showed
+PASS shot sign-digitally-dark: 491 x 516 pt (NSGlassContentFrameView, window 491, content 491)
+  sign-digitally-dark: "" 491 x 516 pt, buttons: No digital ID in the keychain | No image | Don't certify (approval signature) | Cancel | Sign
+PASS shot ai-settings-dark: 600 x 374 pt (NSThemeFrame, window 600, content 600)
+  ai-settings-dark: "AI assistant" 600 x 374 pt, buttons: Ollama (on this Mac)
+PASS shot ai-summarize-not-set-up-dark: 600 x 398 pt (NSThemeFrame, window 600, content 600)
+  ai-summarize-not-set-up-dark: "AI assistant" 600 x 398 pt, buttons: Ollama (on this Mac)
+PASS shot scanner-dark: 600 x 548 pt (NSThemeFrame, window 600, content 600)
+  scanner-dark: "Insert from Scanner" 600 x 548 pt, buttons: Demo Laser 2100 | Scanner glass | Color | 300 dpi | Letter (8.5 × 11 in) | After page 1
+PASS shot compare-dark: 397 x 322 pt (NSGlassContentFrameView, window 397, content 397)
+  compare-dark: "" 397 x 322 pt, buttons: Synthetic.pdf | Synthetic Form.pdf | Cancel | Compare
+PASS shot batch-dark: 860 x 728 pt (NSThemeFrame, window 860, content 860)
+  batch-dark: "Batch" 860 x 728 pt, buttons: Add Action | Leave signed files as they are (exports still read them) | Ask for passwords as files need them | Images on pages their own size | Choose a preset…
+PASS shot combine-empty-dark: 520 x 408 pt (NSThemeFrame, window 520, content 520)
+  combine-empty-dark: "Combine Files" 520 x 408 pt, buttons: 
+PASS shot report-problem-dark: 640 x 548 pt (NSThemeFrame, window 640, content 640)
+  report-problem-dark: "Report a Problem" 640 x 548 pt, buttons: 
+PASS shot web-page-dark: 475 x 415 pt (NSGlassContentFrameView, window 475, content 475)
+  web-page-dark: "" 475 x 415 pt, buttons: Letter | Portrait | Normal (0.4 in) | Cancel | Create PDF
+PASS shot password-open-dark: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-open-dark: "" 292 x 258 pt, buttons: Cancel | Open
+PASS shot password-wrong-dark: 292 x 258 pt (NSGlassContentFrameView, window 292, content 292)
+  password-wrong-dark: "" 292 x 258 pt, buttons: Cancel | Open
+PASS shot password-permissions-dark: 292 x 290 pt (NSGlassContentFrameView, window 292, content 292)
+  password-permissions-dark: "" 292 x 290 pt, buttons: Cancel | Edit
+PASS shot error-save-dark: 260 x 186 pt (NSGlassContentFrameView, window 260, content 260)
+  error-save-dark: "" 260 x 186 pt, buttons: OK
+PASS shot progress-dark: 420 x 132 pt (NSThemeFrame, window 420, content 420)
+  progress-dark: "" 420 x 132 pt, buttons: 
+window frame: 1100 x 900 (asked 1100 x 820, tabs: 2, full screen: false)
+PASS shot doc-contrast: 1100 x 900 pt (NSThemeFrame, window 1100, content 1100)
+PASS shot start-contrast: 860 x 668 pt (NSThemeFrame, window 860, content 860)
+PASS shot settings-contrast: 520 x 401 pt (NSThemeFrame, window 520, content 520)
+RESULT: FAIL (74 shots, 88 audit findings, 6 failed)
+QUIT: 1 of 1 documents finished
