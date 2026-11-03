@@ -441,18 +441,43 @@ extension DocumentWindowController {
         try? marked.setResourceValues(values)
     }
 
-    /// An attached PDF opened as a new unsaved document (nothing written but its recovery copy).
+    /// An attached PDF opened as a new unsaved document (nothing written but its recovery copy). One with its own open
+    /// password asks for it (again after a wrong one), as Windows' `OpenAttachment`; Cancel opens nothing.
     func openAttachment(_ a: AttachmentInfo) {
         guard let session = pdf.session else { return }
         let data = session.data, password = session.password
         Task {
             do {
                 let bytes = try await Task.detached { try Attachments.extract(data, password, a.key) }.value
-                NewDocuments.open(bytes, name: Self.safeFileName(a.fileName))
+                var own: String?
+                var wrong = false
+                while true {
+                    let tried = own
+                    do {
+                        try await Task.detached { try PdfEngine.open(bytes, password: tried).close() }.value
+                        break
+                    } catch let e as PasswordRequired {
+                        guard let given = Self.askAttachmentPassword(a.fileName, wrong: wrong || e.wrongPassword) else { return }
+                        own = given
+                        wrong = true
+                    }
+                }
+                NewDocuments.open(bytes, name: Self.safeFileName(a.fileName), password: own)
             } catch {
                 presentProblem("Couldn't open \(a.fileName)", error)
             }
         }
+    }
+
+    /// The self-test's answers to an attached PDF's password question, in order (the question isn't shown while it runs),
+    /// and how many times it was asked.
+    static var testAttachmentPasswords: [String] = []
+    private(set) static var attachmentPasswordAsked = 0
+
+    private static func askAttachmentPassword(_ file: String, wrong: Bool) -> String? {
+        attachmentPasswordAsked += 1
+        if Report.isRunning { return testAttachmentPasswords.isEmpty ? nil : testAttachmentPasswords.removeFirst() }
+        return PasswordPrompt.ask(file: file, wrong: wrong)
     }
 
     func removeAttachment(_ a: AttachmentInfo) {

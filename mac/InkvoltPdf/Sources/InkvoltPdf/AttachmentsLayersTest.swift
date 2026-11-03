@@ -103,6 +103,33 @@ struct AttachmentsLayersTest {
             check(false, "the attached PDF is listed")
         }
 
+        // An attached PDF with its own open password: asked for it (a wrong one asked again), then opened; Cancel opens none.
+        let locked = folder.appendingPathComponent("locked.pdf")
+        try? Data((try? PdfSecurity.protect(SyntheticPdf.make(), nil, userPassword: "selftest-inner", ownerPassword: nil)) ?? []).write(to: locked)
+        if await controller.attach(locked), let row = pane.items.first(where: { $0.info.fileName == "locked.pdf" }) {
+            DocumentWindowController.testAttachmentPasswords = ["selftest-wrong", "selftest-inner"]
+            let asked = DocumentWindowController.attachmentPasswordAsked
+            var others = Set(NSDocumentController.shared.documents.map(ObjectIdentifier.init))
+            controller.openAttachment(row.info)
+            let opened = await wait { NSDocumentController.shared.documents.contains { !others.contains(ObjectIdentifier($0)) } }
+            let doc = NSDocumentController.shared.documents.first { !others.contains(ObjectIdentifier($0)) } as? PdfDocument
+            let twice = DocumentWindowController.attachmentPasswordAsked - asked == 2
+            let pages = doc?.engine?.pageCount ?? 0
+            doc?.close()
+            others = Set(NSDocumentController.shared.documents.map(ObjectIdentifier.init))
+            DocumentWindowController.testAttachmentPasswords = []
+            let before = DocumentWindowController.attachmentPasswordAsked
+            controller.openAttachment(row.info)
+            _ = await wait(2) { DocumentWindowController.attachmentPasswordAsked > before }
+            let none = !NSDocumentController.shared.documents.contains { !others.contains(ObjectIdentifier($0)) }
+            check(opened && twice && pages == PdfEngineCount.of(inner) && none,
+                  "an attached PDF with its own password: asked, a wrong one asked again, then opened (\(pages) pages); cancelled: none opened")
+            controller.pdf.undo()
+            _ = await wait { pane.items.count == 2 }
+        } else {
+            check(false, "the protected PDF is attached and listed")
+        }
+
         // Save…: the text file written out, marked as downloaded.
         if let noteRow = pane.items.first(where: { $0.info.fileName == "notes.txt" }) {
             pane.select(noteRow.info.key)

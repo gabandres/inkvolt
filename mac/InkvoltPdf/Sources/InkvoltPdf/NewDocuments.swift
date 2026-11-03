@@ -6,11 +6,12 @@ import UniformTypeIdentifiers
 /// File › New PDF from Images…, New PDF from Clipboard, Combine Files… (and Scan…, in `ScanWindowController`).
 @MainActor
 enum NewDocuments {
-    /// Opens `bytes` as an unsaved document named `name`; nil (and the error shown) when they aren't a readable PDF.
+    /// Opens `bytes` as an unsaved document named `name` (with `password` when it has an open password); nil (and the
+    /// error shown) when they aren't a readable PDF.
     @discardableResult
-    static func open(_ bytes: [UInt8], name: String) -> PdfDocument? {
+    static func open(_ bytes: [UInt8], name: String, password: String? = nil) -> PdfDocument? {
         do {
-            let session = try DocumentSession.recover(bytes, originalPath: nil, name)
+            let session = try DocumentSession.recover(bytes, originalPath: nil, name, password: password)
             let document = PdfDocument(recovered: session, page: 0, fileDate: nil)
             NSDocumentController.shared.addDocument(document)
             document.makeWindowControllers()
