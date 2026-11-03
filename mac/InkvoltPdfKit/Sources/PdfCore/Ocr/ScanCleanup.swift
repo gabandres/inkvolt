@@ -275,7 +275,11 @@ public enum ScanCleanup {
                 eachRow(height) { y in
                     var j = y * width * 3
                     for i in (y * width)..<(y * width + width) {
-                        out[i] = UInt8((Int(src[j]) * 77 + Int(src[j + 1]) * 150 + Int(src[j + 2]) * 29) >> 8)
+                        // In steps: CI's Xcode gives up type-checking the sum written as one expression.
+                        let r: Int = Int(src[j]) * 77
+                        let gr: Int = Int(src[j + 1]) * 150
+                        let b: Int = Int(src[j + 2]) * 29
+                        out[i] = UInt8((r + gr + b) >> 8)
                         j += 3
                     }
                 }
