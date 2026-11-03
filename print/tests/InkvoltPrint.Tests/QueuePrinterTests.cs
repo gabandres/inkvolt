@@ -5,6 +5,7 @@ using InkvoltPrint.Core.Suite;
 namespace InkvoltPrint.Tests;
 
 /// <summary>Printers Windows has a queue for (USB, WSD, older network): which ones show up, and their status in plain words.</summary>
+[Collection(Timing.Alone)] // call deadlines: see Timing.Alone
 public class QueuePrinterTests
 {
     private static SpoolerQueue Queue(string name, string port, string? driver = "Example Laser 2100 PCL6", uint status = 0, uint attributes = SpoolerFlags.AttributeLocal,
@@ -335,7 +336,8 @@ public class QueuePrinterTests
     {
         using var release = new ManualResetEventSlim();
         var started = 0;
-        var calls = new TimedCalls<string, int>(TimeSpan.FromMilliseconds(50));
+        // The deadline also bounds the call that answers at once: 50 ms was overrun on CI's busy pool.
+        var calls = new TimedCalls<string, int>(Timing.Limit(TimeSpan.FromMilliseconds(500)));
         int Hang()
         {
             Interlocked.Increment(ref started);

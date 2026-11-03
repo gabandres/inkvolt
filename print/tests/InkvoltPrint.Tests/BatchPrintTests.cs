@@ -111,6 +111,7 @@ internal sealed class FakeQueue : IBatchQueue
     }
 }
 
+[Collection(Timing.Alone)] // open and send deadlines the healthy files must meet too: see Timing.Alone
 public class BatchPrintTests
 {
     private static readonly BatchQueueInfo Info = new("Test queue", FakeQueue.Papers, "NorthAmericaLetter", CanTwoSided: true);
@@ -269,7 +270,7 @@ public class BatchPrintTests
     public async Task A_file_that_hangs_the_engine_is_given_up_on_and_the_next_one_reads()
     {
         using var f = new BatchFolder();
-        var options = new BatchPrintOptions { OpenTimeout = TimeSpan.FromMilliseconds(100) };
+        var options = new BatchPrintOptions { OpenTimeout = Timing.Limit(TimeSpan.FromMilliseconds(500)) }; // ok.pdf must open within it too
         var measure = await BatchMeasurer.MeasureAsync(f.File("hang.pdf", "hang"), null, new FakeDocuments(), null, options, default);
         Assert.Equal(BatchMeasureState.Problem, measure.State);
         Assert.Contains("too long", measure.Problem);
@@ -482,7 +483,7 @@ public class BatchPrintTests
         using var f = new BatchFolder();
         var lines = new[] { await Line(f.File("hang.pdf", "pages=2;hangdraw")), await Line(f.File("b.pdf")) };
         var queue = new FakeQueue();
-        var summary = await Run(lines, queue, options: new BatchPrintOptions { SendTimeout = TimeSpan.FromMilliseconds(100), SendTimePerPage = TimeSpan.Zero });
+        var summary = await Run(lines, queue, options: new BatchPrintOptions { SendTimeout = Timing.Limit(TimeSpan.FromMilliseconds(500)), SendTimePerPage = TimeSpan.Zero });
         Assert.Equal(["b.pdf"], queue.Sent.Select(j => j.Name));
         Assert.Equal(BatchPrintState.Failed, summary.Items[0].State);
         Assert.Contains("too long", summary.Items[0].Message);
@@ -495,7 +496,7 @@ public class BatchPrintTests
         using var f = new BatchFolder();
         var lines = new[] { await Line(f.File("a.pdf")), await Line(f.File("b.pdf")) };
         var queue = new FakeQueue { HangSpooling = true };
-        var summary = await Run(lines, queue, options: new BatchPrintOptions { SendTimeout = TimeSpan.FromMilliseconds(100), SendTimePerPage = TimeSpan.Zero });
+        var summary = await Run(lines, queue, options: new BatchPrintOptions { SendTimeout = Timing.Limit(TimeSpan.FromMilliseconds(500)), SendTimePerPage = TimeSpan.Zero });
         Assert.Equal(0, summary.StoppedAt);
         Assert.Equal(BatchPrintState.Failed, summary.Items[0].State);
         Assert.Contains("check the queue", summary.Items[0].Message);
