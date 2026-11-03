@@ -125,7 +125,11 @@ switch (cmd)
             // What the printer (IPP through Windows, IPP over USB included) or the driver (bidi) says beyond the spooler; why not, on stderr.
             if (System.Diagnostics.Trace.Listeners.OfType<System.Diagnostics.ConsoleTraceListener>().FirstOrDefault() is null)
                 System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener(useErrorStream: true));
-            foreach (var reader in InkvoltPrint.Windows.Printing.QueueDeviceReaders.For(q))
+            // --bidi: ask the driver of the queues the app doesn't (IPP class driver, virtual) too, to see what this PC's drivers say.
+            var readers = InkvoltPrint.Windows.Printing.QueueDeviceReaders.For(q).ToList();
+            if (args.Contains("--bidi") && !readers.OfType<InkvoltPrint.Windows.Printing.BidiQueueDeviceReader>().Any())
+                readers.Add(new InkvoltPrint.Windows.Printing.BidiQueueDeviceReader(q));
+            foreach (var reader in readers)
             {
                 using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 InkvoltPrint.Core.Queues.QueueDeviceReading? r;
@@ -137,6 +141,11 @@ switch (cmd)
                       string.Concat((r.Status?.Alerts ?? []).Concat(r.Alerts).Select(a => $"; {a.Id}")) + " | " +
                       (r.Supplies.Count == 0 ? "no supplies" : string.Join(", ", r.Supplies.Select(s => $"{s.Name} {(s.PercentRemaining is { } p ? $"{p}%" : s.State)}"))));
             }
+        }
+        if (args.Contains("--bidi"))
+        {
+            var missing = await new InkvoltPrint.Windows.Printing.BidiQueueDeviceReader(new InkvoltPrint.Core.Queues.SpoolerQueue("Inkvolt: no such queue", "", null, 0, 0, 0)).ReadAsync(CancellationToken.None);
+            Console.WriteLine($"A queue that isn't there, its driver: {(missing is null ? "nothing" : "answered")}");
         }
         // USB printers plugged in that nothing can print to (no serials: names and ports only). --unplugged: also those Windows
         // remembers but doesn't see now, read as if plugged in, to check what the sidebar would show.
@@ -197,8 +206,9 @@ switch (cmd)
             inkvoltprint offline <uuid> [last-host]        (read-only: the offline fixer's diagnosis and repairs it would offer)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
-            inkvoltprint queues [--unplugged]              (read-only: installed queues as the sidebar sees them, and USB printers
-                                                           that need their driver; --unplugged: also those not plugged in now)
+            inkvoltprint queues [--unplugged] [--bidi]     (read-only: installed queues as the sidebar sees them, and USB printers
+                                                           that need their driver; --unplugged: also those not plugged in now;
+                                                           --bidi: ask every queue's driver, also those the app doesn't)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners; --caps connects and reads what each offers)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]

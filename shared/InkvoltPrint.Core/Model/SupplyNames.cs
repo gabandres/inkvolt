@@ -17,6 +17,12 @@ internal static class SupplyNames
         "printhead" => CoreStrings.Supply_Printhead,
         "drum" => CoreStrings.Supply_Drum,
         "supply" => CoreStrings.Supply_Supply,
+        "developer" => CoreStrings.Supply_Developer,
+        "fuser oil" => CoreStrings.Supply_FuserOil,
+        "wax" => CoreStrings.Supply_Wax,
+        "waste-toner" => CoreStrings.Supply_WasteToner,
+        "waste-ink" => CoreStrings.Supply_WasteInk,
+        "waste-wax" => CoreStrings.Supply_WasteWax,
         _ => kind,
     };
 
@@ -61,5 +67,5 @@ internal static class SupplyNames
     /// <summary>
     /// Kinds whose word takes the feminine form of a colour in Spanish ("tinta negra"); the English is the same either way.
     /// </summary>
-    public static bool Feminine(string kind) => kind == "ink";
+    public static bool Feminine(string kind) => kind is "ink" or "wax";
 }

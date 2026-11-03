@@ -6,7 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - A USB printer Windows has no driver for now shows on the printer list as *Plugged in, needs its driver*, with what to do step by step: its maker's driver page (HP's for an HP), Windows Update's optional updates, or adding it in Windows. It says so when Windows protected print mode keeps makers' drivers out. Once a driver is in but Windows made no queue, *Set it up* makes one. Some older printers (host-based USB lasers) only ever work with their maker's driver.
 
 ## Next
-- USB printers (and others set up in Windows) can show their ink or toner levels: a printer Windows set up with its own IPP driver, over USB or the network, is asked for its levels and problems the way a Wi-Fi printer is, and the page says where they came from. One that reports none says "Not reported by this printer".
+- USB printers (and others set up in Windows) can show their ink or toner levels: a printer Windows set up with its own IPP driver, over USB or the network, is asked for its levels and problems the way a Wi-Fi printer is, and the page says where they came from. On a maker's driver, the driver is asked next ("From its driver"), when it can say. One that reports none says "Not reported by this printer".
 - Print a PDF works on any screen: the Print button stays in sight under the options, which scroll when the window is short. On smaller screens it could be cut off with no way to reach it.
 - On a small or scaled laptop screen the window fits: its title bar with Minimize and Close was above the top of the screen.
 - Windows 10: the window has a solid background and every icon shows.

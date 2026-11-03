@@ -119,12 +119,25 @@ public static class QueueDevice
             return QueueSnmp.MergeStatus(windows, printer, reading.Supplies);
         var w = windows.Status;
         var extra = (reading.Status?.Alerts ?? []).Concat(reading.Alerts).ToList();
-        var alerts = w.Alerts.Concat(extra.Where(a => w.Alerts.All(x => x.Id != a.Id))).GroupBy(a => a.Id).Select(g => g.First()).ToList();
+        var alerts = w.Alerts.Concat(extra.Where(a => !WindowsSaysIt(w, a.Id))).GroupBy(a => a.Id).Select(g => g.First()).ToList();
         var severity = alerts.Select(a => a.Severity).Append(w.Severity).Max();
         var detail = w.Detail;
         if (severity > w.Severity && alerts.FirstOrDefault(a => a.Severity == severity) is { } top)
             detail = string.Join(" ", new[] { top.Message, w.Detail }.Where(d => !string.IsNullOrWhiteSpace(d)));
         return new QueueStatusRead(w with { Alerts = alerts, Severity = severity, Detail = detail }, windows.Offline, reading.Supplies);
+    }
+
+    /// <summary>Windows' status already says this problem, under the same id or its own word for it (its bits have no ink or toner apart).</summary>
+    private static bool WindowsSaysIt(PrinterStatus windows, string id)
+    {
+        var own = id switch
+        {
+            "marker-supply-low" => "toner-low",
+            "marker-supply-empty" => "no-toner",
+            "output-area-full" => "output-bin-full",
+            _ => id,
+        };
+        return id == "paused" && windows.Code == "paused" || windows.Alerts.Any(a => a.Id == id || a.Id == own);
     }
 }
 

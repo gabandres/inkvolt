@@ -3800,4 +3800,22 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>d MMMM yyyy</value>
     <comment>.NET date format for the day a firmware change was seen (3 November 2026; 3 de noviembre de 2026)</comment>
   </data>
+  <data name="Supply_Developer" xml:space="preserve">
+    <value>developer</value>
+  </data>
+  <data name="Supply_FuserOil" xml:space="preserve">
+    <value>fuser oil</value>
+  </data>
+  <data name="Supply_Wax" xml:space="preserve">
+    <value>wax</value>
+  </data>
+  <data name="Supply_WasteToner" xml:space="preserve">
+    <value>waste toner</value>
+  </data>
+  <data name="Supply_WasteInk" xml:space="preserve">
+    <value>waste ink</value>
+  </data>
+  <data name="Supply_WasteWax" xml:space="preserve">
+    <value>waste wax</value>
+  </data>
 </root>

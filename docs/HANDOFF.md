@@ -147,8 +147,9 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
 
 - USB printers' supply levels (owner, 2026-11-03, for Print 1.3.0.0; roadmap 3.6): route 1 DONE, levels and status from a printer on
   Windows' IPP class driver (IPP over USB included) through `IppPrintDevice` (`QueueDeviceTests`), the supplies card's source line and
-  *Not reported by this printer*. Route 2, the driver over bidi (`IBidiSpl`), NOT STARTED (stopped at the usage line). No IPP-over-USB
-  printer has been tried; the M234dw and M277 here (IPP class driver over WSD) answer the call with a timeout while they're off the network.
+  *Not reported by this printer*. Route 2 DONE, the driver over bidi (`IBidiSpl2`, `QueueBidiTests`, *From its driver*, the demo USB laser). Neither route has been seen answering
+  on real hardware: no IPP-over-USB printer and no maker's driver here. The M234dw and M277 (IPP class driver over WSD) time out on route 1 while off
+  the network; `inkvoltprint queues --bidi` shows Windows answering 13005 (schema not supported) for them. **Try `inkvoltprint queues --bidi` on a PC with an HP or Epson driver** and look at the levels.
 
 ### Only a person
 

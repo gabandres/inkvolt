@@ -96,8 +96,31 @@ public static class DemoFleet
     /// <summary>A demo queue's status: what <see cref="SpoolerStatus"/> makes of its made-up bits as <paramref name="current"/> has them now (no spooler is asked).</summary>
     public static IQueueStatusSource QueueStatus(SpoolerQueue queue, Func<SpoolerQueue, SpoolerQueue>? current = null) => new MadeUpQueue(queue, current);
 
-    /// <summary>What the made-up PC's queue printers answer beyond the spooler (<see cref="IQueueDeviceReader"/>): nothing yet.</summary>
-    public static IReadOnlyList<IQueueDeviceReader> DeviceReaders(SpoolerQueue queue) => [];
+    /// <summary>What the made-up PC's queue printers answer beyond the spooler (<see cref="IQueueDeviceReader"/>): the USB laser's driver reports its toner over bidi; the others nothing.</summary>
+    public static IReadOnlyList<IQueueDeviceReader> DeviceReaders(SpoolerQueue queue) => queue.Name == "Demo USB laser" ? [new MadeUpDriver()] : [];
+
+    /// <summary>A driver's bidi replies as a real one writes them, through the real reading.</summary>
+    private sealed class MadeUpDriver : IQueueDeviceReader
+    {
+        private const string Toner = """
+            <bidi:Get xmlns:bidi="http://schemas.microsoft.com/windows/2005/03/printing/bidi"><Query schema="\Printer.Consumables">
+              <Schema name="\Printer.Consumables.Blk21:Installed"><BIDI_BOOL>true</BIDI_BOOL></Schema>
+              <Schema name="\Printer.Consumables.Blk21:Type"><BIDI_ENUM>Toner</BIDI_ENUM></Schema>
+              <Schema name="\Printer.Consumables.Blk21:Color"><BIDI_STRING>Black</BIDI_STRING></Schema>
+              <Schema name="\Printer.Consumables.Blk21:Level"><BIDI_INT>8</BIDI_INT></Schema>
+              <Schema name="\Printer.Consumables.Blk21:Model"><BIDI_STRING>DL21A</BIDI_STRING></Schema>
+            </Query></bidi:Get>
+            """;
+
+        private const string Status = """
+            <bidi:Get xmlns:bidi="http://schemas.microsoft.com/windows/2005/03/printing/bidi"><Query schema="\Printer.Status.Summary">
+              <Schema name="\Printer.Status.Summary:State"><BIDI_ENUM>Stopped</BIDI_ENUM></Schema>
+              <Schema name="\Printer.Status.Summary:StateReason"><BIDI_STRING>MarkerSupplyLow Paused</BIDI_STRING></Schema>
+            </Query></bidi:Get>
+            """;
+
+        public Task<QueueDeviceReading?> ReadAsync(CancellationToken ct) => Task.FromResult(BidiQueueReading.From([Toner, Status]));
+    }
 
     private sealed class MadeUpQueue(SpoolerQueue queue, Func<SpoolerQueue, SpoolerQueue>? current) : IQueueStatusSource
     {

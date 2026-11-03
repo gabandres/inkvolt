@@ -3083,7 +3083,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>la impresora por IPP, a través de Windows</value>
   </data>
   <data name="Queue_FromDriver" xml:space="preserve">
-    <value>el controlador de la impresora</value>
+    <value>su controlador</value>
   </data>
   <data name="Queue_SourcePrinterOverUsb" xml:space="preserve">
     <value>De la impresora por USB</value>
@@ -3096,5 +3096,23 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="History_FirmwareDateFormat" xml:space="preserve">
     <value>d 'de' MMMM 'de' yyyy</value>
+  </data>
+  <data name="Supply_Developer" xml:space="preserve">
+    <value>revelador</value>
+  </data>
+  <data name="Supply_FuserOil" xml:space="preserve">
+    <value>aceite de fusor</value>
+  </data>
+  <data name="Supply_Wax" xml:space="preserve">
+    <value>cera</value>
+  </data>
+  <data name="Supply_WasteToner" xml:space="preserve">
+    <value>tóner residual</value>
+  </data>
+  <data name="Supply_WasteInk" xml:space="preserve">
+    <value>tinta residual</value>
+  </data>
+  <data name="Supply_WasteWax" xml:space="preserve">
+    <value>cera residual</value>
   </data>
 </root>
