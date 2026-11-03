@@ -49,7 +49,7 @@ One agent, cheapest first, one commit each, in this order:
   `Signatures.verify(online:)` exists in PdfCore, unused by the app); 3.3 Compare with Office files, scans and formatting;
   3.5 indexed folder search; Microsoft Office as E12's converter (backlog note below, on the mini); 3.1 Translate (after
   2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
-- The Mac UX pass (`mac/docs/UX-BRIEF.md`, not started; after the PDF items).
+- The Mac UX pass: rounds 1 and 2 merged 2026-11-03 (7.9 to 9.4, `mac/docs/UX-REVIEW.md`). Left: what a person must see (PLAN.md), the renames proposed there (both apps; the owner decides), Print for Mac's pass.
 
 ### Inkvolt PDF for Windows: open, no hardware needed
 
@@ -180,8 +180,7 @@ and a person to allow the Automation prompt; do it on the mini.
 
 **Released and current.** Inkvolt Print 1.3.0.0 submitted to the Store 2026-11-03 (Spanish interface, the Print button on small screens and Windows 10, Plugged in needs its driver, USB supply levels, SNMP community and SNMPv3; certification pending: `msstore submission status 9PNR76HJ62SK`). Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
 1.5.0 (GitHub release `pdf-mac-v1.5.0`, Homebrew). The Store's release notes are in English and Spanish; Inkvolt Print for
-Windows has a Spanish interface on master, not released yet (the owner reviews the wording: `print/docs/SPANISH-REVIEW.md`; when it ships, the Store
-listing's "La aplicación está en inglés." goes, in Partner Center). **Open: Inkvolt PDF's Spanish interface**, its own project, not started (`UiLanguage` in
+Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). **Open: Inkvolt PDF's Spanish interface**, its own project, not started (`UiLanguage` in
 `shared/` is ready for it, `CoreLanguage.Use` opts it into the shared library's Spanish), the same for the Mac apps, and What's New in Spanish.
 
 **Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
