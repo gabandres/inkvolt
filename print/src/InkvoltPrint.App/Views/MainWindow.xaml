@@ -41,6 +41,8 @@
                       Visibility="{Binding CanFix, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Printer maintenance…" Command="{Binding ShowMaintenanceCommand}"
                       Visibility="{Binding IsNetworkPrinter, Converter={StaticResource VisibleWhen}}" />
+            <MenuItem Header="SNMP access…" Command="{Binding SetSnmpLoginCommand}"
+                      Visibility="{Binding CanSetSnmpLogin, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="Remove from Inkvolt Print…"
                       Command="{Binding PlacementTarget.Tag.ForgetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding}" />

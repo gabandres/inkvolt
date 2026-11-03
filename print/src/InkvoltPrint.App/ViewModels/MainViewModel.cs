@@ -70,6 +70,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 state.RenamePrinterId(k.Uuid, id);
                 pc.Passwords.Rename(k.Uuid, id);
+                pc.SnmpLogins.Rename(k.Uuid, id);
                 pc.History.Rename(k.Uuid, id);
             }
             catch (Exception ex)
@@ -586,6 +587,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
+        _pc.SnmpLogins.Delete(p.Uuid); // its community goes with it: Add a printer asks for it again
         // A network printer's own Windows queues and its Windows scanner go with it, so they don't show up again as entries of their own.
         _state.Forget(PrinterList.HiddenWith(Listed(p), Printers.Select(Listed).ToList(), _queues, _scanners));
         _state.Save();

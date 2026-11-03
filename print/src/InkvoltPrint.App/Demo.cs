@@ -89,6 +89,7 @@ internal static class Demo
         public override bool PairsAnyPrinter => true;
 
         public override IPrinterPasswords Passwords { get; } = new MemoryPasswords();
+        public override Core.Snmp.ISnmpLogins SnmpLogins { get; } = new Core.Snmp.MemorySnmpLogins();
         public override Action<string>? Browser => null;
         public override bool OpensOtherApps => false;
         public override string RecordingsFolder => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Inkvolt Print demo recordings");

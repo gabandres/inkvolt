@@ -158,7 +158,7 @@ public partial class MainWindow : Window
         ShowSidebar(open: false, focus: false);
         var p = vm.Selected;
         _paletteAll = PrintPalette.Build(
-            p is null ? null : new PrintPalette.Printer(p.Name, p.CanPrint, p.Scan is not null, p.ShowCopy, p.Settings is not null, p.NeedsSetup, p.CanFix, p.IsNetworkPrinter),
+            p is null ? null : new PrintPalette.Printer(p.Name, p.CanPrint, p.Scan is not null, p.ShowCopy, p.Settings is not null, p.NeedsSetup, p.CanFix, p.IsNetworkPrinter, p.CanSetSnmpLogin),
             p is null ? -1 : vm.Printers.IndexOf(p), [.. vm.Printers.Select(x => x.Name)], [.. vm.Presets.Items.Select(x => x.Name)]);
         Palette.Visibility = Visibility.Visible;
         Motion.Enter(PaletteCard, rise: -8); // drops in from the top
@@ -244,6 +244,7 @@ public partial class MainWindow : Window
             case ("printer", "batch"): p?.GoToBatch(); break;
             case ("printer", "fix"): Run(p?.OpenFixerCommand); break;
             case ("printer", "maintenance"): Run(p?.ShowMaintenanceCommand); break;
+            case ("printer", "snmp"): Run(p?.SetSnmpLoginCommand); break;
             case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
             case ("app", "add"): AddPrinterWindow.Open(this, vm); break;
             case ("app", "search"): Run(vm.SearchAgainCommand); break;

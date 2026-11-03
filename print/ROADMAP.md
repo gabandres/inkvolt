@@ -399,6 +399,15 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   Keychain, never in `state.json`); Pro: SNMPv3 authPriv (SHA-256, AES-128) with USM discovery, still read only.
   Test: v3 messages written by hand from RFC 3414 / RFC 3826 in the BER tests; the made-up agent refuses a wrong
   key; on hardware, a printer with `public` disabled is read.
+- **Now (Windows): a community per printer, built 2026-11-03.** Add a printer › Know its address? › SNMP access takes the community
+  (blank: `public`); the printer's menu and Ctrl+K have SNMP access… for a printer read over SNMP, which keeps it and connects again.
+  `SnmpLogin` (Core) travels in the connection recipe (`PrinterRecipe.SnmpLogin`, asked at each connection), so the probe, every read,
+  the identity check, an announced address, `status --all` and Report a problem's recording all use it. Kept in Windows Credential
+  Manager (`SnmpLoginStore`, resource "Inkvolt Print SNMP", by printer id; nothing for `public`; removed with the printer), never in
+  `state.json`, a recording or the log. Free, as the table says. `SnmpLoginTests`: the kept secret's round trip through the store's seam
+  (memory; CI writes nothing to Credential Manager), the made-up agent silent to `public` and a wrong community and answering the
+  right one, every request after it carrying it, a session offline without it and connected with it, and neither the remembered
+  `SnmpDevice`, a log line nor `AppState` holding it. Not yet: SNMPv3 (below); on hardware, a printer with `public` disabled.
 - **Effort** M. Windows and Mac (PrintCore's SNMP is the same code).
 
 ### 3.3 The printer's own copier, copy extras

@@ -61,7 +61,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _state = state;
         _remember = remember;
         _pc = pc;
-        _session = new PrinterSession(uuid, new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid)),
+        _session = new PrinterSession(uuid, new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid),
+                SnmpLogin: () => pc.SnmpLogins.Get(uuid)),
             () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids));
         Print = new PrintViewModel(FindQueueAsync, state) { Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state) };
         Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
@@ -298,7 +299,44 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// Only such a printer is read over SNMP; any other printer that doesn't answer HTTP for a moment is offline, as before.
     /// Null for every other printer, and once an SNMP-only printer answers LEDM, CDM or IPP (it then is a printer like the rest).
     /// </summary>
-    public SnmpDevice? SnmpDevice { get; set; }
+    public SnmpDevice? SnmpDevice
+    {
+        get;
+        set
+        {
+            if (SetProperty(ref field, value)) OnPropertyChanged(nameof(CanSetSnmpLogin));
+        }
+    }
+
+    /// <summary>The printer's menu offers SNMP access…: a network printer read over SNMP (its community may change).</summary>
+    public bool CanSetSnmpLogin => IsNetworkPrinter && SnmpDevice is not null;
+
+    /// <summary>Asks for a printer's SNMP login (its name, the login kept now); null: cancelled. Set by the app (a dialog).</summary>
+    public static Func<string, SnmpLogin, SnmpLogin?>? AskSnmpLogin { get; set; }
+
+    /// <summary>
+    /// The printer's menu › SNMP access…: the community it's read with, kept in Credential Manager (public: nothing kept), then a
+    /// new connection with it.
+    /// </summary>
+    [RelayCommand]
+    private void SetSnmpLogin()
+    {
+        if (!CanSetSnmpLogin || AskSnmpLogin is not { } ask) return;
+        var current = _pc.SnmpLogins.Get(Uuid) ?? SnmpLogin.Public;
+        if (ask(Name, current) is not { } chosen || chosen == current) return;
+        try
+        {
+            _pc.SnmpLogins.Save(Uuid, chosen);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"[{Name}] the SNMP community couldn't be kept in Credential Manager: {ex.GetType().Name}");
+            Prompt.Tell("The community couldn't be kept in Windows Credential Manager, so it isn't used. Try again, or restart Windows.");
+            return;
+        }
+        Log.Write($"[{Name}] SNMP access changed ({chosen}); connecting again");
+        Restart();
+    }
 
     /// <summary>Read over SNMP only (no LEDM, CDM or IPP answered): status, alerts and supply levels; no scanning or settings.</summary>
     [ObservableProperty]
@@ -473,7 +511,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Report a problem's recording of this printer: as <c>inkvoltprint record</c>, through this PC's environment (the demo's: made-up printers).</summary>
     public Task<Core.Recording.ReportRecordingDone> RecordForReportAsync(CancellationToken ct)
     {
-        var options = new Core.Recording.RecordOptions { Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri };
+        var options = new Core.Recording.RecordOptions
+        {
+            Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri,
+            Community = (_pc.SnmpLogins.Get(Uuid) ?? Core.Snmp.SnmpLogin.Public).Community,
+        };
         return Core.Recording.ReportRecording.RunAsync(RecordHost ?? throw new InvalidOperationException("This printer has no address to record."), _pc.RecordingsFolder, options, DateTime.Now, ct);
     }
 

@@ -2,10 +2,16 @@ using InkvoltPrint.Core.Model;
 
 namespace InkvoltPrint.Core.Snmp;
 
-/// <summary>Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself.</summary>
+/// <summary>
+/// Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself; and the
+/// <see cref="Login"/> it answered to (never kept: <see cref="SnmpDevice.From"/> takes only what the printer said).
+/// </summary>
 public sealed record SnmpIdentity(SnmpVersion Version, uint DeviceIndex, string? DeviceDescription, string? SystemDescription,
-    string? SystemName, string? Location, string? SerialNumber, string Community = SnmpClient.DefaultCommunity)
+    string? SystemName, string? Location, string? SerialNumber, SnmpLogin? Login = null)
 {
+    /// <summary>The login every later read of this printer uses.</summary>
+    public SnmpLogin LoginOrPublic => Login ?? SnmpLogin.Public;
+
     /// <summary>The model: hrDeviceDescr ("Brand Model"), else the first line of sysDescr (often model plus firmware).</summary>
     public string? Model => DeviceDescription ?? (SystemDescription?.Split('\n', ';')[0].Trim() is { Length: > 0 } s ? s : null);
 }
@@ -30,7 +36,7 @@ public sealed class SnmpPrinterClient
     {
         Identity = identity;
         _transport = transport;
-        _client = new SnmpClient(transport, host, identity.Version, identity.Community) { Timeout = timeout ?? ProbeTimeout };
+        _client = new SnmpClient(transport, host, identity.Version, identity.LoginOrPublic.Community) { Timeout = timeout ?? ProbeTimeout };
     }
 
     public SnmpIdentity Identity { get; }
@@ -45,9 +51,14 @@ public sealed class SnmpPrinterClient
     /// entry counts (a router or a PC answering "public" isn't a printer). Then its model and serial number. Null when nothing
     /// answers, or it isn't a printer.
     /// </summary>
-    public static async Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, string community = SnmpClient.DefaultCommunity,
+    public static Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, string community, CancellationToken ct = default) =>
+        ProbeAsync(transport, host, SnmpLogin.ForCommunity(community, out _) ?? SnmpLogin.Public, ct);
+
+    /// <param name="login">The printer's own login (<see cref="ISnmpLogins"/>); null: <see cref="SnmpLogin.Public"/>.</param>
+    public static async Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, SnmpLogin? login = null,
         CancellationToken ct = default)
     {
+        var community = (login ?? SnmpLogin.Public).Community;
         using var loser = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var v2 = TryProbe(SnmpVersion.V2c);
         var v1 = TryProbe(SnmpVersion.V1);
@@ -78,7 +89,7 @@ public sealed class SnmpPrinterClient
                 var more = await client.GetAsync([PrinterMib.HrDeviceDescr.Append(index), PrinterMib.PrtGeneralSerialNumber.Append(index)], loser.Token)
                     .ConfigureAwait(false);
                 return new SnmpIdentity(version, index, more[0].Value.Text, Text(0, PrinterMib.SysDescr), Text(1, PrinterMib.SysName),
-                    Text(2, PrinterMib.SysLocation), more[1].Value.Text, community);
+                    Text(2, PrinterMib.SysLocation), more[1].Value.Text, login);
             }
             catch (Exception ex) when (ex is TimeoutException or FormatException or SnmpErrorException or OperationCanceledException)
             {
@@ -107,11 +118,11 @@ public sealed class SnmpPrinterClient
     }
 
     /// <summary>
-    /// Who answers SNMP at the printer's address now (asked as <see cref="ProbeAsync"/> does, with this printer's community), to
+    /// Who answers SNMP at the printer's address now (asked as <see cref="ProbeAsync"/> does, with this printer's login), to
     /// tell whether it is still this printer (<see cref="SnmpDevice.Identify(SnmpIdentity)"/>). Null when nothing answers.
     /// </summary>
     public async Task<SnmpIdentity?> ReadIdentityAsync(CancellationToken ct = default) =>
-        (await ProbeAsync(_transport, Host, Identity.Community, ct).ConfigureAwait(false))?.Identity;
+        (await ProbeAsync(_transport, Host, Identity.Login, ct).ConfigureAwait(false))?.Identity;
 
     public async Task<PrinterStatus> GetStatusAsync(CancellationToken ct = default) => SnmpPrinterStatus.ToStatus(await ReadAsync(ct).ConfigureAwait(false));
 

@@ -15,7 +15,9 @@ public sealed record PrinterWhere(string Host, Uri? EsclHint = null, Uri? IppHin
 /// <param name="Snmp">Where SNMP goes; used only for printers added as SNMP-only (<see cref="PrinterWhere.Snmp"/>).</param>
 /// <param name="Pin">The printer's certificate pins (trust on first use), for its own connections only.</param>
 /// <param name="Clock">For the intervals below; tests pass their own.</param>
-public sealed record PrinterRecipe(Func<HttpMessageHandler?> Transport, ISnmpTransport Snmp, ICertificatePin? Pin = null, TimeProvider? Clock = null);
+/// <param name="SnmpLogin">The printer's SNMP login as kept now (<see cref="ISnmpLogins"/>), asked at each connection; null or returning null: public.</param>
+public sealed record PrinterRecipe(Func<HttpMessageHandler?> Transport, ISnmpTransport Snmp, ICertificatePin? Pin = null, TimeProvider? Clock = null,
+    Func<SnmpLogin?>? SnmpLogin = null);
 
 /// <summary>What a session step came to: the view model shows it.</summary>
 public abstract record SessionStep
@@ -93,7 +95,7 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
     public async Task<SessionStep> ConnectAsync(PrinterWhere where, CancellationToken ct)
     {
         var conn = await PrinterConnection.OpenAsync(where.Host, where.EsclHint, ct, recipe.Pin, recipe.Transport(), where.IppHint,
-            SnmpDevice.TransportFor(where.Snmp, recipe.Snmp)).ConfigureAwait(false);
+            SnmpDevice.TransportFor(where.Snmp, recipe.Snmp), recipe.SnmpLogin?.Invoke()).ConfigureAwait(false);
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
@@ -172,7 +174,8 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
         {
             ProbeResult probe;
             using (var http = new DeviceHttp(host, recipe.Transport()))
-                probe = await PrinterConnection.ProbeAsync(http, candidate.EsclHint, ct, candidate.IppHint, SnmpDevice.TransportFor(current.Snmp, recipe.Snmp))
+                probe = await PrinterConnection.ProbeAsync(http, candidate.EsclHint, ct, candidate.IppHint, SnmpDevice.TransportFor(current.Snmp, recipe.Snmp),
+                        recipe.SnmpLogin?.Invoke())
                     .ConfigureAwait(false);
             var identity = !probe.Reachable ? DeviceIdentity.Unknown
                 : probe.Snmp is { } snmp && current.Snmp is { } known ? known.Identify(snmp)

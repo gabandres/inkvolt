@@ -121,6 +121,9 @@ public abstract class PcEnvironment
     /// <summary>Printers' admin passwords: Windows Credential Manager, or (demo) memory.</summary>
     public abstract IPrinterPasswords Passwords { get; }
 
+    /// <summary>Printers' SNMP logins (a community): Windows Credential Manager, or (demo) memory. Never in state.json.</summary>
+    public abstract Core.Snmp.ISnmpLogins SnmpLogins { get; }
+
     /// <summary>Opens a page in the browser; null where nothing is opened (the demo printers' pages don't exist).</summary>
     public abstract Action<string>? Browser { get; }
 
@@ -191,6 +194,7 @@ public abstract class PcEnvironment
         public override IOfflineRepairs OfflineRepairs(Func<Task<string?>> setUpAgain) => new SettingUpAgain(new WindowsOfflineRepairs(), setUpAgain);
         public override bool PairsAnyPrinter => false;
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
+        public override Core.Snmp.ISnmpLogins SnmpLogins => InkvoltPrint.Windows.Security.SnmpLoginStore.Instance;
         public override Action<string>? Browser => Shell.Open;
         public override bool OpensOtherApps => true;
         public override string RecordingsFolder =>

@@ -146,13 +146,14 @@ public sealed class PrinterConnection : IDisposable
     /// Where SNMP goes (<see cref="UdpSnmpTransport"/>, or a made-up agent in demo mode) when the printer has neither LEDM, CDM
     /// nor IPP; null: SNMP isn't tried.
     /// </param>
+    /// <param name="snmpLogin">The printer's SNMP login (its community); null: <see cref="SnmpLogin.Public"/>. Every SNMP read of the connection uses it.</param>
     public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
-        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null, ISnmpTransport? snmp = null)
+        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null, ISnmpTransport? snmp = null, SnmpLogin? snmpLogin = null)
     {
         var http = new DeviceHttp(host, transport, pin);
         try
         {
-            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint, snmp).ConfigureAwait(false), snmp);
+            return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint, snmp, snmpLogin).ConfigureAwait(false), snmp);
         }
         catch
         {
@@ -162,8 +163,9 @@ public sealed class PrinterConnection : IDisposable
     }
 
     /// <param name="snmp">See <see cref="OpenAsync"/>: SNMP is asked only after LEDM, CDM and IPP all stayed silent.</param>
+    /// <param name="snmpLogin">See <see cref="OpenAsync"/>.</param>
     public static async Task<ProbeResult> ProbeAsync(DeviceHttp http, Uri? esclHint = null, CancellationToken ct = default, Uri? ippHint = null,
-        ISnmpTransport? snmp = null)
+        ISnmpTransport? snmp = null, SnmpLogin? snmpLogin = null)
     {
         var ledm = ProbeLedmAsync(http, ct);
         // CDM only when the printer clearly has no LEDM (see ProbeLedmAsync): an offline or waking printer costs nothing more,
@@ -187,7 +189,7 @@ public sealed class PrinterConnection : IDisposable
         var (attrs, endpoint) = ipp.Result;
         // SNMP last, and only for a printer none of the others reached: a printer with LEDM, CDM or IPP never gets an SNMP request.
         var snmpProbe = tree is null && cdm.Result is null && attrs is null && snmp is not null
-            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, ct: ct).ConfigureAwait(false)
+            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, snmpLogin, ct).ConfigureAwait(false)
             : null;
         return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs)
             { IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity };

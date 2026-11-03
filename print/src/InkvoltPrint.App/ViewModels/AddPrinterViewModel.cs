@@ -73,6 +73,17 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
     [ObservableProperty]
     public partial string? AddressError { get; set; }
 
+    /// <summary>
+    /// The SNMP community a printer that answers only SNMP is asked with (blank: public). Kept in Credential Manager with the
+    /// printer, never in state.json.
+    /// </summary>
+    [ObservableProperty]
+    public partial string Community { get; set; } = "";
+
+    /// <summary>The SNMP access part is open (a community was typed, or the user opened it).</summary>
+    [ObservableProperty]
+    public partial bool ShowsSnmp { get; set; }
+
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(AddAddressCommand))]
     public partial bool IsAddingAddress { get; set; }
 
@@ -246,16 +257,28 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
             AddressError = off;
             return;
         }
+        if (Core.Snmp.SnmpLogin.ForCommunity(Community, out var loginError) is not { } login)
+        {
+            AddressError = loginError;
+            ShowsSnmp = true;
+            return;
+        }
         IsAddingAddress = true;
         try
         {
-            var probe = await main.IdentifyAsync(a.Host!, a.Ipp, CancellationToken.None);
+            var probe = await main.IdentifyAsync(a.Host!, a.Ipp, CancellationToken.None, login);
             if (!probe.Reachable)
             {
-                AddressError = $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network.";
+                AddressError = $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network."
+                               + (login.IsDefault ? " A printer that answers only SNMP may need its community: open SNMP access below." : " Check the SNMP community too.");
                 return;
             }
-            if (main.Listed(probe, a.Host!) is { } listed) main.ShowPrinter(listed);
+            if (main.Listed(probe, a.Host!) is { } listed)
+            {
+                if (probe.Snmp is { } answered && main.KeepSnmpLogin(listed.Uuid, answered.LoginOrPublic) && listed.ReconnectCommand.CanExecute(null))
+                    listed.ReconnectCommand.Execute(null); // the community it answered to now
+                main.ShowPrinter(listed);
+            }
             else main.Add(probe, a.Host!);
             CloseRequested?.Invoke();
         }

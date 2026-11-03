@@ -34,11 +34,14 @@ public partial class MainViewModel
         return _pc.SearchNetworkAsync(found, progress, ct);
     }
 
-    /// <summary>Asks the device at <paramref name="host"/> what it is (LEDM, CDM, IPP at <paramref name="ipp"/> or the default, eSCL, SNMP).</summary>
-    public async Task<ProbeResult> IdentifyAsync(string host, Uri? ipp, CancellationToken ct)
+    /// <summary>
+    /// Asks the device at <paramref name="host"/> what it is (LEDM, CDM, IPP at <paramref name="ipp"/> or the default, eSCL, SNMP
+    /// with <paramref name="snmpLogin"/>, public when null).
+    /// </summary>
+    public async Task<ProbeResult> IdentifyAsync(string host, Uri? ipp, CancellationToken ct, SnmpLogin? snmpLogin = null)
     {
         using var http = new Core.Net.DeviceHttp(host, _pc.DeviceTransport());
-        return await PrinterConnection.ProbeAsync(http, ct: ct, ippHint: ipp, snmp: _pc.Snmp);
+        return await PrinterConnection.ProbeAsync(http, ct: ct, ippHint: ipp, snmp: _pc.Snmp, snmpLogin: snmpLogin);
     }
 
     /// <summary>The listed printer this is (same UUID, or the same address for one without), or null.</summary>
@@ -49,9 +52,14 @@ public partial class MainViewModel
     }
 
     /// <summary>Lists, remembers and selects the printer that answered at <paramref name="host"/> (see <see cref="IdentifyAsync"/>).</summary>
+    /// <remarks>
+    /// A printer read over SNMP keeps the login it answered to (<see cref="SnmpIdentity.Login"/>) in Credential Manager, never
+    /// in state.json; one that answered HTTP has no use for it.
+    /// </remarks>
     public PrinterViewModel Add(ProbeResult probe, string host)
     {
         var uuid = PrinterId.Normalize(probe.Uuid, host);
+        if (probe.Snmp is { } answered) KeepSnmpLogin(uuid, answered.LoginOrPublic);
         _state.Unforget([uuid]);
         var vm = Printers.FirstOrDefault(p => string.Equals(p.Uuid, uuid, StringComparison.OrdinalIgnoreCase));
         // Answering only SNMP now makes it an SNMP-only printer (it's asked over HTTP again later, in case it was asleep).
@@ -69,5 +77,20 @@ public partial class MainViewModel
         ShowPrinter(vm);
         Reconcile(queues: true);
         return vm;
+    }
+
+    /// <summary>Keeps a printer's SNMP login (public: nothing kept). Credential Manager may refuse: said in the log, without the login.</summary>
+    public bool KeepSnmpLogin(string uuid, SnmpLogin login)
+    {
+        try
+        {
+            _pc.SnmpLogins.Save(uuid, login);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"The SNMP community couldn't be kept in Credential Manager: {ex.GetType().Name}");
+            return false;
+        }
     }
 }

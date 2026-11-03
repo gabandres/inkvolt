@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Printers that answer only SNMP can have their own community: enter it under SNMP access when you add the printer by its address, or change it later from the printer's menu (SNMP access…). It's kept in Windows Credential Manager and used only to read the printer.
 
 ## 1.2.0
 - Batch print: Print › Batch takes many PDFs and pictures, or a folder. Each file has its own copies, pages, sides and paper, and you see the sheets each takes and in all before anything prints. They go in order, each result is listed, and a batch that stops says where and carries on from there without printing anything twice.

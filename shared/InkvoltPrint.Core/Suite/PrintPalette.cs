@@ -13,7 +13,7 @@ public static class PrintPalette
 
     /// <summary>What the selected printer offers (null: no printer selected).</summary>
     public sealed record Printer(string Name, bool CanPrint, bool CanScan, bool CanCopy, bool HasSettings, bool NeedsSetup,
-        bool CanFix, bool IsNetwork);
+        bool CanFix, bool IsNetwork, bool SnmpAccess = false);
 
     /// <summary>The sections, in the tabs' order (the indexes are PrinterViewModel's).</summary>
     public static readonly IReadOnlyList<string> Sections = ["Overview", "Print", "Scan", "Copy", "Photos", "Printer settings"];
@@ -36,6 +36,7 @@ public static class PrintPalette
             if (p.CanPrint) list.Add(new("printer:batch", "Batch print: many files…", category, "", "\uE8A9"));
             if (p.CanFix) list.Add(new("printer:fix", "Fix printing problems…", category, "", "\uE90F"));
             if (p.IsNetwork) list.Add(new("printer:maintenance", "Printer maintenance…", category, "", "\uE90F"));
+            if (p.SnmpAccess) list.Add(new("printer:snmp", "SNMP access…", category, "", "\uE72E"));
             list.Add(new("printer:remove", "Remove from Inkvolt Print…", category, "", "\uE74D"));
         }
         list.Add(new("app:add", "Add a printer…", "", "", "\uE710"));

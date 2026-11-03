@@ -283,7 +283,7 @@ internal static class DevSnapshot
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
         }
-        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro: that window instead of the main one.
+        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro|snmp: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
         {
             if (name == "pro" && args.Contains("--pro-enforce")) Core.Pro.Enforced = true; // the locked wording (demo: memory only)
@@ -296,6 +296,7 @@ internal static class DevSnapshot
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
+                "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);
