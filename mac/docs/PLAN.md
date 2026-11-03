@@ -420,7 +420,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view and dark pages still to do (HANDOFF's list) |
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 |
 | Comments, draw, stamps, images, links | D4 |
-| Forms and Fill & Sign | D5 |
+| Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
 | Edit Text & Images | D5a |
 | Recognize Text (OCR) | D5b (Vision) |
 | Export to Word, Excel or text | D5c |
@@ -491,8 +491,12 @@ Mac differences for the PDF app (so far):
   refused. The code is `PdfCore/Forms`.
 - The tests write their PDFs by hand (`TestPdf`, `Core1TestPdf`); encrypted ones are written by MuPDF (AES-256), where
   the Windows tests use PDFsharp.
-- The app (D7 part c): Fill & Sign's signatures and initials are kept only while the app runs (Windows keeps a library
-  of saved ones); form data goes in and out as XFDF and FDF only (Windows also CSV and JSON), through
+- The app (D7 part c): Fill & Sign's signatures and initials are kept between launches since 2026-11-03, as Windows'
+  library (up to three signatures and one set of initials, PNG files in Application Support's "Inkvolt PDF/signatures";
+  `SavedSignatures` in PdfCore, tested by SavedSignaturesTests, a Mac addition: Windows' library has no tests); the
+  Signature menu lists them with their pictures, Draw and Type make a new one (disabled with three saved), and Delete a
+  Saved Signature asks first; the menu bar's Tools › Place Saved Signature lists them too; Sign Digitally's Image picks
+  any saved signature (Windows: the same). Form data goes in and out as XFDF and FDF only (Windows also CSV and JSON), through
   `FormEditor.resetForm`, `exportData` and `importData`, which have no .NET counterpart file (their tests:
   FormDataExchangeTests); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
   Windows app shows as notifications go to a bar over the pages.
@@ -773,6 +777,14 @@ Decided 2026-10-27 for the PDF app:
   Windows should look at: `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` call `TryGetProperty` on a root that may not be an object, which throws InvalidOperationException, not an AiException: an endpoint answering `[]` with JSON gets "Something went wrong" (or, from `/api/ps`, an unhandled exception in `AiPrepare`). The Mac returns nil or AiError. Not fixed on Windows, as this step leaves its code alone.
   Release review, 2026-10-30 (AiHostileTests, through the parsers and the real connection): `JSONSerialization` recurses without a limit, so a few kilobytes of `{"a":{"a":…` from an endpoint ran the thread out of stack and stopped the app, as did a preset file: `JsonNesting` refuses what nests past 64, as Windows' System.Text.Json does. Also added: an event of many data lines is read at its blank line after 64 tries (a million lines were each read to the end, for hours), trailers without a line break stop at 64 KB, and a body queued past 64 MB ends the connection (nothing makes a server wait for its reader). Checked and unchanged: keys only in the Keychain, off by default, nothing of the document sent before the window's Send (with the Ollama preset, `/api/ps` and `/api/show` on loopback carry the model's name before it, as on Windows), redirects, and names and addresses outside their label.
   A person must look at (nobody at the screen; snapshots of the sheets and the pane were read, in dark mode, but not on a real screen or in light mode): the pane opening beside the pages and being dragged wider; the disclosure triangle and the sheet growing with it; the amber box for an internet endpoint in light mode; a long answer streaming with the list scrolling along; a citation's look and click; Return and Shift-Return in the question box; the Control-click menu; the real Local Network question with a server on another computer; VoiceOver reading the status line and an answer. Not exercised at all: a real Ollama or LM Studio (none on ignia-mac; no paid service was called, by rule), a real https endpoint through URLSession and through the socket path's certificate check (only TLS to a plain server, refused), saving a key in the real login keychain from the app (locked over SSH; `AiKeychainStore` itself is tested on a throwaway keychain).
+
+### What a person must look at (unattended run, 2026-11-03)
+
+Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each needs a person at the Mac:
+
+- Saved signatures: the Signature menu's pictures beside each saved signature (light and dark mode), the disabled Draw
+  and Type Signature with their tooltip when three are saved, Delete a Saved Signature's question, Tools › Place Saved
+  Signature, Sign Digitally's Image list; quitting and opening the app again keeps them.
 
 ## Open decisions
 

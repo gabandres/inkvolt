@@ -305,22 +305,53 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     // MARK: Fill & Sign signatures
 
+    /// The Signature menu, as Windows' Sign menu: the saved signatures and initials to place, ways to add them,
+    /// deleting one, Sign Digitally.
     func signatureMenu() -> NSMenu {
         let menu = NSMenu(title: "Signature")
+        menu.autoenablesItems = false
         let library = SignatureLibrary.shared
-        let entries: [(String, Selector, Bool)] = [
-            ("Draw Signature…", #selector(drawSignature(_:)), true), ("Type Signature…", #selector(typeSignature(_:)), true),
-            ("Draw Initials…", #selector(drawInitials(_:)), true), ("Type Initials…", #selector(typeInitials(_:)), true),
-            ("Use My Signature", #selector(useSignature(_:)), library.signature != nil),
-            ("Use My Initials", #selector(useInitials(_:)), library.initials != nil),
-            ("Sign Digitally…", #selector(signDigitally(_:)), true),
-        ]
-        for (i, entry) in entries.enumerated() where entry.2 {
-            if i == 4 || i == 6 { menu.addItem(.separator()) }
-            let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
+        let saved = library.saved
+        for s in saved {
+            let item = NSMenuItem(title: s.name, action: #selector(placeSavedSignature(_:)), keyEquivalent: "")
             item.target = self
+            item.representedObject = s.path
+            item.image = SignatureImages.thumbnail(s)
+            item.setAccessibilityLabel("Place \(s.name)")
             menu.addItem(item)
         }
+        if !saved.isEmpty { menu.addItem(.separator()) }
+        let full = library.isFull
+        let hasInitials = saved.contains { $0.initials }
+        let entries: [(String, Selector, Bool)] = [
+            ("Draw Signature…", #selector(drawSignature(_:)), !full), ("Type Signature…", #selector(typeSignature(_:)), !full),
+            (hasInitials ? "Draw New Initials…" : "Draw Initials…", #selector(drawInitials(_:)), true),
+            (hasInitials ? "Type New Initials…" : "Type Initials…", #selector(typeInitials(_:)), true),
+        ]
+        for entry in entries {
+            let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
+            item.target = self
+            item.isEnabled = entry.2
+            if !entry.2 { item.toolTip = "Up to \(SavedSignatures.maxSignatures) signatures: delete one first." }
+            menu.addItem(item)
+        }
+        if !saved.isEmpty {
+            let delete = NSMenuItem(title: "Delete a Saved Signature", action: nil, keyEquivalent: "")
+            let sub = NSMenu(title: "Delete a Saved Signature")
+            for s in saved {
+                let item = NSMenuItem(title: s.name, action: #selector(deleteSavedSignature(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = s.path
+                item.image = SignatureImages.thumbnail(s)
+                sub.addItem(item)
+            }
+            delete.submenu = sub
+            menu.addItem(delete)
+        }
+        menu.addItem(.separator())
+        let sign = NSMenuItem(title: "Sign Digitally…", action: #selector(signDigitally(_:)), keyEquivalent: "")
+        sign.target = self
+        menu.addItem(sign)
         return menu
     }
 
@@ -328,34 +359,85 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func typeSignature(_ sender: Any?) { showSignatureSheet(initials: false, typing: true) }
     @objc func drawInitials(_ sender: Any?) { showSignatureSheet(initials: true, typing: false) }
     @objc func typeInitials(_ sender: Any?) { showSignatureSheet(initials: true, typing: true) }
-    @objc func useSignature(_ sender: Any?) { armSignature(initials: false) }
-    @objc func useInitials(_ sender: Any?) { armSignature(initials: true) }
 
-    /// The sheet that makes a signature or initials; once made, the next click puts it down.
+    private func savedSignature(_ sender: Any?) -> SavedSignature? {
+        guard let path = (sender as? NSMenuItem)?.representedObject as? String else { return nil }
+        return SignatureLibrary.shared.saved.first { $0.path == path }
+    }
+
+    @objc func placeSavedSignature(_ sender: Any?) {
+        guard let s = savedSignature(sender) else { return }
+        armSignature(s)
+    }
+
+    @objc func deleteSavedSignature(_ sender: Any?) {
+        guard let s = savedSignature(sender) else { return }
+        deleteSaved(s, ask: !Report.isRunning)
+    }
+
+    /// Deletes a saved signature after asking (signatures already placed in documents stay).
+    func deleteSaved(_ s: SavedSignature, ask: Bool) {
+        if ask {
+            let alert = NSAlert()
+            alert.messageText = "Delete \(s.name)?"
+            alert.informativeText = "It is removed from this Mac. Signatures already placed in documents stay."
+            alert.addButton(withTitle: "Delete")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        do {
+            try SignatureLibrary.shared.delete(s)
+        } catch {
+            problemAlert("Couldn't delete it", error.localizedDescription)
+        }
+    }
+
+    private func problemAlert(_ message: String, _ detail: String) {
+        if Report.isRunning { return notify("\(message). \(detail)") }
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        alert.runModal()
+    }
+
+    /// The sheet that makes a signature or initials; once made, it is saved and the next click puts it down.
     @discardableResult
     func showSignatureSheet(initials: Bool, typing: Bool) -> SignatureSheet? {
         guard let window, signatureSheet == nil else { return nil }
+        if !initials && SignatureLibrary.shared.isFull {
+            problemAlert("No room for another signature", "Up to \(SavedSignatures.maxSignatures) signatures can be saved: delete one first.")
+            return nil
+        }
         let sheet = SignatureSheet(initials: initials, typing: typing)
         signatureSheet = sheet
         sheet.done = { [weak self] image in
             guard let self else { return }
             self.signatureSheet = nil
-            if image != nil { self.armSignature(initials: initials) }
+            guard let image else { return }
+            do {
+                if let saved = try SignatureLibrary.shared.save(image, initials: initials) {
+                    self.armSignature(saved, image: image)
+                } else {
+                    self.problemAlert("No room for another signature", "Up to \(SavedSignatures.maxSignatures) signatures can be saved: delete one first.")
+                }
+            } catch {
+                self.problemAlert("Couldn't save the signature", error.localizedDescription)
+            }
         }
         if let panel = sheet.window { window.beginSheet(panel) }
         return sheet
     }
 
-    /// The Signature tool with the signature (or initials) made: the next click on a page puts it there.
-    func armSignature(initials: Bool) {
-        guard let image = SignatureLibrary.shared.image(initials: initials) else {
-            showSignatureSheet(initials: initials, typing: false)
+    /// The Signature tool with a saved signature (or initials): the next click on a page puts it there.
+    func armSignature(_ saved: SavedSignature, image: StampImage? = nil) {
+        guard let image = image ?? SignatureLibrary.shared.image(saved) else {
+            problemAlert("Couldn't read \(saved.name)", "Its picture can't be read. Delete it and add it again.")
             return
         }
-        pages.pendingSignature = (image, initials)
+        pages.pendingSignature = (image, saved.initials)
         pages.tool = .signature
         window?.makeFirstResponder(pages)
-        notify("Click where the \(initials ? "initials go" : "signature goes"). Drag it with the hand tool to move it; Delete removes it.")
+        notify("Click where the \(saved.initials ? "initials go" : "signature goes"). Drag it with the hand tool to move it; Delete removes it.")
     }
 
     func askSignature() {

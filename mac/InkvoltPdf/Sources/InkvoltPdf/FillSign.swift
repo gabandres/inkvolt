@@ -1,20 +1,41 @@
 import AppKit
 import PdfCore
+import ImageIO
 
 /// Fill & Sign's handwritten signatures and initials (pictures placed as stamps, not digital signatures; the Windows
-/// app's SignatureImages and Add signature tool): drawn on a pad or typed in a handwriting font, then put down with a
-/// click. The ones made are kept for this run of the app (Windows keeps a library of saved ones: not yet on the Mac).
+/// app's SignatureLibrary and Add signature tool): drawn on a pad or typed in a handwriting font, then put down with a
+/// click. Kept between launches as PNG files, up to three signatures and one set of initials (`SavedSignatures`), in
+/// Application Support's "Inkvolt PDF/signatures"; the self-test keeps its own in a temporary folder.
 @MainActor
 final class SignatureLibrary {
     static let shared = SignatureLibrary()
-    private(set) var signature: StampImage?
-    private(set) var initials: StampImage?
+    var store = SavedSignatures(folder: SignatureLibrary.defaultFolder)
 
-    func set(_ image: StampImage, initials isInitials: Bool) {
-        if isInitials { initials = image } else { signature = image }
+    static var defaultFolder: String {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return support.appendingPathComponent("Inkvolt PDF/signatures").path
     }
 
-    func image(initials: Bool) -> StampImage? { initials ? self.initials : signature }
+    var saved: [SavedSignature] { store.list() }
+    var isFull: Bool { store.signatureCount >= SavedSignatures.maxSignatures }
+
+    /// Saves a new signature (first free slot) or replaces the initials; nil when the three signature slots are taken.
+    func save(_ image: StampImage, initials: Bool) throws -> SavedSignature? {
+        guard let png = SignatureImages.png(image) else { throw CocoaError(.fileWriteUnknown) }
+        return try store.save(png, initials: initials)
+    }
+
+    func delete(_ signature: SavedSignature) throws { try store.delete(signature) }
+
+    /// The picture of a saved signature (nil when its file can't be read).
+    func image(_ signature: SavedSignature) -> StampImage? {
+        guard let data = try? signature.load() else { return nil }
+        return SignatureImages.stampImage(png: data)
+    }
+
+    /// The first saved signature (or the initials).
+    func first(initials: Bool) -> SavedSignature? { saved.first { $0.initials == initials } }
 
     /// The size a click puts it down at: 42 pt high (28 for initials), at most 260 pt wide.
     static func size(_ image: StampImage, initials: Bool) -> (width: Double, height: Double) {
@@ -22,6 +43,35 @@ final class SignatureLibrary {
         let aspect = Double(image.width) / Double(max(image.height, 1))
         let w = min(260, h * aspect)
         return (w, w / max(aspect, 0.01))
+    }
+}
+
+/// The menu bar's Place Saved Signature submenu, filled with the saved signatures each time it opens; the items go
+/// along the responder chain to the front document window.
+@MainActor
+final class SavedSignaturesMenu: NSObject, NSMenuDelegate {
+    static let shared = SavedSignaturesMenu()
+
+    static func make() -> NSMenu {
+        let menu = NSMenu(title: "Place Saved Signature")
+        menu.delegate = shared
+        return menu
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let saved = SignatureLibrary.shared.saved
+        for s in saved {
+            let item = NSMenuItem(title: s.name, action: #selector(DocumentWindowController.placeSavedSignature(_:)), keyEquivalent: "")
+            item.representedObject = s.path
+            item.image = SignatureImages.thumbnail(s)
+            menu.addItem(item)
+        }
+        if saved.isEmpty {
+            let none = NSMenuItem(title: "No Saved Signatures", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            menu.addItem(none)
+        }
     }
 }
 
@@ -78,6 +128,47 @@ enum SignatureImages {
             NSGraphicsContext.current = graphics
             string.draw(with: NSRect(x: 8, y: 6, width: bounds.width + 4, height: bounds.height), options: [.usesLineFragmentOrigin, .usesFontLeading])
             NSGraphicsContext.restoreGraphicsState()
+        }
+    }
+
+    /// A picture as PNG bytes (straight alpha), for the library.
+    static func png(_ image: StampImage) -> Data? {
+        let n = image.width * image.height
+        guard n > 0, image.rgb.count >= n * 3 else { return nil }
+        var rgba = [UInt8](repeating: 255, count: n * 4)
+        for i in 0..<n {
+            rgba[i * 4] = image.rgb[i * 3]
+            rgba[i * 4 + 1] = image.rgb[i * 3 + 1]
+            rgba[i * 4 + 2] = image.rgb[i * 3 + 2]
+            if let alpha = image.alpha { rgba[i * 4 + 3] = alpha[i] }
+        }
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB), let provider = CGDataProvider(data: Data(rgba) as CFData),
+              let cg = CGImage(width: image.width, height: image.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: image.width * 4,
+                               space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider,
+                               decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { return nil }
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out as CFMutableData, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dest, cg, nil)
+        return CGImageDestinationFinalize(dest) ? out as Data : nil
+    }
+
+    /// A saved PNG back into a picture.
+    static func stampImage(png: Data) -> StampImage? {
+        guard let source = CGImageSourceCreateWithData(png as CFData, nil),
+              let cg = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        return Pictures.stampImage(cg)
+    }
+
+    /// A small picture of a saved signature for menus (on white: the ink is dark).
+    static func thumbnail(_ signature: SavedSignature, height: CGFloat = 24) -> NSImage? {
+        guard let data = try? signature.load(), let image = NSImage(data: data), image.size.height > 0 else { return nil }
+        let width = min(140, height * image.size.width / image.size.height)
+        let size = NSSize(width: width + 8, height: height + 4)
+        return NSImage(size: size, flipped: false) { rect in
+            NSColor.white.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
+            image.draw(in: NSRect(x: 4, y: 2, width: width, height: height))
+            return true
         }
     }
 
@@ -253,7 +344,6 @@ final class SignatureSheet: NSWindowController, NSTextFieldDelegate {
 
     @objc func useClicked() {
         guard let image = image() else { return NSSound.beep() }
-        SignatureLibrary.shared.set(image, initials: initials)
         finish(image)
     }
 

@@ -322,6 +322,31 @@ struct FeatureTest {
         check(sheet != nil && initialsSheet != nil && sigs.count == sigs0 + 2 && pages.tool == .signature,
               "signature drawn and initials typed in the sheet, each put down with a click: \(sigs.count - sigs0) placed")
 
+        // Both are saved in the library (kept between launches): the Signature menu lists them, and placing one from it
+        // puts the saved picture down; deleting one removes it from the menu.
+        let library = SignatureLibrary.shared
+        let savedSigs = library.saved
+        let menu = controller.signatureMenu()
+        let listed = menu.items.filter { $0.action == #selector(DocumentWindowController.placeSavedSignature(_:)) }.map(\.title)
+        check(savedSigs.map(\.name) == ["Signature 1", "Initials"] && listed == ["Signature 1", "Initials"]
+              && SavedSignatures(folder: library.store.folder).list().count == 2,
+              "the signature and initials saved as files and listed in the Signature menu: \(listed)")
+        if let item = menu.items.first(where: { $0.title == "Signature 1" }) {
+            controller.placeSavedSignature(item)
+            await press(page, [at(0.55, 0.6)])
+        }
+        check(stamps(.signature).count == sigs0 + 3, "a saved signature placed from the menu with a click")
+        let typedSheet = controller.showSignatureSheet(initials: false, typing: true)
+        typedSheet?.typed.stringValue = "Ada Lovelace"
+        typedSheet?.useClicked()
+        _ = controller.showSignatureSheet(initials: false, typing: true).map { $0.typed.stringValue = "A. L."; $0.useClicked() }
+        let full = library.isFull && controller.showSignatureSheet(initials: false, typing: false) == nil
+        let addItem = controller.signatureMenu().items.first { $0.title == "Draw Signature…" }
+        check(full && addItem?.isEnabled == false, "three signatures saved: no room for a fourth, Draw Signature… disabled")
+        if let second = library.saved.first(where: { $0.name == "Signature 2" }) { controller.deleteSaved(second, ask: false) }
+        let after = controller.signatureMenu().items.filter { $0.action == #selector(DocumentWindowController.placeSavedSignature(_:)) }.map(\.title)
+        check(after == ["Signature 1", "Signature 3", "Initials"] && !library.isFull, "a saved signature deleted: \(after)")
+
         // The hand tool moves a signature (redrawn in its new place, one undo step).
         if let s = stamps(.signature).last {
             pages.tool = .hand

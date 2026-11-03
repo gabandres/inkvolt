@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Fill & Sign keeps your signatures and initials between launches: up to three signatures and one set of initials, listed with their pictures in the Signature menu (and Tools › Place Saved Signature). Delete one from the same menu.
 - Prepare Form: closing a document right after moving a field with the arrow keys keeps the move (it was lost).
 
 ## 1.5.0

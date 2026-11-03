@@ -541,8 +541,9 @@ enum SignDialog {
         let showDn = check("Show the distinguished name", "SignShowDn", false)
         let image = NSPopUpButton(frame: .zero, pullsDown: false)
         image.addItem(withTitle: "No image")
-        if SignatureLibrary.shared.signature != nil { image.addItem(withTitle: "My handwritten signature") }
-        image.selectItem(at: d.bool(forKey: "SignImage") && image.numberOfItems > 1 ? 1 : 0)
+        let handwritten = SignatureLibrary.shared.saved.filter { !$0.initials }
+        for s in handwritten { image.addItem(withTitle: "Handwritten: \(s.name)") }
+        image.selectItem(at: (handwritten.firstIndex { $0.path == d.string(forKey: "SignImagePath") } ?? -1) + 1)
         image.setAccessibilityLabel("Image beside the text")
         let timestamp = check("Add a trusted timestamp", "SignTimestamp", false)
         let tsaUrl = NSTextField(string: d.string(forKey: "TimestampUrl") ?? defaultTimestampUrl)
@@ -590,14 +591,15 @@ enum SignDialog {
             d.set(showDate.state == .on, forKey: "SignShowDate")
             d.set(showReason.state == .on, forKey: "SignShowReason")
             d.set(showDn.state == .on, forKey: "SignShowDn")
-            d.set(image.indexOfSelectedItem == 1, forKey: "SignImage")
+            let chosenImage = image.indexOfSelectedItem > 0 ? handwritten[image.indexOfSelectedItem - 1] : nil
+            d.set(chosenImage?.path, forKey: "SignImagePath")
             d.set(timestamp.state == .on, forKey: "SignTimestamp")
             d.set(url, forKey: "TimestampUrl")
             var look = SignatureLook()
             look.showDate = showDate.state == .on
             look.showReason = showReason.state == .on
             look.showDistinguishedName = showDn.state == .on
-            look.image = image.indexOfSelectedItem == 1 ? SignatureLibrary.shared.signature : nil
+            look.image = chosenImage.flatMap { SignatureLibrary.shared.image($0) }
             func empty(_ s: String) -> String? { s.trimmingCharacters(in: .whitespaces).isEmpty ? nil : s }
             return SignChoice(id: id, reason: empty(reason.stringValue), location: empty(location.stringValue), visible: visible.state == .on,
                               look: look, timestamp: timestamp.state == .on, timestampUrl: url,

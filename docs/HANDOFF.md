@@ -17,7 +17,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 ### Inkvolt PDF for Mac: scheduled (unattended run, Tue 2026-11-03 08:10)
 
 One agent, cheapest first, one commit each, in this order:
-1. Saved signatures between launches (`SignatureLibrary` keeps them for the run only, `FillSign.swift`).
+1. ~~Saved signatures between launches~~ Done 2026-11-03 (`SavedSignatures`, Application Support's "Inkvolt PDF/signatures").
 2. Rotate view (per window and split pane; links, selection, fields, comments and Prepare Form follow the turn, as
    Windows' `RotatedView`; PdfCore has `RotatedView`, the app never turns the view).
 3. Dark pages.

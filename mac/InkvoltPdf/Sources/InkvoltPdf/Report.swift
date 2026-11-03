@@ -99,6 +99,9 @@ enum Report {
         AppSettings.clearTestSuite(AppTest.settingsSuite)
         AppSettings.defaults = UserDefaults(suiteName: AppTest.settingsSuite) ?? .standard
         AppSettings.aiKeys = AiMemoryKeyStore() // never the user's keychain
+        // Saved signatures in a folder of the self-test's own, never the user's.
+        SignatureLibrary.shared.store = SavedSignatures(folder: (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("inkvolt-selftest-signatures-\(UUID().uuidString.prefix(8))"))
         if let snapshots { try? FileManager.default.createDirectory(atPath: snapshots, withIntermediateDirectories: true) }
         if args.contains("--synthetic") {
             let folder = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-selftest-\(UUID().uuidString.prefix(8))")
