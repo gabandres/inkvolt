@@ -1,0 +1,290 @@
+# Inkvolt PDF self-test, 2026-11-03 16:11:50 +0000
+== UX shots
+MENU File (29 items)
+    New Window  ⌘N
+    Open…  ⌘O
+    Open Recent
+        Clear Menu
+    Open Recent
+        Clear Menu
+    —
+    New PDF from Images…
+    New PDF from Clipboard  ⌥⌘N
+    New PDF from Office File…
+    New PDF from Web Page…
+    Combine Files…
+    Compare Files…
+    Scan…
+    —
+    Batch…  ⇧⌘B
+    Watched Folders…
+    —
+    Close  ⌘W
+    Close All  ⌥⌘W
+    Save  ⌘S
+    Save As…  ⇧⌘S
+    Save as PDF/A-2b…
+    Save as PDF/A-2a (Accessible Archive)…
+    Revert to Saved
+    Reload from Disk  ⌥⌘R
+    —
+    Export To
+        Word…
+        Excel (Tables)…
+        Plain Text…
+        PowerPoint Presentation…
+        HTML Web Page…
+    Form Data
+        Reset Form…
+        Import Form Data…
+        Export Form Data…
+    —
+    Protect with Password…
+    Remove Password Protection…
+    Reduce File Size…
+    —
+    Document Properties…  ⇧⌘I
+    —
+    Page Setup…  ⇧⌘P
+    Print…  ⌘P
+MENU Edit (12 items)
+    Undo  ⌘Z
+    Redo  ⇧⌘Z
+    —
+    Cut  ⌘X
+    Copy  ⌘C
+    Paste  ⌘V
+    Delete
+    Select All  ⌘A
+    —
+    Find
+        Find…  ⌘F
+        Find Next  ⌘G
+        Find Previous  ⇧⌘G
+    —
+    Writing Tools
+        Show Writing Tools
+        —
+        Proofread
+        Rewrite
+        —
+        Make Friendly
+        Make Professional
+        Make Concise
+        —
+        Summarize
+        Create Key Points
+        Make List
+        Make Table
+        —
+        Compose…
+    —
+    AutoFill
+        Contact…
+        Passwords…
+        Credit Card…
+    Start Dictation…  🎤
+    Emoji & Symbols  ⌘ 
+MENU View (20 items)
+    Actual Size  ⌘0
+    Zoom to Width  ⌘9
+    Zoom to Page  ⌥⌘9
+    Zoom In  ⌘+
+    Zoom Out  ⌘-
+    —
+    Single Page  ⌘4
+    Continuous  ⌘5
+    Two Pages  ⌘6
+    Two Pages with Cover  ⌘7
+    —
+    Rotate View Clockwise  ⇧⌘R
+    Rotate View Counterclockwise  ⇧⌘L
+    Dark Pages (Night Reading)
+    —
+    Hide Sidebar  ⌃⌘S
+    Show Comments  ⌥⌘3
+    Show Signatures  ⌥⌘4
+    Show Attachments  ⌥⌘5
+    Show Layers  ⌥⌘6
+    —
+    Split View
+        Split Top and Bottom
+        Split Side by Side
+        Remove Split
+        —
+        Switch Pane  ⌘'
+    —
+    Read Aloud  ⇧⌘Y
+    Enter Full Screen  F
+MENU Go (7 items)
+    Next Page  ⌥⌘
+    Previous Page  ⌥⌘
+    First Page  
+    Last Page  
+    Go to Page…  ⌥⌘G
+    —
+    Next Comment  ⌥⌘]
+    Previous Comment  ⌥⌘[
+MENU Pages (19 items)
+    Organize Pages  ⌥⌘O
+    —
+    Rotate Left  ⌘L
+    Rotate Right  ⌘R
+    Duplicate Pages
+    Reverse Page Order
+    Delete Pages  ⌥⌘
+    —
+    Insert Pages from File…  ⌥⌘I
+    Insert from Scanner…
+    Insert Blank Page
+    Extract Pages…
+    Split Document…
+    Crop Pages…
+    —
+    Add Header & Footer…
+    Remove Header & Footer
+    Add Watermark…
+    Remove Watermark
+    Flatten…
+    —
+    Add Bookmark  ⌘D
+    Show Bookmarks  ⌥⌘2
+MENU Tools (58 items)
+    Hand  H
+    Select Text  T
+    —
+    Highlight  Y
+    Underline  U
+    Strike Out  K
+    Note  O
+    Text Box  B
+    Callout  Q
+    —
+    Pen  P
+    Highlighter Pen  M
+    Rectangle  R
+    Ellipse  E
+    Line  L
+    Arrow  W
+    Polygon  V
+    Polyline  Z
+    —
+    Stamp  S
+    Image  I
+    Link  N
+    —
+    Add Text  A
+    Check Mark  C
+    Cross  X
+    Date  D
+    Signature  G
+    —
+    Edit Text & Images  J
+    —
+    Redact  F
+    —
+    Highlight Selected Text  ⌃⌘H
+    Underline Selected Text  ⌃⌘U
+    Strike Out Selected Text  ⌃⌘X
+    Link Selected Text…  ⌘K
+    —
+    Picture from File…
+    Picture from Clipboard
+    —
+    Draw Signature…
+    Type Signature…
+    Draw Initials…
+    Type Initials…
+    Place Saved Signature
+    Sign Digitally…
+    —
+    Recognize Text (OCR)…
+    Review Suspect Words
+    —
+    Redact Selected Text
+    Redact Search Matches
+    Redact by Pattern…
+    Apply Redactions…
+    Clear Redaction Marks
+    Check Redaction…
+    Sanitize Document…
+    What's in This PDF…
+    Accessibility Check…
+    —
+    Measure
+        Measure Distance
+        Measure Perimeter
+        Measure Area
+        Calibrate Scale from a Known Length
+        —
+        Set Measuring Scale…
+    AI Assistant
+        Summarize with AI…
+        Ask AI about This Document
+        Explain Selection with AI
+        —
+        AI Assistant Settings…
+    —
+    Prepare Form  ⌥⌘F
+    Detect Form Fields
+    —
+    Make Accessible (Tag)…
+    Reading Order and Alt Text
+    —
+    Show Inspector  ⌘I
+    Reply to Comment…  ⌃⌘R
+    —
+    Command Palette…  ⇧⌘K
+MENU Window (5 items)
+    Minimize  ⌘M
+    Zoom
+    —
+    Bring All to Front
+    —
+    Synthetic Form.pdf (Page 1 of 1)
+    Synthetic.pdf (Page 1 of 3)
+MENU Help (4 items)
+    What's New in Inkvolt PDF
+    Inkvolt Pro…
+    Inkvolt PDF on GitHub
+    Report a Problem…
+MENUS: 194 items in all
+PASS shot doc-light: 1345 x 876 pt
+AUDIT document window: 45 controls, 6 without a name
+  FINDING document window: AXButton NSButtonCell: no name
+  FINDING document window: AXButton _NSThemeCloseWidgetCell: no name
+  FINDING document window: AXButton _NSThemeWidgetCell: no name
+  FINDING document window: AXButton _NSThemeZoomWidgetCell help "this button also has an action to zoom t": no name
+  FINDING document window: AXMenuButton NSPopUpButtonCell help "Color for the current tool or the select": no name
+  FINDING document window: AXPopUpButton NSPopUpButtonCell help "Line width for the current tool or the s": no name
+PASS shot doc-narrow-light: 1345 x 656 pt
+PASS shot doc-find-light: 1345 x 876 pt
+PASS shot start-light: 860 x 668 pt
+AUDIT start page: 16 controls, 3 without a name
+  FINDING start page: AXButton _NSThemeCloseWidgetCell: no name
+  FINDING start page: AXButton _NSThemeWidgetCell: no name
+  FINDING start page: AXButton _NSThemeZoomWidgetCell help "this button also has an action to zoom t": no name
+PASS shot settings-light: 520 x 401 pt
+AUDIT Settings: 14 controls, 6 without a name
+  FINDING Settings: AXButton _NSThemeCloseWidgetCell: no name
+  FINDING Settings: AXButton _NSThemeWidgetCell: no name
+  FINDING Settings: AXButton _NSThemeZoomWidgetCell: no name
+  FINDING Settings: AXPopUpButton NSPopUpButtonCell: no name
+  FINDING Settings: AXTextField NSTextFieldCell: no name
+PASS shot palette-light: 560 x 380 pt
+AUDIT command palette: 9 controls, 8 without a name
+  FINDING command palette: AXButton NSAccessibilityScrollerPart: no name
+  FINDING command palette: AXButton _NSThemeCloseWidgetCell: no name
+  FINDING command palette: AXButton _NSThemeWidgetCell: no name
+  FINDING command palette: AXButton _NSThemeZoomWidgetCell: no name
+  FINDING command palette: AXTextField NSSearchFieldCell: no name
+PASS shot doc-dark: 1345 x 876 pt
+PASS shot doc-narrow-dark: 1345 x 656 pt
+PASS shot start-dark: 860 x 668 pt
+PASS shot settings-dark: 520 x 401 pt
+PASS shot palette-dark: 560 x 380 pt
+PASS shot doc-contrast: 1345 x 876 pt
+PASS shot start-contrast: 860 x 668 pt
+PASS shot settings-contrast: 520 x 401 pt
+RESULT: PASS (14 shots, 23 audit findings, 0 failed)
+QUIT: 1 of 1 documents finished
