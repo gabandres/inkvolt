@@ -143,3 +143,17 @@ struct OwnerPasswordTests {
         #expect(after.page(0).width > after.page(0).height)
     }
 }
+
+// Document Properties' Security line (Windows' SecurityActions.Describe, which has no test there: a Mac addition).
+extension SecurityTests {
+    @Test func documentPropertiesDescribesTheProtection() throws {
+        #expect(try PdfSecurity.readSecurity(TestPdf.make(1), nil).summary == "Not protected")
+        let opened = try PdfSecurity.protect(TestPdf.make(1), nil, userPassword: "open", ownerPassword: "owner")
+        #expect(try PdfSecurity.readSecurity(opened, "open").summary == "AES-256 · needs a password to open · no restrictions")
+        let wanted = PdfPermissions(print: .lowResolution, copy: false, modify: false, annotate: true, fillForms: true, assemble: false)
+        let limited = try PdfSecurity.protect(TestPdf.make(1), nil, userPassword: nil, ownerPassword: "owner", permissions: wanted,
+                                              method: .aes128)
+        #expect(try PdfSecurity.readSecurity(limited, nil).summary
+                == "AES-128 · opens without a password · low-resolution printing · no copying · no editing · no page changes")
+    }
+}

@@ -424,7 +424,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Edit Text & Images | D5a |
 | Recognize Text (OCR) | D5b (Vision) |
 | Export to Word, Excel or text | D5c |
-| Reload, recovery copies, password protection | D2 and D7 |
+| Reload, recovery copies, password protection | D2 and D7 (File › Document Properties…: 2026-11-03) |
 | Print (with pages per sheet, booklet, poster) | D6 and D7 |
 | Scan, printer status when printing, Inkvolt Print's printer settings | Scan: D7 (Inkvolt Print's PrintCore and PrintMac: eSCL, Bonjour, ImageCaptureCore); printer status and printer settings later, with the printer reading |
 | Help › What's New, updates | What's New: D7; updates: D8 (Sparkle); Help › Report a Problem: 2026-11-03 |
@@ -577,6 +577,14 @@ Mac differences for the PDF app (so far):
   asked again with the range. `DocumentFeatures.findPageByLabel` and `findPage` (Windows' `DocumentTab.FindPage`) in
   PdfCore; Core2FeatureTests' `ReadsPageLabels` and `HostilePageLabelsAndCyclicTreesStayCheap` ported. ViewTest checks
   the command.
+- Document Properties (2026-11-03): File › Document Properties… (⇧⌘I; Windows: Ctrl+D, which the Mac keeps for Add
+  Bookmark, and ⌥⌘D is the Dock's) is a sheet with Windows' rows (file, location, size, pages, the current page's size,
+  PDF version, security, the app that made it, producer, dates; a row without a value left out) and Title, Author,
+  Subject and Keywords to change as one undo step ("Edit document properties"); What's in This PDF… opens the inventory
+  from it. The Security line is `SecurityInfo.summary` in PdfCore (Windows' `SecurityActions.Describe`, untested there;
+  SecurityTests' `documentPropertiesDescribesTheProtection` is a Mac addition). `PageEditor.readMetadata` and
+  `writeMetadata` and their tests were already ported. Dates in the Mac's short date and time style (Windows: "g").
+  PagesTest checks it.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -608,8 +616,8 @@ Mac differences for the PDF app (so far):
   Review tab), the first also in the selection's context menu. Apply asks first (as Windows), then recognizes the text
   left on the pages with Vision in the same undo step; the self-test answers the question itself
   (`Report.isRunning`).
-- What's in This PDF (E1a): the Mac has no Document Properties window, so the report is opened from the Tools menu and
-  the Sanitize sheet only (Windows: also from Document Properties). Attached files are listed by the inventory's own
+- What's in This PDF (E1a): the report is opened from the Tools menu, the Sanitize sheet and Document Properties (since
+  2026-11-03), as on Windows. Attached files are listed by the inventory's own
   reading of the EmbeddedFiles tree and attachment comments (Windows calls `Attachments.List`; the Mac's
   inventory still reads them itself, though E9 brought `Attachments`). The sheet shows at most 300 items per section, with how many more there are (Save Report lists them all;
   Windows' dialog lists all, up to the report's 2,000). The JSON writes characters beyond ASCII as they are, in UTF-8
@@ -702,8 +710,8 @@ Mac differences for the PDF app (so far):
 
 - Accessibility check (roadmap 1.3): the command is Tools › Accessibility Check… (Windows: Review), the pane is the sidebar's last
   segment, a symbol that appears with the first check. Fixes that name a command name
-  the Mac's: File › Remove Password Protection…, Pages › Flatten…, Tools › Prepare Form; the Mac has no Document Properties, so those fixes
-  say a PDF editor's document properties; the checks that Windows words with Attach a File and Read Aloud still say the program that
+  the Mac's: File › Remove Password Protection…, Pages › Flatten…, Tools › Prepare Form, File › Document Properties (Windows' words since
+  2026-11-03; the language and "Show document title" still say a PDF editor's, as on Windows); the checks that Windows words with Attach a File and Read Aloud still say the program that
   wrote the file and VoiceOver (⌘F5), though E9 and E10 brought both (to change in the checker's words). Saving the report offers Open Report in the pane (Windows: Open on its toast). Text in a corrupt file differs by reader: MuPDF
   rebuilds what it can, so a file PDFsharp refuses is checked as far as it reads (`7.5-t01-fail-c.pdf`, with an external stream: Windows
   says it can't be checked, the Mac fails it, as veraPDF does). Limits Windows doesn't have, none reached by a real file: at most 2,500,000
@@ -858,6 +866,8 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
 - Report a Problem (Help menu): the window's layout and wrapping, the details' monospaced text, editing them before
   Copy, and Copy and Open a GitHub Issue opening the browser on a prefilled issue (the self-test only makes the
   address).
+- Document Properties (File menu, ⇧⌘I): the sheet's rows and their wrapping (a long location, a long producer), the four
+  fields, Save Changes, Cancel and What's in This PDF…, on a protected and a signed file.
 - Go to Page (Go menu, ⌥⌘G): the sheet's field taking focus, Return going there, a label typed in a file with page
   labels (the self-test's document has none), and the sheet asked again with the range.
 

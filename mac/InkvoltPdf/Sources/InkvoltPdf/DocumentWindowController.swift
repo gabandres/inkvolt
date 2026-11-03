@@ -779,6 +779,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return !signing.signing && longTask == nil && progressSheet == nil
         case #selector(showSignatures(_:)):
             return !signing.signatures.isEmpty
+        case #selector(showDocumentProperties(_:)):
+            return pdf.session != nil
         case #selector(removeProtection(_:)):
             return pdf.session?.hasEncryption == true
         case #selector(protectDocument(_:)):

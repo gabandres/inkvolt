@@ -5,7 +5,8 @@ import PdfCore
 /// address, an address that asks first); a text selection dragged across two pages and highlighted as one step; the
 /// organizer and the page commands (rotate, duplicate, insert blank, from a PDF and from a picture, move by the grid's
 /// drop, crop, the thumbnails' context menu, delete, undo); bookmarks (add, rename, move, nest, delete); password
-/// protection through its sheet, then removed; printing to PDF files in a temporary folder with four layouts (never a
+/// protection through its sheet, then removed; File › Document Properties… (its rows, the title and subject changed as
+/// one undo step, undone); printing to PDF files in a temporary folder with four layouts (never a
 /// printer); and the close question answered Cancel, then Save. Every result saved into a temporary folder and read
 /// back. Only counts and kinds are written, never a document's text or its name.
 @MainActor
@@ -116,6 +117,8 @@ struct PagesTest {
             trace("passwords")
             await passwords()
         }
+        trace("document properties")
+        await documentProperties()
         trace("print")
         printing()
         trace("close question")
@@ -467,6 +470,35 @@ struct PagesTest {
     }
 
     // MARK: Passwords
+
+    /// File › Document Properties…: the rows Windows shows (file, location, size, pages, page size, PDF version,
+    /// security), then Title and Subject changed through it as one undo step, read back and undone.
+    private mutating func documentProperties() async {
+        guard let s = session, let before = try? PageEditor.readMetadata(s.data, s.password) else {
+            return check(false, "Document Properties: the metadata read")
+        }
+        let item = NSApp.mainMenu?.items.first { $0.title == "File" }?.submenu?.items.first { $0.title == "Document Properties…" }
+        let enabled = item.map { controller.validateMenuItem($0) } == true && item?.keyEquivalent == "i"
+        DocumentPropertiesState.testAnswer = nil
+        await controller.askDocumentProperties()
+        let labels = DocumentPropertiesState.lastRows.map(\.label)
+        let security = DocumentPropertiesState.lastRows.first { $0.label == "Security" }?.value ?? ""
+        let rows = labels.starts(with: ["File", "Location", "File size", "Pages", "Page size", "PDF version", "Security"])
+            && (s.hasEncryption || security == "Not protected")
+        let signed = s.data.firstRange(of: Array("/ByteRange".utf8)) != nil
+        DocumentPropertiesState.testAnswer = ("Self-test title", before.author, "Self-test subject", before.keywords)
+        let edited = await menu(#selector(DocumentWindowController.showDocumentProperties(_:)), expect: "Edit document properties")
+        DocumentPropertiesState.testAnswer = nil
+        if !edited && signed && editor.lastOutcome == .declined {
+            return check(enabled && rows, "Document Properties: \(labels.count) rows; a signed file's rewrite asked first and declined")
+        }
+        let after = session.flatMap { try? PageEditor.readMetadata($0.data, $0.password) }
+        controller.pdf.undo()
+        let undone = session.flatMap { try? PageEditor.readMetadata($0.data, $0.password) }
+        check(enabled && rows && edited && after?.title == "Self-test title" && after?.subject == "Self-test subject" && undone?.title == before.title,
+              "File › Document Properties… (⇧⌘I): \(labels.count) rows (file to security, “\(security)”), title and subject changed as one "
+              + "undo step, undone")
+    }
 
     private mutating func passwords() async {
         let signed = (session?.data ?? []).firstRange(of: Array("/ByteRange".utf8)) != nil

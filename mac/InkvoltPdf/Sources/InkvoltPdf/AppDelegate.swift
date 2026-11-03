@@ -186,6 +186,8 @@ enum MainMenu {
         menu.addItem(item("Remove Password Protection…", #selector(DocumentWindowController.removeProtection(_:))))
         menu.addItem(item("Reduce File Size…", #selector(DocumentWindowController.reduceFileSize(_:))))
         menu.addItem(.separator())
+        menu.addItem(item("Document Properties…", #selector(DocumentWindowController.showDocumentProperties(_:)), "i", [.command, .shift]))
+        menu.addItem(.separator())
         menu.addItem(item("Page Setup…", #selector(NSDocument.runPageLayout(_:)), "p", [.command, .shift]))
         menu.addItem(item("Print…", #selector(NSDocument.printDocument(_:)), "p"))
         return menu

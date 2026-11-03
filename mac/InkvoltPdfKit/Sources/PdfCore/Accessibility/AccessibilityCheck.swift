@@ -247,9 +247,9 @@ public enum AccessibilityCheck {
         h("05-002", "A sound isn't available in another form.", person),
         h("05-003", "A script beeps without another way of telling.", person),
 
-        m("06-001", "The document has no XMP metadata.", "Give it a title in a PDF editor's document properties and save: Inkvolt PDF writes XMP metadata when it saves."),
+        m("06-001", "The document has no XMP metadata.", "Give it a title in File › Document Properties and save: Inkvolt PDF writes XMP metadata when it saves."),
         m("06-002", "The metadata doesn't say the file is PDF/UA (pdfuaid:part 1).", "Save it as PDF/UA from the program that made it (Word: PDF options › “PDF/UA compliant”), or add the PDF/UA identifier in a tag editor."),
-        m("06-003", "The metadata has no title (dc:title).", "Give the document a title in the program that made it or a PDF editor's document properties, then save."),
+        m("06-003", "The metadata has no title (dc:title).", "Give the document a title: File › Document Properties › Title in Inkvolt PDF, then save."),
         h("06-004", "The title doesn't say what the document is.", person),
 
         m("07-001", "The document doesn't ask viewers to show its title (DisplayDocTitle is missing).", "Turn on “Show document title” in a PDF editor's document properties (Initial View), or save the PDF again from Word with document properties included."),
@@ -400,7 +400,7 @@ public enum AccessibilityCheck {
     /// The checks for a person, in the order to do them.
     public static let humanChecks: [HumanCheck] = [
         check("title", ["06-004"], "Does the title say what the document is?",
-              "The window's title shows it when the document asks for that; a file name or “Document1” isn't a title."),
+              "File › Document Properties › Title. A file name or “Document1” isn't a title."),
         check("reading-order", ["09-001", "28-001", "22-001"], "Is the reading order sensible?",
               "Turn on VoiceOver (⌘F5) and listen to a few pages: columns, sidebars, captions and footnotes should come where a reader expects them."),
         check("tags-fit", ["01-006", "09-002", "09-003", "02-002", "28-003"], "Does each tag fit its content?",

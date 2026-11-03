@@ -47,6 +47,33 @@ public struct SecurityInfo: Equatable, Sendable {
     public var isEncrypted: Bool { method != .none }
 }
 
+extension SecurityInfo {
+    /// One line for Document Properties (Windows' `SecurityActions.Describe`): "AES-256 · needs a password to open · no
+    /// copying", or "Not protected".
+    public var summary: String {
+        if !isEncrypted { return "Not protected" }
+        var parts: [String] = []
+        switch method {
+        case .aes256: parts.append("AES-256")
+        case .aes128: parts.append("AES-128")
+        case .rc4With128Bits: parts.append("RC4 128-bit (outdated)")
+        case .rc4With40Bits: parts.append("RC4 40-bit (outdated)")
+        case .none, .unknown: parts.append("Encrypted")
+        }
+        parts.append(requiresOpenPassword ? "needs a password to open" : "opens without a password")
+        let p = permissions
+        if p.isUnrestricted { parts.append("no restrictions") } else {
+            if p.print == .none { parts.append("no printing") } else if p.print == .lowResolution { parts.append("low-resolution printing") }
+            if !p.copy { parts.append("no copying") }
+            if !p.modify { parts.append("no editing") }
+            if !p.annotate { parts.append("no comments") }
+            if !p.fillForms { parts.append("no form filling") }
+            if !p.assemble { parts.append("no page changes") }
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
 /// Password protection (the Windows app's `PdfSecurity`): encrypts with AES-256 (or AES-128), removes encryption, and
 /// reports how a document is protected. Both edits rewrite the file, so a signed document needs the caller's consent
 /// (`SignedEdits.run` with the rewrite allowed), else they throw `SignaturesWouldBreak`.
