@@ -418,7 +418,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
 | Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view, dark pages and Go to Page done 2026-11-03 |
-| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them: 2026-11-03) |
+| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them, Reverse Page Order: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
 | Edit Text & Images | D5a |
@@ -585,6 +585,10 @@ Mac differences for the PDF app (so far):
   SecurityTests' `documentPropertiesDescribesTheProtection` is a Mac addition). `PageEditor.readMetadata` and
   `writeMetadata` and their tests were already ported. Dates in the Mac's short date and time style (Windows: "g").
   PagesTest checks it.
+- Reverse Page Order (2026-11-03): Pages › Reverse Page Order (Windows: Organize › Reverse Page Order), one undo step
+  ("Reverse page order"), enabled with two pages or more; the chosen pages stay chosen at their mirrored places, as
+  Windows. `PageEditor.reverse` and its tests (`ReversesPages`, the labels in `PageLabelsFollowTheirPages`) were
+  already ported. PagesTest checks it.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -868,6 +872,8 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   address).
 - Document Properties (File menu, ⇧⌘I): the sheet's rows and their wrapping (a long location, a long producer), the four
   fields, Save Changes, Cancel and What's in This PDF…, on a protected and a signed file.
+- Reverse Page Order (Pages menu): the thumbnails and the organizer redrawn in the new order, the chosen card where it
+  went.
 - Go to Page (Go menu, ⌥⌘G): the sheet's field taking focus, Return going there, a label typed in a file with page
   labels (the self-test's document has none), and the sheet asked again with the range.
 

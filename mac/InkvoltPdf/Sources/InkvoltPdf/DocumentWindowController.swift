@@ -773,7 +773,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
             return true
-        case #selector(deletePages(_:)):
+        case #selector(deletePages(_:)), #selector(reversePageOrder(_:)):
             return engine.pageCount > 1
         case #selector(signDigitally(_:)):
             return !signing.signing && longTask == nil && progressSheet == nil

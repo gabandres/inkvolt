@@ -3,7 +3,7 @@ import PdfCore
 
 /// The self-test's scenario for D7 part d (`--edit`, after `FeatureTest`): links clicked on the page (a page, a web
 /// address, an address that asks first); a text selection dragged across two pages and highlighted as one step; the
-/// organizer and the page commands (rotate, duplicate, insert blank, from a PDF and from a picture, move by the grid's
+/// organizer and the page commands (rotate, duplicate, reverse, insert blank, from a PDF and from a picture, move by the grid's
 /// drop, crop, the thumbnails' context menu, delete, undo); bookmarks (add, rename, move, nest, delete); password
 /// protection through its sheet, then removed; File › Document Properties… (its rows, the title and subject changed as
 /// one undo step, undone); printing to PDF files in a temporary folder with four layouts (never a
@@ -386,6 +386,15 @@ struct PagesTest {
         controller.pdf.undo()
         check(viaSidebar && abs(sideTurned.width - g0.height) < 0.5 && abs(controller.engine.page(1).width - g0.width) < 0.5,
               "thumbnail context menu: Rotate Right on page 2, then undone")
+
+        // Reverse Page Order: the pages in the opposite order, the chosen page chosen at its mirrored place; undone.
+        controller.showOrganizer(true)
+        let order = texts()
+        grid.select([1])
+        let reversed = await menu(#selector(DocumentWindowController.reversePageOrder(_:)), expect: "Reverse page order")
+        let mirrored = texts() == Array(order.reversed()) && grid.selectedPages == [count - 2]
+        controller.pdf.undo()
+        check(reversed && mirrored && texts() == order, "Reverse Page Order (Pages menu): \(count) pages reversed, page 2 chosen at page \(count - 1), undone")
 
         // Delete the four added pages (picture, copy, blank, inserted copy) with the Delete key in the grid.
         controller.showOrganizer(true)

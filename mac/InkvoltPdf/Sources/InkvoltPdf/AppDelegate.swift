@@ -274,6 +274,7 @@ enum MainMenu {
         menu.addItem(item("Rotate Left", #selector(DocumentWindowController.rotatePagesLeft(_:)), "l"))
         menu.addItem(item("Rotate Right", #selector(DocumentWindowController.rotatePagesRight(_:)), "r"))
         menu.addItem(item("Duplicate Pages", #selector(DocumentWindowController.duplicatePages(_:))))
+        menu.addItem(item("Reverse Page Order", #selector(DocumentWindowController.reversePageOrder(_:))))
         menu.addItem(item("Delete Pages", #selector(DocumentWindowController.deletePages(_:)), String(UnicodeScalar(NSBackspaceCharacter)!), [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Insert Pages from File…", #selector(DocumentWindowController.insertPagesFromFile(_:)), "i", [.command, .option]))

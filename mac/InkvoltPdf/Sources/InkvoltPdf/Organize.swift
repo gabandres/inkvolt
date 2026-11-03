@@ -85,6 +85,11 @@ extension DocumentWindowController {
     @objc func rotatePagesLeft(_ sender: Any?) { pageCommand { await self.rotatePages($0, degrees: -90) } }
     @objc func rotatePagesRight(_ sender: Any?) { pageCommand { await self.rotatePages($0, degrees: 90) } }
     @objc func duplicatePages(_ sender: Any?) { pageCommand { await self.duplicate($0) } }
+    @objc func reversePageOrder(_ sender: Any?) {
+        guard engine.pageCount > 1 else { return NSSound.beep() }
+        let chosen = selectedPages
+        Task { await self.reversePages(keeping: chosen) }
+    }
     @objc func deletePages(_ sender: Any?) {
         let chosen = selectedPages
         guard !chosen.isEmpty else { return NSSound.beep() }
@@ -264,6 +269,17 @@ extension DocumentWindowController {
         let ok = await editor.run("Duplicate \(Self.pages(chosen.count))") { d, pw in try PageEditor.duplicate(d, pw, chosen) }
         // The copy of the last chosen page lands after every earlier copy.
         if ok, let last = chosen.last { reselect([last + chosen.count]) }
+        return ok
+    }
+
+    /// Reverses the document's page order (Windows' `Organize.Reverse`): one undo step; the pages chosen stay chosen at
+    /// their mirrored places.
+    @discardableResult
+    func reversePages(keeping chosen: [Int]) async -> Bool {
+        let count = engine.pageCount
+        guard count > 1 else { return false }
+        let ok = await editor.run("Reverse page order") { d, pw in try PageEditor.reverse(d, pw, count) }
+        if ok { reselect(chosen.map { count - 1 - $0 }.sorted()) }
         return ok
     }
 

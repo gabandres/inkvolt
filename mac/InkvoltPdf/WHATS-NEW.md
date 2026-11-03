@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Reverse Page Order (Pages menu): the last page first, in one step you can undo.
 - Document Properties… (File menu, ⇧⌘I): the file's size, pages, page size, PDF version, protection and the app that made it; change its title, author, subject and keywords.
 - Go to Page… (Go menu, ⌥⌘G): type a page number, or the page's label as the document numbers it (such as iv).
 - Help › Report a Problem…: the details that help find a problem (version, macOS, a few settings; names and paths masked), to copy into a GitHub issue or an e-mail. Nothing is sent.
