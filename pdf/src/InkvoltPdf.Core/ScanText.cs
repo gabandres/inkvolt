@@ -7,11 +7,13 @@ namespace InkvoltPdf.Core;
 /// first (<see cref="ScanCleanup"/>). <see cref="CheckWords"/>: mark suspect words (<see cref="SuspectWords"/>), which reads
 /// the page a second time as scanned to compare. <see cref="KeepCleanedImage"/>: return the cleaned page to put in the
 /// document in place of the scan (the user's choice, off by default); the words then fit the cleaned page.
+/// <see cref="RereadMissed"/>: on a cleaned page, read again on its own each line-sized stretch of ink no word was read on
+/// (<see cref="MissedLines"/>), as Windows' recognizer now and then skips a whole line.
 /// </summary>
-public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true, bool KeepCleanedImage = false)
+public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true, bool KeepCleanedImage = false, bool RereadMissed = true)
 {
     /// <summary>As Recognize Text read pages before 2.2: the page as rendered, no cleaning, no suspect words.</summary>
-    public static readonly RecognizeOptions AsScanned = new(Clean: false, CheckWords: false);
+    public static readonly RecognizeOptions AsScanned = new(Clean: false, CheckWords: false, RereadMissed: false);
 }
 
 /// <summary>
@@ -93,6 +95,8 @@ public static class ScanText
                 if (bgr is not null) bgr = ScanCleanup.Turn(bgr, gray.Width, gray.Height, 3, 2);
             }
         }
+
+        if (options.RereadMissed) found = MissedLines.Reread(gray, found, dpi, recognizer, cancel);
 
         var frame = new ScanFrame(image.Width, image.Height, cleaned.Skew, turns);
         var onScan = found.Select(w => frame.ToRendered(w, scale)).ToList();

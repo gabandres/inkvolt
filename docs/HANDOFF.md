@@ -57,7 +57,15 @@ One agent, cheapest first, one commit each, in this order:
 
 ### Inkvolt PDF for Windows: open, no hardware needed
 
-1. OCR: re-read bands with ink and no words (`ScanText`). Helps Redact by Pattern on scans and Recognize Text.
+1. OCR: done 2026-11-03, `MissedLines` (through `ScanText`, so Recognize Text and Redact by Pattern): ink no word covers,
+   in line-sized type-like bands of the cleaned page, read again alone, then word by word; words put in reading order.
+   `pdf/tools/ocr-corpus` RESULTS.md: the six scans have no skipped line (unchanged); `skipped-lines` (the redaction
+   corpus's first page, typeset) 39.1% → 21.7%; `probe` makes 36 more pages (none skipped a line). Left: Windows reads
+   "1111" in no way, even alone, so 2 of that page's 6 skipped words stay lost; a dropped word inside a line that was read
+   isn't read again (reading such ink gave fragments: "4 lY).70"); the cleaned path only (Clean off reads as before).
+   The Mac (Vision) port should check whether Vision skips lines too before porting it (`MissedLines.cs`,
+   `MissedLinesTests`). Seen while measuring: the redaction corpus's page 3 (three lines of numbers, typeset) is read
+   upside down once cleaned ("OO 6830 9999 9999 9999"; as rendered it reads right): `Upright` on a page of digits.
 2. PDF 3.4: certifying with a choice of fields to lock (Pro in the table, not built); Batch's long-term action.
 3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.

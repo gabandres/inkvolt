@@ -34,6 +34,9 @@ public class ScanTextTests
         }
     }
 
+    /// <summary>The stand-in reads one line: the lines it leaves aren't skipped by a recognizer, so they aren't read again.</summary>
+    private static readonly RecognizeOptions OneLine = new(CheckWords: false, RereadMissed: false);
+
     private static byte[] TurnedScan() => ScanCorpus.Make(ScanCorpus.Files.Single(f => f.Name == "en-turned") with { Pages = 1 }).Pdf;
 
     [Theory]
@@ -66,7 +69,7 @@ public class ScanTextTests
         var scan = TurnedScan();
         using var pdf = PdfEngine.Open(scan, InputFileTypes.PDF, null);
         var reader = new FirstLineReader();
-        var page = ScanText.Recognize(pdf, 0, reader, new RecognizeOptions(CheckWords: false));
+        var page = ScanText.Recognize(pdf, 0, reader, OneLine);
 
         Assert.Equal(2, page.QuarterTurns);
         Assert.Equal(3.1, page.Skew, 0.3);
@@ -103,7 +106,7 @@ public class ScanTextTests
         var scan = TurnedScan();
         RecognizedPage page;
         using (var pdf = PdfEngine.Open(scan, InputFileTypes.PDF, null))
-            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), new RecognizeOptions(CheckWords: false, KeepCleanedImage: true));
+            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), OneLine with { KeepCleanedImage = true });
         var cleaned = Assert.IsType<CleanedPageImage>(page.Cleaned);
         Assert.Equal((2, 1), (cleaned.QuarterTurns, cleaned.Channels)); // a grey scan stays grey
         var word = Assert.Single(page.Words);
@@ -131,7 +134,7 @@ public class ScanTextTests
         // Replace the scans holds every page until it writes them: raw, a 500-page Letter colour scan was about 12.6 GB.
         RecognizedPage page;
         using (var pdf = PdfEngine.Open(TurnedScan(), InputFileTypes.PDF, null))
-            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), new RecognizeOptions(CheckWords: false, KeepCleanedImage: true));
+            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), OneLine with { KeepCleanedImage = true });
         var cleaned = page.Cleaned!;
         var raw = (long)cleaned.Width * cleaned.Height * cleaned.Channels;
         Assert.InRange(cleaned.Deflated.LongLength, 1, raw / 4);
@@ -148,7 +151,7 @@ public class ScanTextTests
         ]);
         RecognizedPage page;
         using (var pdf = PdfEngine.Open(scan, InputFileTypes.PDF, null))
-            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), new RecognizeOptions(CheckWords: false, KeepCleanedImage: true));
+            page = ScanText.Recognize(pdf, 0, new FirstLineReader(), OneLine with { KeepCleanedImage = true });
         Assert.Equal(3, page.Cleaned!.Channels);
         var data = ScanPage.WriteBack(scan, null, new Dictionary<int, CleanedPageImage> { [0] = page.Cleaned });
         using var after = PdfEngine.Open(data, InputFileTypes.PDF, null);

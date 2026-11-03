@@ -231,6 +231,31 @@ public static class ScanCorpus
         return (ms.ToArray(), lines);
     }
 
+    /// <summary>
+    /// A page Windows' recognizer skips two lines of, whole, cleaned or not: the redaction corpus's first page
+    /// (pdf/tests RedactionCorpus), Helvetica 14 pt, typeset and read as rendered at 300 dpi, no damage. It passes over
+    /// "3434, card 4111 1111" and "1111 1111, born October"; read alone, it gets "3434, card 4111" and "born October".
+    /// </summary>
+    public static readonly string[] SkippedLines =
+        ["Public heading", "SSN 123-45-", "6789 and phone (555) 201", "3434, card 4111 1111", "1111 1111, born October", "27, 2026 for Quillfeather", "Holdings today."];
+
+    /// <summary><see cref="SkippedLines"/> as a one-page PDF.</summary>
+    public static byte[] SkippedLinesPdf()
+    {
+        using var ms = new MemoryStream();
+        var w = new PdfFileWriter(ms);
+        var parent = w.Reserve();
+        var ops = new StringBuilder();
+        for (var l = 0; l < SkippedLines.Length; l++) ops.Append(CultureInfo.InvariantCulture, $"BT /F1 14 Tf 72 {700 - 24 * l} Td {Str(SkippedLines[l])} Tj ET\n");
+        var content = w.AddStream("", Encoding.Latin1.GetBytes(ops.ToString()));
+        var page = w.Add($"<< /Type /Page /Parent {parent} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Contents {content} 0 R >>");
+        w.Put(parent, $"<< /Type /Pages /Kids [{page} 0 R] /Count 1 >>");
+        var catalog = w.Add($"<< /Type /Catalog /Pages {parent} 0 R >>");
+        var info = w.Add("<< /Producer (Inkvolt PDF OCR corpus) >>");
+        w.Finish(catalog, info, new string('0', 32));
+        return ms.ToArray();
+    }
+
     private static byte[] ScanPdf(CorpusFile file, List<(byte[] Jpeg, int Width, int Height)> pages)
     {
         using var ms = new MemoryStream();

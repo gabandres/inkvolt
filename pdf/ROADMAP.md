@@ -377,7 +377,12 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   implementation. Measured on a generated corpus (`pdf/tools/ocr-corpus`, six files, English and Spanish, skewed 3-10°,
   noisy, shaded, two pages turned): the word error rate is lower than today's on every file, 1.8% → 1.3%, 16.9% → 12.9%,
   5.4% → 3.8%, Spanish 44.9% (12.8% with Spanish chosen) → 8.0% and 41.3% (5.1%) → 4.3%, turned pages 99.9% → 3.7%
-  (its RESULTS.md). Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
+  (its RESULTS.md). Lines the recognizer skips (2026-11-03): Windows' recognizer now and then leaves out a whole line
+  that is plainly on the page; `ScanText` finds the cleaned page's ink no word covers, in line-sized bands that look like
+  type (not specks, rules, blocks or pictures, nor beside a word read on the same row), reads each again alone (at most
+  12 places and 40 readings a page; what a place leaves unread is read word by word), and puts the words in reading
+  order. Recognize Text and Redact by Pattern both read through it. The corpus's scans have no skipped line (numbers
+  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
   "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
   Batch, Scan or export (they get the cleaning, not the review). Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer.

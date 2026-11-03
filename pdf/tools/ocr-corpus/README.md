@@ -9,11 +9,12 @@ before and after. This tool makes such a corpus, recognizes it both ways and wri
 dotnet run --project pdf/tools/ocr-corpus -c Release -- make     # write the corpus into %LOCALAPPDATA%\Inkvolt\ocr-corpus
 dotnet run --project pdf/tools/ocr-corpus -c Release -- run      # make what's missing, measure every file, write RESULTS.md
 dotnet run --project pdf/tools/ocr-corpus -c Release -- report   # RESULTS.md again from the last run's results.json
+dotnet run --project pdf/tools/ocr-corpus -c Release -- probe --count 18   # more pages, other seeds: lines skipped, re-reading's gain
 ```
 
-Run `run` after changing `ScanCleanup.cs`, `Deskew` in `PageImage.cs`, `ScanText.cs` or `WindowsRecognizer.cs`, and
+Run `run` after changing `ScanCleanup.cs`, `Deskew` in `PageImage.cs`, `ScanText.cs`, `MissedLines.cs` or `WindowsRecognizer.cs`, and
 commit RESULTS.md. `--out dir` puts the corpus elsewhere; `--note text` adds a line to RESULTS.md. It exits 1 when stage A
-isn't lower than today's on every file (the roadmap's test). It needs the en-US and es-MX OCR languages (Settings › Time &
+isn't lower than today's on every file (the roadmap's test), or when re-reading missed lines makes a file worse. It needs the en-US and es-MX OCR languages (Settings › Time &
 language › Language & region; a language's options, Optical character recognition); without es-MX the Spanish files are
 read with the default language.
 
@@ -48,8 +49,15 @@ them), in the order recognized. Three readings per file, all with Windows' recog
   in Windows' default language (this PC's: en-US).
 - **Today, its language chosen**: the same, in the file's language (es-MX for the Spanish files), to tell what the
   language choice alone gives from what the cleaning gives.
-- **Stage A**: the file's language, the page cleaned first (straightened, turned upright, smoothed, paper whitened,
+- **Cleaned**: the file's language, the page cleaned first (straightened, turned upright, smoothed, paper whitened,
   specks removed).
+- **Stage A**: cleaned, and the lines the recognizer skipped read again on their own (`MissedLines`).
+
+`skipped-lines` isn't a scan: a typeset page (the redaction corpus's first, Helvetica 14 pt, `ScanCorpus.SkippedLines`)
+on which Windows' recognizer skips two whole lines, cleaned or not, measured the same three ways; "lower than today's"
+leaves it out. `probe` makes more pages like the corpus's (other seeds, sizes a point up and down) and prints, per page,
+the error rate cleaned and re-read, the longest run of true words left out (a skipped line shows as a run as long as a
+line: `WordErrorRate.LongestMissedRun`) and the words re-reading added; it exits 1 when re-reading makes a page worse.
 
 The cleanup's settings came from trying variants on this corpus: whitening at 86% of the paper level cost thin serifs
 (the light file got worse, 1.8% → 2.5%); 92% with the median and despeckling was lower on every file.

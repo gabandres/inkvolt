@@ -16,6 +16,8 @@ var dir = Option("--out", Path.Combine(Environment.GetFolderPath(Environment.Spe
 var note = Option("--note", "");
 var toolDir = FindToolDir();
 var resultsJson = Path.Combine(dir, "results.json");
+// The page Windows skips lines on, in results.json and RESULTS.md (typeset, not a scan: left out of "lower than today's").
+const string SkippedName = "skipped-lines";
 
 switch (command)
 {
@@ -25,10 +27,11 @@ switch (command)
     case "run":
         Make();
         var results = Run();
+        results.Add(Skipped());
         File.WriteAllText(resultsJson, JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
         Report(results);
-        // The roadmap's test: lower than today's on every file.
-        return results.All(r => r.After < r.Today) ? 0 : 1;
+        // The roadmap's test: lower than today's on every file; and re-reading missed lines makes no file worse.
+        return results.All(r => (r.After < r.Today || r.Name == SkippedName) && r.After <= r.Unread) ? 0 : 1;
     case "report":
         Report(JsonSerializer.Deserialize<List<FileResult>>(File.ReadAllText(resultsJson))!);
         break;
@@ -36,6 +39,8 @@ switch (command)
         return Cleanup();
     case "layer":
         return Layer();
+    case "probe":
+        return Probe();
     default:
         Console.Error.WriteLine("Usage: make | run | report | cleanup | layer [--out dir] [--note text] [--only name]");
         return 2;
@@ -95,6 +100,40 @@ int Layer()
     return failed ? 1 : 0;
 }
 
+// Pages made like the corpus's with other seeds and settings, read cleaned with and without re-reading missed lines: finds
+// pages on which Windows' recognizer skips a line (a run of true words left out as long as a line).
+int Probe()
+{
+    var count = int.Parse(Option("--count", "12"), CultureInfo.InvariantCulture);
+    var worse = 0;
+    for (var i = 0; i < count; i++)
+    {
+        var basis = ScanCorpus.Files[i % ScanCorpus.Files.Count];
+        var file = basis with { Name = $"probe-{i}", FontSize = basis.FontSize + (i / ScanCorpus.Files.Count) % 3 - 1, Turns = null };
+        var (pdf, truth) = ScanCorpus.Make(file);
+        var own = WindowsRecognizer.Create(file.Language == "es" ? "es-MX" : "en-US") ?? WindowsRecognizer.Create()!;
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        for (var p = 0; p < engine.PageCount; p++)
+        {
+            var expected = truth[p].Words;
+            var sw = Stopwatch.StartNew();
+            var plain = ScanText.Recognize(engine, p, own, new RecognizeOptions(CheckWords: false, RereadMissed: false)).Words.Select(w => w.Text).ToList();
+            var plainMs = sw.Elapsed.TotalMilliseconds;
+            sw.Restart();
+            var reread = ScanText.Recognize(engine, p, own, new RecognizeOptions(CheckWords: false)).Words.Select(w => w.Text).ToList();
+            var rereadMs = sw.Elapsed.TotalMilliseconds;
+            var (a, b) = (WordErrorRate.Of(expected, plain), WordErrorRate.Of(expected, reread));
+            if (b > a) worse++;
+            Console.WriteLine($"{file.Name} p{p + 1} ({file.Describe()}): {expected.Count} words; cleaned {a:P1}, longest run missed {WordErrorRate.LongestMissedRun(expected, plain)}; " +
+                              $"re-read {b:P1}, run {WordErrorRate.LongestMissedRun(expected, reread)}, {reread.Count - plain.Count:+0;-0;0} words; {plainMs:0} → {rereadMs:0} ms");
+            var added = reread.ToList();
+            foreach (var t in plain) added.Remove(t);
+            if (added.Count > 0) Console.WriteLine($"  added: {string.Join(' ', added)}");
+        }
+    }
+    return worse == 0 ? 0 : 1;
+}
+
 void Make()
 {
     Directory.CreateDirectory(dir);
@@ -133,14 +172,34 @@ List<FileResult> Run()
 
         var before = Measure(today, RecognizeOptions.AsScanned);
         var beforeOwn = own.Language == today.Language ? before : Measure(own, RecognizeOptions.AsScanned);
+        var unread = Measure(own, new RecognizeOptions(CheckWords: false, RereadMissed: false));
         var after = Measure(own, new RecognizeOptions(CheckWords: false));
         var result = new FileResult(file.Name, file.Describe(), ScanCorpus.Sha256(pdf), expected.Count, today.Language, before.Wer, own.Language,
-            beforeOwn.Wer, after.Wer, before.MsPerPage, after.MsPerPage);
-        Console.WriteLine($"{file.Name}: {expected.Count} words; today {before.Wer:P1} ({today.Language}), its language {beforeOwn.Wer:P1} ({own.Language}), cleaned {after.Wer:P1}; " +
-                          $"{before.MsPerPage:0} → {after.MsPerPage:0} ms a page");
+            beforeOwn.Wer, after.Wer, before.MsPerPage, after.MsPerPage, unread.Wer, unread.MsPerPage);
+        Console.WriteLine($"{file.Name}: {expected.Count} words; today {before.Wer:P1} ({today.Language}), its language {beforeOwn.Wer:P1} ({own.Language}), " +
+                          $"cleaned {unread.Wer:P1}, missed lines re-read {after.Wer:P1}; {before.MsPerPage:0} → {unread.MsPerPage:0} → {after.MsPerPage:0} ms a page");
         results.Add(result);
     }
     return results;
+}
+
+// The page Windows skips two lines of (ScanCorpus.SkippedLines): as rendered, cleaned, and with the lines read again.
+FileResult Skipped()
+{
+    var pdf = ScanCorpus.SkippedLinesPdf();
+    var expected = ScanCorpus.SkippedLines.SelectMany(l => l.Split(' ')).ToList();
+    var en = WindowsRecognizer.Create("en-US") ?? WindowsRecognizer.Create() ?? throw new InvalidOperationException("No OCR language is installed.");
+    using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+    (double Wer, double Ms) Measure(RecognizeOptions options)
+    {
+        var sw = Stopwatch.StartNew();
+        var words = ScanText.Recognize(engine, 0, en, options).Words.Select(w => w.Text).ToList();
+        return (WordErrorRate.Of(expected, words), sw.Elapsed.TotalMilliseconds);
+    }
+    var (today, unread, after) = (Measure(RecognizeOptions.AsScanned), Measure(new RecognizeOptions(CheckWords: false, RereadMissed: false)), Measure(new RecognizeOptions(CheckWords: false)));
+    Console.WriteLine($"{SkippedName}: {expected.Count} words; today {today.Wer:P1}, cleaned {unread.Wer:P1}, missed lines re-read {after.Wer:P1}; {today.Ms:0} → {unread.Ms:0} → {after.Ms:0} ms");
+    return new FileResult(SkippedName, "Helvetica 14 pt, typeset, no damage: two lines Windows' recognizer skips", ScanCorpus.Sha256(pdf), expected.Count,
+        en.Language, today.Wer, en.Language, today.Wer, after.Wer, today.Ms, after.Ms, unread.Wer, unread.Ms);
 }
 
 void Report(List<FileResult> results)
@@ -152,12 +211,14 @@ void Report(List<FileResult> results)
                   $"{System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}. See [README.md](README.md) for the corpus and the measure.");
     if (note.Length > 0) sb.AppendLine().AppendLine(note);
     sb.AppendLine();
-    sb.AppendLine("| File | Words | Today | Today, its language chosen | Stage A (cleaned) | ms a page, today → stage A |");
-    sb.AppendLine("|---|---:|---:|---:|---:|---:|");
+    sb.AppendLine("| File | Words | Today | Today, its language chosen | Cleaned | Stage A (cleaned, missed lines re-read) | ms a page, today → cleaned → stage A |");
+    sb.AppendLine("|---|---:|---:|---:|---:|---:|---:|");
     foreach (var r in results)
-        sb.AppendLine($"| `{r.Name}` | {r.Words} | {r.Today:P1} ({r.TodayLanguage}) | {r.TodayOwnLanguage:P1} ({r.OwnLanguage}) | **{r.After:P1}** | {r.TodayMs:0} → {r.AfterMs:0} |");
+        sb.AppendLine($"| `{r.Name}` | {r.Words} | {r.Today:P1} ({r.TodayLanguage}) | {r.TodayOwnLanguage:P1} ({r.OwnLanguage}) | {r.Unread:P1} | **{r.After:P1}** | " +
+                      $"{r.TodayMs:0} → {r.UnreadMs:0} → {r.AfterMs:0} |");
     sb.AppendLine();
-    sb.AppendLine($"Lower than today's on every file: **{(results.All(r => r.After < r.Today) ? "yes" : "no")}**.");
+    sb.AppendLine($"Lower than today's on every file: **{(results.Where(r => r.Name != SkippedName).All(r => r.After < r.Today) ? "yes" : "no")}**. " +
+                  $"Re-reading missed lines no worse on every file: **{(results.All(r => r.After <= r.Unread) ? "yes" : "no")}**.");
     sb.AppendLine();
     sb.AppendLine("| File | What | SHA-256 |");
     sb.AppendLine("|---|---|---|");
@@ -175,4 +236,4 @@ static string FindToolDir()
 }
 
 internal sealed record FileResult(string Name, string What, string Sha256, int Words, string TodayLanguage, double Today, string OwnLanguage,
-    double TodayOwnLanguage, double After, double TodayMs, double AfterMs);
+    double TodayOwnLanguage, double After, double TodayMs, double AfterMs, double Unread, double UnreadMs);
