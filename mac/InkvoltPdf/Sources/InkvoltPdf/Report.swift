@@ -64,6 +64,8 @@ enum Report {
     private(set) static var uxShots = false
     /// `--ux-main`: with `--ux-shots`, only the main windows, not every dialog.
     private(set) static var uxMainOnly = false
+    /// `--ux-dialog <name>`: with `--ux-shots`, only the dialogs whose shot names start with it (a quick re-shoot).
+    private(set) static var uxDialog: String?
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
     private(set) static var crashAfterRecovery = false
@@ -102,6 +104,7 @@ enum Report {
         snapshots = value("--snapshots")
         uxShots = args.contains("--ux-shots")
         uxMainOnly = args.contains("--ux-main")
+        uxDialog = value("--ux-dialog")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
         crashAfterRecovery = args.contains("--crash-after-recovery")

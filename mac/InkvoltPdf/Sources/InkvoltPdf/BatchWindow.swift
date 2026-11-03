@@ -187,7 +187,11 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let bottom = NSStackView(views: [summary, spacer, progress, stopButton, runButton])
 
-        let stack = NSStackView(views: [filesRow, actionsRow, grid, presetsRow, bottom])
+        // Spare height goes below the options, not between their rows.
+        let filler = NSView()
+        filler.setContentHuggingPriority(.init(1), for: .vertical)
+        grid.setContentHuggingPriority(.required, for: .vertical)
+        let stack = NSStackView(views: [filesRow, actionsRow, grid, filler, presetsRow, bottom])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12

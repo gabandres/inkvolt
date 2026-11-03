@@ -80,6 +80,7 @@ extension UxShots {
     /// Sends `trigger` (on the next turn of the run loop, so a modal alert doesn't block this step), then shoots each of
     /// `steps` as its dialog shows.
     mutating func dialog(_ steps: [Step], audits: Bool, wait: Int = 700, _ trigger: @escaping @MainActor () -> Void) async {
+        if let only = Report.uxDialog, !(steps.first?.name.hasPrefix(only) ?? false) { return }
         let parent = controller.window
         let before = visibleWindows()
         // From the run loop, not the main queue: a modal alert's loop can't run main-queue work (this step) while a
@@ -102,8 +103,12 @@ extension UxShots {
             await settle(wait)
             window.contentView?.layoutSubtreeIfNeeded()
             shoot(window, step.name)
+            // Return and Esc: the default and the cancel button a keyboard reaches without Tab (HIG Alerts).
+            let push = Self.buttons(in: window.contentView)
+            let returnKey = push.first { $0.keyEquivalent == "\r" }?.title ?? "none"
+            let escapeKey = push.first { $0.keyEquivalent == "\u{1b}" }?.title ?? "none"
             lines.append("  \(step.name): \"\(window.title)\" \(Int(window.frame.width)) x \(Int(window.frame.height)) pt, buttons: "
-                         + Self.buttons(in: window.contentView).map(\.title).joined(separator: " | "))
+                         + push.map(\.title).joined(separator: " | ") + "; Return: \(returnKey), Esc: \(escapeKey)")
             if audits { audit(window, step.name) }
             if let then = step.then {
                 then(window)
