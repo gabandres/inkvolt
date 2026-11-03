@@ -418,7 +418,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
 | Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view, dark pages and Go to Page done 2026-11-03 |
-| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them, Reverse Page Order: 2026-11-03) |
+| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them, Reverse Page Order, Extract Pages' choices and Split Document: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
 | Edit Text & Images | D5a |
@@ -589,6 +589,19 @@ Mac differences for the PDF app (so far):
   ("Reverse page order"), enabled with two pages or more; the chosen pages stay chosen at their mirrored places, as
   Windows. `PageEditor.reverse` and its tests (`ReversesPages`, the labels in `PageLabelsFollowTheirPages`) were
   already ported. PagesTest checks it.
+- Extract Pages and Split Document (2026-11-03): Pages › Extract Pages… (Windows: Organize › Extract Pages…) asks which
+  pages (the chosen ones filled in) and where to: a new document (a window; Windows: a tab), one PDF file (the save
+  panel), or a separate PDF file per page in a folder ("name (page 3).pdf"), and can delete them from the document
+  after (one undo step; never every page). Pages › Split Document… (Windows: Organize › Split Document…) splits by a
+  number of pages, page ranges separated by ; or the top-level bookmarks (the pages before the first are a part of
+  their own) into a folder, named by a pattern ({name}, {n}; a bookmark's title added). Every name is picked before
+  anything is written, a name already there gets " (2)", and no file is replaced; a failure says which files were
+  written (`SplitFiles` and `BatchWriteError` in PdfCore: Windows' `Organize.Split` checks, `PdfFiles.UniquePath`,
+  `WriteBatch` and `BatchWriteException`). A password-protected document asks once before its pages are written
+  without the password, as Windows. Differences in the names: "/", ":" and control characters become "_" (Windows:
+  its own invalid characters and device names such as CON), and a name is cut to fit the Mac's 255 bytes (Windows: the
+  259-character path). Windows has no tests for these (app code): SplitFilesTests (3) is a Mac addition. PagesTest
+  checks the file per page, the new document, a split by count twice (numbered names) and at the bookmarks.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -872,6 +885,9 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   address).
 - Document Properties (File menu, ⇧⌘I): the sheet's rows and their wrapping (a long location, a long producer), the four
   fields, Save Changes, Cancel and What's in This PDF…, on a protected and a signed file.
+- Extract Pages and Split Document (Pages menu): both sheets' layout, Choose… for the folder, the problem line after a
+  wrong range or pattern, the progress sheet on a long document, the Finder opening on the folder, and the password
+  question on a protected file.
 - Reverse Page Order (Pages menu): the thumbnails and the organizer redrawn in the new order, the chosen card where it
   went.
 - Go to Page (Go menu, ⌥⌘G): the sheet's field taking focus, Return going there, a label typed in a file with page

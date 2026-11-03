@@ -128,7 +128,8 @@ enum Report {
     }
 
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
-        guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive else { return } // the app and compare tests' own documents get only their checks
+        // The app, compare, attachments and page tests' own documents get only their checks.
+        guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument else { return }
         started += 1
         Task { @MainActor in
             var test = SelfTest(controller: controller, name: name)

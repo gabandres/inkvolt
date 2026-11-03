@@ -113,29 +113,6 @@ extension DocumentWindowController {
         Task { _ = await run(chosen) }
     }
 
-    /// Pages › Extract Pages…: the chosen pages saved as a new PDF (opened in a new tab unless unticked).
-    @objc func extractPages(_ sender: Any?) {
-        guard let window else { return }
-        let chosen = selectedPages
-        guard !chosen.isEmpty else { return NSSound.beep() }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.pdf]
-        let base = (pdf.name as NSString).deletingPathExtension
-        panel.nameFieldStringValue = "\(base) (\(chosen.count == 1 ? "page \(chosen[0] + 1)" : "pages \(PageRange.format(chosen))")).pdf"
-        panel.message = "Save \(Self.pages(chosen.count)) (\(PageRange.format(chosen))) as a new PDF."
-        let open = NSButton(checkboxWithTitle: "Open the new PDF", target: nil, action: nil)
-        open.state = .on
-        panel.accessoryView = open
-        panel.beginSheetModal(for: window) { response in
-            MainActor.assumeIsolated {
-                guard response == .OK, let url = panel.url else { return }
-                if self.extract(chosen, to: url), open.state == .on {
-                    NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
-                }
-            }
-        }
-    }
-
     /// Pages › Insert Pages from File…: a PDF's pages (all) or pictures (a page each), before or after the chosen pages.
     @objc func insertPagesFromFile(_ sender: Any?) {
         guard let window else { return }

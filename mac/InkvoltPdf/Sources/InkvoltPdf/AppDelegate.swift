@@ -281,6 +281,7 @@ enum MainMenu {
         menu.addItem(item("Insert from Scanner…", #selector(DocumentWindowController.insertFromScanner(_:))))
         menu.addItem(item("Insert Blank Page", #selector(DocumentWindowController.insertBlankPage(_:))))
         menu.addItem(item("Extract Pages…", #selector(DocumentWindowController.extractPages(_:))))
+        menu.addItem(item("Split Document…", #selector(DocumentWindowController.splitDocument(_:))))
         menu.addItem(item("Crop Pages…", #selector(DocumentWindowController.cropPages(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Add Header & Footer…", #selector(DocumentWindowController.addHeaderFooter(_:))))

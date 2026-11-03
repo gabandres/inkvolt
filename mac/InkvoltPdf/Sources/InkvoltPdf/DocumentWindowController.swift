@@ -96,6 +96,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private var findCancel: CancelToken?
     /// Called when a find has finished (the self-test waits on it).
     var onFindFinished: (() -> Void)?
+    /// Extract and Split asked once whether to write a protected document's pages without its password (Windows: per tab).
+    var unprotectedConfirmed = false
     /// The self-test's answers to the text and link popovers (nil: ask the user).
     var testText: String?
     var testLink: (uri: String?, page: Int)?

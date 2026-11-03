@@ -5,12 +5,15 @@ import PdfCore
 /// address, an address that asks first); a text selection dragged across two pages and highlighted as one step; the
 /// organizer and the page commands (rotate, duplicate, reverse, insert blank, from a PDF and from a picture, move by the grid's
 /// drop, crop, the thumbnails' context menu, delete, undo); bookmarks (add, rename, move, nest, delete); password
-/// protection through its sheet, then removed; File › Document Properties… (its rows, the title and subject changed as
+/// protection through its sheet, then removed; Extract Pages' file per page and new document, Split Document… by a
+/// page count and at the bookmarks; File › Document Properties… (its rows, the title and subject changed as
 /// one undo step, undone); printing to PDF files in a temporary folder with four layouts (never a
 /// printer); and the close question answered Cancel, then Save. Every result saved into a temporary folder and read
 /// back. Only counts and kinds are written, never a document's text or its name.
 @MainActor
 struct PagesTest {
+    /// A document this test opens itself (Extract Pages' new document): not tested as a document of its own.
+    private(set) static var opensDocument = false
     let controller: DocumentWindowController
     let name: String
     private var lines: [String] = []
@@ -117,6 +120,8 @@ struct PagesTest {
             trace("passwords")
             await passwords()
         }
+        trace("extract and split")
+        await extractAndSplit()
         trace("document properties")
         await documentProperties()
         trace("print")
@@ -479,6 +484,49 @@ struct PagesTest {
     }
 
     // MARK: Passwords
+
+    /// Pages › Extract Pages…' file per page and new document, and Split Document… by a page count (twice: the names
+    /// taken get numbers, nothing is replaced) and at the bookmarks, into a temporary folder; each file read back.
+    private mutating func extractAndSplit() async {
+        let n = count
+        guard n >= 2, let s = session else { return lines.append("SKIP extract and split: needs two pages") }
+        let dir = path("split").path
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        func pageCounts(_ paths: [String]) -> [Int] {
+            paths.map { p in (try? PdfEngine.open([UInt8]((try? Data(contentsOf: URL(fileURLWithPath: p))) ?? Data())))?.pageCount ?? -1 }
+        }
+        let perPage = await controller.extractPerPage([0, 1], to: dir) ?? []
+        let perPageOk = pageCounts(perPage) == [1, 1] && perPage.first?.hasSuffix("(page 1).pdf") == true
+        Self.opensDocument = true
+        let made = controller.extractToNewDocument([0, 1])
+        let newOk = made?.engine?.pageCount == 2 && made?.fileURL == nil
+        made?.close()
+        Self.opensDocument = false
+
+        let name = (s.displayName as NSString).deletingPathExtension
+        let byCount = SplitFiles.parts(.pageCount, pageCount: n, pagesPerFile: "2", ranges: "", outline: [])
+        let first = SplitFiles.targets(byCount.parts, mode: .pageCount, folder: dir, pattern: "{name} (part {n})", name: name).paths
+        let splitOk = await controller.split(byCount.parts, to: first)
+        let second = SplitFiles.targets(byCount.parts, mode: .pageCount, folder: dir, pattern: "{name} (part {n})", name: name).paths
+        let againOk = await controller.split(byCount.parts, to: second)
+        let sizes: [Int] = byCount.parts.map(\.pages.count)
+        let firstCounts = pageCounts(first), secondCounts = pageCounts(second)
+        let numbered = Set(first).isDisjoint(with: second) && second.first?.hasSuffix("(part 1) (2).pdf") == true
+        let counted = firstCounts == sizes && secondCounts == sizes && numbered
+
+        let outline = (try? controller.engine.outline()) ?? []
+        var marks = "no bookmarks to split at"
+        var marksOk = true
+        if !outline.isEmpty {
+            let byMarks = SplitFiles.parts(.bookmarks, pageCount: n, pagesPerFile: "", ranges: "", outline: outline)
+            let paths = SplitFiles.targets(byMarks.parts, mode: .bookmarks, folder: dir, pattern: "{name} (part {n})", name: name).paths
+            marksOk = await controller.split(byMarks.parts, to: paths) && pageCounts(paths).reduce(0, +) == n
+            marks = "\(byMarks.parts.count) files at the bookmarks"
+        }
+        check(perPageOk && newOk && splitOk && againOk && counted && marksOk,
+              "Extract Pages: a file per page (2) and a new document (2 pages); Split Document: \(byCount.parts.count) files of up to 2 pages, "
+              + "again with numbered names (none replaced), \(marks)")
+    }
 
     /// File › Document Properties…: the rows Windows shows (file, location, size, pages, page size, PDF version,
     /// security), then Title and Subject changed through it as one undo step, read back and undone.
