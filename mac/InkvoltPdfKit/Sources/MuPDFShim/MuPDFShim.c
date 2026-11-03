@@ -126,15 +126,16 @@ static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *magic
     return result;
 }
 
-/// A document of type `magic` from memory (the bytes copied).
-static inkv_doc *inkv_open_bytes(fz_context *ctx, const uint8_t *data, size_t length, const char *magic, int cache, char *err) {
+/// A document of type `magic` from memory: the bytes copied, or with `shared` read in place (the caller keeps them alive
+/// and unchanged until the document is dropped).
+static inkv_doc *inkv_open_bytes(fz_context *ctx, const uint8_t *data, size_t length, const char *magic, int cache, int shared, char *err) {
     fz_buffer *buffer = NULL;
     fz_stream *stream = NULL;
     inkv_doc *result = NULL;
     fz_var(buffer);
     fz_var(stream);
     fz_try(ctx) {
-        buffer = fz_new_buffer_from_copied_data(ctx, data, length);
+        buffer = shared ? fz_new_buffer_from_shared_data(ctx, data, length) : fz_new_buffer_from_copied_data(ctx, data, length);
         stream = fz_open_buffer(ctx, buffer);
     }
     fz_catch(ctx) {
@@ -149,7 +150,11 @@ static inkv_doc *inkv_open_bytes(fz_context *ctx, const uint8_t *data, size_t le
 }
 
 inkv_doc *inkv_open_pdf(void *vctx, const uint8_t *data, size_t length, int cache, char *err) {
-    return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, err);
+    return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, 0, err);
+}
+
+inkv_doc *inkv_open_pdf_shared(void *vctx, const uint8_t *data, size_t length, int cache, char *err) {
+    return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, 1, err);
 }
 
 inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
@@ -767,7 +772,7 @@ inkv_doc *inkv_new_pdf(void *vctx, char *err) {
 }
 
 inkv_doc *inkv_open_image(void *vctx, const uint8_t *data, size_t length, const char *magic, char *err) {
-    return inkv_open_bytes((fz_context *)vctx, data, length, magic, 4, err);
+    return inkv_open_bytes((fz_context *)vctx, data, length, magic, 4, 0, err);
 }
 
 int inkv_render_rgba(void *vctx, inkv_doc *d, int index, float scale, uint8_t **pixels, int *width, int *height, char *err) {

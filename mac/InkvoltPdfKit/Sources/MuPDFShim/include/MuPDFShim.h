@@ -51,6 +51,8 @@ void inkv_drop_context(void *ctx);
 /// Opens a PDF from memory (the bytes are copied), or a file in place. NULL on failure, with the reason in err. The
 /// document keeps its `cache` most recently used pages loaded, with their display lists.
 inkv_doc *inkv_open_pdf(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
+// The same, read in place: `data` must stay alive and unchanged until the document is dropped.
+inkv_doc *inkv_open_pdf_shared(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
 inkv_doc *inkv_open_path(void *ctx, const char *path, int cache, char *err);
 void inkv_drop_doc(void *ctx, inkv_doc *doc);
 

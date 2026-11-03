@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Find is several times faster on long documents (it reads pages on all but one of the Mac's cores, and remembers them for your next search), and a new search stops the one before it. Large files take about half the memory they did.
 - Export to PowerPoint and HTML (File › Export To, and Batch): a slide per page with editable text boxes, headings as slide titles, tables, pictures and simple shapes; or one web page that reflows on any screen, with the alternate text the PDF's tags give, and no scripts or anything loaded from elsewhere.
 - Recognize Text (OCR) cleans scanned pages first: it straightens them (up to 15°), turns sideways and upside-down pages upright, removes specks and evens out grey paper, and can replace the scans with the cleaned pages. Choose the language, or let it detect it. Words worth a second look (not in the dictionary, letters and digits mixed, odd characters) are listed in the sidebar's Suspect Words with their picture from the page: correct them or keep them as read (Tools › Review Suspect Words).
 - Split view (View › Split View): the same document in two panes, top and bottom or side by side, each with its own page and zoom, to read two places at once. An edit in one shows in the other at once. Click a pane, or press ⌘', to switch; the × closes the second pane.

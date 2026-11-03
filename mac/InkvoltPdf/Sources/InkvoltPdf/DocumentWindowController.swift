@@ -85,6 +85,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private(set) var foundIndex = -1
     private var foundQuery = ""
     private var findGeneration = 0
+    /// The search under way, stopped when another starts or the bar closes.
+    private var findCancel: CancelToken?
     /// Called when a find has finished (the self-test waits on it).
     var onFindFinished: (() -> Void)?
     /// The self-test's answers to the text and link popovers (nil: ask the user).
@@ -953,6 +955,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func find(_ query: String) {
         findGeneration += 1
         let generation = findGeneration
+        findCancel?.cancel()
+        findCancel = nil
         foundQuery = query
         found = []
         foundIndex = -1
@@ -969,13 +973,22 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         findBar.status = "Searching…"
         let engine = engine
         let from = activePages.currentPage
-        DispatchQueue.global(qos: .userInitiated).async {
-            var all: [(page: Int, start: Int, end: Int)] = []
-            for p in 0..<engine.pageCount {
-                guard let text = try? engine.text(p) else { continue }
-                for h in text.find(query, matchCase: false, wholeWord: false) { all.append((p, h.start, h.end)) }
+        // A new search (or the bar closed) stops the one under way (above): its pages aren't read for nothing.
+        let cancel = CancelToken()
+        findCancel = cancel
+        Thread.detachNewThread {
+            // Pages read on several threads, each with its own MuPDF instance, remembered for the next search (E16).
+            // Cancelled: the search that replaced it reports. Any other failure (the document changed meanwhile) finds
+            // nothing, as a page that couldn't be read always did.
+            let pages: [PdfEngine.PageMatches]
+            do {
+                pages = try engine.findAll(query, matchCase: false, wholeWord: false, keepText: false, cancel: cancel)
+            } catch is CancellationError {
+                return
+            } catch {
+                pages = []
             }
-            let results = all
+            let results = pages.flatMap { m in m.hits.map { (page: m.page, start: $0.start, end: $0.end) } }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard generation == self.findGeneration else { return }

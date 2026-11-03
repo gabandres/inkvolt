@@ -733,14 +733,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   with no file behind it, and nothing is written to disk. Formats other than PDF stay in process. The Store smoke test
   searches in workers. The drawing set's scroll stays over target (761 ms a sheet): a display list kept per sheet
   doesn't change that, as the engine already keeps 32 and painting is three quarters of the cost (581 ms again against 761 ms
-  the first time), so that idea was dropped. Mac: still to do, measuring first (`mac/docs/PLAN.md` E16; its shim gives
-  MuPDF no locks).
+  the first time), so that idea was dropped. **Mac (E16, 2026-11-02):** `mac/tools/bench` makes the same corpus and
+  measures (RESULTS.md, on the M1 Air, to be run again on the M6 Mac mini): MuPDF instances don't wait on each other there, so
+  Find reads pages on threads in process (`PdfEngine.findAll`, every core but one, no workers): 5,000 pages in 0.55 s, the
+  drawing set in 6.9 s (33.5 s before); one copy of a file's bytes for all of an engine's instances took the drawing set's
+  peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (575 ms a sheet) and its Find.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
 - **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30);
-  the drawing set's scroll and first Find remain over target; Mac: both.
+  the drawing set's scroll and first Find remain over target; Mac: the benchmark and Find on threads done (E16,
+  2026-11-02), the same two over target.
 
 ## Where we already win
 

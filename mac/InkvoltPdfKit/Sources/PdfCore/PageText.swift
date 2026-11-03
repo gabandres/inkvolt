@@ -291,11 +291,28 @@ public final class PageText: @unchecked Sendable {
     /// words hyphenated across a line break ("exam-" / "ple") match unhyphenated. Matching is Foundation's (canonical
     /// equivalence, case and diacritics as asked), so the match lengths are its own: a decomposed "é" in the page matches
     /// a composed one in the query and highlights whole.
+    /// Whether `find` would match anything on a page whose text is `pageText` (lines joined by "\n"), from the string alone:
+    /// what a search remembers of a page it read, so a page that can't match isn't read again (Windows' `Matches`). The
+    /// same rules as `find`, which it runs on the string laid out with empty boxes.
+    public static func matches(_ pageText: String, _ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false) -> Bool {
+        let units = Array(pageText.utf16)
+        if units.isEmpty { return false }
+        return !scan(SearchView(units), query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents, firstOnly: true).isEmpty
+    }
+
     public func find(_ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false) -> [(start: Int, end: Int)] {
-        var hits: [(Int, Int)] = []
-        let terms = Self.splitOnWhitespace(query)
-        if terms.isEmpty || units.isEmpty { return hits }
+        if units.isEmpty { return [] }
         let view = searchView
+        return Self.scan(view, query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents, firstOnly: false)
+            .map { view.toText($0.start, $0.end) }
+    }
+
+    /// The search itself, over the search view's units: each match's range there (`firstOnly`: stop at the first).
+    private static func scan(_ view: SearchView, _ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool,
+                             firstOnly: Bool) -> [(start: Int, end: Int)] {
+        var hits: [(start: Int, end: Int)] = []
+        let terms = splitOnWhitespace(query)
+        if terms.isEmpty { return hits }
         let text = view.text
         let length = text.length
         var options: NSString.CompareOptions = []
@@ -311,7 +328,7 @@ public final class PageText: @unchecked Sendable {
             var t = 1
             while t < terms.count && ok {
                 var ws = end
-                while ws < length && Self.isWhiteSpace(view.units[ws]) { ws += 1 }
+                while ws < length && isWhiteSpace(view.units[ws]) { ws += 1 }
                 let next = ws == end ? NSRange(location: NSNotFound, length: 0)
                     : text.range(of: terms[t], options: options.union(.anchored), range: NSRange(location: ws, length: length - ws))
                 if next.location == NSNotFound || next.length == 0 {
@@ -321,11 +338,12 @@ public final class PageText: @unchecked Sendable {
                 }
                 t += 1
             }
-            if ok && wholeWord && ((first > 0 && Self.isWordChar(view.units[first - 1])) || (end < length && Self.isWordChar(view.units[end]))) {
+            if ok && wholeWord && ((first > 0 && isWordChar(view.units[first - 1])) || (end < length && isWordChar(view.units[end]))) {
                 ok = false
             }
             if ok {
-                hits.append(view.toText(first, end))
+                hits.append((first, end))
+                if firstOnly { return hits }
                 pos = end
             } else {
                 pos = first + 1

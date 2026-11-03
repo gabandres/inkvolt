@@ -107,7 +107,7 @@ public final class DocumentSession: @unchecked Sendable {
     public static func open(_ path: String, password: String? = nil) throws -> DocumentSession {
         // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
         let stamp = DiskStamp.of(path)
-        let data = try [UInt8](Data(contentsOf: URL(fileURLWithPath: path)))
+        let data = try PdfEngine.readFile(path)
         let engine = try PdfEngine.open(data, password: password)
         let full = URL(fileURLWithPath: path).standardizedFileURL.path
         let session = DocumentSession(path: full, displayName: (full as NSString).lastPathComponent, data: data, password: password, engine: engine)
@@ -285,7 +285,7 @@ public final class DocumentSession: @unchecked Sendable {
     private static func readDiskCopy(_ path: String?, _ password: String?) throws -> DiskCopy {
         guard let path else { throw PdfEditError("This document has not been saved to a file.") }
         let stamp = DiskStamp.of(path)
-        let data = try [UInt8](Data(contentsOf: URL(fileURLWithPath: path)))
+        let data = try PdfEngine.readFile(path)
         let engine = try PdfEngine.open(data, password: password)
         return DiskCopy(data: data, engine: engine, stamp: stamp, password: password,
                         openPassword: PdfSecurity.isOpenPassword(data, password) ? password : nil)

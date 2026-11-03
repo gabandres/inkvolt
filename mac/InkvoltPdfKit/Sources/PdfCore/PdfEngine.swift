@@ -91,14 +91,32 @@ public final class PdfEngine: @unchecked Sendable {
     /// Largest render or image export allowed, in pixels (200 MP is 600 MB of RGB).
     public static let maxPixels = 200_000_000.0
 
+    /// The file's bytes, one copy for all of an engine's instances: MuPDF reads them in place (each instance once copied
+    /// the whole file, so a 600 MB drawing set took 1.2 GB for an engine and 600 MB more for each thread of a search).
+    final class SharedBytes: @unchecked Sendable {
+        let base: UnsafeMutableRawPointer
+        let count: Int
+
+        init(_ data: [UInt8]) {
+            count = data.count
+            base = .allocate(byteCount: max(count, 1), alignment: 16)
+            data.withUnsafeBytes { if let from = $0.baseAddress { base.copyMemory(from: from, byteCount: count) } }
+        }
+
+        deinit { base.deallocate() }
+    }
+
     /// One MuPDF context and its document. Used only under its engine's lock.
     private final class Instance {
         let ctx: UnsafeMutableRawPointer
         let doc: OpaquePointer
+        /// The bytes the document reads in place: released only after the document is dropped (deinit runs first).
+        private let bytes: SharedBytes?
 
-        init(ctx: UnsafeMutableRawPointer, doc: OpaquePointer) {
+        init(ctx: UnsafeMutableRawPointer, doc: OpaquePointer, bytes: SharedBytes?) {
             self.ctx = ctx
             self.doc = doc
+            self.bytes = bytes
         }
 
         deinit {
@@ -111,9 +129,11 @@ public final class PdfEngine: @unchecked Sendable {
             guard let ctx = inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") }
             var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
             let doc: OpaquePointer?
+            var shared: SharedBytes?
             switch source {
             case .bytes(let data):
-                doc = data.withUnsafeBufferPointer { inkv_open_pdf(ctx, $0.baseAddress, $0.count, Int32(PdfEngine.loadedPagesKept), &err) }
+                shared = data
+                doc = inkv_open_pdf_shared(ctx, data.base.assumingMemoryBound(to: UInt8.self), data.count, Int32(PdfEngine.loadedPagesKept), &err)
             case .path(let path):
                 doc = inkv_open_path(ctx, path, Int32(PdfEngine.loadedPagesKept), &err)
             }
@@ -121,7 +141,7 @@ public final class PdfEngine: @unchecked Sendable {
                 inkv_drop_context(ctx)
                 throw PdfEngineError(message: PdfEngine.message(err))
             }
-            let instance = Instance(ctx: ctx, doc: doc)
+            let instance = Instance(ctx: ctx, doc: doc, bytes: shared)
             if inkv_needs_password(ctx, doc) != 0 {
                 guard let password, !password.isEmpty else { throw PasswordRequired(wrongPassword: false) }
                 guard inkv_authenticate(ctx, doc, password) != 0 else { throw PasswordRequired(wrongPassword: true) }
@@ -131,7 +151,7 @@ public final class PdfEngine: @unchecked Sendable {
     }
 
     enum Source {
-        case bytes([UInt8])
+        case bytes(SharedBytes)
         case path(String)
     }
 
@@ -140,13 +160,17 @@ public final class PdfEngine: @unchecked Sendable {
     private let textGate = NSLock()
     private var main: Instance?             // nil once closed; under gate
     private var textInstance: Instance?     // under textGate
-    private let source: Source
+    /// What the instances open; nil once closed, so a closed engine no longer holds the file's bytes. Read under gate or
+    /// textGate (close changes it holding both).
+    private var source: Source?
     private let password: String?
     private let pages: [PageGeometry]
     private var closed = false              // set under both locks
     private var textCache: [Int: PageText] = [:]
     private var textLru: [Int] = []
     private var linkCache: [Int: [PageLink]] = [:]
+    /// What `findAll` remembers of each page's text between searches.
+    private let findMemo: FindMemo
     private var outlineCache: [OutlineNode]?
 
     public var pageCount: Int { pages.count }
@@ -169,6 +193,34 @@ public final class PdfEngine: @unchecked Sendable {
             pages.append(PageGeometry(Double(b[0]), Double(b[1]), Double(b[2] - b[0]), Double(b[3] - b[1])))
         }
         self.pages = pages
+        findMemo = FindMemo(pages.count)
+    }
+
+    /// A file's bytes read straight into one array: `Data(contentsOf:)` then `[UInt8]` held two copies at once (a 428 MB
+    /// scan peaked at 2.2 GB just reading).
+    public static func readFile(_ path: String) throws -> [UInt8] {
+        let fd = Darwin.open(path, O_RDONLY)
+        guard fd >= 0 else { throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: path]) }
+        defer { Darwin.close(fd) }
+        var st = stat()
+        guard fstat(fd, &st) == 0 else { throw CocoaError(.fileReadUnknown, userInfo: [NSFilePathErrorKey: path]) }
+        let size = Int(st.st_size)
+        var failed = false
+        let bytes = [UInt8](unsafeUninitializedCapacity: size) { buf, count in
+            var done = 0
+            while done < size {
+                let n = Darwin.read(fd, buf.baseAddress! + done, size - done)
+                if n <= 0 {
+                    if n < 0 && errno == EINTR { continue }
+                    failed = n < 0
+                    break
+                }
+                done += n
+            }
+            count = done
+        }
+        if failed { throw CocoaError(.fileReadUnknown, userInfo: [NSFilePathErrorKey: path]) }
+        return bytes
     }
 
     /// Opens a PDF from its bytes; `password` opens an encrypted one (ignored when it needs none).
@@ -176,7 +228,7 @@ public final class PdfEngine: @unchecked Sendable {
     public static func open(_ data: [UInt8], password: String? = nil) throws -> PdfEngine {
         // MuPDF's resource store (decoded images, fonts) at 128 MB keeps re-renders fast without letting several open
         // tabs balloon.
-        let source = Source.bytes(data)
+        let source = Source.bytes(SharedBytes(data))
         return try PdfEngine(Instance.open(source, store: 128 << 20, password: password), source: source, password: password)
     }
 
@@ -258,6 +310,9 @@ public final class PdfEngine: @unchecked Sendable {
         if let textInstance { return textInstance }
         let instance: Instance
         do {
+            // Under textGate: close() clears source holding both locks, so it is read here without gate (gate before
+            // textGate is the lock order; taking gate now could deadlock with close).
+            guard let source else { throw PdfEngineClosed() }
             instance = try Instance.open(source, store: 32 << 20, password: password ?? "")
         } catch is PasswordRequired {
             throw PasswordRequired(wrongPassword: true)
@@ -291,6 +346,7 @@ public final class PdfEngine: @unchecked Sendable {
         try enterText(cancel)
         defer { textGate.unlock() }
         let instance = try text()
+        if let kept = findMemo.known(page).1 { return kept } // a search kept it whole
         if let hit = textCache[page] {
             textLru.removeAll { $0 == page }
             textLru.insert(page, at: 0)
@@ -306,6 +362,7 @@ public final class PdfEngine: @unchecked Sendable {
     }
 
     private func extractText(_ instance: Instance, _ page: Int) throws -> PageText {
+        findMemo.countExtraction()
         let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var lines: UnsafeMutablePointer<inkv_line>?
@@ -467,6 +524,7 @@ public final class PdfEngine: @unchecked Sendable {
         closed = true
         textInstance = nil
         main = nil
+        source = nil
         textGate.unlock()
         gate.unlock()
     }
@@ -602,4 +660,213 @@ public final class PdfEngine: @unchecked Sendable {
         let bytes = err.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
         return bytes.isEmpty ? "MuPDF failed." : String(decoding: bytes, as: UTF8.self)
     }
+}
+
+// MARK: - Find across the document (roadmap 3.6, the Mac's half: E16)
+
+extension PdfEngine {
+    /// One page's outcome in `findAll`: its matches (and its text when there are any), or why it couldn't be read.
+    public struct PageMatches: @unchecked Sendable {
+        public let page: Int
+        public let text: PageText?
+        public let hits: [(start: Int, end: Int)]
+        public let error: String?
+    }
+
+    /// Threads `findAll` reads pages on, each with its own MuPDF instance over the engine's one copy of the bytes: every
+    /// core but one (the view keeps one to draw on), at most 8. No lock stands between instances here (Windows'
+    /// MuPDFCore made its threads wait on each other and needed worker processes). Measured on the M1 Air
+    /// (`mac/tools/bench`): a 5,000-page text in 2.36 s on one thread, 1.22 s on two, 0.65 s on four, 0.52 s on eight; a
+    /// 400-sheet drawing set in 33.5 s on one, 9.8 s on four, 7.6 s on eight.
+    nonisolated(unsafe) public static var findThreads: Int = max(1, min(8, ProcessInfo.processInfo.activeProcessorCount - 1))
+
+    /// Pages to read for each thread a search may use: a short document is read on the engine's own text instance.
+    static let findPagesPerThread = 8
+
+    /// Characters of whole page texts kept for the engine's lifetime (about 40 MB with their boxes): a drawing set's
+    /// sheets keep theirs; a long book keeps its strings only. Windows' `KeptTextChars`; tests lower it.
+    nonisolated(unsafe) static var keptTextChars = 1_000_000
+
+    /// Page text remembered as strings across all pages (about 128 MB): beyond it, pages are read again.
+    static let maxRememberedChars = 64_000_000
+
+    /// `PageText.find` on every page, as one search (Windows' `FindAll`): pages are read on up to `findThreads` threads
+    /// (each with its own MuPDF instance) and come back in page order, through `onPage` as soon as each page and those
+    /// before it are done (called on a search thread), then all together. A page whose text was read before (by any
+    /// call) and can't match is not read again, nor one whose whole text is kept. A page that can't be read comes back
+    /// with its `error`.
+    /// - Throws: `CancellationError` when `cancel` fired; `PdfEngineClosed` when the engine is closed.
+    @discardableResult
+    /// - Parameter keepText: return each matching page's text with its hits; a caller that needs only the hits' places
+    ///   (the app, which draws them from the view's own text) passes false, so 5,000 pages of text aren't held at once.
+    public func findAll(_ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false, keepText: Bool = true,
+                        cancel: CancelToken? = nil, onPage: ((PageMatches) -> Void)? = nil) throws -> [PageMatches] {
+        try checkOpen()
+        let count = pages.count
+        if count == 0 { return [] }
+        let results = FindResults(count, onPage)
+        // Every page goes through the threads, what is known of it too: checking 5,000 remembered strings on one thread
+        // took longer (1.3 s) than reading them all again on seven (0.55 s).
+        let threads = min(Self.findThreads, max(1, count / Self.findPagesPerThread))
+        let next = FindCounter()
+        let failure = FindFailure()
+        let memo = findMemo
+        let source = threads > 1 ? currentSource() : nil
+        let password = password
+        @Sendable func work(_ own: Bool) {
+            // This thread's MuPDF instance, opened when it first has a page to read; without one (a short document, or
+            // one that couldn't be opened) pages are read on the engine's own text instance.
+            var instance: Instance?
+            var tried = !own
+            while true {
+                if cancel?.isCancelled == true || failure.value != nil { return }
+                let p = next.take()
+                if p >= count { return }
+                if let known = findKnown(p, query, matchCase, wholeWord, ignoreAccents) {
+                    results.set(p, keepText ? known : PageMatches(page: p, text: nil, hits: known.hits, error: nil))
+                    continue
+                }
+                if !tried, let source {
+                    tried = true
+                    instance = try? Instance.open(source, store: 16 << 20, password: password ?? "")
+                }
+                do {
+                    let text: PageText
+                    if let instance { text = try extractText(instance, p) } else { text = try self.text(p, cache: false, cancel: cancel) }
+                    memo.remember(p, text)
+                    let hits = text.find(query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents)
+                    results.set(p, PageMatches(page: p, text: hits.isEmpty || !keepText ? nil : text, hits: hits, error: nil))
+                } catch is CancellationError {
+                    return
+                } catch let e as PdfEngineClosed {
+                    failure.set(e)
+                    return
+                } catch {
+                    results.set(p, PageMatches(page: p, text: nil, hits: [], error: (error as? PdfEngineError)?.message ?? "\(error)"))
+                }
+            }
+        }
+        if threads <= 1 {
+            work(false)
+        } else {
+            if source == nil { throw PdfEngineClosed() }
+            DispatchQueue.concurrentPerform(iterations: threads) { _ in work(true) }
+        }
+        if let e = failure.value { throw e }
+        try cancel.check()
+        try checkOpen()
+        return results.all()
+    }
+
+    /// Test hook: pages whose text was read from MuPDF so far (Windows' `Extractions`).
+    var extractions: Int { findMemo.extractions }
+
+    private func currentSource() -> Source? {
+        gate.lock()
+        defer { gate.unlock() }
+        return source
+    }
+
+    private func checkOpen() throws {
+        gate.lock()
+        defer { gate.unlock() }
+        if closed { throw PdfEngineClosed() }
+    }
+
+    /// A page's matches from what is already known of it, without reading it; nil if it has to be read.
+    private func findKnown(_ page: Int, _ query: String, _ matchCase: Bool, _ wholeWord: Bool, _ ignoreAccents: Bool) -> PageMatches? {
+        let (string, kept) = findMemo.known(page)
+        if let string, !PageText.matches(string, query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents) {
+            return PageMatches(page: page, text: nil, hits: [], error: nil)
+        }
+        var text = kept
+        if text == nil, textGate.lock(before: Date(timeIntervalSinceNow: 0.002)) { // a moment: another reader may be passing through
+            if !closed { text = textCache[page] }
+            textGate.unlock()
+        }
+        guard let text else { return nil }
+        let hits = text.find(query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents)
+        return PageMatches(page: page, text: hits.isEmpty ? nil : text, hits: hits, error: nil)
+    }
+}
+
+/// What `findAll` keeps of the pages it read: whole texts up to `keptTextChars`, strings up to `maxRememberedChars`.
+final class FindMemo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var strings: [String?]
+    private var texts: [PageText?]
+    private var keptChars = 0, rememberedChars = 0, extractionCount = 0
+
+    init(_ count: Int) {
+        strings = Array(repeating: nil, count: count)
+        texts = Array(repeating: nil, count: count)
+    }
+
+    var extractions: Int { lock.withLock { extractionCount } }
+
+    func countExtraction() { lock.withLock { extractionCount += 1 } }
+
+    /// What is known of `page`; nothing for a page that isn't there (the caller's own check throws for it).
+    func known(_ page: Int) -> (String?, PageText?) {
+        lock.withLock { page >= 0 && page < strings.count ? (strings[page], texts[page]) : (nil, nil) }
+    }
+
+    func remember(_ page: Int, _ text: PageText) {
+        let length = text.length
+        lock.withLock {
+            guard page >= 0 && page < strings.count else { return }
+            if texts[page] == nil && keptChars + length <= PdfEngine.keptTextChars {
+                texts[page] = text
+                keptChars += length
+            }
+            if strings[page] == nil && rememberedChars + length <= PdfEngine.maxRememberedChars {
+                strings[page] = text.text
+                rememberedChars += length
+            }
+        }
+    }
+}
+
+/// The search's pages as they finish, handed on in page order.
+private final class FindResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var slots: [PdfEngine.PageMatches?]
+    private var delivered = 0
+    private let onPage: ((PdfEngine.PageMatches) -> Void)?
+
+    init(_ count: Int, _ onPage: ((PdfEngine.PageMatches) -> Void)?) {
+        slots = Array(repeating: nil, count: count)
+        self.onPage = onPage
+    }
+
+    func set(_ page: Int, _ m: PdfEngine.PageMatches) {
+        lock.lock()
+        defer { lock.unlock() }
+        slots[page] = m
+        while delivered < slots.count, let ready = slots[delivered] {
+            onPage?(ready)
+            delivered += 1
+        }
+    }
+
+    func all() -> [PdfEngine.PageMatches] { lock.withLock { slots.compactMap { $0 } } }
+}
+
+private final class FindCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func take() -> Int {
+        lock.withLock {
+            let v = value
+            value += 1
+            return v
+        }
+    }
+}
+
+private final class FindFailure: @unchecked Sendable {
+    private let lock = NSLock()
+    private var error: Error?
+    var value: Error? { lock.withLock { error } }
+    func set(_ e: Error) { lock.withLock { if error == nil { error = e } } }
 }
