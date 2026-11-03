@@ -39,7 +39,7 @@ Mac copy can be updated), `~/Repos/inkvolt/mac/InkvoltPrint/.env.local` (ASC key
 Foundation-only code that builds and tests on Windows (`mac/tools/swift-dev.ps1`), so it goes on after the Air is sold;
 [Mac] = needs a Mac (`mac/tools/mac.sh`). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md` or
 `print/ROADMAP.md`; port tests first, same names.
-1. Small fixes [Mac]: `main.swift:8` sets `Pro.store` after the command line runs (must be before, ahead of `Pro.Enforced`);
+1. Small fixes [Mac]: ~~`main.swift:8` sets `Pro.store` after the command line runs~~ (done 2026-11-02);
    `PrepareForm.swift:500` loses a nudge on ⌘W within 0.45 s; one huge Flate stream is unbounded (both apps).
 2. Print 3.5 Open in Inkvolt PDF [Mac]: D7 part e added it to scan presets; check what's left and mark it done.
 3. Print 1.6 Pro key [PC core, Mac UI] (S): CryptoKit, the key in the app group container, one key for both apps.
