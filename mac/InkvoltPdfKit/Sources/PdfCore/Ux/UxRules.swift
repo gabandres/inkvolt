@@ -13,6 +13,16 @@ public enum AxAudit {
     /// Why a control fails the audit, or nil when it passes. A control is named by its label, its title, or (for a
     /// field) its placeholder; a value alone isn't a name (it changes), nor is a tooltip alone. Hidden and disabled
     /// controls are left out by the caller.
+    /// The name a control takes from the label beside it ("Save to folder:" names the field "Save to folder"); nil when
+    /// the text isn't a label: empty, or a sentence (a note under the controls, a long caption) rather than a few words.
+    public static func labelName(_ text: String) -> String? {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while t.hasSuffix(":") { t.removeLast() }
+        t = t.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, t.count <= 40, !t.hasSuffix("."), t.split(separator: " ").count <= 6 else { return nil }
+        return t
+    }
+
     public static func problem(role: String, label: String?, title: String?, placeholder: String? = nil) -> String? {
         guard actionRoles.contains(role) else { return nil }
         func has(_ s: String?) -> Bool { !(s ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

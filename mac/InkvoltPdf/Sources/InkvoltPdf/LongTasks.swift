@@ -169,13 +169,20 @@ extension DocumentWindowController {
         let count = engine.pageCount, current = pages.currentPage
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
         popup.addItems(withTitles: [allTitle, "Current page (\(current + 1))", "Page range"])
-        popup.setAccessibilityLabel("Pages")
+        popup.setAccessibleName("Pages")
         let range = NSTextField(string: "\(current + 1)")
         range.placeholderString = "e.g. 1-3, 5"
-        range.setAccessibilityLabel("Page range")
+        range.setAccessibleName("Page range")
         range.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        // The range box only when a range is chosen (it showed "1" beside "All pages"; UX review, round 2).
+        range.isHidden = true
+        _ = ControlAction(popup) {
+            range.isHidden = popup.indexOfSelectedItem != 2
+            if !range.isHidden { range.window?.makeFirstResponder(range) }
+        }
         let stack = NSStackView(views: [popup, range])
-        stack.frame = NSRect(x: 0, y: 0, width: 320, height: 26)
+        stack.alignment = .firstBaseline
+        stack.detachesHiddenViews = false
         return (stack, {
             switch popup.indexOfSelectedItem {
             case 0: return (Array(0..<count), nil)
@@ -193,9 +200,8 @@ extension DocumentWindowController {
         guard let window else { return }
         let alert = NSAlert()
         alert.messageText = "Recognize Text (OCR)"
-        alert.informativeText = "Cleaning straightens pages (up to 15°), turns sideways and upside-down pages upright, and removes specks and grey "
-            + "paper; the pages look the same unless you replace the scans. Suspect words are listed to check and correct. Pages that already "
-            + "have text are skipped. Recognition runs on this Mac with Apple's Vision, so check important text."
+        alert.informativeText = "Finds the words on scanned pages, so you can search, select and copy them. It runs on this Mac; "
+            + "check important text."
         let choice = pageChoice(allTitle: "All pages without text")
         let languages = Self.ocrLanguages()
         let language = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -206,11 +212,11 @@ extension DocumentWindowController {
         let clean = NSButton(checkboxWithTitle: "Straighten and clean the pages first", target: nil, action: nil)
         clean.state = AppSettings.ocrClean ? .on : .off
         clean.toolTip = "Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing."
-        let suspects = NSButton(checkboxWithTitle: "Mark suspect words to check", target: nil, action: nil)
+        let suspects = NSButton(checkboxWithTitle: "List the words to check", target: nil, action: nil)
         suspects.state = AppSettings.ocrSuspects ? .on : .off
         suspects.toolTip = "Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. "
             + "Tools › Review Suspect Words lists them."
-        let replace = NSButton(checkboxWithTitle: "Replace the scans with the cleaned pages", target: nil, action: nil)
+        let replace = NSButton(checkboxWithTitle: "Keep the cleaned pages (instead of the scans)", target: nil, action: nil)
         replace.state = .off
         replace.isEnabled = clean.state == .on
         replace.toolTip = "The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save."
@@ -220,13 +226,16 @@ extension DocumentWindowController {
         }
         clean.target = toggle
         clean.action = #selector(CheckToggle.changed)
-        let languageRow = NSStackView(views: [NSTextField(labelWithString: "Language:"), language])
-        let stack = NSStackView(views: [choice.view, languageRow, clean, suspects, replace])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        stack.frame = NSRect(x: 0, y: 0, width: 360, height: 140)
-        alert.accessoryView = stack
+        let form = SheetForm("RecognizeText")
+        form.row("Pages", choice.view)
+        form.row("Language", language)
+        form.note("Pages that already have text are skipped.")
+        form.row(nil, clean, advanced: true)
+        form.note("Turns pages upright, straightens them (up to 15°) and removes specks and grey paper before reading.", advanced: true)
+        form.row(nil, replace, advanced: true)
+        form.row(nil, suspects, advanced: true)
+        form.note("Words it wasn't sure of are listed in Tools › Review Suspect Words.", advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Recognize")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in
@@ -338,15 +347,11 @@ extension DocumentWindowController {
 
     private static func exportNote(_ format: ExportFormat) -> String {
         switch format {
-        case .word: "Paragraphs, headings, lists, tables, pictures, running headers and footers and page sizes are rebuilt from the page "
-            + "layout, so the document can be edited; complex layouts may need tidying."
-        case .excel: "Each table found (ruled grids, or text lined up in columns) becomes a sheet, named after its page. Plain numbers "
-            + "become numbers; other values stay text as shown."
-        case .text: "The text in reading order (columns one after another), a paragraph per line, table rows as tab-separated cells. UTF-8."
-        case .powerPoint: "One slide per page: text in editable text boxes where the page has it, headings as slide titles, tables, pictures "
-            + "and simple shapes. A presentation has one slide size, so pages of another size are shrunk to fit it."
-        case .html: "One file that reflows to any screen: headings, lists, tables and pictures in reading order, with the alternate text "
-            + "the PDF's tags give. It holds no scripts and loads nothing from anywhere; the look and positions of the pages aren't kept."
+        case .word: "An editable Word document: paragraphs, headings, lists, tables and pictures. Complex layouts may need tidying."
+        case .excel: "Each table becomes a sheet, named after its page. Numbers stay numbers."
+        case .text: "The text in reading order, one paragraph per line (UTF-8)."
+        case .powerPoint: "One slide per page, with editable text boxes, tables and pictures."
+        case .html: "A web page that fits any screen, in reading order. The pages' look isn't kept."
         }
     }
 
@@ -354,17 +359,17 @@ extension DocumentWindowController {
         guard let window, let session = pdf.session else { return }
         let alert = NSAlert()
         alert.messageText = Self.exportTitle(format)
-        alert.informativeText = Self.exportNote(format) + " Pages without text are recognized with Apple's Vision when asked; check important text."
+        alert.informativeText = Self.exportNote(format)
         let choice = pageChoice(allTitle: "All pages")
-        let ocr = NSButton(checkboxWithTitle: "Recognize text on scanned pages (OCR)", target: nil, action: nil)
+        let ocr = NSButton(checkboxWithTitle: "Read the text of scanned pages too", target: nil, action: nil)
         ocr.state = UserDefaults.standard.object(forKey: "ExportOcr") as? Bool == false ? .off : .on
         let open = NSButton(checkboxWithTitle: "Open the file when done", target: nil, action: nil)
         open.state = UserDefaults.standard.bool(forKey: "ExportOpen") ? .on : .off
-        let stack = NSStackView(views: [choice.view, ocr, open])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.frame = NSRect(x: 0, y: 0, width: 340, height: 84)
-        alert.accessoryView = stack
+        let form = SheetForm("Export")
+        form.row("Pages", choice.view)
+        form.row(nil, ocr)
+        form.row(nil, open)
+        form.install(in: alert)
         alert.addButton(withTitle: "Export…")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in

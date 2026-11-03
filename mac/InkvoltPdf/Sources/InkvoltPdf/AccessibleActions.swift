@@ -88,7 +88,7 @@ extension DocumentWindowController {
 
     /// The title and language sheet; the plan with what the person confirmed, or nil when cancelled.
     private func askTitleAndLanguage(_ plan: TagPlan) async -> TagPlan? {
-        if Report.isRunning {
+        if Report.skipsDialogs {
             var plan = plan
             plan.title = AccessibleState.testTitle ?? plan.title
             plan.language = AccessibleState.testLanguage ?? plan.language
@@ -167,7 +167,7 @@ enum AccessibleState {
     private(set) static var tagFirstAsked = 0
 
     static func askTagFirst(_ window: NSWindow?) async -> Bool {
-        if Report.isRunning {
+        if Report.skipsDialogs {
             tagFirstAsked += 1
             return testTagFirst
         }

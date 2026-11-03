@@ -29,6 +29,11 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     let stopButton = NSButton(title: "Stop", target: nil, action: nil)
     let summary = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
+    /// What an empty list says to do (UX review, round 2: two blank tables and a disabled Run, nothing said why).
+    private let noFiles = BatchWindowController.emptyNote("No files yet. Drop PDFs or folders here, or choose Add Files…")
+    private let noActions = BatchWindowController.emptyNote("No actions yet. Choose Add Action to pick what happens to each file.")
+    private let more = NSButton()
+    private var advancedRows: [NSGridRow] = []
     private var task: Task<Void, Never>?
     private var cancel: CancelToken?
     /// The last run's summary (the self-test reads it).
@@ -84,7 +89,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let fileButtons = NSStackView(views: [addFiles, addFolder, removeFiles, clearFiles])
         fileButtons.orientation = .vertical
         fileButtons.alignment = .leading
-        let filesRow = NSStackView(views: [fileScroll, fileButtons])
+        let filesRow = NSStackView(views: [Self.overlay(fileScroll, noFiles), fileButtons])
         filesRow.alignment = .top
 
         let actionColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("action"))
@@ -116,7 +121,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let actionButtons = NSStackView(views: [addAction, editAction, upAction, downAction, removeAction])
         actionButtons.orientation = .vertical
         actionButtons.alignment = .leading
-        let actionsRow = NSStackView(views: [actionScroll, actionButtons])
+        let actionsRow = NSStackView(views: [Self.overlay(actionScroll, noActions), actionButtons])
         actionsRow.alignment = .top
 
         folderField.placeholderString = "Where the results go"
@@ -140,6 +145,20 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         ])
         grid.rowSpacing = 4
         grid.columnSpacing = 8
+        grid.column(at: 0).xPlacement = .trailing
+        // The folder and names in sight; replacing, subfolders, signed files, passwords and images behind More Options.
+        more.bezelStyle = .disclosure
+        more.setButtonType(.pushOnPushOff)
+        more.title = ""
+        more.setAccessibilityLabel("More Options")
+        more.target = self
+        more.action = #selector(moreToggled)
+        more.state = AppSettings.defaults.bool(forKey: "MoreOptions.Batch") ? .on : .off
+        let moreLabel = NSTextField(labelWithString: "More Options")
+        moreLabel.textColor = .secondaryLabelColor
+        grid.insertRow(at: 2, with: [NSGridCell.emptyContentView, stackOf(more, moreLabel)])
+        advancedRows = (3..<grid.numberOfRows).map { grid.row(at: $0) }
+        for row in advancedRows { row.isHidden = more.state != .on }
         folderField.widthAnchor.constraint(greaterThanOrEqualToConstant: 360).isActive = true
         namesField.widthAnchor.constraint(equalToConstant: 300).isActive = true
 
@@ -240,12 +259,43 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let running = task != nil
         runButton.isEnabled = !running && !files.isEmpty && !steps.isEmpty
         stopButton.isEnabled = running
+        noFiles.isHidden = !files.isEmpty
+        noActions.isHidden = !steps.isEmpty
+        progress.isHidden = !running && lastSummary == nil
         if !running {
             summary.stringValue = lastSummary?.text ?? (files.isEmpty ? "Add files and actions." : "\(files.count) file\(files.count == 1 ? "" : "s"), \(steps.count) action\(steps.count == 1 ? "" : "s")")
         }
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { tableView === fileTable ? files.count : steps.count }
+
+    static func emptyNote(_ text: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.textColor = .secondaryLabelColor
+        label.alignment = .center
+        label.preferredMaxLayoutWidth = 320
+        return label
+    }
+
+    /// The list with its empty-state note centred over it.
+    static func overlay(_ scroll: NSScrollView, _ label: NSView) -> NSView {
+        let box = NSView()
+        for v in [scroll, label] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            box.addSubview(v)
+        }
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: box.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: box.topAnchor), scroll.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+            label.centerXAnchor.constraint(equalTo: box.centerXAnchor), label.centerYAnchor.constraint(equalTo: box.centerYAnchor, constant: 12),
+        ])
+        return box
+    }
+
+    @objc private func moreToggled() {
+        AppSettings.defaults.set(more.state == .on, forKey: "MoreOptions.Batch")
+        for row in advancedRows { row.isHidden = more.state != .on }
+    }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let text: String
@@ -453,7 +503,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
                 lastSummary = result
                 Report.note("batch: \(result.text)")
             } catch {
-                show("The batch couldn't run: \((error as? PdfEditError)?.message ?? "\(error)")")
+                show("The batch couldn't run: \(NSAlert.plainText(error))")
             }
             task = nil
             cancel = nil
@@ -495,6 +545,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             }
             alert.informativeText = "Type it, or Skip to leave this file out."
             let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            field.setAccessibleName("Password")
+        field.setAccessibleName("Password")
             alert.accessoryView = field
             alert.addButton(withTitle: "Continue")
             alert.addButton(withTitle: "Skip")
@@ -945,7 +997,7 @@ final class FolderWatches {
                 let summary = try await WatchedFolder.run(folder, plan, host, WatchOptions(), progress: onProgress, cancel: token)
                 w.status = "Stopped (\(summary.done) done, \(summary.failed) failed)"
             } catch {
-                w.status = "Stopped: \((error as? PdfEditError)?.message ?? "\(error)")"
+                w.status = "Stopped: \(NSAlert.plainText(error))"
                 w.enabled = false
             }
             w.task = nil

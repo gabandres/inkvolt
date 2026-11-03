@@ -418,7 +418,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private(set) static var picksAsked = 0
 
     static func pick() {
-        if Report.isRunning { return picksAsked += 1 }
+        if Report.skipsDialogs { return picksAsked += 1 }
         let documents = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0.session != nil }
         let alert = NSAlert()
         alert.messageText = "Compare Files"
@@ -497,10 +497,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     }
 
     private static func askPassword(_ name: String, wrong: Bool) -> String? {
-        if Report.isRunning { return nil }
+        if Report.skipsDialogs { return nil }
         let alert = NSAlert()
         alert.messageText = wrong ? "That password doesn't open \(name)." : "\(name) is protected with a password."
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.setAccessibleName("Password")
         alert.accessoryView = field
         alert.addButton(withTitle: "Open")
         alert.addButton(withTitle: "Cancel")

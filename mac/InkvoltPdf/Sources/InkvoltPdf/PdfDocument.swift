@@ -263,16 +263,16 @@ final class PdfDocument: NSDocument {
         Report.failed(shown, error)
         let alert = NSAlert()
         alert.messageText = "\(shown) couldn't be opened."
-        alert.informativeText = "\(error)"
-        if !Report.isRunning { alert.runModal() }
+        alert.informativeText = NSAlert.plainText(error)
+        if !Report.skipsDialogs { alert.runModal() }
     }
 
     func showError(_ message: String, _ error: Error?) {
         Report.note("ERROR \(message) \(error.map { "\(type(of: $0))" } ?? "")")
-        if Report.isRunning { return }
+        if Report.skipsDialogs { return }
         let alert = NSAlert()
         alert.messageText = message
-        if let error { alert.informativeText = (error as? PdfEditError)?.message ?? "\(error)" }
+        if let error { alert.informativeText = NSAlert.plainText(error) }
         if let window = windowControllers.first?.window {
             alert.beginSheetModal(for: window)
         } else {
@@ -317,11 +317,12 @@ final class SessionUndoManager: UndoManager {
 @MainActor
 enum PasswordPrompt {
     static func ask(file: String, wrong: Bool) -> String? {
-        if Report.isRunning { return nil }
+        if Report.skipsDialogs { return nil }
         let alert = NSAlert()
         alert.messageText = wrong ? "That password doesn't open \(file)." : "\(file) is protected with a password."
         alert.informativeText = "Type its password to open it."
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.setAccessibleName("Password")
         alert.accessoryView = field
         alert.addButton(withTitle: "Open")
         alert.addButton(withTitle: "Cancel")

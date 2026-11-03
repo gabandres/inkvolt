@@ -30,6 +30,19 @@ struct UxRulesTests {
         #expect(AxAudit.problem(role: "AXImage", label: nil, title: nil) == nil)
     }
 
+    @Test func A_label_beside_a_control_names_it() {
+        #expect(AxAudit.labelName("Save to folder:") == "Save to folder")
+        #expect(AxAudit.labelName("  Pages: ") == "Pages")
+        #expect(AxAudit.labelName("Left") == "Left")
+    }
+
+    @Test func A_sentence_or_nothing_is_not_a_label() {
+        #expect(AxAudit.labelName("") == nil)
+        #expect(AxAudit.labelName(" : ") == nil)
+        #expect(AxAudit.labelName("Pages that already have text are skipped.") == nil)
+        #expect(AxAudit.labelName("One file per range, separated by semicolons and other words") == nil)
+    }
+
     @Test func The_default_toolbar_is_short_and_every_item_is_allowed() {
         let items = ToolbarLayout.defaults.filter {
             ![ToolbarLayout.flexibleSpace, ToolbarLayout.space, ToolbarLayout.trackingSeparator].contains($0)

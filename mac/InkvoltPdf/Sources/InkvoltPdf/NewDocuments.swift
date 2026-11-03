@@ -28,7 +28,7 @@ enum NewDocuments {
         guard !Report.isRunning else { return }
         let alert = NSAlert()
         alert.messageText = message
-        if let error { alert.informativeText = (error as? PdfEditError)?.message ?? error.localizedDescription }
+        if let error { alert.informativeText = NSAlert.plainText(error) }
         alert.runModal()
     }
 

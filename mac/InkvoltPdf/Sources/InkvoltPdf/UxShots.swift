@@ -9,10 +9,10 @@ import PdfCore
 @MainActor
 struct UxShots {
     let controller: DocumentWindowController
-    private var lines: [String] = ["== UX shots"]
-    private var failures = 0
-    private var shots = 0
-    private var findings = 0
+    var lines: [String] = ["== UX shots"]
+    var failures = 0
+    var shots = 0
+    var findings = 0
 
     init(controller: DocumentWindowController) { self.controller = controller }
 
@@ -20,12 +20,12 @@ struct UxShots {
         ("light", .aqua), ("dark", .darkAqua), ("contrast", .accessibilityHighContrastAqua),
     ]
 
-    private func settle(_ ms: Int = 600) async {
+    func settle(_ ms: Int = 600) async {
         try? await Task.sleep(for: .milliseconds(ms))
     }
 
     /// The whole window (title bar and toolbar too, where AppKit draws them in the frame view) as a PNG.
-    private mutating func shoot(_ window: NSWindow?, _ name: String) {
+    mutating func shoot(_ window: NSWindow?, _ name: String) {
         guard let dir = Report.snapshots, let window, let view = window.contentView?.superview ?? window.contentView else {
             lines.append("FAIL \(name): no window"); failures += 1; return
         }
@@ -36,7 +36,7 @@ struct UxShots {
         }
         view.cacheDisplay(in: view.bounds, to: rep)
         let url = URL(fileURLWithPath: (dir as NSString).appendingPathComponent(name + ".png"))
-        if (try? rep.representation(using: .png, properties: [:])?.write(to: url)) != nil {
+        if (try? Self.opaque(rep, window)?.representation(using: .png, properties: [:])?.write(to: url)) != nil {
             shots += 1
             lines.append("PASS shot \(name): \(Int(view.bounds.width)) x \(Int(view.bounds.height)) pt (\(type(of: view)), window \(Int(window.frame.width)), content \(Int(window.contentView?.bounds.width ?? 0)))")
         } else {
@@ -44,8 +44,26 @@ struct UxShots {
         }
     }
 
+    /// The shot over the window's background color: an alert's material is drawn by the window server, not by
+    /// cacheDisplay, so a dark alert came out as white text on nothing (round 2's first dark shots).
+    static func opaque(_ rep: NSBitmapImageRep, _ window: NSWindow) -> NSBitmapImageRep? {
+        guard let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: rep.pixelsWide, pixelsHigh: rep.pixelsHigh, bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0) else { return rep }
+        out.size = rep.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: out)
+        window.effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor.windowBackgroundColor.setFill()
+            NSRect(origin: .zero, size: rep.size).fill()
+        }
+        rep.draw(in: NSRect(origin: .zero, size: rep.size), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+        NSGraphicsContext.restoreGraphicsState()
+        return out
+    }
+
     /// Every control under `window` that a person acts on and VoiceOver can't name.
-    private mutating func audit(_ window: NSWindow?, _ name: String) {
+    mutating func audit(_ window: NSWindow?, _ name: String) {
         guard let root = window?.contentView?.superview ?? window?.contentView else { return }
         var seen = 0
         var problems: [String] = []
@@ -185,6 +203,10 @@ struct UxShots {
                 CommandPalette.shared?.window?.orderOut(nil)
             }
             window.makeKeyAndOrderFront(nil)
+            if look != "contrast" && !Report.uxMainOnly {
+                await dialogs(look)
+                window.makeKeyAndOrderFront(nil)
+            }
         }
         NSApp.appearance = nil
         StartWindowController.testRecent = nil

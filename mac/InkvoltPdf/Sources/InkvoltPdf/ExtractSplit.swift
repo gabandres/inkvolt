@@ -138,41 +138,51 @@ extension DocumentWindowController {
         let folder = NSTextField(string: pdf.session?.filePath.map { ($0 as NSString).deletingLastPathComponent }
                                  ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? NSHomeDirectory())
         let pattern = NSTextField(string: "{name} (part {n})")
-        for (f, label) in [(every, "Pages per file"), (ranges, "Page ranges"), (folder, "Save to folder"), (pattern, "File name")] {
-            f.setAccessibilityLabel(label)
-            f.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        for (f, label, width) in [(every, "Pages per file", 60.0), (ranges, "Page ranges", 240), (folder, "Save to folder", 240), (pattern, "File name", 240)] {
+            f.setAccessibleName(label)
+            f.widthAnchor.constraint(equalToConstant: width).isActive = true
         }
+        mode.setAccessibleName("Split by")
+        folder.lineBreakMode = .byTruncatingHead
         let browse = FolderButton(title: "Choose…", target: nil, action: nil)
         browse.field = folder
         browse.target = browse
         browse.action = #selector(FolderButton.browse)
         let problem = NSTextField(wrappingLabelWithString: "")
         problem.textColor = .systemRed
-        problem.isHidden = true
-        let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "Split by:"), mode],
-            [NSTextField(labelWithString: "Pages per file:"), every],
-            [NSTextField(labelWithString: "Page ranges:"), ranges],
-            [NSGridCell.emptyContentView, NSTextField(labelWithString: "One file per range, separated by ;")],
-            [NSGridCell.emptyContentView, note],
-            [NSTextField(labelWithString: "Save to folder:"), folder],
-            [NSGridCell.emptyContentView, browse],
-            [NSTextField(labelWithString: "File name:"), pattern],
-            [NSGridCell.emptyContentView, NSTextField(labelWithString: "{name} = document name, {n} = part number")],
-        ])
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowSpacing = 6
-        let stack = NSStackView(views: [grid, problem])
-        stack.orientation = .vertical
-        stack.alignment = .leading
+        problem.preferredMaxLayoutWidth = 340
+        // Only the rows of the chosen way to split (all three showed at once; UX review, round 2).
+        let form = SheetForm("Split")
+        form.row("Split by", mode)
+        let everyRow = form.row("Pages per file", every)
+        let rangesRow = form.row("Page ranges", ranges)
+        let rangesNote = form.wide(SheetForm.caption("One file per range, separated by semicolons (1-3; 4-9).", width: 340))
+        let noteRow = form.wide(note)
+        note.preferredMaxLayoutWidth = 340
+        form.row("Save in", folder, browse)
+        form.row("File names", pattern, advanced: true)
+        form.note("{name} is the document's name, {n} the part's number.", advanced: true)
+        let problemRow = form.wide(problem)
+        problemRow.isHidden = true
+        func showMode() {
+            let m = mode.indexOfSelectedItem
+            everyRow.isHidden = m != 0
+            rangesRow.isHidden = m != 1
+            rangesNote.isHidden = m != 1
+            noteRow.isHidden = m != 2
+        }
+        form.onToggle = showMode
+        _ = ControlAction(mode) {
+            showMode()
+            form.refit()
+        }
         while true {
             let alert = NSAlert()
             alert.messageText = "Split Document"
+            alert.informativeText = "Saves the document as several PDF files."
             alert.addButton(withTitle: "Split")
             alert.addButton(withTitle: "Cancel")
-            stack.layoutSubtreeIfNeeded()
-            stack.frame.size = stack.fittingSize
-            alert.accessoryView = stack
+            form.install(in: alert)
             guard await alert.beginSheetModal(for: window) == .alertFirstButtonReturn else { return }
             let how = SplitBy(rawValue: mode.indexOfSelectedItem) ?? .pageCount
             let planned = SplitFiles.parts(how, pageCount: count, pagesPerFile: every.stringValue, ranges: ranges.stringValue, outline: outline)
@@ -181,7 +191,7 @@ extension DocumentWindowController {
                 : ([], planned.error)
             if let wrong = named.error {
                 problem.stringValue = wrong
-                problem.isHidden = false
+                problemRow.isHidden = false
                 continue
             }
             guard engine.pageCount == count else { return } // the document changed meanwhile
@@ -231,7 +241,7 @@ extension DocumentWindowController {
             return false
         }
         let detail = (result as? BatchWriteError)?.message ?? (result as? PdfEditError)?.message ?? result.localizedDescription
-        if Report.isRunning {
+        if Report.skipsDialogs {
             notify("\(failed). \(detail)")
         } else {
             let alert = NSAlert()
@@ -256,7 +266,7 @@ extension DocumentWindowController {
 
     /// Asks once (Windows asks once per tab) before writing pages of a password-protected PDF without the password.
     private func confirmUnprotected(_ text: String, _ confirm: String) -> Bool {
-        if Report.isRunning || unprotectedConfirmed { return true }
+        if Report.skipsDialogs || unprotectedConfirmed { return true }
         let alert = NSAlert()
         alert.messageText = "This PDF is password-protected"
         alert.informativeText = text

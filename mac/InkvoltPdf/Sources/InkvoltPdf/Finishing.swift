@@ -17,21 +17,23 @@ extension DocumentWindowController {
         guard let window, pdf.session != nil else { return }
         let alert = NSAlert()
         alert.messageText = "Reduce File Size"
-        alert.informativeText = "Rewrites the document smaller: pictures shown larger than the chosen resolution are downsampled and stored as JPEG, identical streams merged, uncompressed ones compressed, unused objects dropped. Nothing changes when it wouldn't help."
+        alert.informativeText = "Makes the file smaller, mostly by storing its pictures at a lower resolution. Nothing changes if it wouldn't help."
         let quality = NSPopUpButton(frame: .zero, pullsDown: false)
-        quality.addItems(withTitles: ["High quality (200 dpi)", "Medium (150 dpi)", "Low (96 dpi)", "Keep pictures as they are"])
+        quality.addItems(withTitles: ["High (200 dpi, for printing)", "Medium (150 dpi, for e-mail)", "Low (96 dpi, for the screen)", "Keep pictures as they are"])
         quality.selectItem(at: 1)
-        quality.setAccessibilityLabel("Picture quality")
-        let thumbnails = NSButton(checkboxWithTitle: "Remove embedded page thumbnails", target: nil, action: nil)
+        quality.setAccessibleName("Pictures")
+        let thumbnails = NSButton(checkboxWithTitle: "Remove page thumbnails saved in the file", target: nil, action: nil)
         thumbnails.state = .on
         let privateData = NSButton(checkboxWithTitle: "Remove other apps' private data", target: nil, action: nil)
         privateData.state = .on
-        let metadata = NSButton(checkboxWithTitle: "Remove XMP metadata (the title and author stay)", target: nil, action: nil)
-        let stack = NSStackView(views: [quality, thumbnails, privateData, metadata])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.frame = NSRect(x: 0, y: 0, width: 360, height: 110)
-        alert.accessoryView = stack
+        let metadata = NSButton(checkboxWithTitle: "Remove extra document details (the title and author stay)", target: nil, action: nil)
+        // Plain words first, advanced choices behind More Options with good defaults (UX review, round 2).
+        let form = SheetForm("ReduceFileSize")
+        form.row("Pictures", quality)
+        form.row("Remove", thumbnails, advanced: true)
+        form.row(nil, privateData, advanced: true)
+        form.row(nil, metadata, advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Reduce")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in
@@ -72,18 +74,21 @@ extension DocumentWindowController {
         guard let window, pdf.session != nil else { return }
         let alert = NSAlert()
         alert.messageText = "Flatten"
-        alert.informativeText = "Draws comments and form fields into the pages, where nobody can move or change them. Signature fields stay."
+        alert.informativeText = "Draws comments and form fields into the pages, so nobody can move or change them. Signature fields stay."
         let annotations = NSButton(checkboxWithTitle: "Comments and drawings", target: nil, action: nil)
         annotations.state = .on
-        let fields = NSButton(checkboxWithTitle: "Form fields (the form is removed)", target: nil, action: nil)
+        let fields = NSButton(checkboxWithTitle: "Form fields (the form can't be filled in afterwards)", target: nil, action: nil)
         fields.state = .on
-        let links = NSButton(checkboxWithTitle: "Links (removed)", target: nil, action: nil)
-        let printable = NSButton(checkboxWithTitle: "Only what prints (hidden and non-printing comments are dropped)", target: nil, action: nil)
-        let stack = NSStackView(views: [annotations, fields, links, printable])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.frame = NSRect(x: 0, y: 0, width: 380, height: 100)
-        alert.accessoryView = stack
+        let links = NSButton(checkboxWithTitle: "Links (they stop working)", target: nil, action: nil)
+        let printable = NSButton(checkboxWithTitle: "Only what prints", target: nil, action: nil)
+        printable.toolTip = "Hidden comments and comments that don't print are left out."
+        let form = SheetForm("Flatten")
+        form.row("Flatten", annotations)
+        form.row(nil, fields)
+        form.row(nil, links, advanced: true)
+        form.row(nil, printable, advanced: true)
+        form.note("Hidden comments and comments that don't print are left out.", advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Flatten")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in
@@ -113,37 +118,49 @@ extension DocumentWindowController {
         guard let window, pdf.session != nil else { return }
         let alert = NSAlert()
         alert.messageText = "Add Header & Footer"
-        alert.informativeText = "Text at the top and bottom of the pages, written into them (it prints everywhere). Tokens: <<page>>, <<pages>>, <<date>>, <<time>>, <<file>>, <<bates>>."
+        alert.informativeText = "Text at the top and bottom of the pages, written into them so it prints everywhere."
         let last = Self.lastHeaderFooter
         func field(_ text: String, _ label: String) -> NSTextField {
             let f = NSTextField(string: text)
-            f.setAccessibilityLabel(label)
-            f.widthAnchor.constraint(equalToConstant: 150).isActive = true
+            f.setAccessibleName(label)
+            f.widthAnchor.constraint(equalToConstant: 130).isActive = true
             return f
         }
-        let slots = HeaderFooterSlot.allCases.map { field(last.text($0), "\($0)") }
-        let size = field(PdfNum.f2(last.fontSize), "Font size")
-        let margins = [last.marginTop, last.marginBottom, last.marginLeft, last.marginRight].map { field(PdfNum.f2($0), "Margin") }
-        let batesOn = NSButton(checkboxWithTitle: "Bates numbers (<<bates>>):", target: nil, action: nil)
+        let names = ["Header, left", "Header, center", "Header, right", "Footer, left", "Footer, center", "Footer, right"]
+        let slots = HeaderFooterSlot.allCases.enumerated().map { field(last.text($0.element), names[min($0.offset, names.count - 1)]) }
+        slots[4].placeholderString = "Page <<page>> of <<pages>>"
+        let size = SheetForm.number(PdfNum.f2(last.fontSize), label: "Font size")
+        let margins = zip([last.marginTop, last.marginBottom, last.marginLeft, last.marginRight], ["Top margin", "Bottom margin", "Left margin", "Right margin"])
+            .map { SheetForm.number(PdfNum.f2($0.0), label: $0.1) }
+        let batesOn = NSButton(checkboxWithTitle: "Number the pages for legal use (Bates)", target: nil, action: nil)
         batesOn.state = last.bates != nil ? .on : .off
         let prefix = field(last.bates?.prefix ?? "", "Bates prefix")
-        let start = field(String(last.bates?.start ?? 1), "Bates start")
-        let digits = field(String(last.bates?.digits ?? 6), "Bates digits")
+        prefix.placeholderString = "Prefix"
+        let start = SheetForm.number(String(last.bates?.start ?? 1), label: "Bates start")
+        let digits = SheetForm.number(String(last.bates?.digits ?? 6), width: 40, label: "Bates digits")
         let suffix = field(last.bates?.suffix ?? "", "Bates suffix")
+        suffix.placeholderString = "Suffix"
         let choice = pageChoice(allTitle: "All pages")
-        let grid = NSGridView(views: [
-            [NSTextField(labelWithString: ""), NSTextField(labelWithString: "Left"), NSTextField(labelWithString: "Center"), NSTextField(labelWithString: "Right")],
-            [NSTextField(labelWithString: "Header:"), slots[0], slots[1], slots[2]],
-            [NSTextField(labelWithString: "Footer:"), slots[3], slots[4], slots[5]],
-            [NSTextField(labelWithString: "Font size:"), size, NSTextField(labelWithString: "Margins (top, bottom):"), stackOf(margins[0], margins[1])],
-            [NSTextField(labelWithString: ""), NSGridCell.emptyContentView, NSTextField(labelWithString: "Margins (left, right):"), stackOf(margins[2], margins[3])],
-            [batesOn, stackOf(prefix, start), NSTextField(labelWithString: "digits, suffix:"), stackOf(digits, suffix)],
-            [NSTextField(labelWithString: "Pages:"), choice.view, NSGridCell.emptyContentView, NSGridCell.emptyContentView],
-        ])
-        grid.rowSpacing = 6
-        grid.columnSpacing = 8
-        grid.frame = NSRect(x: 0, y: 0, width: 620, height: 230)
-        alert.accessoryView = grid
+        func caption(_ t: String) -> NSTextField {
+            let l = NSTextField(labelWithString: t)
+            l.textColor = .secondaryLabelColor
+            l.alignment = .center
+            l.widthAnchor.constraint(equalToConstant: 130).isActive = true
+            return l
+        }
+        let form = SheetForm("HeaderFooter", width: 520)
+        form.row(nil, caption("Left"), caption("Center"), caption("Right"))
+        form.row("Header", slots[0], slots[1], slots[2])
+        form.row("Footer", slots[3], slots[4], slots[5])
+        form.note("<<page>> is the page number, <<pages>> the page count; <<date>>, <<time>> and <<file>> work too.")
+        form.row("Pages", choice.view)
+        form.row("Font size", size, NSTextField(labelWithString: "pt"), advanced: true)
+        form.row("Margins", NSTextField(labelWithString: "Top"), margins[0], NSTextField(labelWithString: "Bottom"), margins[1], NSTextField(labelWithString: "pt"), advanced: true)
+        form.row(nil, NSTextField(labelWithString: "Left"), margins[2], NSTextField(labelWithString: "Right"), margins[3], NSTextField(labelWithString: "pt"), advanced: true)
+        form.row(nil, batesOn, advanced: true)
+        form.row(nil, prefix, start, NSTextField(labelWithString: "digits"), digits, suffix, advanced: true)
+        form.note("<<bates>> puts the number where you want it; the number starts at the value given.", advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Add")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in
@@ -208,7 +225,7 @@ extension DocumentWindowController {
         guard let window, pdf.session != nil else { return }
         let alert = NSAlert()
         alert.messageText = "Add Watermark"
-        alert.informativeText = "A text or a picture, turned and see-through, once in the middle of each page or tiled across it, written into the pages (it prints everywhere)."
+        alert.informativeText = "Words or a picture across the pages, see-through, written into them so it prints everywhere."
         let last = Self.lastWatermark
         let text = NSTextField(string: last.text ?? "")
         text.placeholderString = "DRAFT, CONFIDENTIAL, …"
@@ -227,42 +244,42 @@ extension DocumentWindowController {
             picked.image = image
             pictureName?.stringValue = name
         } as PictureHandler, .OBJC_ASSOCIATION_RETAIN)
-        let size = NSTextField(string: PdfNum.f2(last.fontSize))
-        size.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        size.setAccessibilityLabel("Font size")
+        let size = SheetForm.number(PdfNum.f2(last.fontSize), label: "Font size")
         let opacity = NSSlider(value: last.opacity, minValue: 0.05, maxValue: 1, target: nil, action: nil)
-        opacity.widthAnchor.constraint(equalToConstant: 140).isActive = true
-        opacity.setAccessibilityLabel("Opacity")
-        let rotation = NSTextField(string: PdfNum.f2(last.rotation))
-        rotation.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        rotation.setAccessibilityLabel("Angle")
+        opacity.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        opacity.setAccessibleName("Opacity")
+        let rotation = SheetForm.number(PdfNum.f2(last.rotation), label: "Angle")
         let layout = NSPopUpButton(frame: .zero, pullsDown: false)
         layout.addItems(withTitles: ["Once, in the middle", "Tiled across the page"])
         layout.selectItem(at: last.layout == .tiled ? 1 : 0)
+        layout.setAccessibleName("Placement")
         let color = NSPopUpButton(frame: .zero, pullsDown: false)
         let colors: [(String, AnnotColor)] = [("Gray", AnnotColor(0.5, 0.5, 0.5)), ("Red", AnnotColor(0.85, 0.1, 0.1)), ("Blue", AnnotColor(0.1, 0.3, 0.85)),
                                               ("Green", AnnotColor(0.1, 0.6, 0.2)), ("Black", AnnotColor(0, 0, 0))]
         color.addItems(withTitles: colors.map(\.0))
         color.selectItem(at: colors.firstIndex { $0.1 == last.color } ?? 0)
+        color.setAccessibleName("Color")
         let behind = NSButton(checkboxWithTitle: "Behind the page's content", target: nil, action: nil)
         behind.state = last.behind ? .on : .off
-        let scale = NSTextField(string: String(Int(last.imageScale * 100)))
-        scale.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        scale.setAccessibilityLabel("Picture width, percent of the page")
+        let scale = SheetForm.number(String(Int(last.imageScale * 100)), label: "Picture width, percent of the page")
         let choice = pageChoice(allTitle: "All pages")
-        let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "Text:"), text],
-            [NSTextField(labelWithString: "Or a picture:"), stackOf(picture, pictureName)],
-            [NSTextField(labelWithString: "Font size:"), stackOf(size, NSTextField(labelWithString: "Picture width (%):"), scale)],
-            [NSTextField(labelWithString: "Color:"), stackOf(color, NSTextField(labelWithString: "Opacity:"), opacity)],
-            [NSTextField(labelWithString: "Angle:"), stackOf(rotation, layout)],
-            [NSTextField(labelWithString: ""), behind],
-            [NSTextField(labelWithString: "Pages:"), choice.view],
-        ])
-        grid.rowSpacing = 6
-        grid.columnSpacing = 8
-        grid.frame = NSRect(x: 0, y: 0, width: 520, height: 230)
-        alert.accessoryView = grid
+        func light(_ t: String) -> NSTextField {
+            let l = NSTextField(labelWithString: t)
+            l.textColor = .secondaryLabelColor
+            return l
+        }
+        let form = SheetForm("Watermark")
+        form.row("Text", text)
+        form.row("Or a picture", picture, pictureName)
+        form.row("Color", color)
+        form.row("Opacity", light("Faint"), opacity, light("Solid"))
+        form.row("Placement", layout)
+        form.row("Pages", choice.view)
+        form.row("Font size", size, NSTextField(labelWithString: "pt"), advanced: true)
+        form.row("Angle", rotation, NSTextField(labelWithString: "°"), advanced: true)
+        form.row("Picture width", scale, NSTextField(labelWithString: "% of the page"), advanced: true)
+        form.row(nil, behind, advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Add")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { response in

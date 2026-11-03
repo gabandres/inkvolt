@@ -293,7 +293,7 @@ extension DocumentWindowController {
     }
 
     private func info(_ title: String, _ text: String) {
-        if Report.isRunning {
+        if Report.skipsDialogs {
             notify("\(title): \(text)")
             return
         }
@@ -516,7 +516,7 @@ enum SignDialog {
         let d = AppSettings.defaults
         let alert = NSAlert()
         alert.messageText = field.map { "Sign “\($0)” Digitally" } ?? "Sign Digitally"
-        alert.informativeText = "The signature is added to the document as an update, then you save the signed copy. Your digital IDs are the ones in your keychain."
+        alert.informativeText = "Signs with a digital ID from your keychain, then saves the signed copy."
         let picker = IdPicker()
         picker.reload()
         picker.popup.setAccessibilityLabel("Digital ID")
@@ -538,7 +538,7 @@ enum SignDialog {
         }
         let showDate = check("Show the date", "SignShowDate", true)
         let showReason = check("Show the reason", "SignShowReason", true)
-        let showDn = check("Show the distinguished name", "SignShowDn", false)
+        let showDn = check("Show the signer's full certificate name", "SignShowDn", false)
         let image = NSPopUpButton(frame: .zero, pullsDown: false)
         image.addItem(withTitle: "No image")
         let handwritten = SignatureLibrary.shared.saved.filter { !$0.initials }
@@ -548,9 +548,6 @@ enum SignDialog {
         let timestamp = check("Add a trusted timestamp", "SignTimestamp", false)
         let tsaUrl = NSTextField(string: d.string(forKey: "TimestampUrl") ?? defaultTimestampUrl)
         tsaUrl.setAccessibilityLabel("Timestamp server")
-        let tsaNote = NSTextField(wrappingLabelWithString: "The timestamp server receives only a hash of the signature, never the document.")
-        tsaNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        tsaNote.textColor = .secondaryLabelColor
         let certify = NSPopUpButton(frame: .zero, pullsDown: false)
         certify.addItems(withTitles: ["Don't certify (approval signature)", "Certify: no changes allowed", "Certify: form filling allowed",
                                       "Certify: form filling and comments allowed"])
@@ -560,18 +557,24 @@ enum SignDialog {
         }
         certify.setAccessibilityLabel("Certify")
 
-        func label(_ s: String) -> NSTextField { NSTextField(labelWithString: s) }
-        let grid = NSGridView(views: [
-            [label("Digital ID:"), picker.popup], [label("Reason:"), reason], [label("Location:"), location],
-            [NSGridCell.emptyContentView, visible], [NSGridCell.emptyContentView, showDate], [NSGridCell.emptyContentView, showReason],
-            [NSGridCell.emptyContentView, showDn], [label("Image:"), image], [NSGridCell.emptyContentView, timestamp],
-            [label("Timestamp server:"), tsaUrl], [NSGridCell.emptyContentView, tsaNote], [label("Certify:"), certify],
-        ])
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowSpacing = 6
-        for v in [picker.popup, reason, location, tsaUrl, tsaNote] as [NSView] { v.widthAnchor.constraint(equalToConstant: 340).isActive = true }
-        grid.frame = NSRect(origin: .zero, size: grid.fittingSize)
-        alert.accessoryView = grid
+        for v in [picker.popup, reason, location, tsaUrl] as [NSView] { v.widthAnchor.constraint(equalToConstant: 300).isActive = true }
+        // What most signatures need in sight; the look, the timestamp and certifying behind More Options (UX review,
+        // round 2: twelve rows at once).
+        let form = SheetForm("SignDigitally", width: 440)
+        form.row("Digital ID", picker.popup)
+        if picker.ids.isEmpty { form.note("Your keychain has no digital ID yet: choose Create a Personal Digital ID or Import from this menu.") }
+        form.row("Reason", reason)
+        form.row("Location", location)
+        form.row(nil, visible)
+        form.row("On the page", showDate, advanced: true)
+        form.row(nil, showReason, advanced: true)
+        form.row(nil, showDn, advanced: true)
+        form.row("Image", image, advanced: true)
+        form.row("Timestamp", timestamp, advanced: true)
+        form.row("Server", tsaUrl, advanced: true)
+        form.note("The server receives only a code made from the signature, never the document.", advanced: true)
+        form.row("Certify", certify, advanced: true)
+        form.install(in: alert)
         alert.addButton(withTitle: "Sign")
         alert.addButton(withTitle: "Cancel")
         while true {
@@ -650,6 +653,7 @@ enum SignDialog {
         let alert = NSAlert()
         alert.messageText = "The digital ID file's password"
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.setAccessibleName("Password")
         alert.accessoryView = field
         alert.addButton(withTitle: "Import")
         alert.addButton(withTitle: "Cancel")

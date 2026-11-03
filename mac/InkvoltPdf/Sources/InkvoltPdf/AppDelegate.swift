@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
+        DialogNames.start()
         Report.startIfAsked()
         // The Inkvolt Pro licence key lives in the settings: again here, after Report.startIfAsked, so the self-test reads
         // its own suite (main.swift set it first, for the command line).
