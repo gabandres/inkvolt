@@ -1027,6 +1027,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             view.needsDisplay = true
             view.requestVisible()
         }
+        updateSubtitle()
     }
 
     // MARK: Pages
@@ -1088,7 +1089,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func updateSubtitle() {
-        window?.subtitle = engine.pageCount == 0 ? "No pages" : "Page \(activePages.currentPage + 1) of \(engine.pageCount)"
+        // The zoom beside the page, as a percentage, only when it isn't 100% (UX review, round 2: it showed nowhere).
+        let text = WindowStatus.subtitle(page: activePages.currentPage + 1, pageCount: engine.pageCount, zoom: Double(activeScroll.magnification))
+        if window?.subtitle != text { window?.subtitle = text }
     }
 
     // MARK: Find
