@@ -208,6 +208,18 @@ public class AiProtocolTests
         Assert.Throws<AiException>(() => AiStreamParser.ParseWhole("""{"object":"list"}"""));
         Assert.Throws<AiException>(() => AiStreamParser.ParseWhole("oops"));
     }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("\"x\"")]
+    [InlineData("1")]
+    [InlineData("null")]
+    public void JsonThatIsNotAnObjectIsNotAChatCompletion(string json)
+    {
+        // TryGetProperty on an array or a number throws InvalidOperationException, which a JsonException catch misses
+        Assert.Throws<AiException>(() => AiStreamParser.ParseWhole(json));
+        Assert.Null(AiProtocol.OllamaLoadedContext(json, "llama3.2"));
+    }
 }
 
 /// <summary>An HTTP handler that answers from a function and records the requests; no network.</summary>

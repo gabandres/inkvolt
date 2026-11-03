@@ -60,9 +60,9 @@ One agent, cheapest first, one commit each, in this order:
 5. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the
    PC was loaded, recheck idle.
 6. UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.
-7. Small fixes: `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` call `TryGetProperty` on a root that may
-   not be an object, so JSON such as `[]` throws InvalidOperationException past their `JsonException` catch (check
-   `ValueKind` first; the Mac returns nil or AiError). DevScript's `compare` passes its paths straight to
+7. Small fixes: done 2026-11-03, `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` check that the JSON
+   root is an object before `TryGetProperty` (`[]`, `"x"`, `1`, `null` gave InvalidOperationException; AiProtocolTests'
+   `JsonThatIsNotAnObjectIsNotAChatCompletion`). DevScript's `compare` passes its paths straight to
    `Comparing.LoadFile`, which shows a modal error the off-screen script never answers, so a bad path hangs it (check the
    files first and log the failure). PDFsharp's `UnfilteredValue` has no size limit (about 35 call sites through
    `PdfObj.StreamBytes` and directly): one huge Flate stream can take the memory; bounding it needs a decision per

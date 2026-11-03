@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- An AI server whose answer isn't a chat reply gets a clear message instead of an error.
 
 ## 1.6.0
 - Translate with AI (Review › AI Assistant): a translated copy opens in a new tab with the original beside it, and the two scroll together. It goes one paragraph at a time through your own AI, with no page limit, and you see what will be sent, and where, first. Nothing goes anywhere else.

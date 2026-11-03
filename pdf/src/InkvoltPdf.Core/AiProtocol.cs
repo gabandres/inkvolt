@@ -133,7 +133,7 @@ public static class AiProtocol
         try
         {
             using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array) return null;
+            if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array) return null;
             foreach (var m in models.EnumerateArray())
             {
                 if (m.ValueKind != JsonValueKind.Object) continue;
@@ -310,7 +310,7 @@ public sealed class AiStreamParser
         {
             using var doc = JsonDocument.Parse(json);
             var text = p.Chunk(doc.RootElement);
-            if (!doc.RootElement.TryGetProperty("choices", out _))
+            if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("choices", out _))
                 throw new AiException("The endpoint's answer isn't an OpenAI-compatible chat completion.");
             return (text, p.FinishReason);
         }
