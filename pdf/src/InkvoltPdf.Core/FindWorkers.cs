@@ -6,6 +6,7 @@ using System.IO.Pipes;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 using MuPDFCore;
 
 namespace InkvoltPdf.Core;
@@ -303,6 +304,79 @@ public static class FindWorkers
         var startup = new StartupInfo { Size = Marshal.SizeOf<StartupInfo>() };
         if (!CreateProcess(null, new System.Text.StringBuilder(CommandLine(exe, args)), IntPtr.Zero, IntPtr.Zero, false, CreateNoWindow | CreateSuspended, IntPtr.Zero, directory, ref startup, out var info))
             throw new Win32Exception();
+        return Held(info);
+    }
+
+    /// <summary>
+    /// Starts a helper that talks back through its output and error output, inheriting those two pipes and nothing else (no
+    /// input): Process.Start with them redirected passes on every inheritable handle, MuPDF's to files open in place among
+    /// them, so a save over another tab's file would fail while the helper runs (an Office conversion: minutes). Held
+    /// suspended until this process has hold of it, as <see cref="StartWithoutHandles"/>.
+    /// </summary>
+    /// <exception cref="Win32Exception">It couldn't be started (no such program, for one).</exception>
+    internal static PipedProcess StartWithOnlyPipes(string exe, IEnumerable<string> args, string directory)
+    {
+        SafeFileHandle? outRead = null, outWrite = null, errRead = null, errWrite = null;
+        IntPtr handles = IntPtr.Zero, list = IntPtr.Zero;
+        var listMade = false;
+        try
+        {
+            // Made not inheritable; the child's ends become so only for its start, and the list gives them to it alone.
+            if (!CreatePipe(out outRead, out outWrite, IntPtr.Zero, 0) || !CreatePipe(out errRead, out errWrite, IntPtr.Zero, 0)) throw new Win32Exception();
+            if (!SetHandleInformation(outWrite, HandleFlagInherit, HandleFlagInherit) || !SetHandleInformation(errWrite, HandleFlagInherit, HandleFlagInherit))
+                throw new Win32Exception();
+            handles = Marshal.AllocHGlobal(2 * IntPtr.Size);
+            Marshal.WriteIntPtr(handles, 0, outWrite.DangerousGetHandle());
+            Marshal.WriteIntPtr(handles, IntPtr.Size, errWrite.DangerousGetHandle());
+            var size = IntPtr.Zero;
+            InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size); // fails, giving the size
+            list = Marshal.AllocHGlobal(size);
+            if (!InitializeProcThreadAttributeList(list, 1, 0, ref size)) throw new Win32Exception();
+            listMade = true;
+            if (!UpdateProcThreadAttribute(list, 0, ProcThreadAttributeHandleList, handles, 2 * IntPtr.Size, IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
+            var startup = new StartupInfoEx
+            {
+                StartupInfo = new StartupInfo
+                {
+                    Size = Marshal.SizeOf<StartupInfoEx>(),
+                    Flags = StartfUseStdHandles,
+                    StdOutput = outWrite.DangerousGetHandle(),
+                    StdError = errWrite.DangerousGetHandle(),
+                },
+                AttributeList = list,
+            };
+            if (!CreateProcess(null, new System.Text.StringBuilder(CommandLine(exe, args)), IntPtr.Zero, IntPtr.Zero, true,
+                    CreateNoWindow | CreateSuspended | ExtendedStartupInfoPresent, IntPtr.Zero, directory, ref startup, out var info))
+                throw new Win32Exception();
+            // The child has its own copies: let go of these, so its output ends when it does.
+            outWrite.Dispose();
+            errWrite.Dispose();
+            var process = Held(info);
+            // What Process.Start reads them with; the helper writes with the same (neither has a console).
+            var encoding = Console.OutputEncoding;
+            return new PipedProcess(process,
+                new StreamReader(new FileStream(outRead, FileAccess.Read, 4096, false), encoding, true, 4096),
+                new StreamReader(new FileStream(errRead, FileAccess.Read, 4096, false), encoding, true, 4096));
+        }
+        catch
+        {
+            outRead?.Dispose();
+            errRead?.Dispose();
+            throw;
+        }
+        finally
+        {
+            outWrite?.Dispose();
+            errWrite?.Dispose();
+            if (listMade) DeleteProcThreadAttributeList(list);
+            if (list != IntPtr.Zero) Marshal.FreeHGlobal(list);
+            if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
+        }
+    }
+
+    /// <summary>A process just created suspended: held from here on, whenever it ends, then let run.</summary>
+    private static Process Held(ProcessInformation info)
+    {
         try
         {
             var process = Process.GetProcessById(info.ProcessId);
@@ -423,7 +497,10 @@ public static class FindWorkers
     private const uint SemFailCriticalErrors = 1, SemNoGpFaultErrorBox = 2;
     private const uint JobKillOnClose = 0x2000, JobLimitProcessMemory = 0x100;
     private const int JobExtendedLimitInformation = 9;
-    private const uint CreateNoWindow = 0x08000000, CreateSuspended = 4;
+    private const uint CreateNoWindow = 0x08000000, CreateSuspended = 4, ExtendedStartupInfoPresent = 0x00080000;
+    private const int StartfUseStdHandles = 0x100;
+    private const uint HandleFlagInherit = 1;
+    private static readonly IntPtr ProcThreadAttributeHandleList = 0x20002;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct StartupInfo
@@ -433,6 +510,13 @@ public static class FindWorkers
         public int X, Y, Width, Height, CountChars, CountLines, FillAttribute, Flags;
         public short ShowWindow, Reserved2;
         public IntPtr Reserved3, StdInput, StdOutput, StdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfoEx
+    {
+        public StartupInfo StartupInfo;
+        public IntPtr AttributeList;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -484,6 +568,25 @@ public static class FindWorkers
     private static extern bool CreateProcess(string? application, System.Text.StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes,
         bool inheritHandles, uint flags, IntPtr environment, string? directory, ref StartupInfo startup, out ProcessInformation info);
 
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateProcessW")]
+    private static extern bool CreateProcess(string? application, System.Text.StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes,
+        bool inheritHandles, uint flags, IntPtr environment, string? directory, ref StartupInfoEx startup, out ProcessInformation info);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CreatePipe(out SafeFileHandle read, out SafeFileHandle write, IntPtr attributes, int size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetHandleInformation(SafeFileHandle handle, uint mask, uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size, IntPtr previous, IntPtr returnSize);
+
+    [DllImport("kernel32.dll")]
+    private static extern void DeleteProcThreadAttributeList(IntPtr list);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint ResumeThread(IntPtr thread);
 
@@ -498,4 +601,19 @@ public static class FindWorkers
 
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint process);
+}
+
+/// <summary>A process started by <see cref="FindWorkers.StartWithOnlyPipes"/>: its output and error output, read here.</summary>
+internal sealed class PipedProcess(Process process, StreamReader output, StreamReader error) : IDisposable
+{
+    public Process Process { get; } = process;
+    public StreamReader Output { get; } = output;
+    public StreamReader Error { get; } = error;
+
+    public void Dispose()
+    {
+        Output.Dispose();
+        Error.Dispose();
+        Process.Dispose();
+    }
 }

@@ -111,23 +111,17 @@ internal static class OfficeConverter
         var dir = Directory.CreateTempSubdirectory("inkvolt-office-");
         var output = Path.Combine(dir.FullName, "out.pdf");
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("The app's own path is unknown.");
-        var info = new ProcessStartInfo(exe)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        foreach (var a in new[] { ChildSwitch, app.ToString(), Path.GetFullPath(path), output }) info.ArgumentList.Add(a);
         int officePid = 0;
         string? error = null, note = null;
         var before = Pids(app);
-        using var child = Process.Start(info) ?? throw new InvalidOperationException("The conversion helper didn't start.");
+        // Not Process.Start: the helper would inherit every open tab's file open in place, which then can't be saved over.
+        using var helper = StartHelper(exe, [ChildSwitch, app.ToString(), Path.GetFullPath(path), output], Environment.CurrentDirectory);
+        var child = helper.Process;
         try
         {
             var reading = Task.Run(async () =>
             {
-                while (await child.StandardOutput.ReadLineAsync() is { } line)
+                while (await helper.Output.ReadLineAsync() is { } line)
                 {
                     if (line.StartsWith("pid ", StringComparison.Ordinal) && int.TryParse(line[4..], out var pid)) Volatile.Write(ref officePid, pid);
                     else if (line.StartsWith("error ", StringComparison.Ordinal)) error = line[6..];
@@ -135,7 +129,7 @@ internal static class OfficeConverter
                 }
             }, CancellationToken.None);
             // Read too, so a helper writing to it never blocks on a full pipe; its first line explains a crash.
-            var errors = child.StandardError.ReadToEndAsync(CancellationToken.None);
+            var errors = helper.Error.ReadToEndAsync(CancellationToken.None);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             timeout.CancelAfter(Timeout);
             try
@@ -164,6 +158,18 @@ internal static class OfficeConverter
         {
             try { dir.Delete(true); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Write($"Office temp folder left: {ex.Message}"); }
+        }
+    }
+
+    private static PipedProcess StartHelper(string exe, IEnumerable<string> args, string directory)
+    {
+        try
+        {
+            return FindWorkers.StartWithOnlyPipes(exe, args, directory);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            throw new InvalidOperationException($"The conversion helper didn't start ({ex.Message}).");
         }
     }
 

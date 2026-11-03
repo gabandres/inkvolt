@@ -97,8 +97,11 @@ One agent, cheapest first, one commit each, in this order:
    LtvTests' 3 s client deadline, which a refused loopback connection Windows retries for ~2 s overran), a quiet period a stalled timer overran (BatchPrintFolder), handles to files open in place inherited by a
    child another test started with Process.Start (FindWorker, InPlace; `KeptText` now runs alone), Pro's globals read
    outside the Pro collection (`LtvProTests`), and a real bug: FolderIndexer called a folder moved away mid-listing
-   "Couldn't list the folder" instead of away. Not fixed: OfficeConverter starts its helper with Process.Start, so the
-   helper holds every tab's in-place file while it converts (saving over one fails meanwhile).
+   "Couldn't list the folder" instead of away. Fixed 2026-11-03: OfficeConverter started its helper with Process.Start, so
+   the helper held every tab's in-place file while it converted (saving over one failed meanwhile); it now starts through
+   `FindWorkers.StartWithOnlyPipes` (a handle list: its output and error pipes only), and Show in Folder goes through the
+   shell (ShellExecute passes on no handle; explorer.exe through Process.Start did). Print's `Log.cs` and the `--try`
+   start in `MainViewModel` still use CreateProcess with inheritance (Print opens no file in place).
 
 Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and black-and-white
 in Scan).

@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Saving a large file while a Word, Excel or PowerPoint file converts to PDF no longer fails.
 - Text recognition reads again, on their own, the lines Windows' recognizer skips on a page, so Recognize Text and Redact by Pattern find words they missed.
 - An AI server whose answer isn't a chat reply gets a clear message instead of an error.
 - A PDF with a part that unpacks to hundreds of megabytes is refused with a message instead of using up the memory. The redaction check says when such a part couldn't be searched.

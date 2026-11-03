@@ -132,7 +132,8 @@ public static class Shell
     {
         try
         {
-            Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+            // Through the shell, which passes on no handle (Process.Start's CreateProcess would pass MuPDF's to files open in place).
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
