@@ -38,6 +38,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        AppLanguage.UseEnglish(); // until the settings are read (below); the command-line paths stay English
         // Uninstallers: remove this copy's "Open with", Start-with-Windows and notification entries, then exit (no window, no single-instance hand-off).
         if (e.Args.Contains(ShellIntegration.UnregisterArgument))
         {
@@ -117,7 +118,9 @@ public partial class App : Application
         };
 
         var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
-        _vm = new MainViewModel(pc.LoadState(), pc);
+        var loaded = pc.LoadState();
+        AppLanguage.Apply(loaded.Language, args); // before any view model or window asks for text
+        _vm = new MainViewModel(loaded, pc);
         // The Pro check reads the key from the file both Inkvolt apps share, then from state.json (demo: memory only).
         Core.Pro.Store = demo ? new Core.Suite.MemoryProStore()
             : new Core.Suite.SharedProStore(new StateProStore(_vm.State), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));

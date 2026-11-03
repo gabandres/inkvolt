@@ -19,6 +19,27 @@
     <Using Include="System.Net.Http" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The interface's text: Strings.resx in English (the neutral resources), Strings.es.resx in Spanish (a satellite,
+         es\InkvoltPrint.resources.dll). MSBuild writes the strongly-typed Strings class from it at build time; XAML reads it
+         with {x:Static loc:Strings.Key}. AppLanguage picks the language at start-up. -->
+    <EmbeddedResource Update="Strings.resx">
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>InkvoltPrint.App</StronglyTypedNamespace>
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <PublicClass>true</PublicClass>
+    </EmbeddedResource>
+  </ItemGroup>
+  <!-- WPF compiles XAML's code-behind a first time in a temporary project (<name>_wpftmp) that doesn't run ResGen: write the
+       Strings class before XAML is compiled, and hand it to that project. -->
+  <Target Name="StringsBeforeXaml" BeforeTargets="MarkupCompilePass1" DependsOnTargets="PrepareResourceNames;ResGen"
+          Condition="!$(MSBuildProjectName.EndsWith('_wpftmp'))" />
+  <Target Name="StringsInWpfTempProject" BeforeTargets="CoreCompile" Condition="$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)Strings.Designer.cs" />
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>

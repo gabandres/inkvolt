@@ -8,7 +8,7 @@ using InkvoltPrint.Windows.Suite;
 namespace InkvoltPrint.App.Views;
 
 /// <summary>
-/// Inkvolt Print's own settings (a printer's are on its Printer settings tab): theme, where scans are saved, opening them in
+/// Inkvolt Print's own settings (a printer's are on its Printer settings tab): theme, language, where scans are saved, opening them in
 /// Inkvolt PDF, scan presets, and the notification area and alerts. Changes apply as they're made; Close (Esc) closes.
 /// The Scan tab keeps the choices made per scan (resolution, OCR, blank pages…).
 /// </summary>
@@ -41,6 +41,9 @@ public partial class SettingsWindow : Window
         _ready = false;
         foreach (var choice in ThemeChoices.Children.OfType<RadioButton>())
             choice.IsChecked = (string)choice.Tag == WindowFrame.Theme;
+        var language = Core.Suite.UiLanguage.Save(Core.Suite.UiLanguage.Parse(state.Language)) ?? "";
+        foreach (var choice in LanguageChoices.Children.OfType<RadioButton>())
+            choice.IsChecked = (string)choice.Tag == language;
         FolderText.Text = ScanFolder(state);
         OpenInPdfBox.IsChecked = state.OpenScansInInkvoltPdf;
         (Alerts.DataContext as AlertSettingsViewModel)?.Detach();
@@ -88,6 +91,14 @@ public partial class SettingsWindow : Window
         if (!_ready || sender is not RadioButton { Tag: string theme }) return;
         WindowFrame.ApplyTheme(theme);
         _vm.State.Theme = theme == "System" ? null : theme;
+        _vm.State.Save();
+    }
+
+    /// <summary>Saved for the next start (AppLanguage reads it once, before the first window).</summary>
+    private void Language_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!_ready || sender is not RadioButton { Tag: string language }) return;
+        _vm.State.Language = language.Length == 0 ? null : language;
         _vm.State.Save();
     }
 

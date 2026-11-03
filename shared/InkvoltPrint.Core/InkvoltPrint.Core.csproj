@@ -8,5 +8,18 @@
     <InternalsVisibleTo Include="InkvoltPrint" />
     <InternalsVisibleTo Include="InkvoltPdf.Core" />
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
+    <!-- CoreStrings (below): Inkvolt Print's interface text from InkvoltPrint.Windows too -->
+    <InternalsVisibleTo Include="InkvoltPrint.Windows" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Text Inkvolt Print's interface shows from here (status words, the offline fixer, the Fleet page…): CoreStrings.resx in
+         English, CoreStrings.es.resx in Spanish. Internal, and English unless an app opts in (CoreStrings.Culture, set by
+         CoreLanguage): the command lines and Inkvolt PDF, which share this library, stay English. -->
+    <EmbeddedResource Update="CoreStrings.resx">
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>InkvoltPrint.Core</StronglyTypedNamespace>
+      <StronglyTypedClassName>CoreStrings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)CoreStrings.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

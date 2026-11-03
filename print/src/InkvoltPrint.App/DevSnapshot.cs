@@ -9,7 +9,7 @@ using InkvoltPrint.App.Views;
 namespace InkvoltPrint.App;
 
 /// <summary>
-/// Developer aid: <c>InkvoltPrint.exe --snapshot out.png [--tab Scan] [--size 1366 860] [--theme Dark] [--demo]</c> waits
+/// Developer aid: <c>InkvoltPrint.exe --snapshot out.png [--tab Scan] [--size 1366 860] [--theme Dark] [--lang es] [--demo]</c> waits
 /// for the printer to connect, renders the window to a PNG and exits. Used to verify the UI without screen capture;
 /// with <c>--demo</c> (Demo.cs) it needs no printer, e.g. for screenshots. <c>--size</c> is the window size in DIPs;
 /// <c>--scan [n]</c> runs one scan, or n, first (with <c>--demo</c>: generated pages, straight, crooked, blank in turn);

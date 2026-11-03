@@ -104,6 +104,12 @@ public sealed class AppState
     /// <summary>"System" (follow Windows' light or dark mode, the default), "Light" or "Dark".</summary>
     public string? Theme { get; set; }
 
+    /// <summary>
+    /// Settings › Language: "en", "es", or null to follow Windows' display language (the default). Read once at start-up
+    /// (AppLanguage); Reset to defaults keeps it.
+    /// </summary>
+    public string? Language { get; set; }
+
     /// <summary>The main window's place and size last time (DIPs), put back on start when it still fits a monitor.</summary>
     public WindowPlacement? Window { get; set; }
 
