@@ -1594,7 +1594,7 @@ Los detalles se guardaron en {1}</value>
     <value>Otra carpeta…</value>
   </data>
   <data name="Presets_SourceAuto" xml:space="preserve">
-    <value>Alimentador si tiene páginas; si no, cristal</value>
+    <value>Alimentador o, si está vacío, cristal</value>
   </data>
   <data name="Presets_SourceGlass" xml:space="preserve">
     <value>Cristal del escáner</value>
@@ -1603,7 +1603,7 @@ Los detalles se guardaron en {1}</value>
     <value>Alimentador de documentos</value>
   </data>
   <data name="Presets_FileSearchablePdf" xml:space="preserve">
-    <value>PDF con texto buscable (reconocimiento de texto)</value>
+    <value>PDF con texto buscable (OCR)</value>
   </data>
   <data name="Presets_FileJpeg" xml:space="preserve">
     <value>Imágenes JPEG (una por página)</value>
