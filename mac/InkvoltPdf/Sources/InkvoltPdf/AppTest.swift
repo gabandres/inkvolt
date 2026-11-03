@@ -350,6 +350,33 @@ struct AppTest {
         _ = await wait(30) { c?.longTask == nil }
         let text = (try? document?.engine?.text(0))?.text ?? ""
         check(text.contains("Scanned") && document?.session?.undoLabel != nil, "Make the text searchable: the pages recognized, their words found")
+
+        // Pages › Insert from Scanner… into that document: one page from the glass, inserted before page 1, one undo step.
+        if let c {
+            c.go(0)
+            c.insertFromScanner(nil)
+            let insert = ScanWindowController.shared
+            let ready = await wait(5) { insert?.caps != nil && insert?.scanButton.isEnabled == true }
+            let titled = insert?.window?.title == "Insert from Scanner" && insert?.createButton.title == "Insert Pages" && insert?.placePopup.isHidden == false
+            insert?.ocr.state = .off
+            insert?.placePopup.selectItem(at: 1) // before page 1
+            insert?.scanButton.performClick(nil)
+            _ = await wait(1) { insert?.isScanning == true }
+            _ = await wait(20) { insert?.isScanning == false }
+            let scanned = insert?.pages.count ?? 0
+            insert?.createButton.performClick(nil)
+            let inserted = await wait(10) { insert?.lastInserted != nil }
+            let label = document?.session?.undoLabel ?? ""
+            check(ready && titled && scanned == 1 && inserted && document?.engine?.pageCount == 4 && insert?.lastInserted?.at == 0
+                  && label == "Insert 1 page from the scanner",
+                  "Insert from Scanner: the scan window for the document, 1 page scanned and inserted before page 1 (\(document?.engine?.pageCount ?? 0) pages, “\(label)”)")
+            c.window?.undoManager?.undo()
+            _ = await wait(5) { document?.engine?.pageCount == 3 }
+            ScanWindowController.show()
+            check(document?.engine?.pageCount == 3 && insert?.window?.title == "Scan" && insert?.createButton.title == "Create PDF",
+                  "undone; File › Scan… is a new PDF's scan again")
+            insert?.window?.orderOut(nil)
+        }
         document?.close()
         let dense = ScanWindowController.withDensity([0xFF, 0xD8, 0xFF, 0xDB, 0x00, 0x02], dpi: 300)
         check(dense.count == 24 && dense[16] == 0x01 && dense[17] == 0x2C, "a scanned JPEG gets the scan's resolution in its JFIF header")

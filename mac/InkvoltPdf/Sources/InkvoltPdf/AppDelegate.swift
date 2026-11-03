@@ -273,6 +273,7 @@ enum MainMenu {
         menu.addItem(item("Delete Pages", #selector(DocumentWindowController.deletePages(_:)), String(UnicodeScalar(NSBackspaceCharacter)!), [.command, .option]))
         menu.addItem(.separator())
         menu.addItem(item("Insert Pages from File…", #selector(DocumentWindowController.insertPagesFromFile(_:)), "i", [.command, .option]))
+        menu.addItem(item("Insert from Scanner…", #selector(DocumentWindowController.insertFromScanner(_:))))
         menu.addItem(item("Insert Blank Page", #selector(DocumentWindowController.insertBlankPage(_:))))
         menu.addItem(item("Extract Pages…", #selector(DocumentWindowController.extractPages(_:))))
         menu.addItem(item("Crop Pages…", #selector(DocumentWindowController.cropPages(_:))))

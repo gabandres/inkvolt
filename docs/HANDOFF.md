@@ -22,8 +22,8 @@ One agent, cheapest first, one commit each, in this order:
 3. ~~Dark pages~~ Done 2026-11-03 (View › Dark Pages (Night Reading), Settings; `NightColors`).
 4. ~~Dragging thumbnails~~ Done 2026-11-03 (the sidebar's thumbnails: move, copy to another window, PDFs and pictures dropped).
 5. ~~Reading modes~~ Done 2026-11-03 (View › Single Page ⌘4, Continuous ⌘5, Two Pages ⌘6, Two Pages with Cover ⌘7).
-6. Insert from Scanner into the open document (Pages has Insert from File and Blank; the start page's From a Scanner…
-   makes a new PDF).
+6. ~~Insert from Scanner~~ Done 2026-11-03 (Pages › Insert from Scanner…; demo scanners only: a person must check it
+   with a real scanner, PLAN.md).
 7. Report a Problem (the Help menu has What's New, Pro and GitHub only).
 8. Comments and form data in and out (roadmap 1.4): Export and Import Comments (XFDF, FDF, CSV), Summarize Comments,
    form data as CSV and JSON (the Mac has XFDF and FDF only), Fill Forms from CSV (`FormMerge`), Batch's comment exports

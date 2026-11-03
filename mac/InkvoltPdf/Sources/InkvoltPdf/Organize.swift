@@ -278,6 +278,12 @@ extension DocumentWindowController {
         return ok
     }
 
+    /// Pages › Insert from Scanner…: the Scan window, its pages going into this document.
+    @objc func insertFromScanner(_ sender: Any?) {
+        guard pdf.session != nil else { return NSSound.beep() }
+        ScanWindowController.showInsert(into: self)
+    }
+
     /// Thumbnails dropped before page `before`: this window's pages move, another window's are copied in (Windows' "Copy
     /// N pages from …"); a window that has closed meanwhile gives nothing.
     func dropPages(_ source: String, _ chosen: [Int], before: Int) {

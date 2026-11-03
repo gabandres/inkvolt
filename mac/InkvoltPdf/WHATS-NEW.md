@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Insert from Scanner (Pages menu): scan pages straight into the open document, after or before the current page or at either end, and make them searchable.
 - Reading modes (View menu): Single Page (⌘4), Continuous (⌘5), Two Pages (⌘6) and Two Pages with Cover (⌘7), the cover alone on the right as in a printed book. New windows open in the mode you chose last.
 - Drag thumbnails in the sidebar to move pages, or onto another window's thumbnails to copy them there. Drop PDFs or pictures from the Finder onto the thumbnails to insert them where you drop.
 - Dark pages for night reading (View › Dark Pages, or Settings): white paper becomes dark grey and black text light grey, while colors keep their hue. Thumbnails follow; the file isn't changed.

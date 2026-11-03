@@ -50,6 +50,15 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private let settingsButton = NSButton(title: "Open Local Network Settings", target: nil, action: nil)
     private let progress = NSProgressIndicator()
 
+    /// Insert from Scanner: the document the pages go into (nil: Create PDF makes a new one), and where.
+    private(set) weak var insertTarget: DocumentWindowController?
+    let placePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let placeLabel = NSTextField(labelWithString: "Insert:")
+    /// The page count and current page of the document when the window opened for it (the places offered).
+    private var insertInto: (count: Int, current: Int) = (0, 0)
+    /// The pages Insert last put in (the self-test reads it).
+    private(set) var lastInserted: (document: PdfDocument, at: Int, count: Int)?
+
     private(set) var scanners: [Scanner] = []
     private(set) var pages: [Page] = []
     private(set) var caps: ScannerCapabilities?
@@ -73,6 +82,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     static func show() {
         let controller = shared ?? ScanWindowController()
         shared = controller
+        controller.setTarget(nil)
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         controller.startLooking()
@@ -135,7 +145,10 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [spacer, scanButton, stopButton, createButton, cancel])
-        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, pagesRow, thumbScroll, message, progress, buttons])
+        let placeRow = NSStackView(views: [placeLabel, placePopup])
+        placePopup.isHidden = true
+        placeLabel.isHidden = true
+        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, placeRow, pagesRow, thumbScroll, message, progress, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -148,6 +161,32 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// Pages › Insert from Scanner… (Windows' Organize › Insert from Scanner): the same window, its pages inserted into
+    /// `controller`'s document (one undo step) where chosen, instead of a new PDF.
+    static func showInsert(into controller: DocumentWindowController) {
+        let scan = shared ?? ScanWindowController()
+        shared = scan
+        scan.setTarget(controller)
+        scan.showWindow(nil)
+        scan.window?.makeKeyAndOrderFront(nil)
+        scan.startLooking()
+    }
+
+    /// Scan (nil) or Insert from Scanner into `controller`: the title, the button and the place to insert.
+    private func setTarget(_ controller: DocumentWindowController?) {
+        guard pages.isEmpty || controller === insertTarget else { return } // pages scanned for one stay for it
+        insertTarget = controller
+        let count = controller?.engine.pageCount ?? 0, current = controller?.pages.currentPage ?? 0
+        insertInto = (count, current)
+        window?.title = controller == nil ? "Scan" : "Insert from Scanner"
+        createButton.title = controller == nil ? "Create PDF" : "Insert Pages"
+        placePopup.removeAllItems()
+        placePopup.addItems(withTitles: ["After page \(current + 1)", "Before page \(current + 1)", "At the start", "At the end"])
+        placePopup.setAccessibilityLabel("Insert")
+        placePopup.isHidden = controller == nil
+        placeLabel.isHidden = controller == nil
+    }
 
     // MARK: Finding scanners
 
@@ -408,12 +447,33 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let count = pages.count
         let searchable = ocr.state == .on
         message.stringValue = "Making the PDF…"
+        let target = insertTarget
+        let place = placePopup.indexOfSelectedItem
         Task { [weak self] in
             let made = await Task.detached { Result { try ImageImport.imagesToPdf(images) } }.value
             guard let self else { return }
             switch made {
             case .failure(let error):
                 self.message.stringValue = "The scan couldn't be made into a PDF: \((error as? PdfEditError)?.message ?? error.localizedDescription)"
+            case .success(let bytes) where target != nil:
+                guard let c = target, c.pdf.session != nil else {
+                    self.message.stringValue = "The document to insert into has closed."
+                    return
+                }
+                // Where, from the document as it is now (it may have changed meanwhile), as Windows clamps it.
+                let n = c.engine.pageCount, current = min(self.insertInto.current, max(n - 1, 0))
+                let at = min(max([current + 1, current, 0, n][max(place, 0)], 0), n)
+                let label = "Insert \(count == 1 ? "1 page" : "\(count) pages") from the scanner"
+                guard await c.insertPages(PdfSource(bytes, nil, NewDocuments.name("Scan")), at: at, pages: nil, label: label) else {
+                    self.message.stringValue = "The pages couldn't be inserted."
+                    return
+                }
+                self.lastInserted = (c.pdf, at, count)
+                self.clearPages()
+                self.window?.orderOut(nil)
+                guard searchable else { return }
+                let recognizer = Self.testRecognizer
+                c.startLongTask { await c.runRecognize(pages: Array(at..<(at + count)), recognizer: recognizer) }
             case .success(let bytes):
                 guard let document = NewDocuments.open(bytes, name: NewDocuments.name("Scan")) else { return }
                 self.lastCreated = document

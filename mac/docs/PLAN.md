@@ -558,6 +558,12 @@ Mac differences for the PDF app (so far):
   (`prepareToShow`). Single Page turns past a page's end by the scroll wheel (a pull of 60 points at the edge, not
   momentum), Page Down, Space and the arrows; Home and End go to the first and last page. A file's own /PageLayout
   isn't read yet (Windows opens it the way it asks). ViewTest checks it.
+- Insert from Scanner (2026-11-03): Pages › Insert from Scanner… (Windows: Organize › Insert from Scanner…) opens the
+  Scan window for the document: its title and button say Insert, a row picks where (after or before the current page,
+  at the start, at the end; Windows' position picker), and Insert Pages puts the scanned pages there as one undo step
+  ("Insert N pages from the scanner"); "Make the text searchable" then recognizes the inserted pages (its own undo step,
+  as Scan's new PDF). The place is clamped to the document as it is then, as Windows. AppTest drives it with Inkvolt
+  Print's demo scanners; no real scanner was used.
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -832,6 +838,10 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   gap and centering at several zooms, Zoom to Width and Zoom to Page fitting a pair, turned pages in pairs, Single
   Page turned by scrolling on past a page's end with a mouse wheel and a trackpad (no flicker from coasting), by Page
   Down, Space and the arrows, and the subtitle and thumbnails following.
+- Insert from Scanner (Pages menu): **needs a real-scanner check by a person** (nobody has scanned into an open
+  document with a real scanner: the self-test uses Inkvolt Print's demo scanners only). The window titled Insert from
+  Scanner with its Insert row; a network (eSCL) and a USB scanner; the feeder's pages inserted in order where chosen;
+  Make the text searchable recognizing only the inserted pages; the window going back to Scan for File › Scan….
 
 ## Open decisions
 
