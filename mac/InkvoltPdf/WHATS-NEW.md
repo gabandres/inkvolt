@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.6.0
 - Simpler dialogs: the choices most people need are in sight, the rest under More Options (it remembers). Signing, headers and footers, watermarks, text recognition, Redact by Pattern, Reduce File Size and Batch got shorter, in plainer words.
 - The markup tools sit right under the toolbar, in the same glass, as in Preview; the color is the Mac's own color picker.
 - The window's subtitle shows the zoom next to the page number (Page 2 of 14 · 125%).
