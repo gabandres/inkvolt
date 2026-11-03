@@ -10,7 +10,10 @@ public enum NightColors {
     public static let paper: UInt8 = 26
 
     /// `26 + v * 200 / 255` for every v in 0...255.
-    public static let levels: [UInt8] = (0...255).map { UInt8(26 + $0 * 200 / 255) }
+    public static let levels: [UInt8] = (0...255).map { (v: Int) -> UInt8 in
+        let level: Int = 26 + v * 200 / 255
+        return UInt8(level)
+    }
 
     /// Maps `pixels` (3 bytes each) in place; stops with `CancellationError` when `cancel` fires (checked every 64K
     /// pixels).
