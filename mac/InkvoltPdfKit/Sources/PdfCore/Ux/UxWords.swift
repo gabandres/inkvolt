@@ -125,3 +125,13 @@ public enum PropertyText {
     }
 }
 
+/// A number typed in a dialog's box ("12", "12,5", " 3.5 "): nil when it isn't one, or isn't finite. Swift's Double
+/// reads "nan", "inf" and "1e999" too; one of those kept as Add Watermark's picture width crashed the dialog the next time
+/// it opened (Int(inf)), and as a crop margin went into the file.
+public enum TypedNumber {
+    public static func parse(_ text: String) -> Double? {
+        guard let v = Double(text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)), v.isFinite else { return nil }
+        return v
+    }
+}
+

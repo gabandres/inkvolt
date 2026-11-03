@@ -194,7 +194,7 @@ extension DocumentWindowController {
     }
 
     private static func number(_ field: NSTextField) -> Double? {
-        Double(field.stringValue.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
+        TypedNumber.parse(field.stringValue)
     }
 
     @discardableResult

@@ -72,4 +72,11 @@ struct UxWordsTests {
         #expect(PropertyText.shown("Line one\nline two\r\n\tend\u{7}") == "Line one line two end")
         #expect(PropertyText.shown("Acrobat 9") == "Acrobat 9")
     }
+
+    @Test func A_typed_number_is_finite() {
+        #expect(TypedNumber.parse(" 12,5 ") == 12.5)
+        #expect(TypedNumber.parse("72") == 72)
+        for bad in ["nan", "NaN", "inf", "-infinity", "1e999", "", "abc"] { #expect(TypedNumber.parse(bad) == nil, "\(bad)") }
+    }
 }
+

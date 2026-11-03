@@ -208,7 +208,7 @@ extension DocumentWindowController {
                     return
                 }
                 let factor: Double = [72.0, 72.0 / 25.4, 1.0][max(units.indexOfSelectedItem, 0)]
-                let values: [Double?] = fields.map { Double($0.stringValue.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)) }
+                let values: [Double?] = fields.map { TypedNumber.parse($0.stringValue) }
                 guard values.allSatisfy({ ($0 ?? -1) >= 0 }) else {
                     self.pdf.showError("Margins must be numbers of 0 or more.", nil)
                     return

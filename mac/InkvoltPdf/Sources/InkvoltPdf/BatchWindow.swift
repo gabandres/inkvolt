@@ -878,7 +878,7 @@ enum ActionSheet {
     }
 
     private static func number(_ field: NSTextField) -> Double? {
-        Double(field.stringValue.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
+        TypedNumber.parse(field.stringValue)
     }
 
     private static func check(_ title: String, _ on: Bool) -> NSButton {
