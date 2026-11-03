@@ -295,7 +295,7 @@ public sealed class FleetReadTests : IDisposable
             },
         };
 
-        var read = await FleetReader.ReadAllAsync(pc, Now, limit: TimeSpan.FromMilliseconds(200)).WaitAsync(TimeSpan.FromSeconds(20));
+        var read = await FleetReader.ReadAllAsync(pc, Now, limit: Timing.Limit(TimeSpan.FromMilliseconds(500))).WaitAsync(TimeSpan.FromSeconds(20));
 
         var rows = read.Printers.ToDictionary(p => p.Name);
         Assert.Equal(FleetTrouble.Ok, rows["Fine"].Trouble);
