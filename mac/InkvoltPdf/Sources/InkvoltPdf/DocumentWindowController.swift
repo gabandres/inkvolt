@@ -140,13 +140,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
         let content = NSViewController()
         paneSplit.addPane(scrollView)
-        let stack = NSStackView(views: [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit])
+        let stack = NSStackView(views: [diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit])
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
         // Just under required: a bar, shown or hidden, never sets the window's minimum width (Prepare Form's bar held
         // every document window at 850 points or more, the markup strip at 1,300; UX review, 2026-11-03).
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] {
+        for v in [diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] {
             let same = v.widthAnchor.constraint(equalTo: stack.widthAnchor)
             same.priority = v === paneSplit ? .required : .init(999)
             same.isActive = true
@@ -446,7 +446,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     private func problemAlert(_ message: String, _ detail: String) {
-        if Report.isRunning { return notify("\(message). \(detail)") }
+        if Report.skipsDialogs { return notify("\(message). \(detail)") }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = detail
