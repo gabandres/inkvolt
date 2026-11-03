@@ -66,6 +66,33 @@ public sealed record NeedsDriverPrinter(string Id, string Name, string? Maker, s
     public bool IsMadeUp { get; init; }
 }
 
+/// <summary>What a look at the PC's USB printers found: those that need their driver, and whether Windows protected print mode is on.</summary>
+public sealed record NeedsDriverRead(IReadOnlyList<NeedsDriverPrinter> Printers, bool ProtectedPrint)
+{
+    public static NeedsDriverRead None { get; } = new([], false);
+}
+
+/// <summary>
+/// One look at the PC's USB printers, never on the caller's thread: the printer list asks from the UI thread, and the spooler can
+/// hang (<see cref="TimedCalls{TKey,T}"/>). A spooler that doesn't answer in <paramref name="driversLimit"/> leaves the printers
+/// listed as having no driver, with one call waiting on it however many looks follow.
+/// </summary>
+public sealed class NeedsDriverReader(
+    Func<CancellationToken, Task<IReadOnlyList<UsbPrinterNode>>> nodes, Func<IReadOnlyList<SpoolerDriver>> drivers, Func<bool> protectedPrint, TimeSpan? driversLimit = null)
+{
+    private readonly TimedCalls<int, IReadOnlyList<SpoolerDriver>> _drivers = new(driversLimit ?? TimeSpan.FromSeconds(7));
+
+    /// <summary>The printers needing their driver now (none when no USB printer is plugged in), given the queues just read.</summary>
+    public Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct = default) => Task.Run(async () =>
+    {
+        var found = await nodes(ct).ConfigureAwait(false);
+        if (found.Count == 0) return NeedsDriverRead.None; // no USB printer plugged in: nothing more to ask
+        var (answered, known) = await _drivers.RunAsync(0, drivers, ct).ConfigureAwait(false);
+        var printers = NeedsDriver.Find(found, queues, answered ? known! : []);
+        return new NeedsDriverRead(printers, printers.Count > 0 && protectedPrint());
+    }, ct);
+}
+
 /// <summary>
 /// The rules for "Plugged in, needs its driver": which USB printers Windows sees now that nothing can print to. A printer node bound
 /// only to Microsoft's placeholder ("Generic printer device", <c>prnms013.inf</c>, <c>CID_MS_GENERICPRINT</c>) or with a driver

@@ -28,6 +28,52 @@ public class NeedsDriverTests
         NeedsDriver.Find([node], queues ?? [Epson], drivers ?? []);
 
     [Fact]
+    public async Task A_look_never_asks_the_spooler_on_the_callers_thread_and_a_hung_one_costs_one_call()
+    {
+        using var release = new ManualResetEventSlim();
+        var calls = 0;
+        var threads = new System.Collections.Concurrent.ConcurrentBag<int>();
+        var reader = new NeedsDriverReader(_ => Task.FromResult<IReadOnlyList<UsbPrinterNode>>([P1006]), () =>
+        {
+            Interlocked.Increment(ref calls);
+            threads.Add(Environment.CurrentManagedThreadId);
+            release.Wait();
+            return [];
+        }, () => false, driversLimit: TimeSpan.FromMilliseconds(50));
+        try
+        {
+            var first = await reader.ReadAsync([Epson]).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(10)));
+            var second = await reader.ReadAsync([Epson]).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(10)));
+
+            Assert.Equal(DriverStage.NoDriver, Assert.Single(first.Printers).Stage); // listed all the same
+            Assert.Single(second.Printers);
+            Assert.Equal(1, Volatile.Read(ref calls));
+            Assert.DoesNotContain(Environment.CurrentManagedThreadId, threads);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [Fact]
+    public async Task A_look_with_no_usb_printer_asks_the_spooler_nothing()
+    {
+        var calls = 0;
+        var reader = new NeedsDriverReader(_ => Task.FromResult<IReadOnlyList<UsbPrinterNode>>([]), () =>
+        {
+            calls++;
+            return [];
+        }, () => true);
+
+        var read = await reader.ReadAsync([Epson]);
+
+        Assert.Empty(read.Printers);
+        Assert.False(read.ProtectedPrint);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
     public void A_usb_printer_with_only_the_generic_placeholder_and_no_queue_needs_its_driver()
     {
         var found = Assert.Single(Find(P1006));

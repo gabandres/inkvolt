@@ -6,12 +6,6 @@ using Windows.Devices.Enumeration;
 
 namespace InkvoltPrint.Windows.Printing;
 
-/// <summary>What a look at the PC's USB printers found: those that need their driver, and whether Windows protected print mode is on.</summary>
-public sealed record NeedsDriverRead(IReadOnlyList<NeedsDriverPrinter> Printers, bool ProtectedPrint)
-{
-    public static NeedsDriverRead None { get; } = new([], false);
-}
-
 public enum UsbSetUpOutcome { Done, NeedsAdmin, Failed }
 
 public sealed record UsbSetUpResult(UsbSetUpOutcome Outcome, string Message, string? Queue = null);
@@ -32,13 +26,9 @@ public static class UsbPrinters
     private static readonly string[] Properties = [Present, Container, HardwareIds, CompatibleIds, DriverDescription, DriverInf, DriverSection, ProblemCode];
 
     /// <summary>The printers needing their driver now (none when Windows can't be asked), given the queues just read.</summary>
-    public static async Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct = default)
-    {
-        var nodes = await NodesAsync(includeAbsent: false, ct);
-        if (nodes.Count == 0) return NeedsDriverRead.None; // no USB printer plugged in: nothing more to ask
-        var found = NeedsDriver.Find(nodes, queues, Drivers());
-        return new NeedsDriverRead(found, found.Count > 0 && ProtectedPrintOn());
-    }
+    public static Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct = default) => Reader.ReadAsync(queues, ct);
+
+    private static readonly NeedsDriverReader Reader = new(ct => NodesAsync(includeAbsent: false, ct), Drivers, ProtectedPrintOn);
 
     /// <summary>
     /// The USB printer device nodes (USBPRINT, and USB devices of the printer class that have a driver problem); with
