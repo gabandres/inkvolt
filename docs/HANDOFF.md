@@ -1,5 +1,29 @@
 # Handoff, 2026-11-02 (newest first)
 
+## Start here (next session)
+
+**Your job: keep closing the Mac parity gap.** Work down "Mac work after the E-steps, easiest first" below, in that
+order, one item per commit, each with its .NET tests ported first (same names), 0 warnings, `mac/docs/PLAN.md`,
+`WHATS-NEW.md` "## Next" and the roadmap's Mac line updated, then push to master. Use `bash mac/tools/mac.sh` for
+everything on the Mac (`mac/CLAUDE.md`); items marked [PC] build and test on Windows (`mac/tools/swift-dev.ps1`). One agent
+on the Mac at a time (they share `~/Repos/inkvolt-pc` and `/Applications`); a second agent may run [PC] items in its own
+worktree. After each push, check the `mac` CI job: CI's Xcode is older than the Mac's and rejects long expressions the Mac
+compiles (split them), and its runner is slow (heavy tests skip on `GITHUB_ACTIONS`, as `ScanCorpus.runs` and Vision's do).
+Release a Mac PDF version when a few items have landed (owner: no need to ask; `release.sh <v> --publish`, then the
+Homebrew tap `gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.4.1 and 1.5.0 were).
+
+**Done on 2026-11-02.** Inkvolt PDF for Mac 1.4.1 (Windows' 1.5.0 signature fix; Not fully checked) and 1.5.0 (E9
+attachments and layers, E10 Read Aloud, E12 PDF from Office files through LibreOffice and from web pages, E13 split view,
+E14 OCR clean-up and suspect words, E15 PowerPoint and HTML export, E16 a faster Find and less memory; numbers in
+`mac/tools/bench/RESULTS.md`, from the M1 Air, to measure again on the mini). Print for Mac's PrintCore halves of 1.1, 1.2,
+1.3, 1.5, 1.6, 2.4 and 2.6 (built and tested on Windows; their PrintMac and app parts are in PLAN.md's P12). `mac/tools/mac.sh`.
+
+**Open, besides the ranked list.** The Windows `test` CI job fails about one run in two on a different timing test each time
+(`PageCleanupTests.A_huge_page…`, `TranslationCopyTests.Forms_that_multiply…`, `DeviceHttpLimitsTests.A_reply_that_breaks_off…`,
+`Core1EngineTests.RenderStopsMidwayWhenCancelled`): give them CI-sized limits or skip the heavy ones on `GITHUB_ACTIONS`.
+Print for Mac 1.0 has waited for App Review since 2026-10-27 (nothing missing on our side); the owner is asking Apple.
+Only a person: look at the new Mac UI (PLAN.md lists it per step), hear Read Aloud, try E12 with a real LibreOffice.
+
 **The M1 Air is being sold (owner, 2026-11-02); an M6 Mac mini (24 GB, 512 GB) replaces it.** Sell only after the mini runs
 builds and releases. **Backed up to OneDrive (2026-11-02, hashes checked):** `Work/Bermudez Systems LLC/Inkvolt/Keys/Mac signing and
 App Store Connect/` (both keychains, env.local, the ASC .p8, the GitHub SSH key, a README with the restore steps); the Sparkle key
@@ -50,10 +74,8 @@ expects no entitlements today). Needs Microsoft 365 signed in on the Mac and a p
 on the mini.
 
 **Mac is back (2026-11-02), rebuilt: macOS 27.2, Xcode 27.1, Swift 6.4.** MuPDF rebuilt on it. Work from the PC goes through
-`bash mac/tools/mac.sh` (`mac/CLAUDE.md`). Fixed on the Mac, not released: the signature hole below (1.4.0 ships it) and
-Accessibility Check's "Not fully checked"; both in `mac/InkvoltPdf/WHATS-NEW.md`'s Next. Mac parity list, in order: the
-unfinished E12 branch, E9, E10, E13, E14, E15, E16, then the PDF roadmap's Mac halves (1.1's 2026-11-01 additions, 1.4,
-2.1, 2.3, 3.1, 3.3, 3.4, 3.5) and Print's (1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.4).
+`bash mac/tools/mac.sh` (`mac/CLAUDE.md`). The signature hole below and Accessibility Check's "Not fully checked" were fixed
+and released in 1.4.1; the E-steps E9-E16 in 1.5.0 (see "Start here"). What's left is the ranked list below.
 
 **Released.** Inkvolt Print 1.2.0.0 and Inkvolt PDF 1.6.0.0: both published in the Store on 2026-11-02, GitHub releases `print-v1.2.0.0` and
 `pdf-v1.6.0.0`, website updated, and the privacy page covers translating.
