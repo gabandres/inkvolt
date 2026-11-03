@@ -78,47 +78,25 @@ internal static class PdfObj
     /// </summary>
     public const int MaxStreamBytes = 256 << 20;
 
-    /// <summary>Deflate packs at most about 1032 to 1: a stream this many times shorter than a limit can't inflate past it.</summary>
-    private const int MaxFlateRatio = 1032;
-
     /// <summary>A stream's decoded bytes (PDFsharp decodes Flate and the other standard filters).</summary>
-    /// <exception cref="StreamTooLargeException">It decodes to more than <paramref name="maxBytes"/>. A Flate stream that comes
-    /// first is measured before PDFsharp inflates it; other filters are checked after.</exception>
+    /// <exception cref="StreamTooLargeException">It decodes to more than <paramref name="maxBytes"/>. Each Flate, LZW or ASCII85
+    /// stage, wherever it is in the filter array, is measured before PDFsharp decodes it (<see cref="BoundedFilters"/>); the
+    /// whole is checked after.</exception>
     public static byte[] StreamBytes(PdfDictionary d, int maxBytes = MaxStreamBytes)
     {
         if (d.Stream is not { } stream) return [];
-        if (FlateFirst(d) && InflatesPast(stream.Value, maxBytes)) throw new StreamTooLargeException(maxBytes);
-        var bytes = stream.UnfilteredValue ?? [];
+        var bytes = BoundedFilters.Within(maxBytes, null, () => stream.UnfilteredValue) ?? [];
         return bytes.Length > maxBytes ? throw new StreamTooLargeException(maxBytes) : bytes;
     }
 
-    private static bool FlateFirst(PdfDictionary d) => Resolve(d.Elements["/Filter"]) switch
-    {
-        PdfName n => n.Value is "/FlateDecode" or "/Fl",
-        PdfArray { Elements.Count: > 0 } a => Resolve(a.Elements[0]) is PdfName { Value: "/FlateDecode" or "/Fl" },
-        _ => false,
-    };
-
-    /// <summary>Whether Flate data inflates to more than <paramref name="maxBytes"/>, counted a chunk at a time and kept nowhere.</summary>
-    private static bool InflatesPast(byte[] raw, int maxBytes)
-    {
-        if ((long)raw.Length * MaxFlateRatio <= maxBytes) return false;
-        // The zlib header skipped and its checksum never read, as forgiving as PDFsharp's own inflater.
-        var at = raw.Length >= 2 && (raw[0] & 0x0F) == 8 && ((raw[0] << 8) | raw[1]) % 31 == 0 ? 2 : 0;
-        using var z = new DeflateStream(new MemoryStream(raw, at, raw.Length - at), CompressionMode.Decompress);
-        var chunk = new byte[64 * 1024];
-        long total = 0;
-        try
-        {
-            for (int n; (n = z.Read(chunk)) > 0;)
-                if ((total += n) > maxBytes) return true;
-        }
-        catch (InvalidDataException)
-        {
-            // damaged past what was counted: PDFsharp reads it (or not) as it would have, and the length is checked after
-        }
-        return false;
-    }
+    /// <summary>
+    /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
+    /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
+    /// open in Inkvolt PDF goes through here.
+    /// </summary>
+    /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
+    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes) =>
+        BoundedFilters.Within(maxBytes, maxBytes, () => string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode));
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
@@ -132,8 +110,7 @@ internal static class PdfObj
     {
         try
         {
-            var stream = new MemoryStream(data, writable: false);
-            var doc = string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
+            var doc = Read(new MemoryStream(data, writable: false), password, mode);
             // A signed document opened for editing: remember its original objects so the save can be incremental.
             if (mode == PdfDocumentOpenMode.Modify)
             {

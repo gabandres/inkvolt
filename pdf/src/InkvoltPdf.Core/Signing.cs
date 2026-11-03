@@ -408,9 +408,7 @@ public static class Signing
         try
         {
             var stream = new MemoryStream(data, writable: false);
-            doc = string.IsNullOrEmpty(password)
-                ? PdfReader.Open(stream, PdfDocumentOpenMode.Modify)
-                : PdfReader.Open(stream, password, PdfDocumentOpenMode.Modify);
+            doc = PdfObj.Read(stream, password, PdfDocumentOpenMode.Modify);
         }
         catch (PdfReaderException ex)
         {

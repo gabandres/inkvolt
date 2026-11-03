@@ -99,9 +99,22 @@ public static class TextLayer
         var contents = PdfObj.Resolve(page.Elements["/Contents"]) is PdfArray a ? a.Elements.ToList() : page.Elements["/Contents"] is { } one ? [one] : [];
         var marker = Encoding.ASCII.GetBytes(Marker);
         for (var i = 0; i < contents.Count; i++)
-            if (PdfObj.Dict(contents[i]) is { Stream: not null } d && PdfObj.StreamBytes(d) is var bytes && bytes.AsSpan().StartsWith(marker))
+            if (PdfObj.Dict(contents[i]) is { Stream: not null } d && Bytes(d) is { } bytes && bytes.AsSpan().StartsWith(marker))
                 return (i, Encoding.ASCII.GetString(bytes));
         return null;
+    }
+
+    /// <summary>A content stream's bytes; null for one too large to read, which is never a text layer Inkvolt PDF wrote.</summary>
+    private static byte[]? Bytes(PdfDictionary d)
+    {
+        try
+        {
+            return PdfObj.StreamBytes(d);
+        }
+        catch (StreamTooLargeException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The language on the layer's first line, if it has one.</summary>

@@ -218,7 +218,7 @@ public static class KeptProtection
         if (password.All(char.IsAscii)) return OpensAsUser(data, password);
         try
         {
-            using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(data, writable: false), password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            using var doc = PdfObj.Read(new MemoryStream(data, writable: false), password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
             return true;
         }
         catch (Exception ex) when (ex is PdfSharp.Pdf.IO.PdfReaderException or InvalidOperationException)

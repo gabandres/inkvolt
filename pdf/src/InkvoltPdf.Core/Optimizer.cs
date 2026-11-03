@@ -179,10 +179,17 @@ public static class Optimizer
             {
                 // Only chains holding an ASCII or LZW filter gain anything; parameters (predictors) are left alone.
                 if (!filters.All(Recodable.Contains) || filters.All(f => f == "FlateDecode") || d.Elements.ContainsKey("/DecodeParms")) continue;
-                foreach (var f in filters)
+                try
                 {
-                    raw = Filtering.Decode(raw, "/" + f);
-                    if (raw is null) break;
+                    foreach (var f in filters)
+                    {
+                        raw = Filtering.Decode(raw, "/" + f);
+                        if (raw is null) break;
+                    }
+                }
+                catch (StreamTooLargeException)
+                {
+                    continue; // too large to unpack: left as it is
                 }
                 if (raw is null) continue;
             }
@@ -442,8 +449,23 @@ internal static class ContentImages
         public bool Over => Work > MaxWork;
     }
 
-    /// <summary>Reports each image drawn; false when the page draws more than <see cref="MaxWork"/> allows (some not reported).</summary>
+    /// <summary>
+    /// Reports each image drawn; false when the page draws more than <see cref="MaxWork"/> allows or holds content too large
+    /// to read (some not reported).
+    /// </summary>
     public static bool Scan(PdfPage page, Action<PdfDictionary, double[]> onImage)
+    {
+        try
+        {
+            return ScanAll(page, onImage);
+        }
+        catch (StreamTooLargeException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ScanAll(PdfPage page, Action<PdfDictionary, double[]> onImage)
     {
         var content = new MemoryStream();
         var item = page.Elements["/Contents"];

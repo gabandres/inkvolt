@@ -712,9 +712,7 @@ public static partial class RedactionCheck
         /// <summary>A copy of the document without the covers: dark fills become unpainted paths, dark comments go.</summary>
         private byte[] WithoutCovers(PageScan[] scans, List<int> pages)
         {
-            using var copy = string.IsNullOrEmpty(password)
-                ? PdfReader.Open(new MemoryStream(data, false), PdfDocumentOpenMode.Modify)
-                : PdfReader.Open(new MemoryStream(data, false), password, PdfDocumentOpenMode.Modify);
+            using var copy = PdfObj.Read(new MemoryStream(data, false), password, PdfDocumentOpenMode.Modify);
             if (copy.SecurityHandler.Elements.ContainsKey("/Filter"))
                 copy.SecurityHandler.SetEncryptionToNoneAndResetPasswords();
             var forms = new Dictionary<PdfObjectID, List<Cover>>();

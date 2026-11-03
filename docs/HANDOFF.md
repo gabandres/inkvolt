@@ -83,11 +83,20 @@ One agent, cheapest first, one commit each, in this order:
    versions are each noted "too large to search" and the report is Incomplete (Batch then saves nothing, the read-back
    fails); Redaction.Apply itself rasterizes through MuPDF and reads no stream. HostileStructureTests:
    `StreamBytesRefusesAStreamThatInflatesPastItsLimit`, `RedactionCheckSaysItIsIncompleteWhenAStreamIsTooLargeToRead`.
-   Left, each decided "fail the operation" by default, not tuned per caller: content editing, accessibility check and
-   Auto-Tag, Optimize, PDF/A, fonts and ToUnicode maps, Sanitize, vector shapes, page marks and the text layer fail on a
-   stream past 256 MB instead of skipping it; the attachment list shows the packed size of one without /Size that unpacks
-   past it. Still unbounded: PDFsharp's own inflating while it opens a file (object streams), and a Flate filter that
-   isn't first in its array or an LZW one (checked only after decoding, so memory is spent first).
+   Done 2026-11-03, the rest: `BoundedFilters` puts bounded subclasses of PDFsharp's Flate, LZW and ASCII85 decoders in
+   `Filtering`'s shared instances (by reflection, field names of PDFsharp 6.2.x; a test checks they're in place), so every
+   stage of a filter chain, wherever it is in the array, is measured before PDFsharp decodes it (Flate inflated and
+   counted, LZW counted by entry lengths as PDFsharp's decoder makes them, ASCII85 by its "z"s), and PDFsharp's own
+   decoding while it opens a file (object streams, xref streams) is too: every open goes through `PdfObj.Read`, which
+   allows 256 MB a stream and 256 MB in all, so such a file fails what opens it with StreamTooLargeException's message
+   (viewing goes through MuPDF and isn't affected). Tuned: Optimize leaves a stream it can't unpack as it is, and a page
+   holding one keeps its images (`ContentImages.Scan` says incomplete); the text layer takes such a stream for not its
+   own. Kept failing on purpose, as a skip could give a wrong result: content editing, accessibility check and Auto-Tag,
+   PDF/A, fonts and ToUnicode maps, Sanitize, vector shapes, page marks; the redaction check notes it and is Incomplete.
+   The attachment list's packed size for one without /Size is fine as it is. HostileStructureTests:
+   `OpeningAFileWhoseObjectStreamsInflatePastTheLimitFailsBeforeTheMemoryIsSpent`,
+   `EveryStageOfAFilterChainIsMeasuredBeforeItIsDecoded`, `OptimizeAndTheTextLayerPassOverAStreamTooLargeToRead`. Not
+   checked: MuPDF's own inflating (it streams object streams, so memory stays small, but a bomb costs it time).
 8. ~~CI: the Windows `test` job fails about one run in two on a different timing test each time~~ Done 2026-11-03:
    `shared/Testing/Timing.cs` (linked into both test projects): `Timing.Limit` (4× on `GITHUB_ACTIONS`),
    `Timing.CancelAfter` (cancels from a thread of its own: a pool timer fired after Parallel.For work had finished) and

@@ -946,7 +946,7 @@ public static class PdfA
         PdfDocument doc;
         try
         {
-            doc = PdfReader.Open(new MemoryStream(pdf, writable: false), PdfDocumentOpenMode.Import);
+            doc = PdfObj.Read(new MemoryStream(pdf, writable: false), null, PdfDocumentOpenMode.Import);
         }
         catch (Exception ex) when (ex is PdfReaderException or InvalidOperationException)
         {

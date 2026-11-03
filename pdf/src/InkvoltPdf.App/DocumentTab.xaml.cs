@@ -520,9 +520,7 @@ public partial class DocumentTab : UserControl, IDisposable
         try
         {
             using var stream = new MemoryStream(data, writable: false);
-            using var doc = string.IsNullOrEmpty(password)
-                ? PdfSharp.Pdf.IO.PdfReader.Open(stream, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import)
-                : PdfSharp.Pdf.IO.PdfReader.Open(stream, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            using var doc = PdfObj.Read(stream, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
             var rotations = new int[doc.PageCount];
             for (var i = 0; i < rotations.Length; i++) rotations[i] = doc.Pages[i].Rotate;
             return rotations;

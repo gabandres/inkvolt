@@ -535,6 +535,157 @@ public class HostileStructureTests
         Assert.Equal(256 << 20, PdfObj.MaxStreamBytes);
     }
 
+    /// <summary>
+    /// A one-page file whose objects are all in Flate object streams, found through an xref stream: the catalog, the pages
+    /// and the page in the first, each followed by that many zeros; one more stream, holding one small object, for each
+    /// further count.
+    /// </summary>
+    private static byte[] ObjectStreamFile(params long[] zeros)
+    {
+        var file = new List<byte>(Encoding.ASCII.GetBytes("%PDF-1.7\n"));
+        var rows = new List<(int Type, long A, int B)> { (0, 0, 65535) };
+        string[] page = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"];
+        var streams = new List<string[]> { page };
+        for (var i = 1; i < zeros.Length; i++) streams.Add([$"<< /Spare {i} >>"]);
+        // Numbers: 1-3 the page's objects, then one per stream for the spare objects, then the streams, then the xref stream.
+        var spare = 4;
+        var firstStream = spare + zeros.Length - 1;
+        var members = new List<(int Number, int Stream, int Index)> { (1, firstStream, 0), (2, firstStream, 1), (3, firstStream, 2) };
+        for (var i = 1; i < zeros.Length; i++) members.Add((spare + i - 1, firstStream + i, 0));
+        var offsets = new Dictionary<int, long>();
+        for (var s = 0; s < streams.Count; s++)
+        {
+            var objects = members.Where(m => m.Stream == firstStream + s).ToList();
+            var body = new StringBuilder();
+            var header = new StringBuilder();
+            foreach (var (m, text) in objects.Zip(streams[s]))
+            {
+                header.Append($"{m.Number} {body.Length} ");
+                body.Append(text).Append('\n');
+            }
+            var packed = ZlibThenZeros(Encoding.ASCII.GetBytes(header.ToString() + body), zeros[s]);
+            offsets[firstStream + s] = file.Count;
+            file.AddRange(Encoding.ASCII.GetBytes($"{firstStream + s} 0 obj\n<< /Type /ObjStm /N {objects.Count} /First {header.Length} /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"));
+            file.AddRange(packed);
+            file.AddRange(Encoding.ASCII.GetBytes("\nendstream\nendobj\n"));
+        }
+        var xrefNumber = firstStream + streams.Count;
+        for (var n = 1; n < xrefNumber; n++)
+            rows.Add(members.FirstOrDefault(m => m.Number == n) is { Number: > 0 } m ? (2, m.Stream, m.Index) : (1, offsets[n], 0));
+        var xrefAt = file.Count;
+        rows.Add((1, xrefAt, 0));
+        var table = rows.SelectMany(r => new[] { (byte)r.Type, (byte)(r.A >> 24), (byte)(r.A >> 16), (byte)(r.A >> 8), (byte)r.A, (byte)(r.B >> 8), (byte)r.B }).ToArray();
+        file.AddRange(Encoding.ASCII.GetBytes($"{xrefNumber} 0 obj\n<< /Type /XRef /Size {rows.Count} /W [1 4 2] /Root 1 0 R /Length {table.Length} >>\nstream\n"));
+        file.AddRange(table);
+        file.AddRange(Encoding.ASCII.GetBytes($"\nendstream\nendobj\nstartxref\n{xrefAt}\n%%EOF\n"));
+        return [.. file];
+    }
+
+    [Fact]
+    public void OpeningAFileWhoseObjectStreamsInflatePastTheLimitFailsBeforeTheMemoryIsSpent()
+    {
+        // PDFsharp unpacks every object stream as it opens a file. One that inflates to 2 MB is refused under a 1 MB limit,
+        // and read under 4 MB; three of 600 KB are each under 1 MB but past it together.
+        var one = ObjectStreamFile(2 << 20);
+        Assert.True(one.Length < 64 * 1024);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(new MemoryStream(one), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
+        Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 1 << 20);
+        Assert.Contains("too large", ex.Message);
+        using (var doc = PdfObj.Read(new MemoryStream(one), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
+            Assert.Equal(1, doc.PageCount);
+        var three = ObjectStreamFile(600 << 10, 600 << 10, 600 << 10);
+        Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(new MemoryStream(three), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
+        using (var doc = PdfObj.Read(new MemoryStream(three), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
+            Assert.Equal(1, doc.PageCount);
+
+        // At the real limit, through the open every edit uses: the edit fails with the message, having spent little.
+        var huge = ObjectStreamFile(PdfObj.MaxStreamBytes + (1 << 20));
+        before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<StreamTooLargeException>(() => PdfObj.Open(huge, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify));
+        Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 16 << 20);
+    }
+
+    /// <summary>LZW codes (9 to 12 bits, as PDFsharp reads them) for a clear, a zero, then each new entry in turn: each one byte longer.</summary>
+    private static byte[] LzwRun(int codes)
+    {
+        var output = new List<byte>();
+        long held = 0;
+        var bits = 0;
+        void Put(int code, int width)
+        {
+            held = (held << width) | (uint)code;
+            for (bits += width; bits >= 8; bits -= 8) output.Add((byte)(held >> (bits - 8)));
+        }
+        Put(256, 9);
+        Put(0, 9);
+        int index = 258, width = 9;
+        for (var i = 0; i < codes; i++)
+        {
+            Put(index, width);
+            index++;
+            width = index switch { 511 => 10, 1023 => 11, 2047 => 12, _ => width };
+        }
+        Put(257, width);
+        if (bits > 0) output.Add((byte)(held << (8 - bits)));
+        return [.. output];
+    }
+
+    [Fact]
+    public void EveryStageOfAFilterChainIsMeasuredBeforeItIsDecoded()
+    {
+        // A Flate stage after another filter, LZW and ASCII85 each decode to 2 MB or more from a few KB: past a 1 MB limit each
+        // is refused with almost nothing allocated, and read in full under a larger one.
+        Assert.True(BoundedFilters.Installed);
+        using var doc = new PdfDocument();
+        PdfDictionary Stream(byte[] raw, params string[] filters)
+        {
+            var d = new PdfDictionary(doc);
+            d.CreateStream(raw);
+            d.Elements["/Filter"] = new PdfArray(doc, [.. filters.Select(f => (PdfItem)new PdfName(f))]);
+            return d;
+        }
+        var bomb = ZlibThenZeros([], 2 << 20);
+        var hexThenFlate = Stream(Encoding.ASCII.GetBytes(Convert.ToHexString(bomb) + ">"), "/ASCIIHexDecode", "/FlateDecode");
+        var flateTwice = Stream(ZlibThenZeros(bomb, 0), "/FlateDecode", "/FlateDecode");
+        var lzwRaw = LzwRun(3000);
+        var lzw = Stream(lzwRaw, "/LZWDecode");
+        // Counted as PDFsharp's own decoder writes it: 1 + 1 + 2 + ... + 3000 bytes.
+        var lzwSize = new PdfSharp.Pdf.Filters.LzwDecode().Decode(lzwRaw, (PdfSharp.Pdf.Filters.FilterParms?)null).Length;
+        Assert.Equal(1 + 3000 * 3001 / 2, lzwSize);
+        Assert.Equal(lzwSize, BoundedFilters.LzwLength(lzwRaw));
+        var a85 = Stream(Encoding.ASCII.GetBytes(new string('z', 600_000) + "~>"), "/ASCII85Decode");
+        foreach (var (d, size) in new[] { (hexThenFlate, 2L << 20), (flateTwice, 2L << 20), (lzw, (long)lzwSize), (a85, 2_400_000L) })
+        {
+            Assert.True(d.Stream!.Value.Length < 1 << 20);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Throws<StreamTooLargeException>(() => PdfObj.StreamBytes(d, maxBytes: 1 << 20));
+            Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 1 << 20, $"{GC.GetAllocatedBytesForCurrentThread() - before:N0} bytes for {d.Elements["/Filter"]}");
+            Assert.Equal(size, PdfObj.StreamBytes(d, maxBytes: 8 << 20).Length);
+        }
+    }
+
+    [Fact]
+    public void OptimizeAndTheTextLayerPassOverAStreamTooLargeToRead()
+    {
+        // A page whose second content stream (hex, then Flate) unpacks past the limit: Optimize leaves it and the page's images
+        // as they are, and the text layer finds no recognized words in it; neither fails.
+        var bomb = ZlibThenZeros(Encoding.ASCII.GetBytes("BT /F1 12 Tf 72 600 Td (x) Tj ET "), (long)PdfObj.MaxStreamBytes + (1 << 20));
+        var file = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [4 0 R 6 0 R] /Resources << /Font << /F1 5 0 R >> >> >>",
+            Core2Pdf.Stream("BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            Core2Pdf.Stream(Convert.ToHexString(bomb) + ">", "/Filter [/ASCIIHexDecode /FlateDecode]"),
+        ]);
+        var result = Optimizer.Optimize(file, null);
+        using var optimized = Core2Pdf.Open(result.Data);
+        var contents = PdfObj.Array(optimized.Pages[0].Elements["/Contents"])!;
+        Assert.Equal(["/ASCIIHexDecode", "/FlateDecode"], PdfObj.Array(PdfObj.Dict(contents.Elements[1])!.Elements["/Filter"])!.Elements.Select(e => e.ToString()));
+        Assert.Empty(TextLayer.Words(file, null));
+    }
+
     /// <summary>A one-page file (objects 1 to 5) drawing <paramref name="content"/>, then <paramref name="more"/> (6 on).</summary>
     private static byte[] OnePage(string catalogExtra, string resourcesExtra, string content, params string[] more) => Core2Pdf.Build([
         $"<< /Type /Catalog /Pages 2 0 R {catalogExtra} >>",

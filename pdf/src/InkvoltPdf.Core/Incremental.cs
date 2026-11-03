@@ -80,9 +80,7 @@ internal static class Incremental
                 why.Value = "its last cross-reference section can't be found";
                 return;
             }
-            using var orig = string.IsNullOrEmpty(password)
-                ? PdfReader.Open(new MemoryStream(data, writable: false), PdfDocumentOpenMode.Import)
-                : PdfReader.Open(new MemoryStream(data, writable: false), password, PdfDocumentOpenMode.Import);
+            using var orig = PdfObj.Read(new MemoryStream(data, writable: false), password, PdfDocumentOpenMode.Import);
             var pairs = Pair(orig, doc, tail.HasInfo);
             if (pairs is null)
             {
