@@ -382,7 +382,7 @@ public static class PdfA
                 _ => new List<string>(),
             };
             if (!names.Any(n => n is "/LZWDecode" or "/LZW")) return;
-            var decoded = d.Stream!.UnfilteredValue;
+            var decoded = PdfObj.StreamBytes(d);
             d.Elements.Remove("/DecodeParms");
             d.Elements.Remove("/DP");
             d.Stream.Value = PdfObj.Deflate(decoded);
@@ -418,7 +418,7 @@ public static class PdfA
             byte[] bytes;
             try
             {
-                bytes = d.Stream!.UnfilteredValue;
+                bytes = PdfObj.StreamBytes(d);
             }
             catch (Exception ex) when (ex is InvalidOperationException or NotImplementedException or PdfSharp.PdfSharpException)
             {
@@ -965,8 +965,8 @@ public static class PdfA
             }
             var intents = PdfObj.Array(catalog.Elements["/OutputIntents"]);
             var pdfa = intents?.Elements.Select(PdfObj.Dict).FirstOrDefault(i => PdfObj.Name(i?.Elements["/S"]) == "GTS_PDFA1");
-            if (PdfObj.Dict(pdfa?.Elements["/DestOutputProfile"]) is not { Stream: { } icc } profile || PdfObj.Int(profile.Elements["/N"]) != 3 ||
-                icc.UnfilteredValue is not { Length: > 128 } iccBytes || Encoding.ASCII.GetString(iccBytes, 36, 4) != "acsp")
+            if (PdfObj.Dict(pdfa?.Elements["/DestOutputProfile"]) is not { Stream: not null } profile || PdfObj.Int(profile.Elements["/N"]) != 3 ||
+                PdfObj.StreamBytes(profile) is not { Length: > 128 } iccBytes || Encoding.ASCII.GetString(iccBytes, 36, 4) != "acsp")
                 problems.Add("There is no RGB PDF/A output intent with an ICC profile.");
             if (PdfObj.Dict(catalog.Elements["/Metadata"]) is not { Stream: { } meta } metaDict)
                 problems.Add("There is no XMP metadata.");

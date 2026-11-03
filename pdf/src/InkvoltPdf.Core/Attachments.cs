@@ -44,13 +44,30 @@ public static class Attachments
         return list;
     }
 
+    /// <summary>The most an attachment the user asked for may unpack to: files are larger than page streams, but not without end.</summary>
+    internal const int MaxAttachmentBytes = 1 << 30;
+
     /// <summary>The attachment's file contents (decoded).</summary>
+    /// <exception cref="StreamTooLargeException">It unpacks to more than <see cref="MaxAttachmentBytes"/>.</exception>
     public static byte[] Extract(byte[] data, string? password, string key)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's attachments can't be read");
         var fs = FindSpec(doc, key) ?? throw new InvalidOperationException("That attachment no longer exists.");
         var stream = FileStream(fs) ?? throw new InvalidOperationException("That attachment has no embedded data.");
-        return PdfObj.StreamBytes(stream);
+        return PdfObj.StreamBytes(stream, MaxAttachmentBytes);
+    }
+
+    /// <summary>A size for the list when the file doesn't say: its packed size when it unpacks past the stream limit.</summary>
+    private static long UnpackedSize(PdfDictionary stream)
+    {
+        try
+        {
+            return PdfObj.StreamBytes(stream).LongLength;
+        }
+        catch (StreamTooLargeException)
+        {
+            return stream.Stream!.Value.LongLength;
+        }
     }
 
     /// <summary>Embeds a file in the document's attachment list (renamed "name (2).ext" if the name is taken).</summary>
@@ -164,7 +181,7 @@ public static class Attachments
         var stream = FileStream(fs);
         var prms = PdfObj.Dict(stream?.Elements["/Params"]);
         long size = PdfObj.Int(prms?.Elements["/Size"]) ?? -1;
-        if (size < 0) size = stream is null ? 0 : PdfObj.StreamBytes(stream).LongLength;
+        if (size < 0) size = stream is null ? 0 : UnpackedSize(stream);
         var mime = PdfObj.Name(stream?.Elements["/Subtype"])?.Replace("#2F", "/").Replace("#2f", "/");
         return new AttachmentInfo(key, name, PdfObj.Str(fs.Elements["/Desc"]), size,
             PdfObj.ParseDate(PdfObj.Str(prms?.Elements["/CreationDate"])), PdfObj.ParseDate(PdfObj.Str(prms?.Elements["/ModDate"])),

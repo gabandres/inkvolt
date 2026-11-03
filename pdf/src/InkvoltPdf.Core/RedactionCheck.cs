@@ -426,6 +426,10 @@ public static partial class RedactionCheck
             {
                 _notes.Add($"Page {index + 1}: part of its content couldn't be read, so boxes on it may have been missed.");
             }
+            catch (StreamTooLargeException)
+            {
+                TooLarge($"Page {index + 1}'s content");
+            }
             if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) return scan;
             for (var i = 0; i < annots.Elements.Count; i++)
             {

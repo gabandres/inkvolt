@@ -71,9 +71,20 @@ One agent, cheapest first, one commit each, in this order:
    root is an object before `TryGetProperty` (`[]`, `"x"`, `1`, `null` gave InvalidOperationException; AiProtocolTests'
    `JsonThatIsNotAnObjectIsNotAChatCompletion`). Done 2026-11-03, DevScript's `compare` checks that both
    files exist and open before `Comparing.LoadFile` (whose modal error the off-screen script never answered) and fails the
-   step (`FAILED:` in the log, the app quits) on a bad path or a side that doesn't load. PDFsharp's `UnfilteredValue` has no size limit (about 35 call sites through
-   `PdfObj.StreamBytes` and directly): one huge Flate stream can take the memory; bounding it needs a decision per
-   caller, and redaction must not read an over-limit stream as empty (PLAN.md's "Small fixes after the E-steps").
+   step (`FAILED:` in the log, the app quits) on a bad path or a side that doesn't load. Done 2026-11-03, the central part of the
+   Flate limit: every PDFsharp `UnfilteredValue` in Inkvolt PDF goes through `PdfObj.StreamBytes`, which refuses a stream
+   past 256 MB (`PdfObj.MaxStreamBytes`; attachments saved or opened: 1 GB) with `StreamTooLargeException`, an IOException
+   the "damaged filter, read as empty" catches don't swallow, so whatever reads it fails with a message. A leading Flate
+   filter is measured before PDFsharp inflates it (counted, kept nowhere; streams under 1/1032 of the limit skipped). The
+   redaction check never reads one as empty: page content, forms it draws, hidden layers, attachments, XMP, XFA and earlier
+   versions are each noted "too large to search" and the report is Incomplete (Batch then saves nothing, the read-back
+   fails); Redaction.Apply itself rasterizes through MuPDF and reads no stream. HostileStructureTests:
+   `StreamBytesRefusesAStreamThatInflatesPastItsLimit`, `RedactionCheckSaysItIsIncompleteWhenAStreamIsTooLargeToRead`.
+   Left, each decided "fail the operation" by default, not tuned per caller: content editing, accessibility check and
+   Auto-Tag, Optimize, PDF/A, fonts and ToUnicode maps, Sanitize, vector shapes, page marks and the text layer fail on a
+   stream past 256 MB instead of skipping it; the attachment list shows the packed size of one without /Size that unpacks
+   past it. Still unbounded: PDFsharp's own inflating while it opens a file (object streams), and a Flate filter that
+   isn't first in its array or an LZW one (checked only after decoding, so memory is spent first).
 8. CI: the Windows `test` job fails about one run in two on a different timing test each time
    (`PageCleanupTests.A_huge_page…`, `TranslationCopyTests.Forms_that_multiply…`, `DeviceHttpLimitsTests.A_reply_that_breaks_off…`,
    `Core1EngineTests.RenderStopsMidwayWhenCancelled`): give them CI-sized limits or skip the heavy ones on `GITHUB_ACTIONS`.

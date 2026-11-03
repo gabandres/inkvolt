@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - An AI server whose answer isn't a chat reply gets a clear message instead of an error.
+- A PDF with a part that unpacks to hundreds of megabytes is refused with a message instead of using up the memory. The redaction check says when such a part couldn't be searched.
 
 ## 1.6.0
 - Translate with AI (Review › AI Assistant): a translated copy opens in a new tab with the original beside it, and the two scroll together. It goes one paragraph at a time through your own AI, with no page limit, and you see what will be sent, and where, first. Nothing goes anywhere else.

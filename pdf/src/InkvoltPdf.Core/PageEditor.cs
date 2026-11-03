@@ -1129,8 +1129,8 @@ internal static class Xmp
         try
         {
             var metadata = doc.Internals.Catalog.Elements["/Metadata"];
-            if ((metadata is PdfReference r ? r.Value : metadata) is not PdfDictionary { Stream: { } stream }) return null;
-            using var reader = XmlReader.Create(new MemoryStream(stream.UnfilteredValue),
+            if ((metadata is PdfReference r ? r.Value : metadata) is not PdfDictionary { Stream: not null } stream) return null;
+            using var reader = XmlReader.Create(new MemoryStream(PdfObj.StreamBytes(stream)),
                 new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
             var xmp = XDocument.Load(reader);
             return xmp.Descendants(Rdf + "RDF").Any() ? xmp : null;

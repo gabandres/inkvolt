@@ -169,6 +169,10 @@ public static partial class RedactionCheck
                         }
                         text += '\n' + (xmp ? ProgramInXmp().Replace(PlainText(bytes), m => ProgramVersion().Replace(m.Value, "")) : owner?.Part == Part.Attachment ? FileText(bytes) + AttachedPdfText(bytes, PartName(owner, xmp)) : PlainText(bytes));
                     }
+                    catch (StreamTooLargeException)
+                    {
+                        TooLarge(PartName(owner, xmp));
+                    }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
                     {
                         // A filter that fails on its data: its strings were read, what it holds wasn't.
@@ -204,6 +208,10 @@ public static partial class RedactionCheck
                     try
                     {
                         Search(ContentTexts(PdfObj.StreamBytes(stream), owner.Resources).Spaced, patterns, RedactionCheck.Name(RedactionLeak.HiddenText));
+                    }
+                    catch (StreamTooLargeException)
+                    {
+                        TooLarge($"Page {owner.Page + 1}'s content");
                     }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
                     {
@@ -255,6 +263,17 @@ public static partial class RedactionCheck
         /// <summary>What a part of the file is, in words that hold nothing the file itself named (a note can end up in a log).</summary>
         private static string PartName(Owner? owner, bool xmp) =>
             xmp ? "XMP metadata" : RedactionCheck.Name(owner is null ? RedactionLeak.FileData : Finding(owner, "").Kind);
+
+        /// <summary>
+        /// A part whose stream unpacks past <see cref="PdfObj.MaxStreamBytes"/> isn't searched, and the check says so: read as
+        /// empty, it would let a check pass that never looked at it.
+        /// </summary>
+        private void TooLarge(string part)
+        {
+            _incomplete = true;
+            var note = $"{part} is too large to search (it unpacks to more than {PdfObj.MaxStreamBytes >> 20} MB), so it wasn't.";
+            if (!_notes.Contains(note)) _notes.Add(note);
+        }
 
         private static string StringsOf(PdfItem? item)
         {
@@ -308,7 +327,16 @@ public static partial class RedactionCheck
             {
                 if ((++n & 255) == 0) cancel.ThrowIfCancellationRequested();
                 var owner = owners.GetValueOrDefault(o);
-                var text = ObjectText(o, owner);
+                string text;
+                try
+                {
+                    text = ObjectText(o, owner);
+                }
+                catch (StreamTooLargeException)
+                {
+                    TooLarge(PartName(owner, false));
+                    continue;
+                }
                 if (text.Length == 0) continue;
                 foreach (var (v, start, length) in matcher.Matches(text).DistinctBy(m => m.Value).ToList())
                 {
@@ -342,6 +370,11 @@ public static partial class RedactionCheck
                     try
                     {
                         bytes = PdfObj.StreamBytes((PdfDictionary)o);
+                    }
+                    catch (StreamTooLargeException)
+                    {
+                        TooLarge($"Page {p + 1}'s content");
+                        continue;
                     }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
                     {
@@ -454,7 +487,16 @@ public static partial class RedactionCheck
                         var owners = Owners(old, cancel);
                         foreach (var o in old.Internals.GetAllObjects())
                         {
-                            var text = ObjectText(o, owners.GetValueOrDefault(o));
+                            string text;
+                            try
+                            {
+                                text = ObjectText(o, owners.GetValueOrDefault(o));
+                            }
+                            catch (StreamTooLargeException)
+                            {
+                                TooLarge($"{PartName(owners.GetValueOrDefault(o), false)} in {where}");
+                                continue;
+                            }
                             foreach (var (v, start, length) in matcher.Matches(text).DistinctBy(m => m.Value).ToList())
                             {
                                 if (inFile.Contains(v) || !reported.Add(v)) continue;

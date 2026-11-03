@@ -1378,7 +1378,7 @@ public partial class DocumentTab
         {
             failure = "The result wasn't read back: you cancelled it, so nothing says what was removed is gone.";
         }
-        catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException or NotSupportedException)
+        catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException or NotSupportedException or StreamTooLargeException)
         {
             Log.Write($"Reading a redaction back failed: {ex.GetType().Name}");
             failure = "The result couldn't be read back, so nothing says what was removed is gone.";

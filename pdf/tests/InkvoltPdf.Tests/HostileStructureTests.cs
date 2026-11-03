@@ -514,6 +514,65 @@ public class HostileStructureTests
     }
 
     [Fact]
+    public void StreamBytesRefusesAStreamThatInflatesPastItsLimit()
+    {
+        // 2 MB of zeros packed into about 2 KB: past a 1 MB limit it is refused before PDFsharp inflates it, under 4 MB it is read.
+        using var doc = new PdfDocument();
+        var d = new PdfDictionary(doc);
+        d.CreateStream(ZlibThenZeros([], 2 << 20));
+        d.Elements["/Filter"] = new PdfName("/FlateDecode");
+        Assert.True(d.Stream!.Value.Length < 64 * 1024);
+        var ex = Assert.Throws<StreamTooLargeException>(() => PdfObj.StreamBytes(d, maxBytes: 1 << 20));
+        Assert.Contains("too large", ex.Message);
+        Assert.Equal(2 << 20, PdfObj.StreamBytes(d, maxBytes: 4 << 20).Length);
+        // The same through a filter array, and a stream with no filter longer than the limit.
+        d.Elements["/Filter"] = new PdfArray(doc, new PdfName("/FlateDecode"));
+        Assert.Throws<StreamTooLargeException>(() => PdfObj.StreamBytes(d, maxBytes: 1 << 20));
+        var plain = new PdfDictionary(doc);
+        plain.CreateStream(new byte[2048]);
+        Assert.Throws<StreamTooLargeException>(() => PdfObj.StreamBytes(plain, maxBytes: 1024));
+        Assert.Equal(256 << 20, PdfObj.MaxStreamBytes);
+    }
+
+    /// <summary>A one-page file (objects 1 to 5) drawing <paramref name="content"/>, then <paramref name="more"/> (6 on).</summary>
+    private static byte[] OnePage(string catalogExtra, string resourcesExtra, string content, params string[] more) => Core2Pdf.Build([
+        $"<< /Type /Catalog /Pages 2 0 R {catalogExtra} >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> {resourcesExtra} >> >>",
+        Core2Pdf.Stream(content),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        .. more,
+    ]);
+
+    /// <summary>A Flate stream of <paramref name="head"/> and then zeros, inflating to 1 MB past <see cref="PdfObj.MaxStreamBytes"/>.</summary>
+    private static string HugeStream(string head, string dict)
+    {
+        var packed = ZlibThenZeros(Encoding.Latin1.GetBytes(head), (long)PdfObj.MaxStreamBytes + (1 << 20) - head.Length);
+        return Core2Pdf.Stream(Encoding.Latin1.GetString(packed), dict + " /Filter /FlateDecode");
+    }
+
+    [Fact]
+    public void RedactionCheckSaysItIsIncompleteWhenAStreamIsTooLargeToRead()
+    {
+        // A redacted value in an attached file that inflates past the limit is never read as empty (a clean check): the check
+        // says it couldn't search it. Same for a form a page draws whose content is too large to walk.
+        const string value = "Jane Q. Sample";
+        var attached = OnePage("/Names << /EmbeddedFiles << /Names [(notes.txt) 6 0 R] >> >>", "", "BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET",
+            "<< /Type /Filespec /F (notes.txt) /UF (notes.txt) /EF << /F 7 0 R >> >>",
+            HugeStream($"Notes about {value}. ", "/Type /EmbeddedFile"));
+        Assert.True(attached.Length < 1 << 20);
+        var report = RedactionCheck.Run(attached, null, new RedactionCheckOptions { Values = [value], ValuesOnly = true });
+        Assert.True(report.Incomplete);
+        Assert.Contains(report.Notes, n => n.Contains("too large", StringComparison.Ordinal));
+
+        var drawn = OnePage("", "/XObject << /X1 6 0 R >>", "BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET /X1 Do",
+            HugeStream($"BT /F1 12 Tf 72 600 Td ({value}) Tj ET ", "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >>"));
+        report = RedactionCheck.Run(drawn, null, new RedactionCheckOptions { Values = [value] });
+        Assert.True(report.Incomplete);
+        Assert.Contains(report.Notes, n => n.Contains("too large", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void PngDecoderReadsOnlyThePixelsItsSizeNeeds()
     {
         // A 1×1 picture whose image data goes on with 256 MB of zeros (about 250 KB packed): only its 4 bytes are inflated.

@@ -72,8 +72,53 @@ internal static class PdfObj
         }
     }
 
+    /// <summary>
+    /// The most <see cref="StreamBytes"/> decodes a stream to unless its caller says otherwise. PDFsharp's
+    /// <c>UnfilteredValue</c> has no limit, and a file of a few hundred KB can hold a Flate stream that inflates to gigabytes.
+    /// </summary>
+    public const int MaxStreamBytes = 256 << 20;
+
+    /// <summary>Deflate packs at most about 1032 to 1: a stream this many times shorter than a limit can't inflate past it.</summary>
+    private const int MaxFlateRatio = 1032;
+
     /// <summary>A stream's decoded bytes (PDFsharp decodes Flate and the other standard filters).</summary>
-    public static byte[] StreamBytes(PdfDictionary d) => d.Stream?.UnfilteredValue ?? [];
+    /// <exception cref="StreamTooLargeException">It decodes to more than <paramref name="maxBytes"/>. A Flate stream that comes
+    /// first is measured before PDFsharp inflates it; other filters are checked after.</exception>
+    public static byte[] StreamBytes(PdfDictionary d, int maxBytes = MaxStreamBytes)
+    {
+        if (d.Stream is not { } stream) return [];
+        if (FlateFirst(d) && InflatesPast(stream.Value, maxBytes)) throw new StreamTooLargeException(maxBytes);
+        var bytes = stream.UnfilteredValue ?? [];
+        return bytes.Length > maxBytes ? throw new StreamTooLargeException(maxBytes) : bytes;
+    }
+
+    private static bool FlateFirst(PdfDictionary d) => Resolve(d.Elements["/Filter"]) switch
+    {
+        PdfName n => n.Value is "/FlateDecode" or "/Fl",
+        PdfArray { Elements.Count: > 0 } a => Resolve(a.Elements[0]) is PdfName { Value: "/FlateDecode" or "/Fl" },
+        _ => false,
+    };
+
+    /// <summary>Whether Flate data inflates to more than <paramref name="maxBytes"/>, counted a chunk at a time and kept nowhere.</summary>
+    private static bool InflatesPast(byte[] raw, int maxBytes)
+    {
+        if ((long)raw.Length * MaxFlateRatio <= maxBytes) return false;
+        // The zlib header skipped and its checksum never read, as forgiving as PDFsharp's own inflater.
+        var at = raw.Length >= 2 && (raw[0] & 0x0F) == 8 && ((raw[0] << 8) | raw[1]) % 31 == 0 ? 2 : 0;
+        using var z = new DeflateStream(new MemoryStream(raw, at, raw.Length - at), CompressionMode.Decompress);
+        var chunk = new byte[64 * 1024];
+        long total = 0;
+        try
+        {
+            for (int n; (n = z.Read(chunk)) > 0;)
+                if ((total += n) > maxBytes) return true;
+        }
+        catch (InvalidDataException)
+        {
+            // damaged past what was counted: PDFsharp reads it (or not) as it would have, and the length is checked after
+        }
+        return false;
+    }
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
@@ -378,3 +423,11 @@ internal static class PdfObj
         return new PdfString(string.Create(Inv, $"D:{t.ToString("yyyyMMddHHmmss", Inv)}{sign}{o.Hours:00}'{o.Minutes:00}'"));
     }
 }
+
+/// <summary>
+/// A stream that decodes to more than its reader's limit (<see cref="PdfObj.MaxStreamBytes"/> unless it says otherwise). An
+/// <see cref="IOException"/>, not an <see cref="InvalidDataException"/>: the catches that read a damaged stream as empty don't
+/// swallow it, so a stream too large to read fails what reads it unless that caller decides otherwise.
+/// </summary>
+public sealed class StreamTooLargeException(int limit)
+    : IOException($"A part of this PDF is too large to read: it unpacks to more than {limit >> 20:N0} MB.");
