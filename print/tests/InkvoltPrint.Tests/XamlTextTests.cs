@@ -53,6 +53,25 @@ public partial class XamlTextTests
         Assert.True(found.Count == 0, $"{found.Count} literal texts in XAML (use {{x:Static loc:Strings.Key}}):\n" + string.Join("\n", found));
     }
 
+    /// <summary>
+    /// A horizontal StackPanel gives its children all the width they ask for, so a TextBlock in one with no width of its own never wraps, whatever its
+    /// TextWrapping says: it runs off the card and is cut (Spanish's "Queda poco tóner o tinta (según el controlador)"; any
+    /// printer's own long words too).
+    /// </summary>
+    [Fact]
+    public void Xaml_WrappingText_IsNotInAHorizontalStackPanel()
+    {
+        var folder = Path.Combine(LocalizationTests.Root(), "print", "src", "InkvoltPrint.App");
+        var found = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(folder, "*.xaml", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                                 && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")))
+            foreach (var panel in XDocument.Load(file, LoadOptions.SetLineInfo).Descendants().Where(e => e.Name.LocalName == "StackPanel" && e.Attribute("Orientation")?.Value == "Horizontal"))
+                foreach (var text in panel.Elements().Where(e => e.Name.LocalName == "TextBlock" && e.Attribute("TextWrapping")?.Value == "Wrap" && e.Attribute("MaxWidth") is null && e.Attribute("Width") is null))
+                    found.Add($"{Path.GetFileName(file)}:{((System.Xml.IXmlLineInfo)text).LineNumber}");
+        Assert.True(found.Count == 0, "Wrapping text that can't wrap: " + string.Join(", ", found));
+    }
+
     [Theory]
     [InlineData("Close", true)]
     [InlineData("Scan to PDF…", true)]
