@@ -298,7 +298,7 @@ final class ToolStrip: NSView {
         }
 
         colorButton.bezelStyle = .texturedRounded
-        colorButton.setAccessibilityLabel("Color")
+        colorButton.setAccessibleName("Color")
         colorButton.toolTip = "Color for the current tool or the selected comment"
         let colorMenu = NSMenu()
         colorMenu.addItem(withTitle: "", action: nil, keyEquivalent: "") // the pull-down's own title item
@@ -316,7 +316,7 @@ final class ToolStrip: NSView {
         colorButton.menu = colorMenu
 
         widthButton.bezelStyle = .texturedRounded
-        widthButton.setAccessibilityLabel("Line width")
+        widthButton.setAccessibleName("Line width")
         widthButton.toolTip = "Line width for the current tool or the selected comment"
         for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? "\(w) pt" : "\(Int(w)) pt") }
         widthButton.target = self
@@ -331,10 +331,16 @@ final class ToolStrip: NSView {
         let stack = NSStackView(views: views + [colorButton, widthButton, stampLabel, spacer])
         stack.spacing = 10
         stack.setCustomSpacing(16, after: controls[controls.count - 1])
-        // A narrow window drops the stamp's name, then the width and color, before any tool.
+        // A narrow window drops the stamp's name, then the width and color, then the tool groups from the right (each
+        // tool stays in the Tools menu with its key). Before, the strip's full width was the window's minimum: about
+        // 1,300 points with the sidebar, so a document window could never be narrower (UX review, 2026-11-03).
         stack.setVisibilityPriority(.detachOnlyIfNecessary, for: stampLabel)
         stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: 600), for: widthButton)
         stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: 700), for: colorButton)
+        for (g, control) in controls.enumerated() where g > 0 {
+            stack.setVisibilityPriority(NSStackView.VisibilityPriority(rawValue: Float(800 - g * 10)), for: control)
+        }
+        stack.setClippingResistancePriority(.defaultLow, for: .horizontal)
         stack.edgeInsets = NSEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -429,5 +435,14 @@ final class ToolsMenu: NSMenu {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.intersection([.command, .control, .option]).isEmpty { return false }
         return super.performKeyEquivalent(with: event)
+    }
+}
+
+extension NSControl {
+    /// Names the control for VoiceOver on the control and its cell: AppKit reports a pop-up's or a field's cell as the
+    /// element, and the UX review's audit found those cells nameless with only the control named.
+    func setAccessibleName(_ name: String) {
+        setAccessibilityLabel(name)
+        cell?.setAccessibilityLabel(name)
     }
 }

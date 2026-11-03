@@ -56,9 +56,9 @@ struct AccessibleTest {
 
     mutating func run() async {
         lines.append("== \(name): Make Accessible, Reading Order, PDF/A-2a")
-        for (action, title, menu) in [(#selector(DocumentWindowController.makeAccessible(_:)), "Make Accessible (Tag)…", "Tools"),
-                                      (#selector(DocumentWindowController.toggleReadingOrder(_:)), "Reading Order and Alt Text", "Tools"),
-                                      (#selector(DocumentWindowController.saveAsPdfA2a(_:)), "Save as PDF/A-2a (Accessible Archive)…", "File")] {
+        for (action, title, menu) in [(#selector(DocumentWindowController.makeAccessible(_:)), "Make Accessible (Tag)…", "Accessibility"),
+                                      (#selector(DocumentWindowController.toggleReadingOrder(_:)), "Reading Order and Alt Text", "Accessibility"),
+                                      (#selector(DocumentWindowController.saveAsPdfA2a(_:)), "Save as PDF/A-2a (Accessible Archive)…", "Save as PDF/A")] {
             let found = Self.item(action, in: NSApp.mainMenu)
             check(found?.title == title && found?.menu?.title == menu && found.map { controller.validateMenuItem($0) } == true, "\(menu) › \(title) is in the menu bar and enabled")
         }

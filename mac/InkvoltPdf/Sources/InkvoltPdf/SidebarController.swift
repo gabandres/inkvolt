@@ -47,8 +47,40 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         var image: NSImage { NSImage(systemSymbolName: symbol, accessibilityDescription: title) ?? NSImage() }
     }
 
-    /// Symbols with their names as tooltips and for VoiceOver: seven words don't fit the sidebar's width.
-    private let picker = NSSegmentedControl(images: Pane.allCases.dropLast().map(\.image), trackingMode: .selectOne, target: nil, action: nil)
+    /// Symbols with their names as tooltips and for VoiceOver: the words don't fit the sidebar's width. Only the panes
+    /// this document uses have a segment (UX review: seven symbols, three of them greyed out, on every window).
+    private let picker = NSSegmentedControl(images: [], trackingMode: .selectOne, target: nil, action: nil)
+    /// The panes with a segment, in the picker's order.
+    private(set) var panes: [Pane] = []
+    private var showsAccessibility = false
+
+    /// The panes this document offers: pages, bookmarks, comments and attachments always; signatures, layers, suspect
+    /// words and accessibility once there is something to show.
+    static func panes(signatures: Bool, layers: Bool, suspectWords: Bool, accessibility: Bool) -> [Pane] {
+        Pane.allCases.filter {
+            switch $0 {
+            case .pages, .bookmarks, .comments, .attachments: true
+            case .signatures: signatures
+            case .layers: layers
+            case .suspectWords: suspectWords
+            case .accessibility: accessibility
+            }
+        }
+    }
+
+    /// The picker's segments made again for the panes offered now, the shown pane kept (or the thumbnails, if it went).
+    private func rebuildPicker() {
+        let current = panes.isEmpty ? Pane.pages : shownPane
+        panes = Self.panes(signatures: showsSignatures, layers: showsLayers, suspectWords: showsSuspectWords, accessibility: showsAccessibility)
+        picker.segmentCount = panes.count
+        for (i, pane) in panes.enumerated() {
+            picker.setImage(pane.image, forSegment: i)
+            picker.setToolTip(pane.title, forSegment: i)
+            picker.setWidth(0, forSegment: i)
+        }
+        picker.selectedSegment = panes.firstIndex(of: current) ?? 0
+        pick()
+    }
     let comments = CommentsList()
     let signatures = SignaturesPane()
     let attachments = AttachmentsPane()
@@ -138,10 +170,8 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
         picker.target = self
         picker.action = #selector(pick)
-        picker.selectedSegment = Pane.pages.rawValue
         picker.setAccessibilityLabel("Sidebar shows")
         picker.segmentDistribution = .fillEqually
-        for pane in Pane.allCases.dropLast() { picker.setToolTip(pane.title, forSegment: pane.rawValue) }
         outlineScroll.isHidden = true
         comments.isHidden = true
         signatures.isHidden = true
@@ -149,9 +179,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         layers.isHidden = true
         suspectWords.isHidden = true
         accessibility.isHidden = true
-        picker.setEnabled(showsSignatures, forSegment: Pane.signatures.rawValue)
-        picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
-        picker.setEnabled(showsSuspectWords, forSegment: Pane.suspectWords.rawValue)
+        rebuildPicker()
 
         let stack = NSStackView(views: [picker, tableScroll, outlineScroll, comments, signatures, attachments, layers, suspectWords, accessibility])
         for pane in [comments, signatures, attachments, layers, suspectWords, accessibility] as [NSView] {
@@ -184,13 +212,11 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     /// Shows the Accessibility pane; its segment appears with the first check.
     func showAccessibility() {
         _ = view
-        let a = Pane.accessibility
-        if picker.segmentCount == a.rawValue {
-            picker.segmentCount = a.rawValue + 1
-            picker.setImage(a.image, forSegment: a.rawValue)
-            picker.setToolTip(a.title, forSegment: a.rawValue)
+        if !showsAccessibility {
+            showsAccessibility = true
+            rebuildPicker()
         }
-        show(a)
+        show(.accessibility)
     }
 
     /// How many segments the picker has (the self-test reads it).
@@ -203,8 +229,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     var showsSignatures = false {
         didSet {
             guard isViewLoaded else { return }
-            picker.setEnabled(showsSignatures, forSegment: Pane.signatures.rawValue)
-            if !showsSignatures && shownPane == .signatures { show(.pages) }
+            rebuildPicker()
         }
     }
 
@@ -212,8 +237,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     var showsLayers = false {
         didSet {
             guard isViewLoaded else { return }
-            picker.setEnabled(showsLayers, forSegment: Pane.layers.rawValue)
-            if !showsLayers && shownPane == .layers { show(.pages) }
+            rebuildPicker()
         }
     }
 
@@ -222,19 +246,18 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     var showsSuspectWords = false {
         didSet {
             guard isViewLoaded else { return }
-            picker.setEnabled(showsSuspectWords, forSegment: Pane.suspectWords.rawValue)
-            if !showsSuspectWords && shownPane == .suspectWords { show(.pages) }
+            rebuildPicker()
         }
     }
 
     func show(_ pane: Pane) {
         _ = view
-        picker.selectedSegment = pane.rawValue
+        if let i = panes.firstIndex(of: pane) { picker.selectedSegment = i }
         pick()
     }
 
     var shownSegment: Int { picker.selectedSegment }
-    var shownPane: Pane { Pane(rawValue: picker.selectedSegment) ?? .pages }
+    var shownPane: Pane { panes.indices.contains(picker.selectedSegment) ? panes[picker.selectedSegment] : .pages }
 
     /// Dark pages turned on or off: the thumbnails drawn again.
     @objc func darkPagesChanged() {

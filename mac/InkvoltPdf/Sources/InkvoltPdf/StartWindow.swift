@@ -14,6 +14,9 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
     enum ToolCard: Int, CaseIterable {
         case fillSign, editContent, exportWord, combine, compare, protect, ocr, organize, create, batch
 
+        /// The four shown at first; the rest wait behind More Tools.
+        static let primary: [ToolCard] = [.fillSign, .editContent, .combine, .create]
+
         var title: String {
             switch self {
             case .fillSign: "Fill & sign"
@@ -148,7 +151,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         icon.heightAnchor.constraint(equalToConstant: 56).isActive = true
         let name = NSTextField(labelWithString: "Inkvolt PDF")
         name.font = .systemFont(ofSize: 24, weight: .semibold)
-        let caption = NSTextField(labelWithString: "Read, search, print and organize PDFs. Nothing you open leaves this Mac unless you send it.")
+        let caption = NSTextField(labelWithString: "Nothing you open leaves this Mac unless you send it.")
         caption.textColor = .secondaryLabelColor
         let titles = NSStackView(views: [name, caption])
         titles.orientation = .vertical
@@ -161,12 +164,27 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         open.target = self
         open.action = #selector(openClicked)
 
+        // Four tools in sight, the other six one click away (UX review: the ten cards made the first glance busy).
         let toolsTitle = sectionTitle("Tools")
-        let rows = stride(from: 0, to: cards.count, by: 4).map { Array(cards[$0..<min($0 + 4, cards.count)]) as [NSView] }
+        let primary = ToolCard.primary.map { cards[$0.rawValue] as NSView }
+        let others = ToolCard.allCases.filter { !ToolCard.primary.contains($0) }.map { cards[$0.rawValue] as NSView }
+        let rows = [primary] + stride(from: 0, to: others.count, by: 4).map { start -> [NSView] in
+            let row = Array(others[start..<min(start + 4, others.count)])
+            return row + Array(repeating: NSGridCell.emptyContentView, count: 4 - row.count)
+        }
         let grid = NSGridView(views: rows)
         grid.rowSpacing = 8
         grid.columnSpacing = 8
         for card in cards { card.widthAnchor.constraint(equalToConstant: 190).isActive = true }
+        moreRows = (1..<grid.numberOfRows).map { grid.row(at: $0) }
+        moreButton.bezelStyle = .accessoryBarAction
+        moreButton.setButtonType(.pushOnPushOff)
+        moreButton.target = self
+        moreButton.action = #selector(moreClicked)
+        showMoreTools(AppSettings.defaults.bool(forKey: Self.moreToolsKey))
+        let toolsSpacer = NSView()
+        toolsSpacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let toolsHeader = NSStackView(views: [toolsTitle, toolsSpacer, moreButton])
 
         let clear = NSButton(title: "Clear List", target: self, action: #selector(clearRecent))
         clear.bezelStyle = .accessoryBarAction
@@ -186,16 +204,18 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         noRecent.alignment = .leading
         noRecent.spacing = 12
 
-        let stack = NSStackView(views: [header, open, toolsTitle, grid, recentHeader, recentStack, noRecent])
+        let stack = NSStackView(views: [header, open, recentHeader, recentStack, noRecent, toolsHeader, grid])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
         stack.setCustomSpacing(28, after: header)
         stack.setCustomSpacing(24, after: open)
-        stack.setCustomSpacing(24, after: grid)
+        stack.setCustomSpacing(24, after: recentStack)
+        stack.setCustomSpacing(24, after: noRecent)
         stack.edgeInsets = NSEdgeInsets(top: 32, left: 40, bottom: 32, right: 40)
         open.widthAnchor.constraint(equalTo: grid.widthAnchor).isActive = true
         recentHeader.widthAnchor.constraint(equalTo: grid.widthAnchor).isActive = true
+        toolsHeader.widthAnchor.constraint(equalTo: grid.widthAnchor).isActive = true
 
         let drop = DropView()
         drop.onDrop = { urls in StartWindowController.openDropped(urls) }
@@ -223,6 +243,26 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         return drop
     }
 
+    static let moreToolsKey = "StartPageMoreTools"
+    private let moreButton = NSButton()
+    private var moreRows: [NSGridRow] = []
+
+    /// More Tools: the six less-used cards shown or hidden (remembered).
+    @objc func moreClicked() {
+        AppSettings.defaults.set(moreButton.state == .on, forKey: Self.moreToolsKey)
+        showMoreTools(moreButton.state == .on)
+    }
+
+    func showMoreTools(_ show: Bool) {
+        moreButton.state = show ? .on : .off
+        moreButton.title = show ? "Show Fewer" : "Show All Tools"
+        moreButton.setAccessibleName(moreButton.title)
+        for row in moreRows { row.isHidden = !show }
+    }
+
+    /// The cards a person sees (the self-test reads it).
+    var visibleCardCount: Int { cards.filter { !$0.isHiddenOrHasHiddenAncestor }.count }
+
     private func sectionTitle(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -242,7 +282,8 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         recentHeader.isHidden = urls.isEmpty
         noRecent.isHidden = !urls.isEmpty
         let buttons = urls.map { url -> NSButton in
-            let folder = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+            // The folder's name (its whole path wrapped over five lines); the path is in the tooltip.
+            let folder = url.deletingLastPathComponent().lastPathComponent
             let card = CardButton(title: url.lastPathComponent, detail: folder, symbol: "doc.richtext", height: 92)
             card.image = thumbnails[url] ?? NSWorkspace.shared.icon(forFile: url.path)
             card.toolTip = url.path

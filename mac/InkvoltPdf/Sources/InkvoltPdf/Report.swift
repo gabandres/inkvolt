@@ -60,6 +60,8 @@ enum Report {
     /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
     private(set) static var onlyAi = false
     private(set) static var snapshots: String?
+    /// `--ux-shots` (with `--snapshots <dir>` and `--synthetic`): only `UxShots`, the UX review's screens and audit.
+    private(set) static var uxShots = false
     private(set) static var recoveryRoot: String?
     private(set) static var restoresRecovery = false
     private(set) static var crashAfterRecovery = false
@@ -94,6 +96,7 @@ enum Report {
         onlyOcr = args.contains("--only-ocr")
         onlyExport = args.contains("--only-export")
         snapshots = value("--snapshots")
+        uxShots = args.contains("--ux-shots")
         recoveryRoot = value("--recovery-root")
         restoresRecovery = args.contains("--restore-recovery")
         crashAfterRecovery = args.contains("--crash-after-recovery")
@@ -130,6 +133,18 @@ enum Report {
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
         // The app, compare, attachments and page tests' own documents get only their checks.
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument else { return }
+        if uxShots {
+            // The synthetic text document only; the form opens, unseen, and is closed at the end.
+            guard controller.pdf.fileURL?.path == syntheticPath else { return }
+            started += 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                var shots = UxShots(controller: controller)
+                await shots.run()
+                done()
+            }
+            return
+        }
         started += 1
         Task { @MainActor in
             var test = SelfTest(controller: controller, name: name)
@@ -273,7 +288,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport {
+                    if edits && !uxShots && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

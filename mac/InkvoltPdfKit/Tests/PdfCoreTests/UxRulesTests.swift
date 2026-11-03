@@ -1,0 +1,51 @@
+import Foundation
+import Testing
+@testable import PdfCore
+
+/// The Mac UX review's rules (a Mac addition, no Windows counterpart): the accessibility audit's naming rule and the
+/// document window's toolbar defaults.
+struct UxRulesTests {
+    @Test func A_button_with_a_label_or_a_title_passes() {
+        #expect(AxAudit.problem(role: "AXButton", label: "Zoom In", title: nil) == nil)
+        #expect(AxAudit.problem(role: "AXButton", label: nil, title: "Open a file") == nil)
+        #expect(AxAudit.problem(role: "AXPopUpButton", label: "  ", title: "Fit width") == nil)
+    }
+
+    @Test func A_control_without_a_name_fails() {
+        #expect(AxAudit.problem(role: "AXButton", label: nil, title: nil) == "no name")
+        #expect(AxAudit.problem(role: "AXPopUpButton", label: " \n", title: "") == "no name")
+        #expect(AxAudit.problem(role: "AXSegmentedControl", label: nil, title: nil) == "no name")
+    }
+
+    @Test func A_field_named_only_by_its_placeholder_fails_with_its_reason() {
+        let why = AxAudit.problem(role: "AXTextField", label: nil, title: nil, placeholder: "Find in document")
+        #expect(why?.contains("placeholder") == true)
+        // A placeholder doesn't name a button.
+        #expect(AxAudit.problem(role: "AXButton", label: nil, title: nil, placeholder: "x") == "no name")
+    }
+
+    @Test func Text_and_groups_are_not_audited() {
+        #expect(AxAudit.problem(role: "AXStaticText", label: nil, title: nil) == nil)
+        #expect(AxAudit.problem(role: "AXGroup", label: nil, title: nil) == nil)
+        #expect(AxAudit.problem(role: "AXImage", label: nil, title: nil) == nil)
+    }
+
+    @Test func The_default_toolbar_is_short_and_every_item_is_allowed() {
+        let items = ToolbarLayout.defaults.filter {
+            ![ToolbarLayout.flexibleSpace, ToolbarLayout.space, ToolbarLayout.trackingSeparator].contains($0)
+        }
+        // Preview's count: the sidebar, zoom, highlight, markup, a form tool, share, search.
+        #expect(items.count <= 7)
+        #expect(Set(ToolbarLayout.defaults).isSubset(of: Set(ToolbarLayout.allowed)))
+        #expect(ToolbarLayout.defaults.first == ToolbarLayout.sidebar)
+        #expect(ToolbarLayout.defaults.last == ToolbarLayout.search) // search on the trailing edge (HIG)
+    }
+
+    @Test func Every_toolbar_item_is_also_in_a_menu() {
+        let items = ToolbarLayout.allowed.filter {
+            ![ToolbarLayout.flexibleSpace, ToolbarLayout.space, ToolbarLayout.trackingSeparator].contains($0)
+        }
+        #expect(items.allSatisfy(ToolbarLayout.menuEquivalentExists(for:)))
+        #expect(Set(ToolbarLayout.allowed).count == ToolbarLayout.allowed.count)
+    }
+}

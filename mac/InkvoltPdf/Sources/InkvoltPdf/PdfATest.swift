@@ -37,7 +37,7 @@ struct PdfATest {
     mutating func run() async {
         lines.append("== \(name): Save as PDF/A-2b")
         let menuItem = Self.item(#selector(DocumentWindowController.saveAsPdfA(_:)), in: NSApp.mainMenu)
-        check(menuItem?.title == "Save as PDF/A-2b…" && menuItem?.menu?.title == "File" && menuItem.map { controller.validateMenuItem($0) } == true,
+        check(menuItem?.title == "Save as PDF/A-2b…" && menuItem?.menu?.title == "Save as PDF/A" && menuItem.map { controller.validateMenuItem($0) } == true,
               "File › Save as PDF/A-2b… is in the menu bar and enabled")
         guard let session = controller.pdf.session else {
             check(false, "the document is open")

@@ -141,27 +141,36 @@ enum MainMenu {
         menu.addItem(item("Open…", #selector(NSDocumentController.openDocument(_:)), "o"))
         // AppKit fills the submenu that holds Clear Menu with the recent documents.
         let recent = NSMenu(title: "Open Recent")
+        // Named as AppKit's recent-documents menu, so NSDocumentController fills this one rather than adding a second
+        // Open Recent of its own (the UX review's menu listing showed two).
+        recent.perform(NSSelectorFromString("_setMenuName:"), with: "NSRecentDocumentsMenu")
         recent.addItem(item("Clear Menu", #selector(NSDocumentController.clearRecentDocuments(_:))))
         let recentItem = item("Open Recent", nil)
         recentItem.submenu = recent
         menu.addItem(recentItem)
         menu.addItem(.separator())
-        menu.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
-        menu.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
-        menu.addItem(item("New PDF from Office File…", #selector(AppDelegate.newFromOfficeFile(_:))))
-        menu.addItem(item("New PDF from Web Page…", #selector(AppDelegate.newFromWebPage(_:))))
+        // New PDFs in one submenu (titles kept whole: the command palette finds them by name).
+        let create = NSMenu(title: "New PDF")
+        create.addItem(item("New PDF from Images…", #selector(AppDelegate.newFromImages(_:))))
+        create.addItem(item("New PDF from Clipboard", #selector(AppDelegate.newFromClipboard(_:)), "n", [.command, .option]))
+        create.addItem(item("New PDF from Office File…", #selector(AppDelegate.newFromOfficeFile(_:))))
+        create.addItem(item("New PDF from Web Page…", #selector(AppDelegate.newFromWebPage(_:))))
+        let createItem = item("New PDF", nil)
+        createItem.submenu = create
+        menu.addItem(createItem)
         menu.addItem(item("Combine Files…", #selector(AppDelegate.combineFiles(_:))))
         menu.addItem(item("Compare Files…", #selector(AppDelegate.compareFiles(_:))))
         menu.addItem(item("Scan…", #selector(AppDelegate.scan(_:))))
         menu.addItem(.separator())
-        menu.addItem(item("Batch…", #selector(AppDelegate.showBatch(_:)), "b", [.command, .shift]))
-        menu.addItem(item("Watched Folders…", #selector(AppDelegate.showWatchedFolders(_:))))
-        menu.addItem(.separator())
         menu.addItem(item("Close", #selector(NSWindow.performClose(_:)), "w"))
         menu.addItem(item("Save", #selector(NSDocument.save(_:)), "s"))
         menu.addItem(item("Save As…", #selector(NSDocument.saveAs(_:)), "s", [.command, .shift]))
-        menu.addItem(item("Save as PDF/A-2b…", #selector(DocumentWindowController.saveAsPdfA(_:))))
-        menu.addItem(item("Save as PDF/A-2a (Accessible Archive)…", #selector(DocumentWindowController.saveAsPdfA2a(_:))))
+        let archive = NSMenu(title: "Save as PDF/A")
+        archive.addItem(item("Save as PDF/A-2b…", #selector(DocumentWindowController.saveAsPdfA(_:))))
+        archive.addItem(item("Save as PDF/A-2a (Accessible Archive)…", #selector(DocumentWindowController.saveAsPdfA2a(_:))))
+        let archiveItem = item("Save as PDF/A", nil)
+        archiveItem.submenu = archive
+        menu.addItem(archiveItem)
         menu.addItem(item("Revert to Saved", #selector(NSDocument.revertToSaved(_:))))
         menu.addItem(item("Reload from Disk", #selector(DocumentWindowController.reloadFromDisk(_:)), "r", [.command, .option]))
         menu.addItem(.separator())
@@ -182,9 +191,15 @@ enum MainMenu {
         formItem.submenu = formData
         menu.addItem(formItem)
         menu.addItem(.separator())
+        menu.addItem(item("Share…", #selector(DocumentWindowController.shareDocument(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("Protect with Password…", #selector(DocumentWindowController.protectDocument(_:))))
         menu.addItem(item("Remove Password Protection…", #selector(DocumentWindowController.removeProtection(_:))))
         menu.addItem(item("Reduce File Size…", #selector(DocumentWindowController.reduceFileSize(_:))))
+        menu.addItem(.separator())
+        // Batch and watched folders: many files at once, a rarer job, near the end of the menu.
+        menu.addItem(item("Batch…", #selector(AppDelegate.showBatch(_:)), "b", [.command, .shift]))
+        menu.addItem(item("Watched Folders…", #selector(AppDelegate.showWatchedFolders(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Document Properties…", #selector(DocumentWindowController.showDocumentProperties(_:)), "i", [.command, .shift]))
         menu.addItem(.separator())
@@ -232,6 +247,9 @@ enum MainMenu {
         menu.addItem(item("Dark Pages (Night Reading)", #selector(DocumentWindowController.toggleDarkPages(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Show Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
+        menu.addItem(item("Show Markup Toolbar", #selector(DocumentWindowController.toggleMarkup(_:)), "a", [.command, .shift]))
+        menu.addItem(item("Show Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "t", [.command, .option]))
+        menu.addItem(item("Customize Toolbar…", #selector(NSWindow.runToolbarCustomizationPalette(_:))))
         menu.addItem(item("Show Comments", #selector(DocumentWindowController.showComments(_:)), "3", [.command, .option]))
         menu.addItem(item("Show Signatures", #selector(DocumentWindowController.showSignatures(_:)), "4", [.command, .option]))
         menu.addItem(item("Show Attachments", #selector(DocumentWindowController.showAttachments(_:)), "5", [.command, .option]))
@@ -295,81 +313,105 @@ enum MainMenu {
         return menu
     }
 
-    /// Tools: each tool with its single key (active while the pages have the focus), then the commands.
+    /// Tools: Hand and Select Text, then the tools in a few submenus by what a person is doing (Annotate, Fill & Sign,
+    /// Redact, Forms, Measure, Accessibility, AI Assistant), as Preview's Tools › Annotate. Each tool keeps its single
+    /// key (active while the pages have the focus): every submenu is a `ToolsMenu`, which leaves bare keys to the view.
     private static func toolsMenu() -> NSMenu {
         let menu = ToolsMenu(title: "Tools")
-        for (g, group) in Tool.groups.enumerated() {
-            if g > 0 { menu.addItem(.separator()) }
-            for tool in group {
-                let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)), tool.key, [])
-                entry.tag = tool.rawValue
-                entry.image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: nil)
-                menu.addItem(entry)
-            }
+        func tool(_ t: Tool, in m: NSMenu) {
+            let entry = item(t.title, #selector(DocumentWindowController.chooseTool(_:)), t.key, [])
+            entry.tag = t.rawValue
+            entry.image = NSImage(systemSymbolName: t.symbol, accessibilityDescription: nil)
+            m.addItem(entry)
         }
+        func sub(_ title: String, _ m: NSMenu) {
+            let entry = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            entry.submenu = m
+            menu.addItem(entry)
+        }
+        tool(.hand, in: menu)
+        tool(.text, in: menu)
         menu.addItem(.separator())
-        menu.addItem(item("Highlight Selected Text", #selector(DocumentWindowController.highlightText(_:)), "h", [.command, .control]))
-        menu.addItem(item("Underline Selected Text", #selector(DocumentWindowController.underlineText(_:)), "u", [.command, .control]))
-        menu.addItem(item("Strike Out Selected Text", #selector(DocumentWindowController.strikeOutText(_:)), "x", [.command, .control]))
-        menu.addItem(item("Link Selected Text…", #selector(DocumentWindowController.linkSelectedText(_:)), "k"))
-        menu.addItem(.separator())
-        menu.addItem(item("Picture from File…", #selector(DocumentWindowController.chooseImageFile(_:))))
-        menu.addItem(item("Picture from Clipboard", #selector(DocumentWindowController.imageFromClipboard(_:))))
-        menu.addItem(.separator())
-        menu.addItem(item("Draw Signature…", #selector(DocumentWindowController.drawSignature(_:))))
-        menu.addItem(item("Type Signature…", #selector(DocumentWindowController.typeSignature(_:))))
-        menu.addItem(item("Draw Initials…", #selector(DocumentWindowController.drawInitials(_:))))
-        menu.addItem(item("Type Initials…", #selector(DocumentWindowController.typeInitials(_:))))
+
+        let annotate = ToolsMenu(title: "Annotate")
+        for t in Tool.groups[1] { tool(t, in: annotate) }
+        annotate.addItem(.separator())
+        for t in Tool.groups[2] { tool(t, in: annotate) }
+        annotate.addItem(.separator())
+        for t in Tool.groups[3] { tool(t, in: annotate) }
+        annotate.addItem(item("Picture from File…", #selector(DocumentWindowController.chooseImageFile(_:))))
+        annotate.addItem(item("Picture from Clipboard", #selector(DocumentWindowController.imageFromClipboard(_:))))
+        annotate.addItem(.separator())
+        annotate.addItem(item("Highlight Selected Text", #selector(DocumentWindowController.highlightText(_:)), "h", [.command, .control]))
+        annotate.addItem(item("Underline Selected Text", #selector(DocumentWindowController.underlineText(_:)), "u", [.command, .control]))
+        annotate.addItem(item("Strike Out Selected Text", #selector(DocumentWindowController.strikeOutText(_:)), "x", [.command, .control]))
+        annotate.addItem(item("Link Selected Text…", #selector(DocumentWindowController.linkSelectedText(_:)), "k"))
+        annotate.addItem(.separator())
+        annotate.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
+        sub("Annotate", annotate)
+
+        let fill = ToolsMenu(title: "Fill & Sign")
+        for t in Tool.groups[4] { tool(t, in: fill) }
+        fill.addItem(.separator())
+        fill.addItem(item("Draw Signature…", #selector(DocumentWindowController.drawSignature(_:))))
+        fill.addItem(item("Type Signature…", #selector(DocumentWindowController.typeSignature(_:))))
+        fill.addItem(item("Draw Initials…", #selector(DocumentWindowController.drawInitials(_:))))
+        fill.addItem(item("Type Initials…", #selector(DocumentWindowController.typeInitials(_:))))
         let saved = NSMenuItem(title: "Place Saved Signature", action: nil, keyEquivalent: "")
         saved.submenu = SavedSignaturesMenu.make()
-        menu.addItem(saved)
-        menu.addItem(item("Sign Digitally…", #selector(DocumentWindowController.signDigitally(_:))))
+        fill.addItem(saved)
+        fill.addItem(.separator())
+        fill.addItem(item("Sign Digitally…", #selector(DocumentWindowController.signDigitally(_:))))
+        sub("Fill & Sign", fill)
+
+        tool(.editContent, in: menu)
+
+        let redact = ToolsMenu(title: "Redact")
+        tool(.redact, in: redact)
+        redact.addItem(item("Redact Selected Text", #selector(DocumentWindowController.redactSelectedText(_:))))
+        redact.addItem(item("Redact Search Matches", #selector(DocumentWindowController.redactSearchMatches(_:))))
+        redact.addItem(item("Redact by Pattern…", #selector(DocumentWindowController.redactByPattern(_:))))
+        redact.addItem(.separator())
+        redact.addItem(item("Apply Redactions…", #selector(DocumentWindowController.applyRedactions(_:))))
+        redact.addItem(item("Clear Redaction Marks", #selector(DocumentWindowController.clearRedactionMarks(_:))))
+        redact.addItem(.separator())
+        redact.addItem(item("Check Redaction…", #selector(DocumentWindowController.checkRedaction(_:))))
+        redact.addItem(item("Sanitize Document…", #selector(DocumentWindowController.sanitizeDocument(_:))))
+        redact.addItem(item("What's in This PDF…", #selector(DocumentWindowController.whatsInThisPdf(_:))))
+        sub("Redact", redact)
         menu.addItem(.separator())
+
         menu.addItem(item("Recognize Text (OCR)…", #selector(DocumentWindowController.recognizeText(_:))))
         menu.addItem(item("Review Suspect Words", #selector(DocumentWindowController.reviewSuspectWords(_:))))
-        menu.addItem(.separator())
-        menu.addItem(item("Redact Selected Text", #selector(DocumentWindowController.redactSelectedText(_:))))
-        menu.addItem(item("Redact Search Matches", #selector(DocumentWindowController.redactSearchMatches(_:))))
-        menu.addItem(item("Redact by Pattern…", #selector(DocumentWindowController.redactByPattern(_:))))
-        menu.addItem(item("Apply Redactions…", #selector(DocumentWindowController.applyRedactions(_:))))
-        menu.addItem(item("Clear Redaction Marks", #selector(DocumentWindowController.clearRedactionMarks(_:))))
-        menu.addItem(item("Check Redaction…", #selector(DocumentWindowController.checkRedaction(_:))))
-        menu.addItem(item("Sanitize Document…", #selector(DocumentWindowController.sanitizeDocument(_:))))
-        menu.addItem(item("What's in This PDF…", #selector(DocumentWindowController.whatsInThisPdf(_:))))
-        menu.addItem(item("Accessibility Check…", #selector(DocumentWindowController.checkAccessibility(_:))))
-        menu.addItem(.separator())
+        let forms = ToolsMenu(title: "Forms")
+        forms.addItem(item("Prepare Form", #selector(DocumentWindowController.togglePrepareForm(_:)), "f", [.command, .option]))
+        forms.addItem(item("Detect Form Fields", #selector(DocumentWindowController.detectFormFields(_:))))
+        sub("Forms", forms)
         // Measure (Windows: Review › Measure): the measuring tools, then the scale.
-        let measure = NSMenu(title: "Measure")
-        for tool in Tool.measuring {
-            let entry = item(tool.title, #selector(DocumentWindowController.chooseTool(_:)))
-            entry.tag = tool.rawValue
+        let measure = ToolsMenu(title: "Measure")
+        for t in Tool.measuring {
+            let entry = item(t.title, #selector(DocumentWindowController.chooseTool(_:)))
+            entry.tag = t.rawValue
             measure.addItem(entry)
         }
         measure.addItem(.separator())
         measure.addItem(item("Set Measuring Scale…", #selector(DocumentWindowController.setMeasuringScale(_:))))
-        let measureItem = NSMenuItem(title: "Measure", action: nil, keyEquivalent: "")
-        measureItem.submenu = measure
-        menu.addItem(measureItem)
+        sub("Measure", measure)
+        let access = ToolsMenu(title: "Accessibility")
+        access.addItem(item("Accessibility Check…", #selector(DocumentWindowController.checkAccessibility(_:))))
+        access.addItem(item("Make Accessible (Tag)…", #selector(DocumentWindowController.makeAccessible(_:))))
+        access.addItem(item("Reading Order and Alt Text", #selector(DocumentWindowController.toggleReadingOrder(_:))))
+        sub("Accessibility", access)
         // AI Assistant (Windows: Review › AI Assistant): bring your own, off by default.
-        let assistant = NSMenu(title: "AI Assistant")
+        let assistant = ToolsMenu(title: "AI Assistant")
         assistant.addItem(item("Summarize with AI…", #selector(DocumentWindowController.aiSummarize(_:))))
         assistant.addItem(item("Ask AI about This Document", #selector(DocumentWindowController.aiAsk(_:))))
         assistant.addItem(item("Explain Selection with AI", #selector(DocumentWindowController.aiExplain(_:))))
         assistant.addItem(.separator())
         assistant.addItem(item("AI Assistant Settings…", #selector(DocumentWindowController.aiSettings(_:))))
-        let assistantItem = NSMenuItem(title: "AI Assistant", action: nil, keyEquivalent: "")
-        assistantItem.submenu = assistant
-        menu.addItem(assistantItem)
-        menu.addItem(.separator())
-        menu.addItem(item("Prepare Form", #selector(DocumentWindowController.togglePrepareForm(_:)), "f", [.command, .option]))
-        menu.addItem(item("Detect Form Fields", #selector(DocumentWindowController.detectFormFields(_:))))
-        menu.addItem(.separator())
-        menu.addItem(item("Make Accessible (Tag)…", #selector(DocumentWindowController.makeAccessible(_:))))
-        menu.addItem(item("Reading Order and Alt Text", #selector(DocumentWindowController.toggleReadingOrder(_:))))
+        sub("AI Assistant", assistant)
         menu.addItem(.separator())
         menu.addItem(item("Show Inspector", #selector(DocumentWindowController.openInspector(_:)), "i"))
-        menu.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
-        menu.addItem(.separator())
         menu.addItem(item("Command Palette…", #selector(AppDelegate.showCommandPalette(_:)), "k", [.command, .shift]))
         return menu
     }

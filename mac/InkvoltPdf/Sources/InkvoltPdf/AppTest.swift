@@ -98,8 +98,12 @@ struct AppTest {
         StartWindowController.show()
         guard let start = StartWindowController.shared else { return check(false, "start page: not shown") }
         _ = await wait(3) { start.recentCount == 2 }
-        check(start.isShown && start.cards.count == StartWindowController.ToolCard.allCases.count && start.recentCount == 2,
-              "start page: shown with \(start.cards.count) tool cards and \(start.recentCount) recent files")
+        start.showMoreTools(false)
+        let calm = start.visibleCardCount
+        check(start.isShown && start.cards.count == StartWindowController.ToolCard.allCases.count && start.recentCount == 2 && calm == 4,
+              "start page: shown with \(calm) of \(start.cards.count) tool cards in sight and \(start.recentCount) recent files")
+        start.showMoreTools(true)
+        check(start.visibleCardCount == start.cards.count, "start page › More Tools: all \(start.visibleCardCount) cards shown")
         try? await Task.sleep(for: .milliseconds(500)) // page 1 of each drawn
         snapshot(start.window, "start-page.png")
 
@@ -206,7 +210,7 @@ struct AppTest {
         let saved = d.string(forKey: "Theme") == "Dark" && d.string(forKey: "ZoomMode") == "FitPage" && d.bool(forKey: "KeepRecoveryCopies") == false
             && d.string(forKey: "AuthorName") == "Self-Test Author" && UserDefaults.standard.string(forKey: "AuthorName") != "Self-Test Author"
         check(saved && NSApp.appearance?.name == .darkAqua && !RecoveryCopies.shared.enabled && AppSettings.author == "Self-Test Author",
-              "Settings › Save: stored under the Windows names (in the self-test's own suite), dark look and recovery copies off applied")
+              "Settings: applied at once, stored under the Windows names (in the self-test's own suite), dark look and recovery copies off applied")
 
         // Applied to a document opening: Fit page, reopened at the page it was left at, comments by the new author.
         if let file = copy("Settings.pdf") {
@@ -236,7 +240,7 @@ struct AppTest {
         s.saveClicked()
         let back = AppSettings.theme == "System" && AppSettings.zoomMode == "FitWidth" && AppSettings.restorePosition && AppSettings.keepRecoveryCopies
             && AppSettings.authorName.isEmpty && NSApp.appearance == nil && RecoveryCopies.shared.enabled
-        check(back, "Settings › Reset to Defaults, Save: back to how Inkvolt PDF starts")
+        check(back, "Settings › Reset to Defaults: back at once to how Inkvolt PDF starts")
         RecoveryCopies.shared.enabled = true
     }
 
@@ -468,14 +472,14 @@ struct AppTest {
     /// Finder do): the page printed by WebKit with its scripts off, the Office file through a made-up LibreOffice that
     /// writes a copy of the synthetic document, each a new unsaved document; then the menu items and document types.
     private mutating func convertFiles() async {
-        let menu = NSApp.mainMenu?.item(withTitle: "File")?.submenu
+        let menu = NSApp.mainMenu?.item(withTitle: "File")?.submenu?.item(withTitle: "New PDF")?.submenu
         let items = ["New PDF from Office File…", "New PDF from Web Page…"].filter { menu?.item(withTitle: $0) != nil }
         let types = (Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]]) ?? []
         let utis = Set(types.flatMap { ($0["LSItemContentTypes"] as? [String]) ?? [] })
         let wanted = ["org.openxmlformats.wordprocessingml.document", "org.openxmlformats.spreadsheetml.sheet",
                       "org.openxmlformats.presentationml.presentation", "public.html"]
         check(items.count == 2 && wanted.allSatisfy(utis.contains),
-              "File has New PDF from Office File… and from Web Page…; Word, Excel, PowerPoint and web pages are document types")
+              "File › New PDF has New PDF from Office File… and from Web Page…; Word, Excel, PowerPoint and web pages are document types")
         check(NSDocumentController.shared is DocumentController, "the app's document controller is the one that converts")
 
         // A saved web page: its text printed, its script never run.
