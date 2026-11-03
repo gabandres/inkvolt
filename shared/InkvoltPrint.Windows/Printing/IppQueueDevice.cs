@@ -9,12 +9,16 @@ namespace InkvoltPrint.Windows.Printing;
 /// <c>IppPrintDevice</c> (Windows 11; no administrator, no capability, read-only Get-Printer-Attributes). That's how an
 /// IPP-over-USB printer (USB printer class, protocol 4) is reached: Windows sets it up on the IPP class driver and carries
 /// the request over USB itself; the app never touches the USB device. On a network IPP or WSD queue it's the same call over
-/// the network. Off the calling thread; null for a queue that isn't an IPP one, before Windows 11, or on any failure.
+/// the network. Windows takes about 45 s to give up on a WSD printer that's off, so calls go through <see cref="TimedCalls{TKey,T}"/>:
+/// off the calling thread, cut off in time, one per printer however many ask. Null for a queue that isn't an IPP one, before Windows
+/// 11, or on any failure.
 /// </summary>
 public sealed class IppQueueDeviceReader(SpoolerQueue queue) : IQueueDeviceReader
 {
+    private static readonly TimedCalls<string, QueueDeviceReading?> Calls = new(TimeSpan.FromSeconds(7));
+
     public Task<QueueDeviceReading?> ReadAsync(CancellationToken ct) =>
-        !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) ? Task.FromResult<QueueDeviceReading?>(null) : Task.Run(Read, ct);
+        !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) ? Task.FromResult<QueueDeviceReading?>(null) : new TimedQueueDeviceReader(Calls, queue.Name, Read).ReadAsync(ct);
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.22000.0")]
     private QueueDeviceReading? Read()

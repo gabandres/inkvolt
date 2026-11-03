@@ -88,6 +88,30 @@ public class QueueDeviceTests
     }
 
     [Fact]
+    public async Task ACallThatHangsIsNothingAndTiesUpOneThread()
+    {
+        using var release = new ManualResetEventSlim();
+        var started = 0;
+        var calls = new TimedCalls<string, QueueDeviceReading?>(TimeSpan.FromMilliseconds(50));
+        var reader = new TimedQueueDeviceReader(calls, "Hung queue", () =>
+        {
+            Interlocked.Increment(ref started);
+            release.Wait();
+            return null;
+        });
+        try
+        {
+            Assert.Null(await reader.ReadAsync(CancellationToken.None).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(10))));
+            Assert.Null(await reader.ReadAsync(CancellationToken.None).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(10))));
+            Assert.Equal(1, Volatile.Read(ref started));
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [Fact]
     public void ItAsksForNoIdentifiers()
     {
         Assert.DoesNotContain(IppQueueReading.Attributes, a => a.Contains("uuid") || a.Contains("serial") || a.Contains("uri")

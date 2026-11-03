@@ -104,6 +104,20 @@ public sealed class DeviceQueueStatusSource(IQueueStatusSource windows, IReadOnl
     }
 }
 
+/// <summary>
+/// A reader whose call into Windows blocks and may hang (a driver over bidi; IPP through Windows takes 45 s to give up on a WSD printer
+/// that's off): <paramref name="read"/> runs off the calling thread through <paramref name="calls"/>, one at a time per queue, and no
+/// answer in time is nothing.
+/// </summary>
+public sealed class TimedQueueDeviceReader(TimedCalls<string, QueueDeviceReading?> calls, string queue, Func<QueueDeviceReading?> read) : IQueueDeviceReader
+{
+    public async Task<QueueDeviceReading?> ReadAsync(CancellationToken ct)
+    {
+        var (answered, reading) = await calls.RunAsync(queue, read, ct).ConfigureAwait(false);
+        return answered ? reading : null;
+    }
+}
+
 /// <summary>How Windows' status of a queue and what its printer or driver said make one.</summary>
 public static class QueueDevice
 {

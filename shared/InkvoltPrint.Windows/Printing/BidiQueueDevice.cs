@@ -16,11 +16,7 @@ public sealed class BidiQueueDeviceReader(SpoolerQueue queue) : IQueueDeviceRead
     private static readonly Guid BidiSplClsid = new("2A614240-A4C5-4C33-BD87-1BC709331639");
     private static readonly TimedCalls<string, QueueDeviceReading?> Calls = new(TimeSpan.FromSeconds(7));
 
-    public async Task<QueueDeviceReading?> ReadAsync(CancellationToken ct)
-    {
-        var (answered, reading) = await Calls.RunAsync(queue.Name, Read, ct).ConfigureAwait(false);
-        return answered ? reading : null;
-    }
+    public Task<QueueDeviceReading?> ReadAsync(CancellationToken ct) => new TimedQueueDeviceReader(Calls, queue.Name, Read).ReadAsync(ct);
 
     private QueueDeviceReading? Read()
     {
