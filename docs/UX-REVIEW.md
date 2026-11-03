@@ -176,13 +176,39 @@ every bar command is in them, so the palette lists each one (Organize › Delete
 
 #### Still short
 
-- **Text size 150 % on a 1200-DIP window** leaves the bar 800 DIPs, of which the menu bar takes about 380: the bar goes
-  icons-only there (save, print, undo, then "…"; `after/pdf-bar-1200-150.png`). The groups keep their tooltips, the
-  menus and the palette have everything; folding the menu bar into one button would free the room but hide the Alt
-  keys people use, so it stays.
-- **The group menus** are WPF context menus in the app's Fluent styling, not WinUI flyouts with a line of description
-  under each command.
+- ~~**Text size 150 % on a 1200-DIP window**~~ Done 2026-11-03 (round 3, below): the bar had save, print, undo and "…".
+- ~~**The group menus**~~ Done 2026-11-03 (round 3, below): flyouts with a line under each command.
 - **Organize's page pictures** keep the thumbnail size the slider sets; their numbers and buttons scale.
+
+#### Round 3 (2026-11-03): the two leftovers
+
+**The group flyouts.** Fill & Sign, Comment, the pointer tools and Draw drop a flyout as WinUI's command bars do: each
+command's name, and under it a line in the secondary text color saying what it does ("Put a check mark in a box",
+"Draw a box that opens a page or web address", "Drag an oval; Shift makes a circle"), its key on the right
+(`round3/after/pdf-flyout-fillsign.png`, `pdf-flyout-comment.png`, `pdf-flyout-pointer.png`, `pdf-flyout-draw.png`,
+`pdf-flyout-comment-dark.png`). Still a WPF context menu underneath, so arrow keys, access keys and screen readers work
+as before; a screen reader reads the name as the item's name and the line as its help text. The lines are in Core
+(`CommandBarLayout.Command.Description`, tested: one short line each, none twice) and `DrawTools.Description`.
+
+**The bar at Text size 150 % on a 1200-DIP window** (800 logical DIPs). Under 1100 the bar's right end gives up its
+room: the palette button keeps its icon (Ctrl+K, its tooltip and its name stay) and Appearance moves to the end of "…"
+(View › Theme has it too). Decided on the row's width, not on what fits, so it can't flip back and forth
+(`CommandBarLayout.RoomyWidth`). The bar went from save, print, undo and "…" to save, print, undo, redo, the pointer
+tools, Fill & Sign and "…" (`round3/after/pdf-bar-1200-150.png`, `pdf-bar-1200-150-dark.png`, `pdf-bar-more-150.png`);
+at 900 DIPs and 100 % it keeps Comment and Organize as well (`pdf-bar-900.png`). The bar's menus now follow the Text
+size too (they are popups, outside the bar's scaling, and stayed at 100 %: `pdf-flyout-fillsign-150.png`). The audit
+finds 0 findings at 150 % and in dark. Script: `docs/ux-review/pdf-round3.txt`.
+
+| # | Criterion | Round 2 | Round 3 | What changed |
+|---|---|---|---|---|
+| 4 | Fluent consistency | 10 | 10 | Round 2 gave 10 with the menus not yet flyouts; they are now. |
+| 14 | Responsiveness | 10 | 10 | Round 2 gave 10 with the bar icons-only at 150 % on 1200 DIPs; it keeps six commands there now, and its menus scale. |
+| | Every other criterion | | as round 2 | |
+| | **Weighted** | **9.62** | **9.62** | Both leftovers were under criteria already at 10, so the score doesn't move; it is earned without the reservations now. |
+
+Still short after round 3: at 150 % on 1200 DIPs Comment is in "…" (Draw, Redact and Organize too), a priority
+choice: undo, redo and print stay as icons. A menu shot (`menushot`) draws only what is over the window, so a flyout at
+the right edge looks cut in the shots; on screen it isn't. Organize's page pictures, as above.
 
 ### Inkvolt Print
 
@@ -209,6 +235,7 @@ The audit finds no control without a name or under 24 × 24 on the palette, the 
   output paths in the scripts first.
   `pdf-textsize.txt` is the second pass (`textscale 1.5` stands in for Windows' Text size), `pdf-round2.txt` round 2
   (dev steps `barstate`, `barclick` and `menushot`: the command bar's state, a group's menu, a shot with it open).
+  `pdf-round3.txt` round 3 (the flyouts, and the bar at 150 %).
 - Inkvolt Print: `InkvoltPrint.exe --demo --snapshot out.png --a11y-audit findings.txt [--tab Scan --scan 3 | --dialog confirm …]`
   (every run: `pwsh -File docs/ux-review/print-runs.ps1 -Exe …\InkvoltPrint.exe -Out C:\ux`). `INKVOLT_TEXTSCALE=1.5`
   stands in for Windows' Text size in both apps; `--delete n` and `--undo` drive the review's Undo; round 2 adds

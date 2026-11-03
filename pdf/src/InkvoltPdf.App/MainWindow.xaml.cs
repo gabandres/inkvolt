@@ -799,12 +799,14 @@ public partial class MainWindow : Window
     /// A menu dropping from an icon button. It would inherit the button's icon font and size from its placement target,
     /// drawing its text as boxes, so it takes the window's.
     /// </summary>
+    /// <summary>A bar button's menu, at Windows' Text size like the bar it drops from (a popup isn't inside the bar's scaling).</summary>
     private ContextMenu IconButtonMenu(FrameworkElement button) => new()
     {
         PlacementTarget = button,
         Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
         FontFamily = FontFamily,
         FontSize = FontSize,
+        LayoutTransform = TextScale.Factor == 1 ? Transform.Identity : new ScaleTransform(TextScale.Factor, TextScale.Factor),
     };
 
     /// <summary>
@@ -845,7 +847,28 @@ public partial class MainWindow : Window
         }
         if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator());
         foreach (var c in CommandBarLayout.Secondary) menu.Items.Add(CommandMenuItem(c));
+        if (AppearanceButton.Visibility != Visibility.Visible)
+        {
+            // Moved here when the bar is short of room (OnBarRowSizeChanged).
+            menu.Items.Add(new Separator());
+            var appearance = new MenuItem { Header = "_Appearance", Icon = MenuIcon("") };
+            FillAppearanceMenu(appearance);
+            menu.Items.Add(appearance);
+        }
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Short of room (under <see cref="CommandBarLayout.RoomyWidth"/>, as at Text size 150 % on a 1200-DIP window), the
+    /// bar's right end gives its space to the commands: the palette button keeps its icon (Ctrl+K, its tooltip and its name
+    /// stay) and Appearance moves into "…" (View › Theme has it too). Decided on the row's width, not on what fits in it,
+    /// so it can't flip back and forth.
+    /// </summary>
+    private void OnBarRowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var shown = e.NewSize.Width >= CommandBarLayout.RoomyWidth ? Visibility.Visible : Visibility.Collapsed;
+        if (PaletteLabel.Visibility == shown) return;
+        PaletteLabel.Visibility = PaletteKey.Visibility = AppearanceButton.Visibility = shown;
     }
 
     private TextBlock MenuIcon(string glyph) => new() { Text = glyph, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 };
@@ -856,6 +879,7 @@ public partial class MainWindow : Window
     private MenuItem CommandMenuItem(CommandBarLayout.Command c)
     {
         var mi = new MenuItem { Command = CommandNamed(c.Name), Icon = MenuIcon(c.Glyph), IsChecked = IsToolOn(c.Name) };
+        if (c.Description.Length > 0) Describe(mi, ((RoutedUICommand)mi.Command).Text, c.Description);
         if (c.Key is { } key && Cmd.GestureText(mi.Command) is null) mi.InputGestureText = key;
         if (c.Name == "RotateRight" && mi.Icon is TextBlock mirrored)
         {
@@ -863,6 +887,22 @@ public partial class MainWindow : Window
             mirrored.RenderTransform = new ScaleTransform(-1, 1);
         }
         return mi;
+    }
+
+    /// <summary>
+    /// A flyout item, as WinUI's command bar flyouts show one: the command's name and under it a line saying what it does,
+    /// in the secondary text color. Screen readers get the name as the item's name and the line as its help text.
+    /// </summary>
+    private static void Describe(MenuItem mi, string title, string description)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 3, 0, 3) };
+        panel.Children.Add(new AccessText { Text = title });
+        var line = new TextBlock { Text = description, FontSize = 12, Margin = new Thickness(0, 1, 0, 0) };
+        line.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        panel.Children.Add(line);
+        mi.Header = panel;
+        AutomationProperties.SetName(mi, title.Replace("_", "", StringComparison.Ordinal));
+        AutomationProperties.SetHelpText(mi, description);
     }
 
     private void FillGroupMenu(ItemsControl menu, CommandBarLayout.Entry group)
@@ -1862,20 +1902,22 @@ public partial class MainWindow : Window
         var current = ActiveTab?.PageView.Tool;
         foreach (var tool in DrawTools.All)
         {
-            menu.Items.Add(new MenuItem
+            var mi = new MenuItem
             {
                 Command = Cmd.DrawTool(tool),
                 InputGestureText = DrawTools.KeyOf(tool).ToString(),
                 Icon = new TextBlock { Text = DrawTools.Glyph(tool), FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 },
                 IsChecked = current == tool,
-            });
+            };
+            Describe(mi, Cmd.DrawTool(tool).Text, DrawTools.Description(tool));
+            menu.Items.Add(mi);
             if (tool is ViewerTool.Highlighter or ViewerTool.Arrow) menu.Items.Add(new Separator());
         }
     }
 
     private void OnDrawClick(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = DrawButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var menu = IconButtonMenu(DrawButton);
         FillDrawMenu(menu);
         menu.Closed += (_, _) => UpdateUi();
         menu.IsOpen = true;
@@ -2128,8 +2170,14 @@ public partial class MainWindow : Window
     /// <summary>The moon/sun button: a small menu for the app theme and dark pages.</summary>
     private void OnAppearanceClick(object sender, RoutedEventArgs e)
     {
-        var s = AppSettings.Current;
         var menu = IconButtonMenu(AppearanceButton);
+        FillAppearanceMenu(menu);
+        menu.IsOpen = true;
+    }
+
+    private void FillAppearanceMenu(ItemsControl menu)
+    {
+        var s = AppSettings.Current;
         MenuItem Item(string header, bool check, Action run)
         {
             var mi = new MenuItem { Header = header, IsCheckable = true, IsChecked = check };
@@ -2141,7 +2189,6 @@ public partial class MainWindow : Window
         menu.Items.Add(Item("Use my Windows setting", s.Theme is not ("Light" or "Dark"), () => SetTheme("System")));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Dark pages (night reading)", s.DarkPages, () => Cmd.DarkPages.Execute(null, this)));
-        menu.IsOpen = true;
     }
 
     private void OnThemeMenu(object sender, RoutedEventArgs e)

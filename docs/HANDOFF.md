@@ -69,7 +69,10 @@ One agent, cheapest first, one commit each, in this order:
    piece by piece, row spans).
 5. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the
    PC was loaded, recheck idle.
-6. UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.
+6. ~~UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.~~ Done 2026-11-03
+   (UX-REVIEW round 3): flyouts with a line under each command; under 1100 logical DIPs the palette button keeps its icon
+   and Appearance moves into "…", so at 150 % on 1200 DIPs the bar keeps six commands; its menus follow the Text size.
+   Left: Comment still goes to "…" there; Organize's page pictures.
 7. Small fixes: done 2026-11-03, `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` check that the JSON
    root is an object before `TryGetProperty` (`[]`, `"x"`, `1`, `null` gave InvalidOperationException; AiProtocolTests'
    `JsonThatIsNotAnObjectIsNotAChatCompletion`). Done 2026-11-03, DevScript's `compare` checks that both

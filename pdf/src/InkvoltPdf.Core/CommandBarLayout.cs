@@ -9,8 +9,18 @@ namespace InkvoltPdf.Core;
 /// </summary>
 public static class CommandBarLayout
 {
-    /// <summary>One command of a group: the <c>Cmd</c> field it runs, its icon (Segoe Fluent Icons) and page-view letter key.</summary>
-    public sealed record Command(string Name, string Glyph, string? Key = null);
+    /// <summary>
+    /// One command of a group: the <c>Cmd</c> field it runs, its icon (Segoe Fluent Icons), page-view letter key, and the
+    /// line under its name in the group's flyout, saying in a few plain words what it does.
+    /// </summary>
+    public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "");
+
+    /// <summary>
+    /// Under this many logical DIPs (the window's width over Windows' Text size) the bar's right end makes room: the
+    /// palette button shows its icon only (Ctrl+K and its tooltip stay) and Appearance moves into "…". At Text size 150 %
+    /// a 1200-DIP window is 800 here.
+    /// </summary>
+    public const double RoomyWidth = 1100;
 
     /// <summary>
     /// A place on the bar. <see cref="Priority"/>: when room runs short the lowest goes into the overflow first (on a tie,
@@ -38,13 +48,24 @@ public static class CommandBarLayout
         new("Undo", null, 100, [new("Undo", "\uE7A7")]),
         new("Redo", null, 100, [new("Redo", "\uE7A6")]),
         null,
-        new(Pointer, "Select", 85, [new("ToolHand", "\uE7C9", "H"), new("ToolSelect", "\uE8E9", "T"), new("ToolSnapshot", "\uE722", "G")]),
+        new(Pointer, "Select", 85,
+            [new("ToolHand", "\uE7C9", "H", "Drag the page to move around it"),
+             new("ToolSelect", "\uE8E9", "T", "Select text to copy, mark or look up"),
+             new("ToolSnapshot", "\uE722", "G", "Copy an area of the page as a picture")]),
         null,
         new("FillSign", "Fill & Sign", 90,
-            [new("ToolAddText", "\uE8D2", "A"), new("ToolCheck", "\uE73E", "K"), new("ToolCross", "\uE711", "X"), new("AddSignature", "\uE76D")]),
+            [new("ToolAddText", "\uE8D2", "A", "Type in a blank or anywhere on the page"),
+             new("ToolCheck", "\uE73E", "K", "Put a check mark in a box"),
+             new("ToolCross", "\uE711", "X", "Put a cross in a box"),
+             new("AddSignature", "\uE76D", Description: "Draw, type or pick your signature or initials")]),
         new("Comment", "Comment", 80,
-            [new("Highlight", "\uE7E6"), new("Underline", "\uE8DC"), new("StrikeOut", "\uE738"), new("AddNote", "\uE90A"),
-             new("AddImage", "\uE91B", "I"), new("ToolLink", "\uE71B", "N"), new("AddStamp", "\uEB95", "S")]),
+            [new("Highlight", "\uE7E6", Description: "Mark the selected text in color"),
+             new("Underline", "\uE8DC", Description: "Draw a line under the selected text"),
+             new("StrikeOut", "\uE738", Description: "Cross out the selected text"),
+             new("AddNote", "\uE90A", Description: "Pin a note to the page"),
+             new("AddImage", "\uE91B", "I", "Place a picture on the page"),
+             new("ToolLink", "\uE71B", "N", "Draw a box that opens a page or web address"),
+             new("AddStamp", "\uEB95", "S", "Stamp Approved, Draft, Confidential or your own")]),
         new(Draw, "Draw", 60, []),
         new("Redact", "Redact", 50, [new("Redact", "\uE73B")]),
         null,

@@ -50,6 +50,20 @@ public static class DrawTools
         _ => tool.ToString(),
     };
 
+    /// <summary>The line under the tool's name in the Draw flyout: what it does, in a few plain words.</summary>
+    public static string Description(ViewerTool tool) => tool switch
+    {
+        ViewerTool.Pen => "Draw freehand with the mouse, a pen or a finger",
+        ViewerTool.Highlighter => "Draw over the page in see-through color",
+        ViewerTool.Rectangle => "Drag a box; Shift makes a square",
+        ViewerTool.Ellipse => "Drag an oval; Shift makes a circle",
+        ViewerTool.Line => "Drag a straight line",
+        ViewerTool.Arrow => "Drag a line that ends in an arrowhead",
+        ViewerTool.TextBox => "Type a line, or drag a box for wrapped text",
+        ViewerTool.Callout => "A text box with a line pointing at something",
+        _ => "",
+    };
+
     /// <summary>The tool's name in menus and tooltips.</summary>
     public static string ToolName(ViewerTool tool) => tool switch
     {

@@ -42,10 +42,12 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Command bar** (Fluent 2's pattern, one row): save, print, undo and redo as icons, then labeled groups in the order of
   the menus: **Hand / Select / Snapshot** (named after the tool in use), **Fill & Sign** (add text, check mark, cross,
   sign), **Comment** (highlight, underline, strike out, note, image, link, stamp), **Draw**, **Redact** and **Organize**.
-  A group drops a menu of its tools with their icons and keys and shows the one in use. "…" holds what doesn't fit (a
+  A group drops a flyout of its tools: each with its icon, key and a line under its name saying what it does; the group
+  shows the one in use. "…" holds what doesn't fit (a
   group as a submenu), then rotate, delete selected pages, find and combine, all with labels. Labels show from about
   1150 DIPs (Select, Fill & Sign, Comment at 1200; Draw and Organize from 1400; everything at 1700); the bar goes
-  icons-only only when Fill & Sign or Comment wouldn't fit with theirs. Every bar command is in the menus, so the command
+  icons-only only when Fill & Sign or Comment wouldn't fit with theirs. Under 1100 logical DIPs (a 1200-DIP window at Text
+  size 150 %) the palette button keeps only its icon and Appearance moves into "…". Every bar command is in the menus, so the command
   palette (Ctrl+K) lists it. The table (order, groups, priorities, icons) and the fitting are `CommandBarLayout` (Core,
   tested); `ToolbarPanel` lays it out; dev steps `barstate`, `barclick Id|More`, `menushot out.png`.
 - **Tabs**: next / previous with Ctrl+Tab / Ctrl+Shift+Tab or Ctrl+PgDn / Ctrl+PgUp, Ctrl+Alt+1…9 picks one,

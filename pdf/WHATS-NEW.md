@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- The Fill & Sign, Comment, pointer and Draw menus say in a line under each tool what it does.
+- With large text (Windows' Text size), the command bar keeps more of its buttons on a smaller window, and its menus get the larger text too.
 - Saving a large file while a Word, Excel or PowerPoint file converts to PDF no longer fails.
 - Text recognition reads again, on their own, the lines Windows' recognizer skips on a page, so Recognize Text and Redact by Pattern find words they missed.
 - An AI server whose answer isn't a chat reply gets a clear message instead of an error.

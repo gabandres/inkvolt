@@ -90,13 +90,14 @@
                 <Border x:Name="CommandBar" DockPanel.Dock="Top" app:TextScale.Scales="True" Padding="4,4,8,4"
                         BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                     <!-- One row at every width: commands that don't fit go into the "More" (…) menu at the end of the bar. -->
-                    <DockPanel MinHeight="34">
+                    <DockPanel MinHeight="34" SizeChanged="OnBarRowSizeChanged">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button Style="{StaticResource CommandButton}" Command="app:Cmd.CommandPalette" ToolTip="Search all commands">
+                            <Button Style="{StaticResource CommandButton}" Command="app:Cmd.CommandPalette" ToolTip="Search all commands"
+                                    AutomationProperties.Name="Commands">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE765;" FontSize="14" />
-                                    <TextBlock Text="Commands" Margin="8,0,8,0" VerticalAlignment="Center" />
-                                    <Border CornerRadius="3" Padding="5,0,5,1" BorderThickness="1" VerticalAlignment="Center"
+                                    <TextBlock x:Name="PaletteLabel" Text="Commands" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                    <Border x:Name="PaletteKey" CornerRadius="3" Padding="5,0,5,1" Margin="8,0,0,0" BorderThickness="1" VerticalAlignment="Center"
                                             BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
                                         <TextBlock x:Name="PaletteKeyText" FontSize="11" Style="{StaticResource Caption}" />
                                     </Border>

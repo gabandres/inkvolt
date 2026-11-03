@@ -1,0 +1,58 @@
+# Round 2's "Still short" (docs/UX-REVIEW.md): the group flyouts with a line per command, and the bar at Text size 150 %
+# on a 1200-DIP window. Samples in C:\ux2\samples (from the tests, INKVOLTPDF_SAMPLES); shots in C:\ux3\after.
+wait 1200
+size 1200 820
+open C:\ux2\samples\features.pdf
+wait 1500
+barstate
+shot C:\ux3\after\pdf-bar-1200.png
+textscale 1.5
+wait 500
+barstate
+shot C:\ux3\after\pdf-bar-1200-150.png
+a11yaudit
+barclick FillSign
+wait 400
+menushot C:\ux3\after\pdf-flyout-fillsign-150.png
+key Escape
+barclick More
+wait 400
+menushot C:\ux3\after\pdf-bar-more-150.png
+key Escape
+theme dark
+wait 400
+shot C:\ux3\after\pdf-bar-1200-150-dark.png
+theme light
+textscale system
+wait 400
+size 900 620
+wait 400
+barstate
+shot C:\ux3\after\pdf-bar-900.png
+size 1200 820
+wait 400
+barclick FillSign
+wait 400
+menushot C:\ux3\after\pdf-flyout-fillsign.png
+key Escape
+barclick Comment
+wait 400
+menushot C:\ux3\after\pdf-flyout-comment.png
+key Escape
+barclick Pointer
+wait 400
+menushot C:\ux3\after\pdf-flyout-pointer.png
+key Escape
+barclick Draw
+wait 400
+menushot C:\ux3\after\pdf-flyout-draw.png
+key Escape
+theme dark
+wait 300
+barclick Comment
+wait 400
+menushot C:\ux3\after\pdf-flyout-comment-dark.png
+key Escape
+a11yaudit
+theme light
+exit

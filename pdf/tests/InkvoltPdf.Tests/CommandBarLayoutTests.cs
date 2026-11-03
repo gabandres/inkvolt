@@ -48,6 +48,21 @@ public class CommandBarLayoutTests
         Assert.True(missing.Count == 0, $"Not in the menus: {string.Join(", ", missing)}");
     }
 
+    [Fact]
+    public void EachCommandOfAGroupSaysInALineWhatItDoes()
+    {
+        // The line under its name in the group's flyout: a few plain words, one line, no period, none twice.
+        var commands = CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Where(e => e.IsGroup).SelectMany(e => e.Commands).ToList();
+        Assert.All(commands, c =>
+        {
+            Assert.InRange(c.Description.Length, 12, 50);
+            Assert.True(char.IsUpper(c.Description[0]) && !c.Description.EndsWith('.') && !c.Description.Contains('\n'), c.Name);
+        });
+        Assert.Equal(commands.Count, commands.Select(c => c.Description).Distinct().Count());
+        // At Text size 150 % a 1200-DIP window is 800 logical DIPs: short of room; at 100 % it isn't.
+        Assert.InRange(CommandBarLayout.RoomyWidth, 800 + 1, 1200);
+    }
+
     // ── Fitting ──
 
     private static Item Cmd(double full, int priority, double? compact = null) => new(full, compact ?? full, priority);
