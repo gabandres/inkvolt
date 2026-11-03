@@ -30,6 +30,9 @@ public sealed record ProbeResult(
     /// </summary>
     public SnmpIdentity? Snmp { get; init; }
 
+    /// <summary>An SNMPv3 agent answered and refused the login's user or keys (nothing else answered); null otherwise.</summary>
+    public SnmpRefusal? SnmpRefused { get; init; }
+
     public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null || Snmp is not null;
 
     public string? Uuid =>
@@ -188,11 +191,12 @@ public sealed class PrinterConnection : IDisposable
         var (scanner, esclRoot) = escl.Result;
         var (attrs, endpoint) = ipp.Result;
         // SNMP last, and only for a printer none of the others reached: a printer with LEDM, CDM or IPP never gets an SNMP request.
+        SnmpRefusal? refused = null;
         var snmpProbe = tree is null && cdm.Result is null && attrs is null && snmp is not null
-            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, snmpLogin, ct).ConfigureAwait(false)
+            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, snmpLogin, ct, r => refused = r).ConfigureAwait(false)
             : null;
         return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs)
-            { IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity };
+            { IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity, SnmpRefused = snmpProbe is null ? refused : null };
     }
 
     /// <summary>
@@ -351,7 +355,8 @@ public sealed class PrinterConnection : IDisposable
             yield return "tick";
     }
 
-    public static bool IsOffline(Exception ex) => ex is HttpRequestException or TimeoutException;
+    /// <summary>No answer; an SNMPv3 agent refusing the user or keys counts as one (as an agent ignores a wrong community).</summary>
+    public static bool IsOffline(Exception ex) => ex is HttpRequestException or TimeoutException or SnmpAccessException;
 
     /// <summary>The printer answered, but with an error status or an unreadable body.</summary>
     public static bool IsTransient(Exception ex) => ex is DeviceHttpException or System.Xml.XmlException or FormatException or SnmpErrorException;

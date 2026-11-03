@@ -124,7 +124,8 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
   Mac: 3.4 job notifications (the rules to PrintCore; CUPS gives no page counts through `cupsGetJobs2`), 2.3 scan
   cleanup and a Unicode OCR layer.
 - Windows, no hardware (hold lifted for these by the owner, 2026-11-03): 3.2 a community per printer DONE (2026-11-03,
-  Credential Manager, `SnmpLoginTests`); SNMPv3 against the made-up agent; UX still short (the palette for another printer,
+  Credential Manager, `SnmpLoginTests`); SNMPv3 DONE (2026-11-03, Pro, authPriv SHA-256/AES-128, `SnmpV3Tests`; never
+  tried on a printer's agent; PrintCore on the Mac needs the same port later); UX still short (the palette for another printer,
   motion in the scan review).
 - Hardware, both platforms: 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, batch print on paper, a real jam for job
   alerts. No physical printer has printed a page, and neither stuck-job rule has fired on a real spooler.

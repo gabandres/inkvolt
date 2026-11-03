@@ -74,11 +74,11 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
     public partial string? AddressError { get; set; }
 
     /// <summary>
-    /// The SNMP community a printer that answers only SNMP is asked with (blank: public). Kept in Credential Manager with the
-    /// printer, never in state.json.
+    /// What the SNMP access fields hold: the community a printer that answers only SNMP is asked with (blank: public) or an
+    /// SNMPv3 user (Pro); null when it can't be used (the fields say why). Kept in Credential Manager with the printer, never
+    /// in state.json. Unset (no window): public.
     /// </summary>
-    [ObservableProperty]
-    public partial string Community { get; set; } = "";
+    public Func<Core.Snmp.SnmpLogin?>? ReadSnmpAccess { get; set; }
 
     /// <summary>The SNMP access part is open (a community was typed, or the user opened it).</summary>
     [ObservableProperty]
@@ -257,10 +257,10 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
             AddressError = off;
             return;
         }
-        if (Core.Snmp.SnmpLogin.ForCommunity(Community, out var loginError) is not { } login)
+        var login = ShowsSnmp && ReadSnmpAccess is { } read ? read() : Core.Snmp.SnmpLogin.Public;
+        if (login is null)
         {
-            AddressError = loginError;
-            ShowsSnmp = true;
+            AddressError = "Check SNMP access below.";
             return;
         }
         IsAddingAddress = true;
@@ -269,8 +269,11 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
             var probe = await main.IdentifyAsync(a.Host!, a.Ipp, CancellationToken.None, login);
             if (!probe.Reachable)
             {
-                AddressError = $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network."
-                               + (login.IsDefault ? " A printer that answers only SNMP may need its community: open SNMP access below." : " Check the SNMP community too.");
+                AddressError = probe.SnmpRefused is { } refused
+                    ? $"{new Core.Snmp.SnmpAccessException(refused).Message} Check SNMP access below."
+                    : $"No printer answered at {a.Host}. Check the address, and that the printer is on and on this network."
+                      + (login.IsDefault ? " A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below."
+                          : login.User is not null ? " Check the SNMPv3 user name and passphrases too." : " Check the SNMP community too.");
                 return;
             }
             if (main.Listed(probe, a.Host!) is { } listed)

@@ -407,7 +407,19 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   `state.json`, a recording or the log. Free, as the table says. `SnmpLoginTests`: the kept secret's round trip through the store's seam
   (memory; CI writes nothing to Credential Manager), the made-up agent silent to `public` and a wrong community and answering the
   right one, every request after it carrying it, a session offline without it and connected with it, and neither the remembered
-  `SnmpDevice`, a log line nor `AppState` holding it. Not yet: SNMPv3 (below); on hardware, a printer with `public` disabled.
+  `SnmpDevice`, a log line nor `AppState` holding it. Not yet: on hardware, a printer with `public` disabled.
+- **Now (Windows): SNMPv3, built 2026-11-03 (Pro, `ProFeature.SnmpV3`).** The same SNMP access fields (Add a printer, the printer's
+  menu) take an SNMPv3 user and two passphrases; authPriv only, HMAC-SHA-256-192 and AES-128-CFB, keys localized to the engine.
+  USM discovery (engine ID, boots, time), every request signed and encrypted, every reply checked before it's read, the clock set
+  from a signed notInTimeWindow report, read only. Unknown user, wrong digest and decryption error are told apart. Kept in
+  Credential Manager with the community's entry; used only while `Pro.Allows` says so. .NET's own SHA-256, HMAC and AES; no
+  package. `SnmpV3Tests` (22): RFC 3414 A.3's MD5 and SHA-1 key vectors and the same algorithm with SHA-256, RFC 4231's HMAC,
+  NIST SP 800-38A's AES-CFB (and a short last block), the AES IV, a discovery request and an authPriv GetRequest written by hand
+  byte for byte (cipher text and digest from Python's own hashlib, hmac and AES), every changed byte failing the digest, the
+  made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
+  set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
+  Windows** (no hardware: never tried on a printer's agent). **Mac: PrintCore needs the same port later** (its SNMP is the same
+  code in Swift: `SnmpLogin`, the v3 message, USM keys with CryptoKit, the Keychain for the secret); not started, Print for Mac is on hold.
 - **Effort** M. Windows and Mac (PrintCore's SNMP is the same code).
 
 ### 3.3 The printer's own copier, copy extras

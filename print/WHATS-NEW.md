@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Printers that answer only SNMP can have their own community: enter it under SNMP access when you add the printer by its address, or change it later from the printer's menu (SNMP access…). It's kept in Windows Credential Manager and used only to read the printer.
+- Inkvolt Pro (free for now): SNMPv3. For a printer that answers only SNMPv3, enter its user name and its two passphrases instead of a community. Every request is signed and encrypted (SHA-256, AES-128), and Inkvolt Print says whether the printer refused the user name or a passphrase.
 
 ## 1.2.0
 - Batch print: Print › Batch takes many PDFs and pictures, or a folder. Each file has its own copies, pages, sides and paper, and you see the sheets each takes and in all before anything prints. They go in order, each result is listed, and a batch that stops says where and carries on from there without printing anything twice.

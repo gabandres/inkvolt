@@ -3,7 +3,7 @@ using InkvoltPrint.Core.Snmp;
 
 namespace InkvoltPrint.App.Views;
 
-/// <summary>The printer's menu › SNMP access…: the community a printer read over SNMP is asked with.</summary>
+/// <summary>The printer's menu › SNMP access…: the community or SNMPv3 user a printer read over SNMP is asked with.</summary>
 public partial class SnmpAccessDialog : Window
 {
     private SnmpLogin? _chosen;
@@ -19,31 +19,19 @@ public partial class SnmpAccessDialog : Window
         return dlg.ShowDialog() == true ? dlg._chosen : null;
     }
 
-    /// <summary>The dialog, not shown yet (dev snapshots: <c>--dialog snmp</c>).</summary>
+    /// <summary>The dialog, not shown yet (dev snapshots: <c>--dialog snmp</c>, <c>--dialog snmp3</c>).</summary>
     public static SnmpAccessDialog Create(string printer, SnmpLogin current)
     {
         var dlg = new SnmpAccessDialog();
         dlg.Heading.Text = $"SNMP access for {printer}";
-        dlg.CommunityBox.Text = current.IsDefault ? "" : current.Community;
-        dlg.Loaded += (_, _) =>
-        {
-            dlg.CommunityBox.Focus();
-            dlg.CommunityBox.SelectAll();
-        };
+        dlg.Fields.Show(current);
+        dlg.Loaded += (_, _) => dlg.Fields.FocusFirst();
         return dlg;
     }
 
-    private void Community_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e) => Error.Visibility = Visibility.Collapsed;
-
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
-        _chosen = SnmpLogin.ForCommunity(CommunityBox.Text, out var error);
-        if (_chosen is null)
-        {
-            Error.Text = error;
-            Error.Visibility = Visibility.Visible;
-            return;
-        }
-        DialogResult = true;
+        _chosen = Fields.Read();
+        if (_chosen is not null) DialogResult = true;
     }
 }

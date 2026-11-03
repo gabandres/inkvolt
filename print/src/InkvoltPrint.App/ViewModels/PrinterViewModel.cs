@@ -62,7 +62,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _remember = remember;
         _pc = pc;
         _session = new PrinterSession(uuid, new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid),
-                SnmpLogin: () => pc.SnmpLogins.Get(uuid)),
+                SnmpLogin: () => pc.SnmpLogins.Usable(uuid)),
             () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids));
         Print = new PrintViewModel(FindQueueAsync, state) { Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state) };
         Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
@@ -311,6 +311,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The printer's menu offers SNMP access…: a network printer read over SNMP (its community may change).</summary>
     public bool CanSetSnmpLogin => IsNetworkPrinter && SnmpDevice is not null;
 
+    /// <summary>The printer's SNMP login as it's used now (an SNMPv3 user only with Inkvolt Pro).</summary>
+    private SnmpLogin? SnmpLoginNow() => _pc.SnmpLogins.Usable(Uuid);
+
     /// <summary>Asks for a printer's SNMP login (its name, the login kept now); null: cancelled. Set by the app (a dialog).</summary>
     public static Func<string, SnmpLogin, SnmpLogin?>? AskSnmpLogin { get; set; }
 
@@ -514,7 +517,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var options = new Core.Recording.RecordOptions
         {
             Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri,
-            Community = (_pc.SnmpLogins.Get(Uuid) ?? Core.Snmp.SnmpLogin.Public).Community,
+            Login = SnmpLoginNow(),
         };
         return Core.Recording.ReportRecording.RunAsync(RecordHost ?? throw new InvalidOperationException("This printer has no address to record."), _pc.RecordingsFolder, options, DateTime.Now, ct);
     }

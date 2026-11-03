@@ -3,8 +3,11 @@ using System.Text;
 
 namespace InkvoltPrint.Core.Snmp;
 
-/// <summary>SNMP message versions Inkvolt Print speaks: v1 (RFC 1157) and community-based v2c (RFC 1901). Never v3.</summary>
-public enum SnmpVersion { V1 = 0, V2c = 1 }
+/// <summary>
+/// SNMP message versions Inkvolt Print speaks: v1 (RFC 1157), community-based v2c (RFC 1901), and v3 with the User-based
+/// Security Model (RFC 3412, RFC 3414; <see cref="SnmpV3Message"/>), authPriv only.
+/// </summary>
+public enum SnmpVersion { V1 = 0, V2c = 1, V3 = 3 }
 
 /// <summary>PDU tags (RFC 1157 §4.1, RFC 3416 §3). Inkvolt Print sends only Get, GetNext and GetBulk: never Set.</summary>
 public enum SnmpPduType : byte
@@ -161,10 +164,16 @@ public sealed record SnmpMessage(
 
     public byte[] Encode()
     {
+        if (Version == SnmpVersion.V3) throw new InvalidOperationException("An SNMPv3 message is written by SnmpV3Message.");
+        return Ber.Constructed(Ber.Sequence, Ber.Integer32((int)Version), Ber.Octets(Encoding.UTF8.GetBytes(Community)), EncodePdu());
+    }
+
+    /// <summary>The PDU alone (RFC 3416 §3): what an SNMPv3 scoped PDU carries.</summary>
+    public byte[] EncodePdu()
+    {
         var bindings = VarBinds.Select(vb => Ber.Constructed(Ber.Sequence, Ber.ObjectId(vb.Name), vb.Value.Encode())).ToArray();
-        var pdu = Ber.Constructed((byte)Type, Ber.Integer32(RequestId), Ber.Integer32(ErrorStatus), Ber.Integer32(ErrorIndex),
+        return Ber.Constructed((byte)Type, Ber.Integer32(RequestId), Ber.Integer32(ErrorStatus), Ber.Integer32(ErrorIndex),
             Ber.Constructed(Ber.Sequence, bindings));
-        return Ber.Constructed(Ber.Sequence, Ber.Integer32((int)Version), Ber.Octets(Encoding.UTF8.GetBytes(Community)), pdu);
     }
 
     /// <summary>A message from the network. <see cref="FormatException"/> for anything that isn't a v1/v2c message.</summary>
@@ -178,7 +187,13 @@ public sealed record SnmpMessage(
             var v => throw new FormatException($"SNMP: version {v.ToString(CultureInfo.InvariantCulture)} isn't v1 or v2c."),
         };
         var community = Encoding.UTF8.GetString(message.ReadOctets());
-        var (tag, start, length) = message.Next();
+        return DecodePdu(data, message, version, community);
+    }
+
+    /// <summary>The next element of <paramref name="from"/> as a PDU (an SNMPv3 scoped PDU's data), as <paramref name="version"/>'s.</summary>
+    internal static SnmpMessage DecodePdu(byte[] data, Ber.Reader from, SnmpVersion version, string community)
+    {
+        var (tag, start, length) = from.Next();
         if (!Enum.IsDefined((SnmpPduType)tag)) throw new FormatException($"SNMP: PDU type 0x{tag:X2} isn't handled.");
         var pdu = new Ber.Reader(data, start, start + length);
         var requestId = Int32(pdu.ReadInteger());

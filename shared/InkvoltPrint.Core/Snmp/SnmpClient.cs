@@ -3,18 +3,46 @@ using System.Security.Cryptography;
 namespace InkvoltPrint.Core.Snmp;
 
 /// <summary>
-/// A read-only SNMPv1/v2c manager for one agent: Get, GetNext and (v2c) GetBulk, and table walks built on them. It has no
+/// A read-only SNMP manager for one agent: Get, GetNext and (v2c, v3) GetBulk, and table walks built on them. It has no
 /// way to send a Set. Each request waits <see cref="Timeout"/> and is sent again <see cref="Retries"/> times (UDP may drop
 /// it); no reply at all is a <see cref="TimeoutException"/> (the printer is off or has no agent), a reply that isn't SNMP a
-/// <see cref="FormatException"/>, an error the client can't work around a <see cref="SnmpErrorException"/>.
+/// <see cref="FormatException"/>, an error the client can't work around a <see cref="SnmpErrorException"/>. Over SNMPv3
+/// (a login with a <see cref="SnmpV3User"/>) every request is authenticated and encrypted (authPriv) after the agent's
+/// engine is discovered (RFC 3414 §4), every reply is checked before it's read, and an agent that refuses the user or its
+/// keys is a <see cref="SnmpAccessException"/>.
 /// </summary>
-public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersion version, string community = SnmpClient.DefaultCommunity)
+public sealed partial class SnmpClient
 {
     /// <summary>The read community nearly every printer ships with.</summary>
     public const string DefaultCommunity = "public";
 
-    public string Host { get; } = host;
-    public SnmpVersion Version { get; } = version;
+    private readonly ISnmpTransport transport;
+    private readonly string community;
+    private readonly SnmpV3User? _user;
+
+    public SnmpClient(ISnmpTransport transport, string host, SnmpVersion version, string community = DefaultCommunity)
+    {
+        if (version == SnmpVersion.V3) throw new ArgumentException("SNMPv3 needs a login with a user.", nameof(version));
+        this.transport = transport;
+        this.community = community;
+        Host = host;
+        Version = version;
+    }
+
+    /// <summary>A client with <paramref name="login"/>: its community over <paramref name="version"/>, or its SNMPv3 user (version 3).</summary>
+    public SnmpClient(ISnmpTransport transport, string host, SnmpVersion version, SnmpLogin login)
+    {
+        if ((version == SnmpVersion.V3) != (login.User is not null))
+            throw new ArgumentException("SNMPv3 goes with a login with a user, and only it.", nameof(version));
+        this.transport = transport;
+        community = login.Community;
+        _user = login.User;
+        Host = host;
+        Version = version;
+    }
+
+    public string Host { get; }
+    public SnmpVersion Version { get; }
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(1);
     public int Retries { get; init; } = 1;
 
@@ -60,7 +88,7 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
     /// <summary>RFC 3416 §4.2.3 GetBulk (v2c only): <paramref name="nonRepeaters"/> objects once, then up to <paramref name="maxRepetitions"/> successors of the rest.</summary>
     public async Task<IReadOnlyList<SnmpVarBind>> GetBulkAsync(int nonRepeaters, int maxRepetitions, IReadOnlyList<Oid> names, CancellationToken ct = default)
     {
-        if (Version == SnmpVersion.V1) throw new InvalidOperationException("GetBulk is SNMPv2 only.");
+        if (Version == SnmpVersion.V1) throw new InvalidOperationException("GetBulk is SNMPv2 and v3 only.");
         var reply = await SendAsync(SnmpPduType.GetBulkRequest, nonRepeaters, maxRepetitions, names, ct).ConfigureAwait(false);
         ThrowOnError(reply);
         return reply.VarBinds;
@@ -79,7 +107,7 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
         var at = columns.ToArray();
         var done = new bool[columns.Count];
         var repetitions = 16;
-        var bulk = Version == SnmpVersion.V2c;
+        var bulk = Version != SnmpVersion.V1;
         for (var request = 0; request < MaxRows * 2 && done.Contains(false); request++)
         {
             var active = Enumerable.Range(0, columns.Count).Where(i => !done[i]).ToList();
@@ -144,7 +172,9 @@ public sealed class SnmpClient(ISnmpTransport transport, string host, SnmpVersio
         if (type is not (SnmpPduType.GetRequest or SnmpPduType.GetNextRequest or SnmpPduType.GetBulkRequest))
             throw new InvalidOperationException("Inkvolt Print only reads over SNMP.");
         var id = Interlocked.Increment(ref _requestId) & int.MaxValue;
-        var request = new SnmpMessage(Version, community, type, id, a, b, names.Select(n => new SnmpVarBind(n, SnmpValue.Null)).ToList()).Encode();
+        var pdu = new SnmpMessage(Version, community, type, id, a, b, names.Select(n => new SnmpVarBind(n, SnmpValue.Null)).ToList());
+        if (Version == SnmpVersion.V3) return await SendV3Async(pdu with { Community = "" }, ct).ConfigureAwait(false);
+        var request = pdu.Encode();
         for (var attempt = 0; attempt <= Retries; attempt++)
         {
             if (await transport.SendAsync(Host, request, Timeout, ct).ConfigureAwait(false) is not { } bytes) continue;

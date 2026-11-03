@@ -24,6 +24,9 @@ public sealed record RecordOptions
 
     public string Community { get; init; } = SnmpClient.DefaultCommunity;
 
+    /// <summary>The printer's own login (its community or SNMPv3 user), when it has one; else <see cref="Community"/>. Never written into the recording.</summary>
+    public SnmpLogin? Login { get; init; }
+
     /// <summary>eSCL and IPP addresses from DNS-SD, when the printer's aren't the usual ones (as <see cref="PrinterConnection.OpenAsync"/>).</summary>
     public Uri? EsclHint { get; init; }
 
@@ -117,7 +120,7 @@ public static class PrinterRecorder
                 await Quietly(() => scanner.GetStatusAsync(ct)).ConfigureAwait(false);
                 if (options.Scan) await ScanAsync(scanner, scans, notKept, ct).ConfigureAwait(false);
             }
-            if (snmp is not null) await WalkSnmpAsync(snmp, host, options.Community, ct).ConfigureAwait(false);
+            if (snmp is not null) await WalkSnmpAsync(snmp, host, options.Login ?? SnmpLogin.ForCommunity(options.Community, out _) ?? SnmpLogin.Public, ct).ConfigureAwait(false);
 
             // The documents, by the names FixtureHandler serves them under.
             var documents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -186,14 +189,14 @@ public static class PrinterRecorder
         }
     }
 
-    private static async Task WalkSnmpAsync(SnmpCapture snmp, string host, string community, CancellationToken ct)
+    private static async Task WalkSnmpAsync(SnmpCapture snmp, string host, SnmpLogin login, CancellationToken ct)
     {
-        // As the app asks first: the probe (v2c and v1 at once). Then each subtree, one GetNext at a time.
-        var printer = await SnmpPrinterClient.ProbeAsync(snmp, host, community, ct).ConfigureAwait(false);
+        // As the app asks first: the probe (v2c and v1 at once, or v3). Then each subtree, one GetNext at a time.
+        var printer = await SnmpPrinterClient.ProbeAsync(snmp, host, login, ct).ConfigureAwait(false);
         if (printer is null) return;
         snmp.Model = printer.Identity.Model;
         await Quietly(() => printer.ReadAsync(ct)).ConfigureAwait(false);
-        var client = new SnmpClient(snmp, host, printer.Identity.Version, community);
+        var client = new SnmpClient(snmp, host, printer.Identity.Version, login);
         var started = Stopwatch.StartNew();
         foreach (var root in SnmpSubtrees)
         {
@@ -322,8 +325,17 @@ public static class PrinterRecorder
     }
 
     /// <summary>Passes SNMP through and keeps every object a reply carried.</summary>
-    private sealed class SnmpCapture(ISnmpTransport inner) : ISnmpTransport
+    private sealed class SnmpCapture(ISnmpTransport inner) : ISnmpTransport, ISnmpObserver
     {
+        /// <summary>An SNMPv3 answer, as the client read it (encrypted on the wire, so not readable in <see cref="SendAsync"/>).</summary>
+        public void Observe(SnmpMessage reply) => Keep(reply);
+
+        private void Keep(SnmpMessage m)
+        {
+            if (m.ErrorStatus == SnmpMessage.NoError)
+                foreach (var vb in m.VarBinds.Where(v => !v.Value.IsException && v.Value.Tag != Ber.Null)) _objects[vb.Name] = vb;
+        }
+
         private readonly ConcurrentDictionary<Oid, SnmpVarBind> _objects = new();
         private long _ticks;
         private int _requests, _replies;
@@ -343,12 +355,16 @@ public static class PrinterRecorder
             Interlocked.Add(ref _ticks, Stopwatch.GetElapsedTime(started).Ticks);
             if (reply is null) return null;
             Interlocked.Increment(ref _replies);
+            if (SnmpV3Message.IsV3(reply))
+            {
+                V2cAnswered = true; // a v3 agent takes GetBulk too; replayed as v2c and v1
+                return reply;
+            }
             try
             {
                 var m = SnmpMessage.Decode(reply);
                 if (m.Version == SnmpVersion.V2c) V2cAnswered = true;
-                if (m.ErrorStatus == SnmpMessage.NoError)
-                    foreach (var vb in m.VarBinds.Where(v => !v.Value.IsException && v.Value.Tag != Ber.Null)) _objects[vb.Name] = vb;
+                Keep(m);
             }
             catch (FormatException) { }
             return reply;

@@ -36,7 +36,7 @@ public sealed class SnmpPrinterClient
     {
         Identity = identity;
         _transport = transport;
-        _client = new SnmpClient(transport, host, identity.Version, identity.LoginOrPublic.Community) { Timeout = timeout ?? ProbeTimeout };
+        _client = new SnmpClient(transport, host, identity.Version, identity.LoginOrPublic) { Timeout = timeout ?? ProbeTimeout };
     }
 
     public SnmpIdentity Identity { get; }
@@ -54,12 +54,22 @@ public sealed class SnmpPrinterClient
     public static Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, string community, CancellationToken ct = default) =>
         ProbeAsync(transport, host, SnmpLogin.ForCommunity(community, out _) ?? SnmpLogin.Public, ct);
 
-    /// <param name="login">The printer's own login (<see cref="ISnmpLogins"/>); null: <see cref="SnmpLogin.Public"/>.</param>
+    /// <param name="login">
+    /// The printer's own login (<see cref="ISnmpLogins"/>); null: <see cref="SnmpLogin.Public"/>. With an SNMPv3 user only v3 is
+    /// asked (authPriv), never v1 or v2c.
+    /// </param>
+    /// <param name="refused">Told why an SNMPv3 agent refused the user or its keys (the probe then finds nothing).</param>
     public static async Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, SnmpLogin? login = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, Action<SnmpRefusal>? refused = null)
     {
-        var community = (login ?? SnmpLogin.Public).Community;
+        login ??= SnmpLogin.Public;
         using var loser = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (login.User is not null)
+        {
+            var v3 = await TryProbe(SnmpVersion.V3).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            return v3 is null ? null : new SnmpPrinterClient(transport, host, v3);
+        }
         var v2 = TryProbe(SnmpVersion.V2c);
         var v1 = TryProbe(SnmpVersion.V1);
         SnmpIdentity? found;
@@ -81,7 +91,7 @@ public sealed class SnmpPrinterClient
         {
             try
             {
-                var client = new SnmpClient(transport, host, version, community) { Timeout = ProbeTimeout };
+                var client = new SnmpClient(transport, host, version, login) { Timeout = ProbeTimeout };
                 var next = await client.GetNextAsync([PrinterMib.SysDescr, PrinterMib.SysName, PrinterMib.SysLocation, PrinterMib.HrPrinterStatus], loser.Token)
                     .ConfigureAwait(false);
                 if (next[3].Value.IsException || next[3].Name.After(PrinterMib.HrPrinterStatus) is not [var index]) return null;
@@ -90,6 +100,11 @@ public sealed class SnmpPrinterClient
                     .ConfigureAwait(false);
                 return new SnmpIdentity(version, index, more[0].Value.Text, Text(0, PrinterMib.SysDescr), Text(1, PrinterMib.SysName),
                     Text(2, PrinterMib.SysLocation), more[1].Value.Text, login);
+            }
+            catch (SnmpAccessException ex)
+            {
+                refused?.Invoke(ex.Reason);
+                return null;
             }
             catch (Exception ex) when (ex is TimeoutException or FormatException or SnmpErrorException or OperationCanceledException)
             {

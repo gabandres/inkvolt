@@ -32,7 +32,7 @@ public sealed class WindowsFleetPc : IFleetPc
 
     /// <summary>With the printer's SNMP login as the app keeps it (Credential Manager, read only).</summary>
     public PrinterRecipe Recipe(InkvoltPrinter printer) =>
-        new(() => null, UdpSnmpTransport.Instance, SnmpLogin: () => Security.SnmpLoginStore.Instance.Get(printer.Uuid));
+        new(() => null, UdpSnmpTransport.Instance, SnmpLogin: () => Security.SnmpLoginStore.Instance.Usable(printer.Uuid));
 
     public Task<IReadOnlyList<SpoolerQueue>> QueuesAsync(Func<SpoolerQueue, bool> needsPresence, CancellationToken ct) => InstalledQueues.ListAsync(needsPresence);
 

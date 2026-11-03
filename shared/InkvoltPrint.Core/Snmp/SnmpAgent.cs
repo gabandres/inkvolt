@@ -20,8 +20,39 @@ public sealed partial class SnmpAgent : ISnmpTransport
         V1Only = v1Only;
     }
 
+    /// <summary>
+    /// An SNMPv3-only agent (<see cref="RespondV3"/>) for <paramref name="user"/> at authPriv (SHA-256, AES-128), with engine
+    /// <paramref name="engineId"/>; v1 and v2c requests get no reply.
+    /// </summary>
+    public SnmpAgent(IEnumerable<SnmpVarBind> objects, SnmpV3User user, byte[] engineId, int engineBoots = 1, int engineTime = 1000)
+        : this(objects)
+    {
+        V3User = user;
+        EngineId = engineId;
+        EngineBoots = engineBoots;
+        EngineTime = engineTime;
+        _keys = Usm.Keys.For(user, engineId);
+    }
+
     public string Community { get; }
     public bool V1Only { get; }
+
+    /// <summary>The SNMPv3 user this agent knows (one; the agent answers nothing else).</summary>
+    public SnmpV3User? V3User { get; }
+
+    private bool V3Only => V3User is not null;
+    private readonly Usm.Keys? _keys;
+    private long _salt = 0x5A17_0000_0000_0000;
+
+    /// <summary>The agent's snmpEngineID (RFC 3411).</summary>
+    public byte[] EngineId { get; } = [];
+
+    /// <summary>snmpEngineBoots and snmpEngineTime (the tests move them, as a restarted or long-running agent would).</summary>
+    public int EngineBoots { get; set; }
+    public int EngineTime { get; set; }
+
+    /// <summary>The v3 requests received and what each came to: "discovery", "answered" or the usmStats counter reported (tests).</summary>
+    public List<string> V3Log { get; } = [];
 
     /// <summary>Requests received (answered or not): lets tests check what was, and wasn't, asked.</summary>
     public int Requests { get; private set; }
@@ -107,11 +138,18 @@ public sealed partial class SnmpAgent : ISnmpTransport
     public byte[]? Respond(byte[] request)
     {
         Requests++;
+        if (SnmpV3Message.IsV3(request)) return RespondV3(request);
         SnmpMessage m;
         try { m = SnmpMessage.Decode(request); }
         catch (FormatException) { return null; }
         Received.Add(m);
-        if (m.Community != Community || (V1Only && m.Version != SnmpVersion.V1)) return null;
+        if (V3Only || m.Community != Community || (V1Only && m.Version != SnmpVersion.V1)) return null;
+        return Answer(m)?.Encode();
+    }
+
+    /// <summary>The reply to one request PDU (any version: the v3 path hands its decrypted PDU here); null where a real agent stays silent.</summary>
+    private SnmpMessage? Answer(SnmpMessage m)
+    {
         var v1 = m.Version == SnmpVersion.V1;
         return m.Type switch
         {
@@ -141,7 +179,7 @@ public sealed partial class SnmpAgent : ISnmpTransport
         return lo < _objects.Count ? _objects[lo] : null;
     }
 
-    private static byte[] PerObject(SnmpMessage m, bool v1, Func<Oid, SnmpVarBind> answer)
+    private static SnmpMessage PerObject(SnmpMessage m, bool v1, Func<Oid, SnmpVarBind> answer)
     {
         var bindings = m.VarBinds.Select(vb => answer(vb.Name)).ToList();
         if (v1 && bindings.FindIndex(b => b.Value.IsException) is var bad and >= 0)
@@ -149,7 +187,7 @@ public sealed partial class SnmpAgent : ISnmpTransport
         return Reply(m, 0, 0, bindings);
     }
 
-    private byte[] Bulk(SnmpMessage m)
+    private SnmpMessage Bulk(SnmpMessage m)
     {
         var n = Math.Clamp(m.NonRepeaters, 0, m.VarBinds.Count);
         var bindings = new List<SnmpVarBind>();
@@ -172,9 +210,79 @@ public sealed partial class SnmpAgent : ISnmpTransport
         return Reply(m, 0, 0, bindings);
     }
 
-    private static byte[] Reply(SnmpMessage m, int status, int index, IReadOnlyList<SnmpVarBind> bindings) =>
-        (m with { Type = SnmpPduType.Response, ErrorStatus = status, ErrorIndex = index, VarBinds = bindings }).Encode();
+    private static SnmpMessage Reply(SnmpMessage m, int status, int index, IReadOnlyList<SnmpVarBind> bindings) =>
+        m with { Type = SnmpPduType.Response, ErrorStatus = status, ErrorIndex = index, VarBinds = bindings };
 
     [GeneratedRegex(@"^(?<oid>\.?\d+(\.\d+)+)\s*=\s*(?<type>[A-Za-z0-9-]+):\s*(?<value>.*)$")]
     private static partial Regex WalkLine();
+
+    // ------------------------------------------------------------------------------------------------ SNMPv3 (RFC 3412 §7.2, RFC 3414 §3.2)
+
+    /// <summary>
+    /// A v3 request as an agent with one user at authPriv handles it: discovery (no engine ID) and an unknown engine get
+    /// unknownEngineIDs with the engine's ID, boots and time; another user unknownUserNames; a lower security level
+    /// unsupportedSecLevels; a wrong digest wrongDigests; a time outside 150 s of the engine's notInTimeWindows (signed); a
+    /// scoped PDU that doesn't decrypt to one decryptionErrors. Reports other than notInTimeWindows go unsigned, as RFC 3414
+    /// sends them. A request that reads is answered as v2c would be, signed and encrypted.
+    /// </summary>
+    private byte[]? RespondV3(byte[] request)
+    {
+        if (V3User is not { } user || _keys is not { } keys) return null; // a v1/v2c agent doesn't speak v3
+        SnmpV3Message m;
+        try { m = SnmpV3Message.Decode(request); }
+        catch (FormatException) { return null; }
+        var reportable = (m.Flags & SnmpV3Message.FlagReportable) != 0;
+        if (m.EngineId.Length == 0 || !m.EngineId.AsSpan().SequenceEqual(EngineId))
+            return Report(m, Usm.UnknownEngineIds, m.EngineId.Length == 0 ? "discovery" : "unknownEngineIDs");
+        if (m.UserName != user.Name) return Report(m, Usm.UnknownUserNames, "unknownUserNames");
+        if (!m.Authenticated || !m.Private) return Report(m, Usm.UnsupportedSecLevels, "unsupportedSecLevels");
+        if (!m.Verify(request, keys.Auth)) return Report(m, Usm.WrongDigests, "wrongDigests");
+        if (m.EngineBoots != EngineBoots || Math.Abs((long)m.EngineTime - EngineTime) > Usm.TimeWindow)
+            return Report(m, Usm.NotInTimeWindows, "notInTimeWindows", signed: true);
+        SnmpMessage pdu;
+        try
+        {
+            if (m.Encrypted is null || m.PrivParameters.Length != Usm.SaltLength) throw new FormatException("no encrypted PDU");
+            var (_, _, decrypted) = SnmpV3Message.DecodeScoped(
+                Usm.AesCfb(keys.Priv, Usm.AesIv(m.EngineBoots, m.EngineTime, m.PrivParameters), m.Encrypted, encrypt: false));
+            pdu = decrypted;
+        }
+        catch (FormatException)
+        {
+            return Report(m, Usm.DecryptionErrors, "decryptionErrors");
+        }
+        Received.Add(pdu);
+        if (Answer(pdu) is not { } answer) return null;
+        V3Log.Add("answered");
+        return Wrap(m, answer, keys);
+
+        byte[]? Report(SnmpV3Message to, Oid counter, string what, bool signed = false)
+        {
+            V3Log.Add(what);
+            if (!reportable) return null;
+            var requestId = to.Pdu?.RequestId ?? 0;
+            var report = new SnmpMessage(SnmpVersion.V3, "", SnmpPduType.Report, requestId, 0, 0,
+                [new SnmpVarBind(counter, SnmpValue.Unsigned(Ber.Counter32, 1))]);
+            var reply = new SnmpV3Message
+            {
+                MessageId = to.MessageId, Flags = signed ? SnmpV3Message.FlagAuth : (byte)0, EngineId = EngineId, EngineBoots = EngineBoots,
+                EngineTime = EngineTime, UserName = to.UserName, ContextEngineId = EngineId, Pdu = report,
+            };
+            return signed ? reply.Sign(keys.Auth) : reply.Encode();
+        }
+    }
+
+    /// <summary>A Response, encrypted with a fresh salt and signed.</summary>
+    private byte[] Wrap(SnmpV3Message to, SnmpMessage answer, Usm.Keys keys)
+    {
+        var salt = new byte[Usm.SaltLength];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(salt, Interlocked.Increment(ref _salt));
+        var scoped = SnmpV3Message.EncodeScoped(EngineId, "", answer);
+        return new SnmpV3Message
+        {
+            MessageId = to.MessageId, Flags = SnmpV3Message.FlagAuth | SnmpV3Message.FlagPriv, EngineId = EngineId,
+            EngineBoots = EngineBoots, EngineTime = EngineTime, UserName = to.UserName, PrivParameters = salt,
+            Encrypted = Usm.AesCfb(keys.Priv, Usm.AesIv(EngineBoots, EngineTime, salt), scoped, encrypt: true),
+        }.Sign(keys.Auth);
+    }
 }

@@ -47,6 +47,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   transports (`FixtureHandler`, `SnmpAgent`) serve it as that printer (`Core/Recording/PrinterRecorder`). **Scrubbing** gives
   each identifier a stand-in of the same shape, the same one everywhere (`FixtureScrubber`); Report a problem's masks
   (`Diagnostics.Scrub`) only blank them out.
+- **SNMP login** (of a printer): how it's read over SNMP: a community, or (Pro) an SNMPv3 user with two passphrases (`SnmpLogin`). A secret: kept in Credential Manager by printer id (`ISnmpLogins`), never in `state.json`; public when none is kept.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
 - **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer
   (`Core/History/SupplyHistoryStore`); what it says (cartridges, days left, the chart) is worked out from it, never stored.

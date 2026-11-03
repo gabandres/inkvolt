@@ -283,7 +283,7 @@ internal static class DevSnapshot
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
         }
-        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro|snmp: that window instead of the main one.
+        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro|snmp|snmp3: that window instead of the main one.
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
         {
             if (name == "pro" && args.Contains("--pro-enforce")) Core.Pro.Enforced = true; // the locked wording (demo: memory only)
@@ -297,6 +297,8 @@ internal static class DevSnapshot
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
+                "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer",
+                    Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);

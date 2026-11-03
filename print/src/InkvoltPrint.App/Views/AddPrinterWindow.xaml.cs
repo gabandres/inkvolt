@@ -13,6 +13,7 @@ public partial class AddPrinterWindow : Window
         InitializeComponent();
         MaxHeight = Math.Max(480, SystemParameters.WorkArea.Height - 48); // all of it on a 1080p screen; scrolls on a smaller one
         DataContext = _vm = new AddPrinterViewModel(main);
+        _vm.ReadSnmpAccess = SnmpFields.Read;
         _vm.CloseRequested += Close;
         Loaded += (_, _) => _vm.Start();
         Closed += (_, _) => _vm.Dispose();
