@@ -133,6 +133,9 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
   tried on a printer's agent; PrintCore on the Mac needs the same port later); UX: the palette for another printer DONE
   (2026-11-03, "Printer: command" entries once a word is typed); motion in the scan review DONE (2026-11-03, subtle:
   never while a scan or save shows progress, `ReviewMotion`).
+- Windows: *Plugged in, needs its driver* DONE (2026-11-03, owner asked, for 1.3.0.0): USB printers Windows found but has no
+  driver or queue for (`NeedsDriver`, `NeedsDriverTests`; real case: the HP LaserJet P1006 here, bound to *Generic printer device*).
+  Its words are in Core's `NeedsDriverText` (Spanish: see the commit). Untried: *Set it up* with a real driver installed.
 - Hardware, both platforms: 2.1, 2.2, 2.5, 3.1, 3.3, WIA PDF-only scanners, batch print on paper, a real jam for job
   alerts. No physical printer has printed a page, and neither stuck-job rule has fired on a real spooler.
 - Small screens and Windows 10 FIXED (2026-11-03, for Print 1.3.0.0; `docs/ux-review/small-screens/README.md`): the One

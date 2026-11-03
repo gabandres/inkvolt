@@ -50,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IWiaSystem _wia;
     private IReadOnlyList<WiaDeviceInfo> _scanners = [];
     private bool _scannersRead;
+    private IDisposable? _usbWatch;
 
     /// <param name="pc">This PC, or demo mode's made-up one (<c>--demo</c>): there every printer talks to made-up web servers instead
     /// of the network, the queues and scanners are made up, and discovery, adding by address and the HP software check are off.</param>
@@ -100,8 +101,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _scanners = scanners;
             _scannersRead = true;
             Reconcile(queues: true);
+            _ = ReadNeedsDriverAsync(queues, _queueWatch.Token);
             return;
         }
+        _usbWatch = pc.NeedsDriver.Watch(RelistQueues); // a USB printer plugged in or out: the queues and USB printers are read again at once
         _ = WatchQueuesAsync(_queueWatch.Token);
         if (pc.ChecksHpSoftware) _ = CheckHpSoftwareAsync();
         if (pc.CreateDiscovery() is not { } discovery) return;
@@ -126,14 +129,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The main pane shows the Fleet page instead of the selected printer.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint))]
+    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint), nameof(ShowNeedsDriverPane))]
     public partial bool IsFleetShown { get; set; }
 
-    public bool ShowPrinterPane => Selected is not null && !IsFleetShown;
-    public bool ShowNoPrinterHint => Selected is null && !IsFleetShown;
+    public bool ShowPrinterPane => Selected is not null && !IsFleetShown && SelectedNeedsDriver is null;
+    public bool ShowNoPrinterHint => Selected is null && !IsFleetShown && SelectedNeedsDriver is null;
 
     partial void OnIsFleetShownChanged(bool value)
     {
+        if (value) SelectedNeedsDriver = null;
         if (value) Fleet.Show();
         else _fleet?.Hide();
         // The queue card refreshes only while its printer is on screen.
@@ -381,6 +385,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedChanged(PrinterViewModel? value)
     {
+        if (value is not null) SelectedNeedsDriver = null;
+        OnPropertyChanged(nameof(ListSelected));
         _state.SelectedUuid = value?.Uuid;
         _state.Save();
         value?.EnsureSectionLoaded();
@@ -410,6 +416,81 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             vm.ApplyDiscovery(d);
         }
         Reconcile(queues: true); // a printer found on the network takes the place of its Windows queue's entry
+    }
+
+    // ---------------------------------------------------------------- USB printers plugged in that need their driver
+
+    /// <summary>USB printers Windows sees that nothing can print to (<see cref="NeedsDriver"/>), listed under the printers.</summary>
+    public ObservableCollection<NeedsDriverViewModel> NeedsDriver { get; } = [];
+
+    public string NeedsDriverListName => NeedsDriverText.ListName;
+
+    /// <summary>The one whose page shows instead of the selected printer's (the selected printer stays selected underneath).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint), nameof(ShowNeedsDriverPane), nameof(ListSelected))]
+    public partial NeedsDriverViewModel? SelectedNeedsDriver { get; set; }
+
+    public bool ShowNeedsDriverPane => SelectedNeedsDriver is not null && !IsFleetShown;
+
+    partial void OnSelectedNeedsDriverChanged(NeedsDriverViewModel? value)
+    {
+        if (value is not null) IsFleetShown = false;
+    }
+
+    /// <summary>
+    /// The printer list's selection: the selected printer, or none while a USB printer needing its driver is shown (so choosing the
+    /// same printer again shows it). Choosing one shows it.
+    /// </summary>
+    public PrinterViewModel? ListSelected
+    {
+        get => SelectedNeedsDriver is null ? Selected : null;
+        set
+        {
+            if (value is null && SelectedNeedsDriver is not null) return; // the list letting go while the other page shows
+            if (value is not null) SelectedNeedsDriver = null;
+            if (value == Selected) OnPropertyChanged();
+            else Selected = value;
+        }
+    }
+
+    /// <summary>
+    /// Reads the USB printers needing their driver after a queue list (cheap: one PnP query, none of it shown elsewhere) and follows
+    /// them: one set up or unplugged goes, a new one is added, one whose driver came in moves on to "Set it up".
+    /// </summary>
+    private async Task ReadNeedsDriverAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct)
+    {
+        NeedsDriverRead read;
+        try
+        {
+            read = await _pc.NeedsDriver.ReadAsync(queues, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Write($"Reading USB printers failed: {ex.Message}");
+            return;
+        }
+        if (ct.IsCancellationRequested) return;
+        var ids = read.Printers.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id)).ToList())
+        {
+            if (SelectedNeedsDriver == gone) SelectedNeedsDriver = null;
+            gone.SetUpDone -= RelistQueues;
+            NeedsDriver.Remove(gone);
+            Log.Write($"[{gone.Name}] no longer needs its driver here (set up, or unplugged)");
+        }
+        foreach (var p in read.Printers)
+        {
+            if (NeedsDriver.FirstOrDefault(v => string.Equals(v.Id, p.Id, StringComparison.OrdinalIgnoreCase)) is { } listed)
+            {
+                if (listed.Printer.Stage != p.Stage) Log.Write(NeedsDriverText.LogLine(p));
+                listed.Update(p, read.ProtectedPrint);
+                continue;
+            }
+            var vm = new NeedsDriverViewModel(p, read.ProtectedPrint, _pc.NeedsDriver);
+            vm.SetUpDone += RelistQueues;
+            NeedsDriver.Add(vm);
+            Log.Write(NeedsDriverText.LogLine(p) + (read.ProtectedPrint ? " (Windows protected print mode is on)" : ""));
+        }
     }
 
     // ---------------------------------------------------------------- printers known only by their Windows queue
@@ -446,6 +527,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 {
                     Log.Write($"Reading Windows' printers failed: {ex.Message}");
                 }
+                await ReadNeedsDriverAsync(_queues, ct);
                 try
                 {
                     _scanners = await _wia.ListScannersAsync(ct);
@@ -633,6 +715,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _queueWatch.Cancel();
         _queueWatch.Dispose();
         _relist.Dispose();
+        _usbWatch?.Dispose();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
     }

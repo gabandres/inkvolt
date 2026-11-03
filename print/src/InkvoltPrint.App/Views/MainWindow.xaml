@@ -1594,6 +1594,34 @@
                         Margin="10,0,0,0" FontSize="12" />
             </StackPanel>
 
+            <!-- USB printers plugged in that need their driver: under the printers, each with a page of what to do -->
+            <ListBox x:Name="NeedsDriverList" DockPanel.Dock="Bottom" ItemsSource="{Binding NeedsDriver}" SelectedItem="{Binding SelectedNeedsDriver}"
+                     Style="{StaticResource NavList}" AutomationProperties.Name="{Binding NeedsDriverListName}" Margin="0,4,0,0"
+                     Visibility="{Binding NeedsDriver.Count, Converter={StaticResource VisibleWhen}}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        <Setter Property="AutomationProperties.HelpText" Value="{Binding ListStatus}" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:NeedsDriverViewModel}">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center" />
+                                <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                                         StrokeThickness="1.5" Fill="{DynamicResource SystemFillColorCautionBrush}" />
+                            </Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ListStatus}" Style="{StaticResource Caption}" FontSize="12" ToolTip="{Binding ListStatus}"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            </StackPanel>
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
             <Grid>
                 <!-- Empty states: only when the list is empty -->
                 <StackPanel Margin="8" Visibility="{Binding ShowSearching, Converter={StaticResource VisibleWhen}}">
@@ -1615,7 +1643,7 @@
                             ToolTip="Opens a second window with a made-up printer, to see what Inkvolt Print shows. Nothing is sent anywhere." />
                 </StackPanel>
 
-                <ListBox x:Name="PrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding Selected}" Style="{StaticResource NavList}"
+                <ListBox x:Name="PrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding ListSelected}" Style="{StaticResource NavList}"
                          AutomationProperties.Name="Printers" ContextMenuOpening="Printers_ContextMenuOpening">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavItem}">
@@ -1687,6 +1715,9 @@
                 <!-- The Fleet page takes the printer's place -->
                 <views:FleetView x:Name="FleetPage" DataContext="{Binding Fleet}" Margin="32,24,16,0"
                                  Visibility="{Binding DataContext.IsFleetShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+                <!-- A USB printer that needs its driver takes the printer's place while it's chosen -->
+                <views:NeedsDriverPage x:Name="NeedsDriverPane" DataContext="{Binding SelectedNeedsDriver}" Margin="32,24,16,0"
+                                       Visibility="{Binding DataContext.ShowNeedsDriverPane, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="{Binding ShowNoPrinterHint, Converter={StaticResource VisibleWhen}}">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="56" HorizontalAlignment="Center"

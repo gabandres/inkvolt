@@ -63,6 +63,12 @@ public abstract class PcEnvironment
     /// </summary>
     public abstract (IReadOnlyList<SpoolerQueue> Queues, IReadOnlyList<WiaDeviceInfo> Scanners)? FixedDevices { get; }
 
+    /// <summary>
+    /// USB printers plugged in that nothing can print to ("Plugged in, needs its driver"): this PC's, read from Windows, or the made-up
+    /// PC's one made-up printer (nothing opened, installed or set up).
+    /// </summary>
+    public INeedsDriverPc NeedsDriver => IsDemo ? DemoNeedsDriverPc.Instance : RealNeedsDriverPc.Instance;
+
     /// <summary>Scanners Windows has a driver for (WIA).</summary>
     public abstract IWiaSystem Wia { get; }
 

@@ -1,0 +1,100 @@
+<UserControl x:Class="InkvoltPrint.App.Views.NeedsDriverPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:InkvoltPrint.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:NeedsDriverViewModel}">
+    <!-- A USB printer plugged in that nothing can print to: what's wrong, and what to do, step by step -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="0,0,16,24" MaxWidth="760" HorizontalAlignment="Left">
+            <!-- Hero, as a printer's page has it -->
+            <DockPanel Margin="0,0,0,20">
+                <Grid DockPanel.Dock="Left" Width="88" Height="88" Margin="0,0,20,0">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="48" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Grid>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,6,0,0">
+                        <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource SystemFillColorCautionBrush}" />
+                        <TextBlock Text="{Binding ListStatus}" />
+                        <TextBlock Text="{Binding Where, StringFormat='   ·   {0}'}" Style="{StaticResource Caption}" />
+                    </WrapPanel>
+                </StackPanel>
+            </DockPanel>
+
+            <TextBlock Text="{Binding Headline}" FontSize="16" TextWrapping="Wrap" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding WhyMakersDriver}" Style="{StaticResource Caption}" Margin="0,0,0,20" />
+
+            <!-- Windows protected print mode keeps makers' drivers out: said only while it's on -->
+            <Border CornerRadius="8" Padding="16,12" Margin="0,0,0,20" BorderThickness="1"
+                    Background="{DynamicResource SystemFillColorCautionBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    Visibility="{Binding ShowProtectedPrint, Converter={StaticResource VisibleWhen}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="18" Margin="0,2,14,0" VerticalAlignment="Top"
+                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding ProtectedPrintTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ProtectedPrintNote}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- No driver yet: the maker's driver, step by step -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding IsNoDriver, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding StepsTitle}" Style="{StaticResource CardTitle}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="1" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <StackPanel Grid.Column="1" Margin="0,0,0,14">
+                            <TextBlock Text="{Binding StepGetDriver}" TextWrapping="Wrap" />
+                            <Button Command="{Binding OpenMakerPageCommand}" Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left"
+                                    Padding="16,6" Margin="0,8,0,0" AutomationProperties.Name="{Binding MakerButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding MakerButton}" />
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="2" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StepPlugIn}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <TextBlock Grid.Row="2" Text="3" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding StepInstall}" TextWrapping="Wrap" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- A driver is in, but no queue: set it up -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding IsNotSetUp, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding SetUpNote}" TextWrapping="Wrap" />
+                    <Button Content="{Binding SetUpButton}" Command="{Binding SetUpCommand}" Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left"
+                            Padding="20,6" Margin="0,10,0,0" Visibility="{Binding CanSetUp, Converter={StaticResource VisibleWhen}}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding Result}" TextWrapping="Wrap" Margin="0,0,0,16" Visibility="{Binding Result, Converter={StaticResource VisibleWhen}}" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="{Binding OtherWaysTitle}" Style="{StaticResource CardTitle}" />
+                    <Button Content="{Binding CheckWindowsButton}" Command="{Binding CheckWindowsCommand}" HorizontalAlignment="Left" Padding="16,6" />
+                    <TextBlock Text="{Binding CheckWindowsNote}" Style="{StaticResource Caption}" Margin="0,4,0,14" />
+                    <Button Content="{Binding AddInWindowsButton}" Command="{Binding AddInWindowsCommand}" HorizontalAlignment="Left" Padding="16,6" />
+                    <TextBlock Text="{Binding AddInWindowsNote}" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

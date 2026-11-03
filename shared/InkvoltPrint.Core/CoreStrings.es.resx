@@ -4,4 +4,103 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="NeedsDriver_ListStatusNoDriver" xml:space="preserve">
+    <value>Conectada, le falta su controlador</value>
+  </data>
+  <data name="NeedsDriver_ListStatusNotSetUp" xml:space="preserve">
+    <value>Controlador instalado, sin configurar</value>
+  </data>
+  <data name="NeedsDriver_HeadlineNoDriver" xml:space="preserve">
+    <value>Windows encontró esta impresora, pero no tiene un controlador para ella, así que todavía no se puede imprimir en ella.</value>
+  </data>
+  <data name="NeedsDriver_HeadlineNotSetUp" xml:space="preserve">
+    <value>Su controlador está instalado, pero Windows no configuró la impresora, así que todavía no se puede imprimir en ella.</value>
+  </data>
+  <data name="NeedsDriver_WherePort" xml:space="preserve">
+    <value>USB ({0})</value>
+  </data>
+  <data name="NeedsDriver_WhyMakersDriver" xml:space="preserve">
+    <value>Algunas impresoras, a menudo láseres USB antiguas, solo funcionan con el controlador de su fabricante: Windows no tiene uno propio para ellas, e Inkvolt Print no puede imprimir en ellas sin él.</value>
+  </data>
+  <data name="NeedsDriver_StepsTitle" xml:space="preserve">
+    <value>Qué hacer</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriverFromMaker" xml:space="preserve">
+    <value>Descargue el controlador de la {0} del sitio web de {1}: elija su versión de Windows.</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriver" xml:space="preserve">
+    <value>Descargue el controlador de la {0} del sitio web de su fabricante: elija su versión de Windows.</value>
+  </data>
+  <data name="NeedsDriver_StepPlugIn" xml:space="preserve">
+    <value>Conecte la impresora y enciéndala.</value>
+  </data>
+  <data name="NeedsDriver_StepInstall" xml:space="preserve">
+    <value>Ejecute el instalador del controlador. Cuando Windows haya configurado la impresora, Inkvolt Print la mostrará por sí solo.</value>
+  </data>
+  <data name="NeedsDriver_MakerButton" xml:space="preserve">
+    <value>Abrir la página de controladores de {0}</value>
+  </data>
+  <data name="NeedsDriver_SearchButton" xml:space="preserve">
+    <value>Buscar su controlador en la web</value>
+  </data>
+  <data name="NeedsDriver_OtherWaysTitle" xml:space="preserve">
+    <value>Otras formas</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsButton" xml:space="preserve">
+    <value>Buscar un controlador en Windows</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsNote" xml:space="preserve">
+    <value>A veces Windows Update tiene el controlador de una impresora en Actualizaciones opcionales.</value>
+  </data>
+  <data name="NeedsDriver_AddInWindowsButton" xml:space="preserve">
+    <value>Agregarla en Windows</value>
+  </data>
+  <data name="NeedsDriver_AddInWindowsNote" xml:space="preserve">
+    <value>Configuración › Bluetooth y dispositivos › Impresoras y escáneres, donde puede agregarla con un controlador que tenga.</value>
+  </data>
+  <data name="NeedsDriver_ProtectedPrintTitle" xml:space="preserve">
+    <value>El modo de impresión protegida de Windows está activado</value>
+  </data>
+  <data name="NeedsDriver_ProtectedPrintOn" xml:space="preserve">
+    <value>Solo deja imprimir con los controladores propios de Windows, así que el controlador de un fabricante no se instalará. Para desactivarlo: Configuración › Bluetooth y dispositivos › Impresoras y escáneres › Modo de impresión protegida de Windows. Si su organización administra este PC, pídaselo a ella.</value>
+  </data>
+  <data name="NeedsDriver_SetUpButton" xml:space="preserve">
+    <value>Configurarla</value>
+  </data>
+  <data name="NeedsDriver_SetUpNoteDriver" xml:space="preserve">
+    <value>Inkvolt Print puede crear su cola en {0} con el controlador "{1}".</value>
+  </data>
+  <data name="NeedsDriver_SetUpNoteNoDriver" xml:space="preserve">
+    <value>Windows tiene un controlador para ella, pero no una cola. Agréguela en Windows y elija su puerto USB y su controlador.</value>
+  </data>
+  <data name="NeedsDriver_SetUpDone" xml:space="preserve">
+    <value>Configurada como "{0}". Aparecerá en la lista en un momento.</value>
+  </data>
+  <data name="NeedsDriver_SetUpNeedsAdminDriver" xml:space="preserve">
+    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elija "Agregar una impresora local o de red con configuración manual", el puerto {0} y el controlador "{1}".</value>
+  </data>
+  <data name="NeedsDriver_SetUpNeedsAdmin" xml:space="preserve">
+    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elija "Agregar una impresora local o de red con configuración manual", el puerto {0} y su controlador.</value>
+  </data>
+  <data name="NeedsDriver_SetUpFailed" xml:space="preserve">
+    <value>Windows no pudo configurarla ({0}). Pruebe Agregarla en Windows.</value>
+  </data>
+  <data name="NeedsDriver_FailedNoPort" xml:space="preserve">
+    <value>no hay puerto o controlador para ella</value>
+  </data>
+  <data name="NeedsDriver_FailedUnknownPort" xml:space="preserve">
+    <value>Windows no tiene ahora el puerto {0}; desconecte la impresora y vuelva a conectarla</value>
+  </data>
+  <data name="NeedsDriver_FailedUnknownDriver" xml:space="preserve">
+    <value>el controlador no está instalado para el Windows de este PC</value>
+  </data>
+  <data name="NeedsDriver_FailedNameTaken" xml:space="preserve">
+    <value>ya hay impresoras con su nombre</value>
+  </data>
+  <data name="NeedsDriver_Demo" xml:space="preserve">
+    <value>Demo: una impresora inventada. No se abre, instala ni configura nada.</value>
+  </data>
+  <data name="NeedsDriver_ListName" xml:space="preserve">
+    <value>Impresoras a las que les falta su controlador</value>
+  </data>
 </root>

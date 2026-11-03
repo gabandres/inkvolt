@@ -36,6 +36,9 @@ public sealed class WindowsFleetPc : IFleetPc
 
     public Task<IReadOnlyList<SpoolerQueue>> QueuesAsync(Func<SpoolerQueue, bool> needsPresence, CancellationToken ct) => InstalledQueues.ListAsync(needsPresence);
 
+    public async Task<IReadOnlyList<NeedsDriverPrinter>> NeedsDriverAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct) =>
+        (await UsbPrinters.ReadAsync(queues, ct)).Printers;
+
     public IQueueStatusSource QueueStatus(SpoolerQueue queue)
     {
         var windows = new SpoolerStatusSource(queue);

@@ -21,6 +21,9 @@ public interface IFleetPc
 
     Task<IReadOnlyList<SpoolerQueue>> QueuesAsync(Func<SpoolerQueue, bool> needsPresence, CancellationToken ct);
 
+    /// <summary>USB printers plugged in that nothing can print to (<see cref="NeedsDriver"/>): a note each. None by default.</summary>
+    Task<IReadOnlyList<NeedsDriverPrinter>> NeedsDriverAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct) => Task.FromResult<IReadOnlyList<NeedsDriverPrinter>>([]);
+
     IQueueStatusSource QueueStatus(SpoolerQueue queue);
 
     Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct);
@@ -61,6 +64,12 @@ public static class FleetReader
         var queues = await Whole(() => pc.QueuesAsync(q => QueueKinds.NeedsPresence(q, claims), ct), each, "Windows' printers couldn't be read, so printers known only to Windows aren't listed.", notes, ct).ConfigureAwait(false);
         var scanners = await Whole(() => pc.ScannersAsync(ct), each, "Windows' scanners couldn't be read, so scanners on their own aren't listed.", notes, ct).ConfigureAwait(false);
         var change = PrinterList.Reconcile(new PrinterListInput(listed, null, queues, SweepDone: true, scanners, pc.Hidden));
+        if (queues is not null)
+            try
+            {
+                notes.AddRange((await pc.NeedsDriverAsync(queues, ct).WaitAsync(each, ct).ConfigureAwait(false)).Select(NeedsDriverText.StatusNote));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { } // USB printers unread: nothing to say about them
 
         using var gate = new SemaphoreSlim(AtOnce);
         var reads = new List<Task<FleetPrinter>>();

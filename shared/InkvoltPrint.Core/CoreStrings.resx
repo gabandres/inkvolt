@@ -4,4 +4,103 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="NeedsDriver_ListStatusNoDriver" xml:space="preserve">
+    <value>Plugged in, needs its driver</value>
+  </data>
+  <data name="NeedsDriver_ListStatusNotSetUp" xml:space="preserve">
+    <value>Driver installed, not set up</value>
+  </data>
+  <data name="NeedsDriver_HeadlineNoDriver" xml:space="preserve">
+    <value>Windows found this printer but has no driver for it, so nothing can print to it yet.</value>
+  </data>
+  <data name="NeedsDriver_HeadlineNotSetUp" xml:space="preserve">
+    <value>Its driver is installed, but Windows didn't set the printer up, so nothing can print to it yet.</value>
+  </data>
+  <data name="NeedsDriver_WherePort" xml:space="preserve">
+    <value>USB ({0})</value>
+  </data>
+  <data name="NeedsDriver_WhyMakersDriver" xml:space="preserve">
+    <value>Some printers, often older USB lasers, only work with their maker's driver: Windows has no driver of its own for them, and Inkvolt Print can't print to them without one.</value>
+  </data>
+  <data name="NeedsDriver_StepsTitle" xml:space="preserve">
+    <value>What to do</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriverFromMaker" xml:space="preserve">
+    <value>Get the driver for the {0} from {1}'s website: choose your version of Windows.</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriver" xml:space="preserve">
+    <value>Get the driver for the {0} from its maker's website: choose your version of Windows.</value>
+  </data>
+  <data name="NeedsDriver_StepPlugIn" xml:space="preserve">
+    <value>Plug the printer in and switch it on.</value>
+  </data>
+  <data name="NeedsDriver_StepInstall" xml:space="preserve">
+    <value>Run the driver's installer. Once Windows has set the printer up, Inkvolt Print lists it by itself.</value>
+  </data>
+  <data name="NeedsDriver_MakerButton" xml:space="preserve">
+    <value>Open {0}'s driver page</value>
+  </data>
+  <data name="NeedsDriver_SearchButton" xml:space="preserve">
+    <value>Search the web for its driver</value>
+  </data>
+  <data name="NeedsDriver_OtherWaysTitle" xml:space="preserve">
+    <value>Other ways</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsButton" xml:space="preserve">
+    <value>Check Windows for a driver</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsNote" xml:space="preserve">
+    <value>Windows Update sometimes has a printer's driver under Optional updates.</value>
+  </data>
+  <data name="NeedsDriver_AddInWindowsButton" xml:space="preserve">
+    <value>Add it in Windows</value>
+  </data>
+  <data name="NeedsDriver_AddInWindowsNote" xml:space="preserve">
+    <value>Settings › Bluetooth &amp; devices › Printers &amp; scanners, where you can add it with a driver you have.</value>
+  </data>
+  <data name="NeedsDriver_ProtectedPrintTitle" xml:space="preserve">
+    <value>Windows protected print mode is on</value>
+  </data>
+  <data name="NeedsDriver_ProtectedPrintOn" xml:space="preserve">
+    <value>It lets only Windows' own drivers print, so a maker's driver won't install. To turn it off: Settings › Bluetooth &amp; devices › Printers &amp; scanners › Windows protected print mode. If your organization manages this PC, ask them.</value>
+  </data>
+  <data name="NeedsDriver_SetUpButton" xml:space="preserve">
+    <value>Set it up</value>
+  </data>
+  <data name="NeedsDriver_SetUpNoteDriver" xml:space="preserve">
+    <value>Inkvolt Print can make its queue on {0} with the driver "{1}".</value>
+  </data>
+  <data name="NeedsDriver_SetUpNoteNoDriver" xml:space="preserve">
+    <value>Windows has a driver for it but no queue. Add it in Windows, choosing its USB port and its driver.</value>
+  </data>
+  <data name="NeedsDriver_SetUpDone" xml:space="preserve">
+    <value>Set up as "{0}". It shows in the list in a moment.</value>
+  </data>
+  <data name="NeedsDriver_SetUpNeedsAdminDriver" xml:space="preserve">
+    <value>Setting it up needs an administrator. Windows' Add printer opens: choose "Add a local printer or network printer with manual settings", the port {0} and the driver "{1}".</value>
+  </data>
+  <data name="NeedsDriver_SetUpNeedsAdmin" xml:space="preserve">
+    <value>Setting it up needs an administrator. Windows' Add printer opens: choose "Add a local printer or network printer with manual settings", the port {0} and its driver.</value>
+  </data>
+  <data name="NeedsDriver_SetUpFailed" xml:space="preserve">
+    <value>Windows couldn't set it up ({0}). Try Add it in Windows.</value>
+  </data>
+  <data name="NeedsDriver_FailedNoPort" xml:space="preserve">
+    <value>no port or driver for it</value>
+  </data>
+  <data name="NeedsDriver_FailedUnknownPort" xml:space="preserve">
+    <value>Windows doesn't have the port {0} now; unplug the printer and plug it in again</value>
+  </data>
+  <data name="NeedsDriver_FailedUnknownDriver" xml:space="preserve">
+    <value>the driver isn't installed for this PC's Windows</value>
+  </data>
+  <data name="NeedsDriver_FailedNameTaken" xml:space="preserve">
+    <value>printers with its name already exist</value>
+  </data>
+  <data name="NeedsDriver_Demo" xml:space="preserve">
+    <value>Demo: a made-up printer. Nothing is opened, installed or set up.</value>
+  </data>
+  <data name="NeedsDriver_ListName" xml:space="preserve">
+    <value>Printers that need their driver</value>
+  </data>
 </root>

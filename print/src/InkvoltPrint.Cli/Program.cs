@@ -115,13 +115,25 @@ switch (cmd)
         break;
     case "queues":
         // Read-only: each installed queue as the app's sidebar sees it (virtual or not, connection, status from the spooler).
-        foreach (var q in await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync(_ => true))
+        var installed = await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync(_ => true);
+        foreach (var q in installed)
         {
             var status = InkvoltPrint.Core.Queues.SpoolerStatus.Describe(q).Status;
             Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
                               $"{status.Message}{string.Concat(status.Alerts.Select(a => $"; {a.Message}"))} | port={q.PortName} monitor={q.PortMonitor} " +
                               $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
         }
+        // USB printers plugged in that nothing can print to (no serials: names and ports only). --unplugged: also those Windows
+        // remembers but doesn't see now, read as if plugged in, to check what the sidebar would show.
+        var unplugged = args.Contains("--unplugged");
+        var usbNodes = await InkvoltPrint.Windows.Printing.UsbPrinters.NodesAsync(unplugged, ct);
+        var usbDrivers = InkvoltPrint.Windows.Printing.UsbPrinters.Drivers();
+        foreach (var p in InkvoltPrint.Core.Queues.NeedsDriver.Find(usbNodes.Where(n => n.Present).ToList(), installed, usbDrivers))
+            Console.WriteLine(InkvoltPrint.Core.Queues.NeedsDriverText.QueuesLine(p));
+        if (unplugged)
+            foreach (var p in InkvoltPrint.Core.Queues.NeedsDriver.Find(usbNodes.Where(n => !n.Present).Select(n => n with { Present = true }).ToList(), installed, usbDrivers))
+                Console.WriteLine($"{InkvoltPrint.Core.Queues.NeedsDriverText.QueuesLine(p)} (not plugged in now)");
+        if (InkvoltPrint.Windows.Printing.UsbPrinters.ProtectedPrintOn()) Console.WriteLine("Windows protected print mode is on: makers' drivers won't install.");
         break;
     case "scanners":
         // Read-only: the WIA scanners Windows has drivers for; --caps connects to each and prints what it offers (never scans).
@@ -170,7 +182,8 @@ switch (cmd)
             inkvoltprint offline <uuid> [last-host]        (read-only: the offline fixer's diagnosis and repairs it would offer)
             inkvoltprint scan <host> <out.pdf|out.jpg> [--ocr] [--dpi 300]
             inkvoltprint set <host> <key> <value>          (LEDM setting; INKVOLTPRINT_ADMIN_PASSWORD env if needed)
-            inkvoltprint queues                            (read-only: installed queues as the sidebar sees them)
+            inkvoltprint queues [--unplugged]              (read-only: installed queues as the sidebar sees them, and USB printers
+                                                           that need their driver; --unplugged: also those not plugged in now)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners; --caps connects and reads what each offers)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]

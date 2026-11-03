@@ -19,6 +19,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Printer list**: the printers in the sidebar: network printers, queue printers (known only by a Windows queue, or on the
   Mac a CUPS destination, no network printer stands for) and scanners on their own (a Windows scanner no printer claims), and which one is selected
   (`PrinterList` in `shared/InkvoltPrint.Core/Queues`).
+- **Needs its driver**: a USB printer plugged in that nothing can print to: Windows has only its placeholder driver (or none), or
+  has a driver and made no queue (*not set up*). Listed on the printer list with what to do; never a queue printer
+  (`NeedsDriver` in `shared/InkvoltPrint.Core/Queues`).
 - **CUPS destination** (Mac): a print queue set up in macOS, as libcups lists it with its options (`CupsDestination`). A
   temporary destination (a printer Bonjour shows that nobody set up) isn't a queue.
 - **Set up in macOS** (Mac): creating the CUPS queue for a network printer macOS has none for, so every app prints to it:
