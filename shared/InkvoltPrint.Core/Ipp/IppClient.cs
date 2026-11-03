@@ -57,6 +57,12 @@ public sealed class IppClient
         return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
     }
 
+    /// <summary>Most supplies taken from a printer (a real one has a handful): a reply's bytes hold thousands, one card and history line each.</summary>
+    public const int MaxSupplies = 64;
+
+    /// <summary>Most problems read from each of <c>printer-state-reasons</c> and <c>printer-alert</c> (a real printer has a few).</summary>
+    public const int MaxAlerts = 64;
+
     /// <summary>
     /// Status from <c>printer-state</c> and <c>printer-state-reasons</c>, plus <c>printer-alert</c> entries (PWG 5100.9) that
     /// no reason covers. Alerts matching a reason lend it their <c>printer-alert-description</c>s (the printer's own words,
@@ -66,7 +72,7 @@ public sealed class IppClient
     public static PrinterStatus ToStatus(IppResponse r)
     {
         var alerts = new List<PrinterAlert>();
-        foreach (var x in r.Strs("printer-state-reasons"))
+        foreach (var x in r.Strs("printer-state-reasons").Take(MaxAlerts))
         {
             var (id, sev) = SplitReason(x);
             if (id is "none" or "other" || alerts.Any(a => a.Id == id)) continue;
@@ -75,7 +81,7 @@ public sealed class IppClient
         var descriptions = r.Strs("printer-alert-description").ToList();
         var texts = new Dictionary<string, List<string>>(StringComparer.Ordinal); // reason id → the printer's descriptions
         var i = -1;
-        foreach (var value in r.Strs("printer-alert"))
+        foreach (var value in r.Strs("printer-alert").Take(MaxAlerts))
         {
             i++;
             if (IppAlert.Parse(value) is not { } alert) continue;
@@ -141,7 +147,7 @@ public sealed class IppClient
     /// </summary>
     public static IReadOnlyList<Consumable> ToConsumables(IppResponse r)
     {
-        var names = r.Strs("marker-names").ToList();
+        var names = r.Strs("marker-names").Take(MaxSupplies).ToList();
         var levels = r.Ints("marker-levels").ToList();
         var lows = r.Ints("marker-low-levels").ToList();
         var types = r.Strs("marker-types").ToList();

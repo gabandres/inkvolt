@@ -73,6 +73,21 @@ public class QueueDeviceTests
     }
 
     [Fact]
+    public void AHostilePrintersFloodOfSuppliesAndProblemsIsCut()
+    {
+        var text = "printer-state enum 3\n" + string.Join("\n", Enumerable.Range(0, 1500).Select(i => $"marker-names name Supply {i}"))
+            + "\n" + string.Join("\n", Enumerable.Range(0, 1500).Select(i => $"printer-state-reasons keyword made-up-{i}-error"))
+            + "\n" + string.Join("\n", Enumerable.Range(0, 1500).Select(i => $"printer-alert octetString code=made-up-alert-{i};severity=critical"));
+
+        var r = IppQueueReading.From(AttributesGroup(text), usb: true);
+
+        Assert.Equal(IppClient.MaxSupplies, r!.Supplies.Count);
+        Assert.Equal("Supply 0", r.Supplies[0].Name);
+        Assert.True(r.Status!.Alerts.Count <= 2 * IppClient.MaxAlerts, $"{r.Status.Alerts.Count} alerts");
+        Assert.Equal(Severity.Error, r.Status.Severity);
+    }
+
+    [Fact]
     public void ItAsksForNoIdentifiers()
     {
         Assert.DoesNotContain(IppQueueReading.Attributes, a => a.Contains("uuid") || a.Contains("serial") || a.Contains("uri")
