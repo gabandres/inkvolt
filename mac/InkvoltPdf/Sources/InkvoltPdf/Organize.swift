@@ -47,7 +47,7 @@ extension DocumentWindowController {
         grid.isHidden = !show
         scrollView.isHidden = show
         paneSplit.isHidden = show
-        toolStrip.isHidden = show
+        toolStrip.isHidden = show || !AppSettings.markupShown
         if show {
             grid.reload(engine: engine)
             grid.select([current])

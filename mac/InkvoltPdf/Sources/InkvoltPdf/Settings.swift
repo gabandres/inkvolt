@@ -58,6 +58,13 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.layout) }
     }
 
+    /// The markup toolbar (the comment, drawing, Fill & Sign and redaction tools) under the window's toolbar: hidden until
+    /// asked for (View › Show Markup Toolbar, the toolbar's Markup button, or a markup tool picked), as Preview's.
+    static var markupShown: Bool {
+        get { bool("MarkupToolbarShown", false) }
+        set { defaults.set(newValue, forKey: "MarkupToolbarShown") }
+    }
+
     /// Turns dark pages on or off in every window (pages, thumbnails, the organizer).
     static func setDarkPages(_ on: Bool) {
         guard on != darkPages else { return }
@@ -182,7 +189,7 @@ enum AppSettings {
 /// Inkvolt PDF › Settings… (⌘,): the Windows Settings dialog's choices that apply on the Mac. Save writes them; Reset to
 /// Defaults fills in how Inkvolt PDF starts (saved with Save).
 @MainActor
-final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     static var shared: SettingsWindowController?
 
     let theme = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -208,7 +215,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     init(updater: Updates?) {
         self.updater = updater
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Settings"
+        window.title = "Inkvolt PDF Settings"
         window.isRestorable = false
         super.init(window: window)
         window.delegate = self
@@ -217,15 +224,18 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         recovery.toolTip = "Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)"
         updates.toolTip = "Asks Inkvolt PDF's update feed on GitHub whether a newer version is ready. Nothing about you or this Mac is sent."
         author.placeholderString = AppSettings.userName
-        author.setAccessibilityLabel("Author name on comments")
+        author.setAccessibleName("Author name on comments")
 
-        aiState.preferredMaxLayoutWidth = 330
+        aiState.preferredMaxLayoutWidth = 300
         aiState.isSelectable = false
         let aiSetUp = NSButton(title: "AI Assistant Settings…", target: self, action: #selector(aiSettingsClicked))
         let aiRow = NSStackView(views: [aiState, aiSetUp])
         aiRow.orientation = .vertical
         aiRow.alignment = .leading
         aiRow.spacing = 6
+        // Each pop-up named by its label (VoiceOver read them as nameless; the audit found them).
+        theme.setAccessibleName("App theme")
+        zoom.setAccessibleName("Open documents at")
         let grid = NSGridView(views: [
             [NSTextField(labelWithString: "App theme:"), theme],
             [NSTextField(labelWithString: "Open documents at:"), zoom],
@@ -245,15 +255,19 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         note.preferredMaxLayoutWidth = 460
+        // A change applies at once, as in every Mac app's settings (no Save or Cancel; UX review, 2026-11-03).
         let reset = NSButton(title: "Reset to Defaults", target: self, action: #selector(resetClicked))
-        reset.toolTip = "These settings back to how Inkvolt PDF starts, once you click Save. Recent files are kept."
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
-        cancel.keyEquivalent = "\u{1b}"
-        let save = NSButton(title: "Save", target: self, action: #selector(saveClicked))
-        save.keyEquivalent = "\r"
+        reset.toolTip = "These settings back to how Inkvolt PDF starts. Recent files are kept."
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let buttons = NSStackView(views: [reset, spacer, cancel, save])
+        let buttons = NSStackView(views: [reset, spacer])
+        for control in [theme, zoom, restore, recovery, dark, updates] as [NSControl] {
+            control.target = self
+            control.action = #selector(changed(_:))
+        }
+        author.target = self
+        author.action = #selector(changed(_:))
+        author.delegate = self
         let stack = NSStackView(views: [grid, note, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -300,8 +314,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         dark.state = .off
         updates.state = .on
         author.stringValue = AppSettings.userName
+        saveClicked()
     }
 
+    @objc func changed(_ sender: Any?) { saveClicked() }
+
+    /// The author's name applies as it is typed in.
+    func controlTextDidChange(_ obj: Notification) { saveClicked() }
+
+    /// Applies every control's value now (each control calls it; the self-test too).
     @objc func saveClicked() {
         AppSettings.theme = ["System", "Light", "Dark"][max(theme.indexOfSelectedItem, 0)]
         AppSettings.zoomMode = AppSettings.zoomModes[max(zoom.indexOfSelectedItem, 0)].0
@@ -313,9 +334,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         if let updater, updates.isEnabled, !Report.isRunning { updater.controller.updater.automaticallyChecksForUpdates = updates.state == .on }
         AppSettings.applyTheme()
         RecoveryCopies.shared.enabled = AppSettings.keepRecoveryCopies
-        window?.orderOut(nil)
         onSaved?()
     }
-
-    @objc func cancelClicked() { window?.orderOut(nil) }
 }

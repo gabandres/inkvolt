@@ -57,7 +57,7 @@ struct AccessibilityTest {
         let item = menuItem("Accessibility Check…")
         check(item?.action == #selector(DocumentWindowController.checkAccessibility(_:)), "Tools has Accessibility Check…")
         check(item.map { controller.validateMenuItem($0) } == true, "the command is enabled on a document")
-        check(controller.sidebar.segmentCount == SidebarController.Pane.accessibility.rawValue, "the sidebar has no Accessibility segment before the first check")
+        check(!controller.sidebar.panes.contains(.accessibility) && controller.sidebar.segmentCount == controller.sidebar.panes.count, "the sidebar has no Accessibility segment before the first check")
 
         NSApp.sendAction(#selector(DocumentWindowController.checkAccessibility(_:)), to: controller, from: nil)
         await settle()
@@ -65,7 +65,7 @@ struct AccessibilityTest {
             check(false, "the check ran")
             return finish()
         }
-        check(controller.sidebar.segmentCount == SidebarController.Pane.allCases.count && controller.sidebar.shownPane == .accessibility, "the check opens the pane in its own sidebar segment")
+        check(controller.sidebar.panes.last == .accessibility && controller.sidebar.segmentCount == controller.sidebar.panes.count && controller.sidebar.shownPane == .accessibility, "the check opens the pane in its own sidebar segment")
         check(!report.passed && report.failedConditions.contains("UA 7.1"), "the untagged synthetic document fails: \(report.failedConditions.joined(separator: " "))")
         check(pane.summary.hasPrefix("Fails ") && pane.failuresTitle == "Fails (\(report.failures.count))", "the pane says what fails (\(pane.failuresTitle))")
         check(pane.shownFailures == report.failures.count && !pane.showsChecklist, "the list has a row per failure")

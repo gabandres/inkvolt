@@ -337,7 +337,10 @@ struct EditTest {
         let menuTookR = NSApp.mainMenu?.performKeyEquivalent(with: key("r", code: 15)) ?? true
         let afterTyping = pages.tool
         controller.findBar.onDone?()
-        let menuTookCmd = NSApp.mainMenu?.items.first { $0.title == "Tools" }?.submenu?.items.contains { $0.keyEquivalent == "h" && $0.keyEquivalentModifierMask == [.command, .control] } ?? false
+        let tools = NSApp.mainMenu?.items.first { $0.title == "Tools" }?.submenu
+        let menuTookCmd = (tools?.items ?? []).contains { top in
+            (top.submenu?.items ?? [top]).contains { $0.keyEquivalent == "h" && $0.keyEquivalentModifierMask == [.command, .control] }
+        }
         check(!menuTookP && after == .pen && inField && !menuTookR && afterTyping == .pen && menuTookCmd,
               "single keys: P on the pages picks the pen (now \(after)); the menu leaves P and R (typed in the find field) "
               + "to the focused view (\(menuTookP)/\(menuTookR)); ⌃⌘H still a menu key")

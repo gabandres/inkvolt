@@ -59,11 +59,17 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         field.placeholderString = "Search all commands"
         field.delegate = self
         field.font = .systemFont(ofSize: 16)
-        field.setAccessibilityLabel("Search all commands")
+        field.setAccessibleName("Search all commands")
+        // No close, minimize or zoom buttons: Escape closes it, as Spotlight.
+        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { panel.standardWindowButton(kind)?.isHidden = true }
+        // The title column takes what the shortcuts leave (they were cut off at the right edge).
         let title = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title"))
-        title.width = 400
+        title.width = 380
+        title.resizingMask = .autoresizingMask
         let key = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("key"))
-        key.width = 110
+        key.width = 84
+        key.minWidth = 84
+        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         table.addTableColumn(title)
         table.addTableColumn(key)
         table.headerView = nil
@@ -87,6 +93,11 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    /// Menu commands the palette leaves out: hiding and quitting the app and clearing the recent list are no search's goal.
+    private static let skipped: Set<Selector> = [#selector(NSApplication.hide(_:)), #selector(NSApplication.hideOtherApplications(_:)),
+                                                 #selector(NSApplication.unhideAllApplications(_:)), #selector(NSApplication.terminate(_:)),
+                                                 #selector(NSDocumentController.clearRecentDocuments(_:))]
+
     /// Every menu item that can run now for `window`, in menu order.
     static func collect(for window: NSWindow?) -> [Entry] {
         var entries: [Entry] = []
@@ -96,14 +107,15 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
                 if let sub = item.submenu {
                     if sub === NSApp.servicesMenu { continue }
                     walk(sub, path + [item.title])
-                } else if let action = item.action, action != #selector(NSWindow.makeKeyAndOrderFront(_:)),
+                } else if let action = item.action, action != #selector(NSWindow.makeKeyAndOrderFront(_:)), !skipped.contains(action),
                           action != #selector(AppDelegate.showCommandPalette(_:)), let handler = handler(item, action, chain) {
                     entries.append(Entry(title: item.title, path: path.joined(separator: " › "), shortcut: shortcut(item), item: item, handler: handler))
                 }
             }
         }
         guard let main = NSApp.mainMenu else { return [] }
-        for top in main.items {
+        // The document's menus first, the app menu last (its About and Check for Updates opened the list).
+        for top in Array(main.items.dropFirst()) + Array(main.items.prefix(1)) {
             guard let menu = top.submenu else { continue }
             walk(menu, [top.title])
         }

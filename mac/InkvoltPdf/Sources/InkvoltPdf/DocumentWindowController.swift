@@ -144,7 +144,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         stack.orientation = .vertical
         stack.spacing = 0
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        // Just under required: a bar, shown or hidden, never sets the window's minimum width (Prepare Form's bar held
+        // every document window at 850 points or more, the markup strip at 1,300; UX review, 2026-11-03).
+        for v in [toolStrip, diskBar, noticeBar, redactBar, findBar, design.bar, readAloud.bar, paneSplit] {
+            let same = v.widthAnchor.constraint(equalTo: stack.widthAnchor)
+            same.priority = v === paneSplit ? .required : .init(999)
+            same.isActive = true
+            v.setContentCompressionResistancePriority(.init(250), for: .horizontal)
+            // A bar's row may clip at its right end in a narrow window rather than widen it.
+            for case let row as NSStackView in v.subviews where v !== paneSplit {
+                row.setClippingResistancePriority(.defaultLow, for: .horizontal)
+            }
+        }
         findBar.isHidden = true
         diskBar.isHidden = true
         noticeBar.isHidden = true
@@ -170,6 +181,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 820))
         window.setFrameAutosaveName("InkvoltPdfDocument")
+        makeToolbar()
 
         pages.editor = editor
         pages.host = self
@@ -525,6 +537,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         let tool = pages.tool
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
+        revealMarkup(for: tool)
         toolStrip.show(tool, style: style, stamp: pages.stamp.label)
         design.toolChanged()
         updateRedactBar()
@@ -719,6 +732,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let split = validateSplitItem(item) { return split }
         switch item.action {
+        case #selector(toggleMarkup(_:)):
+            item.title = toolStrip.isHidden ? "Show Markup Toolbar" : "Hide Markup Toolbar"
+            return pdf.session != nil && !organizerShown
         case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)), #selector(goToPage(_:)):
             return engine.pageCount > 0
         case #selector(singlePageMode(_:)), #selector(continuousMode(_:)), #selector(twoPagesMode(_:)), #selector(coverMode(_:)):
@@ -1090,7 +1106,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         if foundQuery.isEmpty { showFind(sender) } else { step(-1) }
     }
 
-    private func hideFind() {
+    func hideFind() {
         findBar.isHidden = true
         find("")
         window?.makeFirstResponder(activePages)
