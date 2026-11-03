@@ -278,10 +278,25 @@ extension DocumentWindowController {
         return ok
     }
 
+    /// Thumbnails dropped before page `before`: this window's pages move, another window's are copied in (Windows' "Copy
+    /// N pages from …"); a window that has closed meanwhile gives nothing.
+    func dropPages(_ source: String, _ chosen: [Int], before: Int) {
+        if source == pdf.recoveryId {
+            Task { await self.movePages(chosen, before: before) }
+            return
+        }
+        let others = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }
+        guard let from = others.first(where: { $0.recoveryId == source }), let s = from.session else { return }
+        let valid = chosen.filter { $0 < s.engine.pageCount }
+        guard !valid.isEmpty else { return }
+        let src = PdfSource(s.data, s.password, s.displayName)
+        Task { await self.insertPages(src, at: before, pages: valid, label: "Copy \(Self.pages(valid.count)) from \(s.displayName)") }
+    }
+
     @discardableResult
-    func insertPages(_ source: PdfSource, at: Int, pages sourcePages: [Int]? = nil) async -> Bool {
+    func insertPages(_ source: PdfSource, at: Int, pages sourcePages: [Int]? = nil, label: String? = nil) async -> Bool {
         let n = sourcePages?.count ?? ((try? PdfEngine.open(source.data, password: source.password))?.pageCount ?? 0)
-        let ok = await editor.run("Insert \(Self.pages(n)) from \(source.name)") { d, pw in
+        let ok = await editor.run(label ?? "Insert \(Self.pages(n)) from \(source.name)") { d, pw in
             try PageEditor.insert(d, pw, source, sourcePages, at)
         }
         if ok { reselect(Array(at..<(at + n))) }

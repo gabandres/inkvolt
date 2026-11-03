@@ -418,7 +418,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
 | Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); rotate view and dark pages done 2026-11-03; reading modes (single, two pages, cover) still to do (HANDOFF's list) |
-| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 |
+| Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
 | Edit Text & Images | D5a |
@@ -544,6 +544,12 @@ Mac differences for the PDF app (so far):
   Mac does when Accessibility's Invert colors is on (the screen is inverted already). Fields lose their tint (as
   Windows). Printing, export and the file are unchanged. ViewTest checks it.
 - Settings leaving out dark pages (D7 part e, above) no longer holds: the box is there since 2026-11-03.
+- Thumbnail drags (2026-11-03): the sidebar's thumbnails drag to move pages (one undo step, "Move N pages"), onto
+  another window's thumbnails to copy them there ("Copy N pages from …"), and take PDFs and pictures dropped from the
+  Finder (inserted where dropped), as Windows' thumbnail list. Only a PDF's first file of a multi-file drop is
+  inserted, as Insert Pages from File. Drag starts are AppKit's (NSTableView), so the self-test drops through the same
+  `drop(_:before:)` with its own pasteboard (ViewTest): the mouse part of a drag isn't exercised over SSH. The organizer
+  keeps its own drags (moving only).
 - Redaction (E1): the user's own pattern is ICU's regular expression syntax (NSRegularExpression), where Windows reads
   .NET's (the common syntax is the same; .NET-only constructs such as balancing groups aren't); NSRegularExpression's
   error says only that a pattern can't be read, not where, so a parenthesis or bracket without its partner (the usual
@@ -811,6 +817,9 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   once in every window (no flash of white while redrawing), colored pictures keeping their hue, the fields' outline
   without tint, comments and the selection still readable; with Accessibility's Invert colors on, pages are left as
   they are.
+- Thumbnail drags: dragging one or several thumbnails in the sidebar (the gap where they will land), dropping them in
+  another window's sidebar (a copy, "+" on the pointer), and a PDF or pictures dragged from the Finder onto the
+  thumbnails; the moved pages selected after.
 
 ## Open decisions
 

@@ -161,6 +161,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         split.addSplitViewItem(design.panelItem)
         split.addSplitViewItem(readingOrder.panelItem)
         sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
+        sidebar.dragSourceId = pdf.recoveryId
+        sidebar.canDropPages = { [weak self] in self.map { $0.pdf.session != nil && $0.longTask == nil && $0.progressSheet == nil } ?? false }
+        sidebar.onDropPages = { [weak self] source, pages, before in self?.dropPages(source, pages, before: before) }
+        sidebar.onDropFiles = { [weak self] urls, before in self?.insertFiles(urls, at: before) }
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 820))
         window.setFrameAutosaveName("InkvoltPdfDocument")

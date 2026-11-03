@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Drag thumbnails in the sidebar to move pages, or onto another window's thumbnails to copy them there. Drop PDFs or pictures from the Finder onto the thumbnails to insert them where you drop.
 - Dark pages for night reading (View › Dark Pages, or Settings): white paper becomes dark grey and black text light grey, while colors keep their hue. Thumbnails follow; the file isn't changed.
 - Rotate view (View › Rotate View Clockwise ⇧⌘R, Counterclockwise ⇧⌘L): turns the pages on screen only, without changing the file. Each window and split pane has its own; links, selection, fields and comments follow the turn, and a file reopens the way you left it.
 - Fill & Sign keeps your signatures and initials between launches: up to three signatures and one set of initials, listed with their pictures in the Signature menu (and Tools › Place Saved Signature). Delete one from the same menu.

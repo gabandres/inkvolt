@@ -6,7 +6,8 @@ import PdfCore
 /// mapped there and back, text selected with the mouse on the turned view giving the same text, a note put down where
 /// it was clicked, an arrow key moving a comment the way it points on the screen, the file unchanged, the split pane's
 /// own turn, the turn remembered for the file); View › Dark Pages (Night Reading) (the page's paper drawn dark grey, in
-/// the split pane too, kept as a setting, back to white). Only counts and states are written.
+/// the split pane too, kept as a setting, back to white); thumbnails dropped in the sidebar (pages moved, a PDF file
+/// inserted, another window's page copied in, each one undo step). Only counts and states are written.
 @MainActor
 struct ViewTest {
     let controller: DocumentWindowController
@@ -75,6 +76,7 @@ struct ViewTest {
         lines.append("== \(name): reading view (\(controller.engine.pageCount) pages)")
         await rotateView()
         await darkPages()
+        await thumbnailDrops()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -113,6 +115,81 @@ struct ViewTest {
             await settle(100)
         }
         return nil
+    }
+
+    /// Waits for the document's undo step to change from `since` (an edit finished), at most 10 s.
+    private func waitEdit(since: Int?) async -> Bool {
+        for _ in 0..<100 {
+            if controller.pdf.session?.undoStepId != since { return true }
+            await settle(100)
+        }
+        return false
+    }
+
+    private func firstLine(_ page: Int) -> String {
+        guard let t = try? controller.engine.text(page) else { return "" }
+        return String(t.text.prefix(30))
+    }
+
+    private mutating func thumbnailDrops() async {
+        guard let session = controller.pdf.session, controller.engine.pageCount >= 3 else {
+            lines.append("SKIP thumbnail drops: needs three pages")
+            return
+        }
+        let count = controller.engine.pageCount
+        let sidebar = controller.sidebar
+        let board = NSPasteboard(name: NSPasteboard.Name("com.bermudezsystems.InkvoltPdf.selftest.drag"))
+        defer { board.releaseGlobally() }
+        let lastText = firstLine(count - 1)
+
+        // The last page's thumbnail dragged above the first.
+        sidebar.beginTestDrag([count - 1], on: board)
+        let move = sidebar.dropOperation(board)
+        var step = session.undoStepId
+        let dropped = sidebar.drop(board, before: 0)
+        let moved = await waitEdit(since: step)
+        check(move == .move && dropped && moved && firstLine(0) == lastText && controller.engine.pageCount == count
+              && controller.window?.undoManager?.undoMenuItemTitle.hasPrefix("Undo Move") == true,
+              "the last page's thumbnail dropped above the first moves it there (one undo step: \(controller.window?.undoManager?.undoMenuItemTitle ?? "none"))")
+        controller.window?.undoManager?.undo()
+        _ = await waitEdit(since: controller.pdf.session?.undoStepId)
+        await settle(300)
+
+        // A PDF file dropped between pages 1 and 2.
+        let file = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-selftest-drop-\(UUID().uuidString.prefix(6)).pdf")
+        let onePage = (try? PageEditor.extract(session.data, session.password, [0])) ?? []
+        FileManager.default.createFile(atPath: file, contents: Data(onePage))
+        defer { try? FileManager.default.removeItem(atPath: file) }
+        board.clearContents()
+        board.writeObjects([URL(fileURLWithPath: file) as NSURL])
+        let copy = sidebar.dropOperation(board)
+        step = controller.pdf.session?.undoStepId
+        let filesDropped = sidebar.drop(board, before: 1)
+        let inserted = await waitEdit(since: step)
+        check(!onePage.isEmpty && copy == .copy && filesDropped && inserted && controller.engine.pageCount == count + 1,
+              "a PDF file dropped on the thumbnails inserts its page (\(controller.engine.pageCount) pages)")
+        controller.window?.undoManager?.undo()
+        _ = await waitEdit(since: controller.pdf.session?.undoStepId)
+        await settle(300)
+
+        // Another window's thumbnail dropped here: its page copied in.
+        let others = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0 !== controller.pdf && $0.session != nil }
+        if let other = others.first, let otherSidebar = other.windowControllers.compactMap({ $0 as? DocumentWindowController }).first?.sidebar {
+            otherSidebar.beginTestDrag([0], on: board)
+            let across = sidebar.dropOperation(board)
+            step = controller.pdf.session?.undoStepId
+            _ = sidebar.drop(board, before: count)
+            let copied = await waitEdit(since: step)
+            let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
+            check(across == .copy && copied && controller.engine.pageCount == count + 1 && title.hasPrefix("Undo Copy 1 page from"),
+                  "another window's thumbnail dropped here copies its page in (\(title))")
+            controller.window?.undoManager?.undo()
+            _ = await waitEdit(since: controller.pdf.session?.undoStepId)
+        } else {
+            lines.append("SKIP thumbnail from another window: no other document open")
+        }
+        await settle(300)
+        check(controller.engine.pageCount == count, "undone: \(controller.engine.pageCount) pages again")
     }
 
     private mutating func darkPages() async {

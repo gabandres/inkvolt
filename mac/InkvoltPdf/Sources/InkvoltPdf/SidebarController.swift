@@ -98,6 +98,10 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         table.allowsMultipleSelection = true
         table.owner = self
         table.setAccessibilityLabel("Page thumbnails")
+        // Thumbnails dragged to move pages (to another window: copied), PDFs and pictures dropped on them to insert.
+        table.registerForDraggedTypes([Self.pagesType, .fileURL])
+        table.setDraggingSourceOperationMask([.move, .copy], forLocal: true)
+        table.draggingDestinationFeedbackStyle = .gap
         tableScroll.documentView = table
         tableScroll.hasVerticalScroller = true
         tableScroll.drawsBackground = false
@@ -299,6 +303,93 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     // MARK: Thumbnails
 
     func numberOfRows(in tableView: NSTableView) -> Int { engine.pageCount }
+
+    // MARK: Dragging thumbnails (Windows' thumbnail drag and drop)
+
+    /// Pages dragged from a thumbnail list; the pages themselves are in `SidebarController.drag` (one drag at a time).
+    static let pagesType = NSPasteboard.PasteboardType("com.bermudezsystems.inkvoltpdf.pages")
+    /// The drag under way: the window it started in (its document's `recoveryId`) and its pages.
+    private(set) static var drag: (source: String, pages: [Int])?
+    /// This window's document (`recoveryId`), to tell a move in this window from a copy from another.
+    var dragSourceId = ""
+    /// Pages dropped before page `before`: from this window (`source` is `dragSourceId`, a move) or another (a copy).
+    var onDropPages: ((_ source: String, _ pages: [Int], _ before: Int) -> Void)?
+    /// PDFs or pictures dropped before page `before` (their pages inserted).
+    var onDropFiles: ((_ urls: [URL], _ before: Int) -> Void)?
+    /// Whether the document takes page edits now (a document being edited elsewhere, or no document, doesn't).
+    var canDropPages: (() -> Bool)?
+
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard tableView === table, row < engine.pageCount else { return nil }
+        let item = NSPasteboardItem()
+        item.setString("\(dragSourceId) \(row)", forType: Self.pagesType)
+        return item
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+                   forRowIndexes rowIndexes: IndexSet) {
+        Self.drag = (dragSourceId, rowIndexes.map { $0 })
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                   operation: NSDragOperation) {
+        Self.drag = nil
+    }
+
+    /// PDFs and pictures among the files on a pasteboard.
+    static func droppedFiles(_ pasteboard: NSPasteboard) -> [URL] {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.filter { url in
+            let ext = url.pathExtension.lowercased()
+            return ext == "pdf" || ["png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "heic"].contains(ext)
+        }
+    }
+
+    /// What a drop before page `before` would do: move (pages from this window), copy (pages from another, or files).
+    func dropOperation(_ pasteboard: NSPasteboard) -> NSDragOperation {
+        guard canDropPages?() ?? true else { return [] }
+        if pasteboard.types?.contains(Self.pagesType) == true, let drag = Self.drag {
+            return drag.source == dragSourceId ? .move : .copy
+        }
+        return Self.droppedFiles(pasteboard).isEmpty ? [] : .copy
+    }
+
+    func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int,
+                   proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        guard tableView === table else { return [] }
+        tableView.setDropRow(min(max(row, 0), engine.pageCount), dropOperation: .above)
+        return self.dropOperation(info.draggingPasteboard)
+    }
+
+    func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+        guard tableView === table else { return false }
+        return drop(info.draggingPasteboard, before: row)
+    }
+
+    /// Drops what `pasteboard` holds before page `before` (what a drag ends with; the self-test calls it with its own
+    /// pasteboard). The work runs after the drop has finished, so the Finder isn't held mid-drag.
+    @discardableResult
+    func drop(_ pasteboard: NSPasteboard, before: Int) -> Bool {
+        let at = min(max(before, 0), engine.pageCount)
+        guard !dropOperation(pasteboard).isEmpty else { return false }
+        if pasteboard.types?.contains(Self.pagesType) == true, let drag = Self.drag {
+            Self.drag = nil
+            DispatchQueue.main.async { MainActor.assumeIsolated { self.onDropPages?(drag.source, drag.pages, at) } }
+            return true
+        }
+        let files = Self.droppedFiles(pasteboard)
+        DispatchQueue.main.async { MainActor.assumeIsolated { self.onDropFiles?(files, at) } }
+        return true
+    }
+
+    /// Starts a drag of `pages` as the table would (the self-test, which can't drag with a mouse over SSH).
+    func beginTestDrag(_ pages: [Int], on pasteboard: NSPasteboard) {
+        Self.drag = (dragSourceId, pages)
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString("\(dragSourceId) \(pages.first ?? 0)", forType: Self.pagesType)
+        pasteboard.writeObjects([item])
+    }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         let g = engine.page(row)
