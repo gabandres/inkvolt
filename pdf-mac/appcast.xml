@@ -6,6 +6,24 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.6.0</title>
+      <pubDate>Tue, 03 Nov 2026 23:16:22 GMT</pubDate>
+      <sparkle:version>1.6.0</sparkle:version>
+      <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">A calmer window, simpler dialogs, rotate view, dark pages, reading modes, saved signatures, and many smaller things from the Windows app.
+
+- A calmer window: a toolbar like Preview's (sidebar, zoom, Highlight, Markup, Fill &amp; Sign, Share, Search), the markup tools in a bar under it when you want them, and a Tools menu grouped by what you're doing. Every tool keeps its shortcut.
+- Simpler dialogs: the choices most people need are in sight, the rest under More Options. The start page shows your recent files first and four tools, and the sidebar shows only the panes your document has. Settings apply as soon as you change them.
+- Reading: Single Page (⌘4), Continuous (⌘5), Two Pages (⌘6) and Two Pages with Cover (⌘7); rotate the view (⇧⌘R, ⇧⌘L) without changing the file; dark pages for night reading; Go to Page (⌥⌘G); the zoom in the window's subtitle.
+- Fill &amp; Sign keeps your signatures and initials between launches. Forms whose fields react to the pointer now do.
+- Pages: drag thumbnails to move pages or copy them to another window, and drop PDFs or pictures from the Finder. Reverse Page Order, Extract Pages as one file or a file per page, Split Document, and Insert from Scanner into the open document.
+- Edit Text &amp; Images: resize pictures by their handles and move them with the arrow keys.
+- Document Properties (⇧⌘I), Share, an attached PDF with its own password opens, exports follow the layers you show, Compare Files zooms, and Help › Report a Problem.
+- Fixed: closing a document right after moving a form field with the arrow keys no longer loses the move; a picture keeps its selection after a move; windows can be made much narrower.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.6.0/Inkvolt-PDF-1.6.0.dmg" length="36867810" type="application/octet-stream" sparkle:edSignature="biCCHkWcDiMIqHXMEA6Ul7fPM9g6h663rG+xNn29xPYSphOUZcub4v1ocAxDpJJphRJx1+z6o8e53e4t7E6SCA==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.5.0</title>
       <pubDate>Tue, 03 Nov 2026 02:01:50 GMT</pubDate>
       <sparkle:version>1.5.0</sparkle:version>
