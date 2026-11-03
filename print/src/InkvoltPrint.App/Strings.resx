@@ -4399,4 +4399,8 @@ Start over</value>
   <data name="Queue_SuppliesNotReported" xml:space="preserve">
     <value>Not reported by this printer.</value>
   </data>
+  <data name="Scan_PageTileCaption" xml:space="preserve">
+    <value>Page {0}</value>
+    <comment>Under a scanned page's thumbnail, beside six icon buttons: keep it short ({0} = page number)</comment>
+  </data>
 </root>

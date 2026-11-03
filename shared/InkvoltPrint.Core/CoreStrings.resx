@@ -3796,4 +3796,8 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Queue_SourceDriver" xml:space="preserve">
     <value>From its driver</value>
   </data>
+  <data name="History_FirmwareDateFormat" xml:space="preserve">
+    <value>d MMMM yyyy</value>
+    <comment>.NET date format for the day a firmware change was seen (3 November 2026; 3 de noviembre de 2026)</comment>
+  </data>
 </root>

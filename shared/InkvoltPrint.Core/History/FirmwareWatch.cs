@@ -15,7 +15,7 @@ public sealed record FirmwareRecord(string Version, DateOnly Since, string? Prev
 /// <summary>A firmware change to tell: "Firmware changed from X to Y on 12 October 2026".</summary>
 public sealed record FirmwareChange(string From, string To, DateOnly On)
 {
-    public string Text => string.Format(CoreStrings.History_FirmwareChanged, From, To, On.ToString("d MMMM yyyy", CultureInfo.CurrentCulture));
+    public string Text => string.Format(CoreStrings.History_FirmwareChanged, From, To, On.ToString(CoreStrings.History_FirmwareDateFormat, CultureInfo.CurrentCulture));
 
     /// <summary>The alert's key: one per change, so the same change never alerts twice.</summary>
     public string Key => $"{From}→{To}";

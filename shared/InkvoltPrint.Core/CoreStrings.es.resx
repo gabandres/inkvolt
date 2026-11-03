@@ -5,1048 +5,1048 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="Offline_PortRaw" xml:space="preserve">
-    <value>raw printing (port 9100)</value>
+    <value>impresión directa (puerto 9100)</value>
   </data>
   <data name="Offline_PortWeb" xml:space="preserve">
-    <value>its web page</value>
+    <value>su página web</value>
   </data>
   <data name="Offline_Port" xml:space="preserve">
-    <value>port {0}</value>
+    <value>puerto {0}</value>
   </data>
   <data name="Offline_ListAnd" xml:space="preserve">
-    <value>{0} and {1}</value>
+    <value>{0} y {1}</value>
   </data>
   <data name="Offline_CheckSpooler" xml:space="preserve">
-    <value>Print Spooler service</value>
+    <value>Servicio Cola de impresión</value>
   </data>
   <data name="Offline_CheckNetwork" xml:space="preserve">
-    <value>Printer on the network</value>
+    <value>Impresora en la red</value>
   </data>
   <data name="Offline_CheckConnection" xml:space="preserve">
-    <value>Printer answers</value>
+    <value>La impresora responde</value>
   </data>
   <data name="Offline_CheckQueues" xml:space="preserve">
-    <value>Windows printers for this device</value>
+    <value>Impresoras de Windows para este dispositivo</value>
   </data>
   <data name="Offline_CheckQueueState" xml:space="preserve">
-    <value>Paused, offline or stuck jobs</value>
+    <value>En pausa, sin conexión o trabajos atascados</value>
   </data>
   <data name="Offline_PortTcpIp" xml:space="preserve">
-    <value>Standard TCP/IP port to {0}</value>
+    <value>Puerto TCP/IP estándar a {0}</value>
   </data>
   <data name="Offline_PortTcpIpLpr" xml:space="preserve">
-    <value>Standard TCP/IP port to {0} (LPR)</value>
+    <value>Puerto TCP/IP estándar a {0} (LPR)</value>
   </data>
   <data name="Offline_PortDeviceId" xml:space="preserve">
-    <value>WSD/IPP port (Windows finds the printer by its ID)</value>
+    <value>Puerto WSD/IPP (Windows encuentra la impresora por su ID)</value>
   </data>
   <data name="Offline_PortIpp" xml:space="preserve">
-    <value>IPP port to {0}</value>
+    <value>Puerto IPP a {0}</value>
   </data>
   <data name="Offline_AdoptQuestion" xml:space="preserve">
-    <value>Use {0} for {1}? Choose this only if that's the printer's address (its control panel or a network configuration page shows it).</value>
+    <value>¿Usar {0} para {1}? Elige esto solo si esa es la dirección de la impresora (su panel de control o una página de configuración de red la muestra).</value>
   </data>
   <data name="Offline_SpoolerStopped" xml:space="preserve">
-    <value>The Print Spooler service isn't running</value>
+    <value>El servicio Cola de impresión no se está ejecutando</value>
   </data>
   <data name="Offline_FoundToFix_One" xml:space="preserve">
-    <value>Found one thing to fix</value>
+    <value>Se encontró un problema por resolver</value>
   </data>
   <data name="Offline_FoundToFix_Many" xml:space="preserve">
-    <value>Found {0} things to fix</value>
+    <value>Se encontraron {0} problemas por resolver</value>
   </data>
   <data name="Offline_NotAnswering" xml:space="preserve">
-    <value>The printer isn't answering</value>
+    <value>La impresora no responde</value>
   </data>
   <data name="Offline_NoWindowsPrinter" xml:space="preserve">
-    <value>The printer answers, but Windows has no printer for it</value>
+    <value>La impresora responde, pero Windows no tiene una impresora para ella</value>
   </data>
   <data name="Offline_NoProblems" xml:space="preserve">
-    <value>No problems found</value>
+    <value>No se encontraron problemas</value>
   </data>
   <data name="Offline_QueueGoneHeadline" xml:space="preserve">
-    <value>Windows no longer has this printer</value>
+    <value>Windows ya no tiene esta impresora</value>
   </data>
   <data name="Offline_QueueUnreadHeadline" xml:space="preserve">
-    <value>Windows didn't say how this printer is</value>
+    <value>Windows no indicó el estado de esta impresora</value>
   </data>
   <data name="Offline_QueueOfflineHeadline" xml:space="preserve">
-    <value>Windows shows this printer offline</value>
+    <value>Windows muestra esta impresora sin conexión</value>
   </data>
   <data name="Offline_QueueErrorHeadline" xml:space="preserve">
-    <value>Windows shows an error on this printer</value>
+    <value>Windows muestra un error en esta impresora</value>
   </data>
   <data name="Offline_FixEach" xml:space="preserve">
-    <value>Fix each one below, then check again.</value>
+    <value>Resuelve cada uno de la lista y vuelve a comprobar.</value>
   </data>
   <data name="Offline_QueueGoneAdvice" xml:space="preserve">
-    <value>It was probably removed or renamed in Settings › Printers &amp; scanners. Inkvolt Print lists what Windows has.</value>
+    <value>Probablemente se quitó o se le cambió el nombre en Configuración › Impresoras y escáneres. Inkvolt Print muestra lo que tiene Windows.</value>
   </data>
   <data name="Offline_QueueUnreadAdvice" xml:space="preserve">
-    <value>Check again in a moment. If this printer is shared from another PC, check that the PC is on.</value>
+    <value>Vuelve a comprobar en un momento. Si esta impresora se comparte desde otro PC, comprueba que ese PC esté encendido.</value>
   </data>
   <data name="Offline_QueueOfflineAdvice" xml:space="preserve">
-    <value>Check that it's turned on and connected: its USB cable, or the PC sharing it. Inkvolt Print can't reach this printer itself, only what Windows reports.</value>
+    <value>Comprueba que esté encendida y conectada: su cable USB o el PC que la comparte. Inkvolt Print no puede comunicarse con esta impresora directamente, solo ve lo que informa Windows.</value>
   </data>
   <data name="Offline_QueueReadyAdvice" xml:space="preserve">
-    <value>Windows' printer is ready, not paused and with no stuck jobs. If a job still won't print, turn the printer off and on, then try again.</value>
+    <value>La impresora de Windows está lista, sin pausa y sin trabajos atascados. Si un trabajo sigue sin imprimirse, apaga y enciende la impresora y vuelve a intentarlo.</value>
   </data>
   <data name="Offline_SpoolerStoppedAdvice" xml:space="preserve">
-    <value>Nothing on this PC can print until Windows' printing service runs again.</value>
+    <value>Nada en este PC puede imprimir hasta que el servicio de impresión de Windows vuelva a ejecutarse.</value>
   </data>
   <data name="Offline_FixListedNotAnswering" xml:space="preserve">
-    <value>Fix what's listed below. The printer itself isn't answering yet: check that it's on and connected to the same network as this PC.</value>
+    <value>Resuelve lo que aparece en la lista. La impresora todavía no responde: comprueba que esté encendida y conectada a la misma red que este PC.</value>
   </data>
   <data name="Offline_NotAnsweringAdvice" xml:space="preserve">
-    <value>Check that it's switched on and awake, and connected to the same Wi-Fi or network as this PC (its control panel or a network configuration page shows its address). Turning the printer off and on, then the router, fixes most of these.</value>
+    <value>Comprueba que esté encendida y activa, y conectada a la misma red Wi-Fi o red que este PC (su panel de control o una página de configuración de red muestra su dirección). Apagar y encender la impresora, y luego el router, resuelve la mayoría de estos casos.</value>
   </data>
   <data name="Offline_SetUpAdvice" xml:space="preserve">
-    <value>Use Set up at the top of the page so every app can print to it.</value>
+    <value>Usa Configurar en la parte superior de la página para que todas las aplicaciones puedan imprimir en ella.</value>
   </data>
   <data name="Offline_AllReadyAdvice" xml:space="preserve">
-    <value>The printer answers and Windows' printer for it is ready. If a job still won't print, turn the printer off and on, then try again.</value>
+    <value>La impresora responde y su impresora de Windows está lista. Si un trabajo sigue sin imprimirse, apaga y enciende la impresora y vuelve a intentarlo.</value>
   </data>
   <data name="Offline_AddressUnknown" xml:space="preserve">
-    <value>Its address isn't known.</value>
+    <value>No se conoce su dirección.</value>
   </data>
   <data name="Offline_NeedsSpooler" xml:space="preserve">
-    <value>Needs the Print Spooler service.</value>
+    <value>Necesita el servicio Cola de impresión.</value>
   </data>
   <data name="Offline_CouldntReadPrinters" xml:space="preserve">
-    <value>Couldn't read Windows' printers: {0}</value>
+    <value>No se pudieron leer las impresoras de Windows: {0}</value>
   </data>
   <data name="Offline_WindowsNoAnswer" xml:space="preserve">
-    <value>Windows didn't answer in time.</value>
+    <value>Windows no respondió a tiempo.</value>
   </data>
   <data name="Offline_CouldntReadQueue" xml:space="preserve">
-    <value>Couldn't read “{0}”: {1}</value>
+    <value>No se pudo leer “{0}”: {1}</value>
   </data>
   <data name="Offline_QueueGone" xml:space="preserve">
-    <value>Windows no longer has a printer called “{0}”.</value>
+    <value>Windows ya no tiene una impresora llamada “{0}”.</value>
   </data>
   <data name="Offline_CautionAmbiguous" xml:space="preserve">
-    <value>More than one device announces this printer's ID: {0}.</value>
+    <value>Más de un dispositivo anuncia el ID de esta impresora: {0}.</value>
   </data>
   <data name="Offline_CautionOldAnswers" xml:space="preserve">
-    <value>Something still answers at its old address, {0}.</value>
+    <value>Algo sigue respondiendo en su dirección anterior, {0}.</value>
   </data>
   <data name="Offline_SpoolerRunning" xml:space="preserve">
-    <value>Running.</value>
+    <value>En ejecución.</value>
   </data>
   <data name="Offline_SpoolerStoppedDetail" xml:space="preserve">
-    <value>Stopped: nothing on this PC can print until it runs.</value>
+    <value>Detenido: nada en este PC puede imprimir hasta que se ejecute.</value>
   </data>
   <data name="Offline_SpoolerChanging" xml:space="preserve">
-    <value>Starting or stopping right now.</value>
+    <value>Iniciándose o deteniéndose en este momento.</value>
   </data>
   <data name="Offline_CouldntCheck" xml:space="preserve">
-    <value>Couldn't check it.</value>
+    <value>No se pudo comprobar.</value>
   </data>
   <data name="Offline_CouldntLook" xml:space="preserve">
-    <value>Couldn't look for it: {0}</value>
+    <value>No se pudo buscar: {0}</value>
   </data>
   <data name="Offline_NotAnnounced" xml:space="preserve">
-    <value>It didn't announce itself on the network. It may be off or asleep, on another network, or not announce itself at all.</value>
+    <value>No se anunció en la red. Puede estar apagada o en reposo, en otra red, o no anunciarse en absoluto.</value>
   </data>
   <data name="Offline_FoundSame" xml:space="preserve">
-    <value>Found at {0}, the address Inkvolt Print uses.</value>
+    <value>Encontrada en {0}, la dirección que usa Inkvolt Print.</value>
   </data>
   <data name="Offline_FoundAsk" xml:space="preserve">
-    <value>Found at {0} (it was {1}). {2}Inkvolt Print asks before using the new address.</value>
+    <value>Encontrada en {0} (antes era {1}). {2}Inkvolt Print pregunta antes de usar la nueva dirección.</value>
   </data>
   <data name="Offline_FoundNew" xml:space="preserve">
-    <value>Found at a new address, {0} (it was {1}). The router gave it a new one; Inkvolt Print uses the new address now.</value>
+    <value>Encontrada en una nueva dirección, {0} (antes era {1}). El router le asignó una nueva; Inkvolt Print ya usa la nueva dirección.</value>
   </data>
   <data name="Offline_AnswersAt" xml:space="preserve">
-    <value>Answers at {0}: {1}.</value>
+    <value>Responde en {0}: {1}.</value>
   </data>
   <data name="Offline_PingOnly" xml:space="preserve">
-    <value>Something at {0} answers ping, but no printing port is open. Another device may have that address now.</value>
+    <value>Algo en {0} responde al ping, pero no hay ningún puerto de impresión abierto. Puede que otro dispositivo tenga ahora esa dirección.</value>
   </data>
   <data name="Offline_NoAnswerAt" xml:space="preserve">
-    <value>No answer at {0}. Check that it's switched on and awake, and on the same network as this PC.</value>
+    <value>No hay respuesta en {0}. Comprueba que esté encendida y activa, y en la misma red que este PC.</value>
   </data>
   <data name="Offline_NoQueues" xml:space="preserve">
-    <value>None: Windows has no printer for this device yet.</value>
+    <value>Ninguna: Windows aún no tiene una impresora para este dispositivo.</value>
   </data>
   <data name="Offline_QueueLine" xml:space="preserve">
     <value>“{0}”: {1}</value>
   </data>
   <data name="Offline_QueueLineStale" xml:space="preserve">
-    <value>“{0}”: {1}, an old address</value>
+    <value>“{0}”: {1}, una dirección anterior</value>
   </data>
   <data name="Offline_QueueLineByName" xml:space="preserve">
-    <value>“{0}”: {1} (matched by its name)</value>
+    <value>“{0}”: {1} (encontrada por su nombre)</value>
   </data>
   <data name="Offline_QueueLineStaleByName" xml:space="preserve">
-    <value>“{0}”: {1}, an old address (matched by its name)</value>
+    <value>“{0}”: {1}, una dirección anterior (encontrada por su nombre)</value>
   </data>
   <data name="Offline_NoQueueToCheck" xml:space="preserve">
-    <value>No Windows printer to check.</value>
+    <value>No hay ninguna impresora de Windows que comprobar.</value>
   </data>
   <data name="Offline_ProblemPaused" xml:space="preserve">
-    <value>paused</value>
+    <value>en pausa</value>
   </data>
   <data name="Offline_ProblemWorkOffline" xml:space="preserve">
-    <value>set to Use Printer Offline</value>
+    <value>configurada como Usar impresora sin conexión</value>
   </data>
   <data name="Offline_ProblemStuck_One" xml:space="preserve">
-    <value>{0} stuck job</value>
+    <value>{0} trabajo atascado</value>
   </data>
   <data name="Offline_ProblemStuck_Many" xml:space="preserve">
-    <value>{0} stuck jobs</value>
+    <value>{0} trabajos atascados</value>
   </data>
   <data name="Offline_ProblemShowsOffline" xml:space="preserve">
-    <value>Windows shows it offline</value>
+    <value>Windows la muestra sin conexión</value>
   </data>
   <data name="Offline_ProblemShowsError" xml:space="preserve">
-    <value>Windows shows an error</value>
+    <value>Windows muestra un error</value>
   </data>
   <data name="Offline_QueueProblems" xml:space="preserve">
     <value>“{0}”: {1}.</value>
   </data>
   <data name="Offline_QueueStateOk" xml:space="preserve">
-    <value>Not paused or offline, no stuck jobs.</value>
+    <value>Sin pausa ni desconexión, y sin trabajos atascados.</value>
   </data>
   <data name="Offline_StartSpooler" xml:space="preserve">
-    <value>Start the Print Spooler service</value>
+    <value>Iniciar el servicio Cola de impresión</value>
   </data>
   <data name="Offline_StartSpoolerDetail" xml:space="preserve">
-    <value>Windows' printing service isn't running, so nothing can print.</value>
+    <value>El servicio de impresión de Windows no se está ejecutando, así que no se puede imprimir nada.</value>
   </data>
   <data name="Offline_Resume" xml:space="preserve">
-    <value>Resume “{0}”</value>
+    <value>Reanudar “{0}”</value>
   </data>
   <data name="Offline_ResumeDetail" xml:space="preserve">
-    <value>Printing is paused in Windows, so jobs wait in the queue.</value>
+    <value>La impresión está en pausa en Windows, así que los trabajos esperan en la cola.</value>
   </data>
   <data name="Offline_ResumeQuestion" xml:space="preserve">
-    <value>Resume “{0}”? Jobs waiting in its queue start printing.</value>
+    <value>¿Reanudar “{0}”? Los trabajos que esperan en su cola empiezan a imprimirse.</value>
   </data>
   <data name="Offline_ResumeConfirm" xml:space="preserve">
-    <value>Resume</value>
+    <value>Reanudar</value>
   </data>
   <data name="Offline_WorkOffline" xml:space="preserve">
-    <value>Turn off “Use Printer Offline” for “{0}”</value>
+    <value>Desactivar “Usar impresora sin conexión” para “{0}”</value>
   </data>
   <data name="Offline_WorkOfflineDetail" xml:space="preserve">
-    <value>Windows was told to keep jobs for this printer instead of sending them.</value>
+    <value>Se le indicó a Windows que guarde los trabajos de esta impresora en lugar de enviarlos.</value>
   </data>
   <data name="Offline_WorkOfflineQuestion" xml:space="preserve">
-    <value>Turn off “Use Printer Offline” for “{0}”? Jobs Windows is holding for it go to the printer.</value>
+    <value>¿Desactivar “Usar impresora sin conexión” para “{0}”? Los trabajos que Windows guarda para ella se envían a la impresora.</value>
   </data>
   <data name="Offline_WorkOfflineConfirm" xml:space="preserve">
-    <value>Turn it off</value>
+    <value>Desactivar</value>
   </data>
   <data name="Offline_SetUpAgain" xml:space="preserve">
-    <value>Set up “{0}” again</value>
+    <value>Volver a configurar “{0}”</value>
   </data>
   <data name="Offline_SetUpAgainDetail" xml:space="preserve">
-    <value>The printer answers, but Windows still shows it offline. Removing it and setting it up again makes Windows find it afresh (about 30 seconds).</value>
+    <value>La impresora responde, pero Windows sigue mostrándola sin conexión. Quitarla y volver a configurarla hace que Windows la encuentre de nuevo (unos 30 segundos).</value>
   </data>
   <data name="Offline_SetUpAgainQuestion" xml:space="preserve">
-    <value>Remove “{0}” from Windows and set it up again? Its printing preferences go back to the defaults.</value>
+    <value>¿Quitar “{0}” de Windows y volver a configurarla? Sus preferencias de impresión vuelven a los valores predeterminados.</value>
   </data>
   <data name="Offline_SetUpAgainConfirm" xml:space="preserve">
-    <value>Set up again</value>
+    <value>Volver a configurar</value>
   </data>
   <data name="Offline_TurnOffSnmp" xml:space="preserve">
-    <value>Turn off SNMP status for “{0}”</value>
+    <value>Desactivar el estado SNMP para “{0}”</value>
   </data>
   <data name="Offline_TurnOffSnmpDetail" xml:space="preserve">
-    <value>The printer answers, but Windows also asks it for its status over SNMP and shows it offline when that gets no reply.</value>
+    <value>La impresora responde, pero Windows también le pide su estado por SNMP y la muestra sin conexión cuando no recibe respuesta.</value>
   </data>
   <data name="Offline_StuckJobsNamed" xml:space="preserve">
-    <value>{0} jobs ({1})</value>
+    <value>{0} trabajos ({1})</value>
   </data>
   <data name="Offline_CancelStuck_One" xml:space="preserve">
-    <value>Cancel the stuck job in “{1}”</value>
+    <value>Cancelar el trabajo atascado en “{1}”</value>
   </data>
   <data name="Offline_CancelStuck_Many" xml:space="preserve">
-    <value>Cancel {0} stuck jobs in “{1}”</value>
+    <value>Cancelar {0} trabajos atascados en “{1}”</value>
   </data>
   <data name="Offline_StuckDetail_One" xml:space="preserve">
-    <value>{0} is stuck and holds up everything after it.</value>
+    <value>{0} está atascado y retiene todo lo que viene después.</value>
   </data>
   <data name="Offline_StuckDetail_Many" xml:space="preserve">
-    <value>{0} are stuck and hold up everything after them.</value>
+    <value>{0} están atascados y retienen todo lo que viene después.</value>
   </data>
   <data name="Offline_CancelStuckQuestion_One" xml:space="preserve">
-    <value>Cancel {0} in “{1}”? It won't print.</value>
+    <value>¿Cancelar {0} en “{1}”? No se imprimirá.</value>
   </data>
   <data name="Offline_CancelStuckQuestion_Many" xml:space="preserve">
-    <value>Cancel {0} in “{1}”? They won't print.</value>
+    <value>¿Cancelar {0} en “{1}”? No se imprimirán.</value>
   </data>
   <data name="Offline_CancelJob" xml:space="preserve">
-    <value>Cancel job</value>
+    <value>Cancelar trabajo</value>
   </data>
   <data name="Offline_CancelJobs" xml:space="preserve">
-    <value>Cancel jobs</value>
+    <value>Cancelar trabajos</value>
   </data>
   <data name="Offline_PrintAgainAlt_One" xml:space="preserve">
-    <value>Or print it again from the start</value>
+    <value>O volver a imprimirlo desde el principio</value>
   </data>
   <data name="Offline_PrintAgainAlt_Many" xml:space="preserve">
-    <value>Or print them again from the start</value>
+    <value>O volver a imprimirlos desde el principio</value>
   </data>
   <data name="Offline_PrintAgainDetail" xml:space="preserve">
-    <value>Sends the stuck job to the printer again from its first page.</value>
+    <value>Vuelve a enviar el trabajo atascado a la impresora desde su primera página.</value>
   </data>
   <data name="Offline_PrintAgainQuestion" xml:space="preserve">
-    <value>Print {0} in “{1}” again from the first page?</value>
+    <value>¿Volver a imprimir {0} en “{1}” desde la primera página?</value>
   </data>
   <data name="Offline_PrintAgainConfirm" xml:space="preserve">
-    <value>Print again</value>
+    <value>Volver a imprimir</value>
   </data>
   <data name="Offline_RestartSpooler" xml:space="preserve">
-    <value>Restart the Print Spooler service</value>
+    <value>Reiniciar el servicio Cola de impresión</value>
   </data>
   <data name="Offline_RestartSpoolerDetail" xml:space="preserve">
-    <value>Clears jobs stuck while cancelling and makes Windows check its printers again.</value>
+    <value>Elimina los trabajos que se quedaron atascados al cancelarse y hace que Windows vuelva a comprobar sus impresoras.</value>
   </data>
   <data name="Offline_RestartSpoolerQuestion" xml:space="preserve">
-    <value>Restarting the Print Spooler stops anything printing on this PC right now, for every printer. Restart it?</value>
+    <value>Reiniciar la Cola de impresión detiene todo lo que se esté imprimiendo ahora en este PC, en todas las impresoras. ¿Reiniciarla?</value>
   </data>
   <data name="Offline_RestartSpoolerConfirm" xml:space="preserve">
-    <value>Restart</value>
+    <value>Reiniciar</value>
   </data>
   <data name="Offline_SameModelName" xml:space="preserve">
-    <value>“{0}” has the same model name as this printer, but prints to {1}. Is it for this printer?</value>
+    <value>“{0}” tiene el mismo nombre de modelo que esta impresora, pero imprime en {1}. ¿Es para esta impresora?</value>
   </data>
   <data name="Offline_RecreateAt" xml:space="preserve">
-    <value>Set up “{0}” again at {1}</value>
+    <value>Volver a configurar “{0}” en {1}</value>
   </data>
   <data name="Offline_RecreateDetail" xml:space="preserve">
-    <value>It was added by address and still prints to {0}. Inkvolt Print adds it again at {1} with the same name, then removes the old one. Its printing preferences go back to the defaults.</value>
+    <value>Se agregó por dirección y sigue imprimiendo en {0}. Inkvolt Print la vuelve a agregar en {1} con el mismo nombre y luego quita la anterior. Sus preferencias de impresión vuelven a los valores predeterminados.</value>
   </data>
   <data name="Offline_RecreateQuestion" xml:space="preserve">
-    <value>Set “{0}” up again at {1}?</value>
+    <value>¿Volver a configurar “{0}” en {1}?</value>
   </data>
   <data name="Offline_PointAt" xml:space="preserve">
-    <value>Point “{0}” at {1}</value>
+    <value>Dirigir “{0}” a {1}</value>
   </data>
   <data name="Offline_PointAtDetail" xml:space="preserve">
-    <value>Its port still sends jobs to {0}, the printer's old address. Inkvolt Print adds a port for {1} and switches the printer to it.</value>
+    <value>Su puerto sigue enviando trabajos a {0}, la dirección anterior de la impresora. Inkvolt Print agrega un puerto para {1} y cambia la impresora a ese puerto.</value>
   </data>
   <data name="Offline_PointAtQuestion" xml:space="preserve">
-    <value>Point “{0}” at {1}? Its print jobs go to {1} from now on.</value>
+    <value>¿Dirigir “{0}” a {1}? A partir de ahora, sus trabajos de impresión van a {1}.</value>
   </data>
   <data name="Offline_PointAtNameAlt" xml:space="preserve">
-    <value>Or point it at {0}</value>
+    <value>O dirigirla a {0}</value>
   </data>
   <data name="Offline_PointAtNameDetail" xml:space="preserve">
-    <value>The printer's network name, which follows it when the router gives it a new address.</value>
+    <value>El nombre de red de la impresora, que la sigue cuando el router le asigna una nueva dirección.</value>
   </data>
   <data name="Offline_PointAtNameQuestion" xml:space="preserve">
-    <value>Point “{0}” at {1}? Its print jobs go to whichever address that name has.</value>
+    <value>¿Dirigir “{0}” a {1}? Sus trabajos de impresión van a la dirección que tenga ese nombre.</value>
   </data>
   <data name="Offline_FixIt" xml:space="preserve">
-    <value>Fix it</value>
+    <value>Resolver</value>
   </data>
   <data name="Offline_StepThePrinter" xml:space="preserve">
-    <value>the printer</value>
+    <value>la impresora</value>
   </data>
   <data name="Offline_StepOpenQueue" xml:space="preserve">
-    <value>Open Settings › Bluetooth &amp; devices › Printers &amp; scanners, select {0}, then Open print queue.</value>
+    <value>Abre Configuración › Bluetooth y dispositivos › Impresoras y escáneres, selecciona {0} y luego Abrir cola de impresión.</value>
   </data>
   <data name="Offline_StepPorts" xml:space="preserve">
-    <value>Open Settings › Bluetooth &amp; devices › Printers &amp; scanners, select {0}, then Printer properties › Ports.</value>
+    <value>Abre Configuración › Bluetooth y dispositivos › Impresoras y escáneres, selecciona {0} y luego Propiedades de impresora › Puertos.</value>
   </data>
   <data name="Offline_StepRemove" xml:space="preserve">
-    <value>Open Settings › Bluetooth &amp; devices › Printers &amp; scanners, select {0} and choose Remove.</value>
+    <value>Abre Configuración › Bluetooth y dispositivos › Impresoras y escáneres, selecciona {0} y elige Quitar.</value>
   </data>
   <data name="Offline_StepServices" xml:space="preserve">
-    <value>Press Windows+R, type services.msc and press Enter.</value>
+    <value>Presiona Windows+R, escribe services.msc y presiona Enter.</value>
   </data>
   <data name="Offline_StepStartSpooler" xml:space="preserve">
-    <value>Find Print Spooler, right-click it and choose Start (Windows asks for an administrator).</value>
+    <value>Busca Cola de impresión, haz clic derecho en él y elige Iniciar (Windows pide un administrador).</value>
   </data>
   <data name="Offline_StepRestartSpooler" xml:space="preserve">
-    <value>Find Print Spooler, right-click it and choose Restart (Windows asks for an administrator).</value>
+    <value>Busca Cola de impresión, haz clic derecho en él y elige Reiniciar (Windows pide un administrador).</value>
   </data>
   <data name="Offline_StepUntickPause" xml:space="preserve">
-    <value>In the queue window, open the Printer menu and untick Pause Printing.</value>
+    <value>En la ventana de la cola, abre el menú Impresora y desmarca Pausar la impresión.</value>
   </data>
   <data name="Offline_StepUntickOffline" xml:space="preserve">
-    <value>In the queue window, open the Printer menu and untick Use Printer Offline.</value>
+    <value>En la ventana de la cola, abre el menú Impresora y desmarca Usar impresora sin conexión.</value>
   </data>
   <data name="Offline_StepAddPort" xml:space="preserve">
-    <value>Choose Add Port… › Standard TCP/IP Port › New Port…, then Next.</value>
+    <value>Elige Agregar puerto… › Puerto TCP/IP estándar › Puerto nuevo… y luego Siguiente.</value>
   </data>
   <data name="Offline_StepEnterAddress" xml:space="preserve">
-    <value>Enter {0} as the printer name or IP address and finish the wizard.</value>
+    <value>Escribe {0} como nombre o dirección IP de la impresora y termina el asistente.</value>
   </data>
   <data name="Offline_StepPrinterAddress" xml:space="preserve">
-    <value>the printer's address</value>
+    <value>la dirección de la impresora</value>
   </data>
   <data name="Offline_StepApplyPort" xml:space="preserve">
-    <value>Back on the Ports tab, make sure the new port is ticked, then choose Apply.</value>
+    <value>De vuelta en la pestaña Puertos, asegúrate de que el puerto nuevo esté marcado y elige Aplicar.</value>
   </data>
   <data name="Offline_StepAddByAddress" xml:space="preserve">
-    <value>Choose Add device, then Add manually › Add a printer using an IP address or hostname.</value>
+    <value>Elige Agregar dispositivo y luego Agregar manualmente › Agregar una impresora por medio de una dirección TCP/IP o un nombre de host.</value>
   </data>
   <data name="Offline_StepIppDevice" xml:space="preserve">
-    <value>Pick IPP Device and enter {0}.</value>
+    <value>Elige Dispositivo IPP y escribe {0}.</value>
   </data>
   <data name="Offline_StepSetUp" xml:space="preserve">
-    <value>Back in Inkvolt Print, choose Set up.</value>
+    <value>De vuelta en Inkvolt Print, elige Configurar.</value>
   </data>
   <data name="Offline_StepCancelJobs" xml:space="preserve">
-    <value>Right-click each stuck job and choose Cancel. Other people's jobs need an administrator.</value>
+    <value>Haz clic derecho en cada trabajo atascado y elige Cancelar. Los trabajos de otras personas necesitan un administrador.</value>
   </data>
   <data name="Offline_StepRestartJobs" xml:space="preserve">
-    <value>Right-click each stuck job and choose Restart.</value>
+    <value>Haz clic derecho en cada trabajo atascado y elige Reiniciar.</value>
   </data>
   <data name="Offline_StepConfigurePort" xml:space="preserve">
-    <value>Select the ticked port and choose Configure Port… (Windows asks for an administrator).</value>
+    <value>Selecciona el puerto marcado y elige Configurar puerto… (Windows pide un administrador).</value>
   </data>
   <data name="Offline_StepUntickSnmp" xml:space="preserve">
-    <value>Untick SNMP Status Enabled, then choose OK and Apply.</value>
+    <value>Desmarca Estado SNMP habilitado y elige Aceptar y Aplicar.</value>
   </data>
   <data name="Offline_DoThisInWindows" xml:space="preserve">
-    <value>Do this in Windows:</value>
+    <value>Haz esto en Windows:</value>
   </data>
   <data name="Offline_Done" xml:space="preserve">
-    <value>Done.</value>
+    <value>Listo.</value>
   </data>
   <data name="Offline_WindowsCouldnt" xml:space="preserve">
-    <value>Windows couldn't do it.</value>
+    <value>Windows no pudo hacerlo.</value>
   </data>
   <data name="Offline_Cancelled" xml:space="preserve">
-    <value>Cancelled.</value>
+    <value>Cancelado.</value>
   </data>
   <data name="Offline_RefusedOtherPc" xml:space="preserve">
-    <value>Windows refused: the PC sharing this printer decides who may change it. Do it there, or ask whoever looks after it:</value>
+    <value>Windows lo rechazó: el PC que comparte esta impresora decide quién puede cambiarla. Hazlo allí o pídeselo a quien lo administre:</value>
   </data>
   <data name="Offline_StoreNoAdmin" xml:space="preserve">
-    <value>Windows needs an administrator for this, and the Microsoft Store version of Inkvolt Print doesn't ask for that. Do it in Windows:</value>
+    <value>Windows necesita un administrador para esto, y la versión de Microsoft Store de Inkvolt Print no lo pide. Hazlo en Windows:</value>
   </data>
   <data name="Offline_CancelledNeedAdmin" xml:space="preserve">
-    <value>Cancelled: Windows needs administrator permission for this.</value>
+    <value>Cancelado: Windows necesita permiso de administrador para esto.</value>
   </data>
   <data name="Offline_CancelledNeedAdminOther_One" xml:space="preserve">
-    <value>Cancelled: Windows needs administrator permission for the other {0} job.</value>
+    <value>Cancelado: Windows necesita permiso de administrador para {0} trabajo más.</value>
   </data>
   <data name="Offline_CancelledNeedAdminOther_Many" xml:space="preserve">
-    <value>Cancelled: Windows needs administrator permission for the other {0} jobs.</value>
+    <value>Cancelado: Windows necesita permiso de administrador para los otros {0} trabajos.</value>
   </data>
   <data name="Offline_StoppedNothingChanged" xml:space="preserve">
-    <value>Stopped waiting for Windows' permission, so nothing was changed. If the prompt is still open, answering it now does nothing.</value>
+    <value>Se dejó de esperar el permiso de Windows, así que no se cambió nada. Si la solicitud sigue abierta, responderla ahora no hace nada.</value>
   </data>
   <data name="Offline_StoppedOther_One" xml:space="preserve">
-    <value>Stopped waiting for Windows' permission for the other {0} job, so they weren't changed. If the prompt is still open, answering it now does nothing.</value>
+    <value>Se dejó de esperar el permiso de Windows para {0} trabajo más, así que no se cambió. Si la solicitud sigue abierta, responderla ahora no hace nada.</value>
   </data>
   <data name="Offline_StoppedOther_Many" xml:space="preserve">
-    <value>Stopped waiting for Windows' permission for the other {0} jobs, so they weren't changed. If the prompt is still open, answering it now does nothing.</value>
+    <value>Se dejó de esperar el permiso de Windows para los otros {0} trabajos, así que no se cambiaron. Si la solicitud sigue abierta, responderla ahora no hace nada.</value>
   </data>
   <data name="Offline_CancelledAsUser_One" xml:space="preserve">
-    <value>{0} job was cancelled without administrator permission.</value>
+    <value>Se canceló {0} trabajo sin permiso de administrador.</value>
   </data>
   <data name="Offline_CancelledAsUser_Many" xml:space="preserve">
-    <value>{0} jobs were cancelled without administrator permission.</value>
+    <value>Se cancelaron {0} trabajos sin permiso de administrador.</value>
   </data>
   <data name="Offline_RestartedAsUser_One" xml:space="preserve">
-    <value>{0} job was restarted without administrator permission.</value>
+    <value>Se reinició {0} trabajo sin permiso de administrador.</value>
   </data>
   <data name="Offline_RestartedAsUser_Many" xml:space="preserve">
-    <value>{0} jobs were restarted without administrator permission.</value>
+    <value>Se reiniciaron {0} trabajos sin permiso de administrador.</value>
   </data>
   <data name="Offline_NotFinished" xml:space="preserve">
-    <value>Windows hasn't finished yet, so whether it worked isn't known. Checking again; if it still shows the problem, try again in a minute.</value>
+    <value>Windows aún no ha terminado, así que no se sabe si funcionó. Volviendo a comprobar; si sigue mostrando el problema, vuelve a intentarlo en un minuto.</value>
   </data>
   <data name="Queue_PaperJam" xml:space="preserve">
-    <value>Paper jam</value>
+    <value>Atasco de papel</value>
   </data>
   <data name="Queue_PaperOut" xml:space="preserve">
-    <value>Out of paper</value>
+    <value>Sin papel</value>
   </data>
   <data name="Queue_DoorOpen" xml:space="preserve">
-    <value>A door or cover is open</value>
+    <value>Hay una puerta o cubierta abierta</value>
   </data>
   <data name="Queue_NoToner" xml:space="preserve">
-    <value>Out of toner or ink</value>
+    <value>Sin tóner ni tinta</value>
   </data>
   <data name="Queue_OutputBinFull" xml:space="preserve">
-    <value>Output tray is full</value>
+    <value>La bandeja de salida está llena</value>
   </data>
   <data name="Queue_PaperProblem" xml:space="preserve">
-    <value>Paper problem</value>
+    <value>Problema con el papel</value>
   </data>
   <data name="Queue_PagePunt" xml:space="preserve">
-    <value>Can't print the current page</value>
+    <value>No se puede imprimir la página actual</value>
   </data>
   <data name="Queue_OutOfMemory" xml:space="preserve">
-    <value>The printer ran out of memory</value>
+    <value>La impresora se quedó sin memoria</value>
   </data>
   <data name="Queue_UserIntervention" xml:space="preserve">
-    <value>The printer needs attention</value>
+    <value>La impresora necesita atención</value>
   </data>
   <data name="Queue_ManualFeed" xml:space="preserve">
-    <value>Waiting for paper in the manual feed</value>
+    <value>Esperando papel en la alimentación manual</value>
   </data>
   <data name="Queue_TonerLow" xml:space="preserve">
-    <value>Toner or ink is low (as the driver reports it)</value>
+    <value>Queda poco tóner o tinta (según el controlador)</value>
   </data>
   <data name="Queue_DriverUpdate" xml:space="preserve">
-    <value>Windows says the printer's driver needs an update</value>
+    <value>Windows indica que el controlador de la impresora necesita una actualización</value>
   </data>
   <data name="Queue_UsePrinterOffline" xml:space="preserve">
-    <value>Use Printer Offline is on</value>
+    <value>Usar impresora sin conexión está activado</value>
   </data>
   <data name="Queue_AnotherPc" xml:space="preserve">
-    <value>another PC</value>
+    <value>otro PC</value>
   </data>
   <data name="Queue_StatusNotAvailable" xml:space="preserve">
-    <value>Status not available</value>
+    <value>Estado no disponible</value>
   </data>
   <data name="Queue_SharedNoRead" xml:space="preserve">
-    <value>The PC sharing this printer ({0}) doesn't let this PC read its status.</value>
+    <value>El PC que comparte esta impresora ({0}) no permite que este PC lea su estado.</value>
   </data>
   <data name="Queue_WindowsNoRead" xml:space="preserve">
-    <value>Windows doesn't let Inkvolt Print read this printer's status.</value>
+    <value>Windows no permite que Inkvolt Print lea el estado de esta impresora.</value>
   </data>
   <data name="Queue_CantReachSharingPc" xml:space="preserve">
-    <value>Can't reach the PC sharing it</value>
+    <value>No se puede conectar con el PC que la comparte</value>
   </data>
   <data name="Queue_CantReachSharingPcDetail" xml:space="preserve">
-    <value>Windows can't reach {0}, the PC sharing this printer. Check that it's on and on the same network as this PC.</value>
+    <value>Windows no puede conectar con {0}, el PC que comparte esta impresora. Comprueba que esté encendido y en la misma red que este PC.</value>
   </data>
   <data name="Queue_WindowsNotAnswering" xml:space="preserve">
-    <value>Windows isn't answering</value>
+    <value>Windows no responde</value>
   </data>
   <data name="Queue_SpoolerNotAnswering" xml:space="preserve">
-    <value>The Print Spooler isn't answering about this printer (it may be restarting). Inkvolt Print keeps asking.</value>
+    <value>La Cola de impresión no responde sobre esta impresora (puede que se esté reiniciando). Inkvolt Print sigue preguntando.</value>
   </data>
   <data name="Queue_JobsWaiting_One" xml:space="preserve">
-    <value>{0} job is waiting.</value>
+    <value>Hay {0} trabajo esperando.</value>
   </data>
   <data name="Queue_JobsWaiting_Many" xml:space="preserve">
-    <value>{0} jobs are waiting.</value>
+    <value>Hay {0} trabajos esperando.</value>
   </data>
   <data name="Queue_CheckUsb" xml:space="preserve">
-    <value>Check that it's turned on and its USB cable is plugged in.</value>
+    <value>Comprueba que esté encendida y que su cable USB esté conectado.</value>
   </data>
   <data name="Queue_CheckShared" xml:space="preserve">
-    <value>Check that the PC sharing it is on and the printer is turned on.</value>
+    <value>Comprueba que el PC que la comparte y la impresora estén encendidos.</value>
   </data>
   <data name="Queue_CheckNetwork" xml:space="preserve">
-    <value>Check that it's turned on and on the same network as this PC.</value>
+    <value>Comprueba que esté encendida y en la misma red que este PC.</value>
   </data>
   <data name="Queue_CheckOther" xml:space="preserve">
-    <value>Check that it's turned on and connected.</value>
+    <value>Comprueba que esté encendida y conectada.</value>
   </data>
   <data name="Queue_WorkOfflineDetail" xml:space="preserve">
-    <value>Windows holds print jobs for this printer until it's turned off in the printer's queue (Open Windows queue › Printer).</value>
+    <value>Windows retiene los trabajos de impresión de esta impresora hasta que se desactive en su cola (Abrir la cola de Windows › Impresora).</value>
   </data>
   <data name="Queue_Offline" xml:space="preserve">
-    <value>Offline</value>
+    <value>Sin conexión</value>
   </data>
   <data name="Queue_CantReachPrinter" xml:space="preserve">
-    <value>Windows can't reach the printer. {0}</value>
+    <value>Windows no puede conectar con la impresora. {0}</value>
   </data>
   <data name="Queue_NotSeenUsb" xml:space="preserve">
-    <value>Windows doesn't see it on USB. Check that it's turned on and its USB cable is plugged in.</value>
+    <value>Windows no la detecta por USB. Comprueba que esté encendida y que su cable USB esté conectado.</value>
   </data>
   <data name="Queue_NotSeenNetwork" xml:space="preserve">
-    <value>Windows doesn't see it on the network. Check that it's turned on and on the same network as this PC.</value>
+    <value>Windows no la detecta en la red. Comprueba que esté encendida y en la misma red que este PC.</value>
   </data>
   <data name="Queue_NotConnected" xml:space="preserve">
-    <value>Not connected</value>
+    <value>No conectada</value>
   </data>
   <data name="Queue_BeingRemoved" xml:space="preserve">
-    <value>Being removed from Windows</value>
+    <value>Quitándose de Windows</value>
   </data>
   <data name="Queue_PrinterError" xml:space="preserve">
-    <value>Printer error</value>
+    <value>Error de la impresora</value>
   </data>
   <data name="Queue_DriverReports" xml:space="preserve">
-    <value>Windows and the printer's driver report this.</value>
+    <value>Windows y el controlador de la impresora informan esto.</value>
   </data>
   <data name="Queue_PausedInWindows" xml:space="preserve">
-    <value>Paused in Windows</value>
+    <value>En pausa en Windows</value>
   </data>
   <data name="Queue_PausedDetail" xml:space="preserve">
-    <value>Windows holds print jobs until the queue is resumed (Open Windows queue › Printer › Pause Printing).</value>
+    <value>Windows retiene los trabajos de impresión hasta que se reanude la cola (Abrir la cola de Windows › Impresora › Pausar la impresión).</value>
   </data>
   <data name="Queue_Printing" xml:space="preserve">
-    <value>Printing</value>
+    <value>Imprimiendo</value>
   </data>
   <data name="Queue_WarmingUp" xml:space="preserve">
-    <value>Warming up</value>
+    <value>Calentando</value>
   </data>
   <data name="Queue_StartingUp" xml:space="preserve">
-    <value>Starting up</value>
+    <value>Iniciando</value>
   </data>
   <data name="Queue_Sleeping" xml:space="preserve">
-    <value>Sleeping</value>
+    <value>En reposo</value>
   </data>
   <data name="Queue_Ready" xml:space="preserve">
-    <value>Ready</value>
+    <value>Lista</value>
   </data>
   <data name="Queue_ConnNetwork" xml:space="preserve">
-    <value>Network</value>
+    <value>Red</value>
   </data>
   <data name="Queue_ConnSharedFrom" xml:space="preserve">
-    <value>Shared from {0}</value>
+    <value>Compartida desde {0}</value>
   </data>
   <data name="Queue_ConnSharedFromAnotherPc" xml:space="preserve">
-    <value>Shared from another PC</value>
+    <value>Compartida desde otro PC</value>
   </data>
   <data name="Queue_ConnParallel" xml:space="preserve">
-    <value>Parallel port</value>
+    <value>Puerto paralelo</value>
   </data>
   <data name="Queue_ConnSerial" xml:space="preserve">
-    <value>Serial port</value>
+    <value>Puerto serie</value>
   </data>
   <data name="Queue_ConnWindowsPrinter" xml:space="preserve">
-    <value>Windows printer</value>
+    <value>Impresora de Windows</value>
   </data>
   <data name="Queue_ShareOnServer" xml:space="preserve">
-    <value>{0} on {1}</value>
+    <value>{0} en {1}</value>
   </data>
   <data name="Queue_OriginSnmp" xml:space="preserve">
-    <value>the printer over SNMP, with Windows for the print queue</value>
+    <value>la impresora por SNMP, con Windows para la cola de impresión</value>
   </data>
   <data name="Queue_OriginWindows" xml:space="preserve">
-    <value>Windows and the printer's driver</value>
+    <value>Windows y el controlador de la impresora</value>
   </data>
   <data name="Queue_CantReachPrinterTitle" xml:space="preserve">
-    <value>Can't reach the printer</value>
+    <value>No se puede conectar con la impresora</value>
   </data>
   <data name="Queue_NoAnswerOnNetwork" xml:space="preserve">
-    <value>It doesn't answer on the network ({0}). Check that it's turned on and on the same network as this PC.</value>
+    <value>No responde en la red ({0}). Comprueba que esté encendida y en la misma red que este PC.</value>
   </data>
   <data name="Fleet_PagesPrinted" xml:space="preserve">
-    <value>{0} pages printed</value>
+    <value>{0} páginas impresas</value>
   </data>
   <data name="Fleet_PagesPrintedLastKnown" xml:space="preserve">
-    <value>{0} pages printed (last known)</value>
+    <value>{0} páginas impresas (último dato conocido)</value>
   </data>
   <data name="Fleet_PagesScanner" xml:space="preserve">
-    <value>Pages: a scanner has no count</value>
+    <value>Páginas: un escáner no tiene contador</value>
   </data>
   <data name="Fleet_PagesNotReported" xml:space="preserve">
-    <value>Pages not reported</value>
+    <value>Páginas no informadas</value>
   </data>
   <data name="Fleet_Firmware" xml:space="preserve">
     <value>Firmware {0}</value>
   </data>
   <data name="Fleet_FirmwareLastKnown" xml:space="preserve">
-    <value>Firmware {0} (last known)</value>
+    <value>Firmware {0} (último dato conocido)</value>
   </data>
   <data name="Fleet_FirmwareNotReported" xml:space="preserve">
-    <value>Firmware not reported</value>
+    <value>Firmware no informado</value>
   </data>
   <data name="Fleet_NoSuppliesScanner" xml:space="preserve">
-    <value>No supplies: it's a scanner</value>
+    <value>Sin suministros: es un escáner</value>
   </data>
   <data name="Fleet_SuppliesNotReported" xml:space="preserve">
-    <value>Supplies not reported</value>
+    <value>Suministros no informados</value>
   </data>
   <data name="Fleet_SupplyLowSpoken" xml:space="preserve">
-    <value>{0}, low</value>
+    <value>{0}, nivel bajo</value>
   </data>
   <data name="Fleet_NoPrinters" xml:space="preserve">
-    <value>No printers yet.</value>
+    <value>Aún no hay impresoras.</value>
   </data>
   <data name="Fleet_SummaryError_One" xml:space="preserve">
-    <value>{0} with an error</value>
+    <value>{0} con un error</value>
   </data>
   <data name="Fleet_SummaryError_Many" xml:space="preserve">
-    <value>{0} with errors</value>
+    <value>{0} con errores</value>
   </data>
   <data name="Fleet_SummaryWarning_One" xml:space="preserve">
-    <value>{0} needing attention</value>
+    <value>{0} necesita atención</value>
   </data>
   <data name="Fleet_SummaryWarning_Many" xml:space="preserve">
-    <value>{0} needing attention</value>
+    <value>{0} necesitan atención</value>
   </data>
   <data name="Fleet_SummaryOffline_One" xml:space="preserve">
-    <value>{0} can't be reached</value>
+    <value>{0} sin poder conectar</value>
   </data>
   <data name="Fleet_SummaryOffline_Many" xml:space="preserve">
-    <value>{0} can't be reached</value>
+    <value>{0} sin poder conectar</value>
   </data>
   <data name="Fleet_SummaryUnknown_One" xml:space="preserve">
-    <value>{0} not known yet</value>
+    <value>{0} aún sin estado</value>
   </data>
   <data name="Fleet_SummaryUnknown_Many" xml:space="preserve">
-    <value>{0} not known yet</value>
+    <value>{0} aún sin estado</value>
   </data>
   <data name="Fleet_SummaryOk_One" xml:space="preserve">
-    <value>{0} fine</value>
+    <value>{0} bien</value>
   </data>
   <data name="Fleet_SummaryOk_Many" xml:space="preserve">
-    <value>{0} fine</value>
+    <value>{0} bien</value>
   </data>
   <data name="Fleet_Summary_One" xml:space="preserve">
-    <value>{0} printer: {1}.</value>
+    <value>{0} impresora: {1}.</value>
   </data>
   <data name="Fleet_Summary_Many" xml:space="preserve">
-    <value>{0} printers: {1}.</value>
+    <value>{0} impresoras: {1}.</value>
   </data>
   <data name="Fleet_TroubleError" xml:space="preserve">
     <value>Error</value>
   </data>
   <data name="Fleet_TroubleWarning" xml:space="preserve">
-    <value>Needs attention</value>
+    <value>Necesita atención</value>
   </data>
   <data name="Fleet_TroubleOffline" xml:space="preserve">
-    <value>Can't be reached</value>
+    <value>No se puede conectar</value>
   </data>
   <data name="Fleet_TroubleUnknown" xml:space="preserve">
-    <value>Not known yet</value>
+    <value>Aún sin estado</value>
   </data>
   <data name="Fleet_TroubleOk" xml:space="preserve">
-    <value>Fine</value>
+    <value>Bien</value>
   </data>
   <data name="Fleet_SupplyFull" xml:space="preserve">
-    <value>{0}: full</value>
+    <value>{0}: lleno</value>
   </data>
   <data name="Fleet_SupplyAlmostFull" xml:space="preserve">
-    <value>{0}: almost full</value>
+    <value>{0}: casi lleno</value>
   </data>
   <data name="Fleet_SupplyEmpty" xml:space="preserve">
-    <value>{0}: empty</value>
+    <value>{0}: vacío</value>
   </data>
   <data name="Fleet_SupplyMissing" xml:space="preserve">
-    <value>{0}: missing</value>
+    <value>{0}: falta</value>
   </data>
   <data name="Fleet_SupplyLow" xml:space="preserve">
-    <value>{0}: low</value>
+    <value>{0}: bajo</value>
   </data>
   <data name="Fleet_SupplyOk" xml:space="preserve">
-    <value>{0}: OK</value>
+    <value>{0}: bien</value>
   </data>
   <data name="Fleet_ReadJustNow" xml:space="preserve">
-    <value>Read just now</value>
+    <value>Leído hace un momento</value>
   </data>
   <data name="Fleet_ReadMinutesAgo_One" xml:space="preserve">
-    <value>Read {0} minute ago</value>
+    <value>Leído hace {0} minuto</value>
   </data>
   <data name="Fleet_ReadMinutesAgo_Many" xml:space="preserve">
-    <value>Read {0} minutes ago</value>
+    <value>Leído hace {0} minutos</value>
   </data>
   <data name="Fleet_ReadHoursAgo_One" xml:space="preserve">
-    <value>Read {0} hour ago</value>
+    <value>Leído hace {0} hora</value>
   </data>
   <data name="Fleet_ReadHoursAgo_Many" xml:space="preserve">
-    <value>Read {0} hours ago</value>
+    <value>Leído hace {0} horas</value>
   </data>
   <data name="Fleet_LastRead" xml:space="preserve">
-    <value>Last read {0}</value>
+    <value>Última lectura: {0}</value>
   </data>
   <data name="Fleet_NotReadYet" xml:space="preserve">
-    <value>Not read yet</value>
+    <value>Aún no leído</value>
   </data>
   <data name="Fleet_NoName" xml:space="preserve">
-    <value>Printer with no name</value>
+    <value>Impresora sin nombre</value>
   </data>
   <data name="Fleet_NoAnswerInTime" xml:space="preserve">
-    <value>It didn't answer in time</value>
+    <value>No respondió a tiempo</value>
   </data>
   <data name="Fleet_CouldntRead" xml:space="preserve">
-    <value>Inkvolt Print couldn't read it</value>
+    <value>Inkvolt Print no pudo leer su estado</value>
   </data>
   <data name="Fleet_DifferentDevice" xml:space="preserve">
-    <value>A different device answers at this address</value>
+    <value>Otro dispositivo responde en esta dirección</value>
   </data>
   <data name="Fleet_NotFoundInWindows" xml:space="preserve">
-    <value>Not found in Windows</value>
+    <value>No se encontró en Windows</value>
   </data>
   <data name="Fleet_ReadyToScan" xml:space="preserve">
-    <value>Ready to scan</value>
+    <value>Listo para escanear</value>
   </data>
   <data name="Fleet_ScannerNotAnswering" xml:space="preserve">
-    <value>Scanner not answering</value>
+    <value>El escáner no responde</value>
   </data>
   <data name="Fleet_FixAllNoSafe" xml:space="preserve">
-    <value>No safe repair to make. What's left needs each printer's own Fix it…</value>
+    <value>No hay ninguna reparación segura que hacer. Lo que queda necesita el Resolver… de cada impresora.</value>
   </data>
   <data name="Fleet_FixAllAllFine" xml:space="preserve">
-    <value>Every queue is fine: nothing to fix.</value>
+    <value>Todas las colas están bien: no hay nada que resolver.</value>
   </data>
   <data name="Fleet_FixAllFixed_One" xml:space="preserve">
-    <value>Fixed {0}</value>
+    <value>{0} resuelta</value>
   </data>
   <data name="Fleet_FixAllFixed_Many" xml:space="preserve">
-    <value>Fixed {0}</value>
+    <value>{0} resueltas</value>
   </data>
   <data name="Fleet_FixAllDeclined_One" xml:space="preserve">
-    <value>{0} you said no to</value>
+    <value>{0} rechazada por ti</value>
   </data>
   <data name="Fleet_FixAllDeclined_Many" xml:space="preserve">
-    <value>{0} you said no to</value>
+    <value>{0} rechazadas por ti</value>
   </data>
   <data name="Fleet_FixAllManual_One" xml:space="preserve">
-    <value>{0} to do by hand</value>
+    <value>{0} para hacer a mano</value>
   </data>
   <data name="Fleet_FixAllManual_Many" xml:space="preserve">
-    <value>{0} to do by hand</value>
+    <value>{0} para hacer a mano</value>
   </data>
   <data name="Fleet_FixAllFailed_One" xml:space="preserve">
-    <value>{0} didn't work</value>
+    <value>{0} no funcionó</value>
   </data>
   <data name="Fleet_FixAllFailed_Many" xml:space="preserve">
-    <value>{0} didn't work</value>
+    <value>{0} no funcionaron</value>
   </data>
   <data name="Fleet_FixAllCancelled_One" xml:space="preserve">
-    <value>{0} cancelled</value>
+    <value>{0} cancelada</value>
   </data>
   <data name="Fleet_FixAllCancelled_Many" xml:space="preserve">
-    <value>{0} cancelled</value>
+    <value>{0} canceladas</value>
   </data>
   <data name="Fleet_FixAllMoot_One" xml:space="preserve">
-    <value>{0} no longer needed</value>
+    <value>{0} ya no necesaria</value>
   </data>
   <data name="Fleet_FixAllMoot_Many" xml:space="preserve">
-    <value>{0} no longer needed</value>
+    <value>{0} ya no necesarias</value>
   </data>
   <data name="Fleet_FixAllSpoolerStopped" xml:space="preserve">
-    <value>The Print Spooler service isn't running. A printer's Fix it… can start it.</value>
+    <value>El servicio Cola de impresión no se está ejecutando. El Resolver… de una impresora puede iniciarlo.</value>
   </data>
   <data name="Fleet_FixAllStopped" xml:space="preserve">
-    <value>Stopped: the rest wasn't changed.</value>
+    <value>Detenido: el resto no se cambió.</value>
   </data>
   <data name="Fleet_FixAllSaidNo" xml:space="preserve">
-    <value>You said no: not changed.</value>
+    <value>Dijiste que no: no se cambió.</value>
   </data>
   <data name="Fleet_FixAllGone" xml:space="preserve">
-    <value>Windows no longer has a printer called “{0}”: nothing changed.</value>
+    <value>Windows ya no tiene una impresora llamada “{0}”: no se cambió nada.</value>
   </data>
   <data name="Fleet_FixAllAlreadyFine" xml:space="preserve">
-    <value>Already fixed: nothing more to do.</value>
+    <value>Ya está resuelto: no hay nada más que hacer.</value>
   </data>
   <data name="Fleet_FixAllCouldntCheck" xml:space="preserve">
-    <value>Couldn't check it first, so it wasn't changed: {0}</value>
+    <value>No se pudo comprobar antes, así que no se cambió: {0}</value>
   </data>
   <data name="Alert_OfflineTitle" xml:space="preserve">
-    <value>{0} is offline</value>
+    <value>{0} está sin conexión</value>
   </data>
   <data name="Alert_OfflineBody" xml:space="preserve">
-    <value>Inkvolt Print can't reach it. It may be turned off, asleep or off the network.</value>
+    <value>Inkvolt Print no puede conectar con ella. Puede estar apagada, en reposo o fuera de la red.</value>
   </data>
   <data name="Alert_FirmwareTitle" xml:space="preserve">
-    <value>{0}: firmware changed</value>
+    <value>{0}: cambió el firmware</value>
   </data>
   <data name="Alert_FirmwareBody" xml:space="preserve">
-    <value>{0} If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off.</value>
+    <value>{0} Si vino de HP, los cartuchos con chips que no son de HP pueden dejar de funcionar; Inkvolt Print puede desactivar las actualizaciones automáticas.</value>
   </data>
   <data name="Alert_ClearJam" xml:space="preserve">
-    <value>{0}: clear the jam to keep printing.</value>
+    <value>{0}: elimina el atasco para seguir imprimiendo.</value>
   </data>
   <data name="Alert_LoadPaper" xml:space="preserve">
-    <value>{0}: load paper to keep printing.</value>
+    <value>{0}: carga papel para seguir imprimiendo.</value>
   </data>
   <data name="Alert_CloseCover" xml:space="preserve">
-    <value>{0}: close it to keep printing.</value>
+    <value>{0}: ciérrala para seguir imprimiendo.</value>
   </data>
   <data name="Alert_CheckPrinter" xml:space="preserve">
-    <value>{0}: check the printer.</value>
+    <value>{0}: revisa la impresora.</value>
   </data>
   <data name="Alert_WasteFull" xml:space="preserve">
-    <value>{0} full</value>
+    <value>{0} lleno</value>
   </data>
   <data name="Alert_WasteAlmostFull" xml:space="preserve">
-    <value>{0} almost full</value>
+    <value>{0} casi lleno</value>
   </data>
   <data name="Alert_SupplyEmpty" xml:space="preserve">
-    <value>{0} empty</value>
+    <value>{0} vacío</value>
   </data>
   <data name="Alert_ReplaceToKeepPrinting" xml:space="preserve">
-    <value>{0}: replace it to keep printing.</value>
+    <value>{0}: reemplázalo para seguir imprimiendo.</value>
   </data>
   <data name="Alert_ReplaceSoon" xml:space="preserve">
-    <value>{0}: replace it soon.</value>
+    <value>{0}: reemplázalo pronto.</value>
   </data>
   <data name="Alert_PagesLeft" xml:space="preserve">
-    <value>about {0:N0} pages left</value>
+    <value>quedan unas {0:N0} páginas</value>
   </data>
   <data name="Alert_DaysLeft_One" xml:space="preserve">
-    <value>about {0:N0} day left at this rate</value>
+    <value>queda {0:N0} día a este ritmo</value>
   </data>
   <data name="Alert_DaysLeft_Many" xml:space="preserve">
-    <value>about {0:N0} days left at this rate</value>
+    <value>quedan unos {0:N0} días a este ritmo</value>
   </data>
   <data name="Alert_PagesAndDaysLeft_One" xml:space="preserve">
-    <value>{1}, about {0:N0} day at this rate</value>
+    <value>{1}, {0:N0} día a este ritmo</value>
   </data>
   <data name="Alert_PagesAndDaysLeft_Many" xml:space="preserve">
-    <value>{1}, about {0:N0} days at this rate</value>
+    <value>{1}, unos {0:N0} días a este ritmo</value>
   </data>
   <data name="Alert_Replacement" xml:space="preserve">
-    <value>Replacement: {0}.</value>
+    <value>Repuesto: {0}.</value>
   </data>
   <data name="Alert_LowBody" xml:space="preserve">
     <value>{0}: {1}.</value>
   </data>
   <data name="Alert_RunningLow" xml:space="preserve">
-    <value>running low</value>
+    <value>queda poco</value>
   </data>
   <data name="Alert_SupplyLowPercent" xml:space="preserve">
-    <value>{0} low ({1}%)</value>
+    <value>{0} bajo ({1}%)</value>
   </data>
   <data name="Alert_SupplyLow" xml:space="preserve">
-    <value>{0} low</value>
+    <value>{0} bajo</value>
   </data>
   <data name="Alert_OpenPrinter" xml:space="preserve">
-    <value>Open printer</value>
+    <value>Abrir impresora</value>
   </data>
   <data name="Alert_PauseAlerts" xml:space="preserve">
-    <value>Pause alerts</value>
+    <value>Pausar alertas</value>
   </data>
   <data name="Alert_OpenQueue" xml:space="preserve">
-    <value>Open the queue</value>
+    <value>Abrir la cola</value>
   </data>
   <data name="Alert_ToastAlerts" xml:space="preserve">
-    <value>{0} alerts</value>
+    <value>{0} alertas</value>
   </data>
   <data name="Alert_ToastAndMore" xml:space="preserve">
-    <value>and {0} more</value>
+    <value>y {0} más</value>
   </data>
   <data name="Alert_ToastJobs" xml:space="preserve">
-    <value>{0} print jobs need attention</value>
+    <value>{0} trabajos de impresión necesitan atención</value>
   </data>
   <data name="Alert_TrayPaused" xml:space="preserve">
-    <value>Inkvolt Print (alerts paused)</value>
+    <value>Inkvolt Print (alertas en pausa)</value>
   </data>
   <data name="Alert_TrayMore" xml:space="preserve">
-    <value>+{0} more</value>
+    <value>+{0} más</value>
   </data>
   <data name="Alert_JobErrorReason" xml:space="preserve">
-    <value>Windows reports an error with this job</value>
+    <value>Windows informa un error con este trabajo</value>
   </data>
   <data name="Alert_JobFailedTitle" xml:space="preserve">
-    <value>“{0}” didn't print</value>
+    <value>“{0}” no se imprimió</value>
   </data>
   <data name="Alert_JobFailedBody" xml:space="preserve">
-    <value>{0}: {1}. Open the queue to cancel it or print it again.</value>
+    <value>{0}: {1}. Abre la cola para cancelarlo o volver a imprimirlo.</value>
   </data>
   <data name="Alert_JobHungTitle" xml:space="preserve">
-    <value>“{0}” may be stuck</value>
+    <value>“{0}” puede estar atascado</value>
   </data>
   <data name="Alert_JobHungBody" xml:space="preserve">
-    <value>{0} says it's printing, but this job hasn't moved for {1:0} minutes and may be stuck. Open the queue to cancel it or print it again.</value>
+    <value>{0} indica que está imprimiendo, pero este trabajo no avanza desde hace {1:0} minutos y puede estar atascado. Abre la cola para cancelarlo o volver a imprimirlo.</value>
   </data>
   <data name="Alert_JobStuckTitle" xml:space="preserve">
-    <value>“{0}” isn't moving</value>
+    <value>“{0}” no avanza</value>
   </data>
   <data name="Alert_JobStuckBody" xml:space="preserve">
-    <value>{0} is ready, but this job hasn't moved for {1:0} minutes. Open the queue to cancel it or print it again.</value>
+    <value>{0} está lista, pero este trabajo no avanza desde hace {1:0} minutos. Abre la cola para cancelarlo o volver a imprimirlo.</value>
   </data>
   <data name="Alert_Untitled" xml:space="preserve">
-    <value>Untitled</value>
+    <value>Sin título</value>
   </data>
   <data name="Alert_ThePrinter" xml:space="preserve">
-    <value>the printer</value>
+    <value>la impresora</value>
   </data>
   <data name="Palette_Overview" xml:space="preserve">
-    <value>Overview</value>
+    <value>Resumen</value>
   </data>
   <data name="Palette_Print" xml:space="preserve">
-    <value>Print</value>
+    <value>Imprimir</value>
   </data>
   <data name="Palette_Scan" xml:space="preserve">
-    <value>Scan</value>
+    <value>Escanear</value>
   </data>
   <data name="Palette_Copy" xml:space="preserve">
-    <value>Copy</value>
+    <value>Copiar</value>
   </data>
   <data name="Palette_Photos" xml:space="preserve">
-    <value>Photos</value>
+    <value>Fotos</value>
   </data>
   <data name="Palette_PrinterSettings" xml:space="preserve">
-    <value>Printer settings</value>
+    <value>Configuración de la impresora</value>
   </data>
   <data name="Palette_GoToOverview" xml:space="preserve">
-    <value>Go to Overview</value>
+    <value>Ir a Resumen</value>
   </data>
   <data name="Palette_GoToPrint" xml:space="preserve">
-    <value>Go to Print</value>
+    <value>Ir a Imprimir</value>
   </data>
   <data name="Palette_GoToScan" xml:space="preserve">
-    <value>Go to Scan</value>
+    <value>Ir a Escanear</value>
   </data>
   <data name="Palette_GoToCopy" xml:space="preserve">
-    <value>Go to Copy</value>
+    <value>Ir a Copiar</value>
   </data>
   <data name="Palette_GoToPhotos" xml:space="preserve">
-    <value>Go to Photos</value>
+    <value>Ir a Fotos</value>
   </data>
   <data name="Palette_GoToPrinterSettings" xml:space="preserve">
-    <value>Go to Printer settings</value>
+    <value>Ir a Configuración de la impresora</value>
   </data>
   <data name="Palette_Reconnect" xml:space="preserve">
-    <value>Reconnect</value>
+    <value>Volver a conectar</value>
   </data>
   <data name="Palette_PrintPhotos" xml:space="preserve">
-    <value>Print photos…</value>
+    <value>Imprimir fotos…</value>
   </data>
   <data name="Palette_BatchPrint" xml:space="preserve">
-    <value>Batch print: many files…</value>
+    <value>Imprimir en lote: muchos archivos…</value>
   </data>
   <data name="Palette_FixProblems" xml:space="preserve">
-    <value>Fix printing problems…</value>
+    <value>Resolver problemas de impresión…</value>
   </data>
   <data name="Palette_Maintenance" xml:space="preserve">
-    <value>Printer maintenance…</value>
+    <value>Mantenimiento de la impresora…</value>
   </data>
   <data name="Palette_SnmpAccess" xml:space="preserve">
-    <value>SNMP access…</value>
+    <value>Acceso SNMP…</value>
   </data>
   <data name="Palette_Remove" xml:space="preserve">
-    <value>Remove from Inkvolt Print…</value>
+    <value>Quitar de Inkvolt Print…</value>
   </data>
   <data name="Palette_OtherPrinters" xml:space="preserve">
-    <value>Other printers</value>
+    <value>Otras impresoras</value>
   </data>
   <data name="Palette_PrintPdf" xml:space="preserve">
-    <value>Print a PDF…</value>
+    <value>Imprimir un PDF…</value>
   </data>
   <data name="Palette_SetUpInWindows" xml:space="preserve">
-    <value>Set up in Windows</value>
+    <value>Configurar en Windows</value>
   </data>
   <data name="Palette_AddPrinter" xml:space="preserve">
-    <value>Add a printer…</value>
+    <value>Agregar una impresora…</value>
   </data>
   <data name="Palette_Fleet" xml:space="preserve">
-    <value>Show the Fleet page (every printer)</value>
+    <value>Mostrar la página Flota (todas las impresoras)</value>
   </data>
   <data name="Palette_SearchAgain" xml:space="preserve">
-    <value>Search again for printers</value>
+    <value>Volver a buscar impresoras</value>
   </data>
   <data name="Palette_Settings" xml:space="preserve">
-    <value>Settings</value>
+    <value>Configuración</value>
   </data>
   <data name="Palette_Help" xml:space="preserve">
-    <value>Help and shortcuts</value>
+    <value>Ayuda y atajos de teclado</value>
   </data>
   <data name="Palette_WhatsNew" xml:space="preserve">
-    <value>What's new</value>
+    <value>Novedades</value>
   </data>
   <data name="Palette_ReportProblem" xml:space="preserve">
-    <value>Report a problem…</value>
+    <value>Informar un problema…</value>
   </data>
   <data name="Palette_About" xml:space="preserve">
-    <value>About Inkvolt Print</value>
+    <value>Acerca de Inkvolt Print</value>
   </data>
   <data name="Palette_Show" xml:space="preserve">
-    <value>Show {0}</value>
+    <value>Mostrar {0}</value>
   </data>
   <data name="Palette_Printers" xml:space="preserve">
-    <value>Printers</value>
+    <value>Impresoras</value>
   </data>
   <data name="Palette_ScanWith" xml:space="preserve">
-    <value>Scan with {0}</value>
+    <value>Escanear con {0}</value>
   </data>
   <data name="Palette_ScanPresets" xml:space="preserve">
-    <value>Scan presets</value>
+    <value>Ajustes de escaneo</value>
   </data>
   <data name="Palette_NoMatch" xml:space="preserve">
-    <value>Nothing matches “{0}”. Try another word, a printer's name or a scan preset.</value>
+    <value>Nada coincide con “{0}”. Prueba con otra palabra, el nombre de una impresora o un ajuste de escaneo.</value>
   </data>
   <data name="Suite_PageLetter" xml:space="preserve">
-    <value>Letter (8.5 × 11 in)</value>
+    <value>Carta (8.5 × 11 in)</value>
   </data>
   <data name="Suite_PageA4" xml:space="preserve">
     <value>A4 (210 × 297 mm)</value>
@@ -1055,1927 +1055,1927 @@
     <value>Legal (8.5 × 14 in)</value>
   </data>
   <data name="Suite_PageWhole" xml:space="preserve">
-    <value>Whole scanning area</value>
+    <value>Toda el área de escaneo</value>
   </data>
   <data name="Suite_SourceGlass" xml:space="preserve">
-    <value>Scanner glass</value>
+    <value>Cristal del escáner</value>
   </data>
   <data name="Suite_SourceFeeder" xml:space="preserve">
-    <value>Document feeder</value>
+    <value>Alimentador de documentos</value>
   </data>
   <data name="Suite_SourceFeederDuplex" xml:space="preserve">
-    <value>Document feeder (both sides)</value>
+    <value>Alimentador de documentos (a doble cara)</value>
   </data>
   <data name="Suite_ColorColor" xml:space="preserve">
     <value>Color</value>
   </data>
   <data name="Suite_ColorGrayscale" xml:space="preserve">
-    <value>Grayscale</value>
+    <value>Escala de grises</value>
   </data>
   <data name="Suite_ColorBlackAndWhite" xml:space="preserve">
-    <value>Black and white</value>
+    <value>Blanco y negro</value>
   </data>
   <data name="Suite_KeyEmpty" xml:space="preserve">
-    <value>Paste the key you were sent.</value>
+    <value>Pega la clave que te enviaron.</value>
   </data>
   <data name="Suite_KeyNotPro" xml:space="preserve">
-    <value>That isn't an Inkvolt Pro key: a key starts with {0}.</value>
+    <value>Esa no es una clave de Inkvolt Pro: una clave empieza por {0}.</value>
   </data>
   <data name="Suite_KeyBadCharacter" xml:space="preserve">
-    <value>The key has a character that doesn't belong in it (a key uses the letters A to Z and the digits 2 to 7). Paste it exactly as it was sent.</value>
+    <value>La clave tiene un carácter que no le corresponde (una clave usa las letras de la A a la Z y los dígitos del 2 al 7). Pégala exactamente como te la enviaron.</value>
   </data>
   <data name="Suite_KeyIncomplete" xml:space="preserve">
-    <value>The key is incomplete: paste all of it.</value>
+    <value>La clave está incompleta: pégala completa.</value>
   </data>
   <data name="Suite_KeyNewerVersion" xml:space="preserve">
-    <value>This key was made for a newer version of the Inkvolt apps. Update the app, then enter it again.</value>
+    <value>Esta clave se creó para una versión más reciente de las aplicaciones Inkvolt. Actualiza la aplicación y vuelve a escribirla.</value>
   </data>
   <data name="Suite_KeyAltered" xml:space="preserve">
-    <value>This key has been altered or didn't paste whole. Paste it exactly as it was sent, or ask for it again.</value>
+    <value>Esta clave se modificó o no se pegó completa. Pégala exactamente como te la enviaron o vuelve a pedirla.</value>
   </data>
   <data name="Suite_KeyUnreadable" xml:space="preserve">
-    <value>The key's contents can't be read. Ask for it again.</value>
+    <value>No se puede leer el contenido de la clave. Vuelve a pedirla.</value>
   </data>
   <data name="Suite_KeyOtherProduct" xml:space="preserve">
-    <value>This key is for {0}, not {1}. A key for {1} lists it.</value>
+    <value>Esta clave es para {0}, no para {1}. Una clave para {1} lo incluye.</value>
   </data>
   <data name="Suite_SavedKeyOtherProduct" xml:space="preserve">
-    <value>The saved key is for {0}, not {1}.</value>
+    <value>La clave guardada es para {0}, no para {1}.</value>
   </data>
   <data name="Suite_SavedKeyInvalid" xml:space="preserve">
-    <value>The saved key no longer checks out: {0}</value>
+    <value>La clave guardada ya no es válida: {0}</value>
   </data>
   <data name="Suite_Version" xml:space="preserve">
-    <value>Version {0}</value>
+    <value>Versión {0}</value>
   </data>
   <data name="History_NotEnough_One" xml:space="preserve">
-    <value>Not enough history for days left yet (about {0} more day)</value>
+    <value>Aún no hay historial suficiente para estimar los días restantes (falta {0} día más)</value>
   </data>
   <data name="History_NotEnough_Many" xml:space="preserve">
-    <value>Not enough history for days left yet (about {0} more days)</value>
+    <value>Aún no hay historial suficiente para estimar los días restantes (faltan unos {0} días más)</value>
   </data>
   <data name="History_Steady" xml:space="preserve">
-    <value>Level steady, so no estimate of days left</value>
+    <value>Nivel estable, así que no hay estimación de días restantes</value>
   </data>
   <data name="History_MoreThanTwoYears" xml:space="preserve">
-    <value>More than two years left</value>
+    <value>Quedan más de dos años</value>
   </data>
   <data name="History_AnyDay" xml:space="preserve">
-    <value>Could run out any day</value>
+    <value>Podría agotarse cualquier día</value>
   </data>
   <data name="History_DaysLeft_One" xml:space="preserve">
-    <value>About {0:N0} day left</value>
+    <value>Queda {0:N0} día aproximadamente</value>
   </data>
   <data name="History_DaysLeft_Many" xml:space="preserve">
-    <value>About {0:N0} days left</value>
+    <value>Quedan unos {0:N0} días</value>
   </data>
   <data name="History_PagesSinceCartridge_One" xml:space="preserve">
-    <value>{0:N0} page since this cartridge went in</value>
+    <value>{0:N0} página desde que se instaló este cartucho</value>
   </data>
   <data name="History_PagesSinceCartridge_Many" xml:space="preserve">
-    <value>{0:N0} pages since this cartridge went in</value>
+    <value>{0:N0} páginas desde que se instaló este cartucho</value>
   </data>
   <data name="History_PagesSinceTracking_One" xml:space="preserve">
-    <value>{0:N0} page since Inkvolt Print started keeping track</value>
+    <value>{0:N0} página desde que Inkvolt Print empezó a registrarlas</value>
   </data>
   <data name="History_PagesSinceTracking_Many" xml:space="preserve">
-    <value>{0:N0} pages since Inkvolt Print started keeping track</value>
+    <value>{0:N0} páginas desde que Inkvolt Print empezó a registrarlas</value>
   </data>
   <data name="History_ChartNote" xml:space="preserve">
-    <value>The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this PC.</value>
+    <value>El gráfico de niveles se completa con el paso de los días: Inkvolt Print guarda una lectura al día en este PC.</value>
   </data>
   <data name="History_FirmwareChanged" xml:space="preserve">
-    <value>Firmware changed from {0} to {1} on {2}.</value>
+    <value>El firmware cambió de {0} a {1} el {2}.</value>
   </data>
   <data name="Win_HpServices_One" xml:space="preserve">
-    <value>{0} background service</value>
+    <value>{0} servicio en segundo plano</value>
   </data>
   <data name="Win_HpServices_Many" xml:space="preserve">
-    <value>{0} background services</value>
+    <value>{0} servicios en segundo plano</value>
   </data>
   <data name="Win_HpQueue" xml:space="preserve">
-    <value>the "HP Smart Printing" printer</value>
+    <value>la impresora "HP Smart Printing"</value>
   </data>
   <data name="Win_HpLeftoverFiles" xml:space="preserve">
-    <value>leftover files</value>
+    <value>archivos sobrantes</value>
   </data>
   <data name="Win_HpCancelled" xml:space="preserve">
-    <value>Cancelled: Windows needs administrator permission to remove HP's background services.</value>
+    <value>Cancelado: Windows necesita permiso de administrador para quitar los servicios en segundo plano de HP.</value>
   </data>
   <data name="Win_HpTimedOut" xml:space="preserve">
-    <value>Windows did not finish removing HP's services in time.</value>
+    <value>Windows no terminó de quitar los servicios de HP a tiempo.</value>
   </data>
   <data name="Win_HpCouldntRun" xml:space="preserve">
-    <value>Windows couldn't run the clean-up. Nothing may have been removed; try again.</value>
+    <value>Windows no pudo ejecutar la limpieza. Puede que no se haya quitado nada; vuelve a intentarlo.</value>
   </data>
   <data name="Win_HpFailSetting" xml:space="preserve">
-    <value>couldn't stop Windows from re-installing HP's print app</value>
+    <value>no se pudo impedir que Windows vuelva a instalar la aplicación de impresión de HP</value>
   </data>
   <data name="Win_HpFailService" xml:space="preserve">
-    <value>a service couldn't be removed</value>
+    <value>no se pudo quitar un servicio</value>
   </data>
   <data name="Win_HpFailQueue" xml:space="preserve">
-    <value>the "HP Smart Printing" printer couldn't be removed</value>
+    <value>no se pudo quitar la impresora "HP Smart Printing"</value>
   </data>
   <data name="Win_HpFailFiles" xml:space="preserve">
-    <value>some files couldn't be deleted</value>
+    <value>no se pudieron eliminar algunos archivos</value>
   </data>
   <data name="Win_HpLinkedFolder" xml:space="preserve">
-    <value>{0} is a link, so it was left in place</value>
+    <value>{0} es un vínculo, así que se dejó donde estaba</value>
   </data>
   <data name="Win_HpStillPresent" xml:space="preserve">
-    <value>still present: {0}</value>
+    <value>sigue presente: {0}</value>
   </data>
   <data name="Win_RecreateFailed" xml:space="preserve">
-    <value>Windows couldn't add the printer at {0}. “{1}” is unchanged.</value>
+    <value>Windows no pudo agregar la impresora en {0}. “{1}” no cambió.</value>
   </data>
   <data name="Win_RecreateNotRemoved" xml:space="preserve">
-    <value>The printer was added as “{0}”, but the old “{1}” couldn't be removed. Remove it in Settings.</value>
+    <value>La impresora se agregó como “{0}”, pero no se pudo quitar la anterior, “{1}”. Quítala en Configuración.</value>
   </data>
   <data name="Win_RecreateNotRenamed" xml:space="preserve">
-    <value>The printer was added as “{0}” and the old one removed, but it couldn't be renamed to “{1}”.</value>
+    <value>La impresora se agregó como “{0}” y se quitó la anterior, pero no se pudo cambiar su nombre a “{1}”.</value>
   </data>
   <data name="Win_JobsNotChanged" xml:space="preserve">
-    <value>Some jobs couldn't be changed. They may have just finished.</value>
+    <value>No se pudieron cambiar algunos trabajos. Puede que acaben de terminar.</value>
   </data>
   <data name="Win_WindowsSaid" xml:space="preserve">
-    <value>Windows said: {0}</value>
+    <value>Windows indicó: {0}</value>
   </data>
   <data name="Win_CantDoItself" xml:space="preserve">
-    <value>Inkvolt Print can't do this one itself.</value>
+    <value>Inkvolt Print no puede hacer esto por sí mismo.</value>
   </data>
   <data name="Win_JobsUnreadable" xml:space="preserve">
-    <value>The queue's jobs couldn't be read.</value>
+    <value>No se pudieron leer los trabajos de la cola.</value>
   </data>
   <data name="Win_PdfPassword" xml:space="preserve">
-    <value>This PDF is password protected.</value>
+    <value>Este PDF está protegido con contraseña.</value>
   </data>
   <data name="Win_PdfCouldNotOpen" xml:space="preserve">
-    <value>Could not open the PDF: {0}</value>
+    <value>No se pudo abrir el PDF: {0}</value>
   </data>
   <data name="Win_PdfUnsupportedLock" xml:space="preserve">
-    <value>Windows can't open this kind of password protection. Save the PDF without it, or with an older kind, then try again.</value>
+    <value>Windows no puede abrir este tipo de protección con contraseña. Guarda el PDF sin ella, o con un tipo más antiguo, y vuelve a intentarlo.</value>
   </data>
   <data name="Win_PdfDamaged" xml:space="preserve">
-    <value>Could not open the PDF: it may be damaged.</value>
+    <value>No se pudo abrir el PDF: puede que esté dañado.</value>
   </data>
   <data name="Win_AlreadyInstalled" xml:space="preserve">
-    <value>Already installed in Windows.</value>
+    <value>Ya está instalada en Windows.</value>
   </data>
   <data name="Win_SetupCancelled" xml:space="preserve">
-    <value>Setup was cancelled. Windows needs administrator permission to add a printer by address.</value>
+    <value>Se canceló la configuración. Windows necesita permiso de administrador para agregar una impresora por su dirección.</value>
   </data>
   <data name="Win_AddTimedOut" xml:space="preserve">
-    <value>Windows did not finish adding the printer in time.</value>
+    <value>Windows no terminó de agregar la impresora a tiempo.</value>
   </data>
   <data name="Win_Installed" xml:space="preserve">
-    <value>Installed.</value>
+    <value>Instalada.</value>
   </data>
   <data name="Win_AddFailedAddress" xml:space="preserve">
-    <value>Windows could not add the printer at that address. Check that it's on and that the address is right.</value>
+    <value>Windows no pudo agregar la impresora en esa dirección. Comprueba que esté encendida y que la dirección sea correcta.</value>
   </data>
   <data name="Win_AddFailedCode" xml:space="preserve">
-    <value>Windows could not add the printer (code {0}).</value>
+    <value>Windows no pudo agregar la impresora (código {0}).</value>
   </data>
   <data name="Win_SetupTimedOut" xml:space="preserve">
-    <value>Windows did not finish setting it up in time. Try again, or use Windows Settings → Printers &amp; scanners.</value>
+    <value>Windows no terminó de configurarla a tiempo. Vuelve a intentarlo o usa Configuración de Windows → Impresoras y escáneres.</value>
   </data>
   <data name="Win_NoLongerSeen" xml:space="preserve">
-    <value>Windows no longer sees this printer on the network.</value>
+    <value>Windows ya no detecta esta impresora en la red.</value>
   </data>
   <data name="Win_CannotInstallAuto" xml:space="preserve">
-    <value>Windows cannot install this printer automatically.</value>
+    <value>Windows no puede instalar esta impresora automáticamente.</value>
   </data>
   <data name="Win_AlreadySettingUp" xml:space="preserve">
-    <value>Windows is already setting this device up. Give it a minute.</value>
+    <value>Windows ya está configurando este dispositivo. Espera un minuto.</value>
   </data>
   <data name="Win_InstallFailed" xml:space="preserve">
-    <value>Windows could not install the printer ({0}).</value>
+    <value>Windows no pudo instalar la impresora ({0}).</value>
   </data>
   <data name="Win_PairNotReady" xml:space="preserve">
-    <value>printer not ready</value>
+    <value>impresora no lista</value>
   </data>
   <data name="Win_PairRejected" xml:space="preserve">
-    <value>connection rejected</value>
+    <value>conexión rechazada</value>
   </data>
   <data name="Win_PairAccessDenied" xml:space="preserve">
-    <value>access denied</value>
+    <value>acceso denegado</value>
   </data>
   <data name="Win_PairFailed" xml:space="preserve">
-    <value>failed</value>
+    <value>error</value>
   </data>
   <data name="Win_PairNeedsConfirmation" xml:space="preserve">
-    <value>needs confirmation in Settings</value>
+    <value>necesita confirmación en Configuración</value>
   </data>
   <data name="Status_Ready" xml:space="preserve">
-    <value>Ready</value>
+    <value>Lista</value>
   </data>
   <data name="Status_StartingUp" xml:space="preserve">
-    <value>Starting up</value>
+    <value>Iniciando</value>
   </data>
   <data name="Status_Printing" xml:space="preserve">
-    <value>Printing</value>
+    <value>Imprimiendo</value>
   </data>
   <data name="Status_Copying" xml:space="preserve">
-    <value>Copying</value>
+    <value>Copiando</value>
   </data>
   <data name="Status_Scanning" xml:space="preserve">
-    <value>Scanning</value>
+    <value>Escaneando</value>
   </data>
   <data name="Status_CoolingDown" xml:space="preserve">
-    <value>Cooling down</value>
+    <value>Enfriándose</value>
   </data>
   <data name="Status_CancellingJob" xml:space="preserve">
-    <value>Cancelling job</value>
+    <value>Cancelando el trabajo</value>
   </data>
   <data name="Status_ShuttingDown" xml:space="preserve">
-    <value>Shutting down</value>
+    <value>Apagándose</value>
   </data>
   <data name="Status_UpdatingFirmware" xml:space="preserve">
-    <value>Updating firmware</value>
+    <value>Actualizando el firmware</value>
   </data>
   <data name="Status_ConnectingToWeb" xml:space="preserve">
-    <value>Connecting to web services</value>
+    <value>Conectándose a los servicios web</value>
   </data>
   <data name="Status_BusyAtPanel" xml:space="preserve">
-    <value>Busy at the control panel</value>
+    <value>Ocupada en el panel de control</value>
   </data>
   <data name="Status_TrayEmptyOrOpen" xml:space="preserve">
-    <value>Tray empty or open</value>
+    <value>Bandeja vacía o abierta</value>
   </data>
   <data name="Status_LoadPaper" xml:space="preserve">
-    <value>Load paper</value>
+    <value>Carga papel</value>
   </data>
   <data name="Status_UnexpectedSizeInTray" xml:space="preserve">
-    <value>Unexpected paper size in tray</value>
+    <value>Tamaño de papel inesperado en la bandeja</value>
   </data>
   <data name="Status_ManualDuplex" xml:space="preserve">
-    <value>Turn the pages over for manual duplex</value>
+    <value>Da la vuelta a las páginas para imprimir a doble cara manualmente</value>
   </data>
   <data name="Status_ManualFeed" xml:space="preserve">
-    <value>Waiting for manual feed</value>
+    <value>Esperando alimentación manual</value>
   </data>
   <data name="Status_CloseDoorOrCover" xml:space="preserve">
-    <value>Close the door or cover</value>
+    <value>Cierra la puerta o la tapa</value>
   </data>
   <data name="Status_TonerLow" xml:space="preserve">
-    <value>Toner low</value>
+    <value>Tóner bajo</value>
   </data>
   <data name="Status_TonerVeryLow" xml:space="preserve">
-    <value>Toner very low</value>
+    <value>Tóner muy bajo</value>
   </data>
   <data name="Status_OrderTonerSoon" xml:space="preserve">
-    <value>Order toner soon</value>
+    <value>Pide tóner pronto</value>
   </data>
   <data name="Status_ReplaceTonerCartridge" xml:space="preserve">
-    <value>Replace the toner cartridge</value>
+    <value>Reemplaza el cartucho de tóner</value>
   </data>
   <data name="Status_TonerCartridgeMissing" xml:space="preserve">
-    <value>Toner cartridge missing</value>
+    <value>Falta el cartucho de tóner</value>
   </data>
   <data name="Status_UsedCartridge" xml:space="preserve">
-    <value>Used cartridge installed</value>
+    <value>Cartucho usado instalado</value>
   </data>
   <data name="Status_NonHpCartridge" xml:space="preserve">
-    <value>Non-HP cartridge detected</value>
+    <value>Cartucho que no es de HP detectado</value>
   </data>
   <data name="Status_IncompatibleCartridge" xml:space="preserve">
-    <value>Incompatible cartridge</value>
+    <value>Cartucho incompatible</value>
   </data>
   <data name="Status_RemoveTonerSeal" xml:space="preserve">
-    <value>Remove the toner seal</value>
+    <value>Quita el sello del tóner</value>
   </data>
   <data name="Status_PaperJam" xml:space="preserve">
-    <value>Paper jam</value>
+    <value>Atasco de papel</value>
   </data>
   <data name="Status_PickUpFailed" xml:space="preserve">
-    <value>Paper pick-up failed</value>
+    <value>No se pudo tomar el papel</value>
   </data>
   <data name="Status_FeederJam" xml:space="preserve">
-    <value>Document feeder jam</value>
+    <value>Atasco en el alimentador de documentos</value>
   </data>
   <data name="Status_FeederPickUpFailed" xml:space="preserve">
-    <value>Document feeder pick-up failed</value>
+    <value>El alimentador de documentos no pudo tomar la hoja</value>
   </data>
   <data name="Status_FeederDoorOpen" xml:space="preserve">
-    <value>Document feeder door open</value>
+    <value>Puerta del alimentador de documentos abierta</value>
   </data>
   <data name="Status_OutOfMemory" xml:space="preserve">
-    <value>Out of memory</value>
+    <value>Sin memoria</value>
   </data>
   <data name="Status_PrintFailure" xml:space="preserve">
-    <value>Print failure</value>
+    <value>Error de impresión</value>
   </data>
   <data name="Status_PrinterError" xml:space="preserve">
-    <value>Printer error</value>
+    <value>Error de la impresora</value>
   </data>
   <data name="Status_FirmwareUpdateFailed" xml:space="preserve">
-    <value>Firmware update failed</value>
+    <value>No se pudo actualizar el firmware</value>
   </data>
   <data name="Status_Misprint" xml:space="preserve">
-    <value>Misprint</value>
+    <value>Impresión defectuosa</value>
   </data>
   <data name="Status_SensorBlocked" xml:space="preserve">
-    <value>Sensor blocked</value>
+    <value>Sensor bloqueado</value>
   </data>
   <data name="Status_CheckingSupplies" xml:space="preserve">
-    <value>Checking supplies</value>
+    <value>Revisando los suministros</value>
   </data>
   <data name="Status_InPowerSave_Detail" xml:space="preserve">
-    <value>Sleeping to save power. It wakes up by itself when you print or scan.</value>
+    <value>En reposo para ahorrar energía. Se activa sola cuando imprimes o escaneas.</value>
   </data>
   <data name="Status_Ready_Detail" xml:space="preserve">
-    <value>Waiting for something to print or scan.</value>
+    <value>Esperando algo para imprimir o escanear.</value>
   </data>
   <data name="Status_TrayEmptyOrOpen_Detail" xml:space="preserve">
-    <value>Load paper into the tray and push it all the way in.</value>
+    <value>Carga papel en la bandeja y empújala hasta el fondo.</value>
   </data>
   <data name="Status_MediaPrompt_Detail" xml:space="preserve">
-    <value>Load paper, then press OK on the printer if it asks.</value>
+    <value>Carga papel y, si la impresora lo pide, presiona OK en ella.</value>
   </data>
   <data name="Status_CloseDoorOrCover_Detail" xml:space="preserve">
-    <value>A door or cover is open. Close it to continue.</value>
+    <value>Hay una puerta o tapa abierta. Ciérrala para continuar.</value>
   </data>
   <data name="Status_JamInPrinter_Detail" xml:space="preserve">
-    <value>Open the front door, gently pull out the jammed paper, and close the door.</value>
+    <value>Abre la puerta frontal, saca con cuidado el papel atascado y cierra la puerta.</value>
   </data>
   <data name="Status_ReplaceTonerCartridge_Detail" xml:space="preserve">
-    <value>The toner cartridge is empty. Replace it to keep printing.</value>
+    <value>El cartucho de tóner está vacío. Reemplázalo para seguir imprimiendo.</value>
   </data>
   <data name="Status_TonerCartridgeMissing_Detail" xml:space="preserve">
-    <value>Insert the toner cartridge and close the front door.</value>
+    <value>Inserta el cartucho de tóner y cierra la puerta frontal.</value>
   </data>
   <data name="Status_RemoveTonerSeal_Detail" xml:space="preserve">
-    <value>Pull the orange tab off the new toner cartridge.</value>
+    <value>Tira de la lengüeta naranja del cartucho de tóner nuevo para quitarla.</value>
   </data>
   <data name="Status_ManualDuplex_Detail" xml:space="preserve">
-    <value>Take the printed pages, turn them over, and put them back in the tray.</value>
+    <value>Toma las páginas impresas, dales la vuelta y vuelve a ponerlas en la bandeja.</value>
   </data>
   <data name="Status_OutOfPaper" xml:space="preserve">
-    <value>Out of paper</value>
+    <value>Sin papel</value>
   </data>
   <data name="Status_PaperLow" xml:space="preserve">
-    <value>Paper low</value>
+    <value>Queda poco papel</value>
   </data>
   <data name="Status_PaperTrayMissing" xml:space="preserve">
-    <value>Paper tray missing</value>
+    <value>Falta la bandeja de papel</value>
   </data>
   <data name="Status_OutputTrayMissing" xml:space="preserve">
-    <value>Output tray missing</value>
+    <value>Falta la bandeja de salida</value>
   </data>
   <data name="Status_OutputTrayAlmostFull" xml:space="preserve">
-    <value>Output tray almost full</value>
+    <value>Bandeja de salida casi llena</value>
   </data>
   <data name="Status_OutputTrayFull" xml:space="preserve">
-    <value>Output tray full</value>
+    <value>Bandeja de salida llena</value>
   </data>
   <data name="Status_CoverOpen" xml:space="preserve">
-    <value>A cover is open</value>
+    <value>Hay una tapa abierta</value>
   </data>
   <data name="Status_DoorOpen" xml:space="preserve">
-    <value>A door is open</value>
+    <value>Hay una puerta abierta</value>
   </data>
   <data name="Status_TonerEmpty" xml:space="preserve">
-    <value>Toner empty</value>
+    <value>Tóner agotado</value>
   </data>
   <data name="Status_InkOrTonerLow" xml:space="preserve">
-    <value>Ink or toner low</value>
+    <value>Tinta o tóner bajo</value>
   </data>
   <data name="Status_InkOrTonerEmpty" xml:space="preserve">
-    <value>Ink or toner empty</value>
+    <value>Tinta o tóner agotado</value>
   </data>
   <data name="Status_CartridgeMissing" xml:space="preserve">
-    <value>Cartridge missing</value>
+    <value>Falta un cartucho</value>
   </data>
   <data name="Status_WasteBoxAlmostFull" xml:space="preserve">
-    <value>Waste ink or toner box almost full</value>
+    <value>Depósito de residuos de tinta o tóner casi lleno</value>
   </data>
   <data name="Status_WasteBoxFull" xml:space="preserve">
-    <value>Waste ink or toner box full</value>
+    <value>Depósito de residuos de tinta o tóner lleno</value>
   </data>
   <data name="Status_MaintenanceBoxAlmostFull" xml:space="preserve">
-    <value>Maintenance box almost full</value>
+    <value>Caja de mantenimiento casi llena</value>
   </data>
   <data name="Status_MaintenanceBoxFull" xml:space="preserve">
-    <value>Maintenance box full</value>
+    <value>Caja de mantenimiento llena</value>
   </data>
   <data name="Status_WasteTonerBoxAlmostFull" xml:space="preserve">
-    <value>Waste toner box almost full</value>
+    <value>Depósito de tóner residual casi lleno</value>
   </data>
   <data name="Status_WasteTonerBoxFull" xml:space="preserve">
-    <value>Waste toner box full</value>
+    <value>Depósito de tóner residual lleno</value>
   </data>
   <data name="Status_DeveloperLow" xml:space="preserve">
-    <value>Developer low</value>
+    <value>Revelador bajo</value>
   </data>
   <data name="Status_DeveloperEmpty" xml:space="preserve">
-    <value>Developer empty</value>
+    <value>Revelador agotado</value>
   </data>
   <data name="Status_DrumNearlyWornOut" xml:space="preserve">
-    <value>Drum nearly worn out</value>
+    <value>El tambor está casi gastado</value>
   </data>
   <data name="Status_ReplaceDrum" xml:space="preserve">
-    <value>Replace the drum</value>
+    <value>Reemplaza el tambor</value>
   </data>
   <data name="Status_FuserTooHot" xml:space="preserve">
-    <value>Fuser too hot</value>
+    <value>Fusor demasiado caliente</value>
   </data>
   <data name="Status_FuserWarmingUp" xml:space="preserve">
-    <value>Fuser warming up</value>
+    <value>Calentando el fusor</value>
   </data>
   <data name="Status_Paused" xml:space="preserve">
-    <value>Paused</value>
+    <value>En pausa</value>
   </data>
   <data name="Status_Pausing" xml:space="preserve">
-    <value>Pausing</value>
+    <value>Pausando</value>
   </data>
   <data name="Status_Stopping" xml:space="preserve">
-    <value>Stopping</value>
+    <value>Deteniéndose</value>
   </data>
   <data name="Status_PartlyStopped" xml:space="preserve">
-    <value>Partly stopped</value>
+    <value>Detenida en parte</value>
   </data>
   <data name="Status_PrinterMemoryFull" xml:space="preserve">
-    <value>Printer memory full</value>
+    <value>Memoria de la impresora llena</value>
   </data>
   <data name="Status_PrinterResourceUnavailable" xml:space="preserve">
-    <value>Printer resource unavailable</value>
+    <value>Recurso de la impresora no disponible</value>
   </data>
   <data name="Status_TimedOut" xml:space="preserve">
-    <value>Timed out</value>
+    <value>Se agotó el tiempo de espera</value>
   </data>
   <data name="Status_Connecting" xml:space="preserve">
-    <value>Connecting</value>
+    <value>Conectando</value>
   </data>
   <data name="Status_IdentifyingItself" xml:space="preserve">
-    <value>Identifying itself</value>
+    <value>Identificándose</value>
   </data>
   <data name="Status_Offline" xml:space="preserve">
-    <value>Offline</value>
+    <value>Sin conexión</value>
   </data>
   <data name="Status_Deactivated" xml:space="preserve">
-    <value>Turned off by an administrator</value>
+    <value>Desactivada por un administrador</value>
   </data>
   <data name="Status_MediaEmpty_Detail" xml:space="preserve">
-    <value>Load paper into the tray.</value>
+    <value>Carga papel en la bandeja.</value>
   </data>
   <data name="Status_MediaNeeded_Detail" xml:space="preserve">
-    <value>Load the paper the printer asks for, then press OK on the printer if it asks.</value>
+    <value>Carga el papel que pide la impresora y, si te lo pide, presiona OK en ella.</value>
   </data>
   <data name="Status_MediaJam_Detail" xml:space="preserve">
-    <value>Open the covers the printer's screen points to and gently pull out the jammed paper.</value>
+    <value>Abre las tapas que indica la pantalla de la impresora y saca con cuidado el papel atascado.</value>
   </data>
   <data name="Status_CloseItToContinue" xml:space="preserve">
-    <value>Close it to continue.</value>
+    <value>Ciérrala para continuar.</value>
   </data>
   <data name="Status_TonerEmpty_Detail" xml:space="preserve">
-    <value>Replace the toner cartridge to keep printing.</value>
+    <value>Reemplaza el cartucho de tóner para seguir imprimiendo.</value>
   </data>
   <data name="Status_SupplyEmpty_Detail" xml:space="preserve">
-    <value>Replace or refill the empty cartridge or ink tank to keep printing.</value>
+    <value>Reemplaza o rellena el cartucho o el depósito de tinta vacío para seguir imprimiendo.</value>
   </data>
   <data name="Status_WasteFull_Detail" xml:space="preserve">
-    <value>Replace the waste ink or toner box (on inkjets: the maintenance box) to keep printing.</value>
+    <value>Reemplaza el depósito de residuos de tinta o tóner (en las de inyección de tinta: la caja de mantenimiento) para seguir imprimiendo.</value>
   </data>
   <data name="Status_MaintenanceBoxFull_Detail" xml:space="preserve">
-    <value>Replace the maintenance box to keep printing.</value>
+    <value>Reemplaza la caja de mantenimiento para seguir imprimiendo.</value>
   </data>
   <data name="Status_ReplaceDrum_Detail" xml:space="preserve">
-    <value>The drum unit has reached the end of its life. Replace it to keep printing well.</value>
+    <value>La unidad de tambor llegó al final de su vida útil. Reemplázala para seguir imprimiendo bien.</value>
   </data>
   <data name="Supply_Toner" xml:space="preserve">
-    <value>toner</value>
+    <value>tóner</value>
   </data>
   <data name="Supply_Ink" xml:space="preserve">
-    <value>ink</value>
+    <value>tinta</value>
   </data>
   <data name="Supply_InkCartridge" xml:space="preserve">
-    <value>ink cartridge</value>
+    <value>cartucho de tinta</value>
   </data>
   <data name="Supply_InkTank" xml:space="preserve">
-    <value>ink tank</value>
+    <value>depósito de tinta</value>
   </data>
   <data name="Supply_Printhead" xml:space="preserve">
-    <value>printhead</value>
+    <value>cabezal de impresión</value>
   </data>
   <data name="Supply_Drum" xml:space="preserve">
-    <value>drum</value>
+    <value>tambor</value>
   </data>
   <data name="Supply_Supply" xml:space="preserve">
-    <value>supply</value>
+    <value>suministro</value>
   </data>
   <data name="Supply_ColorAndKind" xml:space="preserve">
-    <value>{0} {1}</value>
+    <value>{1} {0}</value>
   </data>
   <data name="Supply_Black" xml:space="preserve">
-    <value>Black</value>
+    <value>negro</value>
   </data>
   <data name="Supply_Black_Feminine" xml:space="preserve">
-    <value>Black</value>
+    <value>negra</value>
   </data>
   <data name="Supply_Cyan" xml:space="preserve">
-    <value>Cyan</value>
+    <value>cian</value>
   </data>
   <data name="Supply_Magenta" xml:space="preserve">
-    <value>Magenta</value>
+    <value>magenta</value>
   </data>
   <data name="Supply_Yellow" xml:space="preserve">
-    <value>Yellow</value>
+    <value>amarillo</value>
   </data>
   <data name="Supply_Yellow_Feminine" xml:space="preserve">
-    <value>Yellow</value>
+    <value>amarilla</value>
   </data>
   <data name="Supply_TriColor" xml:space="preserve">
-    <value>Tri-color</value>
+    <value>tricolor</value>
   </data>
   <data name="Supply_PhotoBlack" xml:space="preserve">
-    <value>Photo black</value>
+    <value>negro fotográfico</value>
   </data>
   <data name="Supply_MatteBlack" xml:space="preserve">
-    <value>Matte black</value>
+    <value>negro mate</value>
   </data>
   <data name="Supply_Gray" xml:space="preserve">
-    <value>Gray</value>
+    <value>gris</value>
   </data>
   <data name="Status_DoorOpenShort" xml:space="preserve">
-    <value>Door open</value>
+    <value>Puerta abierta</value>
   </data>
   <data name="Status_TrayOpen" xml:space="preserve">
-    <value>Tray open</value>
+    <value>Bandeja abierta</value>
   </data>
   <data name="Status_TrayOpen_Detail" xml:space="preserve">
-    <value>Push the paper tray all the way in.</value>
+    <value>Empuja la bandeja de papel hasta el fondo.</value>
   </data>
   <data name="Status_CartridgeLow" xml:space="preserve">
-    <value>Cartridge low</value>
+    <value>Cartucho bajo</value>
   </data>
   <data name="Status_CartridgeLow_Detail" xml:space="preserve">
-    <value>Printing goes on; have a replacement ready.</value>
+    <value>Se puede seguir imprimiendo; ten un repuesto a mano.</value>
   </data>
   <data name="Status_CartridgeVeryLow" xml:space="preserve">
-    <value>Cartridge very low</value>
+    <value>Cartucho muy bajo</value>
   </data>
   <data name="Status_CartridgeVeryLow_Detail" xml:space="preserve">
-    <value>Print quality may drop soon; replace the cartridge.</value>
+    <value>La calidad de impresión puede bajar pronto; reemplaza el cartucho.</value>
   </data>
   <data name="Status_CartridgeEmpty" xml:space="preserve">
-    <value>Cartridge empty</value>
+    <value>Cartucho vacío</value>
   </data>
   <data name="Status_CartridgeEmpty_Detail" xml:space="preserve">
-    <value>Replace the cartridge to keep printing.</value>
+    <value>Reemplaza el cartucho para seguir imprimiendo.</value>
   </data>
   <data name="Status_CartridgeMissing_Detail" xml:space="preserve">
-    <value>Put the cartridge back in and close the door.</value>
+    <value>Vuelve a colocar el cartucho y cierra la puerta.</value>
   </data>
   <data name="Status_CdmJam_Detail" xml:space="preserve">
-    <value>Open the doors the printer shows, gently pull out the jammed paper, and close them.</value>
+    <value>Abre las puertas que indica la impresora, saca con cuidado el papel atascado y ciérralas.</value>
   </data>
   <data name="Status_NotAvailable" xml:space="preserve">
-    <value>Status not available</value>
+    <value>Estado no disponible</value>
   </data>
   <data name="Ledm_UnknownPrinter" xml:space="preserve">
-    <value>Unknown printer</value>
+    <value>Impresora desconocida</value>
   </data>
   <data name="Ledm_GuardAlreadyOff" xml:space="preserve">
-    <value>Automatic firmware updates are already off on this printer, so no update installs by itself. Nothing was changed.</value>
+    <value>Las actualizaciones automáticas del firmware ya están desactivadas en esta impresora, así que ninguna actualización se instala sola. No se cambió nada.</value>
   </data>
   <data name="Ledm_GuardCantChange" xml:space="preserve">
-    <value>This printer doesn't let apps change its automatic firmware updates. Turn them off on its web page, under the firmware update settings.</value>
+    <value>Esta impresora no deja que las aplicaciones cambien sus actualizaciones automáticas del firmware. Desactívalas en su página web, en la configuración de actualización del firmware.</value>
   </data>
   <data name="Ledm_GuardDone" xml:space="preserve">
-    <value>Done: automatic firmware updates are off, and the printer confirms it. A firmware update now installs only if you install it yourself, from the printer's web page or its control panel.</value>
+    <value>Listo: las actualizaciones automáticas del firmware están desactivadas y la impresora lo confirma. Ahora una actualización del firmware solo se instala si la instalas tú, desde la página web de la impresora o su panel de control.</value>
   </data>
   <data name="Ledm_GuardNotKept" xml:space="preserve">
-    <value>The printer was asked to turn automatic updates off, but it reads back "{0}". Turn them off on its web page.</value>
+    <value>Se le pidió a la impresora que desactivara las actualizaciones automáticas, pero indica "{0}". Desactívalas en su página web.</value>
   </data>
   <data name="Ledm_GuardNoReadBack" xml:space="preserve">
-    <value>The printer took the change but didn't say what it kept. Check its firmware update settings on its web page.</value>
+    <value>La impresora aceptó el cambio, pero no dijo qué conservó. Revisa la configuración de actualización del firmware en su página web.</value>
   </data>
   <data name="Ledm_GuardModeAutomatic" xml:space="preserve">
-    <value>install automatically</value>
+    <value>instalar automáticamente</value>
   </data>
   <data name="Ledm_GuardModeNotify" xml:space="preserve">
-    <value>check, don't install</value>
+    <value>buscar, no instalar</value>
   </data>
   <data name="Ledm_GuardModeOff" xml:space="preserve">
-    <value>off</value>
+    <value>desactivadas</value>
   </data>
   <data name="Ledm_PasswordRejected" xml:space="preserve">
-    <value>The printer rejected the admin password.</value>
+    <value>La impresora rechazó la contraseña de administrador.</value>
   </data>
   <data name="Ledm_PasswordRequired" xml:space="preserve">
-    <value>The printer requires its admin password.</value>
+    <value>La impresora pide su contraseña de administrador.</value>
   </data>
   <data name="Ledm_FwAvailable" xml:space="preserve">
-    <value>A firmware update is available.</value>
+    <value>Hay una actualización del firmware disponible.</value>
   </data>
   <data name="Ledm_FwUpToDate" xml:space="preserve">
-    <value>The firmware is up to date.</value>
+    <value>El firmware está actualizado.</value>
   </data>
   <data name="Ledm_FwCheckFailed" xml:space="preserve">
-    <value>The printer's last update check failed.</value>
+    <value>La última búsqueda de actualizaciones de la impresora falló.</value>
   </data>
   <data name="Ledm_FwChecking" xml:space="preserve">
-    <value>Checking for updates…</value>
+    <value>Buscando actualizaciones…</value>
   </data>
   <data name="Ledm_FwDownloading" xml:space="preserve">
-    <value>Downloading an update…</value>
+    <value>Descargando una actualización…</value>
   </data>
   <data name="Ledm_FwInstalling" xml:space="preserve">
-    <value>Installing an update…</value>
+    <value>Instalando una actualización…</value>
   </data>
   <data name="Ledm_FwCancelling" xml:space="preserve">
-    <value>Cancelling the update…</value>
+    <value>Cancelando la actualización…</value>
   </data>
   <data name="Ledm_Setting_PrinterName" xml:space="preserve">
-    <value>Printer name</value>
+    <value>Nombre de la impresora</value>
   </data>
   <data name="Ledm_Setting_Location" xml:space="preserve">
-    <value>Location</value>
+    <value>Ubicación</value>
   </data>
   <data name="Ledm_Setting_SleepAfter" xml:space="preserve">
-    <value>Sleep after</value>
+    <value>Reposo después de</value>
   </data>
   <data name="Ledm_Setting_TurnOffAfter" xml:space="preserve">
-    <value>Turn off after</value>
+    <value>Apagar después de</value>
   </data>
   <data name="Ledm_Setting_DelayTurnOff" xml:space="preserve">
-    <value>Delay turn-off while ports are active</value>
+    <value>Retrasar el apagado mientras los puertos estén activos</value>
   </data>
   <data name="Ledm_Setting_DuplexDefault" xml:space="preserve">
-    <value>Print on both sides by default</value>
+    <value>Imprimir a doble cara de forma predeterminada</value>
   </data>
   <data name="Ledm_Setting_TwoSidedBinding" xml:space="preserve">
-    <value>Two-sided binding</value>
+    <value>Encuadernación a doble cara</value>
   </data>
   <data name="Ledm_Setting_ManualFeed" xml:space="preserve">
-    <value>Manual feed</value>
+    <value>Alimentación manual</value>
   </data>
   <data name="Ledm_Setting_DefaultCopies" xml:space="preserve">
-    <value>Default copies</value>
+    <value>Copias predeterminadas</value>
   </data>
   <data name="Ledm_Setting_AutoContinue" xml:space="preserve">
-    <value>Continue automatically after errors</value>
+    <value>Continuar automáticamente tras un error</value>
   </data>
   <data name="Ledm_Setting_TrayPaperSize" xml:space="preserve">
-    <value>Tray paper size</value>
+    <value>Tamaño del papel de la bandeja</value>
   </data>
   <data name="Ledm_Setting_TrayPaperType" xml:space="preserve">
-    <value>Tray paper type</value>
+    <value>Tipo de papel de la bandeja</value>
   </data>
   <data name="Ledm_Setting_PaperRunsOut" xml:space="preserve">
-    <value>When paper runs out</value>
+    <value>Cuando se acabe el papel</value>
   </data>
   <data name="Ledm_Group_General" xml:space="preserve">
     <value>General</value>
   </data>
   <data name="Ledm_Group_Power" xml:space="preserve">
-    <value>Power</value>
+    <value>Energía</value>
   </data>
   <data name="Ledm_Group_Printing" xml:space="preserve">
-    <value>Printing</value>
+    <value>Impresión</value>
   </data>
   <data name="Ledm_Group_Paper" xml:space="preserve">
-    <value>Paper</value>
+    <value>Papel</value>
   </data>
   <data name="Ledm_On" xml:space="preserve">
-    <value>On</value>
+    <value>Activado</value>
   </data>
   <data name="Ledm_Off" xml:space="preserve">
-    <value>Off</value>
+    <value>Desactivado</value>
   </data>
   <data name="Ledm_Never" xml:space="preserve">
-    <value>Never</value>
+    <value>Nunca</value>
   </data>
   <data name="Ledm_LongEdge" xml:space="preserve">
-    <value>Long edge</value>
+    <value>Borde largo</value>
   </data>
   <data name="Ledm_ShortEdge" xml:space="preserve">
-    <value>Short edge</value>
+    <value>Borde corto</value>
   </data>
   <data name="Ledm_AnySize" xml:space="preserve">
-    <value>Any size</value>
+    <value>Cualquier tamaño</value>
   </data>
   <data name="Ledm_Automatic" xml:space="preserve">
-    <value>Automatic</value>
+    <value>Automático</value>
   </data>
   <data name="Ledm_Minute" xml:space="preserve">
-    <value>{0} minute</value>
+    <value>{0} minuto</value>
   </data>
   <data name="Ledm_Minutes" xml:space="preserve">
-    <value>{0} minutes</value>
+    <value>{0} minutos</value>
   </data>
   <data name="Ledm_Hour" xml:space="preserve">
-    <value>{0} hour</value>
+    <value>{0} hora</value>
   </data>
   <data name="Ledm_Hours" xml:space="preserve">
-    <value>{0} hours</value>
+    <value>{0} horas</value>
   </data>
   <data name="Ledm_Second" xml:space="preserve">
-    <value>{0} second</value>
+    <value>{0} segundo</value>
   </data>
   <data name="Ledm_Seconds" xml:space="preserve">
-    <value>{0} seconds</value>
+    <value>{0} segundos</value>
   </data>
   <data name="Status_PrinterIsOffline" xml:space="preserve">
-    <value>The printer is offline</value>
+    <value>La impresora está sin conexión</value>
   </data>
   <data name="Status_NeedsAttention" xml:space="preserve">
-    <value>The printer needs attention</value>
+    <value>La impresora necesita atención</value>
   </data>
   <data name="Status_PaperTrayEmpty" xml:space="preserve">
-    <value>A paper tray is empty</value>
+    <value>Hay una bandeja de papel vacía</value>
   </data>
   <data name="Status_MaintenanceOverdue" xml:space="preserve">
-    <value>Maintenance is overdue</value>
+    <value>El mantenimiento está atrasado</value>
   </data>
   <data name="Status_ReportsAProblem" xml:space="preserve">
-    <value>The printer reports a problem</value>
+    <value>La impresora informa de un problema</value>
   </data>
   <data name="Status_WarmingUp" xml:space="preserve">
-    <value>Warming up</value>
+    <value>Calentando</value>
   </data>
   <data name="Status_Stopped" xml:space="preserve">
-    <value>Stopped</value>
+    <value>Detenida</value>
   </data>
   <data name="Status_Sleeping" xml:space="preserve">
-    <value>Sleeping</value>
+    <value>En reposo</value>
   </data>
   <data name="Status_Testing" xml:space="preserve">
-    <value>Testing</value>
+    <value>Haciendo una prueba</value>
   </data>
   <data name="Status_Unknown" xml:space="preserve">
-    <value>Unknown</value>
+    <value>Desconocido</value>
   </data>
   <data name="Snmp_Supply_Toner" xml:space="preserve">
-    <value>Toner</value>
+    <value>Tóner</value>
   </data>
   <data name="Snmp_Supply_MatteToner" xml:space="preserve">
-    <value>Matte toner</value>
+    <value>Tóner mate</value>
   </data>
   <data name="Snmp_Supply_WasteTonerBox" xml:space="preserve">
-    <value>Waste toner box</value>
+    <value>Depósito de tóner residual</value>
   </data>
   <data name="Snmp_Supply_Ink" xml:space="preserve">
-    <value>Ink</value>
+    <value>Tinta</value>
   </data>
   <data name="Snmp_Supply_MatteInk" xml:space="preserve">
-    <value>Matte ink</value>
+    <value>Tinta mate</value>
   </data>
   <data name="Snmp_Supply_InkRibbon" xml:space="preserve">
-    <value>Ink ribbon</value>
+    <value>Cinta de tinta</value>
   </data>
   <data name="Snmp_Supply_WasteInkBox" xml:space="preserve">
-    <value>Waste ink box</value>
+    <value>Depósito de tinta residual</value>
   </data>
   <data name="Snmp_Supply_Drum" xml:space="preserve">
-    <value>Drum</value>
+    <value>Tambor</value>
   </data>
   <data name="Snmp_Supply_Developer" xml:space="preserve">
-    <value>Developer</value>
+    <value>Revelador</value>
   </data>
   <data name="Snmp_Supply_Fuser" xml:space="preserve">
-    <value>Fuser</value>
+    <value>Fusor</value>
   </data>
   <data name="Snmp_Supply_CleanerUnit" xml:space="preserve">
-    <value>Cleaner unit</value>
+    <value>Unidad de limpieza</value>
   </data>
   <data name="Snmp_Supply_TransferUnit" xml:space="preserve">
-    <value>Transfer unit</value>
+    <value>Unidad de transferencia</value>
   </data>
   <data name="Snmp_Supply_Staples" xml:space="preserve">
-    <value>Staples</value>
+    <value>Grapas</value>
   </data>
   <data name="Snmp_Supply_Supply" xml:space="preserve">
-    <value>Supply</value>
+    <value>Suministro</value>
   </data>
   <data name="Snmp_UnknownUser" xml:space="preserve">
-    <value>The printer doesn't know this SNMPv3 user name.</value>
+    <value>La impresora no conoce este nombre de usuario de SNMPv3.</value>
   </data>
   <data name="Snmp_WrongAuthKey" xml:space="preserve">
-    <value>The printer refused the SNMPv3 authentication passphrase.</value>
+    <value>La impresora rechazó la frase de contraseña de autenticación de SNMPv3.</value>
   </data>
   <data name="Snmp_WrongPrivKey" xml:space="preserve">
-    <value>The printer couldn't read the request: check the SNMPv3 privacy passphrase.</value>
+    <value>La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3.</value>
   </data>
   <data name="Snmp_SecurityLevel" xml:space="preserve">
-    <value>The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.</value>
+    <value>La impresora no acepta SNMPv3 con autenticación y privacidad (SHA-256, AES-128) para este usuario.</value>
   </data>
   <data name="Snmp_EnterUserName" xml:space="preserve">
-    <value>Enter the SNMPv3 user name.</value>
+    <value>Escribe el nombre de usuario de SNMPv3.</value>
   </data>
   <data name="Snmp_UserNameLength" xml:space="preserve">
-    <value>The user name is 1 to {0} characters, without control characters.</value>
+    <value>El nombre de usuario tiene de 1 a {0} caracteres, sin caracteres de control.</value>
   </data>
   <data name="Snmp_AuthPassphraseLength" xml:space="preserve">
-    <value>The authentication passphrase has at least {0} characters.</value>
+    <value>La frase de contraseña de autenticación tiene al menos {0} caracteres.</value>
   </data>
   <data name="Snmp_PrivPassphraseLength" xml:space="preserve">
-    <value>The privacy passphrase has at least {0} characters.</value>
+    <value>La frase de contraseña de privacidad tiene al menos {0} caracteres.</value>
   </data>
   <data name="Snmp_PassphraseControlChars" xml:space="preserve">
-    <value>The passphrases can't have tabs, line breaks or other control characters.</value>
+    <value>Las frases de contraseña no pueden tener tabulaciones, saltos de línea ni otros caracteres de control.</value>
   </data>
   <data name="Snmp_CommunityControlChars" xml:space="preserve">
-    <value>The community can't have tabs, line breaks or other control characters.</value>
+    <value>La comunidad no puede tener tabulaciones, saltos de línea ni otros caracteres de control.</value>
   </data>
   <data name="Snmp_CommunityLength" xml:space="preserve">
-    <value>The community can be at most {0} characters.</value>
+    <value>La comunidad puede tener como máximo {0} caracteres.</value>
   </data>
   <data name="Maint_Confirm" xml:space="preserve">
-    <value>{0}?
+    <value>¿{0}?
 
 {1}</value>
   </data>
   <data name="Maint_ConfirmWithPaper" xml:space="preserve">
-    <value>{0}?
+    <value>¿{0}?
 
 {1}
 
-The printer needs to be on and free, with plain paper loaded.</value>
+La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Maint_Toner" xml:space="preserve">
-    <value>toner</value>
+    <value>tóner</value>
   </data>
   <data name="Maint_Ink" xml:space="preserve">
-    <value>ink</value>
+    <value>tinta</value>
   </data>
   <data name="Maint_InkOrToner" xml:space="preserve">
-    <value>ink or toner</value>
+    <value>tinta o tóner</value>
   </data>
   <data name="Maint_PrintButton" xml:space="preserve">
-    <value>Print</value>
+    <value>Imprimir</value>
   </data>
   <data name="Maint_CleanButton" xml:space="preserve">
-    <value>Clean</value>
+    <value>Limpiar</value>
   </data>
   <data name="Maint_AlignButton" xml:space="preserve">
-    <value>Align</value>
+    <value>Alinear</value>
   </data>
   <data name="Maint_IdentifyButton" xml:space="preserve">
-    <value>Identify</value>
+    <value>Identificar</value>
   </data>
   <data name="Maint_OnePagePlain" xml:space="preserve">
-    <value>1 page · plain paper</value>
+    <value>1 página · papel normal</value>
   </data>
   <data name="Maint_CleaningCheck" xml:space="preserve">
-    <value>Print cleaning check page</value>
+    <value>Imprimir página de comprobación de limpieza</value>
   </data>
   <data name="Maint_CleaningCheck_Uses" xml:space="preserve">
-    <value>Prints 1 page on plain paper with test patterns, to see whether a cleaning helped. Uses a little {0}.</value>
+    <value>Imprime 1 página en papel normal con patrones de prueba, para ver si una limpieza ayudó. Usa un poco de {0}.</value>
   </data>
   <data name="Maint_CleaningCheck_Sent" xml:space="preserve">
-    <value>Sent. The printer will print the cleaning check page.</value>
+    <value>Enviado. La impresora imprimirá la página de comprobación de limpieza.</value>
   </data>
   <data name="Maint_Smear" xml:space="preserve">
-    <value>Clean page smears</value>
+    <value>Limpiar manchas en las páginas</value>
   </data>
   <data name="Maint_Smear_Summary" xml:space="preserve">
-    <value>1 sheet · a few minutes · a little ink</value>
+    <value>1 hoja · unos minutos · un poco de tinta</value>
   </data>
   <data name="Maint_Smear_Uses" xml:space="preserve">
-    <value>Feeds a sheet of plain paper through the printer to clean ink smears off the rollers. Takes a few minutes; uses a little ink.</value>
+    <value>Pasa una hoja de papel normal por la impresora para limpiar las manchas de tinta de los rodillos. Tarda unos minutos; usa un poco de tinta.</value>
   </data>
   <data name="Maint_Smear_Sent" xml:space="preserve">
-    <value>Sent. The printer will feed a sheet to clean its rollers.</value>
+    <value>Enviado. La impresora pasará una hoja para limpiar sus rodillos.</value>
   </data>
   <data name="Maint_NoteCdm" xml:space="preserve">
-    <value>This newer HP printer uses HP's CDM interface, whose maintenance requests aren't publicly documented, so Inkvolt Print doesn't start them: use its control panel or its web page.</value>
+    <value>Esta impresora HP más reciente usa la interfaz CDM de HP, cuyas solicitudes de mantenimiento no están documentadas públicamente, así que Inkvolt Print no las inicia: usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_NoteLedmNone" xml:space="preserve">
-    <value>This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it from its control panel or its web page.</value>
+    <value>Esta impresora no ofrece sus páginas de mantenimiento a otras aplicaciones. Imprime una página de configuración, límpiala o alinéala desde su panel de control o su página web.</value>
   </data>
   <data name="Maint_NoteSnmp" xml:space="preserve">
-    <value>Inkvolt Print reads this printer over SNMP, which has no maintenance requests, so it can't start cleaning, nozzle checks or alignment: use its control panel or its web page.</value>
+    <value>Inkvolt Print lee esta impresora por SNMP, que no tiene solicitudes de mantenimiento, así que no puede iniciar limpiezas, comprobaciones de inyectores ni alineaciones: usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_NoteIppWebPage" xml:space="preserve">
-    <value>Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start them on this printer: use its control panel or its web page.</value>
+    <value>La limpieza del cabezal, la comprobación de inyectores y la alineación no forman parte del estándar de impresión IPP, así que Inkvolt Print no puede iniciarlas en esta impresora: usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_NoteIppMaintenancePage" xml:space="preserve">
-    <value>Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start them on this printer: use its control panel or its maintenance page.</value>
+    <value>La limpieza del cabezal, la comprobación de inyectores y la alineación no forman parte del estándar de impresión IPP, así que Inkvolt Print no puede iniciarlas en esta impresora: usa su panel de control o su página de mantenimiento.</value>
   </data>
   <data name="Maint_ConfigPage" xml:space="preserve">
-    <value>Print configuration page</value>
+    <value>Imprimir página de configuración</value>
   </data>
   <data name="Maint_ConfigPage_Summary" xml:space="preserve">
-    <value>1 or 2 pages · plain paper · a little {0}</value>
+    <value>1 o 2 páginas · papel normal · un poco de {0}</value>
   </data>
   <data name="Maint_ConfigPage_Uses" xml:space="preserve">
-    <value>Prints 1 or 2 pages on plain paper with the printer's settings, network address and supply status. Uses a little {0}.</value>
+    <value>Imprime 1 o 2 páginas en papel normal con la configuración de la impresora, su dirección de red y el estado de los suministros. Usa un poco de {0}.</value>
   </data>
   <data name="Maint_ConfigPage_Sent" xml:space="preserve">
-    <value>Sent. The printer will print its configuration page.</value>
+    <value>Enviado. La impresora imprimirá su página de configuración.</value>
   </data>
   <data name="Maint_QualityReport" xml:space="preserve">
-    <value>Print quality report</value>
+    <value>Imprimir informe de calidad</value>
   </data>
   <data name="Maint_QualityReport_Summary" xml:space="preserve">
-    <value>1 page · plain paper · some {0}</value>
+    <value>1 página · papel normal · algo de {0}</value>
   </data>
   <data name="Maint_QualityReport_Uses" xml:space="preserve">
-    <value>Prints 1 page on plain paper with color blocks and patterns that show streaks, faded colors or misalignment. Uses some {0}.</value>
+    <value>Imprime 1 página en papel normal con bloques de color y patrones que muestran rayas, colores desvaídos o desalineación. Usa algo de {0}.</value>
   </data>
   <data name="Maint_QualityReport_Sent" xml:space="preserve">
-    <value>Sent. The printer will print its print quality report.</value>
+    <value>Enviado. La impresora imprimirá su informe de calidad de impresión.</value>
   </data>
   <data name="Maint_DiagnosticsPage" xml:space="preserve">
-    <value>Print diagnostics page</value>
+    <value>Imprimir página de diagnóstico</value>
   </data>
   <data name="Maint_DiagnosticsPage_Summary" xml:space="preserve">
-    <value>Usually 1 page · plain paper</value>
+    <value>Normalmente 1 página · papel normal</value>
   </data>
   <data name="Maint_DiagnosticsPage_Uses" xml:space="preserve">
-    <value>Prints the printer's diagnostics page on plain paper (usually 1 page). Uses a little {0}.</value>
+    <value>Imprime la página de diagnóstico de la impresora en papel normal (normalmente 1 página). Usa un poco de {0}.</value>
   </data>
   <data name="Maint_DiagnosticsPage_Sent" xml:space="preserve">
-    <value>Sent. The printer will print its diagnostics page.</value>
+    <value>Enviado. La impresora imprimirá su página de diagnóstico.</value>
   </data>
   <data name="Maint_NetworkPage" xml:space="preserve">
-    <value>Print network configuration page</value>
+    <value>Imprimir página de configuración de red</value>
   </data>
   <data name="Maint_NetworkPage_Uses" xml:space="preserve">
-    <value>Prints 1 page on plain paper with the printer's network settings and addresses. Uses a little {0}.</value>
+    <value>Imprime 1 página en papel normal con la configuración de red y las direcciones de la impresora. Usa un poco de {0}.</value>
   </data>
   <data name="Maint_NetworkPage_Sent" xml:space="preserve">
-    <value>Sent. The printer will print its network configuration page.</value>
+    <value>Enviado. La impresora imprimirá su página de configuración de red.</value>
   </data>
   <data name="Maint_WirelessTest" xml:space="preserve">
-    <value>Print wireless test report</value>
+    <value>Imprimir informe de prueba inalámbrica</value>
   </data>
   <data name="Maint_WirelessTest_Summary" xml:space="preserve">
-    <value>Tests Wi-Fi · 1 page · plain paper</value>
+    <value>Prueba el wifi · 1 página · papel normal</value>
   </data>
   <data name="Maint_WirelessTest_Uses" xml:space="preserve">
-    <value>The printer tests its Wi-Fi connection and prints the result on 1 page of plain paper. Uses a little {0}.</value>
+    <value>La impresora prueba su conexión wifi e imprime el resultado en 1 página de papel normal. Usa un poco de {0}.</value>
   </data>
   <data name="Maint_WirelessTest_Sent" xml:space="preserve">
-    <value>Sent. The printer will test its Wi-Fi and print the report.</value>
+    <value>Enviado. La impresora probará su wifi e imprimirá el informe.</value>
   </data>
   <data name="Maint_CleaningPage" xml:space="preserve">
-    <value>Print cleaning page</value>
+    <value>Imprimir página de limpieza</value>
   </data>
   <data name="Maint_CleaningPageLevel" xml:space="preserve">
-    <value>Print cleaning page, level {0}</value>
+    <value>Imprimir página de limpieza, nivel {0}</value>
   </data>
   <data name="Maint_CleaningPage_Summary" xml:space="preserve">
-    <value>1 sheet · plain paper · a little toner</value>
+    <value>1 hoja · papel normal · un poco de tóner</value>
   </data>
   <data name="Maint_CleaningPage_Uses" xml:space="preserve">
-    <value>Runs the printer's cleaning page: feeds a sheet of plain paper through to clean the paper path. Uses a little toner and takes a minute or two.</value>
+    <value>Ejecuta la página de limpieza de la impresora: pasa una hoja de papel normal para limpiar el recorrido del papel. Usa un poco de tóner y tarda uno o dos minutos.</value>
   </data>
   <data name="Maint_CleaningPage_Sent" xml:space="preserve">
-    <value>Sent. The printer will run its cleaning page.</value>
+    <value>Enviado. La impresora ejecutará su página de limpieza.</value>
   </data>
   <data name="Maint_CleanHead" xml:space="preserve">
-    <value>Clean printhead</value>
+    <value>Limpiar cabezal de impresión</value>
   </data>
   <data name="Maint_CleanHeadLevel" xml:space="preserve">
-    <value>Clean printhead, level {0}</value>
+    <value>Limpiar cabezal de impresión, nivel {0}</value>
   </data>
   <data name="Maint_CleanHead_Summary" xml:space="preserve">
-    <value>A few minutes · uses some ink</value>
+    <value>Unos minutos · usa algo de tinta</value>
   </data>
   <data name="Maint_CleanHeadDeeper_Summary" xml:space="preserve">
-    <value>Deeper · uses more ink</value>
+    <value>Más a fondo · usa más tinta</value>
   </data>
   <data name="Maint_CleanHead_Uses" xml:space="preserve">
-    <value>Cleans the printhead's nozzles and may print a test page on plain paper. Uses some ink; try it when prints are streaky or a color is missing.</value>
+    <value>Limpia los inyectores del cabezal de impresión y puede imprimir una página de prueba en papel normal. Usa algo de tinta; pruébalo cuando las impresiones salgan con rayas o falte un color.</value>
   </data>
   <data name="Maint_CleanHeadDeeper_Uses" xml:space="preserve">
-    <value>A deeper cleaning than level {0}; uses more ink. Try it only when level {0} didn't fix the prints, and let the printer rest a few minutes in between.</value>
+    <value>Una limpieza más a fondo que la del nivel {0}; usa más tinta. Pruébala solo si el nivel {0} no arregló las impresiones, y deja descansar la impresora unos minutos entre una y otra.</value>
   </data>
   <data name="Maint_CleanHead_Sent" xml:space="preserve">
-    <value>Sent. The printer is cleaning its printhead; this takes a few minutes.</value>
+    <value>Enviado. La impresora está limpiando su cabezal; esto tarda unos minutos.</value>
   </data>
   <data name="Maint_Align" xml:space="preserve">
-    <value>Align printhead</value>
+    <value>Alinear cabezal de impresión</value>
   </data>
   <data name="Maint_AlignSemi_Summary" xml:space="preserve">
-    <value>1 page · plain paper · then scanned on the glass</value>
+    <value>1 página · papel normal · luego se escanea en el cristal</value>
   </data>
   <data name="Maint_Align_Summary" xml:space="preserve">
-    <value>1 page · plain paper · a few minutes</value>
+    <value>1 página · papel normal · unos minutos</value>
   </data>
   <data name="Maint_AlignSemi_Uses" xml:space="preserve">
-    <value>Prints an alignment page on plain paper (uses a little ink). Then place the page face down on the scanner glass and follow the printer's control panel to scan it.</value>
+    <value>Imprime una página de alineación en papel normal (usa un poco de tinta). Luego coloca la página boca abajo en el cristal del escáner y sigue el panel de control de la impresora para escanearla.</value>
   </data>
   <data name="Maint_Align_Uses" xml:space="preserve">
-    <value>Prints an alignment page on plain paper and adjusts the printhead from it. Uses a little ink and takes a few minutes.</value>
+    <value>Imprime una página de alineación en papel normal y ajusta el cabezal de impresión a partir de ella. Usa un poco de tinta y tarda unos minutos.</value>
   </data>
   <data name="Maint_AlignSemi_Sent" xml:space="preserve">
-    <value>Sent. When the alignment page is out, put it face down on the scanner glass and follow the printer's control panel.</value>
+    <value>Enviado. Cuando salga la página de alineación, colócala boca abajo en el cristal del escáner y sigue el panel de control de la impresora.</value>
   </data>
   <data name="Maint_Align_Sent" xml:space="preserve">
-    <value>Sent. The printer will print its alignment page and adjust itself.</value>
+    <value>Enviado. La impresora imprimirá su página de alineación y se ajustará sola.</value>
   </data>
   <data name="Maint_AlignByHand" xml:space="preserve">
-    <value>This printer aligns by hand (choosing patterns): use its control panel or its web page.</value>
+    <value>Esta impresora se alinea a mano (eligiendo patrones): usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_IdentifyFlashes" xml:space="preserve">
-    <value>flashes its lights</value>
+    <value>hace parpadear sus luces</value>
   </data>
   <data name="Maint_IdentifySounds" xml:space="preserve">
-    <value>makes a sound</value>
+    <value>emite un sonido</value>
   </data>
   <data name="Maint_IdentifyShowsMessage" xml:space="preserve">
-    <value>shows a message on its control panel</value>
+    <value>muestra un mensaje en su panel de control</value>
   </data>
   <data name="Maint_IdentifyAsSet" xml:space="preserve">
-    <value>shows where it is the way it's set to (lights, a sound or a message)</value>
+    <value>muestra dónde está de la forma en que esté configurada (luces, un sonido o un mensaje)</value>
   </data>
   <data name="Maint_IdentifyUsualSignal" xml:space="preserve">
-    <value>Its usual signal</value>
+    <value>Su señal habitual</value>
   </data>
   <data name="Maint_IdentifyLights" xml:space="preserve">
-    <value>lights</value>
+    <value>luces</value>
   </data>
   <data name="Maint_IdentifySound" xml:space="preserve">
-    <value>sound</value>
+    <value>sonido</value>
   </data>
   <data name="Maint_IdentifyAMessage" xml:space="preserve">
-    <value>a message</value>
+    <value>un mensaje</value>
   </data>
   <data name="Maint_ListAnd" xml:space="preserve">
-    <value> and </value>
+    <value> y </value>
   </data>
   <data name="Maint_Identify" xml:space="preserve">
-    <value>Identify printer</value>
+    <value>Identificar impresora</value>
   </data>
   <data name="Maint_Identify_Uses" xml:space="preserve">
-    <value>The printer {0}, so you can tell which one it is. Uses no paper, ink or toner.</value>
+    <value>La impresora {0}, para que sepas cuál es. No usa papel, tinta ni tóner.</value>
   </data>
   <data name="Maint_Identify_Summary" xml:space="preserve">
-    <value>{0} · no paper or ink</value>
+    <value>{0} · sin papel ni tinta</value>
   </data>
   <data name="Maint_Identify_Sent" xml:space="preserve">
-    <value>Sent. The printer {0}.</value>
+    <value>Enviado. La impresora {0}.</value>
   </data>
   <data name="Maint_NotAnswering" xml:space="preserve">
-    <value>The printer isn't answering.</value>
+    <value>La impresora no responde.</value>
   </data>
   <data name="Maint_WaitingForLast" xml:space="preserve">
-    <value>Waiting for the printer to answer the last request.</value>
+    <value>Esperando a que la impresora responda a la última solicitud.</value>
   </data>
   <data name="Maint_FixFirst" xml:space="preserve">
-    <value>Fix this first: {0}.</value>
+    <value>Resuelve esto primero: {0}.</value>
   </data>
   <data name="Maint_PrinterPrinting" xml:space="preserve">
-    <value>The printer is printing; try again when it's done.</value>
+    <value>La impresora está imprimiendo; vuelve a intentarlo cuando termine.</value>
   </data>
   <data name="Maint_PrinterBusy" xml:space="preserve">
-    <value>The printer is busy ({0}); try again when it's ready.</value>
+    <value>La impresora está ocupada ({0}); vuelve a intentarlo cuando esté lista.</value>
   </data>
   <data name="Maint_NoAnswerMayHaveStarted" xml:space="preserve">
-    <value>The printer didn't answer, so the request may have started anyway. Check the printer before trying again.</value>
+    <value>La impresora no respondió, así que puede que la solicitud se haya iniciado de todos modos. Revisa la impresora antes de volver a intentarlo.</value>
   </data>
   <data name="Maint_NotSentTls" xml:space="preserve">
-    <value>Not sent: the secure connection to the printer failed. If its security certificate changed (after a reset or an update), check it under Printer settings; otherwise another device may be answering at its address.</value>
+    <value>No se envió: falló la conexión segura con la impresora. Si su certificado de seguridad cambió (después de un restablecimiento o una actualización), revísalo en Configuración de la impresora; si no, puede que otro dispositivo esté respondiendo en su dirección.</value>
   </data>
   <data name="Maint_NotSentRefused" xml:space="preserve">
-    <value>Not sent: the printer refused the connection. Check that it's on, then try again.</value>
+    <value>No se envió: la impresora rechazó la conexión. Comprueba que esté encendida y vuelve a intentarlo.</value>
   </data>
   <data name="Maint_AlignRunning" xml:space="preserve">
-    <value>An alignment is already under way on the printer. Finish it there first.</value>
+    <value>Ya hay una alineación en curso en la impresora. Termínala allí primero.</value>
   </data>
   <data name="Maint_AlignWaiting" xml:space="preserve">
-    <value>An earlier alignment is still waiting to be finished on the printer. Finish it on the printer's control panel, or turn the printer off and on again, then try again.</value>
+    <value>Una alineación anterior todavía está esperando a que la termines en la impresora. Termínala en el panel de control de la impresora, o apágala y vuelve a encenderla, y luego vuelve a intentarlo.</value>
   </data>
   <data name="Maint_NotOfferedToApps" xml:space="preserve">
-    <value>The printer doesn't offer this to apps after all. Use its control panel or web page.</value>
+    <value>Al final, la impresora no ofrece esto a las aplicaciones. Usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_BusyNotStarted" xml:space="preserve">
-    <value>The printer is busy and didn't start it. Try again when it's idle.</value>
+    <value>La impresora está ocupada y no lo inició. Vuelve a intentarlo cuando esté inactiva.</value>
   </data>
   <data name="Maint_RefusedHttp" xml:space="preserve">
-    <value>The printer refused it (HTTP {0}).</value>
+    <value>La impresora lo rechazó (HTTP {0}).</value>
   </data>
   <data name="Maint_NoIpp" xml:space="preserve">
-    <value>The printer doesn't answer IPP any more.</value>
+    <value>La impresora ya no responde por IPP.</value>
   </data>
   <data name="Maint_RefusedWhy" xml:space="preserve">
-    <value>The printer refused it ({0}).</value>
+    <value>La impresora lo rechazó ({0}).</value>
   </data>
   <data name="Maint_SignedInOnly" xml:space="preserve">
-    <value>The printer only does this for a signed-in user. Use its control panel or web page.</value>
+    <value>La impresora solo hace esto para un usuario que haya iniciado sesión. Usa su panel de control o su página web.</value>
   </data>
   <data name="Maint_NotOffered" xml:space="preserve">
-    <value>The printer doesn't offer this after all.</value>
+    <value>Al final, la impresora no ofrece esto.</value>
   </data>
   <data name="Maint_RefusedIpp" xml:space="preserve">
-    <value>The printer refused it (IPP status 0x{0:X4}).</value>
+    <value>La impresora lo rechazó (estado IPP 0x{0:X4}).</value>
   </data>
   <data name="Pro_SupplyHistoryExport" xml:space="preserve">
-    <value>Supply history export</value>
+    <value>Exportación del historial de suministros</value>
   </data>
   <data name="Pro_BatchPrintAutomation" xml:space="preserve">
-    <value>Batch print automation</value>
+    <value>Automatización de la impresión en lote</value>
   </data>
   <data name="Pro_FleetExport" xml:space="preserve">
-    <value>Fleet export and command line</value>
+    <value>Exportación de la flota y línea de comandos</value>
   </data>
   <data name="Pro_ScannerSharing" xml:space="preserve">
-    <value>Scanner sharing</value>
+    <value>Uso compartido del escáner</value>
   </data>
   <data name="Pro_SupplyHistoryExport_Describe" xml:space="preserve">
-    <value>Export one CSV of every printer's ink and toner levels over time, with the pages each cartridge printed.</value>
+    <value>Exporta un CSV con los niveles de tinta y tóner de cada impresora a lo largo del tiempo, con las páginas que imprimió cada cartucho.</value>
   </data>
   <data name="Pro_BatchPrintAutomation_Describe" xml:space="preserve">
-    <value>Save a batch-print list, print a folder as files land in it, run a list from the command line, and keep the results as CSV.</value>
+    <value>Guarda una lista de impresión en lote, imprime una carpeta a medida que llegan archivos, ejecuta una lista desde la línea de comandos y guarda los resultados como CSV.</value>
   </data>
   <data name="Pro_FleetExport_Describe" xml:space="preserve">
-    <value>Export the fleet page as CSV or JSON, read every printer from a script with inkvoltprint status --all, and fix every queue at once.</value>
+    <value>Exporta la página de la flota como CSV o JSON, lee todas las impresoras desde un script con inkvoltprint status --all y resuelve todas las colas a la vez.</value>
   </data>
   <data name="Pro_ScannerSharing_Describe" xml:space="preserve">
-    <value>Share a USB or driver-only scanner on the network, so phones, Macs and other PCs scan from it.</value>
+    <value>Comparte en la red un escáner USB o que solo funciona con controlador, para que teléfonos, Mac y otros PC escaneen desde él.</value>
   </data>
   <data name="Pro_Snmpv3_Describe" xml:space="preserve">
-    <value>Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community.</value>
+    <value>Lee impresoras cuyo SNMP pide un nombre de usuario y claves (SNMPv3) en lugar de una comunidad.</value>
   </data>
   <data name="Pro_SupplyHistoryExport_Locked" xml:space="preserve">
-    <value>Exporting the supply history is part of Inkvolt Pro.</value>
+    <value>Exportar el historial de suministros es parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_BatchPrintAutomation_Locked" xml:space="preserve">
-    <value>Batch print lists, folders and the command line are part of Inkvolt Pro.</value>
+    <value>Las listas de impresión en lote, las carpetas y la línea de comandos son parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_FleetExport_Locked" xml:space="preserve">
-    <value>Fleet export, status --all and Fix all are part of Inkvolt Pro.</value>
+    <value>La exportación de la flota, status --all y Resolver todo son parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_ScannerSharing_Locked" xml:space="preserve">
-    <value>Scanner sharing is part of Inkvolt Pro.</value>
+    <value>El uso compartido del escáner es parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_Snmpv3_Locked" xml:space="preserve">
-    <value>SNMPv3 is part of Inkvolt Pro.</value>
+    <value>SNMPv3 es parte de Inkvolt Pro.</value>
   </data>
   <data name="Status_JobCancelling" xml:space="preserve">
-    <value>Cancelling</value>
+    <value>Cancelando</value>
   </data>
   <data name="Status_JobPrinterOffline" xml:space="preserve">
-    <value>Printer offline</value>
+    <value>Impresora sin conexión</value>
   </data>
   <data name="Status_JobNeedsAttention" xml:space="preserve">
-    <value>Needs attention at the printer</value>
+    <value>Requiere atención en la impresora</value>
   </data>
   <data name="Status_JobError" xml:space="preserve">
     <value>Error</value>
   </data>
   <data name="Status_JobBlocked" xml:space="preserve">
-    <value>Blocked</value>
+    <value>Bloqueado</value>
   </data>
   <data name="Status_JobPaused" xml:space="preserve">
-    <value>Paused</value>
+    <value>En pausa</value>
   </data>
   <data name="Status_JobPrinted" xml:space="preserve">
-    <value>Printed</value>
+    <value>Impreso</value>
   </data>
   <data name="Status_JobPrinting" xml:space="preserve">
-    <value>Printing</value>
+    <value>Imprimiendo</value>
   </data>
   <data name="Status_JobPreparing" xml:space="preserve">
-    <value>Preparing</value>
+    <value>Preparando</value>
   </data>
   <data name="Status_JobWaiting" xml:space="preserve">
-    <value>Waiting</value>
+    <value>En espera</value>
   </data>
   <data name="Status_JobPageOf" xml:space="preserve">
-    <value>Page {0} of {1}</value>
+    <value>Página {0} de {1}</value>
   </data>
   <data name="Status_JobPages_One" xml:space="preserve">
-    <value>{0} page</value>
+    <value>{0} página</value>
   </data>
   <data name="Status_JobPages_Many" xml:space="preserve">
-    <value>{0} pages</value>
+    <value>{0} páginas</value>
   </data>
   <data name="Status_JobsNone" xml:space="preserve">
-    <value>Nothing waiting to print</value>
+    <value>Nada en espera de impresión</value>
   </data>
   <data name="Status_Jobs_One" xml:space="preserve">
-    <value>{0} job</value>
+    <value>{0} trabajo</value>
   </data>
   <data name="Status_Jobs_Many" xml:space="preserve">
-    <value>{0} jobs</value>
+    <value>{0} trabajos</value>
   </data>
   <data name="Status_JobsPrinting" xml:space="preserve">
-    <value>{0} jobs, {1} printing</value>
+    <value>{0} trabajos, {1} imprimiéndose</value>
   </data>
   <data name="Batch_RangeHint" xml:space="preserve">
-    <value>Use page numbers like 1-3, 5</value>
+    <value>Usa números de página como 1-3, 5</value>
   </data>
   <data name="Batch_RangeStartsAt1" xml:space="preserve">
-    <value>Pages start at 1</value>
+    <value>Las páginas empiezan en 1</value>
   </data>
   <data name="Batch_RangeDocHas_One" xml:space="preserve">
-    <value>This document has {0} page</value>
+    <value>Este documento tiene {0} página</value>
   </data>
   <data name="Batch_RangeDocHas_Many" xml:space="preserve">
-    <value>This document has {0} pages</value>
+    <value>Este documento tiene {0} páginas</value>
   </data>
   <data name="Batch_PictureNoSize" xml:space="preserve">
-    <value>The picture is damaged: it has no size.</value>
+    <value>La imagen está dañada: no tiene tamaño.</value>
   </data>
   <data name="Batch_PictureTooLarge" xml:space="preserve">
-    <value>The picture is too large to print ({0:N0} × {1:N0} pixels).</value>
+    <value>La imagen es demasiado grande para imprimirla ({0:N0} × {1:N0} píxeles).</value>
   </data>
   <data name="Batch_NoPages" xml:space="preserve">
-    <value>The file has no pages.</value>
+    <value>El archivo no tiene páginas.</value>
   </data>
   <data name="Batch_TooManyPages" xml:space="preserve">
-    <value>The file has {0:N0} pages: a batch takes at most {1:N0} per file. Print a PDF or split it first.</value>
+    <value>El archivo tiene {0:N0} páginas: un lote admite como máximo {1:N0} por archivo. Imprime un PDF o divídelo primero.</value>
   </data>
   <data name="Batch_NeedsPassword" xml:space="preserve">
-    <value>This PDF needs a password.</value>
+    <value>Este PDF necesita una contraseña.</value>
   </data>
   <data name="Batch_IsLink" xml:space="preserve">
-    <value>This is a link to a file elsewhere: add the file itself.</value>
+    <value>Esto es un acceso directo a un archivo de otro lugar: agrega el archivo en sí.</value>
   </data>
   <data name="Batch_FileEmpty" xml:space="preserve">
-    <value>The file is empty.</value>
+    <value>El archivo está vacío.</value>
   </data>
   <data name="Batch_FileTooLarge" xml:space="preserve">
-    <value>The file is too large to print here ({0:N0} MB).</value>
+    <value>El archivo es demasiado grande para imprimirlo aquí ({0:N0} MB).</value>
   </data>
   <data name="Batch_DriverCopies_One" xml:space="preserve">
-    <value>The printer's driver would print {0} copy instead of {1}.</value>
+    <value>El controlador de la impresora imprimiría {0} copia en lugar de {1}.</value>
   </data>
   <data name="Batch_DriverCopies_Many" xml:space="preserve">
-    <value>The printer's driver would print {0} copies instead of {1}.</value>
+    <value>El controlador de la impresora imprimiría {0} copias en lugar de {1}.</value>
   </data>
   <data name="Batch_DriverNotTwoSided" xml:space="preserve">
-    <value>The printer's driver wouldn't print this two-sided, which would take more paper than the estimate.</value>
+    <value>El controlador de la impresora no lo imprimiría a doble cara, lo que usaría más papel que el estimado.</value>
   </data>
   <data name="Batch_DriverTwoSided" xml:space="preserve">
-    <value>The printer's driver would print this two-sided though one-sided was asked for.</value>
+    <value>El controlador de la impresora lo imprimiría a doble cara aunque se pidió a una cara.</value>
   </data>
   <data name="Batch_DriverPaper" xml:space="preserve">
-    <value>The printer's driver wouldn't keep the paper chosen for this file.</value>
+    <value>El controlador de la impresora no mantendría el papel elegido para este archivo.</value>
   </data>
   <data name="Batch_FileGone" xml:space="preserve">
-    <value>The file is gone.</value>
+    <value>El archivo ya no está.</value>
   </data>
   <data name="Batch_FileNoAccess" xml:space="preserve">
-    <value>Windows doesn't let Inkvolt Print read this file.</value>
+    <value>Windows no deja que Inkvolt Print lea este archivo.</value>
   </data>
   <data name="Batch_FileInUse" xml:space="preserve">
-    <value>Another program is using the file: it may still be being written.</value>
+    <value>Otro programa está usando el archivo: puede que todavía se esté escribiendo.</value>
   </data>
   <data name="Batch_PathTooLong" xml:space="preserve">
-    <value>The file's path is too long.</value>
+    <value>La ruta del archivo es demasiado larga.</value>
   </data>
   <data name="Batch_SheetCount_One" xml:space="preserve">
-    <value>{0:N0} sheet</value>
+    <value>{0:N0} hoja</value>
   </data>
   <data name="Batch_SheetCount_Many" xml:space="preserve">
-    <value>{0:N0} sheets</value>
+    <value>{0:N0} hojas</value>
   </data>
   <data name="Batch_WrongPassword" xml:space="preserve">
-    <value>The password doesn't open this PDF: it's left out.</value>
+    <value>La contraseña no abre este PDF: se omite.</value>
   </data>
   <data name="Batch_NeedsPasswordLeftOut" xml:space="preserve">
-    <value>This PDF needs a password: it's left out.</value>
+    <value>Este PDF necesita una contraseña: se omite.</value>
   </data>
   <data name="Batch_OpenTimeout" xml:space="preserve">
-    <value>The file took too long to open: it may be damaged. It's left out.</value>
+    <value>El archivo tardó demasiado en abrirse: puede que esté dañado. Se omite.</value>
   </data>
   <data name="Batch_CantRead" xml:space="preserve">
-    <value>This file can't be read.</value>
+    <value>No se puede leer este archivo.</value>
   </data>
   <data name="Batch_CopiesRange" xml:space="preserve">
-    <value>Copies must be 1 to {0}.</value>
+    <value>Las copias deben ser de 1 a {0}.</value>
   </data>
   <data name="Batch_NoTwoSided" xml:space="preserve">
-    <value>This printer doesn't print two-sided.</value>
+    <value>Esta impresora no imprime a doble cara.</value>
   </data>
   <data name="Batch_NoSuchPaper" xml:space="preserve">
-    <value>This printer doesn't offer the paper "{0}".</value>
+    <value>Esta impresora no ofrece el papel "{0}".</value>
   </data>
   <data name="Batch_BadRange" xml:space="preserve">
-    <value>The pages "{0}" can't be printed: {1}.</value>
+    <value>No se pueden imprimir las páginas "{0}": {1}.</value>
   </data>
   <data name="Batch_CountSent_One" xml:space="preserve">
-    <value>{0:N0} sent ({1})</value>
+    <value>{0:N0} enviado ({1})</value>
   </data>
   <data name="Batch_CountSent_Many" xml:space="preserve">
-    <value>{0:N0} sent ({1})</value>
+    <value>{0:N0} enviados ({1})</value>
   </data>
   <data name="Batch_CountSkipped_One" xml:space="preserve">
-    <value>{0:N0} skipped</value>
+    <value>{0:N0} omitido</value>
   </data>
   <data name="Batch_CountSkipped_Many" xml:space="preserve">
-    <value>{0:N0} skipped</value>
+    <value>{0:N0} omitidos</value>
   </data>
   <data name="Batch_CountFailed_One" xml:space="preserve">
-    <value>{0:N0} failed</value>
+    <value>{0:N0} con error</value>
   </data>
   <data name="Batch_CountFailed_Many" xml:space="preserve">
-    <value>{0:N0} failed</value>
+    <value>{0:N0} con error</value>
   </data>
   <data name="Batch_CountNotSent_One" xml:space="preserve">
-    <value>{0:N0} not sent</value>
+    <value>{0:N0} sin enviar</value>
   </data>
   <data name="Batch_CountNotSent_Many" xml:space="preserve">
-    <value>{0:N0} not sent</value>
+    <value>{0:N0} sin enviar</value>
   </data>
   <data name="Batch_StoppedAt" xml:space="preserve">
-    <value>Stopped at file {0:N0} of {1:N0} ({2})</value>
+    <value>Detenido en el archivo {0:N0} de {1:N0} ({2})</value>
   </data>
   <data name="Batch_StoppedWord" xml:space="preserve">
-    <value>Stopped</value>
+    <value>Detenido</value>
   </data>
   <data name="Batch_StoppedSummary" xml:space="preserve">
     <value>{0}: {1} {2}</value>
   </data>
   <data name="Batch_NotSentStopped" xml:space="preserve">
-    <value>Not sent: the batch stopped before it.</value>
+    <value>No se envió: el lote se detuvo antes.</value>
   </data>
   <data name="Batch_YouStopped" xml:space="preserve">
-    <value>You stopped the batch.</value>
+    <value>Detuviste el lote.</value>
   </data>
   <data name="Batch_GettingReady" xml:space="preserve">
-    <value>Getting it ready…</value>
+    <value>Preparándolo…</value>
   </data>
   <data name="Batch_WindowsNoAnswer" xml:space="preserve">
-    <value>Windows doesn't answer about the printer.</value>
+    <value>Windows no responde sobre la impresora.</value>
   </data>
   <data name="Batch_PasswordChanged" xml:space="preserve">
-    <value>The file changed since the estimate: its password no longer opens it. Not printed.</value>
+    <value>El archivo cambió desde el cálculo: su contraseña ya no lo abre. No se imprimió.</value>
   </data>
   <data name="Batch_NotPrinted" xml:space="preserve">
-    <value>{0} Not printed.</value>
+    <value>{0} No se imprimió.</value>
   </data>
   <data name="Batch_Changed" xml:space="preserve">
-    <value>The file changed since the estimate. Not printed: check the list again to print it.</value>
+    <value>El archivo cambió desde el cálculo. No se imprimió: vuelve a revisar la lista para imprimirlo.</value>
   </data>
   <data name="Batch_ChangedPages_One" xml:space="preserve">
-    <value>The file changed since the estimate ({0:N0} page then, {1:N0} now). Not printed: check the list again to print it.</value>
+    <value>El archivo cambió desde el cálculo ({0:N0} página antes, {1:N0} ahora). No se imprimió: vuelve a revisar la lista para imprimirlo.</value>
   </data>
   <data name="Batch_ChangedPages_Many" xml:space="preserve">
-    <value>The file changed since the estimate ({0:N0} pages then, {1:N0} now). Not printed: check the list again to print it.</value>
+    <value>El archivo cambió desde el cálculo ({0:N0} páginas antes, {1:N0} ahora). No se imprimió: vuelve a revisar la lista para imprimirlo.</value>
   </data>
   <data name="Batch_SpoolTimeout" xml:space="preserve">
-    <value>Windows didn't finish taking it in time: check the queue before sending it again.</value>
+    <value>Windows no terminó de recibirlo a tiempo: revisa la cola antes de volver a enviarlo.</value>
   </data>
   <data name="Batch_DrawTimeout" xml:space="preserve">
-    <value>It took too long to draw: it may be damaged. Not printed.</value>
+    <value>Tardó demasiado en dibujarse: puede que esté dañado. No se imprimió.</value>
   </data>
   <data name="Batch_WindowsStoppedTaking" xml:space="preserve">
-    <value>Windows stopped taking jobs.</value>
+    <value>Windows dejó de aceptar trabajos.</value>
   </data>
   <data name="Batch_MoreThanEstimated" xml:space="preserve">
-    <value>The queue took {0}, more than the {1:N0} estimated.</value>
+    <value>La cola recibió {0}, más de las {1:N0} estimadas.</value>
   </data>
   <data name="Batch_MoreThanEstimatedStop" xml:space="preserve">
-    <value>A job came to more sheets than its estimate, so nothing more is sent.</value>
+    <value>Un trabajo usó más hojas de las estimadas, así que no se envía nada más.</value>
   </data>
   <data name="Batch_SentToQueue" xml:space="preserve">
-    <value>Sent to the queue: {0}.</value>
+    <value>Enviado a la cola: {0}.</value>
   </data>
   <data name="Batch_SendFailedPartWay" xml:space="preserve">
-    <value>Sending failed part-way: check the queue before sending it again.</value>
+    <value>El envío falló a medias: revisa la cola antes de volver a enviarlo.</value>
   </data>
   <data name="Batch_SendFailed" xml:space="preserve">
-    <value>Sending failed: check the queue before sending it again.</value>
+    <value>El envío falló: revisa la cola antes de volver a enviarlo.</value>
   </data>
   <data name="Batch_FolderWatched" xml:space="preserve">
-    <value>{0} is already watched (by Inkvolt Print or Inkvolt PDF, the app or a command line). Stop that one first.</value>
+    <value>{0} ya se está vigilando (desde Inkvolt Print o Inkvolt PDF, la aplicación o una línea de comandos). Detén esa vigilancia primero.</value>
   </data>
   <data name="Batch_ChooseFolder" xml:space="preserve">
-    <value>Choose the folder to watch.</value>
+    <value>Elige la carpeta que quieres vigilar.</value>
   </data>
   <data name="Batch_NoFolder" xml:space="preserve">
-    <value>There is no folder {0}.</value>
+    <value>No existe la carpeta {0}.</value>
   </data>
   <data name="Batch_Interrupted" xml:space="preserve">
-    <value>Interrupted: Inkvolt Print closed while sending it, so it may have printed. Put it back in the folder to print it again.</value>
+    <value>Interrumpido: Inkvolt Print se cerró mientras lo enviaba, así que puede que se haya impreso. Vuelve a ponerlo en la carpeta para imprimirlo otra vez.</value>
   </data>
   <data name="Batch_CutOff" xml:space="preserve">
-    <value>It reads as cut off and hasn't changed since. Not printed: if it is whole, print it from Print &gt; Batch.</value>
+    <value>Parece incompleto y no ha cambiado desde entonces. No se imprimió: si está completo, imprímelo desde Imprimir &gt; Lote.</value>
   </data>
   <data name="Batch_NoQueueBack" xml:space="preserve">
-    <value>Not sent: this printer has no queue now. It's back in the folder.</value>
+    <value>No se envió: esta impresora ya no tiene cola. Volvió a la carpeta.</value>
   </data>
   <data name="Batch_NoQueue" xml:space="preserve">
-    <value>This printer has no queue now.</value>
+    <value>Esta impresora ya no tiene cola.</value>
   </data>
   <data name="Batch_OverRunLimit" xml:space="preserve">
-    <value>It would print {0}, more than the {1:N0} a run may send. Not printed.</value>
+    <value>Imprimiría {0}, más de las {1:N0} que puede enviar una ejecución. No se imprimió.</value>
   </data>
   <data name="Batch_RunLimitReached" xml:space="preserve">
-    <value>This run has sent {0}, and the next file would pass the {1:N0} it may send.</value>
+    <value>Esta ejecución envió {0}, y el siguiente archivo superaría las {1:N0} que puede enviar.</value>
   </data>
   <data name="Batch_RunLimitBack" xml:space="preserve">
-    <value>Not sent: the run's limit of sheets. It's back in the folder.</value>
+    <value>No se envió: se alcanzó el límite de hojas de la ejecución. Volvió a la carpeta.</value>
   </data>
   <data name="Batch_StoppedBack" xml:space="preserve">
-    <value>Stopped before it was sent: it's back in the folder for next time.</value>
+    <value>Se detuvo antes de enviarse: volvió a la carpeta para la próxima vez.</value>
   </data>
   <data name="Batch_CantReadPrinterBack" xml:space="preserve">
-    <value>Not sent: the printer can't be read. It's back in the folder for next time.</value>
+    <value>No se envió: no se puede leer la impresora. Volvió a la carpeta para la próxima vez.</value>
   </data>
   <data name="Batch_NotSentBack" xml:space="preserve">
-    <value>Not sent: {0} It's back in the folder for next time.</value>
+    <value>No se envió: {0} Volvió a la carpeta para la próxima vez.</value>
   </data>
   <data name="Batch_OriginalStays" xml:space="preserve">
-    <value>{0} (the original stays in {1}: it couldn't be moved)</value>
+    <value>{0} (el original se queda en {1}: no se pudo mover)</value>
   </data>
   <data name="Batch_ListNetwork" xml:space="preserve">
-    <value>This list points at files on other computers ({0}).</value>
+    <value>Esta lista apunta a archivos de otros equipos ({0}).</value>
   </data>
   <data name="Batch_ListMissing" xml:space="preserve">
-    <value>There is no list file {0}.</value>
+    <value>No existe el archivo de lista {0}.</value>
   </data>
   <data name="Batch_ListTooLarge" xml:space="preserve">
-    <value>This list file is too large.</value>
+    <value>Este archivo de lista es demasiado grande.</value>
   </data>
   <data name="Batch_ListCantRead" xml:space="preserve">
-    <value>The list file can't be read: {0}</value>
+    <value>No se puede leer el archivo de lista: {0}</value>
   </data>
   <data name="Batch_ListEmpty" xml:space="preserve">
-    <value>This isn't a batch list: it's empty.</value>
+    <value>Esto no es una lista de lote: está vacía.</value>
   </data>
   <data name="Batch_ListDamaged" xml:space="preserve">
-    <value>This isn't a batch list, or it's damaged.</value>
+    <value>Esto no es una lista de lote, o está dañada.</value>
   </data>
   <data name="Batch_ListNewer" xml:space="preserve">
-    <value>This list was made by a newer Inkvolt Print: update it to open the list.</value>
+    <value>Esta lista se hizo con una versión más reciente de Inkvolt Print: actualízalo para abrir la lista.</value>
   </data>
   <data name="Batch_ListNoVersion" xml:space="preserve">
-    <value>This isn't a batch list: it says no version or no files.</value>
+    <value>Esto no es una lista de lote: no indica versión o no tiene archivos.</value>
   </data>
   <data name="Batch_ListTooManyLines" xml:space="preserve">
-    <value>This list has {0:N0} lines: a batch takes at most {1:N0} files.</value>
+    <value>Esta lista tiene {0:N0} líneas: un lote admite como máximo {1:N0} archivos.</value>
   </data>
   <data name="Batch_ListLine" xml:space="preserve">
-    <value>Line {0} of the list: {1}</value>
+    <value>Línea {0} de la lista: {1}</value>
   </data>
   <data name="Batch_PathNone" xml:space="preserve">
-    <value>it has no path, or too long a one.</value>
+    <value>no tiene ruta, o la ruta es demasiado larga.</value>
   </data>
   <data name="Batch_ListCopies" xml:space="preserve">
-    <value>copies must be 1 to {0} ({1} asked for).</value>
+    <value>las copias deben ser de 1 a {0} (se pidieron {1}).</value>
   </data>
   <data name="Batch_ListPagesTooLong" xml:space="preserve">
-    <value>its pages are too long a text.</value>
+    <value>sus páginas son un texto demasiado largo.</value>
   </data>
   <data name="Batch_ListPaperTooLong" xml:space="preserve">
-    <value>its paper is too long a text.</value>
+    <value>su papel es un texto demasiado largo.</value>
   </data>
   <data name="Batch_ListNotPrintable" xml:space="preserve">
-    <value>The list names {0}, which is neither a PDF, a picture nor a folder.</value>
+    <value>La lista nombra {0}, que no es un PDF, ni una imagen, ni una carpeta.</value>
   </data>
   <data name="Batch_ListTooManyFiles" xml:space="preserve">
-    <value>This list comes to more than {0:N0} files, the most a batch takes.</value>
+    <value>Esta lista suma más de {0:N0} archivos, lo máximo que admite un lote.</value>
   </data>
   <data name="Batch_PathNotAllowed" xml:space="preserve">
-    <value>"{0}" isn't a path a list may use.</value>
+    <value>"{0}" no es una ruta que pueda usar una lista.</value>
   </data>
   <data name="Batch_PathNotFull" xml:space="preserve">
-    <value>"{0}" isn't a full path, or one from the list's folder.</value>
+    <value>"{0}" no es una ruta completa ni una de la carpeta de la lista.</value>
   </data>
   <data name="Batch_PathNotOnPc" xml:space="preserve">
-    <value>"{0}" isn't a file on this PC.</value>
+    <value>"{0}" no es un archivo de este PC.</value>
   </data>
   <data name="Batch_PathDevice" xml:space="preserve">
-    <value>"{0}" names a device.</value>
+    <value>"{0}" nombra un dispositivo.</value>
   </data>
   <data name="Batch_PathLeavesFolder" xml:space="preserve">
-    <value>"{0}" leaves the list's folder: use a full path for that.</value>
+    <value>"{0}" sale de la carpeta de la lista: usa una ruta completa para eso.</value>
   </data>
   <data name="Photo_PaperLetter" xml:space="preserve">
-    <value>Letter (8.5 × 11 in)</value>
+    <value>Carta (8.5 × 11 in)</value>
   </data>
   <data name="Photo_PaperLegal" xml:space="preserve">
     <value>Legal (8.5 × 14 in)</value>
   </data>
   <data name="Photo_PaperTabloid" xml:space="preserve">
-    <value>Tabloid (11 × 17 in)</value>
+    <value>Tabloide (11 × 17 in)</value>
   </data>
   <data name="Photo_PaperExecutive" xml:space="preserve">
-    <value>Executive (7.25 × 10.5 in)</value>
+    <value>Ejecutivo (7.25 × 10.5 in)</value>
   </data>
   <data name="Photo_PaperHagaki" xml:space="preserve">
-    <value>Hagaki postcard (10 × 14.8 cm)</value>
+    <value>Postal Hagaki (10 × 14.8 cm)</value>
   </data>
   <data name="Photo_Paper3x5" xml:space="preserve">
-    <value>3.5 × 5 in photo</value>
+    <value>Foto de 3.5 × 5 in</value>
   </data>
   <data name="Photo_Paper4x6" xml:space="preserve">
-    <value>4 × 6 in photo</value>
+    <value>Foto de 4 × 6 in</value>
   </data>
   <data name="Photo_Paper5x7" xml:space="preserve">
-    <value>5 × 7 in photo</value>
+    <value>Foto de 5 × 7 in</value>
   </data>
   <data name="Photo_Paper8x10" xml:space="preserve">
-    <value>8 × 10 in photo</value>
+    <value>Foto de 8 × 10 in</value>
   </data>
   <data name="Photo_Paper10x15" xml:space="preserve">
-    <value>10 × 15 cm photo</value>
+    <value>Foto de 10 × 15 cm</value>
   </data>
   <data name="Photo_Paper13x18" xml:space="preserve">
-    <value>13 × 18 cm photo</value>
+    <value>Foto de 13 × 18 cm</value>
   </data>
   <data name="Photo_Wallet" xml:space="preserve">
-    <value>Wallet (2.5 × 3.5 in)</value>
+    <value>Cartera (2.5 × 3.5 in)</value>
   </data>
   <data name="Photo_MediaPlain" xml:space="preserve">
-    <value>Plain paper</value>
+    <value>Papel normal</value>
   </data>
   <data name="Photo_MediaAuto" xml:space="preserve">
-    <value>Let the printer choose</value>
+    <value>Que elija la impresora</value>
   </data>
   <data name="Photo_MediaPhoto" xml:space="preserve">
-    <value>Photo paper</value>
+    <value>Papel fotográfico</value>
   </data>
   <data name="Photo_MediaGlossy" xml:space="preserve">
-    <value>Photo paper, glossy</value>
+    <value>Papel fotográfico, brillante</value>
   </data>
   <data name="Photo_MediaHighGloss" xml:space="preserve">
-    <value>Photo paper, high gloss</value>
+    <value>Papel fotográfico, alto brillo</value>
   </data>
   <data name="Photo_MediaSemiGloss" xml:space="preserve">
-    <value>Photo paper, semi-gloss</value>
+    <value>Papel fotográfico, semibrillante</value>
   </data>
   <data name="Photo_MediaMatte" xml:space="preserve">
-    <value>Photo paper, matte</value>
+    <value>Papel fotográfico, mate</value>
   </data>
   <data name="Photo_MediaSatin" xml:space="preserve">
-    <value>Photo paper, satin</value>
+    <value>Papel fotográfico, satinado</value>
   </data>
   <data name="Photo_MediaFilm" xml:space="preserve">
-    <value>Photo film</value>
+    <value>Película fotográfica</value>
   </data>
   <data name="Photo_MediaLabel" xml:space="preserve">
-    <value>Label</value>
+    <value>Etiqueta</value>
   </data>
   <data name="Photo_MediaCardStock" xml:space="preserve">
-    <value>Card stock</value>
+    <value>Cartulina</value>
   </data>
   <data name="Photo_MediaTransparency" xml:space="preserve">
-    <value>Transparency</value>
+    <value>Transparencia</value>
   </data>
   <data name="Photo_MediaEnvelope" xml:space="preserve">
-    <value>Envelope</value>
+    <value>Sobre</value>
   </data>
   <data name="Photo_QualityBest" xml:space="preserve">
-    <value>Photo (best)</value>
+    <value>Foto (la mejor)</value>
   </data>
   <data name="Photo_QualityDraft" xml:space="preserve">
-    <value>Draft</value>
+    <value>Borrador</value>
   </data>
   <data name="Photo_QualityNormal" xml:space="preserve">
     <value>Normal</value>
   </data>
   <data name="Photo_QualityHigh" xml:space="preserve">
-    <value>High</value>
+    <value>Alta</value>
   </data>
   <data name="Photo_ColorGrey" xml:space="preserve">
-    <value>Shades of grey</value>
+    <value>Escala de grises</value>
   </data>
   <data name="Photo_ColorBlackWhite" xml:space="preserve">
-    <value>Black and white</value>
+    <value>Blanco y negro</value>
   </data>
   <data name="Photo_ColorColor" xml:space="preserve">
     <value>Color</value>
   </data>
   <data name="Preset_DocumentName" xml:space="preserve">
-    <value>Document to PDF</value>
+    <value>Documento a PDF</value>
   </data>
   <data name="Preset_PhotoName" xml:space="preserve">
-    <value>Photo</value>
+    <value>Foto</value>
   </data>
   <data name="Preset_ReceiptName" xml:space="preserve">
-    <value>Receipt</value>
+    <value>Recibo</value>
   </data>
   <data name="Preset_ScansFolder" xml:space="preserve">
-    <value>Scans</value>
+    <value>Escaneos</value>
   </data>
   <data name="Preset_ReceiptsFolder" xml:space="preserve">
-    <value>Scans\Receipts\{date:yyyy}</value>
+    <value>Escaneos\Recibos\{date:yyyy}</value>
   </data>
   <data name="Preset_DocumentFileName" xml:space="preserve">
-    <value>Document {date} {time}</value>
+    <value>Documento {date} {time}</value>
   </data>
   <data name="Preset_PhotoFileName" xml:space="preserve">
-    <value>Photo {date} {time}</value>
+    <value>Foto {date} {time}</value>
   </data>
   <data name="Preset_ReceiptFileName" xml:space="preserve">
-    <value>Receipt {date} {n:000}</value>
+    <value>Recibo {date} {n:000}</value>
   </data>
   <data name="Preset_DefaultName" xml:space="preserve">
-    <value>Scan preset</value>
+    <value>Ajuste de escaneo</value>
   </data>
   <data name="Preset_NewName" xml:space="preserve">
-    <value>New preset</value>
+    <value>Ajuste nuevo</value>
   </data>
   <data name="Preset_CopyName" xml:space="preserve">
-    <value>{0} copy</value>
+    <value>Copia de {0}</value>
   </data>
   <data name="Preset_NameEmpty" xml:space="preserve">
-    <value>Give the preset a name.</value>
+    <value>Ponle un nombre al ajuste.</value>
   </data>
   <data name="Preset_NameTooLong" xml:space="preserve">
-    <value>Names can be up to {0} characters.</value>
+    <value>Los nombres pueden tener hasta {0} caracteres.</value>
   </data>
   <data name="Preset_NameTaken" xml:space="preserve">
-    <value>Another preset is already called "{0}".</value>
+    <value>Ya hay otro ajuste llamado "{0}".</value>
   </data>
   <data name="Preset_SearchablePdf" xml:space="preserve">
-    <value>Searchable PDF</value>
+    <value>PDF con texto buscable</value>
   </data>
   <data name="Preset_JpegImages" xml:space="preserve">
-    <value>JPEG images</value>
+    <value>Imágenes JPEG</value>
   </data>
   <data name="Preset_SourceGlass" xml:space="preserve">
-    <value>glass</value>
+    <value>cristal</value>
   </data>
   <data name="Preset_SourceFeeder" xml:space="preserve">
-    <value>feeder</value>
+    <value>alimentador</value>
   </data>
   <data name="Preset_SourceFeederBoth" xml:space="preserve">
-    <value>feeder, both sides</value>
+    <value>alimentador, ambas caras</value>
   </data>
   <data name="Preset_SourceAuto" xml:space="preserve">
-    <value>feeder or glass</value>
+    <value>alimentador o cristal</value>
   </data>
   <data name="Preset_SourceAutoBoth" xml:space="preserve">
-    <value>feeder (both sides) or glass</value>
+    <value>alimentador (ambas caras) o cristal</value>
   </data>
   <data name="Preset_AfterOpenPdf" xml:space="preserve">
-    <value>open in Inkvolt PDF</value>
+    <value>abrir en Inkvolt PDF</value>
   </data>
   <data name="Preset_AfterPrint" xml:space="preserve">
-    <value>print a copy</value>
+    <value>imprimir una copia</value>
   </data>
   <data name="Preset_AfterEmail" xml:space="preserve">
-    <value>email it</value>
+    <value>enviarlo por correo electrónico</value>
   </data>
   <data name="Preset_AfterNothing" xml:space="preserve">
-    <value>nothing else</value>
+    <value>nada más</value>
   </data>
   <data name="Preset_FolderPictures" xml:space="preserve">
-    <value>Pictures</value>
+    <value>Imágenes</value>
   </data>
   <data name="Preset_FolderDocuments" xml:space="preserve">
-    <value>Documents</value>
+    <value>Documentos</value>
   </data>
   <data name="Preset_SplitBlank" xml:space="preserve">
-    <value>blank page</value>
+    <value>página en blanco</value>
   </data>
   <data name="Preset_SplitPatchOrBlank" xml:space="preserve">
-    <value>patch code sheet or blank page</value>
+    <value>hoja con código patch o página en blanco</value>
   </data>
   <data name="Preset_SplitPatch" xml:space="preserve">
-    <value>patch code sheet</value>
+    <value>hoja con código patch</value>
   </data>
   <data name="Preset_ColorDpi" xml:space="preserve">
-    <value>color, {0} dpi</value>
+    <value>color, {0} ppp</value>
   </data>
   <data name="Preset_GreyDpi" xml:space="preserve">
-    <value>grey, {0} dpi</value>
+    <value>gris, {0} ppp</value>
   </data>
   <data name="Preset_NewFileAtEach" xml:space="preserve">
-    <value>a new file at each {0}</value>
+    <value>un archivo nuevo en cada {0}</value>
   </data>
   <data name="Preset_EachPhoto" xml:space="preserve">
-    <value>each photo on the glass by itself</value>
+    <value>cada foto del cristal por separado</value>
   </data>
   <data name="Preset_ReviewFirst" xml:space="preserve">
-    <value>review first</value>
+    <value>revisar primero</value>
   </data>
   <data name="Preset_Then" xml:space="preserve">
-    <value>then {0}</value>
+    <value>luego {0}</value>
   </data>
   <data name="Preset_FallbackFileName" xml:space="preserve">
-    <value>Scan</value>
+    <value>Escaneo</value>
   </data>
   <data name="Preset_BadDateFormat" xml:space="preserve">
-    <value>{0} isn't a date or time format .NET understands.</value>
+    <value>{0} no es un formato de fecha u hora que .NET entienda.</value>
   </data>
   <data name="Preset_TokenNoFormat" xml:space="preserve">
-    <value>{0} takes no format.</value>
+    <value>{0} no admite formato.</value>
   </data>
   <data name="Preset_UnknownToken" xml:space="preserve">
-    <value>Unknown token {0}. Use {1} or {2}.</value>
+    <value>Marcador desconocido {0}. Usa {1} o {2}.</value>
   </data>
   <data name="Preset_NoClosingBrace" xml:space="preserve">
-    <value>A { has no closing }. Type {{ for a brace.</value>
+    <value>Una { no tiene su } de cierre. Escribe {{ para una llave.</value>
   </data>
   <data name="Preset_NoOpeningBrace" xml:space="preserve">
-    <value>A } has no opening {. Type }} for a brace.</value>
+    <value>Una } no tiene su { de apertura. Escribe }} para una llave.</value>
   </data>
   <data name="Preset_TooManyFiles" xml:space="preserve">
-    <value>Too many files called "{0}" in {1}.</value>
+    <value>Hay demasiados archivos llamados "{0}" en {1}.</value>
   </data>
   <data name="Preset_CouldntPutBack" xml:space="preserve">
-    <value>Couldn't put {0} back while picking another name.</value>
+    <value>No se pudo devolver {0} a su lugar al elegir otro nombre.</value>
   </data>
   <data name="Preset_NoFreeName" xml:space="preserve">
-    <value>Couldn't find a free name for "{0}" in {1}.</value>
+    <value>No se encontró un nombre libre para "{0}" en {1}.</value>
   </data>
   <data name="Preset_NoGlass" xml:space="preserve">
-    <value>This scanner has no glass: scanning from the document feeder.</value>
+    <value>Este escáner no tiene cristal: se escanea desde el alimentador de documentos.</value>
   </data>
   <data name="Preset_NoFeeder" xml:space="preserve">
-    <value>This scanner has no document feeder: scanning from the glass.</value>
+    <value>Este escáner no tiene alimentador de documentos: se escanea desde el cristal.</value>
   </data>
   <data name="Preset_OneSideOnly" xml:space="preserve">
-    <value>This scanner's feeder scans one side only.</value>
+    <value>El alimentador de este escáner solo escanea una cara.</value>
   </data>
   <data name="Preset_SizeDoesntFit" xml:space="preserve">
-    <value>{0} doesn't fit this source: scanning {1}.</value>
+    <value>{0} no cabe en esta fuente: se escanea {1}.</value>
   </data>
   <data name="Preset_NoOcr" xml:space="preserve">
-    <value>Text recognition isn't available on this PC: the PDF won't be searchable.</value>
+    <value>El reconocimiento de texto no está disponible en este PC: el PDF no tendrá texto buscable.</value>
   </data>
   <data name="Preset_Attached" xml:space="preserve">
-    <value>Attached: {0}</value>
+    <value>Adjuntos: {0}</value>
   </data>
   <data name="Wia_Network" xml:space="preserve">
-    <value>Network</value>
+    <value>Red</value>
   </data>
   <data name="Wia_FeederJam" xml:space="preserve">
-    <value>The document feeder is jammed. Clear the paper and try again.</value>
+    <value>El alimentador de documentos está atascado. Quita el papel y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_PaperJam" xml:space="preserve">
-    <value>The scanner reports a paper jam. Clear it and try again.</value>
+    <value>El escáner indica un atasco de papel. Quítalo y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_LoadFeeder" xml:space="preserve">
-    <value>Load the pages into the document feeder first.</value>
+    <value>Primero carga las páginas en el alimentador de documentos.</value>
   </data>
   <data name="Wia_NoPaper" xml:space="preserve">
-    <value>The scanner says there's no paper to scan.</value>
+    <value>El escáner dice que no hay papel para escanear.</value>
   </data>
   <data name="Wia_PaperProblem" xml:space="preserve">
-    <value>The scanner has a problem with the paper. Check the document feeder and try again.</value>
+    <value>El escáner tiene un problema con el papel. Revisa el alimentador de documentos y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_NotAnswering" xml:space="preserve">
-    <value>The scanner isn't answering. Check that it's on and connected (its cable or the network), then try again.</value>
+    <value>El escáner no responde. Comprueba que esté encendido y conectado (su cable o la red) y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_Busy" xml:space="preserve">
-    <value>The scanner is busy with another job. Try again in a moment.</value>
+    <value>El escáner está ocupado con otro trabajo. Vuelve a intentarlo en un momento.</value>
   </data>
   <data name="Wia_WarmingUp" xml:space="preserve">
-    <value>The scanner is warming up. Try again in a moment.</value>
+    <value>El escáner se está calentando. Vuelve a intentarlo en un momento.</value>
   </data>
   <data name="Wia_NeedsAttention" xml:space="preserve">
-    <value>The scanner needs attention: check its panel or display, then try again.</value>
+    <value>El escáner necesita atención: revisa su panel o pantalla y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_LostContact" xml:space="preserve">
-    <value>Windows lost contact with the scanner. Check its connection and try again.</value>
+    <value>Windows perdió el contacto con el escáner. Revisa su conexión y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_CoverOpen" xml:space="preserve">
-    <value>The scanner's cover is open. Close it and try again.</value>
+    <value>La tapa del escáner está abierta. Ciérrala y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_LampOff" xml:space="preserve">
-    <value>The scanner's lamp is off. Turn the scanner off and on again, then try again.</value>
+    <value>La lámpara del escáner está apagada. Apaga el escáner y vuelve a encenderlo, y luego vuelve a intentarlo.</value>
   </data>
   <data name="Wia_LastRequestStuck" xml:space="preserve">
-    <value>The scanner hasn't finished its last request (its driver may have stopped answering). Wait a moment and try again; if it still doesn't answer, turn the scanner off and on, or close and reopen this app.</value>
+    <value>El escáner no ha terminado su última solicitud (puede que su controlador haya dejado de responder). Espera un momento y vuelve a intentarlo; si sigue sin responder, apaga y enciende el escáner, o cierra y vuelve a abrir esta aplicación.</value>
   </data>
   <data name="Wia_ServiceRestarted" xml:space="preserve">
-    <value>Windows' scanning service stopped answering (it may have restarted). Try again: the scanner is connected again.</value>
+    <value>El servicio de escaneo de Windows dejó de responder (puede que se haya reiniciado). Vuelve a intentarlo: el escáner ya está conectado de nuevo.</value>
   </data>
   <data name="Wia_AccessDenied" xml:space="preserve">
-    <value>Windows didn't allow this app to use the scanner. Close other scanning apps and try again.</value>
+    <value>Windows no permitió que esta aplicación usara el escáner. Cierra otras aplicaciones de escaneo y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_OutOfMemory" xml:space="preserve">
-    <value>There wasn't enough memory for this scan. Try a lower resolution or fewer pages.</value>
+    <value>No hubo suficiente memoria para este escaneo. Prueba con una resolución más baja o menos páginas.</value>
   </data>
   <data name="Wia_Locked" xml:space="preserve">
-    <value>The scanner is locked (some have a lock switch for moving them). Unlock it and try again.</value>
+    <value>El escáner está bloqueado (algunos tienen un seguro para transportarlos). Desbloquéalo y vuelve a intentarlo.</value>
   </data>
   <data name="Wia_HardwareSetting" xml:space="preserve">
-    <value>The scanner's settings or switches don't allow this scan. Check the scanner, or try other settings.</value>
+    <value>La configuración o los interruptores del escáner no permiten este escaneo. Revisa el escáner o prueba con otra configuración.</value>
   </data>
   <data name="Wia_DriverFailed" xml:space="preserve">
-    <value>The scanner's driver couldn't do this scan. Try other settings, or reinstall the scanner's driver.</value>
+    <value>El controlador del escáner no pudo hacer este escaneo. Prueba con otra configuración o vuelve a instalar el controlador del escáner.</value>
   </data>
   <data name="Wia_DriverError" xml:space="preserve">
-    <value>The scanner's driver reported an error (0x{0:X8}).</value>
+    <value>El controlador del escáner informó de un error (0x{0:X8}).</value>
   </data>
   <data name="Wia_NoImage" xml:space="preserve">
-    <value>The scanner returned no image.</value>
+    <value>El escáner no devolvió ninguna imagen.</value>
   </data>
   <data name="Wia_FeederNotTaken" xml:space="preserve">
-    <value>The scanner's driver didn't switch to the document feeder, so nothing was scanned. Scan from the glass, or use the scanner's own app.</value>
+    <value>El controlador del escáner no cambió al alimentador de documentos, así que no se escaneó nada. Escanea desde el cristal o usa la aplicación del propio escáner.</value>
   </data>
   <data name="Wia_UnreadableImage" xml:space="preserve">
-    <value>The scanner's driver sent an image that can't be read.</value>
+    <value>El controlador del escáner envió una imagen que no se puede leer.</value>
   </data>
   <data name="Escl_FeederCoverOpen" xml:space="preserve">
-    <value>The document feeder's cover is open. Close it and try again.</value>
+    <value>La tapa del alimentador de documentos está abierta. Ciérrala y vuelve a intentarlo.</value>
   </data>
   <data name="Escl_FeederMispick" xml:space="preserve">
-    <value>The document feeder couldn't pick up a page. Straighten the stack and try again.</value>
+    <value>El alimentador de documentos no pudo tomar una página. Endereza la pila y vuelve a intentarlo.</value>
   </data>
   <data name="Escl_FeederOverloaded" xml:space="preserve">
-    <value>Too many pages in the document feeder. Take some out and try again.</value>
+    <value>Hay demasiadas páginas en el alimentador de documentos. Saca algunas y vuelve a intentarlo.</value>
   </data>
   <data name="Escl_DuplexSize" xml:space="preserve">
-    <value>This page size can't be scanned on both sides. Scan one side, or use the glass.</value>
+    <value>Este tamaño de página no se puede escanear por ambas caras. Escanea una cara o usa el cristal.</value>
   </data>
   <data name="Escl_ScannerState" xml:space="preserve">
-    <value>Scanner is {0}.</value>
+    <value>Estado del escáner: {0}.</value>
   </data>
   <data name="Escl_StatusNotAvailable" xml:space="preserve">
-    <value>Scanner status not available</value>
+    <value>El estado del escáner no está disponible</value>
   </data>
   <data name="Escl_NotEscl" xml:space="preserve">
-    <value>Not an eSCL scanner</value>
+    <value>No es un escáner eSCL</value>
   </data>
   <data name="Escl_NoJpegOrPdf" xml:space="preserve">
-    <value>This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs.</value>
+    <value>Este escáner no envía páginas JPEG ni PDF desde esta fuente, y Inkvolt Print las necesita.</value>
   </data>
   <data name="Escl_Timeout" xml:space="preserve">
-    <value>The scanner didn't answer in time. Try again.</value>
+    <value>El escáner no respondió a tiempo. Vuelve a intentarlo.</value>
   </data>
   <data name="Escl_Busy" xml:space="preserve">
-    <value>Scanner is busy with another job.</value>
+    <value>El escáner está ocupado con otro trabajo.</value>
   </data>
   <data name="Escl_NoJobLocation" xml:space="preserve">
-    <value>Scanner did not return a job location.</value>
+    <value>El escáner no devolvió la ubicación del trabajo.</value>
   </data>
   <data name="Escl_PdfPictures" xml:space="preserve">
-    <value>This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.</value>
+    <value>Este escáner envió sus páginas como un PDF cuyas imágenes Inkvolt Print no puede extraer aquí.</value>
   </data>
   <data name="Escl_PdfCantOpen" xml:space="preserve">
-    <value>The scanner's PDF couldn't be opened: {0}</value>
+    <value>No se pudo abrir el PDF del escáner: {0}</value>
   </data>
   <data name="Escl_PdfNoPages" xml:space="preserve">
-    <value>The scanner sent a PDF without pages.</value>
+    <value>El escáner envió un PDF sin páginas.</value>
   </data>
   <data name="Escl_RebuiltChanged" xml:space="preserve">
-    <value>Your changes (or the text layer) are in it, so it was made from the scanner's pages, pictures unchanged.</value>
+    <value>Incluye tus cambios (o la capa de texto), así que se hizo a partir de las páginas del escáner, con las imágenes sin cambios.</value>
   </data>
   <data name="Escl_RebuiltPages" xml:space="preserve">
-    <value>Pages were added, left out, moved or split into files, so it was made from the scanner's pages, pictures unchanged.</value>
+    <value>Se agregaron, omitieron, movieron o dividieron páginas en archivos, así que se hizo a partir de las páginas del escáner, con las imágenes sin cambios.</value>
   </data>
   <data name="Imaging_PatchSheet" xml:space="preserve">
-    <value>{0} sheet</value>
+    <value>hoja {0}</value>
   </data>
   <data name="Imaging_BlankPage" xml:space="preserve">
-    <value>blank page</value>
+    <value>página en blanco</value>
   </data>
   <data name="Imaging_MarkedByHand" xml:space="preserve">
-    <value>marked by hand</value>
+    <value>marcada a mano</value>
   </data>
   <data name="Imaging_SheetBack" xml:space="preserve">
-    <value>back of the patch sheet</value>
+    <value>reverso de la hoja patch</value>
   </data>
   <data name="Imaging_SplitPatchCodes" xml:space="preserve">
-    <value>Patch codes</value>
+    <value>Códigos patch</value>
   </data>
   <data name="Imaging_SplitBlankPages" xml:space="preserve">
-    <value>Blank pages</value>
+    <value>Páginas en blanco</value>
   </data>
   <data name="Imaging_SplitPatchOrBlank" xml:space="preserve">
-    <value>Patch codes or blank pages</value>
+    <value>Códigos patch o páginas en blanco</value>
   </data>
   <data name="Imaging_SplitNone" xml:space="preserve">
-    <value>Don't split</value>
+    <value>No dividir</value>
   </data>
   <data name="Imaging_Cropped" xml:space="preserve">
-    <value>cropped to the paper</value>
+    <value>recortada al papel</value>
   </data>
   <data name="Imaging_Whitened" xml:space="preserve">
-    <value>whitened</value>
+    <value>fondo blanqueado</value>
   </data>
   <data name="Imaging_Descreened" xml:space="preserve">
-    <value>descreened</value>
+    <value>trama eliminada</value>
   </data>
   <data name="Imaging_ColorsRestored" xml:space="preserve">
-    <value>colors restored</value>
+    <value>colores restaurados</value>
   </data>
   <data name="Pdf_SeparatorTitle" xml:space="preserve">
-    <value>Separator sheet</value>
+    <value>Hoja separadora</value>
   </data>
   <data name="Pdf_SeparatorStarts" xml:space="preserve">
-    <value>Inkvolt Print starts a new file at this sheet.</value>
+    <value>Inkvolt Print empieza un archivo nuevo en esta hoja.</value>
   </data>
   <data name="Pdf_SeparatorPutCopy" xml:space="preserve">
-    <value>Put a copy in front of each document in the feeder, face up like the pages.</value>
+    <value>Pon una copia delante de cada documento en el alimentador, boca arriba como las páginas.</value>
   </data>
   <data name="Pdf_SeparatorChoose" xml:space="preserve">
-    <value>On the Scan tab, choose "Split into files at: Patch codes".</value>
+    <value>En la pestaña Escanear, elige "Dividir en archivos en: Códigos patch".</value>
   </data>
   <data name="Pdf_SeparatorActualSize" xml:space="preserve">
-    <value>Print at actual size (100%, not "fit to page"), in black. Keep the area around the bars clean.</value>
+    <value>Imprímela a tamaño real (100 %, no "ajustar a la página"), en negro. Mantén limpia la zona de las barras.</value>
   </data>
   <data name="Pdf_SeparatorReuse" xml:space="preserve">
-    <value>Reuse the sheet rather than copying it: copiers widen bars. Scanned sheets are left out unless you keep them.</value>
+    <value>Reutiliza la hoja en vez de copiarla: las copiadoras ensanchan las barras. Las hojas escaneadas se omiten salvo que las conserves.</value>
   </data>
   <data name="Net_TypeAddress" xml:space="preserve">
-    <value>Type the printer's IP address or name.</value>
+    <value>Escribe la dirección IP o el nombre de la impresora.</value>
   </data>
   <data name="Net_NotValidAddress" xml:space="preserve">
-    <value>"{0}" is not a valid address.</value>
+    <value>"{0}" no es una dirección válida.</value>
   </data>
   <data name="Net_UseAddress" xml:space="preserve">
-    <value>Use the printer's IP address or name (or an http, https, ipp or ipps address).</value>
+    <value>Usa la dirección IP o el nombre de la impresora (o una dirección http, https, ipp o ipps).</value>
   </data>
   <data name="Probe_NotResponding" xml:space="preserve">
-    <value>Printer is not responding</value>
+    <value>La impresora no responde</value>
   </data>
   <data name="Probe_BusyUpdateShortly" xml:space="preserve">
-    <value>The printer is busy; status will update shortly</value>
+    <value>La impresora está ocupada; el estado se actualizará en breve</value>
   </data>
   <data name="NeedsDriver_ListStatusNoDriver" xml:space="preserve">
     <value>Conectada, le falta su controlador</value>
@@ -2999,16 +2999,16 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Qué hacer</value>
   </data>
   <data name="NeedsDriver_StepGetDriverFromMaker" xml:space="preserve">
-    <value>Descargue el controlador de la {0} del sitio web de {1}: elija su versión de Windows.</value>
+    <value>Descarga el controlador de la {0} del sitio web de {1}: elige tu versión de Windows.</value>
   </data>
   <data name="NeedsDriver_StepGetDriver" xml:space="preserve">
-    <value>Descargue el controlador de la {0} del sitio web de su fabricante: elija su versión de Windows.</value>
+    <value>Descarga el controlador de la {0} del sitio web de su fabricante: elige tu versión de Windows.</value>
   </data>
   <data name="NeedsDriver_StepPlugIn" xml:space="preserve">
-    <value>Conecte la impresora y enciéndala.</value>
+    <value>Conecta la impresora y enciéndela.</value>
   </data>
   <data name="NeedsDriver_StepInstall" xml:space="preserve">
-    <value>Ejecute el instalador del controlador. Cuando Windows haya configurado la impresora, Inkvolt Print la mostrará por sí solo.</value>
+    <value>Ejecuta el instalador del controlador. Cuando Windows haya configurado la impresora, Inkvolt Print la mostrará por sí solo.</value>
   </data>
   <data name="NeedsDriver_MakerButton" xml:space="preserve">
     <value>Abrir la página de controladores de {0}</value>
@@ -3029,13 +3029,13 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Agregarla en Windows</value>
   </data>
   <data name="NeedsDriver_AddInWindowsNote" xml:space="preserve">
-    <value>Configuración › Bluetooth y dispositivos › Impresoras y escáneres, donde puede agregarla con un controlador que tenga.</value>
+    <value>Configuración › Bluetooth y dispositivos › Impresoras y escáneres, donde puedes agregarla con un controlador que tengas.</value>
   </data>
   <data name="NeedsDriver_ProtectedPrintTitle" xml:space="preserve">
     <value>El modo de impresión protegida de Windows está activado</value>
   </data>
   <data name="NeedsDriver_ProtectedPrintOn" xml:space="preserve">
-    <value>Solo deja imprimir con los controladores propios de Windows, así que el controlador de un fabricante no se instalará. Para desactivarlo: Configuración › Bluetooth y dispositivos › Impresoras y escáneres › Modo de impresión protegida de Windows. Si su organización administra este PC, pídaselo a ella.</value>
+    <value>Solo deja imprimir con los controladores propios de Windows, así que el controlador de un fabricante no se instalará. Para desactivarlo: Configuración › Bluetooth y dispositivos › Impresoras y escáneres › Modo de impresión protegida de Windows. Si tu organización administra este PC, pídeselo a ella.</value>
   </data>
   <data name="NeedsDriver_SetUpButton" xml:space="preserve">
     <value>Configurarla</value>
@@ -3044,25 +3044,25 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Inkvolt Print puede crear su cola en {0} con el controlador "{1}".</value>
   </data>
   <data name="NeedsDriver_SetUpNoteNoDriver" xml:space="preserve">
-    <value>Windows tiene un controlador para ella, pero no una cola. Agréguela en Windows y elija su puerto USB y su controlador.</value>
+    <value>Windows tiene un controlador para ella, pero no una cola. Agrégala en Windows y elige su puerto USB y su controlador.</value>
   </data>
   <data name="NeedsDriver_SetUpDone" xml:space="preserve">
     <value>Configurada como "{0}". Aparecerá en la lista en un momento.</value>
   </data>
   <data name="NeedsDriver_SetUpNeedsAdminDriver" xml:space="preserve">
-    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elija "Agregar una impresora local o de red con configuración manual", el puerto {0} y el controlador "{1}".</value>
+    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elige "Agregar una impresora local o de red con configuración manual", el puerto {0} y el controlador "{1}".</value>
   </data>
   <data name="NeedsDriver_SetUpNeedsAdmin" xml:space="preserve">
-    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elija "Agregar una impresora local o de red con configuración manual", el puerto {0} y su controlador.</value>
+    <value>Para configurarla hace falta un administrador. Se abre Agregar impresora de Windows: elige "Agregar una impresora local o de red con configuración manual", el puerto {0} y su controlador.</value>
   </data>
   <data name="NeedsDriver_SetUpFailed" xml:space="preserve">
-    <value>Windows no pudo configurarla ({0}). Pruebe Agregarla en Windows.</value>
+    <value>Windows no pudo configurarla ({0}). Prueba con Agregarla en Windows.</value>
   </data>
   <data name="NeedsDriver_FailedNoPort" xml:space="preserve">
     <value>no hay puerto o controlador para ella</value>
   </data>
   <data name="NeedsDriver_FailedUnknownPort" xml:space="preserve">
-    <value>Windows no tiene ahora el puerto {0}; desconecte la impresora y vuelva a conectarla</value>
+    <value>Windows no tiene ahora el puerto {0}; desconecta la impresora y vuelve a conectarla</value>
   </data>
   <data name="NeedsDriver_FailedUnknownDriver" xml:space="preserve">
     <value>el controlador no está instalado para el Windows de este PC</value>
@@ -3093,5 +3093,8 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Queue_SourceDriver" xml:space="preserve">
     <value>De su controlador</value>
+  </data>
+  <data name="History_FirmwareDateFormat" xml:space="preserve">
+    <value>d 'de' MMMM 'de' yyyy</value>
   </data>
 </root>

@@ -1807,14 +1807,14 @@
                                            Visibility="{Binding SetupResult, Converter={StaticResource VisibleWhen}}" />
 
                                 <TabControl Style="{StaticResource SectionTabs}" SelectedIndex="{Binding SelectedSection}" local:Motion.OnTabChange="True">
-                                    <TabItem Header="{x:Static loc:Strings.Main_TabOverview}" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
-                                    <TabItem Header="{x:Static loc:Strings.Common_Print}" Content="{Binding Print}"
+                                    <TabItem Header="{x:Static loc:Strings.Main_TabOverview}" Tag="overview" Content="{Binding}" ContentTemplate="{StaticResource OverviewSection}" />
+                                    <TabItem Header="{x:Static loc:Strings.Common_Print}" Tag="print" Content="{Binding Print}"
                                              Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
-                                    <TabItem Header="{x:Static loc:Strings.Common_Scan}" Content="{Binding Scan}"
+                                    <TabItem Header="{x:Static loc:Strings.Common_Scan}" Tag="scan" Content="{Binding Scan}"
                                              Visibility="{Binding Scan, Converter={StaticResource VisibleWhen}}" />
-                                    <TabItem Header="{x:Static loc:Strings.Common_Copy}" Content="{Binding Copy}"
+                                    <TabItem Header="{x:Static loc:Strings.Common_Copy}" Tag="copy" Content="{Binding Copy}"
                                              Visibility="{Binding ShowCopy, Converter={StaticResource VisibleWhen}}" />
-                                    <TabItem Header="{x:Static loc:Strings.PhotosTab_Photos}" Content="{Binding Photos}"
+                                    <TabItem Header="{x:Static loc:Strings.PhotosTab_Photos}" Tag="photos" Content="{Binding Photos}"
                                              Visibility="{Binding CanPrint, Converter={StaticResource VisibleWhen}}" />
                                     <TabItem Header="{x:Static loc:Strings.Main_TabPrinterSettings}" Content="{Binding Settings}" Tag="settings"
                                              Visibility="{Binding Settings, Converter={StaticResource VisibleWhen}}" />

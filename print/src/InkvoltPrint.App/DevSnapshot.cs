@@ -64,7 +64,9 @@ internal static class DevSnapshot
         }
         if (tab is not null && FindTabs(window) is { } tabs)
         {
-            tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
+            // By the tab's Tag (overview, print, scan, copy, photos, settings: the same in every language), else its header.
+            tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => string.Equals(t.Tag as string, tab, StringComparison.OrdinalIgnoreCase))
+                ?? tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
             await Task.Delay(TimeSpan.FromSeconds(3));
         }
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })

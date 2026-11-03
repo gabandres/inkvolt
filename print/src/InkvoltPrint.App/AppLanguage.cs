@@ -9,16 +9,17 @@ namespace InkvoltPrint.App;
 /// The interface's language, chosen once at start-up (Settings › Language applies the next time the app starts): the dev
 /// aids' <c>--lang en|es</c>, else the saved choice (<see cref="AppState.Language"/>), else Windows' display language
 /// (<see cref="UiLanguage"/>). Text comes from <see cref="Strings"/> and the shared library's CoreStrings in that
-/// language. Numbers and dates keep Windows' regional format (CurrentCulture), WPF's bindings included.
+/// language. Numbers and dates keep Windows' regional format (CurrentCulture), WPF's bindings included, in the interface's
+/// language when Windows' format is in another (UiLanguage.FormatCulture).
 /// </summary>
 public static class AppLanguage
 {
     /// <summary>
-    /// False until the Spanish translation is complete: the interface is then always English, Settings › Language is
-    /// hidden and a saved choice is ignored (only the dev aids' <c>--lang</c> still picks a language). Turned on with the
-    /// Spanish strings, so a release cut before them never shows a half-translated app on a Spanish Windows.
+    /// The Spanish translation is complete (every string in Strings.es.resx and CoreStrings.es.resx; LocalizationTests). When
+    /// false, the interface is always English, Settings › Language is hidden and a saved choice is ignored (only the dev
+    /// aids' <c>--lang</c> still picks a language): the switch for a language whose strings are still being written.
     /// </summary>
-    public static bool SpanishReady => false;
+    public static bool SpanishReady => true;
 
     /// <summary>Windows' display language as the process started, before <see cref="Apply"/> changed the UI culture.</summary>
     private static readonly CultureInfo WindowsDisplay = CultureInfo.CurrentUICulture;
@@ -37,10 +38,17 @@ public static class AppLanguage
     {
         var argument = Array.IndexOf(args, "--lang") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         Use(SpanishReady || argument is not null ? UiLanguage.Resolve(argument, saved, WindowsDisplay) : UiLanguage.English);
+        // Dates and numbers: Windows' regional format, in the interface's language when the two differ (UiLanguage.FormatCulture).
+        var format = UiLanguage.FormatCulture(Current, CultureInfo.CurrentCulture);
+        if (!ReferenceEquals(format, CultureInfo.CurrentCulture))
+        {
+            CultureInfo.DefaultThreadCurrentCulture = format;
+            CultureInfo.CurrentCulture = format;
+        }
         // WPF formats bound numbers and dates as en-US unless told otherwise: Windows' regional format instead.
         FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement),
             new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(CultureInfo.CurrentCulture.IetfLanguageTag)));
-        Log.Write($"Interface language: {Current.Name} (Windows: {WindowsDisplay.Name}, saved: {saved ?? "Windows"})");
+        Log.Write($"Interface language: {Current.Name}, formats {CultureInfo.CurrentCulture.Name} (Windows: {WindowsDisplay.Name}, saved: {saved ?? "Windows"})");
     }
 
     private static void Use(CultureInfo culture)

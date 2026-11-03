@@ -55,6 +55,29 @@ public static class UiLanguage
     public static CultureInfo Resolve(string? argument, string? saved, CultureInfo windowsDisplay) =>
         Resolve(Parse(argument) is var fromArgument and not UiLanguageChoice.Windows ? fromArgument : Parse(saved), windowsDisplay);
 
+    /// <summary>
+    /// The culture numbers and dates are written in: Windows' regional format, unless its language isn't the interface's;
+    /// then the interface's language in the same region where there is one (Spanish on a PC set to United States formats:
+    /// es-US, so "3 de noviembre de 2026" with the US's numbers), else the regional format as it is.
+    /// </summary>
+    public static CultureInfo FormatCulture(CultureInfo ui, CultureInfo regional)
+    {
+        var language = Language(ui.Name);
+        if (language is null || Language(regional.Name) == language) return regional;
+        var dash = regional.Name.LastIndexOf('-');
+        if (dash > 0)
+        {
+            try
+            {
+                return CultureInfo.GetCultureInfo($"{language}-{regional.Name[(dash + 1)..]}", predefinedOnly: true);
+            }
+            catch (CultureNotFoundException)
+            {
+            }
+        }
+        return regional;
+    }
+
     private static string? Language(string? tag)
     {
         var t = tag?.Trim();

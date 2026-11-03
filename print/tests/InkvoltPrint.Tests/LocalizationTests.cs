@@ -76,6 +76,24 @@ public partial class LocalizationTests
     }
 
     [Theory]
+    [InlineData("es", "en-US", "es-US")] // Spanish on a US-format PC: Spanish month names, the US's numbers
+    [InlineData("en", "es-PR", "en-PR")]
+    [InlineData("es", "es-MX", "es-MX")] // the same language: Windows' format as it is
+    [InlineData("en", "en-GB", "en-GB")]
+    [InlineData("es", "es-419", "es-419")]
+    public void Formats_FollowTheRegion_InTheInterfacesLanguage(string ui, string regional, string expected)
+    {
+        Assert.Equal(expected, UiLanguage.FormatCulture(CultureInfo.GetCultureInfo(ui), CultureInfo.GetCultureInfo(regional)).Name);
+    }
+
+    [Fact]
+    public void Formats_KeepTheRegion_WhenTheLanguageHasNoCultureThere()
+    {
+        var regional = CultureInfo.GetCultureInfo("ja-JP");
+        Assert.Same(regional, UiLanguage.FormatCulture(UiLanguage.Spanish, regional));
+    }
+
+    [Theory]
     [MemberData(nameof(ResourcePairs))]
     public void EveryString_IsInBothLanguages_NonEmpty_WithTheSamePlaceholders(string neutral)
     {

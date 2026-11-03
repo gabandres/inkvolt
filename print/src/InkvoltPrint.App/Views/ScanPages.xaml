@@ -163,7 +163,7 @@
                                     </TextBlock.RenderTransform>
                                 </TextBlock>
                             </Button>
-                            <TextBlock Text="{Binding Number, StringFormat={x:Static loc:Strings.Scan_LabelPage}}" Style="{StaticResource Caption}" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Number, StringFormat={x:Static loc:Strings.Scan_PageTileCaption}}" Style="{StaticResource Caption}" TextWrapping="NoWrap" VerticalAlignment="Center" />
                         </DockPanel>
                         <!-- Under the buttons: the clean up's list of what was done needs the width -->
                         <TextBlock Text="{Binding Note}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="2,2,2,0"
