@@ -66,6 +66,29 @@ final class ScannerPdfTests {
         #expect(origins.allSatisfy { $0?.rendered == false })
     }
 
+    /// A Mac addition: demo mode's inkjet serves its capabilities as the Windows demo does (`Demo.feederPdfOnly`), so its
+    /// feeder's pages come out of one PDF, taken out as they are, and its glass still sends JPEG.
+    @Test func The_demo_inkjets_feeder_sends_PDF_only() async throws {
+        let six = Self.six
+        let network = Demo.network(fixtures: Fixtures.root, scanPage: { page, _, _ in six[page] })
+        let http = DeviceHttp(host: Demo.inkjetHost, transport: network.http)
+        let client = EsclClient(http, root: http.http("/eSCL/"))
+        let caps = try #require(try await client.capabilities())
+        #expect(caps.adf?.pdfOnly == true)
+        #expect(caps.platen?.pdfOnly == false)
+
+        var feeder: [[UInt8]] = []
+        for try await page in client.scan(ScanRequest(source: .adf, resolution: 300)) { feeder.append(page) }
+        #expect(feeder == DemoScan.feeder.map { six[$0] })
+        let origins = feeder.map(ScannerPdf.origin(of:))
+        #expect(origins.allSatisfy { $0?.rendered == false && $0?.pageCount == 3 })
+        #expect(Set(origins.map { $0?.document }).count == 1)
+
+        var glass: [[UInt8]] = []
+        for try await page in client.scan(ScanRequest(source: .platen, resolution: 300)) { glass.append(page) }
+        #expect(glass.count == 1)
+    }
+
     @Test func The_glass_and_the_feeder_still_send_JPEG_when_they_offer_it() async throws {
         let caps = ScannerCapabilities.parse(try DeviceXml.load(Self.feederPdfOnly(try Fixtures.data("inkjet-demo/eSCL_ScannerCapabilities.xml"))))
         #expect(caps.adf?.pdfOnly == true)

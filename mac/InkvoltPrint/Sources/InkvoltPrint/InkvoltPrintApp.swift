@@ -1,5 +1,6 @@
 import AppKit
 import PrintCore
+import PrintMac
 import SwiftUI
 import UserNotifications
 
@@ -55,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated {
             ProSetup.configure(AppModel.shared) // before anything asks the Pro check
+            ScannerPdf.renderer = ScannedPdfPages() // scanners that send only PDF (roadmap 1.3): pages that are not one JPEG
             AppModel.shared.start()
             Report.runIfAsked(AppModel.shared)
             #if DEBUG

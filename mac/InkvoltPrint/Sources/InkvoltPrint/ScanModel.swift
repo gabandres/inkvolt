@@ -70,6 +70,8 @@ final class ScanModel {
     private(set) var savedPdfs: [URL] = []
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
+    /// The scanner's PDF each page came from, for a scanner that sends only PDF (roadmap 1.3, `ScannerPdf.origin`).
+    @ObservationIgnored private var origins: [String: PdfOrigin] = [:]
     /// The files of a batch a preset save wrote before it failed part-way: saving again writes only the rest.
     @ObservationIgnored private var savedParts = SavedParts<String>()
     @ObservationIgnored private var scanning: Task<Void, Never>?
@@ -185,7 +187,7 @@ final class ScanModel {
                 for _ in 0..<150 where pages.pages.contains(where: { !$0.analysed }) { try await Task.sleep(for: .milliseconds(100)) }
                 if duplex { pages.separatorBacks(added) }
                 keep()
-                let found = notes(added, split: split, photos: photos, duplex: duplex)
+                let found = notes(added, split: split, photos: photos, duplex: duplex) + pdfNote(added, request)
                 status = count == 0 ? "No pages came from the scanner." : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 await finished?()
             } catch is CancellationError {
@@ -243,6 +245,7 @@ final class ScanModel {
     private func add(_ jpeg: [UInt8], dpi: Int, check c: PageCheck) async -> String {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
+        if let origin = ScannerPdf.origin(of: jpeg) { origins[id] = origin }
         pages.add(ScannedPage(id: id, dpi: dpi))
         keep()
         refreshThumbnail(id)
@@ -260,6 +263,39 @@ final class ScanModel {
             if !isScanning { status = pages.summary }
         }
         return id
+    }
+
+    /// After a scan from a source that sends only PDF: what that means, in words (the Windows app's `PdfNote`).
+    private func pdfNote(_ added: [String], _ request: ScanRequest) -> [String] {
+        guard let origin = added.lazy.compactMap({ self.origins[$0] }).first else { return [] }
+        let from = request.source == .platen ? "the glass" : "the feeder"
+        return [origin.rendered
+            ? "This scanner sends PDF from \(from): its pages were drawn as pictures at \(request.resolution) dpi for the review."
+            : "This scanner sends PDF from \(from): its pictures were taken out as they came, so the review, text recognition and presets work as usual."]
+    }
+
+    /// What `ScannerPdf.keepAsSent` needs to know of a file's pages: where each came from, and whether it changed (edited,
+    /// cut into photos, or given a text layer).
+    private func toSave(_ file: [ScannedPage]) -> [PageToSave] {
+        let ocr = format == .searchablePdf
+        return file.map { PageToSave(origins[$0.id], changed: !$0.edits.isEmpty || $0.hasPhotos || ocr) }
+    }
+
+    /// Each file's PDF when it is exactly the scanner's own (saved as it sent it), else nil; all nil for JPEG.
+    private func asSent(_ files: [[ScannedPage]]) -> [[UInt8]?] {
+        format == .jpeg ? files.map { _ in nil } : files.map { ScannerPdf.keepAsSent(toSave($0)) }
+    }
+
+    /// After a PDF save from a scanner that sends PDF: whether the files are its own PDF, and if not, why (the Windows app's
+    /// `AsSentNote`); "" otherwise.
+    private func asSentNote(_ files: [[ScannedPage]]) -> String {
+        guard format != .jpeg else { return "" }
+        let plans = files.map(toSave).filter { $0.contains { $0.origin != nil } }
+        if plans.isEmpty { return "" }
+        if plans.allSatisfy({ ScannerPdf.keepAsSent($0) != nil }) {
+            return plans.count == 1 ? " It is the scanner's own PDF, as it sent it." : " They are the scanner's own PDFs, as it sent them."
+        }
+        return plans.compactMap(ScannerPdf.whyNotAsSent).first.map { " " + $0 } ?? ""
     }
 
     /// What a scan found, after the page summary (the Windows app's notes).
@@ -347,6 +383,7 @@ final class ScanModel {
         savedParts.clear()
         pages = ScanPages()
         images = [:]
+        origins = [:]
         thumbnails = [:]
         problem = nil
         status = ""
@@ -479,11 +516,18 @@ final class ScanModel {
     /// Saving makes more than one file (a batch, or several images): the save panel asks for a folder.
     var savesSeveralFiles: Bool { format == .jpeg ? imagesPerFile.reduce(0, +) > 1 : imagesPerFile.count > 1 }
 
-    /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first.
-    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat) throws -> [URL] {
-        let files = try render(jobs)
+    /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first. A
+    /// file whose `asSent[f]` is there is the scanner's own PDF, written as it sent it (nothing rendered).
+    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?]) throws -> [URL] {
+        var files: [[OutputImage]] = []
+        for (f, job) in jobs.enumerated() { files.append(f < asSent.count && asSent[f] != nil ? [] : try render([job])[0]) }
         var written: [URL] = []
-        for (file, urls) in zip(files, targets) {
+        for (f, (file, urls)) in zip(files, targets).enumerated() {
+            if format != .jpeg, f < asSent.count, let pdf = asSent[f] {
+                try Data(pdf).write(to: urls[0], options: .atomic) // the scanner's own PDF, as it sent it
+                written.append(urls[0])
+                continue
+            }
             switch format {
             case .pdf, .searchablePdf:
                 let pdfPages = file.map { ScanPdf.Page(jpeg: $0.jpeg, dpi: $0.dpi, words: format == .searchablePdf && !$0.isPhoto ? ScanPdf.recognize($0.jpeg) : nil) }
@@ -560,12 +604,13 @@ final class ScanModel {
             let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
             let format = format
             let job = jobs([file])
+            let sent = asSent([file])
             let result: Result<[URL], any Error> = await offPool {
                 Result {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     let count = format == .jpeg ? counts[f] : 1
                     let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
-                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format)
+                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent)
                 }
             }
             guard case .success(let urls) = result else {
@@ -579,7 +624,7 @@ final class ScanModel {
             all += urls
         }
         isSaving = false
-        await finishSaving(all, in: folder.lastPathComponent, reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
+        await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
         await after(p.after, all)
     }
 
@@ -637,12 +682,13 @@ final class ScanModel {
             problem = "There are too many scans with that name in \(url.lastPathComponent). Choose another folder."
             return
         }
-        let job = jobs(pages.files)
-        let result: Result<[URL], any Error> = await offPool { Result { try Self.write(job, to: targets, format: format) } }
+        let files = pages.files
+        let job = jobs(files), sent = asSent(files)
+        let result: Result<[URL], any Error> = await offPool { Result { try Self.write(job, to: targets, format: format, asSent: sent) } }
         isSaving = false
         switch result {
         case .success(let urls):
-            await finishSaving(urls, in: url.lastPathComponent, reveal: reveal)
+            await finishSaving(urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
         case .failure:
             problem = "The scan couldn't be saved there. Choose another place, or check there's room on the disk."
             status = pages.summary
@@ -651,11 +697,11 @@ final class ScanModel {
 
     /// The save's status line; then, with Settings' "Open scans in Inkvolt PDF" on and Inkvolt PDF installed, the saved
     /// PDFs open there (once: not again when the preset's own step opens them), else Finder shows them when asked.
-    private func finishSaving(_ urls: [URL], in place: String, reveal: Bool, presetOpens: Bool = false) async {
+    private func finishSaving(_ urls: [URL], in place: String, note: String, reveal: Bool, presetOpens: Bool = false) async {
         let saved = pages.toSave.count == 1 ? "1 page" : "\(pages.toSave.count) pages"
         let files = urls.count > 1 ? " as \(urls.count) files" : ""
         clear()
-        status = "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place)."
+        status = "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place)." + note
         savedPdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
         if InkvoltPdfApp.openScans && !presetOpens && !savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
             _ = InkvoltPdfApp.open(savedPdfs)

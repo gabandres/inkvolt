@@ -16,6 +16,8 @@ final class DeviceSettingsModel {
     private(set) var loading = false
     private(set) var saving = false
     private(set) var message: String?
+    /// The message says something didn't work (Keep My Cartridges Working's refusals).
+    private(set) var messageIsError = false
     private(set) var problem: String?
     /// The printer wants its admin password: the sheet asks.
     var askingPassword = false
@@ -72,6 +74,32 @@ final class DeviceSettingsModel {
         }
     }
 
+    /// The Firmware section's one button (roadmap 1.5): for a printer that reports its update setting and lets apps turn it off.
+    var canKeepCartridges: Bool { firmware.map { $0.canChange && $0.choices.contains(.off) } ?? false }
+
+    /// Under the button: what it does, or that it's done already.
+    var keepCartridgesHint: String {
+        firmware?.mode == .off ? "Automatic updates are off: no update installs by itself."
+            : "Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it."
+    }
+
+    /// Keep My Cartridges Working (the Windows app's `KeepCartridgesWorkingAsync`), once the user confirmed: automatic firmware
+    /// updates off, written the way the Firmware section saves (`CartridgeGuard`, with the admin password when the printer
+    /// asks), read back, and what happened said in the message line. Changes not saved yet are undone (the tab reads again).
+    func keepCartridgesWorking() async {
+        await write(nil) { ledm in
+            // Read now, not the section's copy: the setting may have changed on the printer since the tab was opened.
+            guard let fw = try await ledm.firmwareUpdate() else {
+                self.message = "This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page."
+                self.messageIsError = true
+                return
+            }
+            let result = try await CartridgeGuard.keepCartridgesWorking(ledm, fw) { @Sendable put in try await put() }
+            self.message = result.text
+            self.messageIsError = result.outcome == .notKept || result.outcome == .cantChange
+        }
+    }
+
     /// Reads the firmware switches back after a write (the Windows app's `CheckFirmwareKeptAsync`). A printer that ties the
     /// check to installs (Notify read back as Automatic) is set back to what it was before, remembered, and no longer
     /// offered Notify. Returns what to tell the user. Never throws: the settings are read again afterwards.
@@ -116,6 +144,7 @@ final class DeviceSettingsModel {
         saving = true
         problem = nil
         message = nil
+        messageIsError = false
         defer { saving = false }
         if let password = PrinterPasswords.password(for: printer.id) { conn.http.setCredentials(user: "admin", password: password) }
         do {
@@ -151,6 +180,7 @@ struct DeviceSettingsView: View {
     let printer: PrinterModel
     @State private var model: DeviceSettingsModel
     @State private var password = ""
+    @State private var confirmKeep = false
 
     init(printer: PrinterModel) {
         self.printer = printer
@@ -175,11 +205,12 @@ struct DeviceSettingsView: View {
                         ForEach(fw.choices, id: \.self) { Text(Self.label($0)).tag($0) }
                     }
                     .disabled(!fw.canChange || model.saving)
+                    if model.canKeepCartridges { keepCartridges }
                 }
             }
             Section {
                 HStack {
-                    if let message = model.message { Text(message).foregroundStyle(.secondary) }
+                    if let message = model.message { Text(message).foregroundStyle(model.messageIsError ? .red : .secondary) }
                     Spacer()
                     if model.saving || model.loading { ProgressView().controlSize(.small) }
                     if PrinterPasswords.password(for: printer.id) != nil {
@@ -213,6 +244,19 @@ struct DeviceSettingsView: View {
             }
             .padding(20)
             .frame(width: 420)
+        }
+    }
+
+    /// Keep My Cartridges Working, asked first (roadmap 1.5).
+    private var keepCartridges: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button("Keep My Cartridges Working…") { confirmKeep = true }.disabled(model.saving)
+            Text(model.keepCartridgesHint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .confirmationDialog("Turn off automatic firmware updates on \(printer.name)?", isPresented: $confirmKeep) {
+            Button("Turn Off Automatic Updates") { Task { await model.keepCartridgesWorking() } }
+        } message: {
+            Text(model.hasChanges ? "Changes you haven't saved on this tab are undone." : "Inkvolt Print turns them off and checks the printer kept it.")
         }
     }
 

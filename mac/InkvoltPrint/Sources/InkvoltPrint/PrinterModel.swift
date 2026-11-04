@@ -44,7 +44,7 @@ final class PrinterModel: Identifiable {
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
         let store = app.store, id = known.uuid
         monitor = PrinterMonitor(id: id, name: known.name, target: known.target, recipe: app.recipe(id), accepted: { store.accepted(id) },
-                                 acceptUuids: { store.accept(id, $0) }, onEvent: { continuation.yield($0) })
+                                 acceptUuids: { store.accept(id, $0) }, firmware: store.firmwareMemory(id), onEvent: { continuation.yield($0) })
         events = Task { [weak self] in
             for await event in stream { self?.handle(event) }
         }
@@ -203,6 +203,19 @@ final class PrinterModel: Identifiable {
         Task {
             if await monitor.acceptDevice({ store.accept(id, $0) }) { start() }
         }
+    }
+
+    /// The status card's firmware notice was closed (roadmap 1.5): gone at once, and kept as dismissed for this change.
+    func dismissFirmwareNotice() {
+        guard let monitor else { return }
+        view.firmwareNotice = nil
+        Task { await monitor.dismissFirmwareNotice() }
+    }
+
+    /// The printer's web page (its embedded web server), where a printer Inkvolt Print doesn't set up keeps its settings.
+    var webPage: URL? {
+        guard isNetwork, !host.isEmpty else { return nil }
+        return URL(string: "https://\(host.contains(":") ? "[\(host)]" : host)/")
     }
 
     private func handle(_ event: MonitorEvent) {

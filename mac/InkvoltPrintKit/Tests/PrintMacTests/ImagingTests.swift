@@ -60,6 +60,28 @@ struct MacImagingTests {
         #expect(second.isEmpty)
     }
 
+    /// Scanners that only give PDF (roadmap 1.3): a page that isn't one JPEG picture (here a turned one) is drawn by PDFKit at
+    /// the scan's resolution, as it shows, and remembered as rendered; the scanner's text-layer pages too.
+    @Test func aScannersPdfPageThatIsntOneJpegIsDrawnAtTheScansResolution() async throws {
+        let page = DemoScanPage.jpeg(0, width: 2550, height: 3300) // 1275 × 1650 px, letter at 150 dpi
+        let flat = ScannerPdf.write([(page, 150, nil)])
+        let text = try #require(String(data: Data(flat), encoding: .isoLatin1)) // one character per byte, the JPEG kept
+        let turned = [UInt8](try #require(text.replacingOccurrences(of: "/Type /Page /Parent", with: "/Type /Page /Rotate 90 /Parent")
+            .data(using: .isoLatin1)))
+        #expect(turned.count == flat.count + 11 && ScannerPdf.jpegPages(turned) == nil)
+
+        let drawn = try await ScannedPdfPages().render(turned, dpi: 100)
+        try #require(drawn.count == 1)
+        let size = try #require(ScanImaging.size(drawn[0]))
+        #expect(size.width == 1100 && size.height == 850) // 11 × 8.5 in at 100 dpi: turned
+
+        ScannerPdf.renderer = ScannedPdfPages()
+        defer { ScannerPdf.renderer = nil }
+        let pages = try await ScannerPdf.pages(turned, dpi: 100)
+        #expect(pages.count == 1 && ScannerPdf.origin(of: pages[0])?.rendered == true)
+        await #expect(throws: ScanError.self) { try await ScannedPdfPages().render(Array("%PDF-1.4 not really".utf8), dpi: 100) }
+    }
+
     @Test func photoSheetsArePagesAtThePapersSize() async throws {
         let photo = try Self.cgImage(DemoScanPage.jpeg(0, width: 1800, height: 1200))
         let inputs = [PhotoInput(Double(photo.width), Double(photo.height), 3, .none)]

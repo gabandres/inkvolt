@@ -124,6 +124,13 @@ administrator; a refusal hands off to Printers & Scanners as before.
 
 Still to do: recovery without relaunching after Allow (7), item 8, and the protected operations as a standard user.
 
+**A scanner's PDF** (2026-11-04, roadmap 1.3): PDFKit opens a PDF held in memory (`PDFDocument(data:)`) and Core
+Graphics draws its pages (`CGPDFPage.getDrawingTransform` applies `/Rotate`), nothing written to disk, so no entitlement is
+involved; proved in PrintMacTests (not sandboxed). In the sandboxed app (Release, ad hoc) demo mode's PDF-only feeder ran
+the other path, its pictures taken out of the PDF and the untouched save written as the scanner's bytes; a page drawn in the
+app waits for a scanner whose PDF isn't one JPEG a page. The firmware notice's Printer Web Page uses `NSWorkspace.open`
+with an `https://` URL (no entitlement; not clicked on screen yet).
+
 **Inkvolt Print's first build** (`com.bermudezsystems.InkvoltPrint`, ad-hoc signed, the same entitlements and Info.plist
 keys): macOS asked for Local Network access at the first launch (a new bundle ID), and the owner allowed it. Within 25 s
 `dns_sd` browsing (`DNSServiceBrowse`, `DNSServiceResolve`, `DNSServiceGetAddrInfo`) found the M234dw's services from the

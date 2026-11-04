@@ -91,6 +91,35 @@ struct FirmwareWatchTests {
         #expect(try JSONDecoder().decode(Day.self, from: json) == Day(2026, 3, 7))
     }
 
+    /// A Mac addition (Windows' AppState.Firmware): the record per printer in the state file, kept across starts, moved with
+    /// the printer's id and removed with the printer; `FirmwareMemory` keeps a change once and a dismissal for good.
+    @Test func The_record_is_kept_per_printer_in_the_state_file_moved_and_removed_with_it() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-state-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("state.json")
+        let store = StateStore(file: file)
+        store.remember(KnownPrinter(uuid: "old-id", name: "Office laser", host: "192.0.2.40"))
+        let memory = FirmwareMemory(get: { store.firmware("OLD-ID") }, set: { store.setFirmware("OLD-ID", $0) }, today: { Self.day0 })
+        #expect(memory.watch("A") == nil) // the first version seen
+        let day = Self.day0.adding(days: 3)
+        let later = FirmwareMemory(get: { store.firmware("old-id") }, set: { store.setFirmware("old-id", $0) }, today: { day })
+        #expect(later.watch("B") == FirmwareChange("A", "B", day))
+        #expect(later.watch("B") == FirmwareChange("A", "B", day)) // still shown, kept once
+        later.dismiss()
+        #expect(later.watch("B") == nil)
+
+        let again = StateStore(file: file)
+        #expect(again.firmware("old-id") == FirmwareRecord("B", day, previous: "A", dismissed: true))
+        #expect(again.current.firmware.count == 1)
+
+        again.rename("old-id", Self.printer)
+        #expect(again.firmware("old-id") == nil)
+        #expect(again.firmware(Self.printer)?.version == "B")
+        again.remove(Self.printer.uppercased())
+        #expect(again.firmware(Self.printer) == nil)
+        #expect(StateStore(file: file).current.firmware.isEmpty)
+    }
+
     // MARK: Readings → one notice, one alert
 
     private static func snapshot(_ change: FirmwareChange?) -> PrinterSnapshot {

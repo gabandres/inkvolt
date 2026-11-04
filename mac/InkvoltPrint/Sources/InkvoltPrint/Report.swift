@@ -9,7 +9,8 @@ import PrintMac
 /// cancels the user's own jobs in that CUPS queue first (as the print queue card's Cancel My Jobs); with `--demo`, `--scan`
 /// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--batch` scans its
 /// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
-/// JPEG; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
+/// JPEG (the feeder sends PDF only: `--scan` also saves its pages as the scanner's own PDF, and with a page turned);
+/// `--firmware` shows the demo laser's firmware notice, runs Keep My Cartridges Working and dismisses the notice; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
 /// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer, with its paper types, qualities and colors;
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
@@ -42,6 +43,7 @@ enum Report {
             if model.isDemo && args.contains("--batch") { cancelled += await batchCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
+            if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
@@ -180,7 +182,7 @@ enum Report {
         scan.scan()
         for _ in 0..<100 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
         let notes = scan.pages.pages.map { $0.note.isEmpty ? "-" : $0.note }.joined(separator: ", ")
-        var lines = ["scan: \(scan.pages.summary); notes: \(notes)"]
+        var lines = ["scan: \(scan.pages.summary); notes: \(notes)", "scan status: \(scan.status)"]
         for p in scan.pages.pages where p.edits.deskew != 0 {
             let left = await scan.residualSkew(p.id)
             lines.append("straightened by " + String(format: "%.2f", p.edits.deskew) + ", left after: " + (left.map { String(format: "%.2f", $0) } ?? "-"))
@@ -191,6 +193,7 @@ enum Report {
         let text = pdf?.string ?? ""
         lines.append("scan saved: \(scan.status) \(scan.problem ?? ""); for Open in Inkvolt PDF: \(scan.savedPdfs.map(\.lastPathComponent)), installed: \(InkvoltPdfApp.url != nil)")
         lines.append("PDF pages \(pdf?.pageCount ?? 0), text \(text.count) characters, finds 'demo scanner': \(text.contains("demo scanner"))")
+        lines += await asSentCheck(scan)
         // A one-click preset into a remembered folder (made here: no one picks it over SSH).
         if let p = model.presets.first {
             let folder = AppModel.dataFolder.appendingPathComponent("preset-check", isDirectory: true)
@@ -202,6 +205,55 @@ enum Report {
             let files = (try? FileManager.default.subpathsOfDirectory(atPath: folder.path)) ?? []
             lines.append("preset \(p.name): \(scan.status) \(scan.problem ?? ""); files: \(files.sorted().joined(separator: ", "))")
         }
+        return lines
+    }
+
+    /// Demo mode's inkjet feeder sends PDF only (roadmap 1.3): its three pages, nothing changed, saved as PDF are the scanner's
+    /// own file; one page turned, they're made from its pages. The settings the tab had are put back.
+    private static func asSentCheck(_ scan: ScanModel) async -> [String] {
+        let skip = scan.skipBlank, straight = scan.straighten, format = scan.format
+        defer {
+            scan.skipBlank = skip
+            scan.straighten = straight
+            scan.format = format
+        }
+        scan.clear()
+        scan.source = .adf
+        scan.format = .pdf
+        scan.skipBlank = false
+        scan.straighten = false
+        scan.splitAt = .none
+        var lines: [String] = []
+        for turn in [false, true] {
+            await scanAndWait(scan)
+            if turn, let first = scan.pages.pages.first { scan.turn(first.id, 1) }
+            let url = AppModel.dataFolder.appendingPathComponent(turn ? "scan-as-sent-turned.pdf" : "scan-as-sent.pdf")
+            await scan.save(to: url, reveal: false)
+            let bytes = (try? Data(contentsOf: url)) ?? Data()
+            let own = bytes.range(of: Data("/Producer (Inkvolt Print) /Title (Scan)".utf8)) != nil // ScannerPdf.write's, not ScanPdf's
+            lines.append("as sent\(turn ? " (a page turned)" : ""): \(scan.status) \(scan.problem ?? ""); pages \(PDFDocument(url: url)?.pageCount ?? 0), the scanner's own bytes: \(own)")
+        }
+        return lines
+    }
+
+    /// Demo mode's laser had an older firmware until this connection (roadmap 1.5): the status card's notice, the Settings
+    /// tab's Keep My Cartridges Working (the demo printer forgets what's written, so it reads back what it had), then Dismiss.
+    private static func firmwareCheck(_ model: AppModel) async -> [String] {
+        guard let p = model.printers.first(where: { $0.id == Demo.uuid }) else { return ["firmware: no demo laser"] }
+        for _ in 0..<60 where !p.view.isOnline { try? await Task.sleep(for: .milliseconds(250)) }
+        var lines = ["firmware: \(p.name): notice \(p.view.firmwareNotice?.text ?? "none")"]
+        lines.append("  hint: \(p.hasDeviceSettings ? FirmwareNoticeView.hintHp : FirmwareNoticeView.hintOther)")
+        lines.append("  button: \(p.hasDeviceSettings ? "Firmware Settings" : p.webPage == nil ? "none" : "Printer Web Page"), Dismiss")
+        let settings = DeviceSettingsModel(printer: p)
+        await settings.load()
+        lines.append("  firmware section: \(settings.firmware.map { "\($0.mode)" } ?? "none"), keep my cartridges working offered: \(settings.canKeepCartridges); \(settings.keepCartridgesHint)")
+        if settings.canKeepCartridges {
+            await settings.keepCartridgesWorking()
+            lines.append("  keep my cartridges working: \(settings.message ?? "-")\(settings.messageIsError ? " (error)" : "")\(settings.problem.map { " " + $0 } ?? "")")
+        }
+        p.dismissFirmwareNotice()
+        try? await Task.sleep(for: .milliseconds(300))
+        lines.append("  dismissed: notice \(p.view.firmwareNotice?.text ?? "none"), record dismissed: \(model.store.firmware(p.id)?.dismissed == true)")
         return lines
     }
 
@@ -451,6 +503,7 @@ enum Report {
             }
             if !v.interfaces.isEmpty { lines.append("  over: \(v.interfaces.joined(separator: ", "))") }
             if let f = v.firmware { lines.append("  firmware: \(f.display)") }
+            if let n = v.firmwareNotice { lines.append("  firmware notice: \(n.text)") }
             for s in v.supplies.map({ SupplyText($0) }) {
                 lines.append("  supply: \(s.name): \(s.percentText)\(s.headline.map { ", \($0)" } ?? "")")
             }

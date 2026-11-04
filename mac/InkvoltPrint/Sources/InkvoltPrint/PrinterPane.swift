@@ -76,7 +76,7 @@ struct PrinterPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
-                StatusCard(printer: printer)
+                StatusCard(printer: printer) { tab = .settings }
                 if printer.isNetwork { SetUpCard(printer: printer).id(printer.id) }
                 if !printer.view.supplies.isEmpty { supplies }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
@@ -189,6 +189,8 @@ struct SetUpCard: View {
 
 struct StatusCard: View {
     let printer: PrinterModel
+    /// The firmware notice's Firmware Settings: the pane shows the Settings tab.
+    var openSettings: () -> Void = {}
     @Environment(AppModel.self) private var app
     @State private var confirmAccept = false
     @State private var fixing = false
@@ -217,6 +219,7 @@ struct StatusCard: View {
                 if printer.needsFixing { Button("Fix It…") { fixing = true } }
                 if v.phase == .elsewhere { Button("This Is My Printer…") { confirmAccept = true } }
             }
+            if let notice = v.firmwareNotice { FirmwareNoticeView(printer: printer, notice: notice, openSettings: openSettings) }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,6 +243,42 @@ struct StatusCard: View {
         case .off: "powersleep"
         }
     }
+}
+
+/// The firmware watch's notice on the status card (roadmap 1.5; the Windows app's): the change, why it matters, and where to
+/// act on it: the Settings tab's Firmware section for an HP printer whose settings Inkvolt Print writes, else its web page.
+struct FirmwareNoticeView: View {
+    let printer: PrinterModel
+    let notice: FirmwareChange
+    let openSettings: () -> Void
+
+    var body: some View {
+        let hp = printer.hasDeviceSettings
+        VStack(alignment: .leading, spacing: 4) {
+            Label {
+                Text(notice.text).fontWeight(.semibold).fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "cpu").foregroundStyle(.secondary)
+            }
+            Text(hp ? Self.hintHp : Self.hintOther).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                if hp {
+                    Button("Firmware Settings") { openSettings() }
+                } else if let page = printer.webPage {
+                    Button("Printer Web Page") { NSWorkspace.shared.open(page) }
+                }
+                Button("Dismiss") { printer.dismissFirmwareNotice() }
+            }
+            .buttonStyle(.link)
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(notice.text)
+    }
+
+    static let hintHp = "If it came from HP, cartridges with non-HP chips may stop working. Keep My Cartridges Working, under Firmware on the "
+        + "Settings tab, turns automatic updates off."
+    static let hintOther = "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings."
 }
 
 /// One supply: its colour, level, how long it lasts, and what replaces it.
