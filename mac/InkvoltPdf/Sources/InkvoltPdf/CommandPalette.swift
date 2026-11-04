@@ -2,9 +2,11 @@ import AppKit
 
 /// Tools › Command Palette… (⇧⌘K; the Windows app's Ctrl+K, which on the Mac is Link Selected Text, and its Ctrl+Shift+P,
 /// which is Page Setup): every menu command that can run now, searched as you type (every word, in any order, in the
-/// command or its menu), run with Return or a double-click. The commands are the menu bar's own items, each checked and
-/// sent along the responder chain of the window that was in front (its first responder, the window, its controller and
-/// document, then the app and its delegate), so the palette offers and does what the menus would for that window.
+/// command or its menu), run with Return or a double-click. The commands are the menu bar's own items (built from the
+/// document command table, `DocumentCommands`, with what AppKit adds: Close All, Start Dictation…, Emoji & Symbols, the
+/// titles it changes such as Hide Sidebar), each checked and sent along the responder chain of the window that was in
+/// front (its first responder, the window, its controller and document, then the app and its delegate), so the palette
+/// offers and does what the menus would for that window; a document window checks them by the table's rules.
 @MainActor
 final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     static var shared: CommandPalette?

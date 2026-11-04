@@ -117,5 +117,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **What is sent, where** (`AiActions.ConfirmSend`; on the Mac `AiConfirmSheet` over PdfCore's `AiConsent`): the window before each send of the AI assistant, with where the text goes, how much, and every message under a disclosure. **Reach** (`AiReach`) is where an endpoint keeps text, as its address is written: this PC or this Mac, your network, or the internet; a connection only ever goes to an address that keeps that promise.
 - **Prepare Form's designer** (`FormDesigner`, with `FormDesignRules`; Mac, in PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does. Windows keeps
   the same rules in `PageViewer.FormDesign` and `DocumentTab.FormDesign`. It hands over the edits; `FormDesign` makes them.
+- **Document command table** (`DocumentCommands`; Mac, in PdfCore `Ux/DocumentCommands.swift`): every menu bar command
+  once, each a **document command** (title, key, the action it sends, its place in the menus, its plain-words note and
+  what it **needs**, a `Requirement`), from which the app builds the menu bar (`MainMenu`) and decides what can run over a
+  window's **document state** (`DocumentState`: pages, selection, busy, signing…); the command palette lists the menus so
+  built. Windows keeps its commands in the ribbon's XAML and each command's CanExecute.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

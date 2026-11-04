@@ -59,6 +59,8 @@ enum Report {
     private(set) static var onlyExport = false
     /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
     private(set) static var onlyAi = false
+    /// `--only-menus`: with `--edit`, only `MenuTest` (the menu bar and the palette listed, to diff a menu change by).
+    private(set) static var onlyMenus = false
     private(set) static var snapshots: String?
     /// `--ux-shots` (with `--snapshots <dir>` and `--synthetic`): only `UxShots`, the UX review's screens and audit.
     private(set) static var uxShots = false
@@ -101,6 +103,7 @@ enum Report {
         onlyView = args.contains("--only-view")
         onlyOcr = args.contains("--only-ocr")
         onlyExport = args.contains("--only-export")
+        onlyMenus = args.contains("--only-menus")
         snapshots = value("--snapshots")
         uxShots = args.contains("--ux-shots")
         uxMainOnly = args.contains("--ux-main")
@@ -215,6 +218,11 @@ enum Report {
                     var reading = ReadAloudTest(controller: controller, name: name)
                     await reading.run()
                 }
+            } else if edits && onlyMenus {
+                if controller.pdf.fileURL?.path == syntheticPath {
+                    var menus = MenuTest(controller: controller, name: name)
+                    await menus.run()
+                }
             } else if edits && onlyMeasure {
                 if controller.pdf.fileURL?.path != syntheticFormPath {
                     var measure = MeasureTest(controller: controller, name: name)
@@ -226,6 +234,8 @@ enum Report {
             } else if edits {
                 let openedFrom = controller.pdf.fileURL?.path
                 if openedFrom != nil && openedFrom == syntheticPath {
+                    var menus = MenuTest(controller: controller, name: name)
+                    await menus.run()
                     var accessible = AccessibleTest(controller: controller, name: name)
                     await accessible.run()
                     // Before FeatureTest recognizes the scan page; every step is undone.
@@ -296,7 +306,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !uxShots && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport {
+                    if edits && !uxShots && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport && !onlyMenus {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

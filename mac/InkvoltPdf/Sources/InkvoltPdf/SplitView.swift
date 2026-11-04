@@ -103,19 +103,12 @@ extension DocumentWindowController {
         window?.makeFirstResponder(activePages)
     }
 
-    /// The split commands' state: nil for any other item.
-    func validateSplitItem(_ item: NSMenuItem) -> Bool? {
+    /// The split commands' checkmarks (when they can run is the command table's: `DocumentCommands`).
+    func markSplitItem(_ item: NSMenuItem) {
         switch item.action {
-        case #selector(splitTopAndBottom(_:)):
-            item.state = splitMode == .topAndBottom ? .on : .off
-            return engine.pageCount > 0
-        case #selector(splitSideBySide(_:)):
-            item.state = splitMode == .sideBySide ? .on : .off
-            return engine.pageCount > 0
-        case #selector(removeSplit(_:)), #selector(switchPane(_:)):
-            return secondPages != nil
-        default:
-            return nil
+        case #selector(splitTopAndBottom(_:)): item.state = splitMode == .topAndBottom ? .on : .off
+        case #selector(splitSideBySide(_:)): item.state = splitMode == .sideBySide ? .on : .off
+        default: break
         }
     }
 

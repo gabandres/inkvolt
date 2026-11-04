@@ -175,7 +175,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         split.addSplitViewItem(readingOrder.panelItem)
         sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
         sidebar.dragSourceId = pdf.recoveryId
-        sidebar.canDropPages = { [weak self] in self.map { $0.pdf.session != nil && $0.longTask == nil && $0.progressSheet == nil } ?? false }
+        sidebar.canDropPages = { [weak self] in self.map { $0.pdf.session != nil && !$0.isBusy } ?? false }
         sidebar.onDropPages = { [weak self] source, pages, before in self?.dropPages(source, pages, before: before) }
         sidebar.onDropFiles = { [weak self] urls, before in self?.insertFiles(urls, at: before) }
         window.contentViewController = split
@@ -704,83 +704,69 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func nextComment(_ sender: Any?) { pages.selectNext(1) }
     @objc func previousComment(_ sender: Any?) { pages.selectNext(-1) }
 
+    /// A long task or a progress sheet is running: the commands that would start another wait (the busy rule).
+    var isBusy: Bool { longTask != nil || progressSheet != nil }
+
+    /// The window's state for the command table's rules (`DocumentCommands`). The selected text and the password scan are
+    /// read only for a command that needs them (a menu checks each of its items every time it opens).
+    func commandState(for command: DocumentCommand? = nil) -> DocumentState {
+        var s = DocumentState()
+        s.hasDocument = pdf.session != nil
+        s.pageCount = engine.pageCount
+        s.isBusy = isBusy
+        s.redactionRunning = redaction.task != nil
+        s.aiBusy = ai.isBusy
+        s.hasSelectedComment = pages.selectedId != nil
+        s.hasSavedFile = pdf.session?.filePath != nil
+        s.hasFormFields = !form.widgets.isEmpty
+        s.hasRedactionMarks = !pages.redactions.isEmpty
+        s.hasSearchMatches = !found.isEmpty
+        s.isSigning = signing.signing
+        s.hasSignatures = !signing.signatures.isEmpty
+        s.passwordSheetOpen = protectSheet != nil
+        s.organizerShown = organizerShown
+        s.splitShown = secondPages != nil
+        let needs = command?.needs ?? Requirement.allCases
+        if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
+        if needs.contains(.protected) { s.isProtected = pdf.session?.hasEncryption == true }
+        return s
+    }
+
+    /// Whether a menu item can run now: the command table says (an action it doesn't send, a tool's, always can); the
+    /// checkmarks and the titles that change are set here first.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if let split = validateSplitItem(item) { return split }
+        markMenuItem(item)
+        guard let action = item.action, let command = DocumentCommands.command(action: NSStringFromSelector(action)) else { return true }
+        return command.isEnabled(in: commandState(for: command))
+    }
+
+    /// A menu item's checkmark, and the titles that say what it will do (Show or Hide Markup Toolbar; Protect with
+    /// Password or Change Password Protection).
+    private func markMenuItem(_ item: NSMenuItem) {
+        markSplitItem(item)
         switch item.action {
         case #selector(toggleMarkup(_:)):
             item.title = toolStrip.isHidden ? "Show Markup Toolbar" : "Hide Markup Toolbar"
-            return pdf.session != nil && !organizerShown
-        case #selector(rotateViewClockwise(_:)), #selector(rotateViewCounterclockwise(_:)), #selector(goToPage(_:)):
-            return engine.pageCount > 0
         case #selector(singlePageMode(_:)), #selector(continuousMode(_:)), #selector(twoPagesMode(_:)), #selector(coverMode(_:)):
             let modes: [Selector: PagesView.ReadingMode] = [#selector(singlePageMode(_:)): .single, #selector(continuousMode(_:)): .continuous,
                                                             #selector(twoPagesMode(_:)): .twoPages, #selector(coverMode(_:)): .cover]
             item.state = item.action.flatMap { modes[$0] } == activePages.readingMode ? .on : .off
-            return engine.pageCount > 0
         case #selector(toggleDarkPages(_:)):
             item.state = AppSettings.darkPages ? .on : .off
-            return true
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
-            return true
         case #selector(toggleReadAloud(_:)):
             item.state = readAloud.isActive ? .on : .off
-            return engine.pageCount > 0
-        case #selector(setMeasuringScale(_:)):
-            return pdf.session != nil && engine.pageCount > 0
-        case #selector(aiSummarize(_:)):
-            return engine.pageCount > 0 && !ai.isBusy
-        case #selector(aiAsk(_:)):
-            return engine.pageCount > 0
-        case #selector(aiExplain(_:)):
-            return pages.selectedText != nil && !ai.isBusy
         case #selector(togglePrepareForm(_:)):
             item.state = design.isDesigning ? .on : .off
-            return pdf.session != nil
         case #selector(toggleReadingOrder(_:)):
             item.state = readingOrder.isShown ? .on : .off
-            return pdf.session != nil && longTask == nil && progressSheet == nil
-        case #selector(detectFormFields(_:)):
-            return pdf.session != nil && longTask == nil && progressSheet == nil
-        case #selector(openInspector(_:)), #selector(replyToSelected(_:)):
-            return pages.selectedId != nil
-        case #selector(linkSelectedText(_:)):
-            return pages.selectedText != nil
-        case #selector(reloadFromDisk(_:)):
-            return pdf.session?.filePath != nil
-        case #selector(resetForm(_:)), #selector(exportFormData(_:)), #selector(importFormData(_:)):
-            return !form.widgets.isEmpty
-        case #selector(recognizeText(_:)), #selector(exportWord(_:)), #selector(exportExcel(_:)), #selector(exportText(_:)),
-             #selector(exportPowerPoint(_:)), #selector(exportHtml(_:)),
-             #selector(checkRedaction(_:)), #selector(sanitizeDocument(_:)), #selector(redactByPattern(_:)), #selector(whatsInThisPdf(_:)),
-             #selector(checkAccessibility(_:)),
-             #selector(reduceFileSize(_:)), #selector(flattenDocument(_:)), #selector(addHeaderFooter(_:)), #selector(addWatermark(_:)),
-             #selector(removeHeaderFooter(_:)), #selector(removeWatermark(_:)), #selector(saveAsPdfA(_:)), #selector(saveAsPdfA2a(_:)), #selector(makeAccessible(_:)):
-            return longTask == nil && progressSheet == nil && redaction.task == nil
-        case #selector(applyRedactions(_:)), #selector(clearRedactionMarks(_:)):
-            return !pages.redactions.isEmpty && longTask == nil && progressSheet == nil
-        case #selector(redactSelectedText(_:)):
-            return pages.selectedText != nil
-        case #selector(redactSearchMatches(_:)):
-            return !found.isEmpty
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
-            return true
-        case #selector(deletePages(_:)), #selector(reversePageOrder(_:)):
-            return engine.pageCount > 1
-        case #selector(signDigitally(_:)):
-            return !signing.signing && longTask == nil && progressSheet == nil
-        case #selector(showSignatures(_:)):
-            return !signing.signatures.isEmpty
-        case #selector(showDocumentProperties(_:)):
-            return pdf.session != nil
-        case #selector(removeProtection(_:)):
-            return pdf.session?.hasEncryption == true
         case #selector(protectDocument(_:)):
             item.title = pdf.session?.hasEncryption == true ? "Change Password Protection…" : "Protect with Password…"
-            return protectSheet == nil
         default:
-            return true
+            break
         }
     }
 

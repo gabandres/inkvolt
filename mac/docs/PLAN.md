@@ -915,6 +915,20 @@ Decided 2026-11-03 in the Mac UX review's round 2 (`docs/UX-REVIEW.md`, branch `
 - `--ux-shots` also opens, shoots, audits and cancels every sheet and alert of the document window (`UxDialogs`);
   `--ux-main` leaves them out. `DialogNames` names a dialog's controls for VoiceOver from the labels beside them.
 
+Decided 2026-11-04 with the owner (architecture): Inkvolt PDF's menu bar comes from one **document command table**,
+`DocumentCommands` in PdfCore (`Ux/DocumentCommands.swift`, pdf/GLOSSARY.md): each command's title, key, place, action
+(the Objective-C selector's name), plain-words note and what it needs (`Requirement`, over a window's `DocumentState`).
+`MainMenu` builds the menus from it and `DocumentWindowController.validateMenuItem` asks it (it only sets checkmarks and
+the two titles that change); the busy rule (a long task or a progress sheet) is written once, `isBusy`. A new command is
+one row and its @objc method. The command palette keeps reading the menus built so, not the table alone: AppKit adds
+items a person sees and the palette offers (Close All, Start Dictation…, Emoji & Symbols) and retitles others (Hide
+Sidebar). Actions are names, so `MenuTest` checks each has a method and an item. Checked on ignia-mac: the menu bar dump
+(every item's title, key, modifiers, action, tag, tooltip, picture, state and whether it can run, for the synthetic
+document as opened and with its text selected, and the palette's 154 commands) identical before and after, but for the
+Window menu's checkmark on whichever window AppKit put in front; `DocumentCommandsTests` (11) and PdfCore's 1176 tests
+green with warnings as errors; the app built with the 150 ms flag, 0 warnings; `--self-test --edit --synthetic --quit`
+489 checks passed, 0 failed. Windows keeps its ribbon's XAML and each command's CanExecute.
+
 ### Comments and form data in and out (roadmap 1.4)
 
 - Stage A, 2026-11-03: `CommentFiles` in `PdfCore/Annotations` (`CommentFiles.swift`, `CommentFilesXfdf.swift`,
