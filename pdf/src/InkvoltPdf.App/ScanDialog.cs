@@ -653,15 +653,14 @@ internal sealed class ScanDialog : Window
                 try
                 {
                     // Suspect words marked as Recognize Text marks them (its choice), for the Suspect words pane.
-                    var options = new RecognizeOptions(CheckWords: AppSettings.Current.OcrSuspects);
-                    var spelling = options.CheckWords ? PageOcr.Spelling(ocr.Language) : null;
+                    var reader = PageOcr.Pages(ocr, new RecognizeOptions(CheckWords: AppSettings.Current.OcrSuspects));
                     var suspect = 0;
                     pdf = await Task.Run(() =>
                     {
-                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, Strings.Scan_Recognizing,
-                            options: options, spelling: spelling).Words;
-                        suspect = words.Values.Sum(w => w.Count(x => x.Suspect != SuspectReasons.None));
-                        return words.Count == 0 ? pdf : TextLayer.AddInvisibleText(pdf, null, words, ocr.Language);
+                        var read = reader.Recognize(pdf, null, [.. Enumerable.Range(0, pages.Count)], progress: DocumentTab.PageProgress(progress, Strings.Scan_Recognizing),
+                            cancel: progress.Token);
+                        suspect = read.SuspectCount;
+                        return read.Write(pdf, null);
                     }, progress.Token);
                     SuspectWords = suspect;
                 }

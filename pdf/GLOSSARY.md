@@ -62,6 +62,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Recognized page** (`Core/ScanText.cs`): one page through render, cleanup and recognizer, its words mapped back to the
   page (`ScanFrame`: through the quarter turns and the straightening, each word turned with the text), with its skew and
   turns.
+- **Page recognizer** (`PageRecognizer`, `Core/PageRecognizer.cs`): a recognizer with how it reads (`RecognizeOptions`: cleaned or
+  as scanned, suspect words, the cleaned pages kept) and the spell checker for its language, reading a document's pages
+  without text into words (`RecognizedPages`: the words per page, the pages that had text, the cleaned pages, the suspect
+  count), which it writes as the text layer. Recognize Text, Batch's Recognize Text (`BatchHost.Ocr`, as Recognize Text was
+  last set: `PageOcr.ForBatch`), File › Scan and the redacted pages (`Redaction.TextBack`) read through it.
 - **Text layer** (`Core/TextLayer.cs`): the invisible OCR text over a scanned page; it keeps its words, boxes, suspect
   marks and language in comment lines at its start, so it can be read back, reviewed and corrected in place.
 - **Suspect word** (`Core/SuspectWords.cs`): a recognized word worth a second look, found by a heuristic, never a
@@ -71,6 +76,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
   with where it is and its fix (redact, sanitize, rewrite). Runs after Apply, from Review › Check Redaction… and in Batch.
+- **Redact Patterns run** (`PatternRedaction`, `Core/PatternRedaction.cs`): one Redact Patterns after its hits were chosen
+  (accepted, skipped): the redaction, with the redacted pages' text recognized again (`Redaction.ApplyWithText`), run as one
+  edit the caller's way; then the read-back, the redaction check, its **verdict** (passed, still there, left in the file,
+  incomplete) and the removal report. Its **mode** says what checks it: **reviewed** (Review › Redact by Pattern: the full
+  check, only leftovers of what was removed fail) or **unattended** (Batch: the removed values only, anything found fails).
 - **Document inventory** (`Core/DocumentInventory.cs`, `InventoryReportFiles.cs`): "What's in this PDF": everything a
   file carries besides what its pages show (scripts and what they call, actions that run by themselves, addresses and
   whether they are reached without a click, attachments, metadata, signatures, earlier versions, hidden content, form

@@ -70,7 +70,7 @@ public sealed class RedactionCorpusTests : IDisposable
         var asked = new List<string>();
         var host = new BatchHost
         {
-            Recognizer = reader,
+            Ocr = new PageRecognizer(reader),
             AskPassword = (request, _) =>
             {
                 asked.Add(Path.GetFileName(request.File.Path));
@@ -108,7 +108,7 @@ public sealed class RedactionCorpusTests : IDisposable
 
     // ───────────── what OCR can't read ─────────────
 
-    private static byte[] OneScan(PlantedReader reader, out RectD dropped)
+    internal static byte[] OneScan(PlantedReader reader, out RectD dropped)
     {
         var source = Core2Pdf.Build(
         [
@@ -264,7 +264,7 @@ public sealed class RedactionCorpusTests : IDisposable
         var path = Path.Combine(_root, "scan.pdf");
         File.WriteAllBytes(path, OneScan(inner, out _));
         var plan = new BatchPlan { Steps = [new RedactPatternsStep(new RedactionPatternOptions())], OutputFolder = Path.Combine(_root, "out") };
-        var summary = await BatchRunner.RunAsync([new BatchFile(path)], plan, new BatchHost { Recognizer = new AlwaysReads() }, null, default);
+        var summary = await BatchRunner.RunAsync([new BatchFile(path)], plan, new BatchHost { Ocr = new PageRecognizer(new AlwaysReads()) }, null, default);
         var item = Assert.Single(summary.Items);
         Assert.Equal(BatchItemState.Failed, item.State);
         Assert.Contains("still there", item.Message);

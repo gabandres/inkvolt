@@ -186,8 +186,7 @@ public static class BatchCommandLine
         }
         host = new BatchHost
         {
-            Recognize = host.Recognize,
-            Recognizer = host.Recognizer,
+            Ocr = host.Ocr,
             LongTermClient = request.Online ? host.LongTermClient ?? (() => new LtvClient()) : null,
             IsOnline = host.IsOnline,
         };
@@ -213,7 +212,7 @@ public static class BatchCommandLine
         }
         outFolder = Path.GetFullPath(outFolder);
         var plan = preset.ToPlan(outFolder) with { Passwords = PasswordPolicy.Skip };
-        if (plan.Validate(host.Recognize is not null) is { } planError)
+        if (plan.Validate(host.Ocr is not null) is { } planError)
         {
             error.WriteLine($"The preset can't run: {planError}");
             return Wrong;

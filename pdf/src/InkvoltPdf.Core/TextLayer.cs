@@ -11,7 +11,11 @@ namespace InkvoltPdf.Core;
 /// box is the word's own, level box, turned <paramref name="Angle"/> degrees clockwise about its centre (a word on a
 /// skewed scan runs at the scan's skew). <paramref name="Suspect"/>: why it is a suspect word, if it is one.
 /// </summary>
-public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectReasons Suspect = SuspectReasons.None);
+public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectReasons Suspect = SuspectReasons.None)
+{
+    /// <summary>A suspect word (<see cref="Suspect"/> has a reason): listed in the Suspect words pane.</summary>
+    public bool IsSuspect => Suspect != SuspectReasons.None;
+}
 
 /// <summary>A page's Inkvolt text layer as read back: its words, and the language they were recognized in (when known).</summary>
 public sealed record OcrLayer(List<OcrWord> Words, string? Language);
@@ -68,7 +72,7 @@ public static class TextLayer
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
         for (var i = 0; i < doc.PageCount; i++)
-            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { } words && words.Any(w => w.Suspect != SuspectReasons.None))
+            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { } words && words.Any(w => w.IsSuspect))
                 return true;
         return false;
     }

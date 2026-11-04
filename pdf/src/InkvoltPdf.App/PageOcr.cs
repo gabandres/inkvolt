@@ -92,9 +92,21 @@ internal static class PageOcr
 
     public static string Unavailable => Strings.Ocr_NoLanguage;
 
+    /// <summary>A page recognizer reading as <paramref name="options"/> say, with the spell checker for its language when they mark suspect words.</summary>
+    public static PageRecognizer Pages(ITextRecognizer ocr, RecognizeOptions options) =>
+        new(ocr, options, options.CheckWords ? Spelling(ocr.Language) : null);
+
+    /// <summary>
+    /// Batch's text recognition (the Batch window, a watched folder, the command line): <paramref name="ocr"/> one call at a
+    /// time (the files running together share it), reading as Recognize Text was last set: cleaned or as scanned
+    /// (<see cref="AppSettings.OcrClean"/>), suspect words marked or not (<see cref="AppSettings.OcrSuspects"/>). Null without one.
+    /// </summary>
+    public static PageRecognizer? ForBatch(WindowsRecognizer? ocr) => ocr is null ? null
+        : Pages(new SerialRecognizer(ocr, new Lock()), new RecognizeOptions(Clean: AppSettings.Current.OcrClean, CheckWords: AppSettings.Current.OcrSuspects));
+
     /// <summary>
     /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, nothing written
-    /// back. With <paramref name="suspects"/> (Batch, export: Recognize Text's choice, <see cref="AppSettings.OcrSuspects"/>),
+    /// back. With <paramref name="suspects"/> (export: Recognize Text's choice, <see cref="AppSettings.OcrSuspects"/>),
     /// suspect words are marked as Recognize Text marks them, with the spell checker for the recognizer's language; without
     /// (Compare, re-recognizing after redaction), none are.
     /// </summary>

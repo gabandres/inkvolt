@@ -433,18 +433,11 @@ public sealed class BatchTests : IDisposable
     public async Task OcrUsesTheHostsRecognizerOnPagesWithoutText()
     {
         var scan = Put("in/scan.png", TestImages.Png(200, 100, (_, _) => (255, 255, 255, 255)));
-        var calls = 0;
-        var host = new BatchHost
-        {
-            Recognize = (engine, page, _) =>
-            {
-                Interlocked.Increment(ref calls);
-                return [new OcrWord("Recognized", new RectD(10, 10, 80, 12))];
-            },
-        };
+        var reader = new WordsReader(("Recognized", new RectD(40, 40, 300, 50)));
+        var host = new BatchHost { Ocr = new PageRecognizer(reader, RecognizeOptions.AsScanned) };
         var summary = await Run([scan, Put("in/text.pdf", TestPdf.Make(1))], Plan(new OcrStep(), new ExportStep(BatchExportFormat.Text)), host);
         Assert.Equal(2, summary.Done);
-        Assert.Equal(1, calls); // the PDF with text isn't recognized
+        Assert.Equal(1, reader.Calls); // the PDF with text isn't recognized
         Assert.Contains("Recognized", File.ReadAllText(Path.Combine(Out, "scan.txt")));
     }
 
@@ -452,31 +445,38 @@ public sealed class BatchTests : IDisposable
     public async Task OcrKeepsTheRecognizersSuspectWordsForReview()
     {
         var scan = Put("in/scan.png", TestImages.Png(200, 100, (_, _) => (255, 255, 255, 255)));
-        var host = new BatchHost
-        {
-            Recognize = (_, _, _) =>
-            [
-                new OcrWord("Recognized", new RectD(10, 10, 80, 12)),
-                new OcrWord("c0de", new RectD(10, 30, 40, 12), Suspect: SuspectReasons.LettersAndDigits),
-                new OcrWord("riv;er", new RectD(60, 30, 40, 12), Suspect: SuspectReasons.OddCharacters | SuspectReasons.NotInDictionary),
-            ],
-            RecognizeLanguage = "en-US",
-        };
+        // Marked as Recognize Text marks them (as scanned here, so the stand-in is read once), with the dictionary for its language.
+        var reader = new WordsReader(("Recognized", new RectD(40, 40, 300, 50)), ("c0de", new RectD(40, 120, 150, 50)), ("riv;er", new RectD(240, 120, 150, 50)), ("rivr", new RectD(440, 120, 150, 50)));
+        var host = new BatchHost { Ocr = new PageRecognizer(reader, new RecognizeOptions(Clean: false), new WordsReader.Dictionary("Recognized")) };
         var summary = await Run([scan], Plan(new OcrStep()), host);
         var item = Assert.Single(summary.Items);
-        Assert.Contains(item.Notes, n => n.StartsWith("2 suspect words to check", StringComparison.Ordinal));
+        Assert.Contains(item.Notes, n => n.StartsWith("3 suspect words to check", StringComparison.Ordinal));
         // In the text layer as Recognize Text writes them: the Suspect words pane lists them when the file is opened.
         var output = File.ReadAllBytes(Path.Combine(Out, "scan.pdf"));
         Assert.True(TextLayer.HasSuspectWords(output, null));
         var layer = TextLayer.Words(output, null)[0];
         Assert.Equal("en-US", layer.Language);
-        Assert.Equal([SuspectReasons.None, SuspectReasons.LettersAndDigits, SuspectReasons.OddCharacters | SuspectReasons.NotInDictionary], layer.Words.Select(w => w.Suspect));
+        Assert.Equal([SuspectReasons.None, SuspectReasons.LettersAndDigits, SuspectReasons.OddCharacters, SuspectReasons.NotInDictionary], layer.Words.Select(w => w.Suspect));
 
         // None marked: no note, nothing to review.
         Directory.Delete(Out, true);
-        var plain = await Run([scan], Plan(new OcrStep()), new BatchHost { Recognize = (_, _, _) => [new OcrWord("Recognized", new RectD(10, 10, 80, 12))] });
+        var plain = await Run([scan], Plan(new OcrStep()), new BatchHost { Ocr = new PageRecognizer(new WordsReader(("Recognized", new RectD(40, 40, 300, 50))), new RecognizeOptions(Clean: false), new WordsReader.Dictionary("Recognized")) });
         Assert.DoesNotContain(plain.Items[0].Notes, n => n.Contains("suspect", StringComparison.Ordinal));
         Assert.False(TextLayer.HasSuspectWords(File.ReadAllBytes(Path.Combine(Out, "scan.pdf")), null));
+    }
+
+    [Fact]
+    public async Task OcrReadsAsTheHostsRecognizerIsSetCleanedOrAsScanned()
+    {
+        var scan = Put("in/scan.png", TestImages.Png(200, 100, (_, _) => (255, 255, 255, 255)));
+        var asScanned = new WordsReader(("Recognized", new RectD(40, 40, 300, 50)));
+        await Run([scan], Plan(new OcrStep()), new BatchHost { Ocr = new PageRecognizer(asScanned, new RecognizeOptions(Clean: false, CheckWords: false)) });
+        Assert.Equal([3], asScanned.Channels); // the page as rendered, once
+
+        Directory.Delete(Out, true);
+        var cleaned = new WordsReader(("Recognized", new RectD(40, 40, 300, 50)));
+        await Run([scan], Plan(new OcrStep()), new BatchHost { Ocr = new PageRecognizer(cleaned, new RecognizeOptions(CheckWords: false)) });
+        Assert.All(cleaned.Channels, c => Assert.Equal(1, c)); // the cleaned page, grey
     }
 
     [Fact]
@@ -487,14 +487,16 @@ public sealed class BatchTests : IDisposable
         var most = 0;
         var host = new BatchHost
         {
-            Recognize = (_, _, _) =>
+            Ocr = new PageRecognizer(new WordsReader
             {
-                var now = Interlocked.Increment(ref running);
-                lock (files) most = Math.Max(most, now);
-                Thread.Sleep(60);
-                Interlocked.Decrement(ref running);
-                return [];
-            },
+                OnRead = _ =>
+                {
+                    var now = Interlocked.Increment(ref running);
+                    lock (files) most = Math.Max(most, now);
+                    Thread.Sleep(60);
+                    Interlocked.Decrement(ref running);
+                },
+            }, RecognizeOptions.AsScanned),
         };
         // Pages with text aren't recognized, so give them a blank page to recognize.
         var blank = files.Select((f, i) => Put($"in/b{i}.png", TestImages.Png(10, 10, (_, _) => (255, 255, 255, 255)))).ToList();
@@ -510,12 +512,14 @@ public sealed class BatchTests : IDisposable
         using var cts = new CancellationTokenSource();
         var host = new BatchHost
         {
-            Recognize = (_, _, token) =>
+            Ocr = new PageRecognizer(new WordsReader
             {
-                cts.Cancel();
-                token.ThrowIfCancellationRequested();
-                return [];
-            },
+                OnRead = token =>
+                {
+                    cts.Cancel();
+                    token.ThrowIfCancellationRequested();
+                },
+            }, RecognizeOptions.AsScanned),
         };
         var summary = await Run(files, Plan(new OcrStep()) with { MaxParallel = 1 }, host, cancel: cts.Token);
         Assert.Equal(6, summary.Cancelled);

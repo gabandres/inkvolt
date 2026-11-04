@@ -1312,17 +1312,19 @@ public partial class DocumentTab
         var earlier = Viewer.Redactions.ToList();
         if (RedactReviewDialog.Show(owner, this, found, earlier) is not { } review) return false;
         var name = Session.DisplayName;
-        if (review.Accepted.Count == 0 && review.LookAreas.Count == 0 && review.EarlierApplied.Count == 0)
+        var run = new PatternRedaction(name, options, found, review.Accepted, review.Skipped, PatternRedactionMode.Reviewed, PageOcr.For(AppSettings.Current.OcrLanguage))
         {
-            var nothing = new RedactionFileReport(name, [.. review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))], found.Looks, null);
-            RedactionReportDialog.Show(owner, new RedactionReport([nothing]), Path.GetFileNameWithoutExtension(name));
+            Marked = [.. review.LookAreas.Concat(review.EarlierApplied).Select(m => (m.PageIndex, m.Rect))],
+        };
+        if (run.Areas.Count == 0)
+        {
+            RedactionReportDialog.Show(owner, new RedactionReport([run.Report()]), Path.GetFileNameWithoutExtension(name));
             return false;
         }
 
-        var marks = review.Accepted.SelectMany(m => RedactionSearch.Areas([m]).SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r)))).Concat(review.LookAreas).ToList();
         var before = Session.Data;
         Viewer.ClearRedactions();
-        Viewer.AddRedactions(marks.Concat(review.EarlierApplied));
+        Viewer.AddRedactions(run.Areas.SelectMany(kv => kv.Value.Select(r => new RedactMark(kv.Key, r))));
         if (!await ApplyRedactions(confirm: false, check: false))
         {
             Viewer.ClearRedactions();
@@ -1332,13 +1334,12 @@ public partial class DocumentTab
 
         // What the person unticked stays a mark, not applied.
         if (review.EarlierKept.Count > 0) Viewer.AddRedactions(review.EarlierKept);
-        var areas = marks.Concat(review.EarlierApplied).GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
-        var (read, check, checkOptions) = await ReadBackPatterns(options, review, found, areas, before);
+        var (read, outcome) = await ReadBackPatterns(run, before);
         var report = read with { MarkedAreas = review.EarlierApplied.Count };
         LastRedactionReport = report;
         RedactionReportDialog.Show(owner, new RedactionReport([report]), Path.GetFileNameWithoutExtension(name));
         // What is left outside the pages has a fix of its own, the check's.
-        if (check is { IsClean: false } && !IsDisposed) await RedactionCheckActions.Show(this, check, checkOptions);
+        if (outcome?.Check is { IsClean: false } check && !IsDisposed) await RedactionCheckActions.Show(this, check, outcome.CheckOptions);
         return true;
     }
 
@@ -1346,50 +1347,30 @@ public partial class DocumentTab
     internal RedactionFileReport? LastRedactionReport { get; private set; }
 
     /// <summary>
-    /// Reads the redacted document back, searches it again, then looks for what was removed everywhere else in the file. A
-    /// remaining hit, or a read-back that didn't finish, is the report's failure. Skipped hits don't count: the person kept them.
+    /// Reads the redacted document back, searches it again, then looks for what was removed everywhere else in the file
+    /// (<see cref="PatternRedaction.Verify"/>). A remaining hit, a leftover, or a read-back that didn't finish is the report's
+    /// failure. Skipped hits don't count: the person kept them.
     /// </summary>
-    private async Task<(RedactionFileReport Report, RedactionCheckReport? Check, RedactionCheckOptions Options)> ReadBackPatterns(
-        RedactionPatternOptions options, RedactReview review, RedactionSearchResult found, Dictionary<int, IReadOnlyList<RectD>> areas, byte[] before)
+    private async Task<(RedactionFileReport Report, PatternRedactionOutcome? Outcome)> ReadBackPatterns(PatternRedaction run, byte[] before)
     {
         var data = Session.Data;
         var password = Session.Password;
-        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
-        var kept = RedactionSearch.Values(review.Skipped);
-        var skippedKeys = new HashSet<string>(kept, StringComparer.OrdinalIgnoreCase);
-        var checkOptions = new RedactionCheckOptions
-        {
-            Values = [.. RedactionSearch.SoughtValues(review.Accepted).Where(v => !skippedKeys.Contains(v))],
-            Kept = kept,
-            Areas = areas,
-            Original = before,
-            Patterns = options,
-        };
-        var rows = review.Accepted.Select(h => RedactionReport.Row(h, RedactionOutcome.Removed)).Concat(review.Skipped.Select(h => RedactionReport.Row(h, RedactionOutcome.Kept))).ToList();
-        var name = Session.DisplayName;
-        string? failure = null;
-        RedactionCheckReport? check = null;
+        string? failure;
+        PatternRedactionOutcome? outcome = null;
         using var prompt = new ProgressPrompt(Window.GetWindow(this), Strings.Review_RedactPatternTitle, Strings.Review_ReadingBack);
         try
         {
             var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Review_ReadingBackPage, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
-            var remaining = await Task.Run(() =>
-            {
-                // A page the app has just recognized has its words again in the text; one without (no OCR, or OCR cancelled) is read now.
-                using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password);
-                var unread = areas.Keys.Where(p => p < engine.PageCount && !TextLayer.HasText(engine, p)).ToHashSet();
-                return RedactionSearch.ReadBack(data, password, options, ocr, unread, review.Skipped, progress, prompt.Token);
-            }, prompt.Token);
-            if (remaining.Count > 0)
-            {
-                rows.AddRange(remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere)));
-                failure = Loc.Plural(remaining.Count, Strings.Review_StillThere_One, Strings.Review_StillThere_Many, RedactionReport.Pages(remaining.Select(h => h.Page)));
-            }
-            prompt.Report(Strings.Review_LookingThroughRest, 1);
-            check = await Task.Run(() => RedactionCheck.Run(data, password, checkOptions, null, prompt.Token), prompt.Token);
+            outcome = await Task.Run(() => run.Verify(data, password, before, progress, () => prompt.Report(Strings.Review_LookingThroughRest, 1), prompt.Token), prompt.Token);
             // Only what was removed being left fails it; what else the check finds in the file opens its own report next.
-            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= Loc.Format(Strings.Review_ElsewhereInFile, check.Summary);
-            else if (check.Incomplete) failure ??= string.Join(" ", check.Notes);
+            failure = outcome.Verdict switch
+            {
+                PatternRedactionVerdict.StillThere => Loc.Plural(outcome.StillThere.Count, Strings.Review_StillThere_One, Strings.Review_StillThere_Many,
+                    RedactionReport.Pages(outcome.StillThere.Select(h => h.Page))),
+                PatternRedactionVerdict.LeftInFile => Loc.Format(Strings.Review_ElsewhereInFile, outcome.Check!.Summary),
+                PatternRedactionVerdict.Incomplete => string.Join(" ", outcome.Check!.Notes),
+                _ => null,
+            };
         }
         catch (OperationCanceledException)
         {
@@ -1400,7 +1381,8 @@ public partial class DocumentTab
             Log.Write($"Reading a redaction back failed: {ex.GetType().Name}");
             failure = Strings.Review_ReadBackFailed;
         }
-        return (new RedactionFileReport(name, rows, found.Looks, failure), check, checkOptions);
+        // Stopped after the read-back, what it found again is still in the report.
+        return ((outcome?.Report ?? run.Report(run.StillThere)) with { Failure = failure }, outcome);
     }
 
     public bool HasSearchResults => _results.Count > 0;
@@ -1425,7 +1407,6 @@ public partial class DocumentTab
         var before = Session.Data;
         var values = check && Viewer.Engine is { } engine ? RedactionCheck.ValuesUnder(engine, areas) : [];
         var ocr = PageOcr.Engine;
-        var recognized = 0;
         var ocrSkipped = false;
         var ok = await RunEdit(Loc.Plural(marks.Count, Strings.Review_UndoRedact_One, Strings.Review_UndoRedact_Many), (d, pw) =>
         {
@@ -1436,14 +1417,9 @@ public partial class DocumentTab
             var progress = Dispatcher.Invoke(() => new ProgressPrompt(Window.GetWindow(this), Strings.Review_ApplyingTitle, Strings.Review_RecognizingText));
             try
             {
-                var words = RecognizePages(ocr, redacted, pw, pages, progress, Strings.Review_RecognizingRedacted, areas).Words;
-                recognized = words.Values.Sum(w => w.Count);
-                return recognized == 0 ? redacted : TextLayer.AddInvisibleText(redacted, pw, words);
-            }
-            catch (OperationCanceledException)
-            {
-                ocrSkipped = true;
-                return redacted;
+                var read = Redaction.TextBack(redacted, pw, areas, ocr, PageProgress(progress, Strings.Review_RecognizingRedacted), progress.Token);
+                ocrSkipped = read.TextSkipped;
+                return read.Data;
             }
             finally
             {
@@ -1569,8 +1545,7 @@ public partial class DocumentTab
         settings.OcrSuspects = suspects.IsChecked == true;
         settings.Save();
         var ocr = PageOcr.For(settings.OcrLanguage) ?? fallback;
-        var options = new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: writeBack.IsChecked == true);
-        var spelling = options.CheckWords ? PageOcr.Spelling(ocr.Language) : null;
+        var reader = PageOcr.Pages(ocr, new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: writeBack.IsChecked == true));
 
         var found = 0;
         var suspect = 0;
@@ -1583,14 +1558,13 @@ public partial class DocumentTab
             var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, Strings.Review_RecognizingTitle, Strings.Review_Starting));
             try
             {
-                var result = RecognizePages(ocr, d, pw, chosenPages, progress, Strings.Review_RecognizingTitle, options: options, spelling: spelling);
+                var result = reader.Recognize(d, pw, chosenPages, progress: PageProgress(progress, Strings.Review_RecognizingTitle), cancel: progress.Token);
                 hadText = result.HadText;
                 pagesWithWords = result.Words.Count;
-                found = result.Words.Values.Sum(w => w.Count);
-                suspect = result.Words.Values.Sum(w => w.Count(x => x.Suspect != SuspectReasons.None));
+                found = result.WordCount;
+                suspect = result.SuspectCount;
                 replaced = result.Cleaned.Count;
-                if (replaced > 0) d = ScanPage.WriteBack(d, pw, result.Cleaned);
-                return found == 0 ? d : TextLayer.AddInvisibleText(d, pw, result.Words, ocr.Language);
+                return result.Write(d, pw);
             }
             finally
             {
@@ -1632,46 +1606,7 @@ public partial class DocumentTab
         }
     }
 
-    /// <summary>What <see cref="RecognizePages"/> found: words per page, how many pages already had text, cleaned pages to write back.</summary>
-    internal sealed record RecognizedPages(Dictionary<int, IReadOnlyList<OcrWord>> Words, int HadText, Dictionary<int, CleanedPageImage> Cleaned);
-
-    /// <summary>
-    /// OCR of <paramref name="pages"/> in <paramref name="data"/> (runs on a worker thread). Pages that already have text are
-    /// skipped; words mostly inside a <paramref name="exclude"/> area (blacked-out redactions) are dropped. Without
-    /// <paramref name="options"/>: cleaned pages, no suspect words, nothing to write back.
-    /// </summary>
-    /// <exception cref="OperationCanceledException">The user pressed Cancel in <paramref name="progress"/>.</exception>
-    internal static RecognizedPages RecognizePages(InkvoltPrint.Core.Imaging.ITextRecognizer ocr, byte[] data, string? pw, IReadOnlyList<int> pages,
-        ProgressPrompt progress, string title, IReadOnlyDictionary<int, IReadOnlyList<RectD>>? exclude = null, RecognizeOptions? options = null,
-        InkvoltPrint.Core.Imaging.ISpelling? spelling = null)
-    {
-        options ??= new RecognizeOptions(CheckWords: false);
-        var result = new Dictionary<int, IReadOnlyList<OcrWord>>();
-        var cleaned = new Dictionary<int, CleanedPageImage>();
-        var hadText = 0;
-        using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, pw);
-        for (var i = 0; i < pages.Count; i++)
-        {
-            progress.Token.ThrowIfCancellationRequested();
-            progress.Report(Loc.Format(Strings.Review_OcrProgress, title, i + 1, pages.Count), (double)i / pages.Count);
-            var page = pages[i];
-            if (page < 0 || page >= engine.PageCount) continue;
-            if (TextLayer.HasText(engine, page))
-            {
-                hadText++;
-                continue;
-            }
-            var read = ScanText.Recognize(engine, page, ocr, options, spelling, progress.Token);
-            var words = read.Words.ToList();
-            if (exclude is not null && exclude.TryGetValue(page, out var blacked))
-                // A letter or two touching a black box is a recognizer reading the box's edge, not a word.
-                words.RemoveAll(w => blacked.Any(b => Overlap(w.Rect, b) > (w.Text.Trim().Length <= 2 ? 0 : 0.3 * w.Rect.Width * w.Rect.Height)));
-            if (words.Count > 0) result[page] = words;
-            if (read.Cleaned is { } image) cleaned[page] = image;
-        }
-        return new RecognizedPages(result, hadText, cleaned);
-
-        static double Overlap(RectD a, RectD b) =>
-            Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X)) * Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y));
-    }
+    /// <summary>A page recognizer's progress in <paramref name="prompt"/>: "<paramref name="title"/>: page 3 of 10".</summary>
+    internal static IProgress<(int Done, int Total)> PageProgress(ProgressPrompt prompt, string title) =>
+        new DirectProgress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Review_OcrProgress, title, p.Done + 1, p.Total), (double)p.Done / p.Total));
 }

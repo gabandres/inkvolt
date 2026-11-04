@@ -43,7 +43,7 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         var path = Path.Combine(_root, $"in{Guid.NewGuid():N}.pdf");
         File.WriteAllBytes(path, pdf);
         var plan = new BatchPlan { Steps = [new RedactPatternsStep(options ?? new RedactionPatternOptions())], OutputFolder = Path.Combine(_root, "out") };
-        return await BatchRunner.RunAsync([new BatchFile(path)], plan, new BatchHost { Recognizer = ocr }, null, default);
+        return await BatchRunner.RunAsync([new BatchFile(path)], plan, new BatchHost { Ocr = ocr is null ? null : new PageRecognizer(ocr) }, null, default);
     }
 
     private static void Fails(BatchSummary summary) => Assert.True(summary.Items[0].State == BatchItemState.Failed, $"{summary.Items[0].State}: {summary.Items[0].Message}");

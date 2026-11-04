@@ -157,7 +157,7 @@ public partial class DocumentTab
                     }
                 });
                 var items = layers.OrderBy(kv => kv.Key)
-                    .SelectMany(kv => kv.Value.Words.Select((w, i) => (w, i)).Where(x => x.w.Suspect != SuspectReasons.None)
+                    .SelectMany(kv => kv.Value.Words.Select((w, i) => (w, i)).Where(x => x.w.IsSuspect)
                         .Select(x => new SuspectWordItem(kv.Key, x.i, x.w, PageLabel(kv.Key), kv.Value.Language)))
                     .ToList();
                 SuspectList.ItemsSource = items;
