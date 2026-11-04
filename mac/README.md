@@ -1,7 +1,7 @@
 # Inkvolt for macOS
 
 Native Swift versions of the Inkvolt apps. Inkvolt PDF for Mac (notarized download, AGPL because of MuPDF) is released,
-1.6.1 the latest; Inkvolt Print for Mac (MIT) is in the [Mac App Store](https://apps.apple.com/app/id6827219248) (1.0, approved 2026-11-04), and its further
+1.7.0 the latest; Inkvolt Print for Mac (MIT) is in the [Mac App Store](https://apps.apple.com/app/id6827219248) (1.0, approved 2026-11-04), and its further
 work is on hold (owner, 2026-11-02). Plan and status: [`docs/PLAN.md`](docs/PLAN.md).
 
 | Folder | What |

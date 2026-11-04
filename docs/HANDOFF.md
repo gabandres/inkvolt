@@ -2,11 +2,7 @@
 
 ## Start here (next session)
 
-**State on 2026-11-04 (afternoon).** Master is green on `6bb2a25` (CI `test`); later pushes are listed under Done on
-2026-11-04. Nothing is running. **Nothing is
-released since Mac 1.6.1**: on master and not shipped are Inkvolt PDF for Windows' Spanish interface, Batch's long-term
-action, field locking, the Flate limits and the 2026-11-03 fixes (Windows), and Mac comments and form data (roadmap 1.4).
-**No release without the owner** (when asked: Store `packaging/pack-msix.ps1`; Mac `INKVOLT_PUBLISH=yes release.sh <v>
+**State on 2026-11-04 (evening).** Released today (owner): **Inkvolt PDF 1.7.0.0** submitted to the Store (`5094fc8`, tag and GitHub release `pdf-v1.7.0.0`; Spanish interface, OCR 2.2, field locking, Batch's long-term action, the Flate limits; release notes en-us and es; the es description no longer says the app is in English) and **Inkvolt PDF for Mac 1.7.0** published (`pdf-mac-v1.7.0`, notarized DMG sha256 df78e9bf…d1d07a, appcast, Homebrew cask, website; comments and form data, the shared Pro key; the notarized app checked on ignia-mac: Gatekeeper accepts it, the app-group entitlement is there, it runs). Inkvolt Print for Mac 1.3 and 1.5 merged (`a986c6a`). Left from the Store listing: the es description still names What's in This PDF and Sanitize in English (`pdf/packaging/README.md`). **No release without the owner** (when asked: Store `packaging/pack-msix.ps1`; Mac `INKVOLT_PUBLISH=yes release.sh <v>
 --publish`, then the Homebrew tap `gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.6.1 was).
 
 **Accounts (owner, 2026-11-03).** PPE is for PPE-Development: start no agent on PPE (`claudeAgent`) unless the owner says
@@ -23,8 +19,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 ### What's left, in order
 
 **Owner first (no agent can do these).**
-1. Decide the next PDF release (Windows Store and Mac). The owner OK'd the Spanish wording and the Mac UI on 2026-11-04.
-   When Spanish ships, remove "La aplicación está en inglés." from the Store listing in Partner Center.
+1. Done 2026-11-04: PDF 1.7.0.0 (Store) and Mac 1.7.0. Check certification: `msstore submission status 9MXDTSFJ9W28`.
 
 **Inkvolt PDF for Mac.**
 1. Redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
