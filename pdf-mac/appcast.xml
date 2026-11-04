@@ -6,6 +6,19 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.6.1</title>
+      <pubDate>Wed, 04 Nov 2026 00:19:37 GMT</pubDate>
+      <sparkle:version>1.6.1</sparkle:version>
+      <sparkle:shortVersionString>1.6.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Fixes for three problems a damaged or unusual file, or an unusual value, could cause.
+
+- Go to Page no longer hangs on a PDF with thousands of page-number styles or a very long page-label prefix.
+- Typing "inf" or a huge number as a watermark's picture width no longer makes Add Watermark quit the app the next time; Crop Pages refuses it too.
+- Document Properties stays on screen for a PDF whose producer or creator text is very long: it's shortened on one line.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.6.1/Inkvolt-PDF-1.6.1.dmg" length="36868710" type="application/octet-stream" sparkle:edSignature="Vj9heuUhuzWuXzp+aF2SIu4fMX7YyJF0s842LycHd59x/aQaVao3HnY0rztXLQwAyAnQOisTl3HfUTs1rzv/BQ==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.6.0</title>
       <pubDate>Tue, 03 Nov 2026 23:16:22 GMT</pubDate>
       <sparkle:version>1.6.0</sparkle:version>
