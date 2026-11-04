@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.6.1
 - Typing "inf" or a huge number as a watermark's picture width no longer makes Add Watermark quit the app the next time; Crop Pages refuses it too.
 - Document Properties stays on screen for a PDF whose producer or creator text is very long: it's shortened on one line.
 - Go to Page no longer hangs on a PDF with thousands of page-number styles or a very long page-label prefix.

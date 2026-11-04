@@ -77,7 +77,7 @@ PDF. It's AGPL, notarized, updates through Sparkle, and has no account or teleme
 It's a port of the Windows app and doesn't have everything yet (no two-page view, rotate view or dark pages, no
 comment import or export, no long-term signatures so far); the Mac's What's New lists what's there.
 
-Download (official): https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0 · Homebrew:
+Download (official): https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.6.1 · Homebrew:
 `brew install --cask gabandres/inkvolt/inkvolt-pdf` · Free, no in-app purchase.
 
 ---

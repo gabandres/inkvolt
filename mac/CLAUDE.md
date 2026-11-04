@@ -1,7 +1,7 @@
 # Inkvolt for macOS
 
 Native Swift versions of Inkvolt Print (Mac App Store; 1.0 in App Review, further work on hold, owner 2026-11-02) and
-Inkvolt PDF (notarized DMG, released; 1.6.0). Decisions, scope,
+Inkvolt PDF (notarized DMG, released; 1.6.1). Decisions, scope,
 layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 

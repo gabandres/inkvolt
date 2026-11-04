@@ -178,8 +178,8 @@ and a person to allow the Automation prompt; do it on the mini.
 
 ### Notes
 
-**Released and current.** Inkvolt Print 1.3.0.0 submitted to the Store 2026-11-03 (Spanish interface, the Print button on small screens and Windows 10, Plugged in needs its driver, USB supply levels, SNMP community and SNMPv3; certification pending: `msstore submission status 9PNR76HJ62SK`). Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
-1.5.0 (GitHub release `pdf-mac-v1.5.0`, Homebrew). The Store's release notes are in English and Spanish; Inkvolt Print for
+**Released and current.** Inkvolt Print 1.3.0.0 published in the Store 2026-11-03 (Spanish interface, the Print button on small screens and Windows 10, Plugged in needs its driver, USB supply levels, SNMP community and SNMPv3). Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
+1.6.1 (GitHub release `pdf-mac-v1.6.1`, 2026-11-03, Homebrew, website). The Store's release notes are in English and Spanish; Inkvolt Print for
 Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). **Open: Inkvolt PDF's Spanish interface**, its own project, not started (`UiLanguage` in
 `shared/` is ready for it, `CoreLanguage.Use` opts it into the shared library's Spanish), the same for the Mac apps, and What's New in Spanish.
 

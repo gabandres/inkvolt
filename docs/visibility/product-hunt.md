@@ -29,7 +29,7 @@ real, with a check that nothing is left. Free, AGPL, no account, no ads, no tele
 
 - Website: https://bermudezsystems.com/products/inkvolt/
 - Windows: https://apps.microsoft.com/detail/9MXDTSFJ9W28
-- Mac: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.5.0
+- Mac: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.6.1
 - Source: https://github.com/gabandres/inkvolt
 - Pricing: Free (the Pro page says what a one-time $19 will unlock later: https://bermudezsystems.com/products/inkvolt/pro/)
 
